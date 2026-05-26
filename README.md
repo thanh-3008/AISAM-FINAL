@@ -1,40 +1,38 @@
-SOFTWARE REQUIREMENT SPECIFICATION (SRS)
-AI-POWERED SOCIAL MEDIA ADVERTISING MANAGER (AISAM)
-BẢN HỢP NHẤT GIỮA SOURCE CODE HIỆN TẠI VÀ ĐỊNH HƯỚNG PHÁT TRIỂN TƯƠNG LAI
+# SOFTWARE REQUIREMENT SPECIFICATION (SRS)
+## AI-POWERED SOCIAL MEDIA ADVERTISING MANAGER (AISAM)
+### BAN HOP NHAT GIUA SOURCE CODE HIEN TAI VA DINH HUONG PHAT TRIEN TUONG LAI
 
-Document Control
-Tài liệu này được xây dựng theo nguyên tắc source code hiện tại là baseline triển khai. Các chức năng đã có trong source được mô tả trong nhóm Current Implemented Features. Các chức năng xuất hiện trong tài liệu yêu cầu gốc nhưng chưa tồn tại đầy đủ trong source được phân loại rõ là Planned Features, Future Enhancement, Proposed Advanced AI Features hoặc Optional Enterprise Features. Tài liệu không mô tả các chức năng chưa có như một phần đã hoàn thành.
+## Document Control
+Tai lieu nay duoc xay dung theo nguyen tac source code hien tai la baseline trien khai. Cac chuc nang da co trong source duoc mo ta trong nhom Current Implemented Features. Cac chuc nang xuat hien trong tai lieu yeu cau goc nhung chua ton tai day du trong source duoc phan loai ro la Planned Features, Future Enhancement, Proposed Advanced AI Features hoac Optional Enterprise Features. Tai lieu khong mo ta cac chuc nang chua co nhu mot phan da hoan thanh.
 
 ---
 
-## 📊 QUICK OVERVIEW - PHÂN TÍCH HỆ THỐNG
+## QUICK OVERVIEW - PHAN TICH HE THONG
 
-### ✅ **NHÓM 1: CHỨC NĂNG ĐÃ TRIỂN KHAI (Currently Implemented - 14 chức năng chính)**
-
-| # | Chức Năng | Chi Tiết |
+### NHOM 1: CHUC NANG DA TRIEN KHAI (Currently Implemented - 14 chuc nang chinh)
+| # | Chuc Nang | Chi Tiet |
 |---|-----------|---------|
-| 1 | Xác thực & Tài khoản | Đăng ký, đăng nhập, Google OAuth, JWT Bearer, refresh token, session management |
-| 2 | Quản lý Hồ sơ & Gói | Profile, subscription (Free/Plus/Premium/PlusTrial), PayOS payment |
-| 3 | Kết nối Facebook | OAuth, liên kết page, ad accounts, targets |
-| 4 | Quản lý Brand | CRUD brand, assign/unassign to team, brand context cho AI |
-| 5 | Quản lý Sản phẩm | CRUD product, upload ảnh Supabase, liên kết brand |
-| 6 | Thư viện Nội dung | CRUD content, 3 loại (TextOnly/ImageText/VideoText), clone, restore |
+| 1 | Xac thuc & Tai khoan | Dang ky, dang nhap, Google OAuth, JWT Bearer, refresh token, session management |
+| 2 | Quan ly Ho so & Goi | Profile, subscription (Free/Plus/Premium/PlusTrial), PayOS payment |
+| 3 | Ket noi Facebook | OAuth, lien ket page, ad accounts, targets |
+| 4 | Quan ly Brand | CRUD brand, assign/unassign to team, brand context cho AI |
+| 5 | Quan ly San pham | CRUD product, upload anh Supabase, lien ket brand |
+| 6 | Thu vien Noi dung | CRUD content, 3 loai (TextOnly/ImageText/VideoText), clone, restore |
 | 7 | AI sinh Text | Google Gemini cho draft, chat, improve content |
-| 8 | AI sinh Ảnh | Google Vertex AI Imagen (cho ImageText) |
-| 9 | AI Chat & Improve | Chat với context brand/product, cải thiện nội dung |
-| 10 | Duyệt Nội dung | Workflow approval, team permissions, notification |
-| 11 | Đăng bài & Lập lịch | Publish ngay hoặc schedule (lặp lại), background service |
-| 12 | Quảng cáo Facebook | Campaign, ad set, ad creative, ad, preview, reports, insights |
-| 13 | Dashboard & Reports | Dashboard stats, analytics cơ bản, Facebook insights |
-| 14 | Admin Tools | Quản lý user, payment, subscription, seed demo data |
+| 8 | AI sinh Anh | Google Vertex AI Imagen (cho ImageText) |
+| 9 | AI Chat & Improve | Chat voi context brand/product, cai thien noi dung |
+| 10 | Duyet Noi dung | Workflow approval, team permissions, notification |
+| 11 | Dang bai & Lap lich | Publish ngay hoac schedule (lap lai), background service |
+| 12 | Quang cao Facebook | Campaign, ad set, ad creative, ad, preview, reports, insights |
+| 13 | Dashboard & Reports | Dashboard stats, analytics co ban, Facebook insights |
+| 14 | Admin Tools | Quan ly user, payment, subscription, seed demo data |
 
 ---
 
-### 🔄 **NHÓM 2: CHỨC NĂNG ĐANG/SẮP PHÁT TRIỂN (Planned/Future Features)**
-
-| # | Chức Năng | Trạng Thái | Dự kiến Khi nào |
+### NHOM 2: CHUC NANG DANG/SAP PHAT TRIEN (Planned/Future Features)
+| # | Chuc Nang | Trang Thai | Du kien Khi nao |
 |---|-----------|-----------|-----------------|
-| 1 | Mở rộng AI (GPT-4o, DALL-E) | Planned | Mid-term |
+| 1 | Mo rong AI (GPT-4o, DALL-E) | Planned | Mid-term |
 | 2 | Sentiment Analysis & Trend Prediction | Future Enhancement | Long-term |
 | 3 | AI Video Generation | Proposed Feature | Long-term |
 | 4 | AI Strategy & Real-time Optimization | Optional Enterprise | Long-term |
@@ -45,43 +43,37 @@ Tài liệu này được xây dựng theo nguyên tắc source code hiện tạ
 
 ---
 
-### ⚠️ **NHÓM 3: NHỮNG ĐIỀU CẦN LÀM RÕ & KIỂM TRA (19 Specification Questions)**
-
-#### **Yêu Cầu Cũ (8 items):**
-
-| # | Vấn Đề | Tác Động | Hành Động Cần Thiết |
+### NHOM 3: NHUNG DIEU CAN LAM RO & KIEM TRA (19 Specification Questions)
+#### Yeu Cau Cu (8 items)
+| # | Van De | Tac Dong | Hanh Dong Can Thiet |
 |----|--------|---------|-------------------|
-| 1️⃣ | **Team Permission Model** | Ai được quyền duyệt/đăng/quản lý team? | Kiểm tra code, enforce rõ 1 Leader per team |
-| 2️⃣ | **Subscription Plans** | Plans hiện dùng enum, có thể config động? | Xác định nhu cầu business, có cần CRUD hay không |
-| 3️⃣ | **Instagram Implementation** | Enum có Instagram nhưng provider chưa ready | Quyết định có phát triển Instagram không |
-| 4️⃣ | **Background Job Reliability** | Lịch đăng bài có retry policy, monitoring? | Kiểm tra ScheduledPostingBackgroundService |
-| 5️⃣ | **AI Video Flow** | VideoUrl field có nhưng chưa sinh video AI | Quyết định phát triển AI video khi nào |
-| 6️⃣ | **Budget Auto-Optimization** | Có tự động điều chỉnh ngân sách quảng cáo không? | Thêm vào roadmap nếu cần |
-| 7️⃣ | **Provider Architecture** | AI/Payment/Social providers có abstraction layer? | Cân nhắc refactor để dễ mở rộng |
-| 8️⃣ | **Test Coverage** | Các luồng chính có test đầy đủ không? | Bổ sung unit test & integration test |
+| 1 | Team Permission Model | Ai duoc quyen duyet/dang/quan ly team? | Kiem tra code, enforce ro 1 Leader per team |
+| 2 | Subscription Plans | Plans hien dung enum, co the config dong? | Xac dinh nhu cau business, co can CRUD hay khong |
+| 3 | Instagram Implementation | Enum co Instagram nhung provider chua ready | Quyet dinh co phat trien Instagram khong |
+| 4 | Background Job Reliability | Lich dang bai co retry policy, monitoring? | Kiem tra ScheduledPostingBackgroundService |
+| 5 | AI Video Flow | VideoUrl field co nhung chua sinh video AI | Quyet dinh phat trien AI video khi nao |
+| 6 | Budget Auto-Optimization | Co tu dong dieu chinh ngan sach quang cao khong? | Them vao roadmap neu can |
+| 7 | Provider Architecture | AI/Payment/Social providers co abstraction layer? | Can nhac refactor de de mo rong |
+| 8 | Test Coverage | Cac luong chinh co test day du khong? | Bo sung unit test & integration test |
 
----
-
-#### **Yêu Cầu Mới (11 items):**
-
-| # | Vấn Đề | Chi Tiết Cần Làm Rõ | Ưu Tiên |
+#### Yeu Cau Moi (11 items)
+| # | Van De | Chi Tiet Can Lam Ro | Uu Tien |
 |----|--------|-------------------|---------|
-| 🤖 | **AI Quota Management** | Tính theo số lần API / token / số bài / combo? Reset theo ngày/tuần/tháng? Hard/soft limit? | 🔴 High |
-| ✔️ | **Leader Approval Workflow** | Content status flow? SLA bao lâu? Xử lý Leader vắng mặt? Quy tắc chuyển quyền? | 🔴 High |
-| 📝 | **Prompting Strategy** | Template prompt chuẩn? Lưu history? Versioning? Ai được chỉnh sửa? | 🟡 Medium |
-| 📚 | **Content Library** | Lưu tất cả revisions hay latest only? Phân quyền chi tiết? Version control? Soft/hard delete policy? | 🔴 High |
-| 🔐 | **Meta OAuth & Token** | Refresh token strategy? Scope tối thiểu? Encrypt/rotate keys? Token revocation? | 🔴 High |
-| 📅 | **Scheduled Posts** | Cơ chế chạy (Cron/Queue/Service)? Frequency check? Retry policy + DLQ? Meta rate limits? | 🔴 High |
-| 🎯 | **Ads Automation** | UI fields → Meta params mapping? Validation rules? Manual approval trước tạo ads? Edit after created? | 🟡 Medium |
-| 📊 | **Analytics** | API nào? Data latency bao lâu? Rate limits? Caching strategy? | 🟡 Medium |
-| 💳 | **Payment & Subscription** | Tính tiền calendar/30 days? Proration logic? Refund policy? Error handling? | 🔴 High |
-| 🏗️ | **Data Model** | Team-User-Leader relationship? 1 Brand/User? N Products? Multi-tenant isolation? | 🔴 High |
-| 🔒 | **Security & RBAC** | Roles/permissions? Audit log retention? Data encryption? API security (rate limit, key rotation)? | 🔴 High |
+| AI Quota Management | Tinh theo so lan API / token / so bai / combo? Reset theo ngay/tuan/thang? Hard/soft limit? | High |
+| Leader Approval Workflow | Content status flow? SLA bao lau? Xu ly Leader vang mat? Quy tac chuyen quyen? | High |
+| Prompting Strategy | Template prompt chuan? Luu history? Versioning? Ai duoc chinh sua? | Medium |
+| Content Library | Luu tat ca revisions hay latest only? Phan quyen chi tiet? Version control? Soft/hard delete policy? | High |
+| Meta OAuth & Token | Refresh token strategy? Scope toi thieu? Encrypt/rotate keys? Token revocation? | High |
+| Scheduled Posts | Co che chay (Cron/Queue/Service)? Frequency check? Retry policy + DLQ? Meta rate limits? | High |
+| Ads Automation | UI fields -> Meta params mapping? Validation rules? Manual approval truoc tao ads? Edit after created? | Medium |
+| Analytics | API nao? Data latency bao lau? Rate limits? Caching strategy? | Medium |
+| Payment & Subscription | Tinh tien calendar/30 days? Proration logic? Refund policy? Error handling? | High |
+| Data Model | Team-User-Leader relationship? 1 Brand/User? N Products? Multi-tenant isolation? | High |
+| Security & RBAC | Roles/permissions? Audit log retention? Data encryption? API security (rate limit, key rotation)? | High |
 
 ---
 
-### 🎯 **WORKFLOW CHÍNH CỦA HỆ THỐNG**
-
+### WORKFLOW CHINH CUA HE THONG
 ```
 ┌─────────────┐
 │  User Login │
@@ -116,245 +108,240 @@ Tài liệu này được xây dựng theo nguyên tắc source code hiện tạ
 
 ---
 
-### 💡 **RECOMMEND: Ưu Tiên Phát Triển Ngắn Hạn (Next 3 Months)**
-
-1. **🔒 Enforce Team Governance** - Kiểm soát quyền hạn rõ ràng (Leader/Member roles)
-2. **✅ Hoàn thiện Error Handling** - Retry policy, logging, fallback strategy
-3. **🧪 Tăng Test Coverage** - Unit/integration tests cho payment, publishing, approval, AI
-4. **🔌 Provider Abstraction** - Chuẩn hóa kiến trúc AI/Social/Payment providers
-5. **📋 Admin Dynamic Plans** - Cho phép admin CRUD gói subscription động (nếu cần)
-6. **📱 Instagram Support** - Nếu có yêu cầu business từ stakeholders
-
----
-
-## 🎯 1. PROJECT OVERVIEW
-
-### 📝 **Mô Tả Hệ Thống**
-
-AISAM (AI-Powered Social Media Advertising Manager) là nền tảng SaaS cho phép:
-- 🎨 Tạo nội dung quảng cáo bằng AI
-- 📱 Quản lý brand, sản phẩm và nội dung
-- 📅 Lập lịch và xuất bản bài viết
-- 📊 Quản lý quảng cáo Facebook
-- 💳 Quản lý subscription và thanh toán
-
-**Kiến trúc:**
-- Backend: .NET 8 + ASP.NET Core
-- Frontend User: Next.js 15 + React 19
-- Frontend Admin: Next.js 15 + React 19
+### RECOMMEND: Uu tien phat trien ngan han (Next 3 Months)
+1. Enforce Team Governance - Kiem soat quyen han ro rang (Leader/Member roles).
+2. Hoan thien Error Handling - Retry policy, logging, fallback strategy.
+3. Tang Test Coverage - Unit/integration tests cho payment, publishing, approval, AI.
+4. Provider Abstraction - Chuan hoa kien truc AI/Social/Payment providers.
+5. Admin Dynamic Plans - Cho phep admin CRUD goi subscription dong (neu can).
+6. Instagram Support - Neu co yeu cau business tu stakeholders.
 
 ---
 
-### 🤖 **AI Capabilities (Hiện Tại)**
+## 1. PROJECT OVERVIEW
+### Mo ta he thong
+AISAM (AI-Powered Social Media Advertising Manager) la nen tang SaaS cho phep:
+- Tao noi dung quang cao bang AI.
+- Quan ly brand, san pham va noi dung.
+- Lap lich va xuat ban bai viet.
+- Quan ly quang cao Facebook.
+- Quan ly subscription va thanh toan.
 
-| Loại | Công Nghệ | Chức Năng |
+Kien truc:
+- Backend: .NET 8 + ASP.NET Core.
+- Frontend User: Next.js 15 + React 19.
+- Frontend Admin: Next.js 15 + React 19.
+
+### AI Capabilities (Hien tai)
+| Loai | Cong Nghe | Chuc Nang |
 |------|-----------|----------|
-| **Text AI** | Google Gemini | Draft, chat, improve content |
-| **Image AI** | Vertex AI Imagen | Sinh ảnh quảng cáo |
-| **Context** | Brand/Product Data | Personaliza nội dung theo thương hiệu |
+| Text AI | Google Gemini | Draft, chat, improve content |
+| Image AI | Vertex AI Imagen | Sinh anh quang cao |
+| Context | Brand/Product Data | Personaliza noi dung theo thuong hieu |
 
-**Không thực hiện:** Tự huấn luyện mô hình AI - chỉ tích hợp API hiện có
+Khong thuc hien: Tu huan luyen mo hinh AI - chi tich hop API hien co.
 
----
-
-### 📌 **Social & Ads (Hiện Tại)**
-
-| Nền Tảng | Trạng Thái | API |
+### Social & Ads (Hien tai)
+| Nen Tang | Trang Thai | API |
 |----------|-----------|-----|
-| **Facebook** | ✅ Hoàn chỉnh | Facebook Graph API + Marketing API |
-| **Google** | 🔸 OAuth only | Google OAuth |
-| **Instagram** | ⏳ Planned | - |
-| **TikTok/Twitter** | ⏳ Planned | - |
+| Facebook | Hoan chinh | Facebook Graph API + Marketing API |
+| Google | OAuth only | Google OAuth |
+| Instagram | Planned | - |
+| TikTok/Twitter | Planned | - |
 
----
-
-### 💰 **Payment Gateway (Hiện Tại)**
-
-| Gateway | Trạng Thái | Chức Năng |
+### Payment Gateway (Hien tai)
+| Gateway | Trang Thai | Chuc Nang |
 |---------|-----------|----------|
-| **PayOS** | ✅ Hoạt động | Checkout, webhook, subscription management |
-| **Stripe** | ⏳ Optional Future | - |
-| **VNPay** | ⏳ Optional Future | - |
+| PayOS | Hoat dong | Checkout, webhook, subscription management |
+| Stripe | Optional Future | - |
+| VNPay | Optional Future | - |
 
 ---
 
-## 📋 2. CURRENT IMPLEMENTED FEATURES
+## 2. CURRENT IMPLEMENTED FEATURES
+### 2.1. Account, Authentication, Profile and Subscription
+He thong da co chuc nang dang ky, dang nhap, Google login, refresh token, logout, logout all, session list, change password, forgot password, reset password, change password with token, verify email va resend verification email. Backend su dung JWT Bearer va refresh token de quan ly phien dang nhap. Frontend nguoi dung co cac man hinh login, sign-up, forgot password, verify email, update password, overview account, security va profile.
 
-2. CURRENT IMPLEMENTED FEATURES
-2.1. Account, Authentication, Profile and Subscription
-Hệ thống đã có chức năng đăng ký, đăng nhập, Google login, refresh token, logout, logout all, session list, change password, forgot password, reset password, change password with token, verify email và resend verification email. Backend sử dụng JWT Bearer và refresh token để quản lý phiên đăng nhập. Frontend người dùng có các màn hình login, sign-up, forgot password, verify email, update password, overview account, security và profile.
+Profile la ngu canh van hanh quan trong cua he thong. Nguoi dung co the lam viec voi profile, subscription va du lieu lien quan den brand/content/payment trong ngu canh profile. Subscription hien tai co cac plan theo enum Free, Plus, Premium va PlusTrial. Nguoi dung co the xem goi hien tai, chon goi, tao PayOS checkout link, xac nhan thanh toan, xem lich su thanh toan, doi goi hoac huy subscription.
 
-Profile là ngữ cảnh vận hành quan trọng của hệ thống. Người dùng có thể làm việc với profile, subscription và dữ liệu liên quan đến brand/content/payment trong ngữ cảnh profile. Subscription hiện tại có các plan theo enum Free, Plus, Premium và PlusTrial. Người dùng có thể xem gói hiện tại, chọn gói, tạo PayOS checkout link, xác nhận thanh toán, xem lịch sử thanh toán, đổi gói hoặc hủy subscription.
+### 2.2. Social Account and Facebook Integration
+He thong da trien khai luong ket noi social account thong qua OAuth URL va callback. Sau khi ket noi, backend luu social account/token, cho phep lay available targets, link/unlink targets, lay linked targets, lay accounts-with-targets va link Facebook ad account cho brand/social integration. FacebookProvider dung Facebook Graph API voi cac quyen nhu pages_manage_posts, pages_read_engagement va pages_show_list.
 
-2.2. Social Account and Facebook Integration
-Hệ thống đã triển khai luồng kết nối social account thông qua OAuth URL và callback. Sau khi kết nối, backend lưu social account/token, cho phép lấy available targets, link/unlink targets, lấy linked targets, lấy accounts-with-targets và link Facebook ad account cho brand/social integration. FacebookProvider dùng Facebook Graph API với các quyền như pages_manage_posts, pages_read_engagement và pages_show_list.
+O trang thai hien tai, Facebook la nen tang duoc ho tro ro nhat cho publishing va ads workflow. GoogleProvider ton tai trong he thong chu yeu cho OAuth/login/provider integration. Instagram Business, TikTok va Twitter chi nen duoc xem la dinh huong mo rong hoac future platform support neu chua co provider/flow hoan chinh tuong ung.
 
-Ở trạng thái hiện tại, Facebook là nền tảng được hỗ trợ rõ nhất cho publishing và ads workflow. GoogleProvider tồn tại trong hệ thống chủ yếu cho OAuth/login/provider integration. Instagram Business, TikTok và Twitter chỉ nên được xem là định hướng mở rộng hoặc future platform support nếu chưa có provider/flow hoàn chỉnh tương ứng.
+### 2.3. Brand Kit Management
+He thong da co CRUD brand, restore brand, list brand theo profile/team, assign brand to team va unassign brand from team. Brand model gom name, description, logo_url, slogan, usp va target_audience. Brand duoc dung lam context cho AI chat/generate content va lien ket voi product, content, social integration, ad campaign va team brand.
 
-2.3. Brand Kit Management
-Hệ thống đã có CRUD brand, restore brand, list brand theo profile/team, assign brand to team và unassign brand from team. Brand model gồm name, description, logo_url, slogan, usp và target_audience. Brand được dùng làm context cho AI chat/generate content và liên kết với product, content, social integration, ad campaign và team brand.
+Brand Kit la du lieu nen de AI sinh noi dung nhat quan voi dinh vi thuong hieu. Cac truong nhu slogan, USP va target audience duoc su dung de tang chat luong prompt. Tai lieu nay giu nguyen scope hien tai: Brand Kit la bo du lieu mo ta thuong hieu, khong mo ta them cac capability chua co nhu brand guideline automation hoac AI brand compliance scoring.
 
-Brand Kit là dữ liệu nền để AI sinh nội dung nhất quán với định vị thương hiệu. Các trường như slogan, USP và target audience được sử dụng để tăng chất lượng prompt. Tài liệu này giữ nguyên scope hiện tại: Brand Kit là bộ dữ liệu mô tả thương hiệu, không mô tả thêm các capability chưa có như brand guideline automation hoặc AI brand compliance scoring.
+### 2.4. Product Management by Brand
+He thong da co CRUD product, restore, list/filter theo brand/search/isDeleted, upload anh san pham len Supabase Storage va luu images dang JSON. Product gom brand_id, name, description, price va images. Product duoc lien ket voi Brand va Content, dong thoi duoc dua vao prompt AI khi chat/generate content.
 
-2.4. Product Management by Brand
-Hệ thống đã có CRUD product, restore, list/filter theo brand/search/isDeleted, upload ảnh sản phẩm lên Supabase Storage và lưu images dạng JSON. Product gồm brand_id, name, description, price và images. Product được liên kết với Brand và Content, đồng thời được đưa vào prompt AI khi chat/generate content.
+Luong product hien tai cho phep nguoi dung quan ly danh sach san pham cua tung brand, cap nhat mo ta, gia va hinh anh. Cac truong nhu USP rieng cua product trong tai lieu goc chua thay la truong model rieng trong source hien tai; neu can, co the xem la Planned Data Model Enhancement thay vi chuc nang da hoan thanh.
 
-Luồng product hiện tại cho phép người dùng quản lý danh sách sản phẩm của từng brand, cập nhật mô tả, giá và hình ảnh. Các trường như USP riêng của product trong tài liệu gốc chưa thấy là trường model riêng trong source hiện tại; nếu cần, có thể xem là Planned Data Model Enhancement thay vì chức năng đã hoàn thành.
+### 2.5. Content Library and Content Lifecycle
+He thong da co create, update, delete, restore, clone, get detail va list content. Content co brand, product, ad type, title, text_content, image_url, video_url, style_description, context_description, representative_character, status, approvals, calendars, posts va ad creatives. AdType hien tai gom TextOnly, ImageText va VideoText.
 
-2.5. Content Library and Content Lifecycle
-Hệ thống đã có create, update, delete, restore, clone, get detail và list content. Content có brand, product, ad type, title, text_content, image_url, video_url, style_description, context_description, representative_character, status, approvals, calendars, posts và ad creatives. AdType hiện tại gồm TextOnly, ImageText và VideoText.
+Content la trung tam cua cac luong AI generation, approval, publishing, scheduling va ads creative. Source hien tai ho tro luu VideoUrl va xu ly ad type VideoText o muc du lieu/publishing, nhung chua co flow AI tu sinh video. Vi vay, AI video generation chi duoc mo ta trong Future AI Enhancements.
 
-Content là trung tâm của các luồng AI generation, approval, publishing, scheduling và ads creative. Source hiện tại hỗ trợ lưu VideoUrl và xử lý ad type VideoText ở mức dữ liệu/publishing, nhưng chưa có flow AI tự sinh video. Vì vậy, AI video generation chỉ được mô tả trong Future AI Enhancements.
+### 2.6. AI Content Generation and AI Chat
+He thong da co api/ai/generate-draft va api/ai/chat. Code sinh text bang Gemini. Voi ad type ImageText, code tao visual prompt bang Gemini roi goi Vertex AI Imagen de sinh anh, sau do upload anh vao Supabase Storage va tra GeneratedImageUrl. AI chat co the su dung brand/product context de tao noi dung phu hop hon voi thuong hieu va san pham.
 
-2.6. AI Content Generation and AI Chat
-Hệ thống đã có api/ai/generate-draft và api/ai/chat. Code sinh text bằng Gemini. Với ad type ImageText, code tạo visual prompt bằng Gemini rồi gọi Vertex AI Imagen để sinh ảnh, sau đó upload ảnh vào Supabase Storage và trả GeneratedImageUrl. AI chat có thể sử dụng brand/product context để tạo nội dung phù hợp hơn với thương hiệu và sản phẩm.
+He thong da co api/ai/improve/{contentId}, api/ai/approve/{aiGenerationId}, api/ai/generations/{contentId} va conversation APIs. Nguoi dung co the cai thien noi dung, duyet generation, lay lich su generation theo content va xem lich su hoi thoai AI.
 
-Hệ thống đã có api/ai/improve/{contentId}, api/ai/approve/{aiGenerationId}, api/ai/generations/{contentId} và conversation APIs. Người dùng có thể cải thiện nội dung, duyệt generation, lấy lịch sử generation theo content và xem lịch sử hội thoại AI.
+### 2.7. Approval and Team Permission
+He thong da co team CRUD, user teams, member list, permissions, assign brand to team, team stats va kiem tra quyen theo team. Team member co role, permissions va is_active. Approval module co pending, create, get, update, approve, reject, list by content, list by approver, pending count, delete va restore.
 
-2.7. Approval and Team Permission
-Hệ thống đã có team CRUD, user teams, member list, permissions, assign brand to team, team stats và kiểm tra quyền theo team. Team member có role, permissions và is_active. Approval module có pending, create, get, update, approve, reject, list by content, list by approver, pending count, delete và restore.
+Luong duyet noi dung hien tai ho tro gui content vao approval, xem danh sach pending, approve hoac reject va tao notification lien quan. Source co permission/team support, nhung tai lieu khong khang dinh tuyet doi rang moi team chi co duy nhat mot Leader neu code chua enforce ro o model/service. Yeu cau "single Leader per team" tu tai lieu goc duoc chuyen thanh Planned Governance Rule neu nhom muon siet chat bang database constraint va service validation.
 
-Luồng duyệt nội dung hiện tại hỗ trợ gửi content vào approval, xem danh sách pending, approve hoặc reject và tạo notification liên quan. Source có permission/team support, nhưng tài liệu không khẳng định tuyệt đối rằng mỗi team chỉ có duy nhất một Leader nếu code chưa enforce rõ ở model/service. Yêu cầu “single Leader per team” từ tài liệu gốc được chuyển thành Planned Governance Rule nếu nhóm muốn siết chặt bằng database constraint và service validation.
+### 2.8. Publishing and Scheduled Posts
+He thong da co publish ngay qua api/content/{contentId}/publish/{integrationId}. Backend kiem tra content/integration roi goi provider de publish len Facebook va luu Post record. Voi dat lich, he thong co api/content-calendar/schedule/{contentId}, schedule-recurring, update/delete schedule, upcoming va lich theo team.
 
-2.8. Publishing and Scheduled Posts
-Hệ thống đã có publish ngay qua api/content/{contentId}/publish/{integrationId}. Backend kiểm tra content/integration rồi gọi provider để publish lên Facebook và lưu Post record. Với đặt lịch, hệ thống có api/content-calendar/schedule/{contentId}, schedule-recurring, update/delete schedule, upcoming và lịch theo team.
+Backend co ScheduledPostingService va ScheduledPostingBackgroundService de xu ly cac lich den han. Luong hien tai phu hop voi yeu cau cot loi ve scheduled posts, nhung nen tang publish thuc te van tap trung vao Facebook.
 
-Backend có ScheduledPostingService và ScheduledPostingBackgroundService để xử lý các lịch đến hạn. Luồng hiện tại phù hợp với yêu cầu cốt lõi về scheduled posts, nhưng nền tảng publish thực tế vẫn tập trung vào Facebook.
+### 2.9. Facebook Ads Management
+He thong da co ad campaign, ad set, ad creative va ad. Code tao campaign/ad set/ad/creative qua Facebook Marketing API, lay preview, cap nhat status, xoa, pull reports/insights. Creative co the tao tu content hoac tu Facebook post san co.
 
-2.9. Facebook Ads Management
-Hệ thống đã có ad campaign, ad set, ad creative và ad. Code tạo campaign/ad set/ad/creative qua Facebook Marketing API, lấy preview, cập nhật status, xóa, pull reports/insights. Creative có thể tạo từ content hoặc từ Facebook post sẵn có.
+Ads workflow hien tai bao gom tao campaign theo brand/profile/ad account, tao ad set voi ngan sach/lich/targeting, tao ad creative tu content hoac Facebook post, roi tao ad trong ad set. Backend luu cac Facebook ID tuong ung de quan ly lifecycle va tuong tac tiep voi Facebook Marketing API.
 
-Ads workflow hiện tại bao gồm tạo campaign theo brand/profile/ad account, tạo ad set với ngân sách/lịch/targeting, tạo ad creative từ content hoặc Facebook post, sau đó tạo ad trong ad set. Backend lưu các Facebook ID tương ứng để quản lý lifecycle và tương tác tiếp với Facebook Marketing API.
+### 2.10. Dashboard, Reports and Analytics
+He thong da co api/dashboard/stats, trang dashboard, reports, posts, campaign reports va logic keo insight tu Facebook cho ads. Frontend co components analytics/reports, bieu do va mot so UI/hook lien quan den xuat bao cao. O trang thai hien tai, analytics tap trung vao hien thi du lieu van hanh va chi so co ban.
 
-2.10. Dashboard, Reports and Analytics
-Hệ thống đã có api/dashboard/stats, trang dashboard, reports, posts, campaign reports và logic kéo insight từ Facebook cho ads. Frontend có components analytics/reports, biểu đồ và một số UI/hook liên quan đến xuất báo cáo. Ở trạng thái hiện tại, analytics tập trung vào hiển thị dữ liệu vận hành và chỉ số cơ bản.
+Cac tinh nang nhu AI phan tich cam xuc, trend prediction, AI strategy recommendation va AI realtime performance optimization chua thay backend service/controller tuong ung, do do duoc phan loai la Future AI Enhancements hoac Optional Enterprise Features.
 
-Các tính năng như AI phân tích cảm xúc, trend prediction, AI strategy recommendation và AI realtime performance optimization chưa thấy backend service/controller tương ứng, do đó được phân loại là Future AI Enhancements hoặc Optional Enterprise Features.
+### 2.11. Notification and Conversation Management
+He thong da co notification list, detail, mark read, mark all read va unread count. Conversation module co list, detail, delete va lien ket chat messages voi AI generation/content. Cac module nay ho tro trai nghiem lam viec theo luong va luu lai lich su tuong tac cua nguoi dung voi AI.
 
-2.11. Notification and Conversation Management
-Hệ thống đã có notification list, detail, mark read, mark all read và unread count. Conversation module có list, detail, delete và liên kết chat messages với AI generation/content. Các module này hỗ trợ trải nghiệm làm việc theo luồng và lưu lại lịch sử tương tác của người dùng với AI.
+### 2.12. Storage Management
+Source dung SupabaseStorageService cho upload, download, list, delete, signed-url va public-url. Service co validate loai file anh/video va gioi han kich thuoc file. Supabase Storage hien la storage layer cho anh san pham, anh AI generated va cac media lien quan.
 
-2.12. Storage Management
-Source dùng SupabaseStorageService cho upload, download, list, delete, signed-url và public-url. Service có validate loại file ảnh/video và giới hạn kích thước file. Supabase Storage hiện là storage layer cho ảnh sản phẩm, ảnh AI generated và các media liên quan.
+---
 
-3. CURRENT SYSTEM FLOWS
-3.1. Authentication and Account Flow
-Người dùng truy cập sign-up hoặc login. Backend xử lý register/login/google login, tạo access token và refresh token, đồng thời hỗ trợ verify email. Sau khi đăng nhập, người dùng có thể quản lý session, đổi mật khẩu, logout hoặc logout all. Nếu quên mật khẩu, người dùng thực hiện forgot password và reset password qua token.
+## 3. CURRENT SYSTEM FLOWS
+### 3.1. Authentication and Account Flow
+Nguoi dung truy cap sign-up hoac login. Backend xu ly register/login/google login, tao access token va refresh token, dong thoi ho tro verify email. Sau khi dang nhap, nguoi dung co the quan ly session, doi mat khau, logout hoac logout all. Neu quen mat khau, nguoi dung thuc hien forgot password va reset password qua token.
 
-3.2. Profile, Subscription and PayOS Payment Flow
-Người dùng tạo hoặc chọn profile để làm việc. Khi chọn gói subscription, frontend gọi backend để tạo PayOS checkout link. Sau khi thanh toán, hệ thống confirm payment hoặc nhận webhook từ PayOS để kích hoạt subscription cho profile. Người dùng có thể xem active subscription, danh sách subscriptions, lịch sử thanh toán, đổi plan hoặc hủy subscription.
+### 3.2. Profile, Subscription and PayOS Payment Flow
+Nguoi dung tao hoac chon profile de lam viec. Khi chon goi subscription, frontend goi backend de tao PayOS checkout link. Sau khi thanh toan, he thong confirm payment hoac nhan webhook tu PayOS de kich hoat subscription cho profile. Nguoi dung co the xem active subscription, danh sach subscriptions, lich su thanh toan, doi plan hoac huy subscription.
 
-3.3. Facebook Social Connection Flow
-Người dùng yêu cầu OAuth URL theo provider. Hệ thống chuyển người dùng sang OAuth provider và nhận callback. Backend lưu social account/token, sau đó người dùng lấy danh sách page/target khả dụng, link target vào brand/social integration và có thể link Facebook ad account. Nếu token hết hạn hoặc thiếu quyền, backend trả lỗi để người dùng reconnect hoặc cấp lại quyền.
+### 3.3. Facebook Social Connection Flow
+Nguoi dung yeu cau OAuth URL theo provider. He thong chuyen nguoi dung sang OAuth provider va nhan callback. Backend luu social account/token, sau do nguoi dung lay danh sach page/target kha dung, link target vao brand/social integration va co the link Facebook ad account. Neu token het han hoac thieu quyen, backend tra loi de nguoi dung reconnect hoac cap lai quyen.
 
-3.4. Brand, Product and Content Management Flow
-Người dùng tạo brand, cập nhật thông tin brand, thêm product vào brand và upload ảnh sản phẩm. Khi tạo content, người dùng chọn brand/product/ad type, nhập title/text/context/style và lưu content. Content có thể được chỉnh sửa, clone, delete/restore, gửi duyệt, đăng ngay, đặt lịch hoặc dùng để tạo ad creative.
+### 3.4. Brand, Product and Content Management Flow
+Nguoi dung tao brand, cap nhat thong tin brand, them product vao brand va upload anh san pham. Khi tao content, nguoi dung chon brand/product/ad type, nhap title/text/context/style va luu content. Content co the duoc chinh sua, clone, delete/restore, gui duyet, dang ngay, dat lich hoac dung de tao ad creative.
 
-3.5. AI Generation Flow
-Người dùng gửi request generate draft hoặc chat với AI kèm brandId/productId/adType nếu có. Backend kiểm tra quyền truy cập brand, dựng prompt từ brand/product/user message, gọi Gemini để sinh text. Nếu adType là ImageText, backend tạo prompt hình ảnh bằng Gemini, gọi Vertex AI Imagen để sinh ảnh, upload ảnh vào Supabase và trả URL. Người dùng có thể improve content, xem generations và approve AI generation để cập nhật content.
+### 3.5. AI Generation Flow
+Nguoi dung gui request generate draft hoac chat voi AI kem brandId/productId/adType neu co. Backend kiem tra quyen truy cap brand, dung prompt tu brand/product/user message, goi Gemini de sinh text. Neu adType la ImageText, backend tao prompt hinh anh bang Gemini, goi Vertex AI Imagen de sinh anh, upload anh vao Supabase va tra URL. Nguoi dung co the improve content, xem generations va approve AI generation de cap nhat content.
 
-3.6. Approval Flow
-Người dùng submit content vào approval. Người duyệt mở pending queue hoặc xem approval theo content/approver, đọc chi tiết, approve hoặc reject. Khi approval thay đổi, service cập nhật trạng thái liên quan và tạo notification cho người dùng. Quy tắc phân quyền dựa trên team role/permissions hiện có trong source.
+### 3.6. Approval Flow
+Nguoi dung submit content vao approval. Nguoi duyet mo pending queue hoac xem approval theo content/approver, doc chi tiet, approve hoac reject. Khi approval thay doi, service cap nhat trang thai lien quan va tao notification cho nguoi dung. Quy tac phan quyen dua tren team role/permissions hien co trong source.
 
-3.7. Publishing and Scheduling Flow
-Với đăng ngay, backend nhận contentId và integrationId, kiểm tra content/integration rồi gọi Facebook provider để publish nội dung và lưu Post record. Với đặt lịch, backend tạo ContentCalendar cho content, cho phép đặt lịch một lần hoặc lặp lại, cập nhật/xóa lịch, xem upcoming schedules hoặc lịch theo team. Background service xử lý lịch đến hạn.
+### 3.7. Publishing and Scheduling Flow
+Voi dang ngay, backend nhan contentId va integrationId, kiem tra content/integration roi goi Facebook provider de publish noi dung va luu Post record. Voi dat lich, backend tao ContentCalendar cho content, cho phep dat lich mot lan hoac lap lai, cap nhat/xoa lich, xem upcoming schedules hoac lich theo team. Background service xu ly lich den han.
 
-3.8. Ads Campaign Flow
-Người dùng tạo ad campaign theo brand/profile/ad account, sau đó tạo ad set với ngân sách, lịch chạy và targeting. Người dùng tạo ad creative từ content hoặc Facebook post, rồi tạo ad trong ad set. Backend gọi Facebook Marketing API để tạo campaign/ad set/creative/ad, lưu Facebook ID tương ứng, hỗ trợ preview, update status, delete và pull reports/insights.
+### 3.8. Ads Campaign Flow
+Nguoi dung tao ad campaign theo brand/profile/ad account, sau do tao ad set voi ngan sach, lich chay va targeting. Nguoi dung tao ad creative tu content hoac Facebook post, roi tao ad trong ad set. Backend goi Facebook Marketing API de tao campaign/ad set/creative/ad, luu Facebook ID tuong ung, ho tro preview, update status, delete va pull reports/insights.
 
-3.9. Reporting Flow
-Người dùng vào dashboard, reports, posts hoặc campaign/ad detail để xem dữ liệu. Backend cung cấp dashboard stats và ad insights/pull reports. Frontend hiển thị dữ liệu ở dạng bảng, biểu đồ và các thành phần báo cáo cơ bản. Những tính năng dự đoán hoặc tối ưu tự động bằng AI chưa thuộc current flow.
+### 3.9. Reporting Flow
+Nguoi dung vao dashboard, reports, posts hoac campaign/ad detail de xem du lieu. Backend cung cap dashboard stats va ad insights/pull reports. Frontend hien thi du lieu o dang bang, bieu do va cac thanh phan bao cao co ban. Nhung tinh nang du doan hoac toi uu tu dong bang AI chua thuoc current flow.
 
-4. ADMIN FEATURES
-4.1. Current Admin User and Profile Management
-Admin frontend có dashboard danh sách user, trang chi tiết user, danh sách profile theo user và trang chi tiết profile. Backend có api/users, api/users/{id}, api/users/profile/me và profile controller. Admin có thể xem dữ liệu người dùng, profile, subscription liên quan và trạng thái vận hành cơ bản.
+---
 
-4.2. Current Admin Payment and Subscription Management
-Admin frontend có trang payments, subscriptions và subscriptions theo user. Backend có các endpoint admin payment như /payment/admin/all, /payment/admin/subscriptions, /payment/admin/user/{userId}/payments và /payment/admin/user/{userId}/subscriptions. Admin tools có update-payment-method, update-profile-status và update-subscription-plan.
+## 4. ADMIN FEATURES
+### 4.1. Current Admin User and Profile Management
+Admin frontend co dashboard danh sach user, trang chi tiet user, danh sach profile theo user va trang chi tiet profile. Backend co api/users, api/users/{id}, api/users/profile/me va profile controller. Admin co the xem du lieu nguoi dung, profile, subscription lien quan va trang thai van hanh co ban.
 
-4.3. Current Admin Tools
-Admin tools hỗ trợ seed demo user, seed batch users, sửa phương thức thanh toán, sửa trạng thái profile và sửa plan subscription. Đây là các công cụ vận hành và hỗ trợ dữ liệu demo. Source hiện chưa có màn hình quản trị tạo, xóa, cấu hình plan động như một entity plan riêng; dynamic subscription plans được đưa vào Planned Features.
+### 4.2. Current Admin Payment and Subscription Management
+Admin frontend co trang payments, subscriptions va subscriptions theo user. Backend co cac endpoint admin payment nhu /payment/admin/all, /payment/admin/subscriptions, /payment/admin/user/{userId}/payments va /payment/admin/user/{userId}/subscriptions. Admin tools co update-payment-method, update-profile-status va update-subscription-plan.
 
-5. AI CAPABILITIES
-5.1. Current AI Capabilities
-AI hiện tại sử dụng Gemini cho text generation, prompt generation, AI chat và improve content. Với ImageText, hệ thống dùng Gemini để tạo visual prompt rồi gọi Google Vertex AI Imagen để tạo ảnh. Kết quả ảnh được upload lên Supabase Storage. Hệ thống lưu AiGeneration, GeneratedText, GeneratedImageUrl, status và liên kết với Content/Conversation.
+### 4.3. Current Admin Tools
+Admin tools ho tro seed demo user, seed batch users, sua phuong thuc thanh toan, sua trang thai profile va sua plan subscription. Day la cac cong cu van hanh va ho tro du lieu demo. Source hien chua co man hinh quan tri tao, xoa, cau hinh plan dong nhu mot entity plan rieng; dynamic subscription plans duoc dua vao Planned Features.
 
-5.2. Current Prompt Context
-Prompt hiện tại có thể sử dụng brand name, description, slogan, USP, target audience, product name, product description và product price. Cách tiếp cận này phù hợp với hướng AI Integration & Prompt Engineering của đồ án, tập trung vào khai thác dịch vụ AI có sẵn thay vì tự phát triển mô hình AI.
+---
 
-5.3. Planned Advanced AI Features
-Các capability như GPT-4o integration, DALL-E image generation, AI sentiment analysis, trend prediction, strategy recommendation, budget recommendation, best-time-to-post recommendation, realtime campaign optimization và AI video generation là future enhancement hoặc optional enterprise features. Các capability này chưa được xem là đã triển khai trong source hiện tại và cần thiết kế thêm API, data model, quota policy, monitoring và fallback strategy nếu phát triển.
+## 5. AI CAPABILITIES
+### 5.1. Current AI Capabilities
+AI hien tai su dung Gemini cho text generation, prompt generation, AI chat va improve content. Voi ImageText, he thong dung Gemini de tao visual prompt roi goi Google Vertex AI Imagen de tao anh. Ket qua anh duoc upload len Supabase Storage. He thong luu AiGeneration, GeneratedText, GeneratedImageUrl, status va lien ket voi Content/Conversation.
 
-6. FUTURE ENHANCEMENTS
-6.1. Planned Multi-model AI Integration
-Hệ thống có thể mở rộng kiến trúc AI provider để hỗ trợ thêm GPT-4o cho text reasoning/content strategy và DALL-E cho image generation. Đây là planned/future scope, không thay thế Gemini + Vertex AI Imagen hiện tại. Proposed architecture nên dùng abstraction layer dạng IAIProvider hoặc strategy pattern để lựa chọn provider theo plan, quota, chi phí và use case.
+### 5.2. Current Prompt Context
+Prompt hien tai co the su dung brand name, description, slogan, USP, target audience, product name, product description va product price. Cach tiep can nay phu hop voi huong AI Integration & Prompt Engineering cua do an, tap trung vao khai thac dich vu AI co san thay vi tu phat trien mo hinh AI.
 
-6.2. Proposed AI Video Generation
-AI video generation từ tài liệu gốc được phân loại là Proposed Advanced AI Feature. Source hiện có VideoUrl và AdType VideoText để lưu/publish media video, nhưng chưa có pipeline sinh video AI. Để triển khai, hệ thống cần thêm video generation provider, job queue/background processing, storage policy, progress tracking, cost quota và moderation flow.
+### 5.3. Planned Advanced AI Features
+Cac capability nhu GPT-4o integration, DALL-E image generation, AI sentiment analysis, trend prediction, strategy recommendation, budget recommendation, best-time-to-post recommendation, realtime campaign optimization va AI video generation la future enhancement hoac optional enterprise features. Cac capability nay chua duoc xem la da trien khai trong source hien tai va can thiet ke them API, data model, quota policy, monitoring va fallback strategy neu phat trien.
 
-6.3. Future Sentiment Analysis and Trend Prediction
-Sentiment analysis và trend prediction là Future AI Enhancements. Chức năng này có thể phân tích comment, engagement, hashtag, campaign result hoặc dữ liệu social công khai để đề xuất insight. Hiện tại source chưa có service/controller chuyên trách cho phân tích cảm xúc hoặc dự đoán xu hướng, nên tài liệu chỉ ghi nhận như roadmap feature.
+---
 
-6.4. Future AI Strategy Recommendation and Optimization
-AI strategy recommendation có thể đề xuất mục tiêu chiến dịch, audience, ngân sách, thời gian đăng bài và nội dung phù hợp dựa trên brand/product/campaign history. Realtime optimization có thể điều chỉnh ngân sách, targeting hoặc creative dựa trên performance. Đây là Optional Enterprise Feature và chưa được triển khai trong source hiện tại. Khi phát triển cần đảm bảo audit trail, manual approval và giới hạn quyền để tránh tự động thay đổi campaign ngoài kiểm soát.
+## 6. FUTURE ENHANCEMENTS
+### 6.1. Planned Multi-model AI Integration
+He thong co the mo rong kien truc AI provider de ho tro them GPT-4o cho text reasoning/content strategy va DALL-E cho image generation. Day la planned/future scope, khong thay the Gemini + Vertex AI Imagen hien tai. Proposed architecture nen dung abstraction layer dang IAIProvider hoac strategy pattern de lua chon provider theo plan, quota, chi phi va use case.
 
-6.5. Planned Instagram Expansion
-Instagram expansion là Planned Platform Feature. Tài liệu gốc có nhắc Facebook và Instagram Business, nhưng source hiện tại triển khai rõ nhất Facebook provider. Để hỗ trợ Instagram hoàn chỉnh cần thêm provider flow, permission mapping, business account discovery, publishing endpoint, media validation và report mapping theo Instagram Graph API.
+### 6.2. Proposed AI Video Generation
+AI video generation tu tai lieu goc duoc phan loai la Proposed Advanced AI Feature. Source hien co VideoUrl va AdType VideoText de luu/publish media video, nhung chua co pipeline sinh video AI. De trien khai, he thong can them video generation provider, job queue/background processing, storage policy, progress tracking, cost quota va moderation flow.
 
-6.6. Planned Dynamic Subscription Plans
-Dynamic subscription plans là Planned Admin Feature. Source hiện tại quản lý plan theo enum và admin tools cập nhật subscription plan. Nếu muốn quản trị plan động, hệ thống cần thêm entity SubscriptionPlan, admin CRUD, pricing/quota configuration, versioning, migration strategy và backward compatibility với subscription hiện có.
+### 6.3. Future Sentiment Analysis and Trend Prediction
+Sentiment analysis va trend prediction la Future AI Enhancements. Chuc nang nay co the phan tich comment, engagement, hashtag, campaign result hoac du lieu social cong khai de de xuat insight. Hien tai source chua co service/controller chuyen trach cho phan tich cam xuc hoac du doan xu huong, nen tai lieu chi ghi nhan nhu roadmap feature.
 
-6.7. Optional Multi-payment Gateway Integration
-Stripe/VNPay từ tài liệu gốc không phải payment gateway hiện tại. Hệ thống đang dùng PayOS. Trong tương lai có thể bổ sung Stripe/VNPay như optional payment providers thông qua payment provider abstraction, nhưng không nên thay đổi current PayOS flow nếu không có yêu cầu triển khai.
+### 6.4. Future AI Strategy Recommendation and Optimization
+AI strategy recommendation co the de xuat muc tieu chien dich, audience, ngan sach, thoi gian dang bai va noi dung phu hop dua tren brand/product/campaign history. Realtime optimization co the dieu chinh ngan sach, targeting hoac creative dua tren performance. Day la Optional Enterprise Feature va chua duoc trien khai trong source hien tai. Khi phat trien can dam bao audit trail, manual approval va gioi han quyen de tranh tu dong thay doi campaign ngoai kiem soat.
 
-6.8. Future Enterprise Governance Rules
-Quy tắc mỗi team chỉ có một Leader và chỉ Leader có quyền duyệt/đăng/quản lý thành viên là yêu cầu nghiệp vụ hợp lý từ tài liệu gốc, nhưng cần kiểm tra và enforce rõ trong source bằng service validation, database constraint hoặc permission policy. Trong tài liệu này, nội dung đó được đặt là Planned Governance Rule nếu chưa được đảm bảo đầy đủ trong code hiện tại.
+### 6.5. Planned Instagram Expansion
+Instagram expansion la Planned Platform Feature. Tai lieu goc co nhac Facebook va Instagram Business, nhung source hien tai trien khai ro nhat Facebook provider. De ho tro Instagram hoan chinh can them provider flow, permission mapping, business account discovery, publishing endpoint, media validation va report mapping theo Instagram Graph API.
 
-7. NON-FUNCTIONAL REQUIREMENTS
-7.1. Security
-Hệ thống cần duy trì JWT Bearer authentication, refresh token, email verification, password reset token, authorization theo endpoint và context profile/team. OAuth/social token và payment data cần được bảo vệ theo nguyên tắc least privilege, secret management và không log sensitive data. Các future provider như GPT-4o, DALL-E, Stripe/VNPay hoặc Instagram phải tuân thủ cùng chính sách bảo mật.
+### 6.6. Planned Dynamic Subscription Plans
+Dynamic subscription plans la Planned Admin Feature. Source hien tai quan ly plan theo enum va admin tools cap nhat subscription plan. Neu muon quan tri plan dong, he thong can them entity SubscriptionPlan, admin CRUD, pricing/quota configuration, versioning, migration strategy va backward compatibility voi subscription hien co.
 
-7.2. Performance and Background Processing
-Các request thông thường cần phản hồi nhanh và ổn định. Các tác vụ AI generation, image generation, scheduled posting, report pulling và future video generation có thể xử lý bất đồng bộ hoặc qua background service/job queue. Hệ thống cần tránh block request dài đối với các tác vụ tốn thời gian hoặc có chi phí API cao.
+### 6.7. Optional Multi-payment Gateway Integration
+Stripe/VNPay tu tai lieu goc khong phai payment gateway hien tai. He thong dang dung PayOS. Trong tuong lai co the bo sung Stripe/VNPay nhu optional payment providers thong qua payment provider abstraction, nhung khong nen thay doi current PayOS flow neu khong co yeu cau trien khai.
 
-7.3. Scalability
-Kiến trúc hiện tại theo Controller-Service-Repository và tách frontend user/admin cho phép mở rộng module. Các future enhancements nên được thêm thông qua abstraction layer và feature flags để không phá vỡ current flows. Database schema cần hỗ trợ migration có kiểm soát.
+### 6.8. Future Enterprise Governance Rules
+Quy tac moi team chi co mot Leader va chi Leader co quyen duyet/dang/quan ly thanh vien la yeu cau nghiep vu hop ly tu tai lieu goc, nhung can kiem tra va enforce ro trong source bang service validation, database constraint hoac permission policy. Trong tai lieu nay, noi dung do duoc dat la Planned Governance Rule neu chua duoc dam bao day du trong code hien tai.
 
-7.4. Reliability and Error Handling
-Hệ thống cần xử lý lỗi rõ ràng khi token hết hạn, thiếu quyền social, payment callback thất bại, AI provider timeout, storage upload lỗi hoặc Facebook Marketing API trả lỗi. Các tác vụ background cần có retry policy, logging và trạng thái để người dùng/admin theo dõi.
+---
 
-7.5. Usability
-Frontend cần đảm bảo người dùng dễ thao tác với brand, product, content, AI generation, scheduling và ads workflow. Admin UI cần tập trung vào vận hành, tìm kiếm, kiểm tra user/profile/payment/subscription và xử lý dữ liệu hỗ trợ. Các tính năng future cần được phân quyền và giải thích rõ để tránh người dùng hiểu nhầm là hệ thống tự động thay đổi campaign ngoài ý muốn.
+## 7. NON-FUNCTIONAL REQUIREMENTS
+### 7.1. Security
+He thong can duy tri JWT Bearer authentication, refresh token, email verification, password reset token, authorization theo endpoint va context profile/team. OAuth/social token va payment data can duoc bao ve theo nguyen tac least privilege, secret management va khong log sensitive data. Cac future provider nhu GPT-4o, DALL-E, Stripe/VNPay hoac Instagram phai tuan thu cung chinh sach bao mat.
 
-7.6. Compatibility
-Ứng dụng web cần tương thích với các trình duyệt phổ biến như Chrome, Edge, Firefox và Safari. Các media upload cần tuân thủ validation hiện có của SupabaseStorageService và các giới hạn của provider social/ads tương ứng.
+### 7.2. Performance and Background Processing
+Cac request thong thuong can phan hoi nhanh va on dinh. Cac tac vu AI generation, image generation, scheduled posting, report pulling va future video generation co the xu ly bat dong bo hoac qua background service/job queue. He thong can tranh block request dai doi voi cac tac vu ton thoi gian hoac co chi phi API cao.
 
-8. TECHNOLOGY STACK
-Backend hiện tại sử dụng .NET 8, ASP.NET Core Web API, Entity Framework Core, Npgsql/PostgreSQL, FluentValidation, JWT Bearer, Swagger/OpenAPI và kiến trúc Controller-Service-Repository.
+### 7.3. Scalability
+Kien truc hien tai theo Controller-Service-Repository va tach frontend user/admin cho phep mo rong module. Cac future enhancements nen duoc them thong qua abstraction layer va feature flags de khong pha vo current flows. Database schema can ho tro migration co kiem soat.
 
-Frontend User hiện tại sử dụng Next.js 15, React 19, TypeScript, Tailwind CSS, Radix UI/shadcn-style components, TanStack Query, Recharts và lucide-react.
+### 7.4. Reliability and Error Handling
+He thong can xu ly loi ro rang khi token het han, thieu quyen social, payment callback that bai, AI provider timeout, storage upload loi hoac Facebook Marketing API tra loi. Cac tac vu background can co retry policy, logging va trang thai de nguoi dung/admin theo doi.
 
-Frontend Admin hiện tại sử dụng Next.js 15, React 19, TypeScript, Tailwind CSS, Radix UI, TanStack Query/Table, Recharts và lucide-react.
+### 7.5. Usability
+Frontend can dam bao nguoi dung de thao tac voi brand, product, content, AI generation, scheduling va ads workflow. Admin UI can tap trung vao van hanh, tim kiem, kiem tra user/profile/payment/subscription va xu ly du lieu ho tro. Cac tinh nang future can duoc phan quyen va giai thich ro de tranh nguoi dung hieu nham la he thong tu dong thay doi campaign ngoai y muon.
 
-AI Service hiện tại sử dụng Google Gemini cho text/prompt/chat và Google Vertex AI Imagen cho image generation. GPT-4o và DALL-E chỉ là future/planned AI providers nếu hệ thống mở rộng multi-model AI.
+### 7.6. Compatibility
+Ung dung web can tuong thich voi cac trinh duyet pho bien nhu Chrome, Edge, Firefox va Safari. Cac media upload can tuan thu validation hien co cua SupabaseStorageService va cac gioi han cua provider social/ads tuong ung.
 
-Social/Ads hiện tại sử dụng Facebook Graph API, Facebook OAuth và Facebook Marketing API. Google OAuth/provider có trong hệ thống. Instagram expansion là planned feature, không phải current completed capability.
+---
 
-Payment Gateway hiện tại là PayOS. Stripe/VNPay chỉ là optional future payment gateways nếu có yêu cầu tích hợp thêm.
+## 8. TECHNOLOGY STACK
+- Backend: .NET 8, ASP.NET Core Web API, Entity Framework Core, Npgsql/PostgreSQL, FluentValidation, JWT Bearer, Swagger/OpenAPI, Controller-Service-Repository.
+- Frontend User: Next.js 15, React 19, TypeScript, Tailwind CSS, Radix UI/shadcn-style components, TanStack Query, Recharts, lucide-react.
+- Frontend Admin: Next.js 15, React 19, TypeScript, Tailwind CSS, Radix UI, TanStack Query/Table, Recharts, lucide-react.
+- AI Service: Google Gemini (text/prompt/chat), Google Vertex AI Imagen (image generation). GPT-4o/DALL-E chi la future/planned providers.
+- Social/Ads: Facebook Graph API, Facebook OAuth, Facebook Marketing API. Google OAuth/provider co trong he thong. Instagram expansion la planned feature.
+- Payment: PayOS (hien tai). Stripe/VNPay la optional future.
+- Storage: Supabase Storage.
+- Database: PostgreSQL.
 
-Storage hiện tại là Supabase Storage. Database hiện tại là PostgreSQL.
+---
 
-9. LIMITATIONS & FUTURE ROADMAP
-9.1. Current Limitations
-Hệ thống hiện tại tập trung vào Facebook cho publishing và ads; Instagram Business chưa nên được mô tả là hoàn thiện. AI hiện tại tập trung vào Gemini text/chat và Vertex Imagen image generation; GPT-4o, DALL-E và AI video generation chưa được triển khai. Analytics hiện tại là dashboard/report cơ bản và Facebook insights; sentiment analysis, trend prediction và realtime optimization chưa có backend service chuyên trách.
+## 9. LIMITATIONS & FUTURE ROADMAP
+### 9.1. Current Limitations
+He thong hien tai tap trung vao Facebook cho publishing va ads; Instagram Business chua nen duoc mo ta la hoan thien. AI hien tai tap trung vao Gemini text/chat va Vertex Imagen image generation; GPT-4o, DALL-E va AI video generation chua duoc trien khai. Analytics hien tai la dashboard/report co ban va Facebook insights; sentiment analysis, trend prediction va realtime optimization chua co backend service chuyen trach.
 
-Admin hiện tại có xem user/payment/subscription và admin tools để cập nhật dữ liệu quan trọng, nhưng chưa có dynamic subscription plan management dạng CRUD plan đầy đủ. Team Leader single-owner governance là yêu cầu nghiệp vụ hợp lý nhưng cần enforce rõ bằng code nếu muốn đưa thành rule bắt buộc.
+Admin hien tai co xem user/payment/subscription va admin tools de cap nhat du lieu quan trong, nhung chua co dynamic subscription plan management dang CRUD plan day du. Team Leader single-owner governance la yeu cau nghiep vu hop ly nhung can enforce ro bang code neu muon dua thanh rule bat buoc.
 
-9.2. Short-term Roadmap
-Trong ngắn hạn, hệ thống nên hoàn thiện tài liệu API flow, kiểm thử các luồng PayOS, Facebook OAuth, scheduled posting và Facebook Marketing API. Nên bổ sung test coverage cho service quan trọng như payment, content publishing, approval, AI generation và ad creation. Nên chuẩn hóa permission policy cho team/approval để tránh mâu thuẫn giữa UI và backend.
+### 9.2. Short-term Roadmap
+Trong ngan han, he thong nen hoan thien tai lieu API flow, kiem thu cac luong PayOS, Facebook OAuth, scheduled posting va Facebook Marketing API. Nen bo sung test coverage cho service quan trong nhu payment, content publishing, approval, AI generation va ad creation. Nen chuan hoa permission policy cho team/approval de tranh mau thuan giua UI va backend.
 
-9.3. Mid-term Roadmap
-Trong trung hạn, hệ thống có thể mở rộng dynamic subscription plan management, cải thiện analytics, bổ sung export report hoàn chỉnh, tăng monitoring cho AI/payment/social provider và chuẩn hóa provider abstraction cho social/AI/payment. Instagram expansion có thể được triển khai theo từng bước sau khi hoàn tất provider, permission và media validation.
+### 9.3. Mid-term Roadmap
+Trong trung han, he thong co the mo rong dynamic subscription plan management, cai thien analytics, bo sung export report hoan chinh, tang monitoring cho AI/payment/social provider va chuan hoa provider abstraction cho social/AI/payment. Instagram expansion co the duoc trien khai theo tung buoc sau khi hoan tat provider, permission va media validation.
 
-9.4. Long-term Roadmap
-Trong dài hạn, AISAM có thể phát triển thành enterprise marketing automation platform với multi-model AI, AI strategy recommendation, AI video generation, sentiment analysis, trend prediction, realtime campaign optimization và multi-payment gateway. Tất cả các capability này cần được triển khai có kiểm soát, có audit trail, quota management, cost monitoring và user approval workflow để phù hợp với môi trường enterprise.
+### 9.4. Long-term Roadmap
+Trong dai han, AISAM co the phat trien thanh enterprise marketing automation platform voi multi-model AI, AI strategy recommendation, AI video generation, sentiment analysis, trend prediction, realtime campaign optimization va multi-payment gateway. Tat ca cac capability nay can duoc trien khai co kiem soat, co audit trail, quota management, cost monitoring va user approval workflow de phu hop voi moi truong enterprise.
