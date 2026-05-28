@@ -1,0 +1,71 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "AISAM.Services/1.0.0": {
+        "dependencies": {
+          "AISAM.Common": "1.0.0",
+          "AISAM.Data": "1.0.0",
+          "AISAM.Repositories": "1.0.0"
+        },
+        "runtime": {
+          "AISAM.Services.dll": {}
+        }
+      },
+      "AISAM.Common/1.0.0": {
+        "runtime": {
+          "AISAM.Common.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AISAM.Data/1.0.0": {
+        "runtime": {
+          "AISAM.Data.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AISAM.Repositories/1.0.0": {
+        "dependencies": {
+          "AISAM.Common": "1.0.0",
+          "AISAM.Data": "1.0.0"
+        },
+        "runtime": {
+          "AISAM.Repositories.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "AISAM.Services/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AISAM.Common/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AISAM.Data/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AISAM.Repositories/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

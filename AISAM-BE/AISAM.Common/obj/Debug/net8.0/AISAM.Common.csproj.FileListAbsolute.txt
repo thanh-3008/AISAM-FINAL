@@ -1,0 +1,12 @@
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\bin\Debug\net8.0\AISAM.Common.deps.json
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\bin\Debug\net8.0\AISAM.Common.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\bin\Debug\net8.0\AISAM.Common.pdb
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.GeneratedMSBuildEditorConfig.editorconfig
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.AssemblyInfoInputs.cache
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.AssemblyInfo.cs
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.csproj.CoreCompileInputs.cache
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.sourcelink.json
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\refint\AISAM.Common.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.pdb
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\ref\AISAM.Common.dll

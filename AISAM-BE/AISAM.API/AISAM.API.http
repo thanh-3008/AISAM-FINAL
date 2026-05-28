@@ -1,0 +1,6 @@
+@AISAM.API_HostAddress = http://localhost:5027
+
+GET {{AISAM.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
