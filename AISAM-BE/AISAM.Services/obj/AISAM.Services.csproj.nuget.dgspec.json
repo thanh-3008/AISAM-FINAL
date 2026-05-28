@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj",
         "projectName": "AISAM.Common",
         "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj",
-        "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
         "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
@@ -89,7 +89,7 @@
         "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Data\\AISAM.Data.csproj",
         "projectName": "AISAM.Data",
         "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Data\\AISAM.Data.csproj",
-        "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
         "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Data\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
@@ -160,7 +160,7 @@
         "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\AISAM.Repositories.csproj",
         "projectName": "AISAM.Repositories",
         "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\AISAM.Repositories.csproj",
-        "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
         "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
@@ -256,7 +256,7 @@
         "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\AISAM.Services.csproj",
         "projectName": "AISAM.Services",
         "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\AISAM.Services.csproj",
-        "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
         "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [

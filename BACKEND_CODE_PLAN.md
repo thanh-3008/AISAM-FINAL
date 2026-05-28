@@ -3162,3 +3162,123 @@ Không làm trong MVP backend đầu tiên:
 - Analytics real-time từ nhiều social platforms.
 
 Các phần này chỉ làm sau khi backend MVP ổn định và đã có frontend sử dụng các API core.
+
+## Progress Log
+
+> Từ thời điểm này, sau mỗi task hoàn thành phải cập nhật progress log này trước khi chuyển task tiếp theo.
+
+| Task | Trạng thái | Commit đề xuất | Build | Test | Migration | API/Swagger test | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Task 0.1 - Tạo cấu trúc repo backend mới | Done | `chore(solution): initialize backend solution structure` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã tạo `AISAM.sln`, `AISAM.API`, `AISAM.Services`, `AISAM.Repositories`, `AISAM.Data`, `AISAM.Common`, `tests/AISAM.IntegrationTests`; đã nối project references theo baseline. |
+| Task 0.2 - Copy cấu hình project và package cơ bản từ source cũ | Done | `chore(projects): migrate backend project package references` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã migrate package references/root namespace từ các `.csproj` cũ. Chưa migrate code nghiệp vụ. |
+| Task 1.1 - Migrate Program.cs tối thiểu | Done | `chore(api): add minimal api host and swagger` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /swagger/index.html` status 200 on `http://localhost:5081` | Đã thay WeatherForecast template bằng API host tối thiểu; thêm `ExceptionHandlerMiddleware`, `ValidationFilter`, `GenericResponse`. `GenericResponse` được copy sớm vì middleware/filter phụ thuộc. |
+
+### Progress Detail - Task 0.1
+
+Ngày hoàn thành: 2026-05-28
+
+File/thư mục tạo mới:
+
+- `AISAM-BE/AISAM.sln`
+- `AISAM-BE/AISAM.API/`
+- `AISAM-BE/AISAM.Services/`
+- `AISAM-BE/AISAM.Repositories/`
+- `AISAM-BE/AISAM.Data/`
+- `AISAM-BE/AISAM.Common/`
+- `AISAM-BE/tests/AISAM.IntegrationTests/`
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+### Progress Detail - Task 0.2
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã đối chiếu:
+
+- `PRN232_Backend/AISAM.API/AISAM.API.csproj`
+- `PRN232_Backend/AISAM.Services/AISAM.Services.csproj`
+- `PRN232_Backend/AISAM.Repositories/AISAM.Repositories.csproj`
+- `PRN232_Backend/AISAM.Data/AISAM.Data.csproj`
+- `PRN232_Backend/AISAM.Common/AISAM.Common.csproj`
+- `PRN232_Backend/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj`
+
+File đã sửa:
+
+- `AISAM-BE/AISAM.API/AISAM.API.csproj`
+- `AISAM-BE/AISAM.Services/AISAM.Services.csproj`
+- `AISAM-BE/AISAM.Repositories/AISAM.Repositories.csproj`
+- `AISAM-BE/AISAM.Data/AISAM.Data.csproj`
+- `AISAM-BE/AISAM.Common/AISAM.Common.csproj`
+
+Kết quả kiểm tra:
+
+```text
+dotnet restore
+OK
+
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+Ghi chú:
+
+- Task này chỉ migrate package/project config, chưa migrate code nghiệp vụ.
+- Sau build/test có nhiều file `bin/obj` phát sinh; chưa xử lý `.gitignore` trong task này.
+
+### Progress Detail - Task 1.1
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.API/Program.cs`
+- `PRN232_Backend/AISAM.API/Middleware/ExceptionHandlerMiddleware.cs`
+- `PRN232_Backend/AISAM.API/Filters/ValidationFilter.cs`
+- `PRN232_Backend/AISAM.Common/GenericResponse.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/Middleware/ExceptionHandlerMiddleware.cs`
+- `AISAM-BE/AISAM.API/Filters/ValidationFilter.cs`
+- `AISAM-BE/AISAM.Common/GenericResponse.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không copy nguyên `Program.cs` cũ vì startup cũ phụ thuộc nhiều module chưa migrate như DB, auth, hosted services, Facebook, Gemini, PayOS, Supabase.
+- Tạo API host tối thiểu trước để Swagger chạy được.
+- Copy `GenericResponse` sớm hơn plan vì middleware/filter cần để build.
+- Sửa nullable warning trong middleware/filter để build sạch.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+API/Swagger test:
+
+```text
+GET http://localhost:5081/swagger/index.html
+STATUS=200
+```
+
+Ghi chú:
+
+- API chỉ chạy tạm để test Swagger và đã được dừng lại.
+- Chưa bật database, authentication, DI nghiệp vụ hoặc hosted services.
