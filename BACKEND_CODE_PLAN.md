@@ -3176,6 +3176,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Task 2.1 - Copy Common response, config, DTO auth/user/profile nền tảng | Done | `chore(common): migrate shared response and auth dto contracts` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy config/DTO nền tảng từ source cũ. `GenericResponse` đã có từ Task 1.1. Copy thêm dependency tối thiểu `SocialDtos` và `UserRoleEnum` để DTO build được. |
 | Task 2.2 - Copy entity và enum nền tảng | Done | `chore(data): migrate core domain entities and enums` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy toàn bộ `AISAM.Data/Model` và `AISAM.Data/Enumeration` từ source cũ để giữ nguyên quan hệ entity. Ads entities chỉ được copy như dependency model, chưa bật Ads module/API/service. |
 | Task 2.3 - Copy AisamContext và migration cũ | Done | `chore(data): migrate db context and existing migrations` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test` - 1/1 | Skipped: chưa có local connection string | Pass: `GET /api/health` status 200 on `http://localhost:5083` | Đã copy `AisamContext` và migrations cũ; đăng ký DbContext có điều kiện khi có connection string. Pin `Microsoft.EntityFrameworkCore.Relational 9.0.9` ở `AISAM.Services` để build sạch do dependency Supabase/Npgsql kéo version thấp hơn. |
+| DB Setup - Kết nối PostgreSQL local | Done | `chore(data): add design time db context factory` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | Pass: applied 5 migrations to `aisam_dev` | Pass: `GET /api/health` status 200 on `http://localhost:5084` | Đã thêm `.gitignore`, `AISAM.API/.env.example`, `AisamContextFactory`; `.env` local chứa connection string thật và đã được ignore. |
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
 
 ### Progress Detail - Task 0.1
@@ -3502,6 +3503,55 @@ Ghi chú:
 
 - API chỉ chạy tạm để test health endpoint và đã được dừng lại.
 - Các module cần database chỉ nên bật/test sau khi cấu hình PostgreSQL và chạy migration thành công.
+
+### Progress Detail - DB Setup PostgreSQL local
+
+Ngày hoàn thành: 2026-05-28
+
+Mục tiêu:
+
+- Kết nối backend repo mới tới PostgreSQL local của developer.
+- Chạy migration cũ vào database `aisam_dev`.
+
+File đã tạo/sửa:
+
+- `.gitignore`
+- `AISAM-BE/AISAM.API/.env.example`
+- `AISAM-BE/AISAM.API/.env` local, không commit
+- `AISAM-BE/AISAM.Repositories/AisamContextFactory.cs`
+- `SETUP_GUIDE.md`
+
+Cải tiến/điều chỉnh:
+
+- Thêm `IDesignTimeDbContextFactory<AisamContext>` để `dotnet ef database update` tạo DbContext trực tiếp, không cần dựng API host/logger.
+- `.env` thật được ignore để tránh commit secret.
+- `SETUP_GUIDE.md` đã đổi đúng đường dẫn `.env` sang `AISAM-BE/AISAM.API/.env`.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings từ migration cũ `verifytoken`, 0 errors.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+Applied migrations:
+- 20251102025736_Initial
+- 20260124120929_AddCustomAuthenticationTables
+- 20260124133308_verifytoken
+- 20260124135926_UpdatePasswordSaltLength
+- 20260127160619_UpdateSubscriptionPayOS
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+GET http://localhost:5084/api/health
+STATUS=200
+```
+
+Ghi chú:
+
+- Cảnh báo EF tools version `8.0.10` thấp hơn runtime `9.0.9` chưa chặn migration, nhưng nên update dotnet-ef sau.
+- Không ghi password DB thật vào tài liệu hoặc file tracked.
 
 ### Progress Detail - Setup Guide
 
