@@ -3173,6 +3173,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Task 0.2 - Copy cấu hình project và package cơ bản từ source cũ | Done | `chore(projects): migrate backend project package references` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã migrate package references/root namespace từ các `.csproj` cũ. Chưa migrate code nghiệp vụ. |
 | Task 1.1 - Migrate Program.cs tối thiểu | Done | `chore(api): add minimal api host and swagger` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /swagger/index.html` status 200 on `http://localhost:5081` | Đã thay WeatherForecast template bằng API host tối thiểu; thêm `ExceptionHandlerMiddleware`, `ValidationFilter`, `GenericResponse`. `GenericResponse` được copy sớm vì middleware/filter phụ thuộc. |
 | Task 1.2 - Thêm HealthController | Done | `feat(api): add health check endpoint` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5082` | Đã thêm health endpoint không phụ thuộc DB/secrets. Tạm tắt `UseHttpsRedirection()` trong local minimal host để tránh lỗi Windows Event Log khi chưa cấu hình HTTPS port. |
+| Task 2.1 - Copy Common response, config, DTO auth/user/profile nền tảng | Done | `chore(common): migrate shared response and auth dto contracts` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy config/DTO nền tảng từ source cũ. `GenericResponse` đã có từ Task 1.1. Copy thêm dependency tối thiểu `SocialDtos` và `UserRoleEnum` để DTO build được. |
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
 
 ### Progress Detail - Task 0.1
@@ -3338,6 +3339,58 @@ Ghi chú:
 
 - API chỉ chạy tạm để test health endpoint và đã được dừng lại.
 - Chưa bật database/auth/module nghiệp vụ.
+
+### Progress Detail - Task 2.1
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Common/GenericResponse.cs`
+- `PRN232_Backend/AISAM.Common/Config/JwtSettings.cs`
+- `PRN232_Backend/AISAM.Common/Config/EmailSettings.cs`
+- `PRN232_Backend/AISAM.Common/Config/GoogleSettings.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/AuthRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/AuthResponse.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/UserResponseDto.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/PaginationDtos.cs`
+- `PRN232_Backend/AISAM.Common/Models/SocialDtos.cs`
+- `PRN232_Backend/AISAM.Data/Enumeration/UserRoleEnum.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Common/Config/JwtSettings.cs`
+- `AISAM-BE/AISAM.Common/Config/EmailSettings.cs`
+- `AISAM-BE/AISAM.Common/Config/GoogleSettings.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/AuthRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/AuthResponse.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/UserResponseDto.cs`
+- `AISAM-BE/AISAM.Common/Dtos/PaginationDtos.cs`
+- `AISAM-BE/AISAM.Common/Models/SocialDtos.cs`
+- `AISAM-BE/AISAM.Data/Enumeration/UserRoleEnum.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ.
+- `GenericResponse.cs` đã được copy sớm ở Task 1.1 vì middleware/filter cần để build.
+- Copy thêm `SocialDtos.cs` vì `UserResponseDto` phụ thuộc `SocialAccountDto`.
+- Copy thêm `UserRoleEnum.cs` vì `AuthResponse` phụ thuộc `UserRoleEnum`; phần enum còn lại vẫn để Task 2.2.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+API test:
+
+```text
+Không áp dụng, task này chưa thêm endpoint mới.
+```
 
 ### Progress Detail - Setup Guide
 
