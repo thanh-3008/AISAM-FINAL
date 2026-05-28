@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj",
         "projectName": "AISAM.Common",
         "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj",
-        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
         "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
@@ -89,7 +89,7 @@
         "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Data\\AISAM.Data.csproj",
         "projectName": "AISAM.Data",
         "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Data\\AISAM.Data.csproj",
-        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
         "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Data\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
