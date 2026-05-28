@@ -16,3 +16,5 @@ D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Repositories\obj\Debug\net8.0\AISAM.Reposito
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Repositories\obj\Debug\net8.0\refint\AISAM.Repositories.dll
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Repositories\obj\Debug\net8.0\AISAM.Repositories.pdb
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Repositories\obj\Debug\net8.0\ref\AISAM.Repositories.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Repositories\bin\Debug\net8.0\AISAM.Repositories.runtimeconfig.json
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Repositories\obj\Debug\net8.0\AISAM.Repositories.genruntimeconfig.cache
