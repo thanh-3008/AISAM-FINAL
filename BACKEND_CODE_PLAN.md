@@ -635,11 +635,11 @@ API vẫn chạy sau khi đăng ký DB.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có.
-- [ ] API test thành công.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: chưa chạy vì chưa cấu hình `ConnectionStrings:DefaultConnection` local.
+- [x] API test thành công.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ## Phase 3 - Authentication MVP
@@ -3175,6 +3175,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Task 1.2 - Thêm HealthController | Done | `feat(api): add health check endpoint` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5082` | Đã thêm health endpoint không phụ thuộc DB/secrets. Tạm tắt `UseHttpsRedirection()` trong local minimal host để tránh lỗi Windows Event Log khi chưa cấu hình HTTPS port. |
 | Task 2.1 - Copy Common response, config, DTO auth/user/profile nền tảng | Done | `chore(common): migrate shared response and auth dto contracts` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy config/DTO nền tảng từ source cũ. `GenericResponse` đã có từ Task 1.1. Copy thêm dependency tối thiểu `SocialDtos` và `UserRoleEnum` để DTO build được. |
 | Task 2.2 - Copy entity và enum nền tảng | Done | `chore(data): migrate core domain entities and enums` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy toàn bộ `AISAM.Data/Model` và `AISAM.Data/Enumeration` từ source cũ để giữ nguyên quan hệ entity. Ads entities chỉ được copy như dependency model, chưa bật Ads module/API/service. |
+| Task 2.3 - Copy AisamContext và migration cũ | Done | `chore(data): migrate db context and existing migrations` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test` - 1/1 | Skipped: chưa có local connection string | Pass: `GET /api/health` status 200 on `http://localhost:5083` | Đã copy `AisamContext` và migrations cũ; đăng ký DbContext có điều kiện khi có connection string. Pin `Microsoft.EntityFrameworkCore.Relational 9.0.9` ở `AISAM.Services` để build sạch do dependency Supabase/Npgsql kéo version thấp hơn. |
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
 
 ### Progress Detail - Task 0.1
@@ -3434,6 +3435,73 @@ API test:
 ```text
 Không áp dụng, task này chưa thêm endpoint mới.
 ```
+
+### Progress Detail - Task 2.3
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Repositories/AISAMContext.cs`
+- `PRN232_Backend/AISAM.Repositories/Migrations/*`
+
+File/thư mục đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Repositories/AISAMContext.cs`
+- `AISAM-BE/AISAM.Repositories/Migrations/*`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/appsettings.Development.json`
+- `AISAM-BE/AISAM.Services/AISAM.Services.csproj`
+
+Cải tiến/điều chỉnh:
+
+- Không bật auto migration khi app start. Migration sẽ chạy thủ công bằng `dotnet ef database update` sau khi có connection string local.
+- `DbContext` chỉ được đăng ký khi có `CONNECTION_STRING` hoặc `ConnectionStrings:DefaultConnection`, giúp API host và health endpoint vẫn chạy được khi developer mới clone repo nhưng chưa setup database.
+- Pin `Microsoft.EntityFrameworkCore.Relational` version `9.0.9` trong `AISAM.Services` để tránh conflict giữa EF Core `9.0.9` và dependency transitive `9.0.1` từ Supabase/Npgsql.
+- Không đổi tên migration class cũ để giữ nguyên migration history baseline.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+Migration:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
+Skipped: chưa có local connection string trong appsettings.Development.json hoặc .env.
+```
+
+API test:
+
+```text
+GET http://localhost:5083/api/health
+STATUS=200
+```
+
+Response mẫu:
+
+```json
+{
+  "success": true,
+  "message": "AISAM backend is ready.",
+  "statusCode": 200,
+  "data": {
+    "status": "Healthy",
+    "service": "AISAM Backend"
+  }
+}
+```
+
+Ghi chú:
+
+- API chỉ chạy tạm để test health endpoint và đã được dừng lại.
+- Các module cần database chỉ nên bật/test sau khi cấu hình PostgreSQL và chạy migration thành công.
 
 ### Progress Detail - Setup Guide
 

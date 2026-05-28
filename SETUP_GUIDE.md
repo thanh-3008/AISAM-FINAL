@@ -28,17 +28,28 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 - CORS mặc định.
 - Exception middleware.
 - Validation filter.
+- Health check API.
+- Shared response/config/DTO nền tảng.
+- Domain entities/enums nền tảng.
+- `AisamContext` và migrations cũ từ baseline.
+- Đăng ký `DbContext` có điều kiện khi có connection string.
 
-Vì vậy để chạy backend hiện tại, **chưa cần database/API key/OAuth/Storage/Payment**.
+Vì vậy để chạy backend hiện tại ở mức API host + health check, **chưa cần database/API key/OAuth/Storage/Payment**.
+
+Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu muốn chạy migration hoặc bắt đầu các module cần database như Auth/Profile/Brand/Product, PostgreSQL connection string sẽ là **REQUIRED**.
 
 REQUIRED hiện tại:
 
 - .NET SDK.
 - Restore NuGet packages.
+- Không bắt buộc connection string nếu chỉ chạy Swagger/Health API.
+
+REQUIRED khi chạy migration hoặc module dùng DB:
+
+- PostgreSQL database.
 
 Optional/Future feature hiện tại:
 
-- PostgreSQL database.
 - JWT settings.
 - SMTP email.
 - Google OAuth.
@@ -124,7 +135,9 @@ dotnet run --project AISAM.API
 
 ### Mục đích
 
-Future feature, sẽ là REQUIRED từ phase migrate database/auth/profile trở đi.
+REQUIRED nếu chạy migration hoặc test module có database.
+
+Optional nếu chỉ chạy API host hiện tại, Swagger và `/api/health`.
 
 Dùng để lưu:
 
@@ -140,6 +153,14 @@ Dùng để lưu:
 - Notifications.
 
 Source cũ dùng PostgreSQL qua EF Core/Npgsql.
+
+Tiến độ hiện tại:
+
+- Đã copy `AISAM.Repositories/AISAMContext.cs`.
+- Đã copy `AISAM.Repositories/Migrations/*`.
+- `Program.cs` đã đọc connection string từ `.env` hoặc `appsettings.Development.json`.
+- `DbContext` chỉ được đăng ký khi connection string có giá trị.
+- Chưa bật auto migration khi app start.
 
 ### Cần tạo tài khoản ở đâu
 
@@ -161,7 +182,11 @@ Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_pass
 
 ### Thêm vào file nào
 
-Ưu tiên thêm vào `.env`:
+Ưu tiên thêm vào file:
+
+```text
+AISAM-BE/.env
+```
 
 ```env
 CONNECTION_STRING=Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password
@@ -180,20 +205,32 @@ Hoặc trong `AISAM-BE/AISAM.API/appsettings.Development.json`:
 ### Config dùng để làm gì
 
 - `ConnectionStrings:DefaultConnection`: EF Core dùng để kết nối database.
-- `CONNECTION_STRING`: source cũ ưu tiên đọc từ environment variable để override appsettings.
+- `CONNECTION_STRING`: được repo mới ưu tiên đọc từ environment variable để override appsettings.
 
 ### Lỗi thường gặp nếu thiếu config
 
-- API startup lỗi khi bật `DbContext`.
+- `dotnet ef database update` không chạy được vì không có connection string.
 - `connection string is not configured`.
 - `password authentication failed`.
 - `database does not exist`.
 - `No connection could be made because the target machine actively refused it`.
 
+Lưu ý hiện tại:
+
+- Nếu connection string rỗng, API vẫn chạy được cho Swagger và `/api/health`.
+- Các API cần database sẽ chỉ hoạt động sau khi cấu hình PostgreSQL và chạy migration.
+
 ### Lệnh kiểm tra
 
 ```text
 dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
+```
+
+Sau khi chạy migration, kiểm tra API host:
+
+```text
+dotnet run --project AISAM.API --urls http://localhost:5081
+GET http://localhost:5081/api/health
 ```
 
 ## 5. JWT Authentication
@@ -733,6 +770,7 @@ Các config dưới đây chưa bắt buộc cho MVP backend local hiện tại:
 
 | Config | Trạng thái | Khi nào cần |
 | --- | --- | --- |
+| PostgreSQL connection string | Optional cho Swagger/Health, REQUIRED cho migration/module DB | Khi chạy `dotnet ef database update`, Auth, Profile, Brand, Product |
 | Google OAuth | Optional / Future feature | Khi bật Google login |
 | Facebook OAuth | Optional hiện tại, REQUIRED ở social phase | Khi bật Facebook connect/publish |
 | Facebook Ads sandbox | Optional / Future feature | Khi làm campaign/ad set/ad |
@@ -752,7 +790,7 @@ AISAM-BE/.env
 Ví dụ:
 
 ```env
-# Database - Future REQUIRED from DB/Auth/Profile phase
+# Database - Optional for Swagger/Health, REQUIRED for migration and DB modules
 CONNECTION_STRING=Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password
 
 # JWT - Future REQUIRED from Auth phase
@@ -814,7 +852,7 @@ Ví dụ:
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password"
+    "DefaultConnection": ""
   },
   "Cors": {
     "AllowedOrigins": [
@@ -903,8 +941,9 @@ Ví dụ:
 
 - [ ] Tạo PostgreSQL database.
 - [ ] Thêm `CONNECTION_STRING`.
+- [ ] Hoặc thêm `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
+- [ ] Chạy `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API`.
 - [ ] Thêm `JwtSettings` hoặc env JWT.
-- [ ] Chạy migration.
 - [ ] Test register/login.
 
 ### Khi tới phase email
@@ -970,8 +1009,22 @@ HTTP 200
 Swagger UI mở được
 ```
 
-Khi thêm `HealthController` ở task tiếp theo, smoke test sẽ bổ sung:
+Health check hiện tại:
 
 ```text
 GET http://localhost:5081/api/health
+```
+
+Expected:
+
+```text
+HTTP 200
+Response có success = true, message = "AISAM backend is ready."
+```
+
+Nếu chưa cấu hình database:
+
+```text
+Swagger và /api/health vẫn chạy được.
+dotnet ef database update sẽ bị skip/fail cho tới khi thêm connection string.
 ```
