@@ -56,7 +56,7 @@ Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu 
 <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>:
 
 - PostgreSQL database.
-- `CONNECTION_STRING` trong `AISAM-BE/.env` hoặc `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
+- `CONNECTION_STRING` trong `AISAM-BE/AISAM.API/.env` hoặc `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
 
 <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại:
 
@@ -195,7 +195,7 @@ Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_pass
 Ưu tiên thêm vào file:
 
 ```text
-AISAM-BE/.env
+AISAM-BE/AISAM.API/.env
 ```
 
 ```env
@@ -811,7 +811,7 @@ Các config dưới đây chưa bắt buộc cho MVP backend local hiện tại:
 Tạo file local:
 
 ```text
-AISAM-BE/.env
+AISAM-BE/AISAM.API/.env
 ```
 
 Ví dụ:
@@ -967,7 +967,7 @@ Ví dụ:
 ### Khi tới phase database/auth
 
 - [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Tạo PostgreSQL database.
-- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Thêm `CONNECTION_STRING`.
+- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Thêm `CONNECTION_STRING` vào `AISAM-BE/AISAM.API/.env`.
 - [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Hoặc thêm `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
 - [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Chạy `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API`.
 - [ ] <span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span> Thêm `JwtSettings` hoặc env JWT.

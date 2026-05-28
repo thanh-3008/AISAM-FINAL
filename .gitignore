@@ -1,0 +1,11 @@
+# Build outputs
+bin/
+obj/
+
+# Local secrets and environment overrides
+.env
+*.env
+appsettings.Production.json
+
+# Local runtime logs
+*.log
