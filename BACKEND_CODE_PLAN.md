@@ -635,11 +635,11 @@ API vẫn chạy sau khi đăng ký DB.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có.
-- [ ] API test thành công.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: chưa chạy vì chưa cấu hình `ConnectionStrings:DefaultConnection` local.
+- [x] API test thành công.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ## Phase 3 - Authentication MVP
@@ -3162,3 +3162,375 @@ Không làm trong MVP backend đầu tiên:
 - Analytics real-time từ nhiều social platforms.
 
 Các phần này chỉ làm sau khi backend MVP ổn định và đã có frontend sử dụng các API core.
+
+## Progress Log
+
+> Từ thời điểm này, sau mỗi task hoàn thành phải cập nhật progress log này trước khi chuyển task tiếp theo.
+
+| Task | Trạng thái | Commit đề xuất | Build | Test | Migration | API/Swagger test | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Task 0.1 - Tạo cấu trúc repo backend mới | Done | `chore(solution): initialize backend solution structure` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã tạo `AISAM.sln`, `AISAM.API`, `AISAM.Services`, `AISAM.Repositories`, `AISAM.Data`, `AISAM.Common`, `tests/AISAM.IntegrationTests`; đã nối project references theo baseline. |
+| Task 0.2 - Copy cấu hình project và package cơ bản từ source cũ | Done | `chore(projects): migrate backend project package references` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã migrate package references/root namespace từ các `.csproj` cũ. Chưa migrate code nghiệp vụ. |
+| Task 1.1 - Migrate Program.cs tối thiểu | Done | `chore(api): add minimal api host and swagger` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /swagger/index.html` status 200 on `http://localhost:5081` | Đã thay WeatherForecast template bằng API host tối thiểu; thêm `ExceptionHandlerMiddleware`, `ValidationFilter`, `GenericResponse`. `GenericResponse` được copy sớm vì middleware/filter phụ thuộc. |
+| Task 1.2 - Thêm HealthController | Done | `feat(api): add health check endpoint` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5082` | Đã thêm health endpoint không phụ thuộc DB/secrets. Tạm tắt `UseHttpsRedirection()` trong local minimal host để tránh lỗi Windows Event Log khi chưa cấu hình HTTPS port. |
+| Task 2.1 - Copy Common response, config, DTO auth/user/profile nền tảng | Done | `chore(common): migrate shared response and auth dto contracts` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy config/DTO nền tảng từ source cũ. `GenericResponse` đã có từ Task 1.1. Copy thêm dependency tối thiểu `SocialDtos` và `UserRoleEnum` để DTO build được. |
+| Task 2.2 - Copy entity và enum nền tảng | Done | `chore(data): migrate core domain entities and enums` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã copy toàn bộ `AISAM.Data/Model` và `AISAM.Data/Enumeration` từ source cũ để giữ nguyên quan hệ entity. Ads entities chỉ được copy như dependency model, chưa bật Ads module/API/service. |
+| Task 2.3 - Copy AisamContext và migration cũ | Done | `chore(data): migrate db context and existing migrations` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test` - 1/1 | Skipped: chưa có local connection string | Pass: `GET /api/health` status 200 on `http://localhost:5083` | Đã copy `AisamContext` và migrations cũ; đăng ký DbContext có điều kiện khi có connection string. Pin `Microsoft.EntityFrameworkCore.Relational 9.0.9` ở `AISAM.Services` để build sạch do dependency Supabase/Npgsql kéo version thấp hơn. |
+| Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
+
+### Progress Detail - Task 0.1
+
+Ngày hoàn thành: 2026-05-28
+
+File/thư mục tạo mới:
+
+- `AISAM-BE/AISAM.sln`
+- `AISAM-BE/AISAM.API/`
+- `AISAM-BE/AISAM.Services/`
+- `AISAM-BE/AISAM.Repositories/`
+- `AISAM-BE/AISAM.Data/`
+- `AISAM-BE/AISAM.Common/`
+- `AISAM-BE/tests/AISAM.IntegrationTests/`
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+### Progress Detail - Task 0.2
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã đối chiếu:
+
+- `PRN232_Backend/AISAM.API/AISAM.API.csproj`
+- `PRN232_Backend/AISAM.Services/AISAM.Services.csproj`
+- `PRN232_Backend/AISAM.Repositories/AISAM.Repositories.csproj`
+- `PRN232_Backend/AISAM.Data/AISAM.Data.csproj`
+- `PRN232_Backend/AISAM.Common/AISAM.Common.csproj`
+- `PRN232_Backend/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj`
+
+File đã sửa:
+
+- `AISAM-BE/AISAM.API/AISAM.API.csproj`
+- `AISAM-BE/AISAM.Services/AISAM.Services.csproj`
+- `AISAM-BE/AISAM.Repositories/AISAM.Repositories.csproj`
+- `AISAM-BE/AISAM.Data/AISAM.Data.csproj`
+- `AISAM-BE/AISAM.Common/AISAM.Common.csproj`
+
+Kết quả kiểm tra:
+
+```text
+dotnet restore
+OK
+
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+Ghi chú:
+
+- Task này chỉ migrate package/project config, chưa migrate code nghiệp vụ.
+- Sau build/test có nhiều file `bin/obj` phát sinh; chưa xử lý `.gitignore` trong task này.
+
+### Progress Detail - Task 1.1
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.API/Program.cs`
+- `PRN232_Backend/AISAM.API/Middleware/ExceptionHandlerMiddleware.cs`
+- `PRN232_Backend/AISAM.API/Filters/ValidationFilter.cs`
+- `PRN232_Backend/AISAM.Common/GenericResponse.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/Middleware/ExceptionHandlerMiddleware.cs`
+- `AISAM-BE/AISAM.API/Filters/ValidationFilter.cs`
+- `AISAM-BE/AISAM.Common/GenericResponse.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không copy nguyên `Program.cs` cũ vì startup cũ phụ thuộc nhiều module chưa migrate như DB, auth, hosted services, Facebook, Gemini, PayOS, Supabase.
+- Tạo API host tối thiểu trước để Swagger chạy được.
+- Copy `GenericResponse` sớm hơn plan vì middleware/filter cần để build.
+- Sửa nullable warning trong middleware/filter để build sạch.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+API/Swagger test:
+
+```text
+GET http://localhost:5081/swagger/index.html
+STATUS=200
+```
+
+Ghi chú:
+
+- API chỉ chạy tạm để test Swagger và đã được dừng lại.
+- Chưa bật database, authentication, DI nghiệp vụ hoặc hosted services.
+
+### Progress Detail - Task 1.2
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/src/AISAM.Api/Controllers/HealthController.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.API/Controllers/HealthController.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cải tiến/điều chỉnh:
+
+- HealthController source cũ ở nhánh `src` dùng `ApiResponse` của kiến trúc thử nghiệm; repo mới đang dùng `GenericResponse`, nên endpoint mới trả `GenericResponse<object>` để đồng nhất API hiện tại.
+- Tạm tắt `UseHttpsRedirection()` trong `Program.cs` vì local runtime chưa có HTTPS port. Khi bật, middleware cố log warning vào Windows Event Log và gây lỗi `Cannot open log for source '.NET Runtime'` trong môi trường hiện tại.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+API test:
+
+```text
+GET http://localhost:5082/api/health
+STATUS=200
+```
+
+Response mẫu:
+
+```json
+{
+  "success": true,
+  "message": "AISAM backend is ready.",
+  "statusCode": 200,
+  "data": {
+    "status": "Healthy",
+    "service": "AISAM Backend"
+  }
+}
+```
+
+Ghi chú:
+
+- API chỉ chạy tạm để test health endpoint và đã được dừng lại.
+- Chưa bật database/auth/module nghiệp vụ.
+
+### Progress Detail - Task 2.1
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Common/GenericResponse.cs`
+- `PRN232_Backend/AISAM.Common/Config/JwtSettings.cs`
+- `PRN232_Backend/AISAM.Common/Config/EmailSettings.cs`
+- `PRN232_Backend/AISAM.Common/Config/GoogleSettings.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/AuthRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/AuthResponse.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/UserResponseDto.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/PaginationDtos.cs`
+- `PRN232_Backend/AISAM.Common/Models/SocialDtos.cs`
+- `PRN232_Backend/AISAM.Data/Enumeration/UserRoleEnum.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Common/Config/JwtSettings.cs`
+- `AISAM-BE/AISAM.Common/Config/EmailSettings.cs`
+- `AISAM-BE/AISAM.Common/Config/GoogleSettings.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/AuthRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/AuthResponse.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/UserResponseDto.cs`
+- `AISAM-BE/AISAM.Common/Dtos/PaginationDtos.cs`
+- `AISAM-BE/AISAM.Common/Models/SocialDtos.cs`
+- `AISAM-BE/AISAM.Data/Enumeration/UserRoleEnum.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ.
+- `GenericResponse.cs` đã được copy sớm ở Task 1.1 vì middleware/filter cần để build.
+- Copy thêm `SocialDtos.cs` vì `UserResponseDto` phụ thuộc `SocialAccountDto`.
+- Copy thêm `UserRoleEnum.cs` vì `AuthResponse` phụ thuộc `UserRoleEnum`; phần enum còn lại vẫn để Task 2.2.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+API test:
+
+```text
+Không áp dụng, task này chưa thêm endpoint mới.
+```
+
+### Progress Detail - Task 2.2
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Data/Model/*`
+- `PRN232_Backend/AISAM.Data/Enumeration/*`
+
+File/thư mục đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Data/Model/*`
+- `AISAM-BE/AISAM.Data/Enumeration/*`
+- Xóa template rỗng:
+  - `AISAM-BE/AISAM.Data/Class1.cs`
+  - `AISAM-BE/AISAM.Common/Class1.cs`
+  - `AISAM-BE/AISAM.Repositories/Class1.cs`
+  - `AISAM-BE/AISAM.Services/Class1.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ.
+- Kế hoạch ban đầu muốn tránh Ads entities ở MVP, nhưng các entity core như `Brand`, `Profile`, `Content`, `Post` có navigation property tới `AdCampaign`, `AdCreative`, `PerformanceReport`.
+- Để không refactor model baseline và tránh phá quan hệ entity, task này copy toàn bộ `Model` và `Enumeration`.
+- Việc copy Ads entities ở đây chỉ là dependency domain model; chưa triển khai controller/service/repository Ads.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+API test:
+
+```text
+Không áp dụng, task này chưa thêm endpoint mới.
+```
+
+### Progress Detail - Task 2.3
+
+Ngày hoàn thành: 2026-05-28
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Repositories/AISAMContext.cs`
+- `PRN232_Backend/AISAM.Repositories/Migrations/*`
+
+File/thư mục đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Repositories/AISAMContext.cs`
+- `AISAM-BE/AISAM.Repositories/Migrations/*`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/appsettings.Development.json`
+- `AISAM-BE/AISAM.Services/AISAM.Services.csproj`
+
+Cải tiến/điều chỉnh:
+
+- Không bật auto migration khi app start. Migration sẽ chạy thủ công bằng `dotnet ef database update` sau khi có connection string local.
+- `DbContext` chỉ được đăng ký khi có `CONNECTION_STRING` hoặc `ConnectionStrings:DefaultConnection`, giúp API host và health endpoint vẫn chạy được khi developer mới clone repo nhưng chưa setup database.
+- Pin `Microsoft.EntityFrameworkCore.Relational` version `9.0.9` trong `AISAM.Services` để tránh conflict giữa EF Core `9.0.9` và dependency transitive `9.0.1` từ Supabase/Npgsql.
+- Không đổi tên migration class cũ để giữ nguyên migration history baseline.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test
+Passed. 1/1 tests passed.
+```
+
+Migration:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
+Skipped: chưa có local connection string trong appsettings.Development.json hoặc .env.
+```
+
+API test:
+
+```text
+GET http://localhost:5083/api/health
+STATUS=200
+```
+
+Response mẫu:
+
+```json
+{
+  "success": true,
+  "message": "AISAM backend is ready.",
+  "statusCode": 200,
+  "data": {
+    "status": "Healthy",
+    "service": "AISAM Backend"
+  }
+}
+```
+
+Ghi chú:
+
+- API chỉ chạy tạm để test health endpoint và đã được dừng lại.
+- Các module cần database chỉ nên bật/test sau khi cấu hình PostgreSQL và chạy migration thành công.
+
+### Progress Detail - Setup Guide
+
+Ngày hoàn thành: 2026-05-28
+
+File đã tạo:
+
+- `SETUP_GUIDE.md`
+
+Nội dung chính:
+
+- Ghi rõ cấu hình hiện tại cần ngay trong code mới: .NET SDK/NuGet restore, chưa cần secret để chạy API host tối thiểu.
+- Ghi rõ các config future/optional sẽ cần khi migrate module:
+  - PostgreSQL.
+  - JWT.
+  - CORS/Frontend base URL.
+  - SMTP email.
+  - Google OAuth.
+  - Facebook OAuth/Graph API.
+  - Gemini AI.
+  - PayOS.
+  - Supabase Storage.
+- Có ví dụ `.env`.
+- Có ví dụ `appsettings.Development.json`.
+- Có checklist setup cuối file.
+- Có phần không commit secrets lên Git.
+
+Kết quả kiểm tra:
+
+```text
+Không chạy build/test vì task này chỉ thêm tài liệu Markdown.
+```

@@ -3655,6 +3655,7 @@
           "Google.Apis.Auth": "1.73.0",
           "Google.Cloud.AIPlatform.V1": "3.60.0",
           "Microsoft.AspNetCore.Http.Abstractions": "2.3.0",
+          "Microsoft.EntityFrameworkCore.Relational": "9.0.9",
           "Microsoft.Extensions.Hosting.Abstractions": "9.0.9",
           "Microsoft.Extensions.Logging.Abstractions": "9.0.9",
           "Microsoft.Extensions.Options": "9.0.9",
