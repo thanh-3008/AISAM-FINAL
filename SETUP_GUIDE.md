@@ -16,6 +16,15 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 
 > Mục tiêu: developer mới clone repo về có thể biết cần cấu hình gì, lấy key/token ở đâu, thêm vào file nào, config đó dùng để làm gì và lỗi thường gặp nếu thiếu.
 
+## 0. Chú thích trạng thái config
+
+Trong tài liệu này:
+
+- <span style="color:red"><strong>REQUIRED NOW</strong></span>: bắt buộc ngay ở tiến độ hiện tại.
+- <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>: bắt buộc khi chạy migration hoặc test module dùng database.
+- <span style="color:red"><strong>REQUIRED IN THIS PHASE</strong></span>: bắt buộc khi bắt đầu phase/module tương ứng.
+- <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>: chưa cần ở MVP hiện tại, chỉ cấu hình khi bật tính năng đó.
+
 ## 1. Trạng thái cấu hình hiện tại
 
 ### Hiện tại cần ngay trong code mới
@@ -36,19 +45,20 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 
 Vì vậy để chạy backend hiện tại ở mức API host + health check, **chưa cần database/API key/OAuth/Storage/Payment**.
 
-Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu muốn chạy migration hoặc bắt đầu các module cần database như Auth/Profile/Brand/Product, PostgreSQL connection string sẽ là **REQUIRED**.
+Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu muốn chạy migration hoặc bắt đầu các module cần database như Auth/Profile/Brand/Product, PostgreSQL connection string sẽ là <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>.
 
-REQUIRED hiện tại:
+<span style="color:red"><strong>REQUIRED NOW</strong></span>:
 
 - .NET SDK.
 - Restore NuGet packages.
 - Không bắt buộc connection string nếu chỉ chạy Swagger/Health API.
 
-REQUIRED khi chạy migration hoặc module dùng DB:
+<span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>:
 
 - PostgreSQL database.
+- `CONNECTION_STRING` trong `AISAM-BE/.env` hoặc `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
 
-Optional/Future feature hiện tại:
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại:
 
 - JWT settings.
 - SMTP email.
@@ -62,7 +72,7 @@ Các config optional này sẽ trở thành REQUIRED khi migrate module tương 
 
 ## 2. Không commit secrets lên Git
 
-REQUIRED
+<span style="color:red"><strong>REQUIRED NOW</strong></span>
 
 Tuyệt đối không commit các giá trị thật sau lên Git:
 
@@ -100,7 +110,7 @@ appsettings.Development.example.json
 
 ### Mục đích
 
-REQUIRED
+<span style="color:red"><strong>REQUIRED NOW</strong></span>
 
 Dùng để restore, build, test và chạy backend `.NET 8`.
 
@@ -135,9 +145,9 @@ dotnet run --project AISAM.API
 
 ### Mục đích
 
-REQUIRED nếu chạy migration hoặc test module có database.
+<span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> nếu chạy migration hoặc test module có database.
 
-Optional nếu chỉ chạy API host hiện tại, Swagger và `/api/health`.
+<span style="color:gray"><strong>OPTIONAL</strong></span> nếu chỉ chạy API host hiện tại, Swagger và `/api/health`.
 
 Dùng để lưu:
 
@@ -172,7 +182,7 @@ Chọn một trong các cách:
 
 ### Cần lấy key/token gì
 
-Cần connection string PostgreSQL.
+<span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>: cần connection string PostgreSQL.
 
 Ví dụ:
 
@@ -237,7 +247,9 @@ GET http://localhost:5081/api/health
 
 ### Mục đích
 
-Future feature, sẽ là REQUIRED khi migrate Auth module.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN THIS PHASE</strong></span> khi migrate Auth module.
 
 Dùng để:
 
@@ -251,7 +263,7 @@ Không cần tài khoản bên ngoài.
 
 ### Cần lấy key/token gì
 
-Cần tự tạo JWT secret key đủ dài.
+<span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span>: cần tự tạo JWT secret key đủ dài.
 
 Yêu cầu:
 
@@ -302,7 +314,9 @@ Hoặc `AISAM-BE/AISAM.API/appsettings.Development.json`:
 
 ### Mục đích
 
-Optional hiện tại, REQUIRED khi frontend gọi backend.
+<span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN FRONTEND PHASE</strong></span> khi frontend gọi backend.
 
 Dùng để cho phép frontend gọi API backend từ domain/port khác.
 
@@ -354,7 +368,9 @@ Hoặc `appsettings.Development.json`:
 
 ### Mục đích
 
-Future feature, REQUIRED khi bật email verification/forgot password.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> khi bật email verification/forgot password.
 
 Dùng để gửi:
 
@@ -378,8 +394,8 @@ Có thể dùng:
 
 Với Gmail:
 
-- Gmail address.
-- App Password.
+- <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span>: Gmail address.
+- <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span>: App Password.
 
 ### Thêm vào file nào
 
@@ -430,7 +446,9 @@ Hoặc `appsettings.Development.json`:
 
 ### Mục đích
 
-Future feature, REQUIRED khi bật Google login.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span> khi bật Google login.
 
 Source cũ có `GoogleLoginAsync` trong AuthService và `GoogleSettings`.
 
@@ -446,8 +464,8 @@ https://console.cloud.google.com/
 
 Cần:
 
-- Google OAuth Client ID.
-- Google OAuth Client Secret.
+- <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span>: Google OAuth Client ID.
+- <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span>: Google OAuth Client Secret.
 
 ### Thêm vào file nào
 
@@ -492,7 +510,9 @@ Hoặc `appsettings.Development.json`:
 
 ### Mục đích
 
-Future feature, REQUIRED khi bật:
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> khi bật:
 
 - Kết nối Facebook account.
 - Lấy Facebook Pages.
@@ -519,9 +539,9 @@ Cần tạo:
 
 Cần:
 
-- Facebook App ID.
-- Facebook App Secret.
-- Page access token hoặc OAuth flow để lấy page token.
+- <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span>: Facebook App ID.
+- <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span>: Facebook App Secret.
+- <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span>: Page access token hoặc OAuth flow để lấy page token.
 - Optional sandbox access token nếu test sandbox.
 - Optional ad account id nếu làm Facebook Ads.
 
@@ -589,7 +609,9 @@ Hoặc `appsettings.Development.json`:
 
 ### Mục đích
 
-Future feature, REQUIRED khi bật AI generation/refinement.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> khi bật AI generation/refinement.
 
 Source cũ dùng Gemini cho:
 
@@ -611,7 +633,7 @@ https://console.cloud.google.com/
 
 Cần:
 
-- Gemini API key.
+- <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span>: Gemini API key.
 
 ### Thêm vào file nào
 
@@ -652,7 +674,9 @@ Hoặc `appsettings.Development.json`:
 
 ### Mục đích
 
-Future feature, REQUIRED khi bật payment/subscription.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> khi bật payment/subscription.
 
 Source cũ dùng PayOS cho:
 
@@ -673,9 +697,9 @@ https://payos.vn/
 
 Cần:
 
-- Client ID.
-- API Key.
-- Checksum Key.
+- <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span>: Client ID.
+- <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span>: API Key.
+- <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span>: Checksum Key.
 
 ### Thêm vào file nào
 
@@ -716,7 +740,9 @@ Hoặc `appsettings.Development.json`:
 
 ### Mục đích
 
-Future feature, REQUIRED khi bật upload/storage.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+
+<span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> khi bật upload/storage.
 
 Source cũ dùng Supabase **chỉ cho Storage**, không dùng Supabase Auth.
 
@@ -738,8 +764,8 @@ https://supabase.com/
 
 Cần:
 
-- Supabase URL.
-- Supabase anon key hoặc service role key tùy cách upload.
+- <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span>: Supabase URL.
+- <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span>: Supabase anon key hoặc service role key tùy cách upload.
 
 Không commit service role key.
 
@@ -770,14 +796,15 @@ Các config dưới đây chưa bắt buộc cho MVP backend local hiện tại:
 
 | Config | Trạng thái | Khi nào cần |
 | --- | --- | --- |
-| PostgreSQL connection string | Optional cho Swagger/Health, REQUIRED cho migration/module DB | Khi chạy `dotnet ef database update`, Auth, Profile, Brand, Product |
-| Google OAuth | Optional / Future feature | Khi bật Google login |
-| Facebook OAuth | Optional hiện tại, REQUIRED ở social phase | Khi bật Facebook connect/publish |
-| Facebook Ads sandbox | Optional / Future feature | Khi làm campaign/ad set/ad |
-| Gemini | Optional hiện tại, REQUIRED ở AI phase | Khi bật AI generate/refine |
-| PayOS | Optional hiện tại, REQUIRED ở payment phase | Khi bật subscription/payment |
-| Supabase Storage | Optional / Future feature | Khi bật upload file |
-| SMTP | Optional hiện tại, REQUIRED ở auth email phase | Khi bật email verify/reset password |
+| PostgreSQL connection string | <span style="color:gray"><strong>OPTIONAL</strong></span> cho Swagger/Health, <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> | Khi chạy `dotnet ef database update`, Auth, Profile, Brand, Product |
+| JWT settings | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span> | Khi bật register/login/protected APIs |
+| SMTP | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> | Khi bật email verify/reset password |
+| Google OAuth | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>, <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span> | Khi bật Google login |
+| Facebook OAuth | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> | Khi bật Facebook connect/publish |
+| Facebook Ads sandbox | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> | Khi làm campaign/ad set/ad |
+| Gemini | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> | Khi bật AI generate/refine |
+| PayOS | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> | Khi bật subscription/payment |
+| Supabase Storage | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>, <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> | Khi bật upload file |
 
 ## 14. Ví dụ `.env`
 
@@ -928,64 +955,64 @@ Ví dụ:
 
 ### Chạy backend hiện tại
 
-- [ ] Cài .NET SDK.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Cài .NET SDK.
 - [ ] Clone repo.
 - [ ] Vào thư mục `AISAM-BE`.
-- [ ] Chạy `dotnet restore`.
-- [ ] Chạy `dotnet build`.
-- [ ] Chạy `dotnet test`.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet restore`.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet build`.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet test`.
 - [ ] Chạy `dotnet run --project AISAM.API`.
 - [ ] Mở Swagger.
 
 ### Khi tới phase database/auth
 
-- [ ] Tạo PostgreSQL database.
-- [ ] Thêm `CONNECTION_STRING`.
-- [ ] Hoặc thêm `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
-- [ ] Chạy `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API`.
-- [ ] Thêm `JwtSettings` hoặc env JWT.
+- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Tạo PostgreSQL database.
+- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Thêm `CONNECTION_STRING`.
+- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Hoặc thêm `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
+- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Chạy `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API`.
+- [ ] <span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span> Thêm `JwtSettings` hoặc env JWT.
 - [ ] Test register/login.
 
 ### Khi tới phase email
 
-- [ ] Tạo SMTP account hoặc Gmail App Password.
-- [ ] Thêm `EmailSettings`.
+- [ ] <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> Tạo SMTP account hoặc Gmail App Password.
+- [ ] <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> Thêm `EmailSettings`.
 - [ ] Test email verification.
 - [ ] Test forgot/reset password.
 
 ### Khi tới phase AI
 
-- [ ] Tạo Gemini API key.
-- [ ] Thêm `GEMINI_API_KEY`.
+- [ ] <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> Tạo Gemini API key.
+- [ ] <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> Thêm `GEMINI_API_KEY`.
 - [ ] Test AI generate draft.
 - [ ] Test AI refine content.
 
 ### Khi tới phase social publishing
 
-- [ ] Tạo Meta/Facebook app.
-- [ ] Thêm `FACEBOOK_APP_ID`.
-- [ ] Thêm `FACEBOOK_APP_SECRET`.
-- [ ] Cấu hình redirect URI.
-- [ ] Xin quyền Page cần thiết.
+- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Tạo Meta/Facebook app.
+- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Thêm `FACEBOOK_APP_ID`.
+- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Thêm `FACEBOOK_APP_SECRET`.
+- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Cấu hình redirect URI.
+- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Xin quyền Page cần thiết.
 - [ ] Test get auth URL.
 - [ ] Test link Page.
 - [ ] Test publish content.
 
 ### Khi tới phase payment
 
-- [ ] Tạo PayOS merchant/app.
-- [ ] Thêm `PAYOS_CLIENT_ID`.
-- [ ] Thêm `PAYOS_API_KEY`.
-- [ ] Thêm `PAYOS_CHECKSUM_KEY`.
+- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Tạo PayOS merchant/app.
+- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Thêm `PAYOS_CLIENT_ID`.
+- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Thêm `PAYOS_API_KEY`.
+- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Thêm `PAYOS_CHECKSUM_KEY`.
 - [ ] Test create checkout link.
 - [ ] Test confirm payment/webhook.
 
 ### Khi tới phase storage
 
-- [ ] Tạo Supabase project.
-- [ ] Tạo bucket.
-- [ ] Thêm `SUPABASE_URL`.
-- [ ] Thêm `SUPABASE_KEY`.
+- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Tạo Supabase project.
+- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Tạo bucket.
+- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Thêm `SUPABASE_URL`.
+- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Thêm `SUPABASE_KEY`.
 - [ ] Test upload file.
 
 ## 17. Quick local smoke test
