@@ -10,3 +10,4 @@ D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Data\obj\Debug\net8.0\AISAM.Data.dll
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Data\obj\Debug\net8.0\refint\AISAM.Data.dll
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Data\obj\Debug\net8.0\AISAM.Data.pdb
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Data\obj\Debug\net8.0\ref\AISAM.Data.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Data\obj\Debug\net8.0\AISAM.Data.csproj.AssemblyReference.cache

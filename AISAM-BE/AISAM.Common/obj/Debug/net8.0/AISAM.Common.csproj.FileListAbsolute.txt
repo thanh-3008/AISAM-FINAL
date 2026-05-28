@@ -10,3 +10,7 @@ D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.dll
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\refint\AISAM.Common.dll
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.pdb
 D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\ref\AISAM.Common.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\bin\Debug\net8.0\AISAM.Data.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\bin\Debug\net8.0\AISAM.Data.pdb
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Common.csproj.AssemblyReference.cache
+D:\AISAM\AISAM-FINAL\AISAM-BE\AISAM.Common\obj\Debug\net8.0\AISAM.Co.9DE02754.Up2Date
