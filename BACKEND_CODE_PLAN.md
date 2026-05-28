@@ -3172,6 +3172,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Task 0.1 - Tạo cấu trúc repo backend mới | Done | `chore(solution): initialize backend solution structure` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã tạo `AISAM.sln`, `AISAM.API`, `AISAM.Services`, `AISAM.Repositories`, `AISAM.Data`, `AISAM.Common`, `tests/AISAM.IntegrationTests`; đã nối project references theo baseline. |
 | Task 0.2 - Copy cấu hình project và package cơ bản từ source cũ | Done | `chore(projects): migrate backend project package references` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | N/A | Đã migrate package references/root namespace từ các `.csproj` cũ. Chưa migrate code nghiệp vụ. |
 | Task 1.1 - Migrate Program.cs tối thiểu | Done | `chore(api): add minimal api host and swagger` | Pass: `dotnet build` | Pass: `dotnet test` - 1/1 | N/A | Pass: `GET /swagger/index.html` status 200 on `http://localhost:5081` | Đã thay WeatherForecast template bằng API host tối thiểu; thêm `ExceptionHandlerMiddleware`, `ValidationFilter`, `GenericResponse`. `GenericResponse` được copy sớm vì middleware/filter phụ thuộc. |
+| Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
 
 ### Progress Detail - Task 0.1
 
@@ -3282,3 +3283,35 @@ Ghi chú:
 
 - API chỉ chạy tạm để test Swagger và đã được dừng lại.
 - Chưa bật database, authentication, DI nghiệp vụ hoặc hosted services.
+
+### Progress Detail - Setup Guide
+
+Ngày hoàn thành: 2026-05-28
+
+File đã tạo:
+
+- `SETUP_GUIDE.md`
+
+Nội dung chính:
+
+- Ghi rõ cấu hình hiện tại cần ngay trong code mới: .NET SDK/NuGet restore, chưa cần secret để chạy API host tối thiểu.
+- Ghi rõ các config future/optional sẽ cần khi migrate module:
+  - PostgreSQL.
+  - JWT.
+  - CORS/Frontend base URL.
+  - SMTP email.
+  - Google OAuth.
+  - Facebook OAuth/Graph API.
+  - Gemini AI.
+  - PayOS.
+  - Supabase Storage.
+- Có ví dụ `.env`.
+- Có ví dụ `appsettings.Development.json`.
+- Có checklist setup cuối file.
+- Có phần không commit secrets lên Git.
+
+Kết quả kiểm tra:
+
+```text
+Không chạy build/test vì task này chỉ thêm tài liệu Markdown.
+```
