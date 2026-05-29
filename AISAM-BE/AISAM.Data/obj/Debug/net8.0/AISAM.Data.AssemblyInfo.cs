@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AISAM.Data")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+373881f22ee14f03102aa3fbac2bfe15cf1269ff")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+52c474f885a40c4d41b3c667a78741a623071f6c")]
 [assembly: System.Reflection.AssemblyProductAttribute("AISAM.Data")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AISAM.Data")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

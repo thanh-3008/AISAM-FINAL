@@ -9,3 +9,6 @@ appsettings.Production.json
 
 # Local runtime logs
 *.log
+
+# ASP.NET local data protection keys
+.keys/

@@ -292,11 +292,11 @@ Swagger UI mở được.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có: không áp dụng.
-- [ ] API test thành công.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: không áp dụng.
+- [x] API test thành công.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ### Task 1.2 - Thêm HealthController
@@ -3180,6 +3180,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
 | Task 3.1 - Copy repositories cho User và Session | Done | `chore(auth): migrate user and session repositories` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5085` | Đã copy `IUserRepository`, `ISessionRepository`, `UserRepository`, `SessionRepository`; copy thêm dependency `UserListDto`; đăng ký DI trong `Program.cs`. |
 | Task 3.2 - Copy AuthService và EmailService ở mức MVP | Done | `feat(auth): migrate auth and email services` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5086` | Đã copy `IAuthService`, `IEmailService`, `AuthService`, `EmailService`; copy thêm `EmailRequest`, `FrontendSettings`; đăng ký DI/options và env overrides trong `Program.cs`; `.env.example` có JWT/SMTP/Google placeholders. |
+| Task 3.3 - Copy AuthController và bật JWT authentication | Done | `feat(auth): migrate authentication api endpoints` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: register/login/me/refresh/logout on `http://localhost:5088` | Đã copy `AuthController`, bật JWT Bearer, Swagger Bearer auth, `UseAuthentication/UseAuthorization`; chỉnh logging sang Console để tránh Windows Event Log crash; chưa copy `UserClaimsHelper` vì phụ thuộc `IUserService` ngoài phạm vi task. |
 
 ### Progress Detail - Task 0.1
 
@@ -3665,6 +3666,75 @@ API test:
 ```text
 Không có API mới. Smoke test `/api/health` pass để chứng minh API host không bị phá.
 ```
+
+### Progress Detail - Task 3.3
+
+Ngày hoàn thành: 2026-05-29
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.API/Controllers/AuthController.cs`
+- `PRN232_Backend/AISAM.API/Program.cs` để đối chiếu JWT Bearer và Swagger Bearer setup
+- `PRN232_Backend/AISAM.API/Utils/UserClaimsHelper.cs` đã kiểm tra nhưng chưa copy
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.API/Controllers/AuthController.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.Common/GenericResponse.cs`
+
+Cải tiến/điều chỉnh:
+
+- Bật JWT Bearer authentication và authorization trong repo mới.
+- Bật Swagger Bearer auth để test API protected bằng token.
+- Cấu hình logging chỉ dùng Console trong local API host để tránh lỗi Windows Event Log `Cannot open log for source '.NET Runtime'`.
+- Sửa `GenericResponse<T>.CreateSuccess` nhận `T?` vì nhiều endpoint success hợp lệ có `data = null`; không đổi JSON response contract.
+- Chưa copy `UserClaimsHelper` trong task này vì file cũ phụ thuộc `IUserService`, nếu copy sẽ kéo thêm user service ngoài scope Auth MVP task. `AuthController` hiện không cần helper này.
+- Không copy validators vì source cũ không có validator auth riêng; DTO auth đang dùng DataAnnotations.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+```
+
+Migration:
+
+```text
+Không áp dụng, task này không đổi schema database.
+```
+
+API test:
+
+```text
+POST http://localhost:5088/api/auth/register
+REGISTER_SUCCESS=True
+REGISTER_HAS_ACCESS_TOKEN=True
+REGISTER_HAS_REFRESH_TOKEN=True
+
+POST http://localhost:5088/api/auth/login
+LOGIN_SUCCESS=True
+LOGIN_HAS_ACCESS_TOKEN=True
+
+GET http://localhost:5088/api/auth/me
+ME_SUCCESS=True
+ME_EMAIL=task33_20260529193317@example.com
+
+POST http://localhost:5088/api/auth/refresh
+REFRESH_SUCCESS=True
+
+POST http://localhost:5088/api/auth/logout
+LOGOUT_SUCCESS=True
+```
+
+Ghi chú:
+
+- Request register thực tế cần `confirmPassword` vì `RegisterRequest` có `[Required]` và `[Compare]`.
+- SMTP chưa cấu hình nên email verification được log/skip fail-safe theo `EmailService`, không làm hỏng register local.
 
 ### Progress Detail - Setup Guide
 

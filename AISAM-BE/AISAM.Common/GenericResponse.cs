@@ -23,7 +23,7 @@ namespace AISAM.Common
         [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
-        public static GenericResponse<T> CreateSuccess(T data, string message = "Operation successful")
+        public static GenericResponse<T> CreateSuccess(T? data, string message = "Operation successful")
         {
             return new GenericResponse<T>
             {

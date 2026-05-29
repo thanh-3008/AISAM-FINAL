@@ -7,11 +7,19 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Repositories.Repository;
 using AISAM.Services.IServices;
 using AISAM.Services.Service;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Npgsql;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
 var envPath = Path.Combine(builder.Environment.ContentRootPath, ".env");
 if (File.Exists(envPath))
@@ -49,6 +57,40 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("GoogleSettings"));
 builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 
+var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var jwtSecretKey = jwtSettings["SecretKey"];
+if (string.IsNullOrWhiteSpace(jwtSecretKey))
+{
+    throw new InvalidOperationException("JWT SecretKey is not configured. Add JWT_SECRET_KEY to AISAM.API/.env.");
+}
+
+var jwtSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey));
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidateAudience = true,
+            ValidAudience = jwtSettings["Audience"],
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = jwtSigningKey,
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -83,7 +125,39 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "AISAM API",
+        Version = "v1"
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter JWT bearer token."
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 var app = builder.Build();
 
@@ -93,6 +167,9 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

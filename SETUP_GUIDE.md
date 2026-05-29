@@ -42,8 +42,10 @@ Trong tài liệu này:
 - Domain entities/enums nền tảng.
 - `AisamContext` và migrations cũ từ baseline.
 - Đăng ký `DbContext` có điều kiện khi có connection string.
+- Auth APIs MVP: register, login, refresh, logout, me.
+- JWT Bearer authentication và Swagger Bearer auth.
 
-Vì vậy để chạy backend hiện tại ở mức API host + health check, **chưa cần database/API key/OAuth/Storage/Payment**.
+Vì vậy để chạy backend hiện tại sau Auth MVP, **cần PostgreSQL và JWT config** nếu muốn chạy/test auth APIs.
 
 Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu muốn chạy migration hoặc bắt đầu các module cần database như Auth/Profile/Brand/Product, PostgreSQL connection string sẽ là <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>.
 
@@ -51,7 +53,10 @@ Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu 
 
 - .NET SDK.
 - Restore NuGet packages.
-- Không bắt buộc connection string nếu chỉ chạy Swagger/Health API.
+- PostgreSQL database nếu test Auth APIs.
+- `CONNECTION_STRING` trong `AISAM-BE/AISAM.API/.env`.
+- `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE` trong `AISAM-BE/AISAM.API/.env`.
+- Không bắt buộc SMTP/Google nếu chỉ test register/login local.
 
 <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>:
 
@@ -60,7 +65,6 @@ Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu 
 
 <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại:
 
-- JWT settings.
 - SMTP email.
 - Google OAuth.
 - Facebook OAuth/Graph API.
@@ -247,9 +251,7 @@ GET http://localhost:5081/api/health
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
-
-<span style="color:red"><strong>REQUIRED IN THIS PHASE</strong></span> khi migrate Auth module.
+<span style="color:red"><strong>REQUIRED NOW</strong></span> vì JWT Bearer authentication đã được bật ở Task 3.3.
 
 Dùng để:
 
@@ -263,7 +265,7 @@ Không cần tài khoản bên ngoài.
 
 ### Cần lấy key/token gì
 
-<span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span>: cần tự tạo JWT secret key đủ dài.
+<span style="color:red"><strong>REQUIRED NOW</strong></span>: cần tự tạo JWT secret key đủ dài.
 
 Yêu cầu:
 
@@ -797,7 +799,7 @@ Các config dưới đây chưa bắt buộc cho MVP backend local hiện tại:
 | Config | Trạng thái | Khi nào cần |
 | --- | --- | --- |
 | PostgreSQL connection string | <span style="color:gray"><strong>OPTIONAL</strong></span> cho Swagger/Health, <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> | Khi chạy `dotnet ef database update`, Auth, Profile, Brand, Product |
-| JWT settings | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span> | Khi bật register/login/protected APIs |
+| JWT settings | <span style="color:red"><strong>REQUIRED NOW</strong></span> | Khi chạy Auth APIs và protected APIs |
 | SMTP | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> | Khi bật email verify/reset password |
 | Google OAuth | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>, <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span> | Khi bật Google login |
 | Facebook OAuth | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> | Khi bật Facebook connect/publish |
@@ -820,7 +822,7 @@ Ví dụ:
 # Database - Optional for Swagger/Health, REQUIRED for migration and DB modules
 CONNECTION_STRING=Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password
 
-# JWT - Future REQUIRED from Auth phase
+# JWT - REQUIRED NOW from Auth phase
 JWT_SECRET_KEY=replace-with-a-long-random-secret-minimum-32-characters
 JWT_ISSUER=AISAM.API
 JWT_AUDIENCE=AISAM.Client
@@ -961,6 +963,7 @@ Ví dụ:
 - [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet restore`.
 - [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet build`.
 - [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet test`.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Thêm `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE` vào `AISAM-BE/AISAM.API/.env`.
 - [ ] Chạy `dotnet run --project AISAM.API`.
 - [ ] Mở Swagger.
 
@@ -970,7 +973,7 @@ Ví dụ:
 - [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Thêm `CONNECTION_STRING` vào `AISAM-BE/AISAM.API/.env`.
 - [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Hoặc thêm `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
 - [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Chạy `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API`.
-- [ ] <span style="color:red"><strong>REQUIRED IN AUTH PHASE</strong></span> Thêm `JwtSettings` hoặc env JWT.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Thêm `JwtSettings` hoặc env JWT.
 - [ ] Test register/login.
 
 ### Khi tới phase email
