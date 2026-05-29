@@ -1,6 +1,8 @@
 using AISAM.API.Filters;
 using AISAM.API.Middleware;
 using AISAM.Repositories;
+using AISAM.Repositories.IRepositories;
+using AISAM.Repositories.Repository;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -25,6 +27,9 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddDbContext<AisamContext>(options =>
         options.UseNpgsql(dataSource));
 }
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<ISessionRepository, SessionRepository>();
 
 builder.Services
     .AddControllers(options =>

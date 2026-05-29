@@ -108,11 +108,11 @@ Chưa có API.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có: không áp dụng.
-- [ ] API test thành công: không áp dụng.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: không áp dụng.
+- [x] API test thành công: không có API mới; smoke test `/api/health` pass.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ### Task 0.2 - Copy cấu hình project và package cơ bản từ source cũ
@@ -3178,6 +3178,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Task 2.3 - Copy AisamContext và migration cũ | Done | `chore(data): migrate db context and existing migrations` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test` - 1/1 | Skipped: chưa có local connection string | Pass: `GET /api/health` status 200 on `http://localhost:5083` | Đã copy `AisamContext` và migrations cũ; đăng ký DbContext có điều kiện khi có connection string. Pin `Microsoft.EntityFrameworkCore.Relational 9.0.9` ở `AISAM.Services` để build sạch do dependency Supabase/Npgsql kéo version thấp hơn. |
 | DB Setup - Kết nối PostgreSQL local | Done | `chore(data): add design time db context factory` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | Pass: applied 5 migrations to `aisam_dev` | Pass: `GET /api/health` status 200 on `http://localhost:5084` | Đã thêm `.gitignore`, `AISAM.API/.env.example`, `AisamContextFactory`; `.env` local chứa connection string thật và đã được ignore. |
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
+| Task 3.1 - Copy repositories cho User và Session | Done | `chore(auth): migrate user and session repositories` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5085` | Đã copy `IUserRepository`, `ISessionRepository`, `UserRepository`, `SessionRepository`; copy thêm dependency `UserListDto`; đăng ký DI trong `Program.cs`. |
 
 ### Progress Detail - Task 0.1
 
@@ -3552,6 +3553,58 @@ Ghi chú:
 
 - Cảnh báo EF tools version `8.0.10` thấp hơn runtime `9.0.9` chưa chặn migration, nhưng nên update dotnet-ef sau.
 - Không ghi password DB thật vào tài liệu hoặc file tracked.
+
+### Progress Detail - Task 3.1
+
+Ngày hoàn thành: 2026-05-29
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IUserRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/ISessionRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/UserRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/SessionRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/UserListDto.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Repositories/IRepositories/IUserRepository.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/ISessionRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/UserRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/SessionRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/UserListDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ repository; giữ nguyên baseline.
+- Copy thêm `UserListDto` vì `IUserRepository.GetPagedUsersAsync` và `UserRepository` phụ thuộc DTO này.
+- Đăng ký DI cho `IUserRepository` và `ISessionRepository` trong `Program.cs`.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings từ migration cũ `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+GET http://localhost:5085/api/health
+STATUS=200
+```
+
+Migration:
+
+```text
+Không áp dụng, task này không đổi schema database.
+```
+
+API test:
+
+```text
+Không có API mới. Smoke test `/api/health` pass để chứng minh API host không bị phá.
+```
 
 ### Progress Detail - Setup Guide
 
