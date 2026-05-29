@@ -3824,6 +3824,91 @@ Checklist:
 - [x] Khong pha module Auth/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
+### Progress Detail - Task 4.2
+
+Ngay hoan thanh: 2026-05-29
+
+Source cu da dung:
+
+- `PRN232_Backend/AISAM.API/Controllers/BrandController.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IBrandService.cs`
+- `PRN232_Backend/AISAM.Services/Service/BrandService.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IBrandRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/BrandRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/CreateBrandRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/UpdateBrandRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/BrandResponseDto.cs`
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/BrandController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IBrandService.cs`
+- `AISAM-BE/AISAM.Services/Service/BrandService.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IBrandRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/BrandRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/CreateBrandRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/UpdateBrandRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/BrandResponseDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cai tien/dieu chinh so voi source cu:
+
+- Giu DTO va entity mapping tu source cu.
+- Khong copy nguyen `BrandService` cu vi no keo them `ITeamMemberRepository`, `ITeamRepository`, `IProductRepository`, `IContentRepository`, `RolePermissionConfig`.
+- Brand MVP hien tai chi ho tro CRUD brand theo profile owner; shared brand qua Team se lam sau khi Team module duoc migrate.
+- `GET /api/brands` dung `profileId` query thay vi `ProfileContextHelper`/active profile context vi FE va profile context middleware chua co.
+- Chua soft delete/restore cascade products vi Product module chua migrate trong task nay.
+- Sua controller ve text ASCII ro rang, lay userId truc tiep tu JWT claim `ClaimTypes.NameIdentifier`.
+
+Ket qua kiem tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings tu migration cu `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+No migrations were applied. The database is already up to date.
+```
+
+API test:
+
+```text
+POST /api/Auth/register
+POST /api/profiles/user/{userId}
+
+POST /api/brands
+CREATE_BRAND_SUCCESS=True
+
+GET /api/brands?profileId={profileId}&page=1&pageSize=10
+LIST_BRAND_SUCCESS=True
+LIST_TOTAL=1
+
+GET /api/brands/{brandId}
+GET_BRAND_SUCCESS=True
+
+PUT /api/brands/{brandId}
+UPDATE_BRAND_SUCCESS=True
+UPDATED_NAME=AISAM Updated Brand
+
+DELETE /api/brands/{brandId}
+DELETE_BRAND_SUCCESS=True
+
+POST /api/brands/{brandId}/restore
+RESTORE_BRAND_SUCCESS=True
+```
+
+Checklist:
+
+- [x] Build thanh cong.
+- [x] Test pass.
+- [x] Migration kiem tra: database already up to date, khong co migration moi.
+- [x] API test thanh cong.
+- [x] Khong pha module Auth/Profile/Health da hoan thanh.
+- [ ] Commit rieng task nay.
+
 ### Progress Detail - Setup Guide
 
 Ngày hoàn thành: 2026-05-28
