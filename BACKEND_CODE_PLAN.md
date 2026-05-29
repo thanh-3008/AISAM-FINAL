@@ -182,11 +182,11 @@ Chưa có API.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có: không áp dụng.
-- [ ] API test thành công: không áp dụng.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: không áp dụng.
+- [x] API test thành công: không có API mới; smoke test `/api/health` pass.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ## Phase 1 - API host tối thiểu
@@ -3179,6 +3179,7 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | DB Setup - Kết nối PostgreSQL local | Done | `chore(data): add design time db context factory` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | Pass: applied 5 migrations to `aisam_dev` | Pass: `GET /api/health` status 200 on `http://localhost:5084` | Đã thêm `.gitignore`, `AISAM.API/.env.example`, `AisamContextFactory`; `.env` local chứa connection string thật và đã được ignore. |
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
 | Task 3.1 - Copy repositories cho User và Session | Done | `chore(auth): migrate user and session repositories` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5085` | Đã copy `IUserRepository`, `ISessionRepository`, `UserRepository`, `SessionRepository`; copy thêm dependency `UserListDto`; đăng ký DI trong `Program.cs`. |
+| Task 3.2 - Copy AuthService và EmailService ở mức MVP | Done | `feat(auth): migrate auth and email services` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5086` | Đã copy `IAuthService`, `IEmailService`, `AuthService`, `EmailService`; copy thêm `EmailRequest`, `FrontendSettings`; đăng ký DI/options và env overrides trong `Program.cs`; `.env.example` có JWT/SMTP/Google placeholders. |
 
 ### Progress Detail - Task 0.1
 
@@ -3591,6 +3592,65 @@ dotnet test --no-build
 Passed. 1/1 tests passed.
 
 GET http://localhost:5085/api/health
+STATUS=200
+```
+
+Migration:
+
+```text
+Không áp dụng, task này không đổi schema database.
+```
+
+API test:
+
+```text
+Không có API mới. Smoke test `/api/health` pass để chứng minh API host không bị phá.
+```
+
+### Progress Detail - Task 3.2
+
+Ngày hoàn thành: 2026-05-29
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Services/IServices/IAuthService.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IEmailService.cs`
+- `PRN232_Backend/AISAM.Services/Service/AuthService.cs`
+- `PRN232_Backend/AISAM.Services/Service/EmailService.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/EmailRequest.cs`
+- `PRN232_Backend/AISAM.Common/Models/FrontendSettings.cs`
+- `PRN232_Backend/AISAM.API/Program.cs` để đối chiếu options/env override pattern
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Services/IServices/IAuthService.cs`
+- `AISAM-BE/AISAM.Services/IServices/IEmailService.cs`
+- `AISAM-BE/AISAM.Services/Service/AuthService.cs`
+- `AISAM-BE/AISAM.Services/Service/EmailService.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/EmailRequest.cs`
+- `AISAM-BE/AISAM.Common/Models/FrontendSettings.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/.env.example`
+- `AISAM-BE/AISAM.API/.env` local, không commit
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ auth core; giữ baseline register/login/refresh/logout/password/email verification.
+- Giữ behavior fail-safe của `EmailService`: nếu thiếu SMTP config thì log warning và trả `false`, không throw làm hỏng register local.
+- Bổ sung env override tối thiểu cho `JwtSettings`, `EmailSettings`, `GoogleSettings`, `FrontendSettings`.
+- Bổ sung JWT dev config vào `.env` local để Task 3.3 có thể test register/login; `.env` đã được ignore.
+- Chưa bật JWT authentication middleware trong task này; phần đó thuộc Task 3.3.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings từ migration cũ `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+GET http://localhost:5086/api/health
 STATUS=200
 ```
 
