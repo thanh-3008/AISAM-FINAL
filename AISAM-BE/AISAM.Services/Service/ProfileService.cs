@@ -4,6 +4,7 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using System.Net;
 
 namespace AISAM.Services.Service
 {
@@ -18,12 +19,12 @@ namespace AISAM.Services.Service
             _userRepository = userRepository;
         }
 
-        public async Task<GenericResponse<ProfileResponseDto>> GetProfileByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<ProfileResponseDto>> GetProfileByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
         {
             var profile = await _profileRepository.GetByIdAsync(id, cancellationToken);
-            if (profile == null)
+            if (profile == null || profile.UserId != userId)
             {
-                return GenericResponse<ProfileResponseDto>.CreateError("Profile not found");
+                return GenericResponse<ProfileResponseDto>.CreateError("Profile not found", HttpStatusCode.NotFound);
             }
 
             return GenericResponse<ProfileResponseDto>.CreateSuccess(MapToDto(profile), "Profile retrieved successfully");
@@ -71,12 +72,12 @@ namespace AISAM.Services.Service
             return GenericResponse<ProfileResponseDto>.CreateSuccess(MapToDto(createdProfile), "Profile created successfully");
         }
 
-        public async Task<GenericResponse<ProfileResponseDto>> UpdateProfileAsync(Guid id, UpdateProfileRequest request, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<ProfileResponseDto>> UpdateProfileAsync(Guid id, Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default)
         {
             var profile = await _profileRepository.GetByIdAsync(id, cancellationToken);
-            if (profile == null)
+            if (profile == null || profile.UserId != userId)
             {
-                return GenericResponse<ProfileResponseDto>.CreateError("Profile not found");
+                return GenericResponse<ProfileResponseDto>.CreateError("Profile not found", HttpStatusCode.NotFound);
             }
 
             if (request.AvatarFile != null)
@@ -114,23 +115,29 @@ namespace AISAM.Services.Service
             return GenericResponse<ProfileResponseDto>.CreateSuccess(MapToDto(updatedProfile), "Profile updated successfully");
         }
 
-        public async Task<GenericResponse<bool>> DeleteProfileAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> DeleteProfileAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
         {
+            var profile = await _profileRepository.GetByIdAsync(id, cancellationToken);
+            if (profile == null || profile.UserId != userId)
+            {
+                return GenericResponse<bool>.CreateError("Profile not found", HttpStatusCode.NotFound);
+            }
+
             var deleted = await _profileRepository.DeleteAsync(id, cancellationToken);
             if (!deleted)
             {
-                return GenericResponse<bool>.CreateError("Profile not found");
+                return GenericResponse<bool>.CreateError("Profile not found", HttpStatusCode.NotFound);
             }
 
             return GenericResponse<bool>.CreateSuccess(true, "Profile deleted successfully");
         }
 
-        public async Task<GenericResponse<bool>> RestoreProfileAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> RestoreProfileAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
         {
             var profile = await _profileRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
-            if (profile == null)
+            if (profile == null || profile.UserId != userId)
             {
-                return GenericResponse<bool>.CreateError("Profile not found");
+                return GenericResponse<bool>.CreateError("Profile not found", HttpStatusCode.NotFound);
             }
 
             await _profileRepository.RestoreAsync(id, cancellationToken);
