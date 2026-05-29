@@ -3909,6 +3909,96 @@ Checklist:
 - [x] Khong pha module Auth/Profile/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
+### Progress Detail - Task 4.3
+
+Ngay hoan thanh: 2026-05-29
+
+Source cu da dung:
+
+- `PRN232_Backend/AISAM.API/Controllers/ProductController.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IProductService.cs`
+- `PRN232_Backend/AISAM.Services/Service/ProductService.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IProductRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/ProductRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/ProductCreateRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/ProductUpdateRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/ProductResponseDto.cs`
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ProductController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IProductService.cs`
+- `AISAM-BE/AISAM.Services/Service/ProductService.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IProductRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ProductRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/ProductCreateRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/ProductUpdateRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ProductResponseDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cai tien/dieu chinh so voi source cu:
+
+- Giu DTO, entity mapping va route product tu source cu.
+- Khong copy nguyen `ProductService` cu vi no phu thuoc `SupabaseStorageService` de upload anh; Supabase chua bat buoc trong MVP hien tai.
+- Bo `[Required]` khoi `ProductCreateRequest.ImageFiles` de co the tao product khong can upload anh trong local MVP.
+- Neu gui `ImageFiles`, service tra loi loi ro rang: product image upload chua bat trong MVP.
+- Tat ca endpoint product duoc bao ve bang JWT va kiem tra user la owner cua Brand/Profile.
+- `GET /api/products` ho tro `brandId` query de test product theo brand da tao.
+
+Ket qua kiem tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings tu migration cu `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+No migrations were applied. The database is already up to date.
+```
+
+API test:
+
+```text
+POST /api/Auth/register
+POST /api/profiles/user/{userId}
+POST /api/brands
+
+POST /api/products
+Content-Type: multipart/form-data
+Fields: BrandId, Name, Description, Price
+CREATE_PRODUCT_SUCCESS=True
+
+GET /api/products?brandId={brandId}&page=1&pageSize=10
+LIST_PRODUCT_SUCCESS=True
+LIST_TOTAL=1
+
+GET /api/products/{productId}
+GET_PRODUCT_SUCCESS=True
+
+PUT /api/products/{productId}
+Content-Type: multipart/form-data
+Fields: Name, Price
+UPDATE_PRODUCT_SUCCESS=True
+UPDATED_NAME=Product A Updated
+
+DELETE /api/products/{productId}
+DELETE_PRODUCT_SUCCESS=True
+
+POST /api/products/{productId}/restore
+RESTORE_PRODUCT_SUCCESS=True
+```
+
+Checklist:
+
+- [x] Build thanh cong.
+- [x] Test pass.
+- [x] Migration kiem tra: database already up to date, khong co migration moi.
+- [x] API test thanh cong.
+- [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
+- [ ] Commit rieng task nay.
+
 ### Progress Detail - Setup Guide
 
 Ngày hoàn thành: 2026-05-28
