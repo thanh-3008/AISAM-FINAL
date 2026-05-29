@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AISAM.IntegrationTests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+52c474f885a40c4d41b3c667a78741a623071f6c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4556274b5ba44068f38f817577642aaf7e582f97")]
 [assembly: System.Reflection.AssemblyProductAttribute("AISAM.IntegrationTests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AISAM.IntegrationTests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

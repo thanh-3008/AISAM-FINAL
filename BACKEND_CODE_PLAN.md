@@ -3736,6 +3736,94 @@ Ghi chú:
 - Request register thực tế cần `confirmPassword` vì `RegisterRequest` có `[Required]` và `[Compare]`.
 - SMTP chưa cấu hình nên email verification được log/skip fail-safe theo `EmailService`, không làm hỏng register local.
 
+### Progress Detail - Task 4.1
+
+Ngay hoan thanh: 2026-05-29
+
+Source cu da dung:
+
+- `PRN232_Backend/AISAM.API/Controllers/ProfileController.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IProfileService.cs`
+- `PRN232_Backend/AISAM.Services/Service/ProfileService.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IProfileRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/ProfileRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/CreateProfileRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/UpdateProfileRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/ProfileResponseDto.cs`
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ProfileController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IProfileService.cs`
+- `AISAM-BE/AISAM.Services/Service/ProfileService.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IProfileRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ProfileRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/CreateProfileRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/UpdateProfileRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ProfileResponseDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cai tien/dieu chinh so voi source cu:
+
+- Giu route va DTO profile tu source cu de API contract quen thuoc.
+- Khong copy nguyen `ProfileService` cu vi no keo them `SupabaseStorageService`, `ITeamService`, `ITeamMemberRepository`; cac module nay chua thuoc Task 4.1.
+- `AvatarFile` chua upload that trong MVP hien tai; neu gui file se tra loi loi ro rang va developer co the dung `AvatarUrl`.
+- `SearchUserProfilesAsync` tam thoi chi lay profiles so huu boi user, chua lay shared profiles qua TeamMembers vi Team module chua migrate.
+- Sua text log/error trong `ProfileController` bi loi encoding tu source cu sang ASCII ro rang, khong doi route/behavior chinh.
+
+Ket qua kiem tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings tu migration cu `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+No migrations were applied. The database is already up to date.
+```
+
+API test:
+
+```text
+POST /api/Auth/register
+Lay accessToken va userId cho profile test.
+
+POST /api/profiles/user/{userId}
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+Fields: Name, ProfileType, CompanyName, Bio
+CREATE_SUCCESS=True
+
+PUT /api/profiles/{profileId}
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+Fields: Name, Bio
+UPDATE_SUCCESS=True
+
+GET /api/profiles/user/{userId}
+Authorization: Bearer {accessToken}
+GET_SUCCESS=True
+
+DELETE /api/profiles/{profileId}
+Authorization: Bearer {accessToken}
+DELETE_SUCCESS=True
+
+PATCH /api/profiles/{profileId}/restore
+Authorization: Bearer {accessToken}
+RESTORE_SUCCESS=True
+```
+
+Checklist:
+
+- [x] Build thanh cong.
+- [x] Test pass.
+- [x] Migration kiem tra: database already up to date, khong co migration moi.
+- [x] API test thanh cong.
+- [x] Khong pha module Auth/Health da hoan thanh.
+- [ ] Commit rieng task nay.
+
 ### Progress Detail - Setup Guide
 
 Ngày hoàn thành: 2026-05-28
