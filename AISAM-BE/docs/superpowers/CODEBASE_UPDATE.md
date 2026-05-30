@@ -415,6 +415,113 @@ Can config Gemini/AI:
 - AI endpoint co test thanh cong hoac graceful error khi thieu config.
 - Conversation flow pass neu AI/chat duoc bat.
 
+### Ket qua trien khai Phase B - 2026-05-31
+
+Da hoan tat cac task:
+
+- `B0`: ra schema Phase B.
+- `B1`: them `ActiveProfileMiddleware` validate `X-Profile-Id` thuoc JWT user.
+- `B2`: them Content repository/service MVP.
+- `B3`: expose Content controller va Swagger paths.
+- `B4`: them Gemini text client va AI generation service.
+- `B5`: them Conversation persistence, AI chat va Gemini controller.
+- `B6`: them Conversation history service/controller.
+- `B7`: chay verification va ghi lai blocker external.
+
+Active API moi:
+
+```text
+POST   /api/content
+GET    /api/content
+GET    /api/content/{contentId}
+PUT    /api/content/{contentId}
+POST   /api/content/{contentId}/clone
+DELETE /api/content/{contentId}
+POST   /api/content/{contentId}/restore
+
+POST   /api/ai/generate-draft
+POST   /api/ai/improve/{contentId}
+POST   /api/ai/approve/{aiGenerationId}
+GET    /api/ai/generations/{contentId}
+POST   /api/ai/chat
+
+GET    /api/conversations
+GET    /api/conversations/{id}
+DELETE /api/conversations/{id}
+```
+
+Header bat buoc cho Content/AI/Conversation:
+
+```text
+Authorization: Bearer <access-token>
+X-Profile-Id: <owned-profile-guid>
+```
+
+#### Source cu da kiem tra
+
+| Loai | Duong dan source cu | Cach su dung |
+| --- | --- | --- |
+| Content | `docs/code-references/PRN232_Backend/AISAM.Services/Service/ContentService.cs` | Tai su dung lifecycle CRUD/clone/restore co chon loc; bo publish, approval, team, quota |
+| Content repository | `docs/code-references/PRN232_Backend/AISAM.Repositories/Repository/ContentRepository.cs` | Tai su dung query pattern; them profile scope, cancellation token, paging clamp |
+| AI | `docs/code-references/PRN232_Backend/AISAM.Services/Service/AIService.cs` | Tach text-only client; khong copy Vertex/Supabase/chat monolith |
+| Conversation | `docs/code-references/PRN232_Backend/AISAM.Repositories/Repository/ConversationRepository.cs` | Tai su dung include pattern; them `PagedResult`, cancellation token, message persistence |
+| Controllers | `docs/code-references/PRN232_Backend/AISAM.API/Controllers` | Viet lai boundary voi `[Authorize]`, active profile middleware va service status code |
+
+#### Cai tien thay vi copy nguyen
+
+- Khong tin `ProfileId` tu body request.
+- Validate `X-Profile-Id` thuoc JWT user cho `/api/content`, `/api/ai`, `/api/conversations`.
+- Enforce ownership theo profile cho content, generation va conversation.
+- `Product` khong co `ProfileId`; validate qua brand ownership va `Product.BrandId`.
+- Gemini key optional khi startup. Thieu key thi generation luu `Failed`, chat tra graceful error.
+- Khong keo Vertex image generation, Supabase upload, social publish, approval, team, notification hoac quota vao Phase B.
+
+#### Database/migration
+
+- Da doi chieu entity, `DbSet` va `AisamContextModelSnapshot`.
+- Cac bang `contents`, `ai_generations`, `conversations`, `chat_messages` va cot bat buoc da ton tai.
+- Khong tao migration Phase B moi.
+- `dotnet ef migrations list` liet ke 5 migration cu.
+- Chua xac minh applied status va `database update` vi PostgreSQL local khong lang nghe tai `127.0.0.1:5432`.
+
+#### Verification thuc te
+
+```text
+dotnet build AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM.sln
+Passed: 36, Failed: 0, Skipped: 0.
+
+Swagger JSON: HTTP 200.
+Health: HTTP 200.
+Swagger co Content, AI va Conversation paths.
+Content/AI/Conversation request khong JWT: HTTP 401.
+```
+
+#### Blocker external va smoke con lai
+
+- Docker daemon/PostgreSQL local dang tat, nen chua chay Content CRUD HTTP smoke co persistence.
+- Chua chay AI success HTTP smoke vi khong co `GEMINI_API_KEY` hop le.
+- Missing-key behavior da co automated test: API host van start; generation luu `Failed`; chat tra graceful error.
+
+Can rerun sau khi bat PostgreSQL va co credential:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+Content CRUD smoke
+AI generate/improve/approve/chat success smoke
+Conversation list/detail/delete persistence smoke
+```
+
+#### Rollback
+
+- Remove DI Phase B trong `AISAM.API/Program.cs`.
+- Remove `ActiveProfileMiddleware`, Content/AI/Conversation controllers.
+- Remove Content/AI/Conversation service va repository implementations moi.
+- Remove DTO/models Phase B moi.
+- Khong can rollback migration vi Phase B khong tao migration.
+
 ## 7. Phase Update C - Complete Phase 6: Social integration va Facebook publishing
 
 Map voi `BACKEND_CODE_PLAN.md`: Phase 6.

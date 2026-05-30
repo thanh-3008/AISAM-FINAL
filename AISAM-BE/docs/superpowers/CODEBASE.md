@@ -804,8 +804,8 @@ Active package references include:
 
 Important mismatch:
 
-- Some packages suggest planned integrations, such as Supabase, Gemini/Vertex AI, Stripe and BCrypt.
-- In the active root services, Supabase upload, Gemini, Vertex AI, Stripe and BCrypt are not currently used by the exposed service implementations. Password hashing uses `HMACSHA512`, not BCrypt.
+- Gemini text generation is now active through `IGeminiTextClient` and `GeminiTextClient`.
+- Supabase upload, Vertex image generation, Stripe and BCrypt are still not used by active exposed workflows. Password hashing uses `HMACSHA512`, not BCrypt.
 
 ## 14. Testing
 
@@ -822,21 +822,59 @@ It references `AISAM.API` and uses:
 - `coverlet.collector`
 - `xunit.runner.visualstudio`
 
-Current test coverage is effectively empty. `UnitTest1.cs` contains a single empty passing test.
+The current suite contains meaningful tests for:
+
+- Foundation ownership and disabled-upload behavior.
+- Active profile middleware.
+- Content lifecycle service and controller.
+- Gemini client parsing and missing-key behavior.
+- AI generation, approve and chat orchestration.
+- AI controller profile propagation.
+- Conversation history ownership and controller propagation.
+
+Latest local run on 2026-05-31:
+
+```text
+dotnet test AISAM.sln
+Passed: 36, Failed: 0, Skipped: 0
+```
 
 ## 15. Current Runtime Verification Notes
 
-Swagger was previously verified locally on:
+Swagger and Health were verified locally on 2026-05-31:
 
 ```text
-http://localhost:5027/swagger
+http://localhost:5283
 ```
 
 Verified endpoints:
 
 - `/swagger/v1/swagger.json`
-- `/swagger`
-- `/api/health`
+- `/api/Health`
+
+Verified Swagger paths:
+
+- `/api/content`
+- `/api/ai/generate-draft`
+- `/api/ai/chat`
+- `/api/conversations`
+
+Verified authentication boundary:
+
+- `GET /api/content` without JWT returns HTTP `401`.
+- `POST /api/ai/generate-draft` without JWT returns HTTP `401`.
+- `GET /api/conversations` without JWT returns HTTP `401`.
+
+Phase B protected APIs require:
+
+```text
+Authorization: Bearer <access-token>
+X-Profile-Id: <owned-profile-guid>
+```
+
+The API host starts without `GEMINI_API_KEY`. Gemini text endpoints then return a recorded failed generation or a graceful chat error instead of preventing startup.
+
+Local persistence smoke is currently blocked because PostgreSQL is not listening on `127.0.0.1:5432`. Gemini success HTTP smoke additionally requires a valid `GEMINI_API_KEY`.
 
 Build/restore may fail in this environment when NuGet access is blocked by TLS/certificate issues. The local build output may still allow running the already-built DLL, but a clean build requires NuGet restore to work.
 
@@ -869,12 +907,14 @@ Current active modules:
 - Brand
 - Product
 - Health
+- Content library
+- Gemini text generation and improve/approve flow
+- AI chat
+- Conversation history
 
 Model-ready but not active as APIs:
 
 - Social accounts/integrations
-- Content library
-- AI generation
 - Approvals
 - Team management
 - Scheduling
@@ -883,11 +923,10 @@ Model-ready but not active as APIs:
 - Payments
 - Notifications
 - Analytics
-- Conversations
 
 ### Authorization Consistency
 
-Brand/product ownership checks are explicit. Profile endpoints accept route `userId` and profile IDs without consistently comparing against the authenticated user claim. This should be reviewed before exposing the API beyond trusted clients.
+Brand/product ownership checks are explicit. Profile ownership checks were stabilized in Phase A. Phase B Content, AI and Conversation APIs additionally require `X-Profile-Id`, validated against the JWT user by `ActiveProfileMiddleware`.
 
 ### File Upload
 
@@ -903,7 +942,7 @@ Several package references are not used by active code paths. This may be intent
 
 ### Test Coverage
 
-Tests are placeholders only. There are no meaningful integration tests for auth, ownership checks, soft delete behavior, validation, or repository queries.
+The suite now covers ownership boundaries, soft delete behavior, content validation, Gemini client behavior, AI generation/chat orchestration and conversation history. PostgreSQL-backed repository integration and authenticated end-to-end API smoke still need a running local database.
 
 ## 18. Suggested Mental Model for Contributors
 
