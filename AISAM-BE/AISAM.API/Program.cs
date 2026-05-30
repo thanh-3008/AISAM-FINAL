@@ -96,11 +96,13 @@ builder.Services.AddScoped<ISessionRepository, SessionRepository>();
 builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IBrandRepository, BrandRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IContentRepository, ContentRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IContentService, ContentService>();
 
 builder.Services
     .AddControllers(options =>
@@ -175,6 +177,7 @@ app.UseSwaggerUI();
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
 app.UseAuthentication();
+app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
