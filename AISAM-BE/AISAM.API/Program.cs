@@ -131,6 +131,7 @@ builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleP
 builder.Services.AddHttpClient<IGeminiTextClient, GeminiTextClient>();
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
+builder.Services.AddScoped<IPostService, PostService>();
 
 builder.Services
     .AddControllers(options =>

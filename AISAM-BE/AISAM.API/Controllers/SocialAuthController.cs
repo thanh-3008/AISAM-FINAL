@@ -40,6 +40,12 @@ public sealed class SocialAuthController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            if (string.Equals(ex.Message, "Facebook integration is not configured.", StringComparison.Ordinal))
+            {
+                return StatusCode((int)HttpStatusCode.ServiceUnavailable,
+                    GenericResponse<AuthUrlResponse>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable));
+            }
+
             return BadRequest(GenericResponse<AuthUrlResponse>.CreateError(ex.Message));
         }
     }
@@ -65,6 +71,12 @@ public sealed class SocialAuthController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            if (string.Equals(ex.Message, "Facebook integration is not configured.", StringComparison.Ordinal))
+            {
+                return StatusCode((int)HttpStatusCode.ServiceUnavailable,
+                    GenericResponse<SocialAccountDto>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable));
+            }
+
             return BadRequest(GenericResponse<SocialAccountDto>.CreateError(ex.Message));
         }
     }

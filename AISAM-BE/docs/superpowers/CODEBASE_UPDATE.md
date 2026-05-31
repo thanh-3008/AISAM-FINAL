@@ -530,110 +530,136 @@ Map voi `BACKEND_CODE_PLAN.md`: Phase 6.
 
 Cho phep ket noi Facebook va publish content len Facebook Page theo source cu.
 
-### Trang thai hien tai
+### Ket qua trien khai Phase C - 2026-06-01
 
-Da co entity/DbSet:
+Da hoan tat cac task:
 
-- `SocialAccount`
-- `SocialIntegration`
-- `Post`
+- `C0`: fix mapping `Post -> SocialIntegration` va tao migration cleanup shadow FK.
+- `C1`: them provider contract, Facebook config/models, OAuth state store va token protection.
+- `C2`: them social/post repositories va soft-delete aware persistence.
+- `C3`: them `SocialService` MVP cho OAuth link, target management va ownership checks.
+- `C4`: expose social controllers, mo rong `ActiveProfileMiddleware` cho social/posts routes.
+- `C5`: bat publish content len Facebook Page va persist `Post`.
+- `C6`: expose posts history API chi doc theo active profile.
+- `C7`: chay full verification, migration verification, runtime smoke va cap nhat docs.
 
-Thieu active API/service/repository:
+Active API moi:
 
-- `SocialAuthController`
-- `SocialAccountController`
-- `SocialIntegrationController`
-- `PostsController`
-- `SocialService`
-- `FacebookProvider`
-- `GoogleProvider` neu dung provider contract.
-- `PostService`
-- Social/post repositories.
-- Facebook settings/models.
+```text
+GET    /api/social-auth/facebook
+POST   /api/social-auth/facebook/callback
 
-### Source cu can copy/tai su dung
+GET    /api/social/accounts/me
+GET    /api/social/accounts/{socialAccountId}/available-targets
+GET    /api/social/accounts/{socialAccountId}/linked-targets
+POST   /api/social/accounts/{socialAccountId}/link-targets
+DELETE /api/social/accounts/{socialAccountId}
 
-Controllers:
+DELETE /api/social/integrations/{socialIntegrationId}
+GET    /api/social/integrations/brand/{brandId}
 
-- `SocialAuthController.cs`
-- `SocialAccountController.cs`
-- `SocialIntegrationController.cs`
-- `PostsController.cs`
+POST   /api/content/{contentId}/publish/{integrationId}
 
-Services:
+GET    /api/posts
+GET    /api/posts/{postId}
+```
 
-- `SocialService.cs`
-- `FacebookProvider.cs`
-- `GoogleProvider.cs`
-- `PostService.cs`
+Header bat buoc cho Content/AI/Conversation/Social/Posts:
 
-Interfaces:
+```text
+Authorization: Bearer <access-token>
+X-Profile-Id: <owned-profile-guid>
+```
 
-- `ISocialService.cs`
-- `IProviderService.cs`
-- `IPostService.cs`
+#### Nguon tham chieu va cach tai su dung
 
-Repositories:
+| Loai | Duong dan source cu | Cach su dung |
+| --- | --- | --- |
+| Social controllers | `docs/code-references/PRN232_Backend/AISAM.API/Controllers/Social*.cs` | Tai su dung route/ownership shape, viet lai boundary theo active profile middleware va GenericResponse |
+| Provider | `docs/code-references/PRN232_Backend/AISAM.Services/Service/FacebookProvider.cs` | Tai su dung flow Facebook Graph cho auth/pages/publish, cat pham vi Ads |
+| Social service | `docs/code-references/PRN232_Backend/AISAM.Services/Service/SocialService.cs` | Tai su dung ownership/linking shape, bo phan ads/permission/team logic |
+| Post service | `docs/code-references/PRN232_Backend/AISAM.Services/Service/PostService.cs` | Tai su dung list/detail shape, scope theo active profile |
+| Repositories | `docs/code-references/PRN232_Backend/AISAM.Repositories/Repository/Social*Repository.cs`, `PostRepository.cs` | Tai su dung include/query pattern, them cancellation token va paging clamp |
 
-- `SocialAccountRepository.cs`
-- `SocialIntegrationRepository.cs`
-- `PostRepository.cs`
+#### Cai tien thay vi copy nguyen
 
-DTO/models:
+- OAuth `state` luu trong `IMemoryCache`, verify theo `profileId` va consume mot lan.
+- User token va Page token duoc ma hoa bang ASP.NET Core Data Protection.
+- Public social endpoints chi mo cho `facebook`; `GoogleProvider` chi giu de thoa provider contract noi bo.
+- Unlink account/integration la soft delete, giu lai `Post` lich su.
+- Publish content chi doi `Content.Status` va tao `Post` sau khi provider tra thanh cong.
+- `ContentController` publish flow ho tro `TextOnly`, `ImageText` va `VideoText`.
+- Khi Facebook publish thanh cong bang token refresh lai, token moi duoc ma hoa va persist.
 
-- `SocialDtos.cs`
-- `FacebookSettings.cs`
-- `FacebookModels.cs`
-- `GoogleModels.cs`
-- `PostDtos.cs`
-- `PostListIemDto.cs`
-- `PublishContentRequest.cs`
-- `PublishPostRequest.cs`
-- `SocialCallbackRequest.cs`
+#### Database/migration
 
-Validators:
+- Da sua `AisamContext` de bo shadow relation `Post.SocialIntegrationId`.
+- Da tao migration:
+  - `20260531161937_RemovePostSocialIntegrationShadowFk`
+- `dotnet ef migrations list` da liet ke migration cleanup nay.
+- `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build` khong apply duoc tren DB local hien tai vi schema da co bang `users` nhung lich su migration chua dong bo, EF co gang chay lai `Initial` va fail voi:
 
-- `PublishRequestValidator.cs`
-- `LinkSelectedTargetsRequestValidator.cs`
+```text
+42P07: relation "users" already exists
+```
 
-### File can sua
+Day la blocker cua trang thai database local, khong phai loi compile/runtime cua Phase C code.
 
-- `Program.cs`: DI social providers/repositories/services, config settings, HttpClient neu source cu can.
-- `appsettings`/`.env.example`: Facebook OAuth/Graph config.
-- Common/config/models DTO.
+#### Verification thuc te
 
-### Database impact
+```text
+dotnet build AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
 
-Kiem tra schema social/post co khop source cu. Neu source cu co token fields/callback fields chua co trong current migration, tao migration rieng.
+dotnet test AISAM.sln
+Passed: 75, Failed: 0, Skipped: 0.
+```
 
-### API can test
+Swagger/runtime smoke tren host local `http://localhost:5283`:
 
-- Generate Facebook auth URL.
-- Callback/manual token flow neu co.
-- List social accounts.
-- List available targets.
-- Link selected targets.
-- Link ad account neu can for future ads.
-- Publish content to Facebook Page.
-- List posts by content/profile.
+```text
+GET /swagger/v1/swagger.json -> 200
+Swagger co /api/social-auth/facebook -> True
+Swagger co /api/posts -> True
 
-### Risk
+GET /api/social-auth/facebook khong JWT -> 401
+GET /api/social/accounts/me khong JWT -> 401
+GET /api/posts khong JWT -> 401
 
-- Can Facebook app credentials, redirect URI, permissions, page access token.
-- Facebook API permissions co the khong du cho demo.
+GET /api/social-auth/facebook co JWT + X-Profile-Id nhung thieu Facebook config -> 503
+message: "Facebook integration is not configured."
+```
 
-### Rollback
+Publish success/fail path da duoc xac minh bang automated tests:
 
-- Remove social/publishing DI.
-- Remove controllers.
-- Revert migration neu co.
-- Disable social feature through config.
+- publish success -> tao `Post`, doi `Content.Status = Published`
+- publish fail -> giu nguyen `Content.Status`
 
-### Definition of Done
+#### Loi runtime da phat hien va sua trong C7
 
-- Build/test pass.
-- API returns clear config error if Facebook settings missing.
-- With valid token, publish smoke test pass or documented blocker from Facebook permission.
+- `GoogleProvider` typed `HttpClient` registration bi vo constructor, lam request social auth no DI o runtime.
+- Da sua `GoogleProvider` constructor de khop `AddHttpClient<GoogleProvider>()`.
+- Da sua `SocialAuthController` de tra `503 Service Unavailable` khi thieu Facebook config, thay vi roi vao `400`.
+
+#### Blocker external con lai
+
+- Chua chay Facebook OAuth/publish that vi local env khong co `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, redirect URI va Page permissions.
+- `database update` local dang bi lech migration history so voi schema thuc te; can dong bo bang lich su migration hoac reset DB truoc khi khang dinh migrate apply thanh cong.
+
+Can rerun khi co credentials va DB sach/dong bo:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+Facebook OAuth callback smoke
+Facebook Page list/link smoke
+Facebook publish real smoke
+```
+
+#### Rollback
+
+- Remove DI Phase C trong `AISAM.API/Program.cs`.
+- Remove social/posts controllers, services, repositories va DTO/models Phase C.
+- Revert migration `RemovePostSocialIntegrationShadowFk` neu can rollback schema cleanup.
 
 ## 8. Phase Update D - Complete Phase 7: Notification, Scheduling, Dashboard
 

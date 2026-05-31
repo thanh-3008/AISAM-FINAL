@@ -7,10 +7,12 @@ namespace AISAM.Services.Service;
 
 public sealed class GoogleProvider : IProviderService
 {
+    private readonly HttpClient _httpClient;
     private readonly ILogger<GoogleProvider> _logger;
 
-    public GoogleProvider(ILogger<GoogleProvider> logger)
+    public GoogleProvider(HttpClient httpClient, ILogger<GoogleProvider> logger)
     {
+        _httpClient = httpClient;
         _logger = logger;
     }
 

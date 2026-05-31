@@ -3,6 +3,7 @@ using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
+using AISAM.Common.Models;
 
 namespace AISAM.Services.IServices;
 
@@ -15,4 +16,5 @@ public interface IContentService
     Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default);
 }

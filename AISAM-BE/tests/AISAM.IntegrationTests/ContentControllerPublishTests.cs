@@ -13,36 +13,44 @@ using System.Net;
 
 namespace AISAM.IntegrationTests;
 
-public class ContentControllerTests
+public class ContentControllerPublishTests
 {
     [Fact]
-    public async Task Create_ReturnsServiceStatusCode_WhenValidationFails()
+    public async Task Publish_ReturnsServiceStatusCode_WhenIntegrationBelongsToAnotherProfile()
     {
         var service = new FakeContentService
         {
-            CreateResult = GenericResponse<ContentResponseDto>.CreateError("Brand not found.", HttpStatusCode.NotFound)
+            PublishResult = GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound)
         };
         var controller = CreateController(service, Guid.NewGuid());
 
-        var result = await controller.Create(new CreateContentRequest());
+        var result = await controller.Publish(Guid.NewGuid(), Guid.NewGuid());
 
-        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        var objectResult = Assert.IsAssignableFrom<ObjectResult>(result.Result);
         Assert.Equal((int)HttpStatusCode.NotFound, objectResult.StatusCode);
     }
 
     [Fact]
-    public async Task GetPaged_UsesValidatedActiveProfileFromHttpContext()
+    public async Task Publish_UsesValidatedActiveProfileFromHttpContext()
     {
         var profileId = Guid.NewGuid();
         var service = new FakeContentService
         {
-            PagedResult = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>())
+            PublishResult = GenericResponse<PublishResultDto>.CreateSuccess(new PublishResultDto
+            {
+                Success = true,
+                ProviderPostId = "facebook-post-1"
+            })
         };
         var controller = CreateController(service, profileId);
+        var contentId = Guid.NewGuid();
+        var integrationId = Guid.NewGuid();
 
-        await controller.GetPaged();
+        await controller.Publish(contentId, integrationId);
 
         Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(contentId, service.LastPublishedContentId);
+        Assert.Equal(integrationId, service.LastPublishedIntegrationId);
     }
 
     private static ContentController CreateController(IContentService service, Guid profileId)
@@ -59,26 +67,24 @@ public class ContentControllerTests
     private sealed class FakeContentService : IContentService
     {
         public Guid LastProfileId { get; private set; }
-        public GenericResponse<ContentResponseDto> CreateResult { get; set; } = GenericResponse<ContentResponseDto>.CreateSuccess(new ContentResponseDto());
-        public GenericResponse<PagedResult<ContentResponseDto>> PagedResult { get; set; } = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>());
+        public Guid LastPublishedContentId { get; private set; }
+        public Guid LastPublishedIntegrationId { get; private set; }
+        public GenericResponse<PublishResultDto> PublishResult { get; set; } = GenericResponse<PublishResultDto>.CreateSuccess(new PublishResultDto());
 
-        public Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
-        {
-            LastProfileId = profileId;
-            return Task.FromResult(CreateResult);
-        }
-
-        public Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
-        {
-            LastProfileId = profileId;
-            return Task.FromResult(PagedResult);
-        }
-
+        public Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default)
+        {
+            LastPublishedContentId = contentId;
+            LastPublishedIntegrationId = integrationId;
+            LastProfileId = profileId;
+            return Task.FromResult(PublishResult);
+        }
     }
 }
