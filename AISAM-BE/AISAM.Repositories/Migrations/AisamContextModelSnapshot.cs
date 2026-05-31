@@ -1084,9 +1084,6 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("published_at");
 
-                    b.Property<Guid?>("SocialIntegrationId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -1102,8 +1099,6 @@ namespace AISAM.Repositories.Migrations
                     b.HasIndex("IntegrationId");
 
                     b.HasIndex("PublishedAt");
-
-                    b.HasIndex("SocialIntegrationId");
 
                     b.ToTable("posts");
                 });
@@ -2001,14 +1996,10 @@ namespace AISAM.Repositories.Migrations
                         .IsRequired();
 
                     b.HasOne("AISAM.Data.Model.SocialIntegration", "Integration")
-                        .WithMany()
+                        .WithMany("Posts")
                         .HasForeignKey("IntegrationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("AISAM.Data.Model.SocialIntegration", null)
-                        .WithMany("Posts")
-                        .HasForeignKey("SocialIntegrationId");
 
                     b.Navigation("Content");
 

@@ -162,7 +162,7 @@ namespace AISAM.Repositories
                       .HasForeignKey(p => p.ContentId)
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(p => p.Integration)
-                      .WithMany()
+                      .WithMany(i => i.Posts)
                       .HasForeignKey(p => p.IntegrationId)
                       .OnDelete(DeleteBehavior.Cascade);
             });

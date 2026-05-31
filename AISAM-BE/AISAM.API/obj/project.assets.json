@@ -3669,7 +3669,10 @@
         },
         "runtime": {
           "bin/placeholder/AISAM.Services.dll": {}
-        }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       }
     }
   },
