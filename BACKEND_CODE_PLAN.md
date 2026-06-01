@@ -108,11 +108,11 @@ Chưa có API.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có: không áp dụng.
-- [ ] API test thành công: không áp dụng.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: không áp dụng.
+- [x] API test thành công: không có API mới; smoke test `/api/health` pass.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ### Task 0.2 - Copy cấu hình project và package cơ bản từ source cũ
@@ -182,11 +182,11 @@ Chưa có API.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có: không áp dụng.
-- [ ] API test thành công: không áp dụng.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: không áp dụng.
+- [x] API test thành công: không có API mới; smoke test `/api/health` pass.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ## Phase 1 - API host tối thiểu
@@ -292,11 +292,11 @@ Swagger UI mở được.
 
 Checklist hoàn thành:
 
-- [ ] Build thành công.
-- [ ] Test pass.
-- [ ] Migration chạy được nếu có: không áp dụng.
-- [ ] API test thành công.
-- [ ] Không phá module đã hoàn thành.
+- [x] Build thành công.
+- [x] Test pass.
+- [x] Migration chạy được nếu có: không áp dụng.
+- [x] API test thành công.
+- [x] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
 ### Task 1.2 - Thêm HealthController
@@ -3178,6 +3178,9 @@ Các phần này chỉ làm sau khi backend MVP ổn định và đã có fronte
 | Task 2.3 - Copy AisamContext và migration cũ | Done | `chore(data): migrate db context and existing migrations` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test` - 1/1 | Skipped: chưa có local connection string | Pass: `GET /api/health` status 200 on `http://localhost:5083` | Đã copy `AisamContext` và migrations cũ; đăng ký DbContext có điều kiện khi có connection string. Pin `Microsoft.EntityFrameworkCore.Relational 9.0.9` ở `AISAM.Services` để build sạch do dependency Supabase/Npgsql kéo version thấp hơn. |
 | DB Setup - Kết nối PostgreSQL local | Done | `chore(data): add design time db context factory` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | Pass: applied 5 migrations to `aisam_dev` | Pass: `GET /api/health` status 200 on `http://localhost:5084` | Đã thêm `.gitignore`, `AISAM.API/.env.example`, `AisamContextFactory`; `.env` local chứa connection string thật và đã được ignore. |
 | Setup Guide - Manual backend configuration | Done | `docs(backend): add setup guide for manual configuration` | N/A | N/A | N/A | N/A | Đã tạo `SETUP_GUIDE.md`, ghi rõ REQUIRED hiện tại và Optional/Future configs cho PostgreSQL, JWT, CORS, SMTP, Google, Facebook, Gemini, PayOS, Supabase. |
+| Task 3.1 - Copy repositories cho User và Session | Done | `chore(auth): migrate user and session repositories` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5085` | Đã copy `IUserRepository`, `ISessionRepository`, `UserRepository`, `SessionRepository`; copy thêm dependency `UserListDto`; đăng ký DI trong `Program.cs`. |
+| Task 3.2 - Copy AuthService và EmailService ở mức MVP | Done | `feat(auth): migrate auth and email services` | Pass: `dotnet build` - còn 2 warning migration cũ `verifytoken` | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: `GET /api/health` status 200 on `http://localhost:5086` | Đã copy `IAuthService`, `IEmailService`, `AuthService`, `EmailService`; copy thêm `EmailRequest`, `FrontendSettings`; đăng ký DI/options và env overrides trong `Program.cs`; `.env.example` có JWT/SMTP/Google placeholders. |
+| Task 3.3 - Copy AuthController và bật JWT authentication | Done | `feat(auth): migrate authentication api endpoints` | Pass: `dotnet build` - 0 warnings | Pass: `dotnet test --no-build` - 1/1 | N/A | Pass: register/login/me/refresh/logout on `http://localhost:5088` | Đã copy `AuthController`, bật JWT Bearer, Swagger Bearer auth, `UseAuthentication/UseAuthorization`; chỉnh logging sang Console để tránh Windows Event Log crash; chưa copy `UserClaimsHelper` vì phụ thuộc `IUserService` ngoài phạm vi task. |
 
 ### Progress Detail - Task 0.1
 
@@ -3552,6 +3555,665 @@ Ghi chú:
 
 - Cảnh báo EF tools version `8.0.10` thấp hơn runtime `9.0.9` chưa chặn migration, nhưng nên update dotnet-ef sau.
 - Không ghi password DB thật vào tài liệu hoặc file tracked.
+
+### Progress Detail - Task 3.1
+
+Ngày hoàn thành: 2026-05-29
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IUserRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/ISessionRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/UserRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/SessionRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/UserListDto.cs`
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Repositories/IRepositories/IUserRepository.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/ISessionRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/UserRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/SessionRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/UserListDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ repository; giữ nguyên baseline.
+- Copy thêm `UserListDto` vì `IUserRepository.GetPagedUsersAsync` và `UserRepository` phụ thuộc DTO này.
+- Đăng ký DI cho `IUserRepository` và `ISessionRepository` trong `Program.cs`.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings từ migration cũ `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+GET http://localhost:5085/api/health
+STATUS=200
+```
+
+Migration:
+
+```text
+Không áp dụng, task này không đổi schema database.
+```
+
+API test:
+
+```text
+Không có API mới. Smoke test `/api/health` pass để chứng minh API host không bị phá.
+```
+
+### Progress Detail - Task 3.2
+
+Ngày hoàn thành: 2026-05-29
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.Services/IServices/IAuthService.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IEmailService.cs`
+- `PRN232_Backend/AISAM.Services/Service/AuthService.cs`
+- `PRN232_Backend/AISAM.Services/Service/EmailService.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/EmailRequest.cs`
+- `PRN232_Backend/AISAM.Common/Models/FrontendSettings.cs`
+- `PRN232_Backend/AISAM.API/Program.cs` để đối chiếu options/env override pattern
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.Services/IServices/IAuthService.cs`
+- `AISAM-BE/AISAM.Services/IServices/IEmailService.cs`
+- `AISAM-BE/AISAM.Services/Service/AuthService.cs`
+- `AISAM-BE/AISAM.Services/Service/EmailService.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/EmailRequest.cs`
+- `AISAM-BE/AISAM.Common/Models/FrontendSettings.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/.env.example`
+- `AISAM-BE/AISAM.API/.env` local, không commit
+
+Cải tiến/điều chỉnh:
+
+- Không cải tiến nghiệp vụ auth core; giữ baseline register/login/refresh/logout/password/email verification.
+- Giữ behavior fail-safe của `EmailService`: nếu thiếu SMTP config thì log warning và trả `false`, không throw làm hỏng register local.
+- Bổ sung env override tối thiểu cho `JwtSettings`, `EmailSettings`, `GoogleSettings`, `FrontendSettings`.
+- Bổ sung JWT dev config vào `.env` local để Task 3.3 có thể test register/login; `.env` đã được ignore.
+- Chưa bật JWT authentication middleware trong task này; phần đó thuộc Task 3.3.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings từ migration cũ `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+GET http://localhost:5086/api/health
+STATUS=200
+```
+
+Migration:
+
+```text
+Không áp dụng, task này không đổi schema database.
+```
+
+API test:
+
+```text
+Không có API mới. Smoke test `/api/health` pass để chứng minh API host không bị phá.
+```
+
+### Progress Detail - Task 3.3
+
+Ngày hoàn thành: 2026-05-29
+
+Source cũ đã dùng:
+
+- `PRN232_Backend/AISAM.API/Controllers/AuthController.cs`
+- `PRN232_Backend/AISAM.API/Program.cs` để đối chiếu JWT Bearer và Swagger Bearer setup
+- `PRN232_Backend/AISAM.API/Utils/UserClaimsHelper.cs` đã kiểm tra nhưng chưa copy
+
+File đã tạo/sửa:
+
+- `AISAM-BE/AISAM.API/Controllers/AuthController.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.Common/GenericResponse.cs`
+
+Cải tiến/điều chỉnh:
+
+- Bật JWT Bearer authentication và authorization trong repo mới.
+- Bật Swagger Bearer auth để test API protected bằng token.
+- Cấu hình logging chỉ dùng Console trong local API host để tránh lỗi Windows Event Log `Cannot open log for source '.NET Runtime'`.
+- Sửa `GenericResponse<T>.CreateSuccess` nhận `T?` vì nhiều endpoint success hợp lệ có `data = null`; không đổi JSON response contract.
+- Chưa copy `UserClaimsHelper` trong task này vì file cũ phụ thuộc `IUserService`, nếu copy sẽ kéo thêm user service ngoài scope Auth MVP task. `AuthController` hiện không cần helper này.
+- Không copy validators vì source cũ không có validator auth riêng; DTO auth đang dùng DataAnnotations.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+```
+
+Migration:
+
+```text
+Không áp dụng, task này không đổi schema database.
+```
+
+API test:
+
+```text
+POST http://localhost:5088/api/auth/register
+REGISTER_SUCCESS=True
+REGISTER_HAS_ACCESS_TOKEN=True
+REGISTER_HAS_REFRESH_TOKEN=True
+
+POST http://localhost:5088/api/auth/login
+LOGIN_SUCCESS=True
+LOGIN_HAS_ACCESS_TOKEN=True
+
+GET http://localhost:5088/api/auth/me
+ME_SUCCESS=True
+ME_EMAIL=task33_20260529193317@example.com
+
+POST http://localhost:5088/api/auth/refresh
+REFRESH_SUCCESS=True
+
+POST http://localhost:5088/api/auth/logout
+LOGOUT_SUCCESS=True
+```
+
+Ghi chú:
+
+- Request register thực tế cần `confirmPassword` vì `RegisterRequest` có `[Required]` và `[Compare]`.
+- SMTP chưa cấu hình nên email verification được log/skip fail-safe theo `EmailService`, không làm hỏng register local.
+
+### Progress Detail - Task 4.1
+
+Ngay hoan thanh: 2026-05-29
+
+Source cu da dung:
+
+- `PRN232_Backend/AISAM.API/Controllers/ProfileController.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IProfileService.cs`
+- `PRN232_Backend/AISAM.Services/Service/ProfileService.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IProfileRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/ProfileRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/CreateProfileRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/UpdateProfileRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/ProfileResponseDto.cs`
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ProfileController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IProfileService.cs`
+- `AISAM-BE/AISAM.Services/Service/ProfileService.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IProfileRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ProfileRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/CreateProfileRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/UpdateProfileRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ProfileResponseDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cai tien/dieu chinh so voi source cu:
+
+- Giu route va DTO profile tu source cu de API contract quen thuoc.
+- Khong copy nguyen `ProfileService` cu vi no keo them `SupabaseStorageService`, `ITeamService`, `ITeamMemberRepository`; cac module nay chua thuoc Task 4.1.
+- `AvatarFile` chua upload that trong MVP hien tai; neu gui file se tra loi loi ro rang va developer co the dung `AvatarUrl`.
+- `SearchUserProfilesAsync` tam thoi chi lay profiles so huu boi user, chua lay shared profiles qua TeamMembers vi Team module chua migrate.
+- Sua text log/error trong `ProfileController` bi loi encoding tu source cu sang ASCII ro rang, khong doi route/behavior chinh.
+
+Ket qua kiem tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings tu migration cu `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+No migrations were applied. The database is already up to date.
+```
+
+API test:
+
+```text
+POST /api/Auth/register
+Lay accessToken va userId cho profile test.
+
+POST /api/profiles/user/{userId}
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+Fields: Name, ProfileType, CompanyName, Bio
+CREATE_SUCCESS=True
+
+PUT /api/profiles/{profileId}
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+Fields: Name, Bio
+UPDATE_SUCCESS=True
+
+GET /api/profiles/user/{userId}
+Authorization: Bearer {accessToken}
+GET_SUCCESS=True
+
+DELETE /api/profiles/{profileId}
+Authorization: Bearer {accessToken}
+DELETE_SUCCESS=True
+
+PATCH /api/profiles/{profileId}/restore
+Authorization: Bearer {accessToken}
+RESTORE_SUCCESS=True
+```
+
+Checklist:
+
+- [x] Build thanh cong.
+- [x] Test pass.
+- [x] Migration kiem tra: database already up to date, khong co migration moi.
+- [x] API test thanh cong.
+- [x] Khong pha module Auth/Health da hoan thanh.
+- [ ] Commit rieng task nay.
+
+### Progress Detail - Task 4.2
+
+Ngay hoan thanh: 2026-05-29
+
+Source cu da dung:
+
+- `PRN232_Backend/AISAM.API/Controllers/BrandController.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IBrandService.cs`
+- `PRN232_Backend/AISAM.Services/Service/BrandService.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IBrandRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/BrandRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/CreateBrandRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/UpdateBrandRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/BrandResponseDto.cs`
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/BrandController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IBrandService.cs`
+- `AISAM-BE/AISAM.Services/Service/BrandService.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IBrandRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/BrandRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/CreateBrandRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/UpdateBrandRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/BrandResponseDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cai tien/dieu chinh so voi source cu:
+
+- Giu DTO va entity mapping tu source cu.
+- Khong copy nguyen `BrandService` cu vi no keo them `ITeamMemberRepository`, `ITeamRepository`, `IProductRepository`, `IContentRepository`, `RolePermissionConfig`.
+- Brand MVP hien tai chi ho tro CRUD brand theo profile owner; shared brand qua Team se lam sau khi Team module duoc migrate.
+- `GET /api/brands` dung `profileId` query thay vi `ProfileContextHelper`/active profile context vi FE va profile context middleware chua co.
+- Chua soft delete/restore cascade products vi Product module chua migrate trong task nay.
+- Sua controller ve text ASCII ro rang, lay userId truc tiep tu JWT claim `ClaimTypes.NameIdentifier`.
+
+Ket qua kiem tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings tu migration cu `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+No migrations were applied. The database is already up to date.
+```
+
+API test:
+
+```text
+POST /api/Auth/register
+POST /api/profiles/user/{userId}
+
+POST /api/brands
+CREATE_BRAND_SUCCESS=True
+
+GET /api/brands?profileId={profileId}&page=1&pageSize=10
+LIST_BRAND_SUCCESS=True
+LIST_TOTAL=1
+
+GET /api/brands/{brandId}
+GET_BRAND_SUCCESS=True
+
+PUT /api/brands/{brandId}
+UPDATE_BRAND_SUCCESS=True
+UPDATED_NAME=AISAM Updated Brand
+
+DELETE /api/brands/{brandId}
+DELETE_BRAND_SUCCESS=True
+
+POST /api/brands/{brandId}/restore
+RESTORE_BRAND_SUCCESS=True
+```
+
+Checklist:
+
+- [x] Build thanh cong.
+- [x] Test pass.
+- [x] Migration kiem tra: database already up to date, khong co migration moi.
+- [x] API test thanh cong.
+- [x] Khong pha module Auth/Profile/Health da hoan thanh.
+- [ ] Commit rieng task nay.
+
+### Progress Detail - Task 4.3
+
+Ngay hoan thanh: 2026-05-29
+
+Source cu da dung:
+
+- `PRN232_Backend/AISAM.API/Controllers/ProductController.cs`
+- `PRN232_Backend/AISAM.Services/IServices/IProductService.cs`
+- `PRN232_Backend/AISAM.Services/Service/ProductService.cs`
+- `PRN232_Backend/AISAM.Repositories/IRepositories/IProductRepository.cs`
+- `PRN232_Backend/AISAM.Repositories/Repository/ProductRepository.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/ProductCreateRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Request/ProductUpdateRequest.cs`
+- `PRN232_Backend/AISAM.Common/Dtos/Response/ProductResponseDto.cs`
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ProductController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IProductService.cs`
+- `AISAM-BE/AISAM.Services/Service/ProductService.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IProductRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ProductRepository.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/ProductCreateRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/ProductUpdateRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ProductResponseDto.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+Cai tien/dieu chinh so voi source cu:
+
+- Giu DTO, entity mapping va route product tu source cu.
+- Khong copy nguyen `ProductService` cu vi no phu thuoc `SupabaseStorageService` de upload anh; Supabase chua bat buoc trong MVP hien tai.
+- Bo `[Required]` khoi `ProductCreateRequest.ImageFiles` de co the tao product khong can upload anh trong local MVP.
+- Neu gui `ImageFiles`, service tra loi loi ro rang: product image upload chua bat trong MVP.
+- Tat ca endpoint product duoc bao ve bang JWT va kiem tra user la owner cua Brand/Profile.
+- `GET /api/products` ho tro `brandId` query de test product theo brand da tao.
+
+Ket qua kiem tra:
+
+```text
+dotnet build
+Build succeeded. 2 warnings tu migration cu `verifytoken`, 0 errors.
+
+dotnet test --no-build
+Passed. 1/1 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+No migrations were applied. The database is already up to date.
+```
+
+API test:
+
+```text
+POST /api/Auth/register
+POST /api/profiles/user/{userId}
+POST /api/brands
+
+POST /api/products
+Content-Type: multipart/form-data
+Fields: BrandId, Name, Description, Price
+CREATE_PRODUCT_SUCCESS=True
+
+GET /api/products?brandId={brandId}&page=1&pageSize=10
+LIST_PRODUCT_SUCCESS=True
+LIST_TOTAL=1
+
+GET /api/products/{productId}
+GET_PRODUCT_SUCCESS=True
+
+PUT /api/products/{productId}
+Content-Type: multipart/form-data
+Fields: Name, Price
+UPDATE_PRODUCT_SUCCESS=True
+UPDATED_NAME=Product A Updated
+
+DELETE /api/products/{productId}
+DELETE_PRODUCT_SUCCESS=True
+
+POST /api/products/{productId}/restore
+RESTORE_PRODUCT_SUCCESS=True
+```
+
+Checklist:
+
+- [x] Build thanh cong.
+- [x] Test pass.
+- [x] Migration kiem tra: database already up to date, khong co migration moi.
+- [x] API test thanh cong.
+- [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
+- [ ] Commit rieng task nay.
+
+## Current Backend Status - Updated 2026-05-31
+
+Backend da hoan thanh den het **Phase 5 - AI va Content MVP**.
+
+| Phase | Trang thai |
+| --- | --- |
+| Phase 0 - Chuan bi repo backend moi | DONE |
+| Phase 1 - API host toi thieu | DONE |
+| Phase 2 - Common, domain models, database context | DONE |
+| Phase 3 - Authentication MVP | DONE |
+| Phase 4 - Profile, Brand, Product MVP | DONE |
+| Phase 5 - AI va Content MVP | DONE |
+| Phase 6 - Social integration va Facebook Page publishing | NEXT |
+| Phase 7 tro di | TODO |
+
+Ket qua kiem tra gan nhat ngay 2026-05-31:
+
+```text
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed. 36/36 tests passed.
+```
+
+Luu y thu cong:
+
+- Database PostgreSQL va JWT config la bat buoc de chay/test backend hien tai.
+- `GEMINI_API_KEY` chi bat buoc khi test AI voi Gemini that. Backend van startup va automated tests van pass khi chua co key that.
+- Cac API `/api/content`, `/api/ai`, `/api/conversations` bat buoc gui `Authorization: Bearer {accessToken}` va header `X-Profile-Id: {profileId}`.
+
+### Progress Detail - Active Profile Context Middleware
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Xac thuc active profile truoc khi cho phep user truy cap Content, AI va Conversation.
+- Khong tin `profileId` tuy y tu request body.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Middleware/ActiveProfileMiddleware.cs`
+- `AISAM-BE/AISAM.API/Utils/ProfileContextHelper.cs`
+- `AISAM-BE/AISAM.API/Utils/UserClaimsHelper.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/tests/AISAM.IntegrationTests/ActiveProfileMiddlewareTests.cs`
+
+Behavior:
+
+```text
+Protected prefixes:
+/api/content
+/api/ai
+/api/conversations
+
+Required headers:
+Authorization: Bearer {accessToken}
+X-Profile-Id: {profileId}
+```
+
+Middleware tra ve:
+
+- `401` neu token thieu/khong hop le.
+- `401` neu `X-Profile-Id` thieu/khong hop le.
+- `404` neu profile khong ton tai.
+- `403` neu profile khong thuoc JWT user.
+
+Commit:
+
+```text
+9adf22a Them middleware kiem tra X-Profile-Id thuoc JWT user
+```
+
+### Progress Detail - Task 5.1
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Hoan thanh Content CRUD MVP theo active profile da xac thuc.
+- Chua publish social trong task nay.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ContentController.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/CreateContentRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/UpdateContentRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ContentResponseDto.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IContentRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ContentRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/IContentService.cs`
+- `AISAM-BE/AISAM.Services/Service/ContentService.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+API da co:
+
+```text
+POST   /api/content
+GET    /api/content
+GET    /api/content/{contentId}
+PUT    /api/content/{contentId}
+POST   /api/content/{contentId}/clone
+DELETE /api/content/{contentId}
+POST   /api/content/{contentId}/restore
+```
+
+Dieu chinh MVP:
+
+- Tat ca Content API dung active profile tu middleware.
+- Chua publish Facebook/TikTok.
+- Chua bat upload media storage.
+
+### Progress Detail - Task 5.2
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Them Gemini text generation MVP: generate draft, improve, approve generation, xem history va chat.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/GeminiController.cs`
+- `AISAM-BE/AISAM.Common/Models/GeminiModels.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IAiGenerationRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/AiGenerationRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/IAIService.cs`
+- `AISAM-BE/AISAM.Services/IServices/IGeminiTextClient.cs`
+- `AISAM-BE/AISAM.Services/Service/AIService.cs`
+- `AISAM-BE/AISAM.Services/Service/GeminiTextClient.cs`
+- `AISAM-BE/AISAM.API/.env.example`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+API da co:
+
+```text
+POST /api/ai/generate-draft
+POST /api/ai/improve/{contentId}
+POST /api/ai/approve/{aiGenerationId}
+GET  /api/ai/generations/{contentId}
+POST /api/ai/chat
+```
+
+Config thu cong:
+
+```env
+GEMINI_API_KEY=your-real-api-key
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MAX_TOKENS=2048
+GEMINI_TEMPERATURE=0.7
+```
+
+Dieu chinh MVP:
+
+- Chi AI text. Chua lam AI image/video.
+- Dung Gemini official client qua HTTP.
+- Automated tests dung fake client, khong can key that.
+
+### Progress Detail - Task 5.3
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Luu va truy van conversation history cho AI chat theo active profile.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ConversationController.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ConversationDetailDto.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ConversationResponseDto.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IConversationRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ConversationRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/IConversationService.cs`
+- `AISAM-BE/AISAM.Services/Service/ConversationService.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+API da co:
+
+```text
+GET    /api/conversations
+GET    /api/conversations/{id}
+DELETE /api/conversations/{id}
+```
+
+Kiem tra Phase 5:
+
+```text
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed. 36/36 tests passed.
+```
+
+Commit gom Phase 5:
+
+```text
+6055fdd Hoan thien Content CRUD, Gemini text generation va Conversation history theo active profile context da xac thuc.
+```
+
+Checklist Phase 5:
+
+- [x] Content CRUD/status MVP.
+- [x] Content clone, soft delete, restore.
+- [x] Gemini generate draft.
+- [x] Gemini improve content.
+- [x] Approve AI generation.
+- [x] AI generation history.
+- [x] AI chat va conversation history.
+- [x] Active profile ownership middleware.
+- [x] Build thanh cong.
+- [x] 36/36 automated tests pass.
+- [ ] Test Gemini API that sau khi developer them `GEMINI_API_KEY`.
 
 ### Progress Detail - Setup Guide
 
