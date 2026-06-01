@@ -681,6 +681,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
                     b.Property<Guid>("ContentId")
                         .HasColumnType("uuid")
                         .HasColumnName("content_id");
@@ -688,6 +692,14 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("ExecutedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("executed_at");
+
+                    b.Property<Guid?>("IntegrationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("integration_id");
 
                     b.Property<string>("IntegrationIds")
                         .HasColumnType("text")
@@ -700,6 +712,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text")
+                        .HasColumnName("last_error");
 
                     b.Property<DateTime?>("NextScheduledDate")
                         .HasColumnType("timestamp with time zone")
@@ -721,6 +737,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("repeat_until");
 
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scheduled_at");
+
                     b.Property<DateTime>("ScheduledDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("scheduled_date");
@@ -728,6 +748,12 @@ namespace AISAM.Repositories.Migrations
                     b.Property<TimeSpan?>("ScheduledTime")
                         .HasColumnType("interval")
                         .HasColumnName("scheduled_time");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("status");
 
                     b.Property<string>("Timezone")
                         .IsRequired()
@@ -743,9 +769,15 @@ namespace AISAM.Repositories.Migrations
 
                     b.HasIndex("ContentId");
 
+                    b.HasIndex("IntegrationId");
+
                     b.HasIndex("ProfileId");
 
+                    b.HasIndex("ScheduledAt");
+
                     b.HasIndex("ScheduledDate");
+
+                    b.HasIndex("Status");
 
                     b.ToTable("content_calendar");
                 });
@@ -1895,6 +1927,11 @@ namespace AISAM.Repositories.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("AISAM.Data.Model.SocialIntegration", "Integration")
+                        .WithMany()
+                        .HasForeignKey("IntegrationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("AISAM.Data.Model.Profile", "Profile")
                         .WithMany("ContentCalendars")
                         .HasForeignKey("ProfileId")
@@ -1902,6 +1939,8 @@ namespace AISAM.Repositories.Migrations
                         .IsRequired();
 
                     b.Navigation("Content");
+
+                    b.Navigation("Integration");
 
                     b.Navigation("Profile");
                 });
