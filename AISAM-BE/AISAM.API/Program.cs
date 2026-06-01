@@ -135,6 +135,9 @@ builder.Services.AddHttpClient<IGeminiTextClient, GeminiTextClient>();
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 builder.Services
     .AddControllers(options =>

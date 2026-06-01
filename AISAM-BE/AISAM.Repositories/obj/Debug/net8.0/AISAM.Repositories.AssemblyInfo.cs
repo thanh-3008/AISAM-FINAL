@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AISAM.Repositories")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e91ed9582ef00ab38fb0af1877e654878284c10f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+641f73bb1326459a25b5f6a1e4bcf923815d8c3a")]
 [assembly: System.Reflection.AssemblyProductAttribute("AISAM.Repositories")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AISAM.Repositories")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
