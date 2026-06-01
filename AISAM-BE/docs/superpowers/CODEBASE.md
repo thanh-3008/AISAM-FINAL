@@ -26,6 +26,10 @@ The active API surface is currently an MVP subset, but it is broader than the or
 - Conversation history.
 - Facebook social auth/account/integration flow.
 - Posts history.
+- Notification read APIs.
+- Content scheduling CRUD and upcoming schedules.
+- Dashboard summary.
+- Scheduled posting worker and Development-only scheduler trigger.
 - Health endpoint.
 
 The data model is still broader than the exposed API. `AisamContext` already contains DbSets and relationships for teams, subscriptions, approvals, ads, reports, notifications, payments and scheduling. Those remaining modules are still model-ready rather than fully active in the root solution.
@@ -172,6 +176,9 @@ Repositories:
 - `ISocialAccountRepository` -> `SocialAccountRepository`
 - `ISocialIntegrationRepository` -> `SocialIntegrationRepository`
 - `IPostRepository` -> `PostRepository`
+- `INotificationRepository` -> `NotificationRepository`
+- `IContentCalendarRepository` -> `ContentCalendarRepository`
+- `IPerformanceReportRepository` -> `PerformanceReportRepository`
 
 Services:
 
@@ -185,6 +192,10 @@ Services:
 - `IConversationService` -> `ConversationService`
 - `ISocialService` -> `SocialService`
 - `IPostService` -> `PostService`
+- `INotificationService` -> `NotificationService`
+- `IContentScheduleService` -> `ContentScheduleService`
+- `IDashboardService` -> `DashboardService`
+- `IScheduledPostingService` -> `ScheduledPostingService`
 
 Supporting infrastructure:
 
@@ -193,6 +204,7 @@ Supporting infrastructure:
 - `IGeminiTextClient` -> `GeminiTextClient`
 - typed `HttpClient` for `FacebookProvider` and `GoogleProvider`
 - `IProviderService` registrations for `FacebookProvider` and `GoogleProvider`
+- hosted service `ScheduledPostingBackgroundService`
 
 Entity Framework is registered only when a non-empty connection string exists. PostgreSQL is accessed through an `NpgsqlDataSource` with dynamic JSON enabled.
 
@@ -211,6 +223,10 @@ The active controllers are:
 - `SocialAccountsController`
 - `SocialIntegrationController`
 - `PostsController`
+- `NotificationsController`
+- `ContentSchedulesController`
+- `DashboardController`
+- `DevSchedulerController` (Development only)
 - `HealthController`
 
 All controllers return `GenericResponse<T>` or `GenericResponse<object>` for a consistent envelope.
@@ -384,6 +400,99 @@ Current limitation:
 
 - Product create/update accepts `ImageFiles`, but `ProductService` explicitly rejects image uploads in this MVP backend.
 - The `Images` column is currently serialized as JSON text. New product creation stores an empty list.
+
+### 5.6 Notification API
+
+Route base:
+
+```text
+api/notifications
+```
+
+Endpoints:
+
+- `GET api/notifications`
+- `GET api/notifications/{notificationId}`
+- `POST api/notifications/{notificationId}/mark-read`
+- `POST api/notifications/mark-all-read`
+- `GET api/notifications/unread-count`
+
+Behavior:
+
+- All endpoints require JWT and `X-Profile-Id`.
+- Reads and updates are scoped to the active profile only.
+- Notification state is persisted in the `notifications` table.
+
+### 5.7 Content Scheduling API
+
+Route base:
+
+```text
+api/content-schedules
+```
+
+Endpoints:
+
+- `POST api/content-schedules`
+- `GET api/content-schedules`
+- `GET api/content-schedules/{scheduleId}`
+- `PUT api/content-schedules/{scheduleId}`
+- `DELETE api/content-schedules/{scheduleId}`
+- `GET api/content-schedules/upcoming`
+
+Behavior:
+
+- Schedules are one-time only in the active MVP.
+- Create/update validates content ownership, integration ownership and brand match.
+- Published content cannot be scheduled again.
+- Delete is soft delete.
+- Create/update/delete emits internal notifications.
+
+### 5.8 Dashboard API
+
+Route base:
+
+```text
+api/dashboard
+```
+
+Endpoint:
+
+- `GET api/dashboard/summary`
+
+Current summary fields:
+
+- `DraftContentCount`
+- `PublishedContentCount`
+- `PendingApprovalContentCount`
+- `UpcomingScheduleCount`
+- `FailedScheduleCount`
+- `ActiveSocialIntegrationCount`
+- `PublishedPostCount`
+- `UnreadNotificationCount`
+
+### 5.9 Scheduled Posting Worker
+
+The active runtime now contains:
+
+- `ScheduledPostingService`
+- `ScheduledPostingBackgroundService`
+
+Worker behavior:
+
+- scans due schedules
+- reuses `IContentService.PublishAsync`
+- marks schedule `Completed` on success
+- marks schedule `Failed` and stores `LastError` on failure
+- creates internal notifications for success/failure
+
+Development-only trigger:
+
+```text
+POST /api/dev/scheduler/run-now
+```
+
+This controller is only mapped when `ASPNETCORE_ENVIRONMENT=Development`.
 
 ### 5.5 Health API
 
@@ -876,12 +985,16 @@ The current suite contains meaningful tests for:
 - Social provider/state/protection infrastructure.
 - Social repository, service and controller behavior.
 - Posts service and controller behavior.
+- Notification repository, service and controller behavior.
+- Content schedule repository, service and controller behavior.
+- Dashboard summary aggregation.
+- Scheduled posting worker and Development-only scheduler boundary.
 
 Latest local run on 2026-06-01:
 
 ```text
 dotnet test AISAM.sln
-Passed: 75, Failed: 0, Skipped: 0
+Passed: 100, Failed: 0, Skipped: 0
 ```
 
 ## 15. Current Runtime Verification Notes
@@ -907,6 +1020,10 @@ Verified Swagger paths:
 - `/api/social/accounts/me`
 - `/api/content/{contentId}/publish/{integrationId}`
 - `/api/posts`
+- `/api/notifications`
+- `/api/content-schedules`
+- `/api/dashboard/summary`
+- `/api/dev/scheduler/run-now` (Development only)
 
 Verified authentication boundary:
 
@@ -916,6 +1033,11 @@ Verified authentication boundary:
 - `GET /api/social-auth/facebook` without JWT returns HTTP `401`.
 - `GET /api/social/accounts/me` without JWT returns HTTP `401`.
 - `GET /api/posts` without JWT returns HTTP `401`.
+- `GET /api/notifications` without JWT returns HTTP `401`.
+- `GET /api/content-schedules` without JWT returns HTTP `401`.
+- `GET /api/dashboard/summary` without JWT returns HTTP `401`.
+- `POST /api/dev/scheduler/run-now` without JWT returns HTTP `401` in `Development`.
+- `POST /api/dev/scheduler/run-now` returns HTTP `404` outside `Development`.
 
 Protected APIs for active profile-scoped modules require:
 
@@ -927,11 +1049,15 @@ X-Profile-Id: <owned-profile-guid>
 This header requirement currently applies to:
 
 - `/api/content`
+- `/api/content-schedules`
+- `/api/dashboard`
+- `/api/dev/scheduler` (Development only)
 - `/api/ai`
 - `/api/conversations`
 - `/api/social-auth`
 - `/api/social`
 - `/api/posts`
+- `/api/notifications`
 
 The API host starts without `GEMINI_API_KEY` and without Facebook App credentials. Gemini text endpoints then return a recorded failed generation or a graceful chat error instead of preventing startup. Facebook auth URL endpoint returns a clear `503` configuration error instead of crashing the host.
 
@@ -978,15 +1104,17 @@ Current active modules:
 - Social/Facebook auth and Page linking
 - Facebook Page publishing from content
 - Posts history
+- Notifications
+- Content scheduling
+- Dashboard summary
+- Scheduled posting worker
 
 Model-ready but not active as APIs:
 
 - Approvals
 - Team management
-- Scheduling
 - Ads
 - Payments
-- Notifications
 - Analytics
 
 ### Authorization Consistency

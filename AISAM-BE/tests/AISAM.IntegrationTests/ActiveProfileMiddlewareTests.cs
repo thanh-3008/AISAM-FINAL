@@ -3,7 +3,9 @@ using AISAM.API.Utils;
 using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.FileProviders;
 using System.Net;
 using System.Security.Claims;
 
@@ -17,7 +19,7 @@ public class ActiveProfileMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -29,7 +31,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = "invalid";
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -42,7 +44,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile));
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
@@ -61,24 +63,48 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile));
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
     }
 
-    private static DefaultHttpContext CreateContext(Guid userId)
+    [Fact]
+    public async Task InvokeAsync_SkipsDevSchedulerPrefix_WhenEnvironmentIsNotDevelopment()
+    {
+        var nextCalled = false;
+        var context = CreateContext(Guid.NewGuid(), "/api/dev/scheduler/run-now");
+        var middleware = new ActiveProfileMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment("Production"));
+
+        Assert.True(nextCalled);
+    }
+
+    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/content")
     {
         return new DefaultHttpContext
         {
             Request =
             {
-                Path = "/api/content"
+                Path = path
             },
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString())
             }, "Test"))
+        };
+    }
+
+    private static FakeWebHostEnvironment CreateEnvironment(string environmentName = "Development")
+    {
+        return new FakeWebHostEnvironment
+        {
+            EnvironmentName = environmentName
         };
     }
 
@@ -153,5 +179,15 @@ public class ActiveProfileMiddlewareTests
         {
             return Task.FromResult(_profiles.ContainsKey(id));
         }
+    }
+
+    private sealed class FakeWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "AISAM.API";
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
+        public string WebRootPath { get; set; } = string.Empty;
+        public string EnvironmentName { get; set; } = "Development";
+        public string ContentRootPath { get; set; } = string.Empty;
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 }

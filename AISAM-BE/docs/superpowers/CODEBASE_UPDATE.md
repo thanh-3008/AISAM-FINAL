@@ -754,6 +754,157 @@ Kiem tra ContentCalendar/Notification schema. Background job khong nen tao schem
 - Background service khong crash khi DB/external social config missing.
 - Notification API pass.
 
+### Ket qua trien khai Phase D - 2026-06-01
+
+Da hoan tat cac task:
+
+- `D0`: ra schema schedule/notification va chot can migration additive cho `ContentCalendar`.
+- `D1`: them DTO/repository foundation va migration runtime fields cho schedule.
+- `D2`: them Notification service/controller va APIs doc/danh dau da doc.
+- `D3`: them Schedule CRUD service/controller va upcoming API.
+- `D4`: them Dashboard summary service/controller.
+- `D5`: them Scheduled posting service, background worker va dev-only trigger.
+- `D6`: chot middleware/DI/Swagger wiring.
+- `D7`: chay full verification, runtime boundary smoke va cap nhat docs.
+
+Active API moi:
+
+```text
+GET    /api/notifications
+GET    /api/notifications/{notificationId}
+POST   /api/notifications/{notificationId}/mark-read
+POST   /api/notifications/mark-all-read
+GET    /api/notifications/unread-count
+
+POST   /api/content-schedules
+GET    /api/content-schedules
+GET    /api/content-schedules/{scheduleId}
+PUT    /api/content-schedules/{scheduleId}
+DELETE /api/content-schedules/{scheduleId}
+GET    /api/content-schedules/upcoming
+
+GET    /api/dashboard/summary
+
+POST   /api/dev/scheduler/run-now   (Development only)
+```
+
+Header bat buoc cho Notification/Scheduling/Dashboard:
+
+```text
+Authorization: Bearer <access-token>
+X-Profile-Id: <owned-profile-guid>
+```
+
+#### Nguon tham chieu va cach tai su dung
+
+| Loai | Duong dan source cu | Cach su dung |
+| --- | --- | --- |
+| Notification/Dashboard controllers | `docs/code-references/PRN232_Backend/AISAM.API/Controllers/NotificationController.cs`, `DashboardController.cs` | Tai su dung route/ownership shape, viet lai theo active profile middleware va GenericResponse |
+| Scheduling controller/service | `docs/code-references/PRN232_Backend/AISAM.API/Controllers/ContentCalendarController.cs`, `AISAM.Services/Service/ScheduledPostingService.cs` | Tai su dung scheduling flow, cat repeat scheduling va giu one-time MVP |
+| Repositories | `docs/code-references/PRN232_Backend/AISAM.Repositories/Repository/NotificationRepository.cs`, `ContentCalendarRepository.cs`, `PerformanceReportRepository.cs` | Tai su dung include/query pattern, them count methods va cancellation token |
+
+#### Cai tien thay vi copy nguyen
+
+- Chi ho tro one-time schedule; khong keo `Daily/Weekly/Monthly`.
+- Publish theo lich tai su dung `IContentService.PublishAsync`, khong viet logic publish moi.
+- Dashboard chi tong hop summary MVP, chua keo performance analytics nang cao.
+- Notification la noi bo trong DB; chua co push/email/realtime.
+- Dev scheduler controller duoc map co dieu kien theo `ASPNETCORE_ENVIRONMENT=Development`.
+- `ActiveProfileMiddleware` duoc sua de bo qua prefix `/api/dev/scheduler` ngoai `Development`, tranh tra `401` cho route khong ton tai.
+
+#### Database/migration
+
+- `Notification` schema hien tai du dung, khong tao migration rieng.
+- Da tao migration:
+  - `20260601095652_AddContentCalendarSchedulingRuntimeFields`
+
+Migration nay them runtime fields cho `content_calendar`:
+
+- `integration_id`
+- `scheduled_at`
+- `executed_at`
+- `status`
+- `attempt_count`
+- `last_error`
+
+va giu nguyen cac cot legacy:
+
+- `scheduled_date`
+- `scheduled_time`
+- `repeat_type`
+- `repeat_interval`
+- `repeat_until`
+- `next_scheduled_date`
+- `integration_ids`
+
+#### Verification thuc te
+
+```text
+dotnet build AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM.sln
+Passed: 100, Failed: 0, Skipped: 0.
+```
+
+Swagger/runtime smoke tren host local:
+
+```text
+Development:
+GET /swagger/v1/swagger.json -> 200
+Swagger co /api/notifications -> True
+Swagger co /api/content-schedules -> True
+Swagger co /api/dashboard/summary -> True
+Swagger co /api/dev/scheduler/run-now -> True
+
+GET /api/notifications khong JWT -> 401
+GET /api/content-schedules khong JWT -> 401
+GET /api/dashboard/summary khong JWT -> 401
+POST /api/dev/scheduler/run-now khong JWT -> 401
+
+Production:
+POST /api/dev/scheduler/run-now -> 404
+Swagger khong con /api/dev/scheduler/run-now -> False
+```
+
+Automated tests da xac minh:
+
+- notification read/mark-read/mark-all/unread-count scope theo active profile
+- schedule create/update/delete/upcoming, ownership va content status guards
+- dashboard summary counts theo active profile
+- scheduled posting worker success/fail/idempotency
+
+#### Worker smoke va blocker external
+
+- Worker success/fail path da duoc verify bang automated tests.
+- Chua chay full end-to-end HTTP smoke tao due schedule roi goi dev trigger voi DB local that, vi van con 2 blocker moi truong:
+  1. local DB migration history dang lech schema thuc te (`Initial` co the bi chay lai va fail `relation "users" already exists`)
+  2. chua co Facebook credentials that de xac minh scheduled publish flow voi provider live
+
+Neu can xac minh end-to-end thuc te, can rerun sau khi dong bo DB local va co credentials:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+tao content draft + social integration fixture
+POST /api/content-schedules
+POST /api/dev/scheduler/run-now trong Development
+verify content Published, post duoc tao, schedule Completed, notification success duoc tao
+```
+
+#### Loi runtime da phat hien va sua trong D7
+
+- Ngoai `Development`, dev scheduler controller da bi bo khoi Swagger/controller discovery, nhung `ActiveProfileMiddleware` van chan prefix `/api/dev/scheduler` va tra `401` truoc routing.
+- Da sua middleware de bo qua prefix nay ngoai `Development`.
+- Da cap nhat middleware tests va social middleware test theo signature moi cua `InvokeAsync`.
+
+#### Rollback
+
+- Remove DI Phase D trong `AISAM.API/Program.cs`.
+- Remove `NotificationsController`, `ContentSchedulesController`, `DashboardController`, `DevSchedulerController`.
+- Remove `NotificationService`, `ContentScheduleService`, `DashboardService`, `ScheduledPostingService`, `ScheduledPostingBackgroundService`.
+- Remove repositories/DTO Phase D neu rollback toan bo.
+- Revert migration `20260601095652_AddContentCalendarSchedulingRuntimeFields` neu rollback schema schedule runtime fields.
+
 ## 9. Phase Update E - Complete Phase 8: Payment, Subscription, Quota
 
 Map voi `BACKEND_CODE_PLAN.md`: Phase 8.

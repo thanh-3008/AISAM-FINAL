@@ -8,8 +8,10 @@ using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.FileProviders;
 using System.Net;
 using System.Security.Claims;
 
@@ -23,7 +25,7 @@ public class SocialControllerTests
         var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/social-auth/facebook");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWebHostEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -226,5 +228,15 @@ public class SocialControllerTests
         public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task RestoreAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    }
+
+    private sealed class FakeWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "AISAM.API";
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
+        public string WebRootPath { get; set; } = string.Empty;
+        public string EnvironmentName { get; set; } = "Development";
+        public string ContentRootPath { get; set; } = string.Empty;
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 }

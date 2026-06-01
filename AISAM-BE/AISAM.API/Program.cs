@@ -1,4 +1,5 @@
 using AISAM.API.Filters;
+using AISAM.API.Infrastructure;
 using AISAM.API.Middleware;
 using AISAM.Common.Config;
 using AISAM.Common.Models;
@@ -10,6 +11,7 @@ using AISAM.Services.Service;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -138,8 +140,10 @@ builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
+builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 
-builder.Services
+var controllers = builder.Services
     .AddControllers(options =>
     {
         options.Filters.Add<ValidationFilter>();
@@ -150,6 +154,17 @@ builder.Services
         options.JsonSerializerOptions.WriteIndented = true;
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
+
+controllers.ConfigureApplicationPartManager(manager =>
+{
+    var defaultProvider = manager.FeatureProviders.OfType<ControllerFeatureProvider>().FirstOrDefault();
+    if (defaultProvider != null)
+    {
+        manager.FeatureProviders.Remove(defaultProvider);
+    }
+
+    manager.FeatureProviders.Add(new EnvironmentAwareControllerFeatureProvider(builder.Environment.IsDevelopment()));
+});
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
