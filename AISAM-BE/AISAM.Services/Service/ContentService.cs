@@ -22,6 +22,7 @@ public sealed class ContentService : IContentService
     private readonly IPostRepository _postRepository;
     private readonly Dictionary<string, IProviderService> _providers;
     private readonly ISocialTokenProtector _tokenProtector;
+    private readonly IQuotaService _quotaService;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -31,7 +32,8 @@ public sealed class ContentService : IContentService
         ISocialAccountRepository socialAccountRepository,
         IPostRepository postRepository,
         IEnumerable<IProviderService> providers,
-        ISocialTokenProtector tokenProtector)
+        ISocialTokenProtector tokenProtector,
+        IQuotaService quotaService)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -41,6 +43,7 @@ public sealed class ContentService : IContentService
         _postRepository = postRepository;
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
         _tokenProtector = tokenProtector;
+        _quotaService = quotaService;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -210,6 +213,15 @@ public sealed class ContentService : IContentService
         if (integration == null || integration.ProfileId != profileId || integration.IsDeleted || integration.BrandId != content.BrandId)
         {
             return GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
+        }
+
+        var quotaCheck = await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<PublishResultDto>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
         }
 
         if (!_providers.TryGetValue(integration.Platform.ToString().ToLowerInvariant(), out var provider))

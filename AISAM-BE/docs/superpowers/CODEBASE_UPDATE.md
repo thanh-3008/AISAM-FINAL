@@ -911,77 +911,102 @@ Map voi `BACKEND_CODE_PLAN.md`: Phase 8.
 
 ### Muc tieu
 
-Ho tro monetization/SaaS demo: subscription, PayOS payment, quota display.
+Ho tro monetization/SaaS demo: subscription, PayOS payment, quota display, va basic quota enforcement o muc toi thieu.
 
 ### Trang thai hien tai
 
-Da co entity/DbSet:
+Da hoan tat implementation chinh cho Phase E:
 
-- `Subscription`
-- `Payment`
+- `PaymentRepository` va `SubscriptionRepository`
+- `PaymentController` voi route profile-scoped cho checkout/history/current subscription
+- callback/webhook route anonymous cho PayOS
+- `PayOSPaymentService` voi fail-safe khi thieu config
+- `QuotaService` va `QuotaController`
+- quota summary theo `Derived Usage`
+- prompt quota enforcement cho AI generation
+- post quota enforcement cho publish now va scheduled publish
 
-Thieu active API/service/repository:
+Khong tao bang usage counter rieng trong Phase E.
 
-- `PaymentController`
-- `PayOSPaymentService`
-- `SubscriptionValidationService`
-- `PaymentRepository`
-- `SubscriptionRepository`
-- quota service/display endpoints.
+### Nguyen tac implementation
 
-### Source cu can copy/tai su dung
+- Repository chi chua persistence/query, khong chua quota policy.
+- `QuotaService` la nguon su that duy nhat cho quota policy va derived usage.
+- Chi consume quota sau khi AI generation hoac publish thanh cong.
+- Thieu PayOS config chi lam fail checkout/payment intent an toan, khong lam vo payment history/current subscription/quota APIs.
 
-Controller:
+### API da co
 
-- `PaymentController.cs`
+- `POST /api/payment/checkout`
+- `GET /api/payment/history`
+- `GET /api/payment/subscription/current`
+- `GET /api/payment/callback`
+- `POST /api/payment/webhook`
+- `GET /api/quota/profile/{profileId}`
 
-Services:
+### Enforce business rules
 
-- `PayOSPaymentService.cs`
-- `SubscriptionValidationService.cs`
-- `AdQuotaService.cs` neu dung quota lien quan ads.
+- Vuot `PromptQuota`:
+  - HTTP `403`
+  - `errorCode = PROMPT_QUOTA_EXCEEDED`
+- Vuot `PostQuota`:
+  - HTTP `403`
+  - `errorCode = POST_QUOTA_EXCEEDED`
+- Khong enforce quota o CRUD nhu tao brand, tao product, tao content draft thu cong.
 
-Repositories:
+### Data source cho usage
 
-- `PaymentRepository.cs`
-- `SubscriptionRepository.cs`
+- `PromptUsage`: dem so `AiGeneration` thanh cong trong subscription window hien tai.
+- `PostUsage`: dem so `Post` publish thanh cong trong subscription window hien tai.
+- Subscription window duoc suy ra tu active subscription cua profile.
 
-DTO:
+### File da sua/chinh
 
-- `CreatePaymentIntentRequest.cs`
-- `CreateSubscriptionRequest.cs`
-- `ChangePlanRequest.cs`
-- `PaymentResponseDto.cs`
-- `PayOSCheckoutResponse.cs`
-- `SubscriptionResponseDto.cs`
-
-### File can sua
-
-- `Program.cs`: DI payment/subscription services/repositories.
-- `.env.example`/setup docs: PayOS config.
-- `appsettings`: payment settings neu source cu dung.
+- `AISAM.API/Program.cs`
+- `AISAM.API/Middleware/ActiveProfileMiddleware.cs`
+- `AISAM.API/Controllers/PaymentController.cs`
+- `AISAM.API/Controllers/QuotaController.cs`
+- `AISAM.Services/Service/AIService.cs`
+- `AISAM.Services/Service/ContentService.cs`
+- `AISAM.Services/Service/PayOSPaymentService.cs`
+- `AISAM.Services/Service/QuotaService.cs`
+- `AISAM.Repositories/Repository/PaymentRepository.cs`
+- `AISAM.Repositories/Repository/SubscriptionRepository.cs`
+- `.env.example`
 
 ### Database impact
 
-Kiem tra migration `UpdateSubscriptionPayOS` da du voi source cu chua. Neu chua, tao migration nho rieng.
+Khong can migration moi trong implementation hien tai.
 
-### API can test
+Schema san co da du cho:
 
-- Create checkout/payment intent.
-- PayOS webhook/callback.
-- Get payment history.
-- Get current subscription.
-- Change/cancel plan neu source cu co.
-- Quota display endpoint neu implement.
+- `Payment`
+- `Subscription`
+- field runtime PayOS tren subscription
+
+### Verification da chay
+
+- `PaymentRepositoryTests`
+- `PaymentServiceTests`
+- `PaymentControllerTests`
+- `QuotaServiceTests`
+- `QuotaControllerTests`
+- `PhaseEQuotaIntegrationTests`
+- `ContentServicePublishTests`
+- `ScheduledPostingServiceTests`
+- `ContentServiceTests`
+- `dotnet build AISAM.sln`
 
 ### Risk
 
-- Payment webhook can signature validation dung.
-- Demo co the can sandbox PayOS credentials.
+- Checkout/webhook hien tai o muc MVP, can bo sung signature validation va provider integration day du o hardening phase.
+- Derived usage du cho MVP nhung chua phai usage ledger cho audit/concurrency cao.
 
 ### Rollback
 
-- Disable payment endpoints/DI.
+- Remove payment/quota DI va controllers.
+- Remove quota enforcement hook trong `AIService` va `ContentService`.
+- Khong can cleanup usage counter vi Phase E khong tao counter persistence.
 - Revert migration neu co.
 - Keep existing subscription enum fallback.
 

@@ -53,6 +53,11 @@ ApplyEnvironmentOverride(builder.Configuration, "GEMINI_API_KEY", "GeminiSetting
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_MODEL", "GeminiSettings:Model");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_MAX_TOKENS", "GeminiSettings:MaxTokens");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_TEMPERATURE", "GeminiSettings:Temperature");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CLIENT_ID", "PayOSSettings:ClientId");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_API_KEY", "PayOSSettings:ApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSettings:ChecksumKey");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -70,6 +75,7 @@ builder.Services.Configure<FacebookSettings>(builder.Configuration.GetSection("F
 builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("GoogleSettings"));
 builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("GeminiSettings"));
+builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
 
 var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -117,6 +123,8 @@ builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
 builder.Services.AddScoped<ISocialIntegrationRepository, SocialIntegrationRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IContentCalendarRepository, ContentCalendarRepository>();
 builder.Services.AddScoped<IPerformanceReportRepository, PerformanceReportRepository>();
@@ -131,12 +139,14 @@ builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.AddHttpClient<FacebookProvider>();
 builder.Services.AddHttpClient<GoogleProvider>();
+builder.Services.AddHttpClient<IPaymentService, PayOSPaymentService>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<FacebookProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
 builder.Services.AddHttpClient<IGeminiTextClient, GeminiTextClient>();
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddScoped<IQuotaService, QuotaService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();

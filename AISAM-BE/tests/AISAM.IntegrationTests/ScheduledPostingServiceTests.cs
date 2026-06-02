@@ -65,6 +65,33 @@ public class ScheduledPostingServiceTests
     }
 
     [Fact]
+    public async Task RunDueSchedulesAsync_MarksFailed_WhenPublishIsBlockedByPostQuota()
+    {
+        var schedule = CreateDueSchedule();
+        var notificationRepository = new FakeNotificationRepository();
+        var contentService = new FakeContentService
+        {
+            PublishResult = GenericResponse<PublishResultDto>.CreateError(
+                "Post quota has been exceeded for the current subscription.",
+                HttpStatusCode.Forbidden,
+                "POST_QUOTA_EXCEEDED")
+        };
+        var repository = new FakeContentCalendarRepository(schedule);
+        var service = new ScheduledPostingService(repository, contentService, notificationRepository);
+
+        var result = await service.RunDueSchedulesAsync(20);
+
+        Assert.Equal(1, result.ScannedCount);
+        Assert.Equal(0, result.SuccessCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
+        Assert.Equal(1, schedule.AttemptCount);
+        Assert.Equal("Post quota has been exceeded for the current subscription.", schedule.LastError);
+        Assert.Single(notificationRepository.Notifications.Values);
+        Assert.Equal("Scheduled publish failed", notificationRepository.Notifications.Values.Single().Title);
+    }
+
+    [Fact]
     public async Task RunDueSchedulesAsync_DoesNotReprocessCompletedSchedules()
     {
         var completed = CreateDueSchedule();

@@ -1,3 +1,4 @@
+using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
@@ -66,7 +67,8 @@ public class ContentServicePublishTests
             new FakeSocialAccountRepository(account),
             postRepository,
             provider,
-            tokenProtector);
+            tokenProtector,
+            new FakeQuotaService());
 
         var result = await service.PublishAsync(content.Id, integration.Id, profileId);
 
@@ -131,7 +133,8 @@ public class ContentServicePublishTests
                     ErrorMessage = "Facebook rejected the request."
                 }
             },
-            new FakeSocialTokenProtector());
+            new FakeSocialTokenProtector(),
+            new FakeQuotaService());
 
         var result = await service.PublishAsync(content.Id, integration.Id, profileId);
 
@@ -160,6 +163,74 @@ public class ContentServicePublishTests
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
         Assert.Equal("Content has already been published.", result.Message);
+    }
+
+    [Fact]
+    public async Task PublishAsync_ReturnsForbiddenWithPostQuotaError_WhenPostQuotaExceeded()
+    {
+        var profileId = Guid.NewGuid();
+        var brandId = Guid.NewGuid();
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = brandId,
+            AdType = AdTypeEnum.TextOnly,
+            TextContent = "Publish me",
+            Status = ContentStatusEnum.Draft
+        };
+        var account = new SocialAccount
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            Platform = SocialPlatformEnum.Facebook,
+            UserAccessToken = "protected:user-token"
+        };
+        var integration = new SocialIntegration
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = brandId,
+            SocialAccountId = account.Id,
+            SocialAccount = account,
+            Platform = SocialPlatformEnum.Facebook,
+            ExternalId = "page-1",
+            AccessToken = "protected:page-token"
+        };
+        var postRepository = new FakePostRepository();
+        var provider = new FakeProviderService
+        {
+            PublishResult = new PublishResultDto
+            {
+                Success = true,
+                ProviderPostId = "facebook-post-1"
+            }
+        };
+        var service = CreateService(
+            new FakeContentRepository(content),
+            new FakeBrandRepository(),
+            new FakeProductRepository(),
+            new FakeSocialIntegrationRepository(integration),
+            new FakeSocialAccountRepository(account),
+            postRepository,
+            provider,
+            new FakeSocialTokenProtector(),
+            new FakeQuotaService
+            {
+                PostQuotaResult = GenericResponse<bool>.CreateError(
+                    "Post quota has been exceeded for the current subscription.",
+                    HttpStatusCode.Forbidden,
+                    "POST_QUOTA_EXCEEDED")
+            });
+
+        var result = await service.PublishAsync(content.Id, integration.Id, profileId);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Equal("POST_QUOTA_EXCEEDED", result.Error?.ErrorCode);
+        Assert.Equal(ContentStatusEnum.Draft, content.Status);
+        Assert.Empty(postRepository.Added);
+        Assert.Null(provider.LastPublishedPost);
     }
 
     [Fact]
@@ -193,7 +264,12 @@ public class ContentServicePublishTests
             new FakeContentRepository(content),
             new FakeBrandRepository(),
             new FakeProductRepository(),
-            new FakeSocialIntegrationRepository(integration));
+            new FakeSocialIntegrationRepository(integration),
+            null,
+            null,
+            null,
+            null,
+            new FakeQuotaService());
 
         var result = await service.PublishAsync(content.Id, integration.Id, profileId);
 
@@ -210,7 +286,8 @@ public class ContentServicePublishTests
         ISocialAccountRepository? socialAccountRepository = null,
         IPostRepository? postRepository = null,
         IProviderService? providerService = null,
-        ISocialTokenProtector? tokenProtector = null)
+        ISocialTokenProtector? tokenProtector = null,
+        IQuotaService? quotaService = null)
     {
         return new ContentService(
             contentRepository ?? new FakeContentRepository(),
@@ -220,7 +297,8 @@ public class ContentServicePublishTests
             socialAccountRepository ?? new FakeSocialAccountRepository(),
             postRepository ?? new FakePostRepository(),
             providerService is null ? Array.Empty<IProviderService>() : new[] { providerService },
-            tokenProtector ?? new FakeSocialTokenProtector());
+            tokenProtector ?? new FakeSocialTokenProtector(),
+            quotaService ?? new FakeQuotaService());
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -398,5 +476,20 @@ public class ContentServicePublishTests
                 ? ciphertext["protected:".Length..]
                 : ciphertext;
         }
+    }
+
+    private sealed class FakeQuotaService : IQuotaService
+    {
+        public GenericResponse<bool> PromptQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+        public GenericResponse<bool> PostQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+
+        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+
+        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(PromptQuotaResult);
+
+        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(PostQuotaResult);
     }
 }

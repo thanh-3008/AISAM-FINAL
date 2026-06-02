@@ -1,3 +1,4 @@
+using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Models;
@@ -152,7 +153,8 @@ public class ContentServiceTests
             new FakeSocialAccountRepository(),
             new FakePostRepository(),
             Array.Empty<IProviderService>(),
-            new FakeSocialTokenProtector());
+            new FakeSocialTokenProtector(),
+            new FakeQuotaService());
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -258,5 +260,17 @@ public class ContentServiceTests
     {
         public string Protect(string plaintext) => plaintext;
         public string Unprotect(string ciphertext) => ciphertext;
+    }
+
+    private sealed class FakeQuotaService : IQuotaService
+    {
+        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+
+        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 }
