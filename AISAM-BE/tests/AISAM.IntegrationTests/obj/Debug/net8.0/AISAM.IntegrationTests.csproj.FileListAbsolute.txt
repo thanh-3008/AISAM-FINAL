@@ -417,3 +417,4 @@ D:\final\AISAM-FINAL\AISAM-BE\tests\AISAM.IntegrationTests\obj\Debug\net8.0\AISA
 D:\final\AISAM-FINAL\AISAM-BE\tests\AISAM.IntegrationTests\obj\Debug\net8.0\AISAM.IntegrationTests.genruntimeconfig.cache
 D:\final\AISAM-FINAL\AISAM-BE\tests\AISAM.IntegrationTests\obj\Debug\net8.0\ref\AISAM.IntegrationTests.dll
 D:\final\AISAM-FINAL\AISAM-BE\tests\AISAM.IntegrationTests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.InMemory.dll
+D:\AISAM\AISAM-FINAL\AISAM-BE\tests\AISAM.IntegrationTests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.InMemory.dll

@@ -3999,6 +3999,208 @@ Checklist:
 - [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
+## Current Backend Status - Updated 2026-06-01
+
+Backend da hoan thanh code den het **Phase 6 - Social integration va Facebook Page publishing MVP**.
+
+| Phase | Trang thai |
+| --- | --- |
+| Phase 0 - Chuan bi repo backend moi | DONE |
+| Phase 1 - API host toi thieu | DONE |
+| Phase 2 - Common, domain models, database context | DONE |
+| Phase 3 - Authentication MVP | DONE |
+| Phase 4 - Profile, Brand, Product MVP | DONE |
+| Phase 5 - AI va Content MVP | DONE |
+| Phase 6 - Social integration va Facebook Page publishing | DONE CODE / WAITING REAL META APP TEST |
+| Phase 7 - Scheduling, notification, dashboard | NEXT |
+
+Ket qua kiem tra gan nhat:
+
+```text
+dotnet restore
+PASS
+
+dotnet build --no-restore
+PASS: 0 errors
+
+dotnet test --no-build
+PASS: 75/75 tests
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+PASS: applied 20260531161937_RemovePostSocialIntegrationShadowFk
+```
+
+### Progress Detail - Task 6.1
+
+Ngay hoan thanh code: 2026-05-31
+
+Muc tieu:
+
+- Them provider contracts va Facebook OAuth/Page publishing provider.
+
+File chinh da tao/sua:
+
+- `AISAM-BE/AISAM.Common/Models/FacebookSettings.cs`
+- `AISAM-BE/AISAM.Common/Models/FacebookModels.cs`
+- `AISAM-BE/AISAM.Common/Models/GoogleModels.cs`
+- `AISAM-BE/AISAM.Services/IServices/IProviderService.cs`
+- `AISAM-BE/AISAM.Services/IServices/IOAuthStateStore.cs`
+- `AISAM-BE/AISAM.Services/IServices/ISocialTokenProtector.cs`
+- `AISAM-BE/AISAM.Services/Service/FacebookProvider.cs`
+- `AISAM-BE/AISAM.Services/Service/GoogleProvider.cs`
+- `AISAM-BE/AISAM.Services/Service/MemoryOAuthStateStore.cs`
+- `AISAM-BE/AISAM.Services/Service/SocialTokenProtector.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/.env.example`
+
+Facebook permissions hien tai:
+
+```text
+pages_manage_posts
+pages_read_engagement
+pages_show_list
+```
+
+Commit:
+
+```text
+d1abe49 add social publishing foundation and cleanup post integration mapping
+```
+
+### Progress Detail - Task 6.2
+
+Ngay hoan thanh code: 2026-05-31
+
+Muc tieu:
+
+- Luu social account, Page integration va post publish result.
+- Bao ve access token truoc khi luu database.
+
+File chinh da tao/sua:
+
+- `AISAM-BE/AISAM.Repositories/IRepositories/ISocialAccountRepository.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/ISocialIntegrationRepository.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IPostRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/SocialAccountRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/SocialIntegrationRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/PostRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/ISocialService.cs`
+- `AISAM-BE/AISAM.Services/Service/SocialService.cs`
+- `AISAM-BE/AISAM.Repositories/Migrations/20260531161937_RemovePostSocialIntegrationShadowFk.cs`
+
+Migration:
+
+```text
+20260531161937_RemovePostSocialIntegrationShadowFk
+Applied successfully on 2026-06-01.
+```
+
+### Progress Detail - Task 6.3
+
+Ngay hoan thanh code: 2026-05-31
+
+Muc tieu:
+
+- Expose API Facebook OAuth, social accounts va Page integrations.
+- Bat active profile ownership protection cho social APIs.
+
+File chinh da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/SocialAuthController.cs`
+- `AISAM-BE/AISAM.API/Controllers/SocialAccountsController.cs`
+- `AISAM-BE/AISAM.API/Controllers/SocialIntegrationController.cs`
+- `AISAM-BE/AISAM.API/Middleware/ActiveProfileMiddleware.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/SocialCallbackRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/SocialIntegrationDto.cs`
+
+API da co:
+
+```text
+GET    /api/social-auth/facebook
+POST   /api/social-auth/facebook/callback
+GET    /api/social/accounts/me
+GET    /api/social/accounts/{socialAccountId}/available-targets
+GET    /api/social/accounts/{socialAccountId}/linked-targets
+POST   /api/social/accounts/{socialAccountId}/link-targets
+DELETE /api/social/accounts/{socialAccountId}
+GET    /api/social/integrations/brand/{brandId}
+DELETE /api/social/integrations/{socialIntegrationId}
+```
+
+Tat ca social APIs can:
+
+```text
+Authorization: Bearer {accessToken}
+X-Profile-Id: {profileId}
+```
+
+Commit:
+
+```text
+ee2dd64 them xac thuc mang xa hoi va controller tai khoan voi tinh nang bao ve ho so chu dong
+```
+
+### Progress Detail - Task 6.4
+
+Ngay hoan thanh code: 2026-05-31
+
+Muc tieu:
+
+- Publish content len Facebook Page integration va truy van post history.
+
+File chinh da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ContentController.cs`
+- `AISAM-BE/AISAM.API/Controllers/PostsController.cs`
+- `AISAM-BE/AISAM.Services/IServices/IPostService.cs`
+- `AISAM-BE/AISAM.Services/Service/PostService.cs`
+- `AISAM-BE/AISAM.Services/Service/ContentService.cs`
+- `AISAM-BE/AISAM.Common/Models/PostListItemDto.cs`
+
+API da co:
+
+```text
+POST /api/content/{contentId}/publish/{integrationId}
+GET  /api/posts
+GET  /api/posts/{postId}
+```
+
+Commit:
+
+```text
+e91ed95 social publishing verification
+```
+
+Checklist Phase 6:
+
+- [x] Facebook provider contracts.
+- [x] OAuth state store.
+- [x] Social token protection.
+- [x] Social account repository/service.
+- [x] Page integration repository/service.
+- [x] Facebook auth URL API.
+- [x] Facebook callback API.
+- [x] Available targets va linked targets APIs.
+- [x] Publish content API.
+- [x] Posts query APIs.
+- [x] Active profile middleware bao ve social/posts.
+- [x] Migration social da apply.
+- [x] Build pass.
+- [x] 75/75 automated tests pass.
+- [ ] Dien Meta App config trong `.env`.
+- [ ] Test OAuth/link Page/publish voi Facebook Page that.
+
+Config can dien truoc khi test Facebook that:
+
+```env
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
+FACEBOOK_REDIRECT_URI=http://localhost:3000/auth/facebook/callback
+FACEBOOK_GRAPH_API_VERSION=v23.0
+FACEBOOK_BASE_URL=https://graph.facebook.com
+FACEBOOK_OAUTH_URL=https://www.facebook.com
+```
+
 ### Progress Detail - Setup Guide
 
 Ngày hoàn thành: 2026-05-28
