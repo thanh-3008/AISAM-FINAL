@@ -3999,36 +3999,113 @@ Checklist:
 - [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
-## Current Backend Status - Updated 2026-05-31
+## Current Backend Status - Updated 2026-06-04
 
-Backend da hoan thanh den het **Phase 5 - AI va Content MVP**.
+Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP/basic, trong khi Phase 9 Admin chua thay ro la da hoan thanh.
 
-| Phase | Trang thai |
-| --- | --- |
-| Phase 0 - Chuan bi repo backend moi | DONE |
-| Phase 1 - API host toi thieu | DONE |
-| Phase 2 - Common, domain models, database context | DONE |
-| Phase 3 - Authentication MVP | DONE |
-| Phase 4 - Profile, Brand, Product MVP | DONE |
-| Phase 5 - AI va Content MVP | DONE |
-| Phase 6 - Social integration va Facebook Page publishing | NEXT |
-| Phase 7 tro di | TODO |
+| Phase | Trang thai hien tai | Ghi chu |
+| --- | --- | --- |
+| Phase 0 - Chuan bi repo backend moi | DONE | Repo/backend solution da co. |
+| Phase 1 - API host toi thieu | DONE | API host, Swagger, Health API da co. |
+| Phase 2 - Common, domain models, database context | DONE | Common response, entities, DbContext, migrations da co. |
+| Phase 3 - Authentication MVP | DONE | Register/login/JWT/refresh/logout/email/google endpoints da co. |
+| Phase 4 - Profile, Brand, Product MVP | DONE | CRUD MVP cho Profile/Brand/Product da co. |
+| Phase 5 - AI va Content MVP | DONE | Content CRUD, Gemini text, conversation history da co. |
+| Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
+| Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
+| Phase 8 - Payment, subscription, quota display | DONE/BASIC | Payment checkout/callback/webhook/history/current subscription va quota display da co. |
+| Phase 9 - Admin backend MVP | TODO/UNCLEAR | Chua thay controller admin/user management rieng trong source hien tai. |
+| Phase 10 - Test hardening va backend release MVP | IN PROGRESS | 119 automated tests pass; docs/setup can tiep tuc dong bo. |
 
-Ket qua kiem tra gan nhat ngay 2026-05-31:
+Ket qua kiem tra gan nhat ngay 2026-06-04:
 
 ```text
-dotnet build --no-restore
-Build succeeded. 0 warnings, 0 errors.
+dotnet test
+Passed. 119/119 tests passed.
 
-dotnet test --no-build
-Passed. 36/36 tests passed.
+Warnings:
+CS8981 in migration 20260124133308_verifytoken.cs and .Designer.cs.
+```
+
+Test files hien tai:
+
+```text
+ActiveProfileMiddlewareTests.cs
+AIControllerTests.cs
+AIServiceTests.cs
+ContentCalendarRepositoryTests.cs
+ContentControllerPublishTests.cs
+ContentControllerTests.cs
+ContentSchedulesControllerTests.cs
+ContentScheduleServiceTests.cs
+ContentServicePublishTests.cs
+ContentServiceTests.cs
+ConversationControllerTests.cs
+ConversationServiceTests.cs
+DashboardControllerTests.cs
+DashboardServiceTests.cs
+DevSchedulerControllerTests.cs
+FacebookProviderTests.cs
+FoundationTests.cs
+GeminiTextClientTests.cs
+NotificationRepositoryTests.cs
+NotificationsControllerTests.cs
+NotificationServiceTests.cs
+OAuthStateStoreTests.cs
+PaymentControllerTests.cs
+PaymentRepositoryTests.cs
+PaymentServiceTests.cs
+PhaseEQuotaIntegrationTests.cs
+PostRepositoryTests.cs
+PostsControllerTests.cs
+PostServiceTests.cs
+QuotaControllerTests.cs
+QuotaServiceTests.cs
+ScheduledPostingServiceTests.cs
+SocialControllerTests.cs
+SocialRepositoryTests.cs
+SocialServiceTests.cs
+SocialTokenProtectorTests.cs
+```
+
+Controller/API surface hien tai:
+
+```text
+AuthController
+BrandController
+ContentController
+ContentSchedulesController
+ConversationController
+DashboardController
+DevSchedulerController
+GeminiController
+HealthController
+NotificationsController
+PaymentController
+PostsController
+ProductController
+ProfileController
+QuotaController
+SocialAccountsController
+SocialAuthController
+SocialIntegrationController
 ```
 
 Luu y thu cong:
 
-- Database PostgreSQL va JWT config la bat buoc de chay/test backend hien tai.
-- `GEMINI_API_KEY` chi bat buoc khi test AI voi Gemini that. Backend van startup va automated tests van pass khi chua co key that.
-- Cac API `/api/content`, `/api/ai`, `/api/conversations` bat buoc gui `Authorization: Bearer {accessToken}` va header `X-Profile-Id: {profileId}`.
+- Database PostgreSQL va JWT config la bat buoc de chay/test backend local voi database that.
+- `.env` local bat buoc neu muon test database/Gemini/SMTP/Google/Facebook that; file nay khong commit len Git.
+- `GEMINI_API_KEY` chi bat buoc khi test AI voi Gemini that. Automated tests co the dung fake/mock.
+- Facebook publish that can Meta App permissions va Page quan ly hop le.
+- PayOS payment that can PayOS config va webhook/callback URL hop le.
+- Cac API theo active profile nhu `/api/content`, `/api/ai`, `/api/conversations`, `/api/social-*`, `/api/posts`, `/api/content-schedules`, `/api/notifications`, `/api/dashboard`, `/api/quota` can gui `Authorization: Bearer {accessToken}` va header `X-Profile-Id: {profileId}` neu middleware yeu cau.
+
+Next recommended tasks:
+
+1. Cap nhat chi tiet Progress Detail cho Phase 6, Phase 7, Phase 8 theo source code hien tai.
+2. Ra soat Phase 9 Admin: xac dinh can viet moi hay reuse module admin cu.
+3. Hardening Phase 6-8: Facebook error handling, scheduler retry/failed-state, PayOS webhook verification, quota enforcement.
+4. Dong bo `SETUP_GUIDE.md` voi config thuc te cua Phase 6-8.
 
 ### Progress Detail - Active Profile Context Middleware
 
