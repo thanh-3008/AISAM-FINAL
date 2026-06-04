@@ -1,10 +1,21 @@
-# Build outputs
+# .NET build outputs
 bin/
 obj/
+**/bin/
+**/obj/
+
+# User-specific IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
 # Local secrets and environment overrides
 .env
 *.env
+.env.local
 appsettings.Production.json
 
 # Local runtime logs
@@ -12,24 +23,14 @@ appsettings.Production.json
 
 # ASP.NET local data protection keys
 .keys/
-A I S A M - B E / d o c s / 
- 
- * . l o g 
- 
- node_modules/
-AISAM-FE/node_modules/
-AISAM-FE/.next/
-.next/
-dist/
-build/
-.env
-.env.local
+
+# Node / frontend build outputs
 node_modules/
 AISAM-FE/node_modules/
 .next/
 AISAM-FE/.next/
 dist/
 build/
-.env
-.env.local
+
+# Local tool state
 .serena/
