@@ -10955,23 +10955,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\ADMIN\\.nuget\\packages\\": {},
+    "C:\\Users\\Admin\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.API\\AISAM.API.csproj",
+      "projectUniqueName": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.API\\AISAM.API.csproj",
       "projectName": "AISAM.API",
-      "projectPath": "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.API\\AISAM.API.csproj",
-      "packagesPath": "C:\\Users\\ADMIN\\.nuget\\packages\\",
-      "outputPath": "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.API\\obj\\",
+      "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.API\\AISAM.API.csproj",
+      "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
+      "outputPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.API\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\ADMIN\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\Admin\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -10979,21 +10979,21 @@
         "net8.0"
       ],
       "sources": {
-        "C:\\Users\\ADMIN\\Downloads\\microsoft.entityframeworkcore.design.8.0.0": {},
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj": {
-              "projectPath": "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj"
+            "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj": {
+              "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Common\\AISAM.Common.csproj"
             },
-            "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\AISAM.Repositories.csproj": {
-              "projectPath": "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\AISAM.Repositories.csproj"
+            "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\AISAM.Repositories.csproj": {
+              "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Repositories\\AISAM.Repositories.csproj"
             },
-            "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\AISAM.Services.csproj": {
-              "projectPath": "D:\\final\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\AISAM.Services.csproj"
+            "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\AISAM.Services.csproj": {
+              "projectPath": "D:\\AISAM\\AISAM-FINAL\\AISAM-BE\\AISAM.Services\\AISAM.Services.csproj"
             }
           }
         }

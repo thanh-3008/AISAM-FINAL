@@ -1,8 +1,8 @@
 # AISAM Backend Setup Guide
 
-Tài liệu này ghi lại toàn bộ cấu hình thủ công cần thiết để chạy backend AISAM `.NET 8`.
+Tài liệu này ghi lại các cấu hình thủ công để chạy backend AISAM `.NET 8`.
 
-Backend mới đang nằm tại:
+Backend hiện tại:
 
 ```text
 D:\AISAM\AISAM-FINAL\AISAM-BE
@@ -14,199 +14,137 @@ Source cũ baseline:
 D:\AISAM\PRN232-AISAM\PRN232_Backend
 ```
 
-> Mục tiêu: developer mới clone repo về có thể biết cần cấu hình gì, lấy key/token ở đâu, thêm vào file nào, config đó dùng để làm gì và lỗi thường gặp nếu thiếu.
+## 1. Quy Ước Trạng Thái
 
-## 0. Chú thích trạng thái config
+- <span style="color:red"><strong>REQUIRED NOW</strong></span>: bắt buộc để chạy và test backend hiện tại.
+- <span style="color:red"><strong>REQUIRED FOR REAL AI TEST</strong></span>: bắt buộc khi gọi Gemini thật.
+- <span style="color:red"><strong>REQUIRED IN NEXT PHASE</strong></span>: chưa cần ngay, nhưng sẽ cần ở phase tiếp theo.
+- <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>: chưa cần cho MVP hiện tại.
 
-Trong tài liệu này:
+## 2. Tiến Độ Hiện Tại
 
-- <span style="color:red"><strong>REQUIRED NOW</strong></span>: bắt buộc ngay ở tiến độ hiện tại.
-- <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>: bắt buộc khi chạy migration hoặc test module dùng database.
-- <span style="color:red"><strong>REQUIRED IN THIS PHASE</strong></span>: bắt buộc khi bắt đầu phase/module tương ứng.
-- <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>: chưa cần ở MVP hiện tại, chỉ cấu hình khi bật tính năng đó.
+Backend đã hoàn thành đến hết **Phase 5 - AI và Content MVP**:
 
-## 1. Trạng thái cấu hình hiện tại
+- API host, Swagger, Health.
+- PostgreSQL, EF Core và migrations.
+- Auth JWT: register, login, refresh, logout, sessions, password.
+- Profile CRUD.
+- Brand CRUD.
+- Product CRUD.
+- Content CRUD, clone, soft delete, restore.
+- Gemini text generation: generate draft, improve, approve, history, chat.
+- Conversation history.
+- Active profile context middleware.
 
-### Hiện tại cần ngay trong code mới
+Các API `/api/content`, `/api/ai`, `/api/conversations` bắt buộc có:
 
-Ở tiến độ hiện tại, backend mới mới hoàn thành:
+```text
+Authorization: Bearer {accessToken}
+X-Profile-Id: {profileId}
+```
 
-- Solution/project skeleton.
-- API host tối thiểu.
-- Swagger.
-- CORS mặc định.
-- Exception middleware.
-- Validation filter.
-- Health check API.
-- Shared response/config/DTO nền tảng.
-- Domain entities/enums nền tảng.
-- `AisamContext` và migrations cũ từ baseline.
-- Đăng ký `DbContext` có điều kiện khi có connection string.
-- Auth APIs MVP: register, login, refresh, logout, me.
-- JWT Bearer authentication và Swagger Bearer auth.
+`X-Profile-Id` phải là profile thuộc user trong JWT.
 
-Vì vậy để chạy backend hiện tại sau Auth MVP, **cần PostgreSQL và JWT config** nếu muốn chạy/test auth APIs.
-
-Tuy nhiên từ Task 2.3, backend đã có `AisamContext` và migrations. Nếu muốn chạy migration hoặc bắt đầu các module cần database như Auth/Profile/Brand/Product, PostgreSQL connection string sẽ là <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>.
-
-<span style="color:red"><strong>REQUIRED NOW</strong></span>:
-
-- .NET SDK.
-- Restore NuGet packages.
-- PostgreSQL database nếu test Auth APIs.
-- `CONNECTION_STRING` trong `AISAM-BE/AISAM.API/.env`.
-- `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE` trong `AISAM-BE/AISAM.API/.env`.
-- Không bắt buộc SMTP/Google nếu chỉ test register/login local.
-
-<span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>:
-
-- PostgreSQL database.
-- `CONNECTION_STRING` trong `AISAM-BE/AISAM.API/.env` hoặc `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
-
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại:
-
-- SMTP email.
-- Google OAuth.
-- Facebook OAuth/Graph API.
-- Gemini API key.
-- PayOS payment.
-- Supabase Storage.
-
-Các config optional này sẽ trở thành REQUIRED khi migrate module tương ứng.
-
-## 2. Không commit secrets lên Git
+## 3. Không Commit Secrets Lên Git
 
 <span style="color:red"><strong>REQUIRED NOW</strong></span>
 
-Tuyệt đối không commit các giá trị thật sau lên Git:
-
-- Database connection string production.
-- JWT secret key.
-- Google client secret.
-- Facebook app secret.
-- Facebook access token.
-- Gemini API key.
-- PayOS API key/checksum key.
-- Supabase service role key.
-- SMTP password/app password.
-
-Nên dùng:
-
-- `.env` cho local development.
-- `appsettings.Development.json` chỉ chứa placeholder hoặc giá trị local không nhạy cảm.
-- Secret manager/CI environment variables cho staging/production.
-
-Không nên commit:
+Không commit:
 
 ```text
-.env
+AISAM-BE/AISAM.API/.env
 appsettings.Production.json
 ```
 
-Nên commit:
+Không đưa các giá trị thật sau lên Git:
+
+- PostgreSQL password hoặc connection string production.
+- JWT secret key.
+- Gemini API key.
+- SMTP password.
+- Google client secret.
+- Facebook app secret hoặc access token.
+- PayOS API key/checksum key.
+- Supabase service role key.
+
+Được phép commit:
 
 ```text
-.env.example
-appsettings.Development.example.json
+AISAM-BE/AISAM.API/.env.example
 ```
 
-## 3. .NET SDK
+Lưu ý: file `AISAM-BE/AISAM.API/appsettings.Development.json` hiện có connection string local. Chỉ dùng giá trị local và không đưa secret production vào file này.
+
+## 4. Yêu Cầu Local Bắt Buộc
 
 ### Mục đích
 
 <span style="color:red"><strong>REQUIRED NOW</strong></span>
 
-Dùng để restore, build, test và chạy backend `.NET 8`.
+Cần để chạy toàn bộ backend hiện tại, ngoại trừ gọi Gemini thật.
 
-### Cần tạo tài khoản ở đâu
+### Cần cài đặt
 
-Không cần tài khoản.
+- .NET SDK 8.
+- PostgreSQL.
+- `dotnet-ef` nếu chạy migration thủ công.
 
-### Cần lấy key/token gì
+### Lệnh kiểm tra
 
-Không cần key/token.
-
-### Thêm vào file nào
-
-Không cần thêm file config.
-
-### Ví dụ lệnh
-
-```text
+```powershell
 dotnet --version
 dotnet restore
 dotnet build
 dotnet test
-dotnet run --project AISAM.API
 ```
 
-### Lỗi thường gặp nếu thiếu config
+Kết quả gần nhất ngày `2026-05-31`:
 
-- `dotnet is not recognized`: chưa cài .NET SDK hoặc PATH lỗi.
-- Restore lỗi NuGet: chưa có mạng hoặc sandbox/firewall chặn `api.nuget.org`.
+```text
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
 
-## 4. PostgreSQL Database
+dotnet test --no-build
+Passed. 36/36 tests passed.
+```
+
+## 5. PostgreSQL Database
 
 ### Mục đích
 
-<span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> nếu chạy migration hoặc test module có database.
+<span style="color:red"><strong>REQUIRED NOW</strong></span>
 
-<span style="color:gray"><strong>OPTIONAL</strong></span> nếu chỉ chạy API host hiện tại, Swagger và `/api/health`.
-
-Dùng để lưu:
-
-- Users.
-- Sessions.
-- Profiles.
-- Brands.
-- Products.
-- Contents.
-- AI generations.
-- Social accounts/integrations.
-- Payments/subscriptions.
-- Notifications.
-
-Source cũ dùng PostgreSQL qua EF Core/Npgsql.
-
-Tiến độ hiện tại:
-
-- Đã copy `AISAM.Repositories/AISAMContext.cs`.
-- Đã copy `AISAM.Repositories/Migrations/*`.
-- `Program.cs` đã đọc connection string từ `.env` hoặc `appsettings.Development.json`.
-- `DbContext` chỉ được đăng ký khi connection string có giá trị.
-- Chưa bật auto migration khi app start.
+Lưu users, sessions, profiles, brands, products, contents, AI generations và conversations.
 
 ### Cần tạo tài khoản ở đâu
 
-Chọn một trong các cách:
+Không cần tài khoản cloud nếu dùng PostgreSQL local.
 
-- Local PostgreSQL.
-- Docker PostgreSQL.
-- Cloud PostgreSQL như Supabase Database, Neon, Azure PostgreSQL, Render, Railway.
+Có thể dùng PostgreSQL local, Docker hoặc dịch vụ cloud như Supabase Database, Neon, Azure PostgreSQL.
 
 ### Cần lấy key/token gì
 
-<span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span>: cần connection string PostgreSQL.
-
-Ví dụ:
-
-```text
-Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password
-```
+Connection string PostgreSQL.
 
 ### Thêm vào file nào
 
-Ưu tiên thêm vào file:
+Ưu tiên tạo file local:
 
 ```text
 AISAM-BE/AISAM.API/.env
 ```
 
+Ví dụ:
+
 ```env
 CONNECTION_STRING=Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password
 ```
 
-Hoặc trong `AISAM-BE/AISAM.API/appsettings.Development.json`:
+Hoặc thêm vào:
+
+```text
+AISAM-BE/AISAM.API/appsettings.Development.json
+```
 
 ```json
 {
@@ -216,48 +154,27 @@ Hoặc trong `AISAM-BE/AISAM.API/appsettings.Development.json`:
 }
 ```
 
-### Config dùng để làm gì
+### Lệnh migration
 
-- `ConnectionStrings:DefaultConnection`: EF Core dùng để kết nối database.
-- `CONNECTION_STRING`: được repo mới ưu tiên đọc từ environment variable để override appsettings.
-
-### Lỗi thường gặp nếu thiếu config
-
-- `dotnet ef database update` không chạy được vì không có connection string.
-- `connection string is not configured`.
-- `password authentication failed`.
-- `database does not exist`.
-- `No connection could be made because the target machine actively refused it`.
-
-Lưu ý hiện tại:
-
-- Nếu connection string rỗng, API vẫn chạy được cho Swagger và `/api/health`.
-- Các API cần database sẽ chỉ hoạt động sau khi cấu hình PostgreSQL và chạy migration.
-
-### Lệnh kiểm tra
-
-```text
+```powershell
+cd D:\AISAM\AISAM-FINAL\AISAM-BE
 dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
 ```
 
-Sau khi chạy migration, kiểm tra API host:
+### Lỗi thường gặp
 
-```text
-dotnet run --project AISAM.API --urls http://localhost:5081
-GET http://localhost:5081/api/health
-```
+- `password authentication failed`: sai username/password.
+- `database does not exist`: chưa tạo database.
+- `connection refused`: PostgreSQL service chưa chạy hoặc sai port.
+- Thiếu connection string: API dùng database không hoạt động.
 
-## 5. JWT Authentication
+## 6. JWT Authentication
 
 ### Mục đích
 
-<span style="color:red"><strong>REQUIRED NOW</strong></span> vì JWT Bearer authentication đã được bật ở Task 3.3.
+<span style="color:red"><strong>REQUIRED NOW</strong></span>
 
-Dùng để:
-
-- Tạo access token.
-- Xác thực API protected bằng Bearer token.
-- Lưu session/refresh token.
+Dùng để tạo access token, bảo vệ API và xác định user hiện tại.
 
 ### Cần tạo tài khoản ở đâu
 
@@ -265,17 +182,13 @@ Không cần tài khoản bên ngoài.
 
 ### Cần lấy key/token gì
 
-<span style="color:red"><strong>REQUIRED NOW</strong></span>: cần tự tạo JWT secret key đủ dài.
-
-Yêu cầu:
-
-- Tối thiểu 32 ký tự.
-- Không dùng secret mặc định.
-- Không commit lên Git.
+Tự tạo JWT secret key dài tối thiểu 32 ký tự.
 
 ### Thêm vào file nào
 
-Ưu tiên `.env`:
+```text
+AISAM-BE/AISAM.API/.env
+```
 
 ```env
 JWT_SECRET_KEY=replace-with-a-long-random-secret-minimum-32-characters
@@ -283,125 +196,123 @@ JWT_ISSUER=AISAM.API
 JWT_AUDIENCE=AISAM.Client
 ```
 
-Hoặc `AISAM-BE/AISAM.API/appsettings.Development.json`:
+### Lỗi thường gặp
 
-```json
-{
-  "JwtSettings": {
-    "SecretKey": "replace-with-a-long-random-secret-minimum-32-characters",
-    "Issuer": "AISAM.API",
-    "Audience": "AISAM.Client",
-    "AccessTokenExpirationMinutes": 60,
-    "RefreshTokenExpirationDays": 30
-  }
-}
-```
-
-### Config dùng để làm gì
-
-- `SecretKey`: key ký token.
-- `Issuer`: hệ thống phát hành token.
-- `Audience`: client hợp lệ nhận token.
-- `AccessTokenExpirationMinutes`: thời gian sống access token.
-- `RefreshTokenExpirationDays`: thời gian sống refresh token.
-
-### Lỗi thường gặp nếu thiếu config
-
-- API startup lỗi: `JWT SecretKey is not configured`.
-- Login tạo token lỗi.
-- API protected luôn trả `401 Unauthorized`.
+- Startup lỗi `JWT SecretKey is not configured`.
+- API protected trả `401 Unauthorized`.
 - Token bị reject do issuer/audience không khớp.
 
-## 6. CORS và Frontend Base URL
+## 7. Gemini AI
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại.
+Sinh nội dung quảng cáo dạng text, cải thiện content và chat AI.
 
-<span style="color:red"><strong>REQUIRED IN FRONTEND PHASE</strong></span> khi frontend gọi backend.
+### Trạng thái
 
-Dùng để cho phép frontend gọi API backend từ domain/port khác.
+- <span style="color:gray"><strong>OPTIONAL</strong></span> để startup backend, chạy Content CRUD và chạy automated tests.
+- <span style="color:red"><strong>REQUIRED FOR REAL AI TEST</strong></span> để gọi `/api/ai/*` với Gemini thật.
 
 ### Cần tạo tài khoản ở đâu
 
-Không cần tài khoản.
+Google AI Studio:
+
+```text
+https://aistudio.google.com/
+```
 
 ### Cần lấy key/token gì
 
-Không cần key/token.
+- Gemini API key.
 
 ### Thêm vào file nào
 
-`.env`:
-
-```env
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
-FRONTEND_BASE_URL=http://localhost:3000
+```text
+AISAM-BE/AISAM.API/.env
 ```
 
-Hoặc `appsettings.Development.json`:
+```env
+GEMINI_API_KEY=your-real-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MAX_TOKENS=2048
+GEMINI_TEMPERATURE=0.7
+```
+
+Hoặc trong `appsettings.Development.json`:
 
 ```json
 {
-  "Cors": {
-    "AllowedOrigins": [
-      "http://localhost:3000"
-    ]
-  },
-  "FrontendSettings": {
-    "BaseUrl": "http://localhost:3000"
+  "GeminiSettings": {
+    "ApiKey": "your-real-gemini-api-key",
+    "Model": "gemini-2.5-flash",
+    "MaxTokens": 2048,
+    "Temperature": 0.7
   }
 }
 ```
 
 ### Config dùng để làm gì
 
-- `Cors:AllowedOrigins`: danh sách origin được gọi API.
-- `FRONTEND_BASE_URL`: URL frontend dùng cho OAuth callback, payment return/cancel URL, email links.
+- `GEMINI_API_KEY`: key gọi Gemini API.
+- `GEMINI_MODEL`: model text generation.
+- `GEMINI_MAX_TOKENS`: giới hạn token output.
+- `GEMINI_TEMPERATURE`: mức sáng tạo của output.
 
-### Lỗi thường gặp nếu thiếu config
+### Lỗi thường gặp
 
-- Browser báo CORS error.
-- OAuth redirect sai URL.
-- Payment return về sai frontend.
-- Link email verify/reset sai domain.
+- Thiếu API key: AI endpoint không gọi Gemini thật được.
+- `401/403`: API key sai hoặc chưa được cấp quyền.
+- Model không tồn tại hoặc không khả dụng cho tài khoản.
+- Quota Google AI đã hết.
 
-## 7. SMTP Email
+## 8. Active Profile Header
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+<span style="color:red"><strong>REQUIRED NOW</strong></span> khi gọi Content, AI hoặc Conversation APIs.
 
-<span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> khi bật email verification/forgot password.
+Ngăn user thao tác dữ liệu của profile không thuộc tài khoản của họ.
 
-Dùng để gửi:
+### Thêm vào đâu
 
-- Email xác thực tài khoản.
-- Email reset password.
-- Email thông báo nếu sau này cần.
+Trong Swagger/Postman, thêm hai header:
 
-Source cũ dùng SMTP qua `EmailSettings`.
+```text
+Authorization: Bearer {accessToken}
+X-Profile-Id: {profileId}
+```
+
+### Áp dụng cho API nào
+
+```text
+/api/content
+/api/ai
+/api/conversations
+```
+
+### Lỗi thường gặp
+
+- `401 Missing or invalid X-Profile-Id header`: thiếu header hoặc GUID sai.
+- `404 Profile not found`: profile không tồn tại.
+- `403 You are not allowed to use this profile`: profile không thuộc JWT user.
+
+## 9. SMTP Email
+
+### Mục đích
+
+Gửi email verify và reset password thật.
+
+### Trạng thái
+
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>
+
+Auth local vẫn chạy khi chưa cấu hình SMTP; email service log warning và không gửi mail.
 
 ### Cần tạo tài khoản ở đâu
 
-Có thể dùng:
-
-- Gmail SMTP với App Password.
-- SendGrid.
-- Mailgun.
-- Brevo.
-- SMTP server nội bộ.
-
-### Cần lấy key/token gì
-
-Với Gmail:
-
-- <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span>: Gmail address.
-- <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span>: App Password.
+Gmail App Password, SendGrid, Brevo hoặc SMTP provider khác.
 
 ### Thêm vào file nào
-
-`.env`:
 
 ```env
 SMTP_HOST=smtp.gmail.com
@@ -411,117 +322,43 @@ SMTP_PASSWORD=your-app-password
 FROM_EMAIL=noreply@aisam.com
 ```
 
-Hoặc `appsettings.Development.json`:
+### Lỗi thường gặp
 
-```json
-{
-  "EmailSettings": {
-    "SmtpHost": "smtp.gmail.com",
-    "SmtpPort": 587,
-    "SmtpUsername": "your-email@gmail.com",
-    "SmtpPassword": "your-app-password",
-    "FromEmail": "noreply@aisam.com",
-    "FromName": "AISAM",
-    "EnableSsl": true
-  }
-}
-```
+- Forgot password không gửi email thật.
+- Gmail authentication failed nếu dùng password thường thay vì App Password.
 
-### Config dùng để làm gì
-
-- `SmtpHost`: host SMTP.
-- `SmtpPort`: port SMTP.
-- `SmtpUsername`: username đăng nhập SMTP.
-- `SmtpPassword`: password/app password.
-- `FromEmail`: email gửi đi.
-- `FromName`: tên người gửi.
-- `EnableSsl`: bật TLS/SSL.
-
-### Lỗi thường gặp nếu thiếu config
-
-- Register lỗi khi gửi verification email.
-- Forgot password không gửi mail.
-- Gmail báo authentication failed do dùng password thường thay vì App Password.
-- SMTP blocked bởi firewall.
-
-## 8. Google OAuth
+## 10. Google OAuth
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+Đăng nhập bằng Google.
 
-<span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span> khi bật Google login.
+### Trạng thái
 
-Source cũ có `GoogleLoginAsync` trong AuthService và `GoogleSettings`.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>
 
 ### Cần tạo tài khoản ở đâu
-
-Google Cloud Console:
 
 ```text
 https://console.cloud.google.com/
 ```
 
-### Cần lấy key/token gì
-
-Cần:
-
-- <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span>: Google OAuth Client ID.
-- <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span>: Google OAuth Client Secret.
-
 ### Thêm vào file nào
-
-`.env`:
 
 ```env
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-Hoặc `appsettings.Development.json`:
-
-```json
-{
-  "GoogleSettings": {
-    "ClientId": "your-google-client-id.apps.googleusercontent.com",
-    "ClientSecret": "your-google-client-secret",
-    "RedirectUri": "http://localhost:3000/auth/google/callback",
-    "RequiredScopes": [
-      "openid",
-      "email",
-      "profile"
-    ]
-  }
-}
-```
-
-### Config dùng để làm gì
-
-- `ClientId`: xác thực Google ID token.
-- `ClientSecret`: dùng cho OAuth flow nếu backend exchange code.
-- `RedirectUri`: URL callback.
-- `RequiredScopes`: quyền cần xin từ Google.
-
-### Lỗi thường gặp nếu thiếu config
-
-- Google login trả `Invalid Google token`.
-- Audience không khớp do dùng sai ClientId.
-- Redirect URI mismatch.
-
-## 9. Facebook OAuth và Graph API
+## 11. Facebook OAuth Và Graph API
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+Kết nối Facebook Page và publish content.
 
-<span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> khi bật:
+### Trạng thái
 
-- Kết nối Facebook account.
-- Lấy Facebook Pages.
-- Publish bài lên Facebook Page.
-- Facebook Ads/Marketing API trong phase sau.
-
-Source cũ ưu tiên Facebook cho MVP social publishing.
+<span style="color:red"><strong>REQUIRED IN NEXT PHASE</strong></span> khi bắt đầu Phase 6.
 
 ### Cần tạo tài khoản ở đâu
 
@@ -531,25 +368,14 @@ Meta for Developers:
 https://developers.facebook.com/
 ```
 
-Cần tạo:
-
-- Meta App.
-- Facebook Login product.
-- Test user/page hoặc business app nếu dùng thật.
-
 ### Cần lấy key/token gì
 
-Cần:
-
-- <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span>: Facebook App ID.
-- <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span>: Facebook App Secret.
-- <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span>: Page access token hoặc OAuth flow để lấy page token.
-- Optional sandbox access token nếu test sandbox.
-- Optional ad account id nếu làm Facebook Ads.
+- Facebook App ID.
+- Facebook App Secret.
+- OAuth redirect URI.
+- Page access token hoặc OAuth flow để lấy page token.
 
 ### Thêm vào file nào
-
-`.env`:
 
 ```env
 FACEBOOK_APP_ID=your-facebook-app-id
@@ -558,154 +384,55 @@ FACEBOOK_USE_SANDBOX=true
 FACEBOOK_SANDBOX_ACCESS_TOKEN=your-sandbox-access-token
 ```
 
-Hoặc `appsettings.Development.json`:
+### Lỗi thường gặp
 
-```json
-{
-  "FacebookSettings": {
-    "AppId": "your-facebook-app-id",
-    "AppSecret": "your-facebook-app-secret",
-    "RedirectUri": "http://localhost:5283/api/social-auth/facebook/callback",
-    "GraphApiVersion": "v24.0",
-    "BaseUrl": "https://graph.facebook.com",
-    "OAuthUrl": "https://www.facebook.com",
-    "UseSandbox": true,
-    "Sandbox": {
-      "AccessToken": "your-sandbox-access-token",
-      "AdAccountId": "your-ad-account-id",
-      "PageId": "your-page-id",
-      "UserId": "your-user-id"
-    },
-    "RequiredPermissions": [
-      "pages_manage_posts",
-      "pages_read_engagement",
-      "pages_show_list",
-      "pages_manage_metadata",
-      "public_profile"
-    ]
-  }
-}
-```
-
-### Config dùng để làm gì
-
-- `AppId`: nhận diện app Facebook.
-- `AppSecret`: xác thực app.
-- `RedirectUri`: callback OAuth.
-- `GraphApiVersion`: version Graph API.
-- `UseSandbox`: bật sandbox/test mode.
-- `Sandbox:AccessToken`: token test.
-- `RequiredPermissions`: quyền cần xin.
-
-### Lỗi thường gặp nếu thiếu config
-
-- Không tạo được Facebook auth URL.
-- OAuth callback lỗi.
-- Không lấy được danh sách Page.
-- Publish lỗi do thiếu `pages_manage_posts`.
+- OAuth redirect URI mismatch.
 - Token hết hạn.
-- App chưa được cấp quyền qua review.
-- Redirect URI mismatch.
+- Thiếu quyền `pages_manage_posts`.
+- App chưa được cấp quyền cần thiết.
 
-## 10. Gemini AI
+## 12. Supabase Storage
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+Upload avatar, product image và media asset.
 
-<span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> khi bật AI generation/refinement.
+### Trạng thái
 
-Source cũ dùng Gemini cho:
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>
 
-- Generate draft content.
-- Improve content.
-- Chat AI.
-- Lưu AI generation.
+Profile avatar file và product image upload hiện chưa bật trong MVP. Có thể dùng URL hoặc bỏ trống ảnh.
 
 ### Cần tạo tài khoản ở đâu
 
-Google AI Studio hoặc Google Cloud:
-
 ```text
-https://aistudio.google.com/
-https://console.cloud.google.com/
+https://supabase.com/
 ```
-
-### Cần lấy key/token gì
-
-Cần:
-
-- <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span>: Gemini API key.
 
 ### Thêm vào file nào
 
-`.env`:
-
 ```env
-GEMINI_API_KEY=your-gemini-api-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-key
 ```
 
-Hoặc `appsettings.Development.json`:
-
-```json
-{
-  "Gemini": {
-    "ApiKey": "your-gemini-api-key",
-    "Model": "gemini-2.5-flash",
-    "MaxTokens": 8192,
-    "Temperature": 0.7
-  }
-}
-```
-
-### Config dùng để làm gì
-
-- `ApiKey`: key gọi Gemini API.
-- `Model`: model AI sử dụng.
-- `MaxTokens`: giới hạn output token.
-- `Temperature`: độ sáng tạo của output.
-
-### Lỗi thường gặp nếu thiếu config
-
-- AI generate trả lỗi thiếu API key.
-- API call bị `401/403`.
-- Model không tồn tại hoặc không được cấp quyền.
-- Quota Google AI hết.
-
-## 11. PayOS Payment
+## 13. PayOS Payment
 
 ### Mục đích
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
+Checkout, webhook và subscription.
 
-<span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> khi bật payment/subscription.
+### Trạng thái
 
-Source cũ dùng PayOS cho:
-
-- Tạo checkout link.
-- Confirm payment.
-- Webhook.
-- Active subscription.
+<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>
 
 ### Cần tạo tài khoản ở đâu
-
-PayOS:
 
 ```text
 https://payos.vn/
 ```
 
-### Cần lấy key/token gì
-
-Cần:
-
-- <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span>: Client ID.
-- <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span>: API Key.
-- <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span>: Checksum Key.
-
 ### Thêm vào file nào
-
-`.env`:
 
 ```env
 PAYOS_CLIENT_ID=your-payos-client-id
@@ -713,102 +440,7 @@ PAYOS_API_KEY=your-payos-api-key
 PAYOS_CHECKSUM_KEY=your-payos-checksum-key
 ```
 
-Hoặc `appsettings.Development.json`:
-
-```json
-{
-  "PayOS": {
-    "ClientId": "your-payos-client-id",
-    "ApiKey": "your-payos-api-key",
-    "ChecksumKey": "your-payos-checksum-key"
-  }
-}
-```
-
-### Config dùng để làm gì
-
-- `ClientId`: định danh merchant/app.
-- `ApiKey`: gọi PayOS API.
-- `ChecksumKey`: ký request và verify webhook.
-
-### Lỗi thường gặp nếu thiếu config
-
-- Không tạo được checkout link.
-- PayOS trả unauthorized.
-- Webhook verify fail.
-- Payment thành công nhưng subscription không active nếu webhook/confirm lỗi.
-
-## 12. Supabase Storage
-
-### Mục đích
-
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> hiện tại.
-
-<span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> khi bật upload/storage.
-
-Source cũ dùng Supabase **chỉ cho Storage**, không dùng Supabase Auth.
-
-Dùng để:
-
-- Upload image/video/assets.
-- Lấy public/signed URL.
-- Quản lý bucket.
-
-### Cần tạo tài khoản ở đâu
-
-Supabase:
-
-```text
-https://supabase.com/
-```
-
-### Cần lấy key/token gì
-
-Cần:
-
-- <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span>: Supabase URL.
-- <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span>: Supabase anon key hoặc service role key tùy cách upload.
-
-Không commit service role key.
-
-### Thêm vào file nào
-
-`.env`:
-
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-key
-```
-
-### Config dùng để làm gì
-
-- `SUPABASE_URL`: URL project.
-- `SUPABASE_KEY`: key để backend gọi Supabase Storage.
-
-### Lỗi thường gặp nếu thiếu config
-
-- Storage service không đăng ký được.
-- Upload lỗi unauthorized.
-- Bucket không tồn tại.
-- Public URL không truy cập được do bucket private.
-
-## 13. Optional/Future Feature Configs
-
-Các config dưới đây chưa bắt buộc cho MVP backend local hiện tại:
-
-| Config | Trạng thái | Khi nào cần |
-| --- | --- | --- |
-| PostgreSQL connection string | <span style="color:gray"><strong>OPTIONAL</strong></span> cho Swagger/Health, <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> | Khi chạy `dotnet ef database update`, Auth, Profile, Brand, Product |
-| JWT settings | <span style="color:red"><strong>REQUIRED NOW</strong></span> | Khi chạy Auth APIs và protected APIs |
-| SMTP | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> | Khi bật email verify/reset password |
-| Google OAuth | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>, <span style="color:red"><strong>REQUIRED IN GOOGLE LOGIN PHASE</strong></span> | Khi bật Google login |
-| Facebook OAuth | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> | Khi bật Facebook connect/publish |
-| Facebook Ads sandbox | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span> | Khi làm campaign/ad set/ad |
-| Gemini | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> | Khi bật AI generate/refine |
-| PayOS | <span style="color:gray"><strong>OPTIONAL</strong></span> hiện tại, <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> | Khi bật subscription/payment |
-| Supabase Storage | <span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>, <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> | Khi bật upload file |
-
-## 14. Ví dụ `.env`
+## 14. Ví Dụ `.env`
 
 Tạo file local:
 
@@ -816,245 +448,95 @@ Tạo file local:
 AISAM-BE/AISAM.API/.env
 ```
 
-Ví dụ:
-
 ```env
-# Database - Optional for Swagger/Health, REQUIRED for migration and DB modules
+# REQUIRED NOW
 CONNECTION_STRING=Host=localhost;Port=5432;Database=aisam_dev;Username=postgres;Password=your_password
-
-# JWT - REQUIRED NOW from Auth phase
 JWT_SECRET_KEY=replace-with-a-long-random-secret-minimum-32-characters
 JWT_ISSUER=AISAM.API
 JWT_AUDIENCE=AISAM.Client
 
-# Frontend/CORS - REQUIRED when frontend starts calling backend
+# REQUIRED FOR REAL AI TEST
+GEMINI_API_KEY=your-real-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MAX_TOKENS=2048
+GEMINI_TEMPERATURE=0.7
+
+# OPTIONAL / FUTURE
 FRONTEND_BASE_URL=http://localhost:3000
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-
-# SMTP - Future feature
-SMTP_HOST=smtp.gmail.com
+SMTP_HOST=
 SMTP_PORT=587
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-FROM_EMAIL=noreply@aisam.com
+SMTP_USERNAME=
+SMTP_PASSWORD=
+FROM_EMAIL=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 
-# Google OAuth - Future feature
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# Facebook - Future social phase
-FACEBOOK_APP_ID=your-facebook-app-id
-FACEBOOK_APP_SECRET=your-facebook-app-secret
+# REQUIRED IN NEXT PHASE: Facebook integration
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
 FACEBOOK_USE_SANDBOX=true
-FACEBOOK_SANDBOX_ACCESS_TOKEN=your-sandbox-access-token
+FACEBOOK_SANDBOX_ACCESS_TOKEN=
 
-# Gemini - Future AI phase
-GEMINI_API_KEY=your-gemini-api-key
-
-# PayOS - Future payment phase
-PAYOS_CLIENT_ID=your-payos-client-id
-PAYOS_API_KEY=your-payos-api-key
-PAYOS_CHECKSUM_KEY=your-payos-checksum-key
-
-# Supabase Storage - Future upload/storage phase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-key
+# OPTIONAL / FUTURE
+SUPABASE_URL=
+SUPABASE_KEY=
+PAYOS_CLIENT_ID=
+PAYOS_API_KEY=
+PAYOS_CHECKSUM_KEY=
 ```
 
-## 15. Ví dụ `appsettings.Development.json`
+## 15. Chạy Backend Local
 
-File:
+```powershell
+cd D:\AISAM\AISAM-FINAL\AISAM-BE
+dotnet restore
+dotnet build
+dotnet test
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
+dotnet run --project AISAM.API
+```
+
+Swagger thường mở tại URL in ra trong terminal:
 
 ```text
-AISAM-BE/AISAM.API/appsettings.Development.json
+http://localhost:{port}/swagger/index.html
 ```
 
-Ví dụ:
+Health check:
 
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Microsoft.EntityFrameworkCore.Database.Command": "Information"
-    }
-  },
-  "ConnectionStrings": {
-    "DefaultConnection": ""
-  },
-  "Cors": {
-    "AllowedOrigins": [
-      "http://localhost:3000"
-    ]
-  },
-  "FrontendSettings": {
-    "BaseUrl": "http://localhost:3000"
-  },
-  "JwtSettings": {
-    "SecretKey": "replace-with-a-long-random-secret-minimum-32-characters",
-    "Issuer": "AISAM.API",
-    "Audience": "AISAM.Client",
-    "AccessTokenExpirationMinutes": 60,
-    "RefreshTokenExpirationDays": 30
-  },
-  "EmailSettings": {
-    "SmtpHost": "smtp.gmail.com",
-    "SmtpPort": 587,
-    "SmtpUsername": "your-email@gmail.com",
-    "SmtpPassword": "your-app-password",
-    "FromEmail": "noreply@aisam.com",
-    "FromName": "AISAM",
-    "EnableSsl": true
-  },
-  "GoogleSettings": {
-    "ClientId": "your-google-client-id.apps.googleusercontent.com",
-    "ClientSecret": "your-google-client-secret",
-    "RedirectUri": "http://localhost:3000/auth/google/callback",
-    "RequiredScopes": [
-      "openid",
-      "email",
-      "profile"
-    ]
-  },
-  "FacebookSettings": {
-    "AppId": "your-facebook-app-id",
-    "AppSecret": "your-facebook-app-secret",
-    "RedirectUri": "http://localhost:5283/api/social-auth/facebook/callback",
-    "GraphApiVersion": "v24.0",
-    "BaseUrl": "https://graph.facebook.com",
-    "OAuthUrl": "https://www.facebook.com",
-    "UseSandbox": true,
-    "Sandbox": {
-      "AccessToken": "your-sandbox-access-token",
-      "AdAccountId": "your-ad-account-id",
-      "PageId": "your-page-id",
-      "UserId": "your-user-id"
-    },
-    "RequiredPermissions": [
-      "pages_manage_posts",
-      "pages_read_engagement",
-      "pages_show_list",
-      "pages_manage_metadata",
-      "public_profile"
-    ]
-  },
-  "Gemini": {
-    "ApiKey": "your-gemini-api-key",
-    "Model": "gemini-2.5-flash",
-    "MaxTokens": 8192,
-    "Temperature": 0.7
-  },
-  "PayOS": {
-    "ClientId": "your-payos-client-id",
-    "ApiKey": "your-payos-api-key",
-    "ChecksumKey": "your-payos-checksum-key"
-  }
-}
+```text
+GET http://localhost:{port}/api/health
 ```
 
-## 16. Setup checklist
+## 16. Checklist Setup
 
 ### Chạy backend hiện tại
 
-- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Cài .NET SDK.
-- [ ] Clone repo.
-- [ ] Vào thư mục `AISAM-BE`.
-- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet restore`.
-- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet build`.
-- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Chạy `dotnet test`.
-- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Thêm `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE` vào `AISAM-BE/AISAM.API/.env`.
-- [ ] Chạy `dotnet run --project AISAM.API`.
-- [ ] Mở Swagger.
-
-### Khi tới phase database/auth
-
-- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Tạo PostgreSQL database.
-- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Thêm `CONNECTION_STRING` vào `AISAM-BE/AISAM.API/.env`.
-- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Hoặc thêm `ConnectionStrings:DefaultConnection` trong `AISAM-BE/AISAM.API/appsettings.Development.json`.
-- [ ] <span style="color:red"><strong>REQUIRED WHEN USING DATABASE</strong></span> Chạy `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API`.
-- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Thêm `JwtSettings` hoặc env JWT.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Cài .NET SDK 8.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Cài và chạy PostgreSQL.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Tạo database local.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Thêm `CONNECTION_STRING`.
+- [ ] <span style="color:red"><strong>REQUIRED NOW</strong></span> Thêm `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`.
+- [ ] Chạy `dotnet restore`.
+- [ ] Chạy `dotnet build`.
+- [ ] Chạy `dotnet test`.
+- [ ] Chạy migration.
+- [ ] Chạy API và mở Swagger.
 - [ ] Test register/login.
+- [ ] Test Profile, Brand, Product.
+- [ ] Test Content với `Authorization` và `X-Profile-Id`.
 
-### Khi tới phase email
+### Test Gemini thật
 
-- [ ] <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> Tạo SMTP account hoặc Gmail App Password.
-- [ ] <span style="color:red"><strong>REQUIRED IN AUTH EMAIL PHASE</strong></span> Thêm `EmailSettings`.
-- [ ] Test email verification.
-- [ ] Test forgot/reset password.
+- [ ] <span style="color:red"><strong>REQUIRED FOR REAL AI TEST</strong></span> Tạo Gemini API key.
+- [ ] <span style="color:red"><strong>REQUIRED FOR REAL AI TEST</strong></span> Thêm `GEMINI_API_KEY`.
+- [ ] Test `/api/ai/generate-draft`.
+- [ ] Test `/api/ai/improve/{contentId}`.
+- [ ] Test `/api/ai/chat`.
 
-### Khi tới phase AI
+### Chuẩn bị Phase 6
 
-- [ ] <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> Tạo Gemini API key.
-- [ ] <span style="color:red"><strong>REQUIRED IN AI PHASE</strong></span> Thêm `GEMINI_API_KEY`.
-- [ ] Test AI generate draft.
-- [ ] Test AI refine content.
-
-### Khi tới phase social publishing
-
-- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Tạo Meta/Facebook app.
-- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Thêm `FACEBOOK_APP_ID`.
-- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Thêm `FACEBOOK_APP_SECRET`.
-- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Cấu hình redirect URI.
-- [ ] <span style="color:red"><strong>REQUIRED IN SOCIAL PHASE</strong></span> Xin quyền Page cần thiết.
-- [ ] Test get auth URL.
-- [ ] Test link Page.
-- [ ] Test publish content.
-
-### Khi tới phase payment
-
-- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Tạo PayOS merchant/app.
-- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Thêm `PAYOS_CLIENT_ID`.
-- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Thêm `PAYOS_API_KEY`.
-- [ ] <span style="color:red"><strong>REQUIRED IN PAYMENT PHASE</strong></span> Thêm `PAYOS_CHECKSUM_KEY`.
-- [ ] Test create checkout link.
-- [ ] Test confirm payment/webhook.
-
-### Khi tới phase storage
-
-- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Tạo Supabase project.
-- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Tạo bucket.
-- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Thêm `SUPABASE_URL`.
-- [ ] <span style="color:red"><strong>REQUIRED IN STORAGE PHASE</strong></span> Thêm `SUPABASE_KEY`.
-- [ ] Test upload file.
-
-## 17. Quick local smoke test
-
-Hiện tại, sau khi chạy API:
-
-```text
-dotnet run --project AISAM.API --urls http://localhost:5081
-```
-
-Kiểm tra:
-
-```text
-GET http://localhost:5081/swagger/index.html
-```
-
-Expected:
-
-```text
-HTTP 200
-Swagger UI mở được
-```
-
-Health check hiện tại:
-
-```text
-GET http://localhost:5081/api/health
-```
-
-Expected:
-
-```text
-HTTP 200
-Response có success = true, message = "AISAM backend is ready."
-```
-
-Nếu chưa cấu hình database:
-
-```text
-Swagger và /api/health vẫn chạy được.
-dotnet ef database update sẽ bị skip/fail cho tới khi thêm connection string.
-```
+- [ ] <span style="color:red"><strong>REQUIRED IN NEXT PHASE</strong></span> Tạo Meta/Facebook app.
+- [ ] <span style="color:red"><strong>REQUIRED IN NEXT PHASE</strong></span> Thêm Facebook App ID và App Secret.
+- [ ] <span style="color:red"><strong>REQUIRED IN NEXT PHASE</strong></span> Cấu hình OAuth redirect URI.
+- [ ] Chuẩn bị Page test và quyền publish cần thiết.

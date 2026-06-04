@@ -3999,6 +3999,222 @@ Checklist:
 - [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
+## Current Backend Status - Updated 2026-05-31
+
+Backend da hoan thanh den het **Phase 5 - AI va Content MVP**.
+
+| Phase | Trang thai |
+| --- | --- |
+| Phase 0 - Chuan bi repo backend moi | DONE |
+| Phase 1 - API host toi thieu | DONE |
+| Phase 2 - Common, domain models, database context | DONE |
+| Phase 3 - Authentication MVP | DONE |
+| Phase 4 - Profile, Brand, Product MVP | DONE |
+| Phase 5 - AI va Content MVP | DONE |
+| Phase 6 - Social integration va Facebook Page publishing | NEXT |
+| Phase 7 tro di | TODO |
+
+Ket qua kiem tra gan nhat ngay 2026-05-31:
+
+```text
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed. 36/36 tests passed.
+```
+
+Luu y thu cong:
+
+- Database PostgreSQL va JWT config la bat buoc de chay/test backend hien tai.
+- `GEMINI_API_KEY` chi bat buoc khi test AI voi Gemini that. Backend van startup va automated tests van pass khi chua co key that.
+- Cac API `/api/content`, `/api/ai`, `/api/conversations` bat buoc gui `Authorization: Bearer {accessToken}` va header `X-Profile-Id: {profileId}`.
+
+### Progress Detail - Active Profile Context Middleware
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Xac thuc active profile truoc khi cho phep user truy cap Content, AI va Conversation.
+- Khong tin `profileId` tuy y tu request body.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Middleware/ActiveProfileMiddleware.cs`
+- `AISAM-BE/AISAM.API/Utils/ProfileContextHelper.cs`
+- `AISAM-BE/AISAM.API/Utils/UserClaimsHelper.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/tests/AISAM.IntegrationTests/ActiveProfileMiddlewareTests.cs`
+
+Behavior:
+
+```text
+Protected prefixes:
+/api/content
+/api/ai
+/api/conversations
+
+Required headers:
+Authorization: Bearer {accessToken}
+X-Profile-Id: {profileId}
+```
+
+Middleware tra ve:
+
+- `401` neu token thieu/khong hop le.
+- `401` neu `X-Profile-Id` thieu/khong hop le.
+- `404` neu profile khong ton tai.
+- `403` neu profile khong thuoc JWT user.
+
+Commit:
+
+```text
+9adf22a Them middleware kiem tra X-Profile-Id thuoc JWT user
+```
+
+### Progress Detail - Task 5.1
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Hoan thanh Content CRUD MVP theo active profile da xac thuc.
+- Chua publish social trong task nay.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ContentController.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/CreateContentRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Request/UpdateContentRequest.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ContentResponseDto.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IContentRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ContentRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/IContentService.cs`
+- `AISAM-BE/AISAM.Services/Service/ContentService.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+API da co:
+
+```text
+POST   /api/content
+GET    /api/content
+GET    /api/content/{contentId}
+PUT    /api/content/{contentId}
+POST   /api/content/{contentId}/clone
+DELETE /api/content/{contentId}
+POST   /api/content/{contentId}/restore
+```
+
+Dieu chinh MVP:
+
+- Tat ca Content API dung active profile tu middleware.
+- Chua publish Facebook/TikTok.
+- Chua bat upload media storage.
+
+### Progress Detail - Task 5.2
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Them Gemini text generation MVP: generate draft, improve, approve generation, xem history va chat.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/GeminiController.cs`
+- `AISAM-BE/AISAM.Common/Models/GeminiModels.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IAiGenerationRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/AiGenerationRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/IAIService.cs`
+- `AISAM-BE/AISAM.Services/IServices/IGeminiTextClient.cs`
+- `AISAM-BE/AISAM.Services/Service/AIService.cs`
+- `AISAM-BE/AISAM.Services/Service/GeminiTextClient.cs`
+- `AISAM-BE/AISAM.API/.env.example`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+API da co:
+
+```text
+POST /api/ai/generate-draft
+POST /api/ai/improve/{contentId}
+POST /api/ai/approve/{aiGenerationId}
+GET  /api/ai/generations/{contentId}
+POST /api/ai/chat
+```
+
+Config thu cong:
+
+```env
+GEMINI_API_KEY=your-real-api-key
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MAX_TOKENS=2048
+GEMINI_TEMPERATURE=0.7
+```
+
+Dieu chinh MVP:
+
+- Chi AI text. Chua lam AI image/video.
+- Dung Gemini official client qua HTTP.
+- Automated tests dung fake client, khong can key that.
+
+### Progress Detail - Task 5.3
+
+Ngay hoan thanh: 2026-05-30
+
+Muc tieu:
+
+- Luu va truy van conversation history cho AI chat theo active profile.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Controllers/ConversationController.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ConversationDetailDto.cs`
+- `AISAM-BE/AISAM.Common/Dtos/Response/ConversationResponseDto.cs`
+- `AISAM-BE/AISAM.Repositories/IRepositories/IConversationRepository.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/ConversationRepository.cs`
+- `AISAM-BE/AISAM.Services/IServices/IConversationService.cs`
+- `AISAM-BE/AISAM.Services/Service/ConversationService.cs`
+- `AISAM-BE/AISAM.API/Program.cs`
+
+API da co:
+
+```text
+GET    /api/conversations
+GET    /api/conversations/{id}
+DELETE /api/conversations/{id}
+```
+
+Kiem tra Phase 5:
+
+```text
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed. 36/36 tests passed.
+```
+
+Commit gom Phase 5:
+
+```text
+6055fdd Hoan thien Content CRUD, Gemini text generation va Conversation history theo active profile context da xac thuc.
+```
+
+Checklist Phase 5:
+
+- [x] Content CRUD/status MVP.
+- [x] Content clone, soft delete, restore.
+- [x] Gemini generate draft.
+- [x] Gemini improve content.
+- [x] Approve AI generation.
+- [x] AI generation history.
+- [x] AI chat va conversation history.
+- [x] Active profile ownership middleware.
+- [x] Build thanh cong.
+- [x] 36/36 automated tests pass.
+- [ ] Test Gemini API that sau khi developer them `GEMINI_API_KEY`.
+
 ### Progress Detail - Setup Guide
 
 Ngày hoàn thành: 2026-05-28
