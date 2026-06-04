@@ -37,40 +37,30 @@ public sealed class DashboardService : IDashboardService
             PageSize = 1
         };
 
-        var draftCountTask = _contentRepository.GetPagedByProfileIdAsync(profileId, countRequest, status: ContentStatusEnum.Draft, cancellationToken: cancellationToken);
-        var pendingApprovalCountTask = _contentRepository.GetPagedByProfileIdAsync(profileId, countRequest, status: ContentStatusEnum.PendingApproval, cancellationToken: cancellationToken);
-        var publishedCountTask = _contentRepository.GetPagedByProfileIdAsync(profileId, countRequest, status: ContentStatusEnum.Published, cancellationToken: cancellationToken);
-        var postsCountTask = _postRepository.GetPagedByProfileIdAsync(profileId, countRequest, cancellationToken: cancellationToken);
-        var unreadCountTask = _notificationRepository.GetUnreadCountAsync(profileId, cancellationToken);
-        var socialAccountsTask = _socialAccountRepository.GetByProfileIdAsync(profileId, cancellationToken);
-        var upcomingSchedulesTask = _contentCalendarRepository.CountUpcomingByProfileIdAsync(profileId, DateTime.UtcNow, cancellationToken);
-        var failedSchedulesTask = _contentCalendarRepository.CountFailedByProfileIdAsync(profileId, cancellationToken);
+        var draftCount = await _contentRepository.GetPagedByProfileIdAsync(profileId, countRequest, status: ContentStatusEnum.Draft, cancellationToken: cancellationToken);
+        var pendingApprovalCount = await _contentRepository.GetPagedByProfileIdAsync(profileId, countRequest, status: ContentStatusEnum.PendingApproval, cancellationToken: cancellationToken);
+        var publishedCount = await _contentRepository.GetPagedByProfileIdAsync(profileId, countRequest, status: ContentStatusEnum.Published, cancellationToken: cancellationToken);
+        var postsCount = await _postRepository.GetPagedByProfileIdAsync(profileId, countRequest, cancellationToken: cancellationToken);
+        var unreadCount = await _notificationRepository.GetUnreadCountAsync(profileId, cancellationToken);
+        var socialAccounts = await _socialAccountRepository.GetByProfileIdAsync(profileId, cancellationToken);
+        var upcomingSchedulesCount = await _contentCalendarRepository.CountUpcomingByProfileIdAsync(profileId, DateTime.UtcNow, cancellationToken);
+        var failedSchedulesCount = await _contentCalendarRepository.CountFailedByProfileIdAsync(profileId, cancellationToken);
 
-        await Task.WhenAll(
-            draftCountTask,
-            pendingApprovalCountTask,
-            publishedCountTask,
-            postsCountTask,
-            unreadCountTask,
-            socialAccountsTask,
-            upcomingSchedulesTask,
-            failedSchedulesTask);
-
-        var activeIntegrationCount = socialAccountsTask.Result
+        var activeIntegrationCount = socialAccounts
             .Where(account => !account.IsDeleted)
             .SelectMany(account => account.SocialIntegrations)
             .Count(integration => !integration.IsDeleted && integration.IsActive);
 
         return GenericResponse<DashboardSummaryDto>.CreateSuccess(new DashboardSummaryDto
         {
-            DraftContentCount = draftCountTask.Result.TotalCount,
-            PublishedContentCount = publishedCountTask.Result.TotalCount,
-            PendingApprovalContentCount = pendingApprovalCountTask.Result.TotalCount,
-            UpcomingScheduleCount = upcomingSchedulesTask.Result,
-            FailedScheduleCount = failedSchedulesTask.Result,
+            DraftContentCount = draftCount.TotalCount,
+            PublishedContentCount = publishedCount.TotalCount,
+            PendingApprovalContentCount = pendingApprovalCount.TotalCount,
+            UpcomingScheduleCount = upcomingSchedulesCount,
+            FailedScheduleCount = failedSchedulesCount,
             ActiveSocialIntegrationCount = activeIntegrationCount,
-            PublishedPostCount = postsCountTask.Result.TotalCount,
-            UnreadNotificationCount = unreadCountTask.Result
+            PublishedPostCount = postsCount.TotalCount,
+            UnreadNotificationCount = unreadCount
         }, "Dashboard summary retrieved successfully.");
     }
 }
