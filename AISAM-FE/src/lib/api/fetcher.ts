@@ -1,6 +1,7 @@
 import { env } from "@/lib/config/env";
 import type { ApiError, GenericResponse } from "@/types/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useProfileStore } from "@/stores/profile-store";
 
 type RequestOptions = RequestInit & {
   auth?: boolean;
@@ -79,6 +80,13 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (auth && authState.accessToken) {
     mergedHeaders.set("Authorization", `Bearer ${authState.accessToken}`);
+  }
+
+  if (auth) {
+    const activeProfileId = useProfileStore.getState().activeProfile?.id;
+    if (activeProfileId) {
+      mergedHeaders.set("X-Profile-Id", activeProfileId);
+    }
   }
 
   const response = await fetch(`${env.apiBaseUrl}${path}`, {
