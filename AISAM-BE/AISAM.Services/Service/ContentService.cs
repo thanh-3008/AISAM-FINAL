@@ -2,11 +2,13 @@ using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
+using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using System.Net;
+using System.Text.Json;
 
 namespace AISAM.Services.Service;
 
@@ -15,15 +17,33 @@ public sealed class ContentService : IContentService
     private readonly IContentRepository _contentRepository;
     private readonly IBrandRepository _brandRepository;
     private readonly IProductRepository _productRepository;
+    private readonly ISocialIntegrationRepository _socialIntegrationRepository;
+    private readonly ISocialAccountRepository _socialAccountRepository;
+    private readonly IPostRepository _postRepository;
+    private readonly Dictionary<string, IProviderService> _providers;
+    private readonly ISocialTokenProtector _tokenProtector;
+    private readonly IQuotaService _quotaService;
 
     public ContentService(
         IContentRepository contentRepository,
         IBrandRepository brandRepository,
-        IProductRepository productRepository)
+        IProductRepository productRepository,
+        ISocialIntegrationRepository socialIntegrationRepository,
+        ISocialAccountRepository socialAccountRepository,
+        IPostRepository postRepository,
+        IEnumerable<IProviderService> providers,
+        ISocialTokenProtector tokenProtector,
+        IQuotaService quotaService)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
         _productRepository = productRepository;
+        _socialIntegrationRepository = socialIntegrationRepository;
+        _socialAccountRepository = socialAccountRepository;
+        _postRepository = postRepository;
+        _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
+        _tokenProtector = tokenProtector;
+        _quotaService = quotaService;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -176,6 +196,82 @@ public sealed class ContentService : IContentService
         return GenericResponse<bool>.CreateSuccess(true, "Content restored successfully.");
     }
 
+    public async Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
+        if (content == null || content.ProfileId != profileId || content.IsDeleted)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
+        }
+
+        if (content.Status == ContentStatusEnum.Published)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Content has already been published.", HttpStatusCode.BadRequest);
+        }
+
+        var integration = await _socialIntegrationRepository.GetByIdAsync(integrationId, cancellationToken);
+        if (integration == null || integration.ProfileId != profileId || integration.IsDeleted || integration.BrandId != content.BrandId)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
+        }
+
+        var quotaCheck = await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<PublishResultDto>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
+        }
+
+        if (!_providers.TryGetValue(integration.Platform.ToString().ToLowerInvariant(), out var provider))
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Publishing provider is not supported.", HttpStatusCode.BadRequest);
+        }
+
+        var socialAccount = integration.SocialAccount
+            ?? await _socialAccountRepository.GetByIdAsync(integration.SocialAccountId, cancellationToken);
+        if (socialAccount == null || socialAccount.ProfileId != profileId || socialAccount.IsDeleted)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Social account not found.", HttpStatusCode.NotFound);
+        }
+
+        var postDto = BuildPostDto(content);
+        var decryptedAccount = CloneAccountForPublish(socialAccount);
+        var decryptedIntegration = CloneIntegrationForPublish(integration);
+
+        decryptedAccount.UserAccessToken = _tokenProtector.Unprotect(socialAccount.UserAccessToken);
+        decryptedIntegration.AccessToken = _tokenProtector.Unprotect(integration.AccessToken);
+
+        var publishResult = await provider.PublishAsync(decryptedAccount, decryptedIntegration, postDto, cancellationToken);
+        if (!publishResult.Success)
+        {
+            return GenericResponse<PublishResultDto>.CreateError(
+                publishResult.ErrorMessage ?? "Publishing failed.",
+                HttpStatusCode.BadGateway);
+        }
+
+        await _postRepository.AddAsync(new Post
+        {
+            ContentId = content.Id,
+            IntegrationId = integration.Id,
+            ExternalPostId = publishResult.ProviderPostId,
+            PublishedAt = publishResult.PostedAt ?? DateTime.UtcNow,
+            Status = ContentStatusEnum.Published
+        }, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(publishResult.RefreshedTargetAccessToken))
+        {
+            integration.AccessToken = _tokenProtector.Protect(publishResult.RefreshedTargetAccessToken);
+            await _socialIntegrationRepository.UpdateAsync(integration, cancellationToken);
+        }
+
+        content.Status = ContentStatusEnum.Published;
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+
+        return GenericResponse<PublishResultDto>.CreateSuccess(publishResult, "Content published successfully.");
+    }
+
     private async Task<GenericResponse<bool>> ValidateBrandAndProductAsync(Guid profileId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
     {
         var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
@@ -204,6 +300,81 @@ public sealed class ContentService : IContentService
     private static GenericResponse<ContentResponseDto> NotFound()
     {
         return GenericResponse<ContentResponseDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
+    }
+
+    private static PostDto BuildPostDto(Content content)
+    {
+        var postDto = new PostDto
+        {
+            Message = content.TextContent
+        };
+
+        if (content.AdType == AdTypeEnum.ImageText && !string.IsNullOrWhiteSpace(content.ImageUrl))
+        {
+            var raw = content.ImageUrl.Trim();
+            if (raw.StartsWith("[", StringComparison.Ordinal))
+            {
+                var urls = JsonSerializer.Deserialize<List<string>>(raw) ?? new List<string>();
+                var validUrls = urls.Where(url => !string.IsNullOrWhiteSpace(url)).ToList();
+                if (validUrls.Count == 1)
+                {
+                    postDto.ImageUrl = validUrls[0];
+                }
+                else if (validUrls.Count > 1)
+                {
+                    postDto.ImageUrls = validUrls;
+                }
+            }
+            else
+            {
+                postDto.ImageUrl = content.ImageUrl;
+            }
+        }
+        else if (content.AdType == AdTypeEnum.VideoText)
+        {
+            postDto.VideoUrl = content.VideoUrl;
+        }
+
+        return postDto;
+    }
+
+    private static SocialAccount CloneAccountForPublish(SocialAccount account)
+    {
+        return new SocialAccount
+        {
+            Id = account.Id,
+            ProfileId = account.ProfileId,
+            Platform = account.Platform,
+            AccountId = account.AccountId,
+            UserAccessToken = account.UserAccessToken,
+            RefreshToken = account.RefreshToken,
+            ExpiresAt = account.ExpiresAt,
+            IsActive = account.IsActive,
+            IsDeleted = account.IsDeleted,
+            CreatedAt = account.CreatedAt,
+            UpdatedAt = account.UpdatedAt
+        };
+    }
+
+    private static SocialIntegration CloneIntegrationForPublish(SocialIntegration integration)
+    {
+        return new SocialIntegration
+        {
+            Id = integration.Id,
+            ProfileId = integration.ProfileId,
+            BrandId = integration.BrandId,
+            SocialAccountId = integration.SocialAccountId,
+            Platform = integration.Platform,
+            AccessToken = integration.AccessToken,
+            RefreshToken = integration.RefreshToken,
+            ExpiresAt = integration.ExpiresAt,
+            ExternalId = integration.ExternalId,
+            AdAccountId = integration.AdAccountId,
+            IsActive = integration.IsActive,
+            IsDeleted = integration.IsDeleted,
+            CreatedAt = integration.CreatedAt,
+            UpdatedAt = integration.UpdatedAt
+        };
     }
 
     private static string? FormatImageUrlForJsonb(string? imageUrl)

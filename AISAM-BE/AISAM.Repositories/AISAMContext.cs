@@ -162,7 +162,7 @@ namespace AISAM.Repositories
                       .HasForeignKey(p => p.ContentId)
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(p => p.Integration)
-                      .WithMany()
+                      .WithMany(i => i.Posts)
                       .HasForeignKey(p => p.IntegrationId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
@@ -348,6 +348,10 @@ namespace AISAM.Repositories
                 entity.HasIndex(cc => cc.ContentId);
                 entity.HasIndex(cc => cc.ProfileId);
                 entity.HasIndex(cc => cc.ScheduledDate);
+                entity.HasIndex(cc => cc.IntegrationId);
+                entity.HasIndex(cc => cc.ScheduledAt);
+                entity.HasIndex(cc => cc.Status);
+                entity.Property(cc => cc.Status).HasConversion<int>().HasDefaultValue(ScheduleStatusEnum.Pending);
                 entity.HasOne(cc => cc.Content)
                       .WithMany(c => c.ContentCalendars)
                       .HasForeignKey(cc => cc.ContentId)
@@ -356,6 +360,10 @@ namespace AISAM.Repositories
                       .WithMany(p => p.ContentCalendars)
                       .HasForeignKey(cc => cc.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(cc => cc.Integration)
+                      .WithMany()
+                      .HasForeignKey(cc => cc.IntegrationId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // AiGeneration entity configuration

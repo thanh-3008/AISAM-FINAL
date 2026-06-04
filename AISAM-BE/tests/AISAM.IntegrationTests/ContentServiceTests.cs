@@ -1,8 +1,11 @@
+using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
+using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using System.Net;
 
@@ -142,7 +145,16 @@ public class ContentServiceTests
         IBrandRepository brandRepository,
         IProductRepository? productRepository = null)
     {
-        return new ContentService(contentRepository, brandRepository, productRepository ?? new FakeProductRepository());
+        return new ContentService(
+            contentRepository,
+            brandRepository,
+            productRepository ?? new FakeProductRepository(),
+            new FakeSocialIntegrationRepository(),
+            new FakeSocialAccountRepository(),
+            new FakePostRepository(),
+            Array.Empty<IProviderService>(),
+            new FakeSocialTokenProtector(),
+            new FakeQuotaService());
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -215,5 +227,50 @@ public class ContentServiceTests
         public Task<IEnumerable<Product>> GetProductsByBrandIdIncludingDeletedAsync(Guid brandId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Product> AddAsync(Product product, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Product product, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeSocialIntegrationRepository : ISocialIntegrationRepository
+    {
+        public Task<SocialIntegration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<SocialIntegration?>(null);
+        public Task<SocialIntegration?> GetByExternalIdAsync(Guid socialAccountId, string externalId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<SocialIntegration>> GetBySocialAccountIdAsync(Guid socialAccountId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<SocialIntegration>> GetByBrandIdAsync(Guid brandId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<SocialIntegration> AddAsync(SocialIntegration integration, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(SocialIntegration integration, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeSocialAccountRepository : ISocialAccountRepository
+    {
+        public Task<SocialAccount?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<SocialAccount?>(null);
+        public Task<SocialAccount?> GetByIdWithIntegrationsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<SocialAccount?>(null);
+        public Task<SocialAccount?> GetByProfileIdPlatformAndAccountIdAsync(Guid profileId, SocialPlatformEnum platform, string accountId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<SocialAccount>> GetByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<SocialAccount> AddAsync(SocialAccount account, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(SocialAccount account, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakePostRepository : IPostRepository
+    {
+        public Task<Post?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Post?>(null);
+        public Task<Post> AddAsync(Post post, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeSocialTokenProtector : ISocialTokenProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+        public string Unprotect(string ciphertext) => ciphertext;
+    }
+
+    private sealed class FakeQuotaService : IQuotaService
+    {
+        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+
+        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 }

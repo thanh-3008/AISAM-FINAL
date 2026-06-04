@@ -1,6 +1,6 @@
 # AISAM Backend Codebase
 
-Last reviewed: 2026-05-30
+Last reviewed: 2026-06-01
 
 This document describes the current backend codebase in this repository. It is based on the active source files at the repository root, not the older reference snapshot under `docs/code-references/PRN232_Backend`.
 
@@ -9,21 +9,30 @@ This document describes the current backend codebase in this repository. It is b
 AISAM-BE is a .NET 8 ASP.NET Core backend organized as a layered solution:
 
 - `AISAM.API`: HTTP API, dependency injection, authentication, Swagger, filters and middleware.
-- `AISAM.Services`: business logic for authentication, email, profiles, brands and products.
+- `AISAM.Services`: business logic for authentication, email, profiles, brands, products, content, AI, conversation, social publishing and posts history.
 - `AISAM.Repositories`: Entity Framework Core `DbContext`, migrations and repository implementations.
 - `AISAM.Data`: entity models and enum definitions.
 - `AISAM.Common`: shared DTOs, response wrappers, settings models and common request/response shapes.
-- `tests/AISAM.IntegrationTests`: xUnit test project, currently only a placeholder test.
+- `tests/AISAM.IntegrationTests`: xUnit test project with repository, service, controller and middleware coverage for the active MVP surface.
 
-The active API surface is currently an MVP subset:
+The active API surface is currently an MVP subset, but it is broader than the original foundation:
 
 - Authentication and account/session management.
 - Profile CRUD/search/soft delete restore.
 - Brand CRUD/pagination/search/soft delete restore.
 - Product CRUD/pagination/search/soft delete restore.
+- Content CRUD, clone, restore and publish.
+- Gemini text generation, improve, approve and chat.
+- Conversation history.
+- Facebook social auth/account/integration flow.
+- Posts history.
+- Notification read APIs.
+- Content scheduling CRUD and upcoming schedules.
+- Dashboard summary.
+- Scheduled posting worker and Development-only scheduler trigger.
 - Health endpoint.
 
-The data model is broader than the exposed API. `AisamContext` already contains DbSets and relationships for content, social integrations, teams, subscriptions, approvals, ads, reports, notifications, payments, AI generations and conversations. In the active root source, those modules are data-model-ready but do not yet have registered services/controllers, except where indirectly referenced by brand/product/profile counts or relationships.
+The data model is still broader than the exposed API. `AisamContext` already contains DbSets and relationships for teams, subscriptions, approvals, ads, reports, notifications, payments and scheduling. Those remaining modules are still model-ready rather than fully active in the root solution.
 
 ## 2. Solution Structure
 
@@ -102,6 +111,12 @@ Relevant environment variables:
 - `JWT_SECRET_KEY`
 - `JWT_ISSUER`
 - `JWT_AUDIENCE`
+- `FACEBOOK_APP_ID`
+- `FACEBOOK_APP_SECRET`
+- `FACEBOOK_REDIRECT_URI`
+- `FACEBOOK_GRAPH_API_VERSION`
+- `FACEBOOK_BASE_URL`
+- `FACEBOOK_OAUTH_URL`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `SMTP_HOST`
@@ -109,6 +124,10 @@ Relevant environment variables:
 - `SMTP_USERNAME`
 - `SMTP_PASSWORD`
 - `FROM_EMAIL`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
+- `GEMINI_MAX_TOKENS`
+- `GEMINI_TEMPERATURE`
 
 Development connection string defaults to:
 
@@ -151,6 +170,15 @@ Repositories:
 - `IProfileRepository` -> `ProfileRepository`
 - `IBrandRepository` -> `BrandRepository`
 - `IProductRepository` -> `ProductRepository`
+- `IContentRepository` -> `ContentRepository`
+- `IAiGenerationRepository` -> `AiGenerationRepository`
+- `IConversationRepository` -> `ConversationRepository`
+- `ISocialAccountRepository` -> `SocialAccountRepository`
+- `ISocialIntegrationRepository` -> `SocialIntegrationRepository`
+- `IPostRepository` -> `PostRepository`
+- `INotificationRepository` -> `NotificationRepository`
+- `IContentCalendarRepository` -> `ContentCalendarRepository`
+- `IPerformanceReportRepository` -> `PerformanceReportRepository`
 
 Services:
 
@@ -159,6 +187,24 @@ Services:
 - `IProfileService` -> `ProfileService`
 - `IBrandService` -> `BrandService`
 - `IProductService` -> `ProductService`
+- `IContentService` -> `ContentService`
+- `IAIService` -> `AIService`
+- `IConversationService` -> `ConversationService`
+- `ISocialService` -> `SocialService`
+- `IPostService` -> `PostService`
+- `INotificationService` -> `NotificationService`
+- `IContentScheduleService` -> `ContentScheduleService`
+- `IDashboardService` -> `DashboardService`
+- `IScheduledPostingService` -> `ScheduledPostingService`
+
+Supporting infrastructure:
+
+- `IOAuthStateStore` -> `MemoryOAuthStateStore`
+- `ISocialTokenProtector` -> `SocialTokenProtector`
+- `IGeminiTextClient` -> `GeminiTextClient`
+- typed `HttpClient` for `FacebookProvider` and `GoogleProvider`
+- `IProviderService` registrations for `FacebookProvider` and `GoogleProvider`
+- hosted service `ScheduledPostingBackgroundService`
 
 Entity Framework is registered only when a non-empty connection string exists. PostgreSQL is accessed through an `NpgsqlDataSource` with dynamic JSON enabled.
 
@@ -170,6 +216,17 @@ The active controllers are:
 - `ProfileController`
 - `BrandController`
 - `ProductController`
+- `ContentController`
+- `GeminiController`
+- `ConversationController`
+- `SocialAuthController`
+- `SocialAccountsController`
+- `SocialIntegrationController`
+- `PostsController`
+- `NotificationsController`
+- `ContentSchedulesController`
+- `DashboardController`
+- `DevSchedulerController` (Development only)
 - `HealthController`
 
 All controllers return `GenericResponse<T>` or `GenericResponse<object>` for a consistent envelope.
@@ -343,6 +400,99 @@ Current limitation:
 
 - Product create/update accepts `ImageFiles`, but `ProductService` explicitly rejects image uploads in this MVP backend.
 - The `Images` column is currently serialized as JSON text. New product creation stores an empty list.
+
+### 5.6 Notification API
+
+Route base:
+
+```text
+api/notifications
+```
+
+Endpoints:
+
+- `GET api/notifications`
+- `GET api/notifications/{notificationId}`
+- `POST api/notifications/{notificationId}/mark-read`
+- `POST api/notifications/mark-all-read`
+- `GET api/notifications/unread-count`
+
+Behavior:
+
+- All endpoints require JWT and `X-Profile-Id`.
+- Reads and updates are scoped to the active profile only.
+- Notification state is persisted in the `notifications` table.
+
+### 5.7 Content Scheduling API
+
+Route base:
+
+```text
+api/content-schedules
+```
+
+Endpoints:
+
+- `POST api/content-schedules`
+- `GET api/content-schedules`
+- `GET api/content-schedules/{scheduleId}`
+- `PUT api/content-schedules/{scheduleId}`
+- `DELETE api/content-schedules/{scheduleId}`
+- `GET api/content-schedules/upcoming`
+
+Behavior:
+
+- Schedules are one-time only in the active MVP.
+- Create/update validates content ownership, integration ownership and brand match.
+- Published content cannot be scheduled again.
+- Delete is soft delete.
+- Create/update/delete emits internal notifications.
+
+### 5.8 Dashboard API
+
+Route base:
+
+```text
+api/dashboard
+```
+
+Endpoint:
+
+- `GET api/dashboard/summary`
+
+Current summary fields:
+
+- `DraftContentCount`
+- `PublishedContentCount`
+- `PendingApprovalContentCount`
+- `UpcomingScheduleCount`
+- `FailedScheduleCount`
+- `ActiveSocialIntegrationCount`
+- `PublishedPostCount`
+- `UnreadNotificationCount`
+
+### 5.9 Scheduled Posting Worker
+
+The active runtime now contains:
+
+- `ScheduledPostingService`
+- `ScheduledPostingBackgroundService`
+
+Worker behavior:
+
+- scans due schedules
+- reuses `IContentService.PublishAsync`
+- marks schedule `Completed` on success
+- marks schedule `Failed` and stores `LastError` on failure
+- creates internal notifications for success/failure
+
+Development-only trigger:
+
+```text
+POST /api/dev/scheduler/run-now
+```
+
+This controller is only mapped when `ASPNETCORE_ENVIRONMENT=Development`.
 
 ### 5.5 Health API
 
@@ -827,21 +977,29 @@ The current suite contains meaningful tests for:
 - Foundation ownership and disabled-upload behavior.
 - Active profile middleware.
 - Content lifecycle service and controller.
+- Content publish orchestration and publish controller.
 - Gemini client parsing and missing-key behavior.
 - AI generation, approve and chat orchestration.
 - AI controller profile propagation.
 - Conversation history ownership and controller propagation.
+- Social provider/state/protection infrastructure.
+- Social repository, service and controller behavior.
+- Posts service and controller behavior.
+- Notification repository, service and controller behavior.
+- Content schedule repository, service and controller behavior.
+- Dashboard summary aggregation.
+- Scheduled posting worker and Development-only scheduler boundary.
 
-Latest local run on 2026-05-31:
+Latest local run on 2026-06-01:
 
 ```text
 dotnet test AISAM.sln
-Passed: 36, Failed: 0, Skipped: 0
+Passed: 100, Failed: 0, Skipped: 0
 ```
 
 ## 15. Current Runtime Verification Notes
 
-Swagger and Health were verified locally on 2026-05-31:
+Swagger and Health were verified locally on 2026-06-01:
 
 ```text
 http://localhost:5283
@@ -858,23 +1016,55 @@ Verified Swagger paths:
 - `/api/ai/generate-draft`
 - `/api/ai/chat`
 - `/api/conversations`
+- `/api/social-auth/facebook`
+- `/api/social/accounts/me`
+- `/api/content/{contentId}/publish/{integrationId}`
+- `/api/posts`
+- `/api/notifications`
+- `/api/content-schedules`
+- `/api/dashboard/summary`
+- `/api/dev/scheduler/run-now` (Development only)
 
 Verified authentication boundary:
 
 - `GET /api/content` without JWT returns HTTP `401`.
 - `POST /api/ai/generate-draft` without JWT returns HTTP `401`.
 - `GET /api/conversations` without JWT returns HTTP `401`.
+- `GET /api/social-auth/facebook` without JWT returns HTTP `401`.
+- `GET /api/social/accounts/me` without JWT returns HTTP `401`.
+- `GET /api/posts` without JWT returns HTTP `401`.
+- `GET /api/notifications` without JWT returns HTTP `401`.
+- `GET /api/content-schedules` without JWT returns HTTP `401`.
+- `GET /api/dashboard/summary` without JWT returns HTTP `401`.
+- `POST /api/dev/scheduler/run-now` without JWT returns HTTP `401` in `Development`.
+- `POST /api/dev/scheduler/run-now` returns HTTP `404` outside `Development`.
 
-Phase B protected APIs require:
+Protected APIs for active profile-scoped modules require:
 
 ```text
 Authorization: Bearer <access-token>
 X-Profile-Id: <owned-profile-guid>
 ```
 
-The API host starts without `GEMINI_API_KEY`. Gemini text endpoints then return a recorded failed generation or a graceful chat error instead of preventing startup.
+This header requirement currently applies to:
 
-Local persistence smoke is currently blocked because PostgreSQL is not listening on `127.0.0.1:5432`. Gemini success HTTP smoke additionally requires a valid `GEMINI_API_KEY`.
+- `/api/content`
+- `/api/content-schedules`
+- `/api/dashboard`
+- `/api/dev/scheduler` (Development only)
+- `/api/ai`
+- `/api/conversations`
+- `/api/social-auth`
+- `/api/social`
+- `/api/posts`
+- `/api/notifications`
+
+The API host starts without `GEMINI_API_KEY` and without Facebook App credentials. Gemini text endpoints then return a recorded failed generation or a graceful chat error instead of preventing startup. Facebook auth URL endpoint returns a clear `503` configuration error instead of crashing the host.
+
+Local PostgreSQL is reachable in this environment, and authenticated HTTP smoke now works. Two remaining external blockers still apply:
+
+- real Gemini success smoke requires a valid `GEMINI_API_KEY`
+- real Facebook OAuth/publish smoke requires `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, redirect URI and Page permissions
 
 Build/restore may fail in this environment when NuGet access is blocked by TLS/certificate issues. The local build output may still allow running the already-built DLL, but a clean build requires NuGet restore to work.
 
@@ -911,22 +1101,25 @@ Current active modules:
 - Gemini text generation and improve/approve flow
 - AI chat
 - Conversation history
+- Social/Facebook auth and Page linking
+- Facebook Page publishing from content
+- Posts history
+- Notifications
+- Content scheduling
+- Dashboard summary
+- Scheduled posting worker
 
 Model-ready but not active as APIs:
 
-- Social accounts/integrations
 - Approvals
 - Team management
-- Scheduling
-- Posting
 - Ads
 - Payments
-- Notifications
 - Analytics
 
 ### Authorization Consistency
 
-Brand/product ownership checks are explicit. Profile ownership checks were stabilized in Phase A. Phase B Content, AI and Conversation APIs additionally require `X-Profile-Id`, validated against the JWT user by `ActiveProfileMiddleware`.
+Brand/product ownership checks are explicit. Profile ownership checks were stabilized in Phase A. Content, AI, Conversation, Social and Posts APIs additionally require `X-Profile-Id`, validated against the JWT user by `ActiveProfileMiddleware`.
 
 ### File Upload
 
@@ -942,7 +1135,7 @@ Several package references are not used by active code paths. This may be intent
 
 ### Test Coverage
 
-The suite now covers ownership boundaries, soft delete behavior, content validation, Gemini client behavior, AI generation/chat orchestration and conversation history. PostgreSQL-backed repository integration and authenticated end-to-end API smoke still need a running local database.
+The suite now covers ownership boundaries, soft delete behavior, content validation, Gemini client behavior, AI generation/chat orchestration, conversation history, social OAuth/state handling, Facebook publish orchestration and posts history. Real Facebook OAuth/publish still needs external credentials and permissions.
 
 ## 18. Suggested Mental Model for Contributors
 

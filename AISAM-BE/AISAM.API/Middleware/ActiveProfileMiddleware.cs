@@ -10,8 +10,17 @@ public sealed class ActiveProfileMiddleware
     private static readonly PathString[] ProtectedPrefixes =
     {
         new("/api/content"),
+        new("/api/content-schedules"),
+        new("/api/dashboard"),
+        new("/api/dev/scheduler"),
         new("/api/ai"),
-        new("/api/conversations")
+        new("/api/conversations"),
+        new("/api/social-auth"),
+        new("/api/social"),
+        new("/api/posts"),
+        new("/api/notifications"),
+        new("/api/payment"),
+        new("/api/quota")
     };
 
     private readonly RequestDelegate _next;
@@ -21,8 +30,21 @@ public sealed class ActiveProfileMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, IProfileRepository profileRepository)
+    public async Task InvokeAsync(HttpContext context, IProfileRepository profileRepository, IWebHostEnvironment environment)
     {
+        if (context.Request.Path.StartsWithSegments("/api/dev/scheduler") && !environment.IsDevelopment())
+        {
+            await _next(context);
+            return;
+        }
+
+        if (context.Request.Path.StartsWithSegments("/api/payment/callback") ||
+            context.Request.Path.StartsWithSegments("/api/payment/webhook"))
+        {
+            await _next(context);
+            return;
+        }
+
         if (!ProtectedPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix)))
         {
             await _next(context);

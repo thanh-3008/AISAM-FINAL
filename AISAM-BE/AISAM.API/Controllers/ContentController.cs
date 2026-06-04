@@ -3,6 +3,7 @@ using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
+using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -81,6 +82,16 @@ public sealed class ContentController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await _contentService.CloneAsync(contentId, GetProfileId(), cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{contentId:guid}/publish/{integrationId:guid}")]
+    public async Task<ActionResult<GenericResponse<PublishResultDto>>> Publish(
+        Guid contentId,
+        Guid integrationId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _contentService.PublishAsync(contentId, integrationId, GetProfileId(), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

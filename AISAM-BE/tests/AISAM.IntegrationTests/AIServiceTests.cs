@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Common;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
@@ -188,7 +189,8 @@ public class AIServiceTests
         IBrandRepository brandRepository,
         IGeminiTextClient geminiTextClient,
         IConversationRepository? conversationRepository = null,
-        IProductRepository? productRepository = null)
+        IProductRepository? productRepository = null,
+        IQuotaService? quotaService = null)
     {
         return new AIService(
             contentRepository,
@@ -196,7 +198,8 @@ public class AIServiceTests
             brandRepository,
             productRepository ?? new FakeProductRepository(),
             geminiTextClient,
-            conversationRepository ?? new FakeConversationRepository());
+            conversationRepository ?? new FakeConversationRepository(),
+            quotaService ?? new FakeQuotaService());
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -303,5 +306,17 @@ public class AIServiceTests
             Messages.Add(message);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeQuotaService : IQuotaService
+    {
+        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+
+        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 }

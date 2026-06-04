@@ -530,110 +530,136 @@ Map voi `BACKEND_CODE_PLAN.md`: Phase 6.
 
 Cho phep ket noi Facebook va publish content len Facebook Page theo source cu.
 
-### Trang thai hien tai
+### Ket qua trien khai Phase C - 2026-06-01
 
-Da co entity/DbSet:
+Da hoan tat cac task:
 
-- `SocialAccount`
-- `SocialIntegration`
-- `Post`
+- `C0`: fix mapping `Post -> SocialIntegration` va tao migration cleanup shadow FK.
+- `C1`: them provider contract, Facebook config/models, OAuth state store va token protection.
+- `C2`: them social/post repositories va soft-delete aware persistence.
+- `C3`: them `SocialService` MVP cho OAuth link, target management va ownership checks.
+- `C4`: expose social controllers, mo rong `ActiveProfileMiddleware` cho social/posts routes.
+- `C5`: bat publish content len Facebook Page va persist `Post`.
+- `C6`: expose posts history API chi doc theo active profile.
+- `C7`: chay full verification, migration verification, runtime smoke va cap nhat docs.
 
-Thieu active API/service/repository:
+Active API moi:
 
-- `SocialAuthController`
-- `SocialAccountController`
-- `SocialIntegrationController`
-- `PostsController`
-- `SocialService`
-- `FacebookProvider`
-- `GoogleProvider` neu dung provider contract.
-- `PostService`
-- Social/post repositories.
-- Facebook settings/models.
+```text
+GET    /api/social-auth/facebook
+POST   /api/social-auth/facebook/callback
 
-### Source cu can copy/tai su dung
+GET    /api/social/accounts/me
+GET    /api/social/accounts/{socialAccountId}/available-targets
+GET    /api/social/accounts/{socialAccountId}/linked-targets
+POST   /api/social/accounts/{socialAccountId}/link-targets
+DELETE /api/social/accounts/{socialAccountId}
 
-Controllers:
+DELETE /api/social/integrations/{socialIntegrationId}
+GET    /api/social/integrations/brand/{brandId}
 
-- `SocialAuthController.cs`
-- `SocialAccountController.cs`
-- `SocialIntegrationController.cs`
-- `PostsController.cs`
+POST   /api/content/{contentId}/publish/{integrationId}
 
-Services:
+GET    /api/posts
+GET    /api/posts/{postId}
+```
 
-- `SocialService.cs`
-- `FacebookProvider.cs`
-- `GoogleProvider.cs`
-- `PostService.cs`
+Header bat buoc cho Content/AI/Conversation/Social/Posts:
 
-Interfaces:
+```text
+Authorization: Bearer <access-token>
+X-Profile-Id: <owned-profile-guid>
+```
 
-- `ISocialService.cs`
-- `IProviderService.cs`
-- `IPostService.cs`
+#### Nguon tham chieu va cach tai su dung
 
-Repositories:
+| Loai | Duong dan source cu | Cach su dung |
+| --- | --- | --- |
+| Social controllers | `docs/code-references/PRN232_Backend/AISAM.API/Controllers/Social*.cs` | Tai su dung route/ownership shape, viet lai boundary theo active profile middleware va GenericResponse |
+| Provider | `docs/code-references/PRN232_Backend/AISAM.Services/Service/FacebookProvider.cs` | Tai su dung flow Facebook Graph cho auth/pages/publish, cat pham vi Ads |
+| Social service | `docs/code-references/PRN232_Backend/AISAM.Services/Service/SocialService.cs` | Tai su dung ownership/linking shape, bo phan ads/permission/team logic |
+| Post service | `docs/code-references/PRN232_Backend/AISAM.Services/Service/PostService.cs` | Tai su dung list/detail shape, scope theo active profile |
+| Repositories | `docs/code-references/PRN232_Backend/AISAM.Repositories/Repository/Social*Repository.cs`, `PostRepository.cs` | Tai su dung include/query pattern, them cancellation token va paging clamp |
 
-- `SocialAccountRepository.cs`
-- `SocialIntegrationRepository.cs`
-- `PostRepository.cs`
+#### Cai tien thay vi copy nguyen
 
-DTO/models:
+- OAuth `state` luu trong `IMemoryCache`, verify theo `profileId` va consume mot lan.
+- User token va Page token duoc ma hoa bang ASP.NET Core Data Protection.
+- Public social endpoints chi mo cho `facebook`; `GoogleProvider` chi giu de thoa provider contract noi bo.
+- Unlink account/integration la soft delete, giu lai `Post` lich su.
+- Publish content chi doi `Content.Status` va tao `Post` sau khi provider tra thanh cong.
+- `ContentController` publish flow ho tro `TextOnly`, `ImageText` va `VideoText`.
+- Khi Facebook publish thanh cong bang token refresh lai, token moi duoc ma hoa va persist.
 
-- `SocialDtos.cs`
-- `FacebookSettings.cs`
-- `FacebookModels.cs`
-- `GoogleModels.cs`
-- `PostDtos.cs`
-- `PostListIemDto.cs`
-- `PublishContentRequest.cs`
-- `PublishPostRequest.cs`
-- `SocialCallbackRequest.cs`
+#### Database/migration
 
-Validators:
+- Da sua `AisamContext` de bo shadow relation `Post.SocialIntegrationId`.
+- Da tao migration:
+  - `20260531161937_RemovePostSocialIntegrationShadowFk`
+- `dotnet ef migrations list` da liet ke migration cleanup nay.
+- `dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build` khong apply duoc tren DB local hien tai vi schema da co bang `users` nhung lich su migration chua dong bo, EF co gang chay lai `Initial` va fail voi:
 
-- `PublishRequestValidator.cs`
-- `LinkSelectedTargetsRequestValidator.cs`
+```text
+42P07: relation "users" already exists
+```
 
-### File can sua
+Day la blocker cua trang thai database local, khong phai loi compile/runtime cua Phase C code.
 
-- `Program.cs`: DI social providers/repositories/services, config settings, HttpClient neu source cu can.
-- `appsettings`/`.env.example`: Facebook OAuth/Graph config.
-- Common/config/models DTO.
+#### Verification thuc te
 
-### Database impact
+```text
+dotnet build AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
 
-Kiem tra schema social/post co khop source cu. Neu source cu co token fields/callback fields chua co trong current migration, tao migration rieng.
+dotnet test AISAM.sln
+Passed: 75, Failed: 0, Skipped: 0.
+```
 
-### API can test
+Swagger/runtime smoke tren host local `http://localhost:5283`:
 
-- Generate Facebook auth URL.
-- Callback/manual token flow neu co.
-- List social accounts.
-- List available targets.
-- Link selected targets.
-- Link ad account neu can for future ads.
-- Publish content to Facebook Page.
-- List posts by content/profile.
+```text
+GET /swagger/v1/swagger.json -> 200
+Swagger co /api/social-auth/facebook -> True
+Swagger co /api/posts -> True
 
-### Risk
+GET /api/social-auth/facebook khong JWT -> 401
+GET /api/social/accounts/me khong JWT -> 401
+GET /api/posts khong JWT -> 401
 
-- Can Facebook app credentials, redirect URI, permissions, page access token.
-- Facebook API permissions co the khong du cho demo.
+GET /api/social-auth/facebook co JWT + X-Profile-Id nhung thieu Facebook config -> 503
+message: "Facebook integration is not configured."
+```
 
-### Rollback
+Publish success/fail path da duoc xac minh bang automated tests:
 
-- Remove social/publishing DI.
-- Remove controllers.
-- Revert migration neu co.
-- Disable social feature through config.
+- publish success -> tao `Post`, doi `Content.Status = Published`
+- publish fail -> giu nguyen `Content.Status`
 
-### Definition of Done
+#### Loi runtime da phat hien va sua trong C7
 
-- Build/test pass.
-- API returns clear config error if Facebook settings missing.
-- With valid token, publish smoke test pass or documented blocker from Facebook permission.
+- `GoogleProvider` typed `HttpClient` registration bi vo constructor, lam request social auth no DI o runtime.
+- Da sua `GoogleProvider` constructor de khop `AddHttpClient<GoogleProvider>()`.
+- Da sua `SocialAuthController` de tra `503 Service Unavailable` khi thieu Facebook config, thay vi roi vao `400`.
+
+#### Blocker external con lai
+
+- Chua chay Facebook OAuth/publish that vi local env khong co `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, redirect URI va Page permissions.
+- `database update` local dang bi lech migration history so voi schema thuc te; can dong bo bang lich su migration hoac reset DB truoc khi khang dinh migrate apply thanh cong.
+
+Can rerun khi co credentials va DB sach/dong bo:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+Facebook OAuth callback smoke
+Facebook Page list/link smoke
+Facebook publish real smoke
+```
+
+#### Rollback
+
+- Remove DI Phase C trong `AISAM.API/Program.cs`.
+- Remove social/posts controllers, services, repositories va DTO/models Phase C.
+- Revert migration `RemovePostSocialIntegrationShadowFk` neu can rollback schema cleanup.
 
 ## 8. Phase Update D - Complete Phase 7: Notification, Scheduling, Dashboard
 
@@ -728,83 +754,259 @@ Kiem tra ContentCalendar/Notification schema. Background job khong nen tao schem
 - Background service khong crash khi DB/external social config missing.
 - Notification API pass.
 
+### Ket qua trien khai Phase D - 2026-06-01
+
+Da hoan tat cac task:
+
+- `D0`: ra schema schedule/notification va chot can migration additive cho `ContentCalendar`.
+- `D1`: them DTO/repository foundation va migration runtime fields cho schedule.
+- `D2`: them Notification service/controller va APIs doc/danh dau da doc.
+- `D3`: them Schedule CRUD service/controller va upcoming API.
+- `D4`: them Dashboard summary service/controller.
+- `D5`: them Scheduled posting service, background worker va dev-only trigger.
+- `D6`: chot middleware/DI/Swagger wiring.
+- `D7`: chay full verification, runtime boundary smoke va cap nhat docs.
+
+Active API moi:
+
+```text
+GET    /api/notifications
+GET    /api/notifications/{notificationId}
+POST   /api/notifications/{notificationId}/mark-read
+POST   /api/notifications/mark-all-read
+GET    /api/notifications/unread-count
+
+POST   /api/content-schedules
+GET    /api/content-schedules
+GET    /api/content-schedules/{scheduleId}
+PUT    /api/content-schedules/{scheduleId}
+DELETE /api/content-schedules/{scheduleId}
+GET    /api/content-schedules/upcoming
+
+GET    /api/dashboard/summary
+
+POST   /api/dev/scheduler/run-now   (Development only)
+```
+
+Header bat buoc cho Notification/Scheduling/Dashboard:
+
+```text
+Authorization: Bearer <access-token>
+X-Profile-Id: <owned-profile-guid>
+```
+
+#### Nguon tham chieu va cach tai su dung
+
+| Loai | Duong dan source cu | Cach su dung |
+| --- | --- | --- |
+| Notification/Dashboard controllers | `docs/code-references/PRN232_Backend/AISAM.API/Controllers/NotificationController.cs`, `DashboardController.cs` | Tai su dung route/ownership shape, viet lai theo active profile middleware va GenericResponse |
+| Scheduling controller/service | `docs/code-references/PRN232_Backend/AISAM.API/Controllers/ContentCalendarController.cs`, `AISAM.Services/Service/ScheduledPostingService.cs` | Tai su dung scheduling flow, cat repeat scheduling va giu one-time MVP |
+| Repositories | `docs/code-references/PRN232_Backend/AISAM.Repositories/Repository/NotificationRepository.cs`, `ContentCalendarRepository.cs`, `PerformanceReportRepository.cs` | Tai su dung include/query pattern, them count methods va cancellation token |
+
+#### Cai tien thay vi copy nguyen
+
+- Chi ho tro one-time schedule; khong keo `Daily/Weekly/Monthly`.
+- Publish theo lich tai su dung `IContentService.PublishAsync`, khong viet logic publish moi.
+- Dashboard chi tong hop summary MVP, chua keo performance analytics nang cao.
+- Notification la noi bo trong DB; chua co push/email/realtime.
+- Dev scheduler controller duoc map co dieu kien theo `ASPNETCORE_ENVIRONMENT=Development`.
+- `ActiveProfileMiddleware` duoc sua de bo qua prefix `/api/dev/scheduler` ngoai `Development`, tranh tra `401` cho route khong ton tai.
+
+#### Database/migration
+
+- `Notification` schema hien tai du dung, khong tao migration rieng.
+- Da tao migration:
+  - `20260601095652_AddContentCalendarSchedulingRuntimeFields`
+
+Migration nay them runtime fields cho `content_calendar`:
+
+- `integration_id`
+- `scheduled_at`
+- `executed_at`
+- `status`
+- `attempt_count`
+- `last_error`
+
+va giu nguyen cac cot legacy:
+
+- `scheduled_date`
+- `scheduled_time`
+- `repeat_type`
+- `repeat_interval`
+- `repeat_until`
+- `next_scheduled_date`
+- `integration_ids`
+
+#### Verification thuc te
+
+```text
+dotnet build AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM.sln
+Passed: 100, Failed: 0, Skipped: 0.
+```
+
+Swagger/runtime smoke tren host local:
+
+```text
+Development:
+GET /swagger/v1/swagger.json -> 200
+Swagger co /api/notifications -> True
+Swagger co /api/content-schedules -> True
+Swagger co /api/dashboard/summary -> True
+Swagger co /api/dev/scheduler/run-now -> True
+
+GET /api/notifications khong JWT -> 401
+GET /api/content-schedules khong JWT -> 401
+GET /api/dashboard/summary khong JWT -> 401
+POST /api/dev/scheduler/run-now khong JWT -> 401
+
+Production:
+POST /api/dev/scheduler/run-now -> 404
+Swagger khong con /api/dev/scheduler/run-now -> False
+```
+
+Automated tests da xac minh:
+
+- notification read/mark-read/mark-all/unread-count scope theo active profile
+- schedule create/update/delete/upcoming, ownership va content status guards
+- dashboard summary counts theo active profile
+- scheduled posting worker success/fail/idempotency
+
+#### Worker smoke va blocker external
+
+- Worker success/fail path da duoc verify bang automated tests.
+- Chua chay full end-to-end HTTP smoke tao due schedule roi goi dev trigger voi DB local that, vi van con 2 blocker moi truong:
+  1. local DB migration history dang lech schema thuc te (`Initial` co the bi chay lai va fail `relation "users" already exists`)
+  2. chua co Facebook credentials that de xac minh scheduled publish flow voi provider live
+
+Neu can xac minh end-to-end thuc te, can rerun sau khi dong bo DB local va co credentials:
+
+```text
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+tao content draft + social integration fixture
+POST /api/content-schedules
+POST /api/dev/scheduler/run-now trong Development
+verify content Published, post duoc tao, schedule Completed, notification success duoc tao
+```
+
+#### Loi runtime da phat hien va sua trong D7
+
+- Ngoai `Development`, dev scheduler controller da bi bo khoi Swagger/controller discovery, nhung `ActiveProfileMiddleware` van chan prefix `/api/dev/scheduler` va tra `401` truoc routing.
+- Da sua middleware de bo qua prefix nay ngoai `Development`.
+- Da cap nhat middleware tests va social middleware test theo signature moi cua `InvokeAsync`.
+
+#### Rollback
+
+- Remove DI Phase D trong `AISAM.API/Program.cs`.
+- Remove `NotificationsController`, `ContentSchedulesController`, `DashboardController`, `DevSchedulerController`.
+- Remove `NotificationService`, `ContentScheduleService`, `DashboardService`, `ScheduledPostingService`, `ScheduledPostingBackgroundService`.
+- Remove repositories/DTO Phase D neu rollback toan bo.
+- Revert migration `20260601095652_AddContentCalendarSchedulingRuntimeFields` neu rollback schema schedule runtime fields.
+
 ## 9. Phase Update E - Complete Phase 8: Payment, Subscription, Quota
 
 Map voi `BACKEND_CODE_PLAN.md`: Phase 8.
 
 ### Muc tieu
 
-Ho tro monetization/SaaS demo: subscription, PayOS payment, quota display.
+Ho tro monetization/SaaS demo: subscription, PayOS payment, quota display, va basic quota enforcement o muc toi thieu.
 
 ### Trang thai hien tai
 
-Da co entity/DbSet:
+Da hoan tat implementation chinh cho Phase E:
 
-- `Subscription`
-- `Payment`
+- `PaymentRepository` va `SubscriptionRepository`
+- `PaymentController` voi route profile-scoped cho checkout/history/current subscription
+- callback/webhook route anonymous cho PayOS
+- `PayOSPaymentService` voi fail-safe khi thieu config
+- `QuotaService` va `QuotaController`
+- quota summary theo `Derived Usage`
+- prompt quota enforcement cho AI generation
+- post quota enforcement cho publish now va scheduled publish
 
-Thieu active API/service/repository:
+Khong tao bang usage counter rieng trong Phase E.
 
-- `PaymentController`
-- `PayOSPaymentService`
-- `SubscriptionValidationService`
-- `PaymentRepository`
-- `SubscriptionRepository`
-- quota service/display endpoints.
+### Nguyen tac implementation
 
-### Source cu can copy/tai su dung
+- Repository chi chua persistence/query, khong chua quota policy.
+- `QuotaService` la nguon su that duy nhat cho quota policy va derived usage.
+- Chi consume quota sau khi AI generation hoac publish thanh cong.
+- Thieu PayOS config chi lam fail checkout/payment intent an toan, khong lam vo payment history/current subscription/quota APIs.
 
-Controller:
+### API da co
 
-- `PaymentController.cs`
+- `POST /api/payment/checkout`
+- `GET /api/payment/history`
+- `GET /api/payment/subscription/current`
+- `GET /api/payment/callback`
+- `POST /api/payment/webhook`
+- `GET /api/quota/profile/{profileId}`
 
-Services:
+### Enforce business rules
 
-- `PayOSPaymentService.cs`
-- `SubscriptionValidationService.cs`
-- `AdQuotaService.cs` neu dung quota lien quan ads.
+- Vuot `PromptQuota`:
+  - HTTP `403`
+  - `errorCode = PROMPT_QUOTA_EXCEEDED`
+- Vuot `PostQuota`:
+  - HTTP `403`
+  - `errorCode = POST_QUOTA_EXCEEDED`
+- Khong enforce quota o CRUD nhu tao brand, tao product, tao content draft thu cong.
 
-Repositories:
+### Data source cho usage
 
-- `PaymentRepository.cs`
-- `SubscriptionRepository.cs`
+- `PromptUsage`: dem so `AiGeneration` thanh cong trong subscription window hien tai.
+- `PostUsage`: dem so `Post` publish thanh cong trong subscription window hien tai.
+- Subscription window duoc suy ra tu active subscription cua profile.
 
-DTO:
+### File da sua/chinh
 
-- `CreatePaymentIntentRequest.cs`
-- `CreateSubscriptionRequest.cs`
-- `ChangePlanRequest.cs`
-- `PaymentResponseDto.cs`
-- `PayOSCheckoutResponse.cs`
-- `SubscriptionResponseDto.cs`
-
-### File can sua
-
-- `Program.cs`: DI payment/subscription services/repositories.
-- `.env.example`/setup docs: PayOS config.
-- `appsettings`: payment settings neu source cu dung.
+- `AISAM.API/Program.cs`
+- `AISAM.API/Middleware/ActiveProfileMiddleware.cs`
+- `AISAM.API/Controllers/PaymentController.cs`
+- `AISAM.API/Controllers/QuotaController.cs`
+- `AISAM.Services/Service/AIService.cs`
+- `AISAM.Services/Service/ContentService.cs`
+- `AISAM.Services/Service/PayOSPaymentService.cs`
+- `AISAM.Services/Service/QuotaService.cs`
+- `AISAM.Repositories/Repository/PaymentRepository.cs`
+- `AISAM.Repositories/Repository/SubscriptionRepository.cs`
+- `.env.example`
 
 ### Database impact
 
-Kiem tra migration `UpdateSubscriptionPayOS` da du voi source cu chua. Neu chua, tao migration nho rieng.
+Khong can migration moi trong implementation hien tai.
 
-### API can test
+Schema san co da du cho:
 
-- Create checkout/payment intent.
-- PayOS webhook/callback.
-- Get payment history.
-- Get current subscription.
-- Change/cancel plan neu source cu co.
-- Quota display endpoint neu implement.
+- `Payment`
+- `Subscription`
+- field runtime PayOS tren subscription
+
+### Verification da chay
+
+- `PaymentRepositoryTests`
+- `PaymentServiceTests`
+- `PaymentControllerTests`
+- `QuotaServiceTests`
+- `QuotaControllerTests`
+- `PhaseEQuotaIntegrationTests`
+- `ContentServicePublishTests`
+- `ScheduledPostingServiceTests`
+- `ContentServiceTests`
+- `dotnet build AISAM.sln`
 
 ### Risk
 
-- Payment webhook can signature validation dung.
-- Demo co the can sandbox PayOS credentials.
+- Checkout/webhook hien tai o muc MVP, can bo sung signature validation va provider integration day du o hardening phase.
+- Derived usage du cho MVP nhung chua phai usage ledger cho audit/concurrency cao.
 
 ### Rollback
 
-- Disable payment endpoints/DI.
+- Remove payment/quota DI va controllers.
+- Remove quota enforcement hook trong `AIService` va `ContentService`.
+- Khong can cleanup usage counter vi Phase E khong tao counter persistence.
 - Revert migration neu co.
 - Keep existing subscription enum fallback.
 

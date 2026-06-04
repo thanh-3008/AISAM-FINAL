@@ -17,6 +17,7 @@ public sealed class AIService : IAIService
     private readonly IProductRepository _productRepository;
     private readonly IGeminiTextClient _geminiTextClient;
     private readonly IConversationRepository _conversationRepository;
+    private readonly IQuotaService _quotaService;
 
     public AIService(
         IContentRepository contentRepository,
@@ -24,7 +25,8 @@ public sealed class AIService : IAIService
         IBrandRepository brandRepository,
         IProductRepository productRepository,
         IGeminiTextClient geminiTextClient,
-        IConversationRepository conversationRepository)
+        IConversationRepository conversationRepository,
+        IQuotaService quotaService)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -32,6 +34,7 @@ public sealed class AIService : IAIService
         _productRepository = productRepository;
         _geminiTextClient = geminiTextClient;
         _conversationRepository = conversationRepository;
+        _quotaService = quotaService;
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, CreateDraftRequest request, CancellationToken cancellationToken = default)
@@ -40,6 +43,15 @@ public sealed class AIService : IAIService
         if (!validation.Success)
         {
             return GenericResponse<AiGenerationResponse>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        }
+
+        var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<AiGenerationResponse>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
         }
 
         var content = await _contentRepository.AddAsync(new Content

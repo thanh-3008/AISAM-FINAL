@@ -1,11 +1,20 @@
+using System.Text.Json.Serialization;
+
 namespace AISAM.Common.Models
 {
+    public class AuthUrlResponse
+    {
+        public string AuthUrl { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+    }
+
     public class SocialAccountDto
     {
         public Guid Id { get; set; }
         public Guid ProfileId { get; set; }
         public string Provider { get; set; } = string.Empty;
         public string ProviderUserId { get; set; } = string.Empty;
+        [JsonIgnore]
         public string AccessToken { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public DateTime? ExpiresAt { get; set; }

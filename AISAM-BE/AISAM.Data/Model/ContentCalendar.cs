@@ -41,6 +41,24 @@ namespace AISAM.Data.Model
         [Column("integration_ids")]
         public string? IntegrationIds { get; set; } // JSON array of selected integration IDs
 
+        [Column("integration_id")]
+        public Guid? IntegrationId { get; set; }
+
+        [Column("scheduled_at")]
+        public DateTime? ScheduledAt { get; set; }
+
+        [Column("executed_at")]
+        public DateTime? ExecutedAt { get; set; }
+
+        [Column("status")]
+        public ScheduleStatusEnum Status { get; set; } = ScheduleStatusEnum.Pending;
+
+        [Column("attempt_count")]
+        public int AttemptCount { get; set; } = 0;
+
+        [Column("last_error")]
+        public string? LastError { get; set; }
+
         [Column("profile_id")]
         public Guid ProfileId { get; set; } // Profile who created the schedule
 
@@ -59,6 +77,9 @@ namespace AISAM.Data.Model
         // Navigation properties
         [ForeignKey("ContentId")]
         public virtual Content Content { get; set; } = null!;
+
+        [ForeignKey("IntegrationId")]
+        public virtual SocialIntegration? Integration { get; set; }
 
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
