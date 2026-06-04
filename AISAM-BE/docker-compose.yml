@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: aisam-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: aisam_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - aisam_pgdata:/var/lib/postgresql/data
+
+volumes:
+  aisam_pgdata:
