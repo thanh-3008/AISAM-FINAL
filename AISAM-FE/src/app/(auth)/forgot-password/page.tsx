@@ -64,12 +64,12 @@ export default function ForgotPasswordPage() {
 
         {/* Stats */}
         <div className="relative z-10 flex gap-gutter">
-          <div className="flex-1 p-stack-md rounded-xl" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">SECURE RESET</span>
+          <div className="flex-1 p-stack-md rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">Secure Reset</span>
             <span className="font-headline-md text-headline-md text-surface-bright">256-bit</span>
           </div>
-          <div className="flex-1 p-stack-md rounded-xl" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">LINK EXPIRES</span>
+          <div className="flex-1 p-stack-md rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">Link Expires</span>
             <span className="font-headline-md text-headline-md text-surface-bright">24 HRS</span>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function ForgotPasswordPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
                     required
-                    className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface"
+                    className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
                   />
                 </div>
 
@@ -176,7 +176,7 @@ export default function ForgotPasswordPage() {
 
               <div className="mt-12 pt-stack-lg border-t border-outline-variant/30 flex items-center justify-center gap-2">
                 <span className="material-symbols-outlined text-[18px] text-success-green">lock</span>
-                <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Secure, encrypted link</span>
+                <span className="text-label-sm text-outline">Secure, encrypted link</span>
               </div>
             </>
           )}

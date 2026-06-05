@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
+import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { invalidateProfileCache } from "@/hooks/useProfiles";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -38,8 +40,17 @@ export default function RegisterPage() {
       });
 
       if (result.success) {
-        // Redirect to login page with success message
-        router.push("/login?registered=true");
+        invalidateProfileCache();
+        if (result.data?.accessToken) {
+          setToken(result.data.accessToken);
+        }
+        if (result.data?.refreshToken) {
+          setRefreshToken(result.data.refreshToken);
+        }
+        if (result.data?.user) {
+          setStoredUser(result.data.user);
+        }
+        router.push("/overview");
       } else {
         setError("Đăng ký thất bại, vui lòng thử lại.");
       }
@@ -95,12 +106,12 @@ export default function RegisterPage() {
 
         {/* Stats */}
         <div className="relative z-10 flex gap-gutter">
-          <div className="flex-1 p-stack-md rounded-xl" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">REAL-TIME ROAS</span>
+          <div className="flex-1 p-stack-md rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+            <span className="text-label-md text-primary-fixed-dim block mb-1">Real-time ROAS</span>
             <span className="font-headline-md text-headline-md text-surface-bright">+24.8%</span>
           </div>
-          <div className="flex-1 p-stack-md rounded-xl" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">NEURAL SYNC</span>
+          <div className="flex-1 p-stack-md rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+            <span className="text-label-md text-primary-fixed-dim block mb-1">Neural Sync</span>
             <span className="font-headline-md text-headline-md text-surface-bright">ACTIVE</span>
           </div>
         </div>
@@ -151,8 +162,8 @@ export default function RegisterPage() {
               <div className="w-full border-t border-outline-variant" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-surface-container-lowest px-4 font-label-sm text-label-sm text-outline uppercase tracking-widest">
-                OR EMAIL
+              <span className="bg-surface-container-lowest px-4 text-label-sm text-outline font-semibold">
+                Or email
               </span>
             </div>
           </div>
@@ -187,7 +198,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 placeholder="John Doe"
                 required
-                className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface"
+                className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
               />
             </div>
 
@@ -204,7 +215,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 placeholder="name@company.com"
                 required
-                className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface"
+                className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
               />
             </div>
 
@@ -222,7 +233,7 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="Min. 8 characters"
                   required
-                  className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface pr-12"
+                  className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12"
                 />
                 <button
                   type="button"
@@ -250,7 +261,7 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="Re-enter your password"
                   required
-                  className={`w-full px-4 py-3 bg-white border rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface pr-12 ${
+                  className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${
                     form.confirm_password && form.password !== form.confirm_password
                       ? "border-error focus:ring-error"
                       : "border-outline-variant"
@@ -309,7 +320,7 @@ export default function RegisterPage() {
           {/* Trust Note */}
           <div className="mt-12 pt-stack-lg border-t border-outline-variant/30 flex items-center justify-center gap-2">
             <span className="material-symbols-outlined text-[18px] text-success-green">lock</span>
-            <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">
+            <span className="text-label-sm text-outline">
               Secure, encrypted registration
             </span>
           </div>

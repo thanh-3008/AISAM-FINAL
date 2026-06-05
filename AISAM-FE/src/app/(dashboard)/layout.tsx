@@ -1,5 +1,23 @@
+"use client";
+
 import Sidebar from "@/components/layout/Sidebar";
-import Header from "@/components/layout/Header";
+import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
+
+function DashboardInner({ children }: { children: React.ReactNode }) {
+  const { open } = useSidebar();
+
+  return (
+    <div className="min-h-screen bg-surface-gray flex">
+      <Sidebar />
+      <div
+        className="flex-1 flex flex-col transition-all duration-300"
+        style={{ marginLeft: open ? "var(--spacing-sidebar-width)" : "0" }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -7,13 +25,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-surface-gray flex">
-      <Sidebar />
-      {/* Main content area — offset by sidebar width */}
-      <div className="flex-1 flex flex-col ml-sidebar-width transition-all duration-300">
-        <Header title="Dashboard" />
-        <main className="flex-1 overflow-auto p-gutter">{children}</main>
-      </div>
-    </div>
+    <SidebarProvider>
+      <DashboardInner>{children}</DashboardInner>
+    </SidebarProvider>
   );
 }

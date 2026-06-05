@@ -374,7 +374,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="space-y-4">
-            <div className="text-surface-bright font-bold font-label-md text-label-md uppercase tracking-widest">
+            <div className="text-surface-bright font-bold text-label-md">
               Platform
             </div>
             <ul className="space-y-2">
@@ -405,7 +405,7 @@ export default function LandingPage() {
             </ul>
           </div>
           <div className="space-y-4">
-            <div className="text-surface-bright font-bold font-label-md text-label-md uppercase tracking-widest">
+            <div className="text-surface-bright font-bold text-label-md">
               Company
             </div>
             <ul className="space-y-2">
@@ -436,7 +436,7 @@ export default function LandingPage() {
             </ul>
           </div>
           <div className="space-y-4">
-            <div className="text-surface-bright font-bold font-label-md text-label-md uppercase tracking-widest">
+            <div className="text-surface-bright font-bold text-label-md">
               Newsletter
             </div>
             <p className="font-body-sm text-body-sm text-outline-variant mb-4">

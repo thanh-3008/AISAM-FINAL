@@ -1,6 +1,6 @@
 # AISAM Frontend (AISAM-FE)
 
-This is a [Next.js](https://nextjs.org) project for the AISAM (AI-Powered Social Media Advertising Manager) Frontend, bootstrapped with `create-next-app` using Next.js 15, React 19, and Tailwind CSS v4.
+This is a [Next.js](https://nextjs.org) project for the AISAM (AI-Powered Social Media Advertising Manager) Frontend, bootstrapped with `create-next-app` using Next.js 16, React 19, and Tailwind CSS v4.
 
 ## Getting Started
 
@@ -8,6 +8,13 @@ First, make sure you have installed the dependencies:
 
 ```bash
 npm install
+```
+
+Copy `.env.example` to `.env.local` and fill in the required values:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:5027/api      # Backend API base URL
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=                       # Google OAuth client ID (for Google login)
 ```
 
 Then, run the development server:
@@ -24,32 +31,61 @@ The project follows the standard Next.js App Router structure:
 
 ```text
 src/
-+---app/
-|   |   favicon.ico
-|   |   globals.css             # Tailwind v4 configuration and global styles
-|   |   layout.tsx              # Root layout (fonts, metadata, etc.)
-|   |   page.tsx                # Landing Page
-|   |   
-|   +---(auth)/                 # Authentication routes (US-01, US-02)
-|   |   +---login/
-|   |   |       page.tsx        # Login Page
-|   |   |       
-|   |   \---register/
-|   |           page.tsx        # Register Page
-|   |           
-|   \---(dashboard)/            # Dashboard routes (require login)
-|       |   layout.tsx          # Dashboard layout (Sidebar + Header)
-|       |   
-|       +---ai-studio/          # AI Content Generation (US-22)
-|       +---campaigns/          # Smart Campaigns Management
-|       +---content/            # Content Library (US-20)
-|       \---dashboard/          # Main Dashboard Overview (US-43)
-|               page.tsx
-|               
-\---components/
-    \---layout/                 # Reusable layout components
-            Header.tsx          # Dashboard Header
-            Sidebar.tsx         # Dashboard Sidebar Navigation
+├── app/
+│   ├── favicon.ico
+│   ├── globals.css              # Tailwind v4 configuration and global styles
+│   ├── layout.tsx               # Root layout (fonts, metadata, etc.)
+│   ├── page.tsx                 # Landing Page
+│   │
+│   ├── (auth)/                  # Authentication routes
+│   │   ├── login/
+│   │   │   └── page.tsx         # Login Page
+│   │   ├── register/
+│   │   │   └── page.tsx         # Register Page
+│   │   ├── forgot-password/
+│   │   │   └── page.tsx         # Forgot Password
+│   │   └── reset-password/
+│   │       └── page.tsx         # Reset Password
+│   │
+│   ├── (dashboard)/             # Dashboard routes (require login)
+│   │   ├── layout.tsx           # Dashboard layout (Sidebar + Header)
+│   │   ├── dashboard/
+│   │   │   └── page.tsx         # Main Dashboard Overview
+│   │   └── brands/
+│   │       ├── page.tsx         # Brands Listing
+│   │       └── [id]/
+│   │           └── page.tsx     # Brand Detail (Products, Campaigns, Settings)
+│   │
+│   ├── overview/
+│   │   └── page.tsx             # Overview / Profile selector
+│   │
+│   └── profiles/
+│       ├── page.tsx             # Profiles listing
+│       ├── new/
+│       │   └── page.tsx         # Create Profile
+│       └── [id]/
+│           └── page.tsx         # Profile Detail (Settings, Team, Billing...)
+│
+├── components/
+│   ├── brands/
+│   │   ├── CreateBrandModal.tsx # Create Brand modal
+│   │   ├── EditBrandModal.tsx   # Edit Brand modal
+│   │   └── ProductModal.tsx     # Create/Edit Product modal
+│   ├── layout/
+│   │   ├── Header.tsx           # Dashboard Header
+│   │   └── Sidebar.tsx          # Dashboard Sidebar Navigation
+│   └── profiles/
+│       └── CreateProfileModal.tsx
+│
+├── hooks/
+│   └── useProfiles.ts           # Profile state management + caching
+│
+├── lib/
+│   ├── apiClient.ts             # API client (JSON + FormData) with 401 auto-refresh
+│   └── auth.ts                  # Token management, refresh, user storage
+│
+└── stores/
+    └── profile-store.ts         # Zustand-like active profile selector store
 ```
 
 ## Styling & Design System
@@ -62,18 +98,90 @@ src/
 Sau khi khởi chạy dự án, bạn có thể truy cập các đường dẫn sau để xem và kiểm tra các màn hình đã được xây dựng:
 
 1. **Landing Page (`/`)**: Trang chủ giới thiệu sản phẩm.
-   - Truy cập: [http://localhost:3000](http://localhost:3000)
 
-2. **Trang Đăng Nhập (`/login`)**: Giao diện đăng nhập (US-02).
-   - Truy cập: [http://localhost:3000/login](http://localhost:3000/login)
-   - Lưu ý: Hiện tại là giao diện tĩnh, khi nhấn nút "Sign In" hệ thống sẽ giả lập thời gian tải và hiển thị thông báo thành công nếu nhập đúng email `demo@aisam.ai` và mật khẩu `password123`.
+2. **Trang Đăng Nhập (`/login`)**: Giao diện đăng nhập.
+   - Hỗ trợ email/password + Google Sign-In (cần cấu hình `NEXT_PUBLIC_GOOGLE_CLIENT_ID`).
 
-3. **Trang Đăng Ký (`/register`)**: Giao diện tạo tài khoản mới (US-01).
-   - Truy cập: [http://localhost:3000/register](http://localhost:3000/register)
-   - Có tích hợp thanh hiển thị độ mạnh mật khẩu và giả lập quá trình đăng ký.
+3. **Trang Đăng Ký (`/register`)**: Giao diện tạo tài khoản mới.
+   - Có tích hợp thanh hiển thị độ mạnh mật khẩu.
 
-4. **Trang Dashboard (`/dashboard`)**: Bảng điều khiển chính (US-43).
-   - Truy cập: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
-   - Bao gồm Sidebar, Header, hiển thị các thông số tổng quan (Stats), danh sách bài đăng gần đây, thanh thao tác nhanh và Quota sử dụng.
+4. **Trang Dashboard (`/dashboard`)**: Bảng điều khiển chính.
 
-*Lưu ý: Mọi dữ liệu hiện tại đang là Mock Data (dữ liệu giả lập) trên Frontend. Chức năng kết nối API tới Backend sẽ được tích hợp trong các giai đoạn tiếp theo.*
+5. **Brands (`/brands`)**: Quản lý danh sách thương hiệu.
+   - Tạo / Sửa / Xoá brand
+   - Xem chi tiết brand với 3 tab: Products, Campaigns, Settings
+
+6. **Brand Detail (`/brands/[id]`)**: Chi tiết thương hiệu.
+   - **Products tab**: Xem danh sách sản phẩm, tạo/sửa/xoá sản phẩm (kèm upload ảnh)
+   - **Campaigns tab**: Danh sách chiến dịch quảng cáo
+   - **Settings tab**: Cập nhật thông tin brand
+
+## Completed Pages & BE API Map
+
+Tất cả các trang dưới đây đã kết nối với Backend thật (base URL configurable qua `NEXT_PUBLIC_API_URL`).
+
+### Auth
+
+| Page | Route | BE Endpoint | Method | Body | Status |
+|------|-------|-------------|--------|------|--------|
+| **Login** | `/login` | `/auth/login` | POST | `{ email, password }` | ✅ |
+| | | `/auth/me` | GET | — (lấy user info sau login) | ✅ |
+| | | `/auth/google` | POST | `{ idToken }` | ✅ |
+| **Register** | `/register` | `/auth/register` | POST | `{ email, password, confirmPassword, fullName? }` | ✅ |
+| **Forgot Password** | `/forgot-password` | `/auth/forgot-password` | POST | `{ email }` | ✅ |
+| **Reset Password** | `/reset-password` | `/auth/reset-password` | POST | `{ email, token, newPassword, confirmPassword }` | ✅ |
+| **Logout** | (sidebar) | `/auth/logout` | POST | `{ refreshToken? }` | ✅ |
+
+### Profiles
+
+| Page | Route | BE Endpoint | Method | Body | Status |
+|------|-------|-------------|--------|------|--------|
+| **Overview** | `/overview` | `/profiles/user/{userId}` | GET | — | ✅ |
+| **Profiles List** | `/profiles` | `/profiles/user/{userId}` | GET | — | ✅ |
+| **Create Profile** | (modal) | `/profiles` | POST | FormData | ✅ |
+| **Profile Detail** | `/profiles/[id]` | `/profiles/{id}` | GET | — | ✅ |
+| | | `/profiles/{id}` | PUT | FormData | ✅ |
+| | | `/profiles/{id}` | DELETE | — | ✅ |
+
+### Brands & Products
+
+| Page | Route | BE Endpoint | Method | Body | Status |
+|------|-------|-------------|--------|------|--------|
+| **Brands List** | `/brands` | `/brands?profileId={id}&pageSize=100` | GET | — (PagedResult) | ✅ |
+| **Create Brand** | (modal) | `/brands` | POST | JSON: `{ name, description?, logoUrl?, slogan?, usp?, targetAudience?, profileId }` | ✅ |
+| **Edit Brand** | (modal) | `/brands/{id}` | PUT | JSON | ✅ |
+| **Delete Brand** | (modal) | `/brands/{id}` | DELETE | — | ✅ |
+| **Brand Detail** | `/brands/[id]` | `/brands/{id}` | GET | — | ✅ |
+| **Update Brand** | (Settings tab) | `/brands/{id}` | PUT | JSON | ✅ |
+| **Products List** | (tab) | `/products?brandId={id}` | GET | — (PagedResult) | ✅ |
+| **Create Product** | (modal) | `/products` | POST | FormData: `name, brandId, description?, price?, ImageFiles?` | ✅ |
+| **Edit Product** | (modal) | `/products/{id}` | PUT | FormData | ✅ |
+| **Delete Product** | (modal) | `/products/{id}` | DELETE | — | ✅ |
+
+### Auth Flow
+- JWT access token lưu trong `localStorage` key `aisam_token`
+- Refresh token lưu trong `localStorage` key `aisam_refresh_token`
+- User info lưu trong `localStorage` key `aisam_user`
+- Tự động refresh token khi nhận 401 (qua `apiClient`/`apiFetch`)
+- Refresh token single-use: BE revoke token cũ mỗi lần refresh
+- Logout gọi `POST /auth/logout` + xoá toàn bộ storage
+
+### API Layer
+- **`apiClient()`** — dùng cho JSON body endpoints (auth, brands). Tự động thêm `Authorization` + `X-Profile-Id`, auto-refresh 401.
+- **`apiFetch()`** — dùng cho FormData endpoints (products, profiles). Tự động thêm `Authorization` + `X-Profile-Id`, auto-refresh 401.
+- Generic response wrapper: `{ success, data, message }`
+- List endpoints trả về `PagedResult<T>`: `{ success, data: { data: T[], totalCount, page, pageSize } }`
+- Brand CRUD dùng **JSON body** (`[FromBody]`) — đúng BE
+- Product CRUD dùng **FormData** (`[FromForm]`) — đúng BE
+
+### Middleware Notes
+- `ActiveProfileMiddleware` yêu cầu header `X-Profile-Id` cho các prefix: `/api/content`, `/api/dashboard`, `/api/social`, `/api/posts`, `/api/ai`, `/api/quota`, `/api/payment`
+- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Profile-Id
+
+### Sections chưa có BE (chỉ UI / mock)
+- **Campaigns** — BE chưa có CampaignController (chỉ có entity `AdCampaign` trong DB)
+- **Dashboard (`/dashboard`)** — hiển thị mock data, chưa gọi API
+- **Team** — trong Profile Detail (section sidebar)
+- **Security (change password)** — trong Profile Detail
+- **Billing & Quota** — hardcoded data
+- **Subscription** — hardcoded data

@@ -1,10 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { setToken } from "@/lib/auth";
+import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { invalidateProfileCache } from "@/hooks/useProfiles";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+            cancel_on_tap_outside?: boolean;
+          }) => void;
+          prompt: (momentListener?: (moment: { type: string }) => void) => void;
+        };
+      };
+    };
+  }
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,6 +48,53 @@ export default function LoginPage() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
+  // Google Sign-In
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+  const handleGoogleResponse = useCallback(async (credential: string) => {
+    if (!credential) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await apiClient("/auth/google", { data: { idToken: credential } });
+      if (result.success && result.data?.accessToken) {
+        invalidateProfileCache();
+        setToken(result.data.accessToken);
+        if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
+        if (result.data.user) setStoredUser(result.data.user);
+        setIsSuccess(true);
+        router.push("/overview");
+      } else {
+        setError("Google đăng nhập thất bại.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Google đăng nhập thất bại.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!clientId) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+    script.onload = () => {
+      window.google?.accounts.id.initialize({
+        client_id: clientId,
+        callback: (res) => { if (res?.credential) handleGoogleResponse(res.credential); },
+        cancel_on_tap_outside: false,
+      });
+    };
+    return () => { if (script.parentNode) document.body.removeChild(script); };
+  }, [clientId, handleGoogleResponse]);
+
+  const handleGoogleLogin = () => {
+    window.google?.accounts.id.prompt();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -41,9 +106,36 @@ export default function LoginPage() {
       });
 
       if (result.success && result.data?.accessToken) {
+        invalidateProfileCache();
         setToken(result.data.accessToken);
+
+        if (result.data.refreshToken) {
+          setRefreshToken(result.data.refreshToken);
+        }
+
+        if (result.data.user) {
+          setStoredUser(result.data.user);
+        }
+
+        // fetch full user info
+        try {
+          const meResult = await apiClient("/auth/me");
+          if (meResult.success && meResult.data) {
+            setStoredUser({
+              id: meResult.data.id || meResult.data.userId || "",
+              fullName: meResult.data.fullName || meResult.data.full_name || "",
+              email: meResult.data.email || "",
+            });
+            if (meResult.data.refreshToken) {
+              setRefreshToken(meResult.data.refreshToken);
+            }
+          }
+        } catch {
+          // /auth/me is optional — continue regardless
+        }
+
         setIsSuccess(true);
-        router.push("/dashboard");
+        router.push("/overview");
       } else {
         setError("Đăng nhập thất bại, vui lòng thử lại.");
       }
@@ -87,7 +179,7 @@ export default function LoginPage() {
 
         {/* Headline */}
         <div className="relative z-10 max-w-lg mb-24">
-          <span className="inline-block px-3 py-1 rounded-full bg-secondary-container/20 border border-secondary-container/30 text-secondary-fixed-dim font-label-md text-label-md mb-stack-md uppercase tracking-widest">
+          <span className="inline-block px-3 py-1 rounded-full bg-secondary-container/20 border border-secondary-container/30 text-secondary-fixed-dim text-label-md mb-stack-md">
             Enterprise Precision
           </span>
           <h2 className="font-display-lg text-display-lg text-surface-bright mb-stack-md leading-tight">
@@ -166,7 +258,9 @@ export default function LoginPage() {
           {/* Google Button */}
           <button
             type="button"
-            className="w-full h-12 flex items-center justify-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors duration-200 active:scale-[0.98] mb-stack-lg"
+            onClick={handleGoogleLogin}
+            disabled={isLoading || isSuccess}
+            className="w-full h-12 flex items-center justify-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors duration-200 active:scale-[0.98] mb-stack-lg disabled:opacity-50"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -182,7 +276,7 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="flex items-center gap-4 mb-stack-lg">
             <div className="h-px bg-outline-variant flex-1" />
-            <span className="font-label-sm text-label-sm text-outline uppercase tracking-widest">
+            <span className="text-label-sm text-outline font-semibold">
               Or email
             </span>
             <div className="h-px bg-outline-variant flex-1" />

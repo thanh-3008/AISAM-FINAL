@@ -87,12 +87,12 @@ function ResetPasswordForm() {
 
         {/* Stats */}
         <div className="relative z-10 flex gap-gutter">
-          <div className="flex-1 p-stack-md rounded-xl" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">ENCRYPTION</span>
+          <div className="flex-1 p-stack-md rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">Encryption</span>
             <span className="font-headline-md text-headline-md text-surface-bright">AES-256</span>
           </div>
-          <div className="flex-1 p-stack-md rounded-xl" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">PROTECTED BY</span>
+          <div className="flex-1 p-stack-md rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+            <span className="font-label-md text-label-md text-primary-fixed-dim block mb-1">Protected by</span>
             <span className="font-headline-md text-headline-md text-surface-bright">JWT</span>
           </div>
         </div>
@@ -169,7 +169,7 @@ function ResetPasswordForm() {
                     placeholder="name@company.com"
                     required
                     readOnly={!!emailFromUrl}
-                    className={`w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface ${emailFromUrl ? "bg-surface-container cursor-not-allowed opacity-70" : ""}`}
+                    className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface ${emailFromUrl ? "opacity-60 cursor-not-allowed" : ""}`}
                   />
                 </div>
 
@@ -188,7 +188,7 @@ function ResetPasswordForm() {
                       placeholder="Min. 8 characters"
                       required
                       minLength={8}
-                      className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface pr-12"
+                      className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12"
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors p-1">
                       <span className="material-symbols-outlined text-[20px]">{showPassword ? "visibility_off" : "visibility"}</span>
@@ -210,9 +210,9 @@ function ResetPasswordForm() {
                       onChange={handleChange}
                       placeholder="Re-enter new password"
                       required
-                      className={`w-full px-4 py-3 bg-white border rounded-lg focus:ring-2 focus:ring-primary-container focus:border-primary transition-all outline-none font-body-md placeholder:text-outline-variant text-on-surface pr-12 ${
-                        form.confirmPassword && form.newPassword !== form.confirmPassword ? "border-error" : "border-outline-variant"
-                      }`}
+                  className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${
+                    form.confirmPassword && form.newPassword !== form.confirmPassword ? "border-error" : "border-outline-variant"
+                  }`}
                     />
                     <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors p-1">
                       <span className="material-symbols-outlined text-[20px]">{showConfirm ? "visibility_off" : "visibility"}</span>
@@ -255,7 +255,7 @@ function ResetPasswordForm() {
 
               <div className="mt-12 pt-stack-lg border-t border-outline-variant/30 flex items-center justify-center gap-2">
                 <span className="material-symbols-outlined text-[18px] text-success-green">lock</span>
-                <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Secure, encrypted reset</span>
+                <span className="text-label-sm text-outline">Secure, encrypted reset</span>
               </div>
             </>
           )}
