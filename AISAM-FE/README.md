@@ -82,7 +82,13 @@ src/
 │
 ├── lib/
 │   ├── apiClient.ts             # API client (JSON + FormData) with 401 auto-refresh
-│   └── auth.ts                  # Token management, refresh, user storage
+│   ├── auth.ts                  # Token management, refresh, user storage
+│   ├── mockContent.ts           # Shared mock data for Content pages
+│   └── contentConstants.ts      # Shared constants (PlatformIcon, BRANDS, PRODUCTS, etc.)
+│
+├── services/
+│   ├── contentService.ts        # Content CRUD + AI draft/chat — API first, mock fallback
+│   └── brandService.ts          # Brands/Products fetch — API first, mock fallback
 │
 └── stores/
     └── profile-store.ts         # Zustand-like active profile selector store
@@ -158,6 +164,28 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Edit Product** | (modal) | `/products/{id}` | PUT | FormData | ✅ |
 | **Delete Product** | (modal) | `/products/{id}` | DELETE | — | ✅ |
 
+### Content
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Content Library** | `/content` | `/content?page=&pageSize=&searchTerm=&brandId=&adType=&status=` | GET | Query params (PagedResult) | ✅ |
+| | | `/content/{id}` | DELETE | — (soft delete) | ✅ |
+| | | `/content/{id}/restore` | POST | — | ⏳ |
+| **Create Content** | `/content/create` | `/content` | POST | JSON: `{ brandId, productId?, adType, title?, textContent, imageUrl?, videoUrl?, styleDescription?, contextDescription? }` | ✅ |
+| **Content Detail** | `/content/[id]` | `/content/{id}` | GET | — | ✅ |
+| | | `/content/{id}` | PUT | JSON: `{ productId?, adType?, title?, textContent?, imageUrl?, videoUrl? }` | ✅ |
+| | | `/content/{id}` | DELETE | — | ✅ |
+| **AI Generate** | `/content/ai-generate` | `/ai/generate-draft` | POST | JSON: `{ prompt, brandId?, productId? }` | ✅ |
+| | | `/ai/chat` | POST | JSON: `{ message, history: [{ role, text }] }` | ✅ |
+| | | `/content` | POST | JSON (lưu bài viết) | ✅ |
+
+### Service Layer
+
+| File | Mô tả | Fallback |
+|------|-------|----------|
+| `src/services/contentService.ts` | CRUD Content + AI draft/chat | `MOCK_CONTENT` / `MOCK_DETAILS` nếu API lỗi |
+| `src/services/brandService.ts` | Brands + Products listing | `BRANDS` / `PRODUCTS` constants nếu API lỗi |
+
 ### Auth Flow
 - JWT access token lưu trong `localStorage` key `aisam_token`
 - Refresh token lưu trong `localStorage` key `aisam_refresh_token`
@@ -179,9 +207,11 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 - Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Profile-Id
 
 ### Sections chưa có BE (chỉ UI / mock)
-- **Campaigns** — BE chưa có CampaignController (chỉ có entity `AdCampaign` trong DB)
 - **Dashboard (`/dashboard`)** — hiển thị mock data, chưa gọi API
+- **Campaigns** — BE chưa có CampaignController (chỉ có entity `AdCampaign` trong DB)
 - **Team** — trong Profile Detail (section sidebar)
 - **Security (change password)** — trong Profile Detail
 - **Billing & Quota** — hardcoded data
 - **Subscription** — hardcoded data
+- **Content list filters (tags, platforms, date range)** — chỉ mock, BE chưa hỗ trợ
+- **Content thumbnails upload** — chỉ mock object URL

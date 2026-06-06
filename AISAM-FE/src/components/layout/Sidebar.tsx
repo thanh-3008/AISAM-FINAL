@@ -18,25 +18,25 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
   {
     label: "Dashboard",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
+      { label: "Dashboard", href: "/dashboard", icon: "space_dashboard" },
     ],
   },
   {
     label: "Content Workspace",
     items: [
-      { label: "Brand Kit", href: "/brands", icon: "inventory_2" },
-      { label: "Content", href: "/content", icon: "photo_library", disabled: true },
-      { label: "Approvals", href: "/approvals", icon: "fact_check", disabled: true },
+      { label: "Brand Kit", href: "/brands", icon: "palette" },
+      { label: "Content", href: "/content", icon: "description" },
+      { label: "Approvals", href: "/approvals", icon: "task_alt", disabled: true },
       { label: "Posts", href: "/posts", icon: "send", disabled: true },
-      { label: "Calendar", href: "/calendar", icon: "event", disabled: true },
+      { label: "Calendar", href: "/calendar", icon: "calendar_month", disabled: true },
     ],
   },
   {
     label: "Marketing",
     items: [
-      { label: "Social Accounts", href: "/social", icon: "share", disabled: true },
+      { label: "Social Accounts", href: "/social", icon: "public", disabled: true },
       { label: "Campaigns", href: "/campaigns", icon: "campaign", disabled: true },
-      { label: "Analysis", href: "/analytics", icon: "bar_chart", disabled: true },
+      { label: "Analysis", href: "/analytics", icon: "insights", disabled: true },
     ],
   },
 ];
@@ -105,14 +105,15 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-full w-sidebar-width bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 flex flex-col z-50 transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      className={`fixed left-0 top-0 h-full bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 flex flex-col z-50 transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      style={{ width: "var(--spacing-sidebar-width)" }}
     >
       {/* Logo + Toggle */}
       <div className="flex items-center justify-between px-5 pt-6 pb-5 border-b border-outline-variant/20 mx-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
             <span className="material-symbols-outlined text-on-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
-              auto_awesome
+              psychology
             </span>
           </div>
           <div className={open ? "" : "hidden"}>
@@ -121,12 +122,60 @@ export default function Sidebar() {
           </div>
         </div>
         <button onClick={toggle} className={`w-8 h-8 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all ${open ? "" : "hidden"}`} title="Collapse sidebar">
-          <span className="material-symbols-outlined text-outline text-[18px]">menu_open</span>
+          <span className="material-symbols-outlined text-outline text-[18px]">chevron_left</span>
         </button>
       </div>
 
-      {/* Profile Selector */}
-      <div className="relative px-4 mt-4 mb-3">
+      {/* Navigation */}
+      <nav className="flex-1 space-y-1 px-4 pb-4 relative">
+        {navSections.map((section) => {
+          const isContent = section.label === "Content Workspace";
+          const isMarketing = section.label === "Marketing";
+          return (
+            <div key={section.label} className={isContent || isMarketing ? "mt-5" : ""}>
+              {section.label !== "Dashboard" && (
+                <p className="text-label-sm text-outline/50 mb-2 px-2 tracking-wider">
+                  {section.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                  {section.items.map((item) => (
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    active={isActive(item.href)}
+                    disabled={item.disabled}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+
+      {/* System Section */}
+      <div className="border-t border-outline-variant/20 px-4 pt-3 pb-4">
+        <p className="text-label-sm text-outline/50 mb-2 px-2 tracking-wider">System</p>
+        <div className="space-y-0.5">
+          <div className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-on-surface-variant/40 cursor-not-allowed" title="Coming soon">
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
+            <span className="text-body-sm font-semibold">Settings</span>
+            <span className="ml-auto text-[9px] text-outline/30 font-semibold tracking-wider">SOON</span>
+          </div>
+          <button
+            onClick={async () => { await logout(); window.location.href = "/login"; }}
+            className="w-full group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-on-surface-variant hover:bg-surface-container hover:text-danger-red text-left"
+          >
+            <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform duration-200">logout</span>
+            <span className="text-body-sm font-semibold">Logout</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Profile Selector - Bottom */}
+      <div className="relative px-4 pb-4 mt-auto">
         <button
           onClick={() => setProfileOpen(!profileOpen)}
           className="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-surface-container to-surface-container-low border border-outline-variant/20 flex items-center gap-2.5 hover:from-surface-container-high hover:to-surface-container transition-all duration-200 text-left group"
@@ -152,7 +201,7 @@ export default function Sidebar() {
         {profileOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-            <div className="absolute left-4 right-4 top-full mt-1.5 bg-surface-container-lowest/95 backdrop-blur-xl border border-outline-variant/20 rounded-xl shadow-2xl z-20 py-1.5 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute left-4 right-4 bottom-full mb-2 bg-surface-container-lowest/95 backdrop-blur-xl border border-outline-variant/20 rounded-xl shadow-2xl z-20 py-1.5 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
               {profiles.map((p) => {
                 const active = activeProfile?.id === p.id;
                 return (
@@ -198,58 +247,6 @@ export default function Sidebar() {
             </div>
           </>
         )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto space-y-1 px-4 pb-4 scrollbar-thin relative">
-        <div className="sticky top-0 h-4 bg-gradient-to-b from-surface-container-lowest/90 to-transparent pointer-events-none -mx-4 -mt-4 mb-0 z-10" />
-        {navSections.map((section) => {
-          const isContent = section.label === "Content Workspace";
-          const isMarketing = section.label === "Marketing";
-          return (
-            <div key={section.label} className={isContent || isMarketing ? "mt-5" : ""}>
-              {section.label !== "Dashboard" && (
-                <p className="text-label-sm text-outline/50 mb-2 px-2 tracking-wider">
-                  {section.label}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                  {section.items.map((item) => (
-                  <NavItem
-                    key={item.href}
-                    href={item.href}
-                    icon={item.icon}
-                    label={item.label}
-                    active={isActive(item.href)}
-                    disabled={item.disabled}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </nav>
-
-      {/* Scroll fade */}
-      <div className="h-3 bg-gradient-to-t from-surface-container-lowest/90 to-transparent -mt-3 pointer-events-none relative z-10" />
-
-      {/* System Section */}
-      <div className="border-t border-outline-variant/20 px-4 pt-3 pb-4">
-        <p className="text-label-sm text-outline/50 mb-2 px-2 tracking-wider">System</p>
-        <div className="space-y-0.5">
-          <div className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-on-surface-variant/40 cursor-not-allowed" title="Coming soon">
-            <span className="material-symbols-outlined text-[20px]">settings</span>
-            <span className="text-body-sm font-semibold">Settings</span>
-            <span className="ml-auto text-[9px] text-outline/30 font-semibold tracking-wider">SOON</span>
-          </div>
-          <button
-            onClick={async () => { await logout(); window.location.href = "/login"; }}
-            className="w-full group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-on-surface-variant hover:bg-surface-container hover:text-danger-red text-left"
-          >
-            <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform duration-200">logout</span>
-            <span className="text-body-sm font-semibold">Logout</span>
-          </button>
-        </div>
       </div>
     </aside>
   );

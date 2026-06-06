@@ -52,7 +52,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const displayPlan = activeProfile ? getProfileTypeLabel(activeProfile.profileType) : "Enterprise Plan";
 
   return (
-    <header className="h-16 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 shadow-xs flex justify-between items-center px-gutter z-40 sticky top-0">
+    <header className="h-16 bg-surface-gray border-b border-outline-variant/30 flex justify-between items-center px-gutter z-40 sticky top-0">
       <div className="flex items-center gap-4 flex-1 min-w-0">
         {/* Sidebar Toggle — pill shape to match icon buttons */}
         <button onClick={toggle} className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center transition-all shrink-0 active:scale-95" title="Toggle sidebar">
@@ -98,7 +98,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
             onClick={() => setNotifOpen(!notifOpen)}
             className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
           >
-            <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:scale-110 transition-transform duration-200">notifications</span>
+            <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:scale-110 transition-transform duration-200" style={{ fontVariationSettings: "'FILL' 1" }}>notifications_active</span>
             <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-danger-red rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 shadow-sm ring-2 ring-surface">
               3
             </span>
@@ -112,13 +112,13 @@ export default function Header({ breadcrumbs }: HeaderProps) {
               </div>
               <div className="divide-y divide-outline-variant/10 max-h-72 overflow-y-auto">
                 {[
-                  { icon: "check_circle", color: "text-success-green", bg: "bg-success-green/10", title: "Winter Collection post published", time: "2 min ago", unread: true },
-                  { icon: "auto_awesome", color: "text-secondary", bg: "bg-secondary/10", title: "AI generated new content suggestions", time: "15 min ago", unread: true },
+                  { icon: "task_alt", color: "text-success-green", bg: "bg-success-green/10", title: "Winter Collection post published", time: "2 min ago", unread: true },
+                  { icon: "psychology", color: "text-secondary", bg: "bg-secondary/10", title: "AI generated new content suggestions", time: "15 min ago", unread: true },
                   { icon: "campaign", color: "text-primary", bg: "bg-primary/10", title: "Campaign 'Flash Sale' ends tomorrow", time: "1 hour ago", unread: false },
                 ].map((n, i) => (
                   <div key={i} className={`flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/60 transition-colors cursor-pointer ${n.unread ? "bg-primary/[0.03]" : ""}`}>
                     <div className={`w-9 h-9 rounded-full ${n.bg} flex items-center justify-center shrink-0`}>
-                      <span className={`material-symbols-outlined ${n.color} text-[18px]`}>{n.icon}</span>
+                      <span className={`material-symbols-outlined ${n.color} text-[18px]`} style={{ fontVariationSettings: "'FILL' 1" }}>{n.icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-body-sm text-on-surface font-medium">{n.title}</p>
@@ -140,7 +140,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
 
         {/* Settings */}
         <button className="hover:bg-surface-container rounded-full p-2 transition-all relative group">
-          <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:rotate-90 transition-transform duration-300">settings</span>
+          <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:rotate-90 transition-transform duration-300" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
         </button>
 
         {/* Divider */}
@@ -177,7 +177,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
                   >
-                    <span className="material-symbols-outlined text-[18px] text-outline/60">person</span>
+                    <span className="material-symbols-outlined text-[18px] text-outline/60">account_circle</span>
                     My Profile
                   </Link>
                   <Link
@@ -185,7 +185,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
                   >
-                    <span className="material-symbols-outlined text-[18px] text-outline/60">settings</span>
+                    <span className="material-symbols-outlined text-[18px] text-outline/60" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
                     Settings
                   </Link>
                 </div>
