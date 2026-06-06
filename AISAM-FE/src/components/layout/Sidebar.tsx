@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useProfiles, getProfileTypeLabel } from "@/hooks/useProfiles";
-import { getUserFromToken, logout } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
 
 type NavItemConfig = {
@@ -26,15 +26,16 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
     items: [
       { label: "Brand Kit", href: "/brands", icon: "inventory_2" },
       { label: "Content", href: "/content", icon: "photo_library", disabled: true },
-      { label: "Approvals", href: "/approvals", icon: "fact_check", disabled: true },
+      { label: "Approvals", href: "/approvals", icon: "fact_check" },
       { label: "Posts", href: "/posts", icon: "send", disabled: true },
-      { label: "Calendar", href: "/calendar", icon: "event", disabled: true },
+      { label: "Calendar", href: "/calendar", icon: "event" },
     ],
   },
   {
     label: "Marketing",
     items: [
-      { label: "Social Accounts", href: "/social", icon: "share", disabled: true },
+      { label: "Social Accounts", href: "/social", icon: "share" },
+      { label: "Teams", href: "/teams", icon: "group" },
       { label: "Campaigns", href: "/campaigns", icon: "campaign", disabled: true },
       { label: "Analysis", href: "/analytics", icon: "bar_chart", disabled: true },
     ],
@@ -87,12 +88,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
   const { profiles, loading, activeProfile } = useProfiles();
-  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
   const [hoveredProfile, setHoveredProfile] = useState<string | null>(null);
-
-  useEffect(() => {
-    setUser(getUserFromToken());
-  }, []);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
