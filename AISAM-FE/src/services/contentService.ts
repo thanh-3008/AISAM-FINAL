@@ -70,6 +70,7 @@ export interface UpdateContentPayload {
   styleDescription?: string | null;
   contextDescription?: string | null;
   representativeCharacter?: string | null;
+  status?: ContentApiStatus;
 }
 
 /* ─── Mappers ─── */
@@ -84,13 +85,6 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   3: "Draft",
   4: "Published",
 };
-const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
-  Draft: 0,
-  "Awaiting Approval": 1,
-  Scheduled: 4,
-  Published: 4,
-};
-
 function apiItemToContentItem(api: ContentApiItem, platforms: string[] = ["facebook"], tags: string[] = [], hashtags: string[] = []): ContentItem {
   return {
     id: api.id,
@@ -240,7 +234,10 @@ function fallbackCreateContent(data: CreateContentPayload): ContentItem {
 
 export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {
   try {
-    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data, method: "PUT" } as any);
+    const res: GenericResponse<ContentApiItem> = await apiClient(
+      `/content/${id}`,
+      { data, method: "PUT" } satisfies RequestInit & { data?: UpdateContentPayload },
+    );
     if (res?.success) return true;
   } catch {
     // fallback
@@ -254,12 +251,26 @@ function fallbackUpdateContent(id: string, data: UpdateContentPayload): boolean 
     if (data.title !== undefined) MOCK_CONTENT[idx].title = data.title ?? "";
     if (data.adType !== undefined) MOCK_CONTENT[idx].type = ADTYPE_TO_CONTENTTYPE[data.adType] || "TEXT";
     if (data.imageUrl !== undefined) MOCK_CONTENT[idx].thumbnail = data.imageUrl ?? "";
+    if (data.status !== undefined) MOCK_CONTENT[idx].status = API_STATUS_TO_STATUS[data.status] || MOCK_CONTENT[idx].status;
   }
   if (MOCK_DETAILS[id]) {
     if (data.textContent !== undefined) MOCK_DETAILS[id].textContent = data.textContent ?? undefined;
+    if (data.status !== undefined) MOCK_DETAILS[id].status = API_STATUS_TO_STATUS[data.status] || MOCK_DETAILS[id].status;
     MOCK_DETAILS[id].updatedAt = new Date().toISOString();
   }
   return true;
+}
+
+export async function approveContent(id: string): Promise<boolean> {
+  return updateContent(id, { status: 2 }); // 2 = Approved
+}
+
+export async function rejectContent(id: string): Promise<boolean> {
+  return updateContent(id, { status: 3 }); // 3 = Rejected
+}
+
+export async function requestApproval(id: string): Promise<boolean> {
+  return updateContent(id, { status: 1 }); // 1 = PendingApproval
 }
 
 export async function deleteContent(id: string): Promise<boolean> {

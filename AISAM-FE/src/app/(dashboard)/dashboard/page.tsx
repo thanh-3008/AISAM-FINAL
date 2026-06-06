@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useProfiles } from "@/hooks/useProfiles";
+import { fetchUpcomingSchedules, ScheduleItem } from "@/services/scheduleService";
+import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -66,14 +68,22 @@ const kpiData = [
   { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: "850", max: "1000", pct: 85, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
 ];
 
-const scheduleData = [
-  { title: "Winter Collection 2024", platform: "FB", time: "Today, 2:30 PM", platformColor: "text-blue-600", platformBg: "bg-blue-100" },
-  { title: "Coffee Morning Blast", platform: "IG", time: "Tomorrow, 9:00 AM", platformColor: "text-pink-600", platformBg: "bg-pink-100" },
-  { title: "Enterprise Data Launch", platform: "LI", time: "Nov 3, 11:15 AM", platformColor: "text-blue-700", platformBg: "bg-blue-100" },
-  { title: "Spring Launch Teaser", platform: "IG", time: "Nov 5, 10:00 AM", platformColor: "text-pink-600", platformBg: "bg-pink-100" },
-  { title: "Customer Success Story", platform: "LI", time: "Nov 7, 2:00 PM", platformColor: "text-blue-700", platformBg: "bg-blue-100" },
-  { title: "Weekend Flash Sale", platform: "FB", time: "Nov 9, 9:00 AM", platformColor: "text-blue-600", platformBg: "bg-blue-100" },
-];
+function formatScheduleDate(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return `Today, ${timeStr}`;
+  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow, ${timeStr}`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + `, ${timeStr}`;
+}
+
+const PLATFORM_DISPLAY: Record<string, { color: string; bg: string }> = {
+  facebook: { color: "text-blue-600", bg: "bg-blue-100" },
+  instagram: { color: "text-pink-600", bg: "bg-pink-100" },
+  tiktok: { color: "text-white", bg: "bg-neutral-900" },
+};
 
 const campaignsData = [
   { name: "Winter Collection 2024", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$5,000", spent: "$3,240", status: "Active" },
@@ -94,10 +104,15 @@ export default function DashboardPage() {
   const { activeProfile } = useProfiles();
   const profileName = activeProfile?.name || "User";
   const [visible, setVisible] = useState(false);
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    fetchUpcomingSchedules(6).then(setScheduleItems);
   }, []);
 
   return (
@@ -354,32 +369,49 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <h4 className="text-headline-sm text-on-surface">Schedule</h4>
-                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px] font-semibold">{scheduleData.length}</span>
+                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px] font-semibold">{scheduleItems.length}</span>
               </div>
-              <button className="text-label-sm text-primary font-semibold hover:text-primary-container transition-colors flex items-center gap-1 group">
+              <Link href="/calendar" className="text-label-sm text-primary font-semibold hover:text-primary-container transition-colors flex items-center gap-1 group">
                 View All
                 <span className="material-symbols-outlined text-[14px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-              </button>
+              </Link>
             </div>
             <div className="space-y-2 flex-1">
-              {scheduleData.map((post, i) => (
-                <div
-                  key={i}
-                  className="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-container hover:shadow-sm transition-all duration-200 cursor-pointer"
-                  style={{ animation: `slide-up-row 0.4s ease-out ${0.42 + i * 0.06}s forwards`, opacity: 0 }}
-                >
-                  <div className={`w-10 h-10 rounded-xl ${post.platformBg} flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
-                    <span className={`text-[11px] font-bold ${post.platformColor}`}>{post.platform}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title}</p>
-                    <p className="text-[11px] text-outline">{post.time}</p>
-                  </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
-                    <span className="material-symbols-outlined text-outline text-[18px]">more_vert</span>
-                  </div>
+              {scheduleItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <span className="material-symbols-outlined text-outline/40 text-[32px] mb-2">calendar_month</span>
+                  <p className="text-body-sm text-outline">No upcoming schedules</p>
                 </div>
-              ))}
+              ) : scheduleItems.map((post, i) => {
+                const pConfig = PLATFORM_CONFIG[post.platform || "facebook"];
+                const pDisplay = PLATFORM_DISPLAY[post.platform || "facebook"] || { color: "text-outline", bg: "bg-surface-container-high" };
+                return (
+                  <div
+                    key={post.id}
+                    className="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-container hover:shadow-sm transition-all duration-200 cursor-pointer"
+                    style={{ animation: `slide-up-row 0.4s ease-out ${0.42 + i * 0.06}s forwards`, opacity: 0 }}
+                  >
+                    <div className={`w-10 h-10 rounded-xl ${pDisplay.bg} flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
+                      {pConfig ? (
+                        <PlatformIcon platform={post.platform || "facebook"} className="w-[18px] h-[18px]" />
+                      ) : (
+                        <span className={`text-[11px] font-bold ${pDisplay.color}`}>{(post.platform || "?").slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title || "Untitled"}</p>
+                      <p className="text-[11px] text-outline">{formatScheduleDate(post.scheduledAt)}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-semibold tracking-wide ${
+                      post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
+                      post.status === "Failed" ? "bg-red-50 text-red-500" :
+                      "bg-amber-50 text-amber-600"
+                    }`}>
+                      {post.status}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-4 pt-4 border-t border-outline-variant/20">
               <div className="p-3.5 bg-gradient-to-r from-purple-500/[0.06] to-purple-500/[0.02] rounded-xl border border-purple-500/10 hover:border-purple-500/20 transition-colors">

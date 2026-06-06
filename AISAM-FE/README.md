@@ -51,6 +51,8 @@ src/
 │   │   ├── layout.tsx           # Dashboard layout (Sidebar + Header)
 │   │   ├── dashboard/
 │   │   │   └── page.tsx         # Main Dashboard Overview
+│   │   ├── calendar/
+│   │   │   └── page.tsx         # Content Calendar (Month/Week/List views)
 │   │   └── brands/
 │   │       ├── page.tsx         # Brands Listing
 │   │       └── [id]/
@@ -178,6 +180,20 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **AI Generate** | `/content/ai-generate` | `/ai/generate-draft` | POST | JSON: `{ prompt, brandId?, productId? }` | ✅ |
 | | | `/ai/chat` | POST | JSON: `{ message, history: [{ role, text }] }` | ✅ |
 | | | `/content` | POST | JSON (lưu bài viết) | ✅ |
+| **Approvals** | `/approvals` | `/content?page=&pageSize=&searchTerm=&brandId=&adType=&status=` | GET | Query params (lọc `Awaiting Approval` / `Published` / `Draft`) | ✅ |
+| | | `/content/{id}` | PATCH | JSON: `{ status: 2 }` (Approve) | ✅ |
+| | | `/content/{id}` | PATCH | JSON: `{ status: 3 }` (Reject / Request Changes) | ✅ |
+
+### Calendar / Schedules
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Content Calendar** | `/calendar` | `/content-schedules?page=&pageSize=` | GET | Query params (PagedResult) | ✅ |
+| | | `/content-schedules/upcoming?limit=` | GET | Query params (array) | ✅ |
+| | | `/content-schedules/{id}` | GET | — | ✅ |
+| **Create Schedule** | (modal) | `/content-schedules` | POST | JSON: `{ contentId, integrationId, scheduledAt }` | ✅ |
+| **Edit Schedule** | (modal) | `/content-schedules/{id}` | PUT | JSON: `{ integrationId?, scheduledAt? }` | ✅ |
+| **Delete Schedule** | (modal) | `/content-schedules/{id}` | DELETE | — | ✅ |
 
 ### Service Layer
 
@@ -185,6 +201,7 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 |------|-------|----------|
 | `src/services/contentService.ts` | CRUD Content + AI draft/chat | `MOCK_CONTENT` / `MOCK_DETAILS` nếu API lỗi |
 | `src/services/brandService.ts` | Brands + Products listing | `BRANDS` / `PRODUCTS` constants nếu API lỗi |
+| `src/services/scheduleService.ts` | CRUD Schedules + upcoming | `MOCK_SCHEDULES` nếu API lỗi |
 
 ### Auth Flow
 - JWT access token lưu trong `localStorage` key `aisam_token`
@@ -207,7 +224,7 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 - Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Profile-Id
 
 ### Sections chưa có BE (chỉ UI / mock)
-- **Dashboard (`/dashboard`)** — hiển thị mock data, chưa gọi API
+- **Dashboard (`/dashboard`)** — KPI & chart vẫn mock, nhưng Schedule section đã gọi `fetchUpcomingSchedules` từ BE
 - **Campaigns** — BE chưa có CampaignController (chỉ có entity `AdCampaign` trong DB)
 - **Team** — trong Profile Detail (section sidebar)
 - **Security (change password)** — trong Profile Detail
@@ -215,3 +232,5 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 - **Subscription** — hardcoded data
 - **Content list filters (tags, platforms, date range)** — chỉ mock, BE chưa hỗ trợ
 - **Content thumbnails upload** — chỉ mock object URL
+- **Approvals batch actions** — approve/reject nhiều item cùng lúc, frontend gọi lần lượt từng item
+- **Approvals sort / search** — `searchTerm`, `sortBy`, `sortDescending` đã có trong query params, BE cần implement

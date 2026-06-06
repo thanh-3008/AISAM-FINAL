@@ -26,16 +26,16 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
     items: [
       { label: "Brand Kit", href: "/brands", icon: "palette" },
       { label: "Content", href: "/content", icon: "description" },
-      { label: "Approvals", href: "/approvals", icon: "task_alt", disabled: true },
-      { label: "Posts", href: "/posts", icon: "send", disabled: true },
-      { label: "Calendar", href: "/calendar", icon: "calendar_month", disabled: true },
+      { label: "Approvals", href: "/approvals", icon: "task_alt" },
+      { label: "Posts", href: "/posts", icon: "send" },
+      { label: "Calendar", href: "/calendar", icon: "calendar_month" },
     ],
   },
   {
     label: "Marketing",
     items: [
-      { label: "Social Accounts", href: "/social", icon: "public", disabled: true },
-      { label: "Campaigns", href: "/campaigns", icon: "campaign", disabled: true },
+      { label: "Social Accounts", href: "/social", icon: "public" },
+      { label: "Campaigns", href: "/campaigns", icon: "campaign" },
       { label: "Analysis", href: "/analytics", icon: "insights", disabled: true },
     ],
   },

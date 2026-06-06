@@ -331,7 +331,50 @@ Ung dung web can tuong thich voi cac trinh duyet pho bien nhu Chrome, Edge, Fire
 
 ---
 
-## 9. LIMITATIONS & FUTURE ROADMAP
+## 9. FRONTEND PAGES STATUS
+### 9.1. Completed Frontend Pages (UI + Mock Data)
+Cac trang frontend da hoan thanh UI/UX day du, dang su dung mock data voi localStorage. Chua map voi Backend API that.
+
+| # | Page | Route | Chuc Nang | Trang Thai API |
+|---|------|-------|-----------|----------------|
+| 1 | Dashboard | `/dashboard` | Thong ke tong quan, bieu do, hoat dong gan day | Mock data |
+| 2 | Brand Kit | `/brands` | CRUD brands, xem chi tiet brand | Mock data |
+| 3 | Brand Detail | `/brands/[id]` | Chi tiet brand, san pham, content lien ket | Mock data |
+| 4 | Content Library | `/content` | CRUD content, filter, search, grid/list view | Mock data |
+| 5 | Content Detail | `/content/[id]` | Chi tiet content, AI generation history | Mock data |
+| 6 | AI Generate | `/content/ai-generate` | Giao dien sinh content bang AI | Mock data |
+| 7 | Create Content | `/content/create` | Form tao content moi | Mock data |
+| 8 | Approvals | `/approvals` | Danh sach cho duyet, approve/reject | Mock data |
+| 9 | Posts | `/posts` | Danh sach posts, filter, bulk actions, export CSV | Mock data |
+| 10 | Calendar | `/calendar` | Lich dang bai, month/week/list view | Mock data (localStorage) |
+| 11 | Social Accounts | `/social` | Quan ly social accounts, connect/disconnect, manage targets | Mock data (localStorage) |
+| 12 | Campaigns | `/campaigns` | CRUD ad campaigns, filter, stats, bulk actions | Mock data (localStorage) |
+| 13 | AI Studio | `/ai-studio` | Giao dien AI chat, generation | Mock data |
+
+### 9.2. Frontend Pages Chua Map API
+**Luu y quan trong:** Tat ca cac trang tren dang o trang thai **UI Complete + Mock Data**. Chua co ket noi that voi Backend API.
+
+**De map API that, can:**
+1. Thay the mock data trong cac service file (`src/services/*.ts`) bang goi API that
+2. Xu ly error handling, loading states
+3. Them authentication headers (JWT token) vao API calls
+4. Test voi Backend API that
+5. Xu ly cac truong hop edge (network error, timeout, invalid data)
+
+**Cac service files can update:**
+- `src/services/brandService.ts` - Brand API
+- `src/services/contentService.ts` - Content API
+- `src/services/postService.ts` - Posts API
+- `src/services/scheduleService.ts` - Calendar/Schedule API
+- `src/services/socialAccountService.ts` - Social Accounts API
+- `src/services/campaignService.ts` - Campaigns API
+
+### 9.3. Admin Frontend Pages
+Admin frontend da co cac trang quan ly user, payment, subscription va admin tools. Chi tiet xem trong thu muc `AISAM-ADMIN-FE/`.
+
+---
+
+## 10. LIMITATIONS & FUTURE ROADMAP
 ### 9.1. Current Limitations
 He thong hien tai tap trung vao Facebook cho publishing va ads; Instagram Business chua nen duoc mo ta la hoan thien. AI hien tai tap trung vao Gemini text/chat va Vertex Imagen image generation; GPT-4o, DALL-E va AI video generation chua duoc trien khai. Analytics hien tai la dashboard/report co ban va Facebook insights; sentiment analysis, trend prediction va realtime optimization chua co backend service chuyen trach.
 
