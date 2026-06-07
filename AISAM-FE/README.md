@@ -51,12 +51,32 @@ src/
 │   │   ├── layout.tsx           # Dashboard layout (Sidebar + Header)
 │   │   ├── dashboard/
 │   │   │   └── page.tsx         # Main Dashboard Overview
+│   │   ├── analytics/
+│   │   │   └── page.tsx         # Analytics & Performance Reports
+│   │   ├── approvals/
+│   │   │   └── page.tsx         # Content Approvals
+│   │   ├── brands/
+│   │   │   ├── page.tsx         # Brands Listing
+│   │   │   └── [id]/
+│   │   │       └── page.tsx     # Brand Detail (Products, Campaigns, Settings)
 │   │   ├── calendar/
 │   │   │   └── page.tsx         # Content Calendar (Month/Week/List views)
-│   │   └── brands/
-│   │       ├── page.tsx         # Brands Listing
-│   │       └── [id]/
-│   │           └── page.tsx     # Brand Detail (Products, Campaigns, Settings)
+│   │   ├── campaigns/
+│   │   │   └── page.tsx         # Ad Campaigns Management
+│   │   ├── content/
+│   │   │   ├── page.tsx         # Content Library
+│   │   │   ├── create/
+│   │   │   │   └── page.tsx     # Create Content
+│   │   │   ├── ai-generate/
+│   │   │   │   └── page.tsx     # AI Content Generator
+│   │   │   └── [id]/
+│   │   │       └── page.tsx     # Content Detail
+│   │   ├── posts/
+│   │   │   └── page.tsx         # Published Posts
+│   │   ├── social/
+│   │   │   └── page.tsx         # Social Accounts
+│   │   └── team/
+│   │       └── page.tsx         # Team Management
 │   │
 │   ├── overview/
 │   │   └── page.tsx             # Overview / Profile selector
@@ -73,11 +93,38 @@ src/
 │   │   ├── CreateBrandModal.tsx # Create Brand modal
 │   │   ├── EditBrandModal.tsx   # Edit Brand modal
 │   │   └── ProductModal.tsx     # Create/Edit Product modal
+│   ├── campaigns/
+│   │   ├── CampaignCard.tsx     # Campaign card component
+│   │   ├── CampaignDetailModal.tsx
+│   │   ├── CampaignEmptyState.tsx
+│   │   ├── CampaignFilterBar.tsx
+│   │   ├── CampaignStatsCards.tsx
+│   │   ├── CreateCampaignModal.tsx
+│   │   ├── DeleteConfirmModal.tsx
+│   │   ├── EditCampaignModal.tsx
+│   │   └── campaignUtils.ts
 │   ├── layout/
 │   │   ├── Header.tsx           # Dashboard Header
 │   │   └── Sidebar.tsx          # Dashboard Sidebar Navigation
-│   └── profiles/
-│       └── CreateProfileModal.tsx
+│   ├── profiles/
+│   │   └── CreateProfileModal.tsx
+│   └── team/
+│       ├── BulkActionsBar.tsx
+│       ├── CreateTeamModal.tsx
+│       ├── DeleteConfirmModal.tsx
+│       ├── DeleteMemberConfirmModal.tsx
+│       ├── EditMemberModal.tsx
+│       ├── EditTeamModal.tsx
+│       ├── InviteMemberModal.tsx
+│       ├── MemberCard.tsx
+│       ├── RoleDonutChart.tsx
+│       ├── TeamCard.tsx
+│       ├── TeamDetailModal.tsx
+│       ├── TeamEmptyState.tsx
+│       ├── TeamFilterBar.tsx
+│       ├── TeamListView.tsx
+│       ├── TeamStatsCards.tsx
+│       └── teamUtils.ts
 │
 ├── hooks/
 │   └── useProfiles.ts           # Profile state management + caching
@@ -89,8 +136,14 @@ src/
 │   └── contentConstants.ts      # Shared constants (PlatformIcon, BRANDS, PRODUCTS, etc.)
 │
 ├── services/
+│   ├── analyticsService.ts      # Analytics data — Mock data only
+│   ├── brandService.ts          # Brands/Products fetch — API first, mock fallback
+│   ├── campaignService.ts       # Campaigns CRUD — localStorage mock
 │   ├── contentService.ts        # Content CRUD + AI draft/chat — API first, mock fallback
-│   └── brandService.ts          # Brands/Products fetch — API first, mock fallback
+│   ├── postService.ts           # Posts listing — API first, mock fallback
+│   ├── scheduleService.ts       # Schedules CRUD — API first, mock fallback
+│   ├── socialAccountService.ts  # Social accounts — localStorage mock
+│   └── teamService.ts           # Teams/Members CRUD — localStorage mock
 │
 └── stores/
     └── profile-store.ts         # Zustand-like active profile selector store
@@ -123,6 +176,46 @@ Sau khi khởi chạy dự án, bạn có thể truy cập các đường dẫn 
    - **Products tab**: Xem danh sách sản phẩm, tạo/sửa/xoá sản phẩm (kèm upload ảnh)
    - **Campaigns tab**: Danh sách chiến dịch quảng cáo
    - **Settings tab**: Cập nhật thông tin brand
+
+7. **Content Library (`/content`)**: Thư viện nội dung.
+   - Danh sách content với filter theo brand, loại, trạng thái
+   - Tạo content mới hoặc dùng AI generate
+
+8. **AI Generate (`/content/ai-generate`)**: Tạo nội dung bằng AI.
+   - Chat với AI để tạo content
+   - Lưu content vào thư viện
+
+9. **Approvals (`/approvals`)**: Duyệt nội dung.
+   - Danh sách content chờ duyệt
+   - Approve / Reject content
+
+10. **Calendar (`/calendar`)**: Lịch đăng bài.
+    - Xem lịch theo tháng/tuần/danh sách
+    - Tạo / Sửa / Xoá lịch đăng
+
+11. **Posts (`/posts`)**: Bài đăng đã publish.
+    - Danh sách bài đã đăng lên mạng xã hội
+    - Xem chi tiết và xoá bài
+
+12. **Campaigns (`/campaigns`)**: Quản lý chiến dịch quảng cáo.
+    - Tạo / Sửa / Xoá campaign
+    - Theo dõi hiệu suất (impressions, clicks, spend)
+    - Bulk actions (chọn nhiều campaign)
+
+13. **Team Management (`/team`)**: Quản lý nhóm và thành viên.
+    - Tạo / Sửa / Xoá team
+    - Mời thành viên mới
+    - Phân quyền (Owner, Admin, Editor, Member, Viewer)
+    - Xem biểu đồ phân bố roles
+
+14. **Analytics (`/analytics`)**: Phân tích hiệu suất.
+    - KPIs: Ad Spend, Conversion Rate, CPA, ROAS
+    - Biểu đồ xu hướng
+    - AI Insights và recommendations
+
+15. **Social Accounts (`/social`)**: Quản lý tài khoản mạng xã hội.
+    - Kết nối / Ngắt kết nối tài khoản
+    - Xem thống kê followers, posts
 
 ## Completed Pages & BE API Map
 
@@ -195,6 +288,58 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Edit Schedule** | (modal) | `/content-schedules/{id}` | PUT | JSON: `{ integrationId?, scheduledAt? }` | ✅ |
 | **Delete Schedule** | (modal) | `/content-schedules/{id}` | DELETE | — | ✅ |
 
+### Posts
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Posts List** | `/posts` | `/posts?page=&pageSize=&searchTerm=&brandId=&status=&platform=` | GET | Query params (PagedResult) | ✅ |
+| **Post Detail** | (modal) | `/posts/{id}` | GET | — | ✅ |
+| **Delete Post** | (modal) | `/posts/{id}` | DELETE | — | ✅ |
+
+### Team Management
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Team List** | `/team` | — | — | — | ⏳ Mock (localStorage) |
+| **Create Team** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Edit Team** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Delete Team** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Invite Member** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Edit Member** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Remove Member** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+
+> **Note**: BE đã có Data Models (`Team`, `TeamMember`, `TeamBrand`) nhưng chưa có Controller/Service/Repository.
+
+### Analytics
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Analytics Dashboard** | `/analytics` | — | — | — | ⏳ Mock data |
+
+> **Note**: BE có `PerformanceReport` model và `PerformanceReportRepository` nhưng chưa có Controller/Service.
+
+### Campaigns
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Campaigns List** | `/campaigns` | — | — | — | ⏳ Mock (localStorage) |
+| **Create Campaign** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Edit Campaign** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Delete Campaign** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Bulk Actions** | — | — | — | — | ⏳ Mock (localStorage) |
+
+> **Note**: BE có entity `AdCampaign` trong DB nhưng chưa có Controller/Service.
+
+### Social Accounts
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Social Accounts List** | `/social` | — | — | — | ⏳ Mock (localStorage) |
+| **Add Account** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| **Delete Account** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+
+> **Note**: BE có `SocialAccountController` và `SocialIntegrationController` nhưng FE chưa kết nối.
+
 ### Service Layer
 
 | File | Mô tả | Fallback |
@@ -202,6 +347,11 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | `src/services/contentService.ts` | CRUD Content + AI draft/chat | `MOCK_CONTENT` / `MOCK_DETAILS` nếu API lỗi |
 | `src/services/brandService.ts` | Brands + Products listing | `BRANDS` / `PRODUCTS` constants nếu API lỗi |
 | `src/services/scheduleService.ts` | CRUD Schedules + upcoming | `MOCK_SCHEDULES` nếu API lỗi |
+| `src/services/postService.ts` | Posts listing + delete | `MOCK_POSTS` nếu API lỗi |
+| `src/services/campaignService.ts` | Campaigns CRUD | `INITIAL_MOCK_CAMPAIGNS` (localStorage) |
+| `src/services/teamService.ts` | Teams + Members CRUD | `INITIAL_MOCK_TEAMS` / `INITIAL_MOCK_MEMBERS` (localStorage) |
+| `src/services/analyticsService.ts` | Analytics data | `MOCK_ANALYTICS_DATA` (hardcoded) |
+| `src/services/socialAccountService.ts` | Social accounts CRUD | `INITIAL_MOCK_ACCOUNTS` (localStorage) |
 
 ### Auth Flow
 - JWT access token lưu trong `localStorage` key `aisam_token`
@@ -223,14 +373,19 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 - `ActiveProfileMiddleware` yêu cầu header `X-Profile-Id` cho các prefix: `/api/content`, `/api/dashboard`, `/api/social`, `/api/posts`, `/api/ai`, `/api/quota`, `/api/payment`
 - Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Profile-Id
 
-### Sections chưa có BE (chỉ UI / mock)
-- **Dashboard (`/dashboard`)** — KPI & chart vẫn mock, nhưng Schedule section đã gọi `fetchUpcomingSchedules` từ BE
-- **Campaigns** — BE chưa có CampaignController (chỉ có entity `AdCampaign` trong DB)
-- **Team** — trong Profile Detail (section sidebar)
-- **Security (change password)** — trong Profile Detail
-- **Billing & Quota** — hardcoded data
-- **Subscription** — hardcoded data
-- **Content list filters (tags, platforms, date range)** — chỉ mock, BE chưa hỗ trợ
-- **Content thumbnails upload** — chỉ mock object URL
-- **Approvals batch actions** — approve/reject nhiều item cùng lúc, frontend gọi lần lượt từng item
-- **Approvals sort / search** — `searchTerm`, `sortBy`, `sortDescending` đã có trong query params, BE cần implement
+### Sections chưa map BE (chỉ UI / mock / localStorage)
+
+| Section | Route | Trạng thái | Chi tiết |
+|---------|-------|-----------|----------|
+| **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | Schedule section đã gọi BE, KPI & charts vẫn mock |
+| **Campaigns** | `/campaigns` | ⏳ Mock | BE có entity `AdCampaign`, chưa có Controller/Service |
+| **Team Management** | `/team` | ⏳ Mock | BE có Models (`Team`, `TeamMember`, `TeamBrand`), chưa có Controller/Service/Repository |
+| **Analytics** | `/analytics` | ⏳ Mock | BE có `PerformanceReport` model + Repository, chưa có Controller/Service |
+| **Social Accounts** | `/social` | ⏳ Mock | BE có `SocialAccountController`, FE chưa kết nối |
+| **Security (change password)** | (profile) | ⏳ Mock | Trong Profile Detail |
+| **Billing & Quota** | (profile) | ⏳ Mock | Hardcoded data |
+| **Subscription** | (profile) | ⏳ Mock | Hardcoded data |
+| **Content list filters** | `/content` | ⏳ Một phần | `tags`, `platforms`, `date range` chỉ mock, BE chưa hỗ trợ |
+| **Content thumbnails upload** | `/content` | ⏳ Mock | Chỉ mock object URL |
+| **Approvals batch actions** | `/approvals` | ⏳ Một phần | Frontend gọi lần lượt từng item |
+| **Approvals sort / search** | `/approvals` | ⏳ Một phần | `searchTerm`, `sortBy`, `sortDescending` đã có query params |
