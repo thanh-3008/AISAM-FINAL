@@ -1,3 +1,5 @@
+import { apiClient } from "@/lib/apiClient";
+
 export type SocialPlatform = "facebook" | "instagram" | "tiktok";
 export type AccountStatus = "connected" | "expired" | "error";
 
@@ -28,6 +30,16 @@ export interface SocialAccount {
   postsCount: number;
 }
 
+export interface SocialIntegration {
+  id: string;
+  socialAccountId: string;
+  targetId: string;
+  provider: SocialPlatform;
+  accountName: string;
+  targetName: string;
+  isActive: boolean;
+}
+
 export interface AvailableTarget {
   providerTargetId: string;
   name: string;
@@ -40,6 +52,25 @@ export interface AvailableTarget {
 export interface AuthUrlResponse {
   authUrl: string;
   state: string;
+}
+
+interface GenericResponse<T> {
+  success: boolean;
+  message?: string | null;
+  statusCode?: number;
+  data?: T;
+  error?: { errorCode?: string; errorMessage?: string };
+  timestamp?: string;
+}
+
+interface SocialIntegrationDto {
+  id: string;
+  socialAccountId: string;
+  targetId: string;
+  provider: string;
+  accountName: string;
+  targetName: string;
+  isActive: boolean;
 }
 
 const STORAGE_KEY = "aisam_social_accounts_v2";
@@ -243,6 +274,44 @@ export async function deleteSocialAccount(accountId: string): Promise<boolean> {
     saveAccounts(MOCK_ACCOUNTS);
   }
   return idx >= 0;
+}
+
+export async function fetchSocialIntegrations(brandId?: string): Promise<SocialIntegration[]> {
+  try {
+    if (brandId) {
+      const res: GenericResponse<SocialIntegrationDto[]> = await apiClient(`/social/integrations/brand/${brandId}`);
+      if (res?.data) {
+        return res.data.map((dto) => ({
+          id: dto.id,
+          socialAccountId: dto.socialAccountId,
+          targetId: dto.targetId,
+          provider: dto.provider.toLowerCase() as SocialPlatform,
+          accountName: dto.accountName,
+          targetName: dto.targetName,
+          isActive: dto.isActive,
+        }));
+      }
+    }
+  } catch { /* fallback */ }
+  
+  const accounts = loadAccounts();
+  const integrations: SocialIntegration[] = [];
+  for (const account of accounts) {
+    if (!account.isActive) continue;
+    for (const target of account.targets || []) {
+      if (!target.isActive) continue;
+      integrations.push({
+        id: `${account.id}-${target.id}`,
+        socialAccountId: account.id,
+        targetId: target.id,
+        provider: account.provider,
+        accountName: account.accountName,
+        targetName: target.name,
+        isActive: true,
+      });
+    }
+  }
+  return integrations;
 }
 
 export function getAccountStatus(account: SocialAccount): AccountStatus {

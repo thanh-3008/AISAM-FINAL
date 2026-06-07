@@ -32,8 +32,8 @@ export function getInitials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }
 
-export function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+export function calcTimeAgo(now: number, iso: string): string {
+  const diff = now - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;

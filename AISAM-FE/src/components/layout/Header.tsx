@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useProfiles, getProfileTypeLabel } from "@/hooks/useProfiles";
 import { getUserFromToken, logout } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
+import {
+  getNotifications,
+  getUnreadCount,
+  markAllNotificationsRead,
+  type NotificationListItem,
+} from "@/services/notificationService";
 
 interface HeaderProps {
   title?: string;
@@ -15,18 +21,121 @@ function getInitials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }
 
+function getNotificationIcon(type: string): { icon: string; color: string; bg: string } {
+  switch (type.toUpperCase()) {
+    case "CONTENT_PUBLISHED":
+      return { icon: "task_alt", color: "text-success-green", bg: "bg-success-green/10" };
+    case "AI_SUGGESTION":
+      return { icon: "auto_awesome", color: "text-secondary", bg: "bg-secondary/10" };
+    case "CAMPAIGN":
+      return { icon: "campaign", color: "text-primary", bg: "bg-primary/10" };
+    case "APPROVAL":
+      return { icon: "approval", color: "text-amber-600", bg: "bg-amber-50" };
+    case "TEAM":
+      return { icon: "group", color: "text-blue-600", bg: "bg-blue-50" };
+    case "BILLING":
+      return { icon: "receipt", color: "text-purple-600", bg: "bg-purple-50" };
+    default:
+      return { icon: "notifications", color: "text-primary", bg: "bg-primary/10" };
+  }
+}
+
+// Calculate time ago (client-side only to avoid hydration mismatch)
+function useTimeAgo(dateStr: string): string {
+  const [timeAgo, setTimeAgo] = useState<string>("");
+  
+  useEffect(() => {
+    const calculateTimeAgo = () => {
+      const now = Date.now();
+      const date = new Date(dateStr).getTime();
+      const diff = now - date;
+      
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+      
+      if (minutes < 1) setTimeAgo("Just now");
+      else if (minutes < 60) setTimeAgo(`${minutes}m ago`);
+      else if (hours < 24) setTimeAgo(`${hours}h ago`);
+      else if (days < 7) setTimeAgo(`${days}d ago`);
+      else setTimeAgo(new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+    };
+    
+    calculateTimeAgo();
+  }, [dateStr]);
+  
+  return timeAgo;
+}
+
+function TimeAgo({ dateStr }: { dateStr: string }) {
+  const timeAgo = useTimeAgo(dateStr);
+  return <span>{timeAgo}</span>;
+}
+
 export default function Header({ breadcrumbs }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [recentNotifs, setRecentNotifs] = useState<NotificationListItem[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
   const { activeProfile } = useProfiles();
   const { toggle } = useSidebar();
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const stored = localStorage.getItem("darkMode") === "true";
+    setDarkMode(stored);
     setUser(getUserFromToken());
   }, []);
+
+  useEffect(() => {
+    if (darkMode === false) {
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+    }
+    localStorage.setItem("darkMode", String(darkMode));
+  }, [darkMode]);
+
+  // Fetch unread count
+  useEffect(() => {
+    const fetchCount = async () => {
+      const count = await getUnreadCount();
+      setUnreadCount(count);
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch recent notifications when dropdown opens
+  useEffect(() => {
+    if (notifOpen) {
+      const fetchNotifs = async () => {
+        setLoadingNotifs(true);
+        const data = await getNotifications(1, 5);
+        if (data) {
+          setRecentNotifs(data.data);
+        }
+        setLoadingNotifs(false);
+      };
+      fetchNotifs();
+    }
+  }, [notifOpen]);
+
+  const handleMarkAllRead = async () => {
+    setMarkingAll(true);
+    const success = await markAllNotificationsRead();
+    if (success) {
+      setRecentNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    }
+    setMarkingAll(false);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -99,34 +208,60 @@ export default function Header({ breadcrumbs }: HeaderProps) {
             className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
           >
             <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:scale-110 transition-transform duration-200" style={{ fontVariationSettings: "'FILL' 1" }}>notifications_active</span>
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-danger-red rounded-full text-label-xs font-bold text-white flex items-center justify-center px-1 shadow-sm ring-2 ring-surface">
-              3
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-danger-red rounded-full text-label-xs font-bold text-white flex items-center justify-center px-1 shadow-sm ring-2 ring-surface">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {notifOpen && (
             <div className="absolute right-0 top-11 w-80 bg-surface-container-lowest border border-outline-variant/30 rounded-2xl shadow-lg z-50 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-outline-variant/20">
                 <span className="text-headline-sm font-bold">Notifications</span>
-                <button className="text-label-sm text-primary hover:text-primary/80 transition-colors">Mark all read</button>
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={handleMarkAllRead}
+                    disabled={markingAll}
+                    className="text-label-sm text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                  >
+                    {markingAll ? "Marking..." : "Mark all read"}
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-outline-variant/10 max-h-72 overflow-y-auto">
-                {[
-                  { icon: "task_alt", color: "text-success-green", bg: "bg-success-green/10", title: "Winter Collection post published", time: "2 min ago", unread: true },
-                  { icon: "psychology", color: "text-secondary", bg: "bg-secondary/10", title: "AI generated new content suggestions", time: "15 min ago", unread: true },
-                  { icon: "campaign", color: "text-primary", bg: "bg-primary/10", title: "Campaign 'Flash Sale' ends tomorrow", time: "1 hour ago", unread: false },
-                ].map((n, i) => (
-                  <div key={i} className={`flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/60 transition-colors cursor-pointer ${n.unread ? "bg-primary/[0.03]" : ""}`}>
-                    <div className={`w-9 h-9 rounded-full ${n.bg} flex items-center justify-center shrink-0`}>
-                      <span className={`material-symbols-outlined ${n.color} text-[18px]`} style={{ fontVariationSettings: "'FILL' 1" }}>{n.icon}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-body-sm text-on-surface font-medium">{n.title}</p>
-                      <p className="text-label-sm text-outline/60 mt-0.5">{n.time}</p>
-                    </div>
-                    {n.unread && <span className="w-1.5 h-1.5 bg-primary rounded-full shrink-0 mt-2.5" />}
+                {loadingNotifs ? (
+                  <div className="px-5 py-8 text-center">
+                    <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-label-sm text-on-surface-variant">Loading...</p>
                   </div>
-                ))}
+                ) : recentNotifs.length === 0 ? (
+                  <div className="px-5 py-8 text-center">
+                    <span className="material-symbols-outlined text-outline/40 text-3xl mb-2 block">notifications_off</span>
+                    <p className="text-label-sm text-on-surface-variant">No notifications yet</p>
+                  </div>
+                ) : (
+                  recentNotifs.map((n) => {
+                    const { icon, color, bg } = getNotificationIcon(n.type);
+                    return (
+                      <Link 
+                        key={n.id} 
+                        href={n.actionUrl || "/notifications"}
+                        onClick={() => setNotifOpen(false)}
+                        className={`flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/60 transition-colors cursor-pointer ${n.isRead ? "" : "bg-primary/[0.03]"}`}
+                      >
+                        <div className={`w-9 h-9 rounded-full ${bg} flex items-center justify-center shrink-0`}>
+                          <span className={`material-symbols-outlined ${color} text-[18px]`} style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-body-sm text-on-surface font-medium line-clamp-1">{n.title}</p>
+                          <p className="text-label-sm text-outline/60 mt-0.5"><TimeAgo dateStr={n.createdAt} /></p>
+                        </div>
+                        {!n.isRead && <span className="w-1.5 h-1.5 bg-primary rounded-full shrink-0 mt-2.5" />}
+                      </Link>
+                    );
+                  })
+                )}
               </div>
               <div className="px-5 py-3 border-t border-outline-variant/20">
                 <Link href="/notifications" className="text-label-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1 justify-center">
@@ -188,6 +323,13 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     <span className="material-symbols-outlined text-[18px] text-outline/60" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
                     Settings
                   </Link>
+                  <button
+                    onClick={() => setDarkMode(!darkMode)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-outline/60" style={{ fontVariationSettings: "'FILL' 1" }}>{darkMode ? "light_mode" : "dark_mode"}</span>
+                    {darkMode ? "Light Mode" : "Dark Mode"}
+                  </button>
                 </div>
                 <div className="border-t border-outline-variant/10 mt-1 pt-1">
                   <button

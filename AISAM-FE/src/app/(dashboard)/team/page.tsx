@@ -33,11 +33,18 @@ import DeleteConfirmModal from "@/components/team/DeleteConfirmModal";
 import BulkActionsBar from "@/components/team/BulkActionsBar";
 import RoleDonutChart from "@/components/team/RoleDonutChart";
 import MemberCard from "@/components/team/MemberCard";
+import { calcTimeAgo } from "@/components/team/teamUtils";
 
 export default function TeamPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemberStatus | "">("");
@@ -505,17 +512,7 @@ export default function TeamPage() {
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-label-xs text-outline">{
-                                  (() => {
-                                    const diff = Date.now() - new Date(member.lastActive).getTime();
-                                    const mins = Math.floor(diff / 60000);
-                                    if (mins < 1) return "Just now";
-                                    if (mins < 60) return `${mins}m ago`;
-                                    const hours = Math.floor(mins / 60);
-                                    if (hours < 24) return `${hours}h ago`;
-                                    return `${Math.floor(hours / 24)}d ago`;
-                                  })()
-                                }</span>
+                                <span className="text-label-xs text-outline">{calcTimeAgo(now, member.lastActive)}</span>
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

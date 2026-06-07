@@ -61,6 +61,8 @@ src/
 │   │   │       └── page.tsx     # Brand Detail (Products, Campaigns, Settings)
 │   │   ├── calendar/
 │   │   │   └── page.tsx         # Content Calendar (Month/Week/List views)
+│   │   ├── notifications/
+│   │   │   └── page.tsx         # Notifications (detail modal, delete, mark read)
 │   │   ├── campaigns/
 │   │   │   └── page.tsx         # Ad Campaigns Management
 │   │   ├── content/
@@ -140,6 +142,7 @@ src/
 │   ├── brandService.ts          # Brands/Products fetch — API first, mock fallback
 │   ├── campaignService.ts       # Campaigns CRUD — localStorage mock
 │   ├── contentService.ts        # Content CRUD + AI draft/chat — API first, mock fallback
+│   ├── notificationService.ts   # Notifications list/detail + mark read/delete — API first, mock fallback
 │   ├── postService.ts           # Posts listing — API first, mock fallback
 │   ├── scheduleService.ts       # Schedules CRUD — API first, mock fallback
 │   ├── socialAccountService.ts  # Social accounts — localStorage mock
@@ -193,27 +196,34 @@ Sau khi khởi chạy dự án, bạn có thể truy cập các đường dẫn 
     - Xem lịch theo tháng/tuần/danh sách
     - Tạo / Sửa / Xoá lịch đăng
 
-11. **Posts (`/posts`)**: Bài đăng đã publish.
+11. **Notifications (`/notifications`)**: Trung tâm thông báo.
+    - Danh sách thông báo với filter All / Unread
+    - Xem chi tiết thông báo (modal)
+    - Đánh dấu đã đọc / Đánh dấu tất cả đã đọc
+    - Xoá thông báo
+    - Hiển thị số thông báo chưa đọc trên Header
+
+12. **Posts (`/posts`)**: Bài đăng đã publish.
     - Danh sách bài đã đăng lên mạng xã hội
     - Xem chi tiết và xoá bài
 
-12. **Campaigns (`/campaigns`)**: Quản lý chiến dịch quảng cáo.
+13. **Campaigns (`/campaigns`)**: Quản lý chiến dịch quảng cáo.
     - Tạo / Sửa / Xoá campaign
     - Theo dõi hiệu suất (impressions, clicks, spend)
     - Bulk actions (chọn nhiều campaign)
 
-13. **Team Management (`/team`)**: Quản lý nhóm và thành viên.
+14. **Team Management (`/team`)**: Quản lý nhóm và thành viên.
     - Tạo / Sửa / Xoá team
     - Mời thành viên mới
     - Phân quyền (Owner, Admin, Editor, Member, Viewer)
     - Xem biểu đồ phân bố roles
 
-14. **Analytics (`/analytics`)**: Phân tích hiệu suất.
+15. **Analytics (`/analytics`)**: Phân tích hiệu suất.
     - KPIs: Ad Spend, Conversion Rate, CPA, ROAS
     - Biểu đồ xu hướng
     - AI Insights và recommendations
 
-15. **Social Accounts (`/social`)**: Quản lý tài khoản mạng xã hội.
+16. **Social Accounts (`/social`)**: Quản lý tài khoản mạng xã hội.
     - Kết nối / Ngắt kết nối tài khoản
     - Xem thống kê followers, posts
 
@@ -276,6 +286,19 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Approvals** | `/approvals` | `/content?page=&pageSize=&searchTerm=&brandId=&adType=&status=` | GET | Query params (lọc `Awaiting Approval` / `Published` / `Draft`) | ✅ |
 | | | `/content/{id}` | PATCH | JSON: `{ status: 2 }` (Approve) | ✅ |
 | | | `/content/{id}` | PATCH | JSON: `{ status: 3 }` (Reject / Request Changes) | ✅ |
+
+### Notifications
+
+| Page | Route | BE Endpoint | Method | Body / Params | Status |
+|------|-------|-------------|--------|---------------|--------|
+| **Notifications List** | `/notifications` | `/notifications?page=&pageSize=` | GET | Query params (PagedResult) | ✅ |
+| **Notification Detail** | (modal) | `/notifications/{id}` | GET | — | ✅ |
+| **Mark as Read** | (click) | `/notifications/{id}/mark-read` | POST | — | ✅ |
+| **Mark All Read** | (button) | `/notifications/mark-all-read` | POST | — | ✅ |
+| **Delete Notification** | (icon) | `/notifications/{id}` | DELETE | — | ✅ |
+| **Unread Count** | (header badge) | `/notifications/unread-count` | GET | — | ✅ |
+
+> **Note**: BE đã có `NotificationsController` đầy đủ. FE dùng mock data mặc định (`useMockData = true`), có flag sẵn để switch sang API thật.
 
 ### Calendar / Schedules
 
@@ -348,6 +371,7 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | `src/services/brandService.ts` | Brands + Products listing | `BRANDS` / `PRODUCTS` constants nếu API lỗi |
 | `src/services/scheduleService.ts` | CRUD Schedules + upcoming | `MOCK_SCHEDULES` nếu API lỗi |
 | `src/services/postService.ts` | Posts listing + delete | `MOCK_POSTS` nếu API lỗi |
+| `src/services/notificationService.ts` | Notifications list/detail + mark read/delete | `MOCK_NOTIFICATIONS` nếu API lỗi hoặc `useMockData = true` |
 | `src/services/campaignService.ts` | Campaigns CRUD | `INITIAL_MOCK_CAMPAIGNS` (localStorage) |
 | `src/services/teamService.ts` | Teams + Members CRUD | `INITIAL_MOCK_TEAMS` / `INITIAL_MOCK_MEMBERS` (localStorage) |
 | `src/services/analyticsService.ts` | Analytics data | `MOCK_ANALYTICS_DATA` (hardcoded) |
@@ -377,6 +401,7 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 | Section | Route | Trạng thái | Chi tiết |
 |---------|-------|-----------|----------|
+| **Notifications** | `/notifications` | ✅ Hoàn chỉnh | BE có `NotificationsController`, FE dùng mock (`useMockData = true`), sẵn sàng switch qua API thật |
 | **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | Schedule section đã gọi BE, KPI & charts vẫn mock |
 | **Campaigns** | `/campaigns` | ⏳ Mock | BE có entity `AdCampaign`, chưa có Controller/Service |
 | **Team Management** | `/team` | ⏳ Mock | BE có Models (`Team`, `TeamMember`, `TeamBrand`), chưa có Controller/Service/Repository |

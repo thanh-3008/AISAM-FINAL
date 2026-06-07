@@ -1,7 +1,7 @@
 "use client";
 
 import { type Team, type TeamMember } from "@/services/teamService";
-import { TEAM_COLORS, getInitials, formatDate, timeAgo, ROLE_CONFIG, STATUS_CONFIG } from "./teamUtils";
+import { TEAM_COLORS, getInitials, formatDate, ROLE_CONFIG, STATUS_CONFIG } from "./teamUtils";
 
 interface TeamDetailModalProps {
   team: Team | null;

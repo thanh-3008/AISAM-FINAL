@@ -39,6 +39,22 @@ interface PagedResult<T> {
   hasPreviousPage: boolean;
 }
 
+/* ─── Schedule Change Event ─── */
+
+export const SCHEDULE_CHANGE_EVENT = "aisam:schedule-changed";
+
+export function dispatchScheduleChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(SCHEDULE_CHANGE_EVENT));
+  }
+}
+
+export function onScheduleChange(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(SCHEDULE_CHANGE_EVENT, callback);
+  return () => window.removeEventListener(SCHEDULE_CHANGE_EVENT, callback);
+}
+
 /* ─── Mock Data ─── */
 
 const STORAGE_KEY = "aisam_schedules";
@@ -96,7 +112,8 @@ function enrichFromMock(s: ScheduleItem): ScheduleItem {
 type ApiDataOptions<TData> = RequestInit & { data?: TData };
 
 function getMockPage(page: number, pageSize: number): PagedResult<ScheduleItem> {
-  const enriched = MOCK_SCHEDULES.map(enrichFromMock);
+  const schedules = loadSchedules();
+  const enriched = schedules.map(enrichFromMock);
   const totalCount = enriched.length;
   const data = enriched.slice((page - 1) * pageSize, page * pageSize);
   return {
@@ -121,7 +138,15 @@ export async function fetchSchedules(params?: {
     if (params?.page) query.set("page", String(params.page));
     if (params?.pageSize) query.set("pageSize", String(params.pageSize));
     const res: GenericResponse<PagedResult<ScheduleItem>> = await apiClient(`/content-schedules?${query.toString()}`);
-    if (res?.data?.data) return res.data;
+    if (res?.data?.data) {
+      const enriched = res.data.data.map(enrichFromMock);
+      if (enriched.length > 0) {
+        saveSchedules(enriched);
+        MOCK_SCHEDULES.length = 0;
+        MOCK_SCHEDULES.push(...enriched);
+      }
+      return { ...res.data, data: enriched };
+    }
   } catch { /* fallback */ }
   return getMockPage(params?.page || 1, params?.pageSize || 50);
 }
@@ -129,12 +154,34 @@ export async function fetchSchedules(params?: {
 export async function fetchUpcomingSchedules(limit = 10): Promise<ScheduleItem[]> {
   try {
     const res: GenericResponse<ScheduleItem[]> = await apiClient(`/content-schedules/upcoming?limit=${limit}`);
-    if (res?.data) return res.data.map(enrichFromMock);
+    if (res?.data) {
+      const enriched = res.data.map(enrichFromMock);
+      if (enriched.length > 0) {
+        const existing = loadSchedules();
+        const newIds = new Set(enriched.map(s => s.id));
+        const merged = [...enriched, ...existing.filter(s => !newIds.has(s.id))];
+        saveSchedules(merged);
+        MOCK_SCHEDULES.length = 0;
+        MOCK_SCHEDULES.push(...merged);
+      }
+      return enriched;
+    }
   } catch { /* fallback */ }
-  return MOCK_SCHEDULES
+  const schedules = loadSchedules();
+  return schedules
     .filter((s) => s.status === "Pending" || s.status === "Processing")
     .slice(0, limit)
     .map(enrichFromMock);
+}
+
+function isValidGuid(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+function generateMockGuid(prefix: string): string {
+  const hash = prefix.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hex = hash.toString(16).padStart(8, '0');
+  return `${hex.slice(0, 8)}-${hex.slice(0, 4)}-4${hex.slice(1, 4)}-a${hex.slice(1, 4)}-${hex.padEnd(12, '0').slice(0, 12)}`;
 }
 
 export async function createSchedule(data: {
@@ -142,26 +189,44 @@ export async function createSchedule(data: {
   integrationId: string;
   scheduledAt: string;
 }): Promise<ScheduleItem | null> {
+  const contentId = isValidGuid(data.contentId) ? data.contentId : generateMockGuid(data.contentId);
+  const integrationId = isValidGuid(data.integrationId) ? data.integrationId : generateMockGuid(data.integrationId);
+  
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient(
       "/content-schedules",
-      { data, method: "POST" } satisfies ApiDataOptions<typeof data>,
+      { data: { contentId, integrationId, scheduledAt: data.scheduledAt }, method: "POST" } satisfies ApiDataOptions<{ contentId: string; integrationId: string; scheduledAt: string }>,
     );
-    if (res?.data) return enrichFromMock(res.data);
+    if (res?.data) {
+      const enriched = enrichFromMock(res.data);
+      const schedules = loadSchedules();
+      schedules.unshift(enriched);
+      saveSchedules(schedules);
+      MOCK_SCHEDULES.length = 0;
+      MOCK_SCHEDULES.push(...schedules);
+      dispatchScheduleChange();
+      return enriched;
+    }
   } catch { /* fallback */ }
+  const platform = data.integrationId.split("-")[0] || "facebook";
   const mock: ScheduleItem = {
     id: `s${Date.now()}`,
-    contentId: data.contentId,
-    integrationId: data.integrationId,
+    contentId,
+    integrationId,
     scheduledAt: data.scheduledAt,
     executedAt: null,
     status: "Pending",
     attemptCount: 0,
     lastError: null,
+    platform,
   };
   const enriched = enrichFromMock(mock);
-  MOCK_SCHEDULES.unshift(enriched);
-  saveSchedules(MOCK_SCHEDULES);
+  const schedules = loadSchedules();
+  schedules.unshift(enriched);
+  saveSchedules(schedules);
+  MOCK_SCHEDULES.length = 0;
+  MOCK_SCHEDULES.push(...schedules);
+  dispatchScheduleChange();
   return enriched;
 }
 
@@ -169,18 +234,46 @@ export async function updateSchedule(id: string, data: {
   integrationId?: string;
   scheduledAt?: string;
 }): Promise<boolean> {
+  const updateData: { integrationId?: string; scheduledAt?: string } = {};
+  if (data.scheduledAt) updateData.scheduledAt = data.scheduledAt;
+  if (data.integrationId) {
+    updateData.integrationId = isValidGuid(data.integrationId) ? data.integrationId : generateMockGuid(data.integrationId);
+  }
+  
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient(
       `/content-schedules/${id}`,
-      { data, method: "PUT" } satisfies ApiDataOptions<typeof data>,
+      { data: updateData, method: "PUT" } satisfies ApiDataOptions<typeof updateData>,
     );
-    if (res?.success) return true;
+    if (res?.success) {
+      const schedules = loadSchedules();
+      const idx = schedules.findIndex((s) => s.id === id);
+      if (idx >= 0) {
+        if (updateData.scheduledAt) schedules[idx].scheduledAt = updateData.scheduledAt;
+        if (updateData.integrationId) {
+          schedules[idx].integrationId = updateData.integrationId;
+          schedules[idx].platform = updateData.integrationId.split("-")[0] || schedules[idx].platform;
+        }
+        saveSchedules(schedules);
+        MOCK_SCHEDULES.length = 0;
+        MOCK_SCHEDULES.push(...schedules);
+      }
+      dispatchScheduleChange();
+      return true;
+    }
   } catch { /* fallback */ }
-  const idx = MOCK_SCHEDULES.findIndex((s) => s.id === id);
+  const schedules = loadSchedules();
+  const idx = schedules.findIndex((s) => s.id === id);
   if (idx >= 0) {
-    if (data.scheduledAt) MOCK_SCHEDULES[idx].scheduledAt = data.scheduledAt;
-    if (data.integrationId) MOCK_SCHEDULES[idx].integrationId = data.integrationId;
-    saveSchedules(MOCK_SCHEDULES);
+    if (updateData.scheduledAt) schedules[idx].scheduledAt = updateData.scheduledAt;
+    if (updateData.integrationId) {
+      schedules[idx].integrationId = updateData.integrationId;
+      schedules[idx].platform = updateData.integrationId.split("-")[0] || schedules[idx].platform;
+    }
+    saveSchedules(schedules);
+    MOCK_SCHEDULES.length = 0;
+    MOCK_SCHEDULES.push(...schedules);
+    dispatchScheduleChange();
   }
   return idx >= 0;
 }
@@ -188,12 +281,27 @@ export async function updateSchedule(id: string, data: {
 export async function deleteSchedule(id: string): Promise<boolean> {
   try {
     const res: GenericResponse<boolean> = await apiClient(`/content-schedules/${id}`, { method: "DELETE" });
-    if (res?.success) return true;
+    if (res?.success) {
+      const schedules = loadSchedules();
+      const idx = schedules.findIndex((s) => s.id === id);
+      if (idx >= 0) {
+        schedules.splice(idx, 1);
+        saveSchedules(schedules);
+        MOCK_SCHEDULES.length = 0;
+        MOCK_SCHEDULES.push(...schedules);
+      }
+      dispatchScheduleChange();
+      return true;
+    }
   } catch { /* fallback */ }
-  const idx = MOCK_SCHEDULES.findIndex((s) => s.id === id);
+  const schedules = loadSchedules();
+  const idx = schedules.findIndex((s) => s.id === id);
   if (idx >= 0) {
-    MOCK_SCHEDULES.splice(idx, 1);
-    saveSchedules(MOCK_SCHEDULES);
+    schedules.splice(idx, 1);
+    saveSchedules(schedules);
+    MOCK_SCHEDULES.length = 0;
+    MOCK_SCHEDULES.push(...schedules);
+    dispatchScheduleChange();
   }
   return idx >= 0;
 }

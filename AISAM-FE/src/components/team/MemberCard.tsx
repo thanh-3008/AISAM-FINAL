@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { type TeamMember } from "@/services/teamService";
-import { ROLE_CONFIG, STATUS_CONFIG, getInitials } from "./teamUtils";
+import { ROLE_CONFIG, STATUS_CONFIG, getInitials, calcTimeAgo } from "./teamUtils";
 
 interface MemberCardProps {
   member: TeamMember;
@@ -12,16 +13,12 @@ interface MemberCardProps {
 export default function MemberCard({ member, onEdit, onDelete }: MemberCardProps) {
   const roleConfig = ROLE_CONFIG[member.role];
   const statusConfig = STATUS_CONFIG[member.status];
+  const [now, setNow] = useState(() => Date.now());
 
-  const timeAgo = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  };
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 p-5 card-hover group relative overflow-hidden">
@@ -82,7 +79,7 @@ export default function MemberCard({ member, onEdit, onDelete }: MemberCardProps
         <div className="pt-3 border-t border-outline-variant/20">
           <div className="flex items-center gap-1.5 text-label-xs text-outline">
             <span className="material-symbols-outlined text-[14px]">schedule</span>
-            <span>Last active: {timeAgo(member.lastActive)}</span>
+            <span>Last active: {calcTimeAgo(now, member.lastActive)}</span>
           </div>
         </div>
       </div>

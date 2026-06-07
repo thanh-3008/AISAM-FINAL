@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useProfiles } from "@/hooks/useProfiles";
-import { fetchUpcomingSchedules, ScheduleItem } from "@/services/scheduleService";
+import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
@@ -111,8 +111,14 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
+  const loadSchedules = () => {
     fetchUpcomingSchedules(6).then(setScheduleItems);
+  };
+
+  useEffect(() => {
+    loadSchedules();
+    const unsubscribe = onScheduleChange(loadSchedules);
+    return unsubscribe;
   }, []);
 
   return (

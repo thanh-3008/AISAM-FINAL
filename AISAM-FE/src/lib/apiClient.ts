@@ -52,6 +52,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
       "Content-Type": "application/json",
       ...headers,
     },
+    cache: "no-store",
     ...customConfig,
   };
 

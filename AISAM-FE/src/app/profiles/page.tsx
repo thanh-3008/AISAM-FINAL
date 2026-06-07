@@ -1,21 +1,31 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useProfiles, getProfileTypeLabel } from "@/hooks/useProfiles";
-import { Profile } from "@/hooks/useProfiles";
+import { motion, useReducedMotion } from "motion/react";
+import { useProfiles, getProfileTypeLabel, Profile } from "@/hooks/useProfiles";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }
 
-const statusConfig: Record<number, { label: string; class: string }> = {
-  0: { label: "Pending", class: "bg-amber-50 text-amber-600" },
-  1: { label: "Active", class: "bg-success-green/10 text-success-green" },
-  2: { label: "Suspended", class: "bg-danger-red/10 text-danger-red" },
-  3: { label: "Cancelled", class: "bg-outline-variant/30 text-on-surface-variant" },
+const statusConfig: Record<number, { label: string; class: string; dot: string }> = {
+  0: { label: "Pending", class: "bg-amber-50 text-amber-700 border-amber-200/50", dot: "bg-amber-500" },
+  1: { label: "Active", class: "bg-emerald-50 text-emerald-700 border-emerald-200/50", dot: "bg-emerald-500" },
+  2: { label: "Suspended", class: "bg-red-50 text-red-700 border-red-200/50", dot: "bg-red-500" },
+  3: { label: "Cancelled", class: "bg-surface-container-high text-on-surface-variant border-outline-variant/20", dot: "bg-outline" },
+};
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] as const } },
 };
 
 export default function ProfilesListPage() {
@@ -24,6 +34,7 @@ export default function ProfilesListPage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<number | "all">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const filtered = useMemo(() => {
     let list = profiles;
@@ -55,61 +66,85 @@ export default function ProfilesListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface flex">
+    <div className="min-h-[100dvh] bg-surface flex">
       <div className="flex-1 flex flex-col">
         <main className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto p-8 animate-in fade-in duration-500">
-
+          <div className="max-w-6xl mx-auto p-6 md:p-8">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <motion.div
+              initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
+            >
               <div>
-                <h1 className="text-headline-lg font-bold text-on-surface">Profiles</h1>
-                <p className="text-body-sm text-on-surface-variant mt-1">
+                <h1 className="text-3xl font-bold text-on-surface tracking-tight">Profiles</h1>
+                <p className="text-body-sm text-on-surface-variant mt-1.5">
                   Manage your business profiles across AISAM
                 </p>
               </div>
-              <button
+              <motion.button
+                whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:opacity-90 transition-all shadow-sm shrink-0"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 shrink-0"
               >
                 <span className="material-symbols-outlined text-[18px]">add</span>
                 Create Profile
-              </button>
-            </div>
+              </motion.button>
+            </motion.div>
 
             {/* Stats row */}
             {!loading && !error && profiles.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+              <motion.div
+                variants={reduceMotion ? undefined : container}
+                initial={reduceMotion ? undefined : "hidden"}
+                animate="show"
+                className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6"
+              >
                 {[
-                  { label: "Total", value: stats.total, color: "text-primary", bg: "bg-primary/5", bar: "bg-primary", max: stats.total },
-                  { label: "Active", value: stats.active, color: "text-success-green", bg: "bg-success-green/5", bar: "bg-success-green", max: stats.total },
-                  { label: "Free", value: stats.free, color: "text-outline", bg: "bg-surface-container/50", bar: "bg-outline", max: stats.total },
-                  { label: "Basic", value: stats.basic, color: "text-secondary", bg: "bg-secondary/5", bar: "bg-secondary", max: stats.total },
-                  { label: "Pro", value: stats.pro, color: "text-amber-600", bg: "bg-amber-50", bar: "bg-amber-500", max: stats.total },
-                ].map((s, i) => (
-                  <div key={s.label} className={`${s.bg} rounded-xl px-4 py-3 overflow-hidden relative animate-in fade-in slide-in-from-bottom-2 duration-400`} style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}>
+                  { label: "Total", value: stats.total, color: "text-primary", bg: "bg-primary/5", bar: "bg-primary" },
+                  { label: "Active", value: stats.active, color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-emerald-500" },
+                  { label: "Free", value: stats.free, color: "text-outline", bg: "bg-surface-container/50", bar: "bg-outline" },
+                  { label: "Basic", value: stats.basic, color: "text-secondary", bg: "bg-secondary/5", bar: "bg-secondary" },
+                  { label: "Pro", value: stats.pro, color: "text-amber-600", bg: "bg-amber-50", bar: "bg-amber-500" },
+                ].map((s) => (
+                  <motion.div
+                    key={s.label}
+                    variants={reduceMotion ? undefined : item}
+                    className={`${s.bg} rounded-xl px-4 py-3 overflow-hidden relative border border-outline-variant/10`}
+                  >
                     <div className="flex items-center justify-between relative z-10">
                       <span className="text-label-sm text-on-surface-variant">{s.label}</span>
-                      <span className={`text-headline-sm font-bold ${s.color} tabular-nums`}>{s.value}</span>
+                      <span className={`text-body-lg font-bold ${s.color} tabular-nums`}>{s.value}</span>
                     </div>
-                    {s.max > 0 && (
+                    {stats.total > 0 && (
                       <div className="mt-2 h-1 bg-surface-container-low rounded-full overflow-hidden relative z-10">
-                        <div className={`h-full rounded-full transition-all duration-700 ease-out ${s.bar}`} style={{ width: `${(s.value / s.max) * 100}%` }} />
+                        <motion.div
+                          initial={reduceMotion ? undefined : { width: 0 }}
+                          animate={{ width: `${(s.value / stats.total) * 100}%` }}
+                          transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                          className={`h-full rounded-full ${s.bar}`}
+                        />
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
 
             {/* Search + Filters */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+            <motion.div
+              initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              className="flex flex-col sm:flex-row gap-3 mb-6"
+            >
               <div className="relative flex-1">
                 <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-outline pointer-events-none">
                   <span className="material-symbols-outlined text-[18px]">search</span>
                 </span>
                 <input
-                  className="w-full bg-surface-container-lowest rounded-xl border border-outline-variant/40 pl-10 pr-10 py-2.5 text-body-md text-on-surface placeholder:text-outline/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  className="w-full bg-surface-container-lowest rounded-xl border border-outline-variant/30 pl-10 pr-10 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
                   placeholder="Search by name, company, or plan..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -117,38 +152,39 @@ export default function ProfilesListPage() {
                 {search && (
                   <button
                     onClick={() => setSearch("")}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline hover:text-on-surface"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline hover:text-on-surface transition-colors"
                   >
                     <span className="material-symbols-outlined text-[18px]">close</span>
                   </button>
                 )}
               </div>
-              <div className="flex gap-1.5 p-1 bg-surface-container/80 rounded-xl self-start">
+              <div className="flex gap-1 p-1 bg-surface-container/60 rounded-xl self-start border border-outline-variant/10">
                 {[
                   { key: "all" as const, label: "All" },
                   { key: 1 as const, label: "Active" },
                   { key: 0 as const, label: "Pending" },
                 ].map(f => (
-                  <button
+                  <motion.button
                     key={String(f.key)}
+                    whileTap={reduceMotion ? undefined : { scale: 0.95 }}
                     onClick={() => setFilterStatus(f.key)}
-                    className={`px-3.5 py-1.5 rounded-xl text-label-sm font-medium transition-all active:scale-[0.97] ${
+                    className={`px-4 py-1.5 rounded-lg text-label-sm font-medium transition-all ${
                       filterStatus === f.key
                         ? "bg-surface-container-lowest text-on-surface shadow-sm"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
                     {f.label}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
             {/* Content */}
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {[1, 2, 3, 4, 5, 6].map(i => (
-                  <div key={i} className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-5 animate-pulse space-y-4">
+                  <div key={i} className="bg-surface-container-lowest border border-outline-variant/15 rounded-2xl p-5 animate-pulse space-y-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-surface-container" />
                       <div className="flex-1 space-y-2">
@@ -166,26 +202,39 @@ export default function ProfilesListPage() {
                 ))}
               </div>
             ) : error ? (
-              <div className="text-center py-20">
-                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-error-container/30 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-danger-red text-3xl">error_outline</span>
+              <motion.div
+                initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-20"
+              >
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-red-50 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-red-500 text-3xl">error_outline</span>
                 </div>
-                <p className="text-body-md text-danger-red font-semibold mb-1">Failed to load profiles</p>
+                <p className="text-body-md text-red-600 font-semibold mb-1">Failed to load profiles</p>
                 <p className="text-body-sm text-outline mb-5">{error}</p>
-                <button onClick={refetch} className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:opacity-90 transition-all shadow-sm">
+                <motion.button
+                  whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                  onClick={refetch}
+                  className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                >
                   Retry
-                </button>
-              </div>
+                </motion.button>
+              </motion.div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-24">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-surface-container flex items-center justify-center ring-1 ring-outline-variant/20">
+              <motion.div
+                initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-center py-24"
+              >
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-surface-container flex items-center justify-center">
                   {search || filterStatus !== "all" ? (
-                    <span className="material-symbols-outlined text-outline/50 text-4xl">search_off</span>
+                    <span className="material-symbols-outlined text-outline/40 text-4xl">search_off</span>
                   ) : (
-                    <span className="material-symbols-outlined text-outline/50 text-4xl">group_off</span>
+                    <span className="material-symbols-outlined text-outline/40 text-4xl">group_off</span>
                   )}
                 </div>
-                <h3 className="text-headline-sm text-on-surface font-semibold mb-2">
+                <h3 className="text-body-lg text-on-surface font-semibold mb-2">
                   {search || filterStatus !== "all" ? "No matching profiles" : "No profiles yet"}
                 </h3>
                 <p className="text-body-sm text-outline mb-6 max-w-md mx-auto">
@@ -195,37 +244,48 @@ export default function ProfilesListPage() {
                   }
                 </p>
                 {!search && filterStatus === "all" && (
-                  <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:opacity-90 transition-all shadow-sm">
+                  <motion.button
+                    whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                    onClick={() => setShowCreateModal(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                  >
                     <span className="material-symbols-outlined text-[18px]">add</span>
                     Create Profile
-                  </button>
+                  </motion.button>
                 )}
-              </div>
+              </motion.div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-label-sm text-outline">{filtered.length} profile{filtered.length !== 1 ? "s" : ""}</p>
                 </div>
-                <div key={`${filterStatus}-${search}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-in fade-in duration-300">
-                  {filtered.map((p, idx) => {
+                <motion.div
+                  variants={reduceMotion ? undefined : container}
+                  initial={reduceMotion ? undefined : "hidden"}
+                  animate="show"
+                  key={`${filterStatus}-${search}`}
+                  className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+                >
+                  {filtered.map((p) => {
                     const isActive = activeProfile?.id === p.id;
                     const statusInfo = statusConfig[p.status] || statusConfig[0];
                     return (
-                      <div
+                      <motion.div
                         key={p.id}
-                        className={`group bg-surface-container-lowest border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-400 ${
+                        variants={reduceMotion ? undefined : item}
+                        whileHover={reduceMotion ? undefined : { y: -2 }}
+                        className={`group bg-surface-container-lowest border rounded-2xl p-5 flex flex-col transition-shadow ${
                           isActive
-                            ? "border-primary/30 ring-1 ring-primary/15"
-                            : "border-outline-variant/20 hover:border-outline-variant/60 hover:-translate-y-0.5"
+                            ? "border-primary/30 shadow-md shadow-primary/5"
+                            : "border-outline-variant/15 hover:border-outline-variant/30 hover:shadow-md hover:shadow-black/5"
                         }`}
-                        style={{ animationDelay: `${idx * 60}ms`, animationFillMode: "both" }}
                       >
-                        <div className="flex items-start gap-3.5 mb-3.5">
-<div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-body-md font-bold transition-all duration-300 ${
+                        <div className="flex items-start gap-3.5 mb-4">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-body-md font-bold transition-all ${
                             isActive
                               ? "bg-primary text-on-primary shadow-sm shadow-primary/20"
-                              : "bg-gradient-to-br from-primary/10 to-primary/5 text-primary group-hover:scale-105"
-                          }`}> 
+                              : "bg-gradient-to-br from-primary/10 to-primary/5 text-primary"
+                          }`}>
                             {getInitials(p.name)}
                           </div>
                           <div className="flex-1 min-w-0 pt-0.5">
@@ -237,8 +297,8 @@ export default function ProfilesListPage() {
                             </div>
                             <p className="text-label-sm text-on-surface-variant font-medium">{getProfileTypeLabel(p.profileType)}</p>
                           </div>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-sm font-medium shrink-0 ${statusInfo.class}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${p.status === 1 ? "bg-success-green animate-pulse" : "bg-current"}`} />
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium shrink-0 border ${statusInfo.class}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${p.status === 1 ? "animate-pulse" : ""}`} />
                             {statusInfo.label}
                           </span>
                         </div>
@@ -259,33 +319,34 @@ export default function ProfilesListPage() {
                           </p>
                         </div>
 
-                        <div className="flex gap-2 pt-1 border-t border-outline-variant/10">
-                          <button
+                        <div className="flex gap-2 pt-3 border-t border-outline-variant/10">
+                          <motion.button
+                            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                             onClick={() => handleSelect(p)}
-                            className={`flex-1 px-3.5 py-2 rounded-xl text-label-sm font-semibold transition-all duration-200 active:scale-[0.97] ${
+                            className={`flex-1 px-3.5 py-2 rounded-xl text-label-sm font-semibold transition-all ${
                               isActive
-                                ? "bg-primary text-on-primary shadow-sm hover:opacity-90"
+                                ? "bg-primary text-on-primary shadow-sm shadow-primary/20 hover:bg-primary/90"
                                 : "bg-primary/10 text-primary hover:bg-primary/15"
                             }`}
                           >
                             {isActive ? "Dashboard" : "Select"}
-                          </button>
+                          </motion.button>
                           <Link
                             href={`/profiles/${p.id}`}
-                            className="px-3.5 py-2 rounded-xl text-label-sm font-medium border border-outline-variant/50 text-on-surface hover:bg-surface-container hover:border-outline-variant transition-colors duration-200 inline-flex items-center gap-1"
+                            className="px-3.5 py-2 rounded-xl text-label-sm font-medium border border-outline-variant/30 text-on-surface hover:bg-surface-container hover:border-outline-variant/50 transition-colors inline-flex items-center gap-1"
                           >
                             <span className="material-symbols-outlined text-[16px]">settings</span>
                           </Link>
                           {p.isOwner && (
-                            <div className="px-2 py-2 rounded-xl text-label-sm text-primary/60 bg-primary/5 flex items-center" title="Owner">
+                            <div className="px-2 py-2 rounded-xl text-amber-600 bg-amber-50 flex items-center border border-amber-200/30" title="Owner">
                               <span className="material-symbols-outlined text-[16px]">star</span>
                             </div>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
-                </div>
+                </motion.div>
               </>
             )}
           </div>

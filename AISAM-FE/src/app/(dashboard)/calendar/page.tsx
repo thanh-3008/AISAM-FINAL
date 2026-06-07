@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Header from "@/components/layout/Header";
 import {
   fetchSchedules, createSchedule,
   updateSchedule, deleteSchedule, type ScheduleItem,
+  onScheduleChange,
 } from "@/services/scheduleService";
 import { fetchContents } from "@/services/contentService";
+import { fetchSocialIntegrations, type SocialIntegration } from "@/services/socialAccountService";
 import { PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig, BRAND_COLORS } from "@/lib/contentConstants";
 import type { ContentItem } from "@/lib/mockContent";
 
@@ -104,11 +107,12 @@ export default function CalendarPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [contents, setContents] = useState<ContentItem[]>([]);
-  const [form, setForm] = useState({ contentId: "", platform: "facebook", date: "", time: "" });
+  const [integrations, setIntegrations] = useState<SocialIntegration[]>([]);
+  const [form, setForm] = useState({ contentId: "", integrationId: "", date: "", time: "" });
   const [actionId, setActionId] = useState<string | null>(null);
   const [deletedItem, setDeletedItem] = useState<ScheduleItem | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
-  const [editForm, setEditForm] = useState({ date: "", time: "", platform: "facebook" });
+  const [editForm, setEditForm] = useState({ date: "", time: "", integrationId: "" });
   const [filterBrand, setFilterBrand] = useState("");
   const [filterPlatform, setFilterPlatform] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -125,19 +129,34 @@ export default function CalendarPage() {
     return true;
   });
 
+  const pathname = usePathname();
+  
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [sched, cont] = await Promise.all([
+      const [sched, cont, integ] = await Promise.all([
         fetchSchedules({ pageSize: 100 }),
         fetchContents({ pageSize: 100 }),
+        fetchSocialIntegrations(),
       ]);
       setSchedules(sched.data);
       setContents(cont.items);
+      setIntegrations(integ);
       setLoading(false);
     };
     load();
-  }, []);
+    const unsubscribe = onScheduleChange(load);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        load();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [pathname]);
 
   useEffect(() => { if (toast) setTimeout(() => setToast(null), 3000); }, [toast]);
 
@@ -174,16 +193,15 @@ export default function CalendarPage() {
   };
 
   const handleCreate = async () => {
-    if (!form.contentId || !form.date || !form.time) return;
+    if (!form.contentId || !form.integrationId || !form.date || !form.time) return;
     setActionId("create");
     const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
-    const integrationId = `${form.platform}-${Date.now()}`;
-    const result = await createSchedule({ contentId: form.contentId, integrationId, scheduledAt });
+    const result = await createSchedule({ contentId: form.contentId, integrationId: form.integrationId, scheduledAt });
     if (result) {
       setSchedules((prev) => [result, ...prev]);
       setToast("Schedule created");
       setShowCreate(false);
-      setForm({ contentId: "", platform: "facebook", date: "", time: "" });
+      setForm({ contentId: "", integrationId: "", date: "", time: "" });
     }
     setActionId(null);
   };
@@ -211,19 +229,18 @@ export default function CalendarPage() {
     setEditForm({
       date: d.toISOString().slice(0, 10),
       time: d.toTimeString().slice(0, 5),
-      platform: s.platform || "facebook",
+      integrationId: s.integrationId || "",
     });
   };
 
   const handleEditSave = async () => {
-    if (!editingSchedule || !editForm.date || !editForm.time) return;
+    if (!editingSchedule || !editForm.date || !editForm.time || !editForm.integrationId) return;
     setActionId("edit");
     const scheduledAt = new Date(`${editForm.date}T${editForm.time}`).toISOString();
-    const integrationId = `${editForm.platform}-${Date.now()}`;
-    await updateSchedule(editingSchedule.id, { integrationId, scheduledAt });
+    await updateSchedule(editingSchedule.id, { integrationId: editForm.integrationId, scheduledAt });
     setSchedules((prev) => prev.map((s) =>
       s.id === editingSchedule.id
-        ? { ...s, scheduledAt, platform: editForm.platform, integrationId }
+        ? { ...s, scheduledAt, integrationId: editForm.integrationId }
         : s
     ));
     setToast("Schedule updated");
@@ -757,20 +774,17 @@ export default function CalendarPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Platform</label>
-                    <div className="flex gap-2">
-                      {Object.entries(PLATFORM_CONFIG).map(([key, cfg]) => (
-                        <button key={key} onClick={() => setForm((f) => ({ ...f, platform: key }))}
-                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[11px] font-semibold transition-all flex-1 ${
-                            form.platform === key
-                              ? "bg-primary/5 border-primary/30 text-primary"
-                              : "border-outline-variant/20 text-outline hover:border-outline-variant/40"
-                          }`}>
-                          <PlatformIcon platform={cfg.icon} className="w-[14px] h-[14px]" />
-                          {cfg.label}
-                        </button>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Account</label>
+                    <select value={form.integrationId} onChange={(e) => setForm((f) => ({ ...f, integrationId: e.target.value }))}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
+                      <option value="">Select social account...</option>
+                      {integrations.filter((i) => i.isActive).map((i) => (
+                        <option key={i.id} value={i.id}>{i.accountName} - {i.targetName} ({i.provider})</option>
                       ))}
-                    </div>
+                    </select>
+                    {integrations.length === 0 && (
+                      <p className="text-label-xs text-outline mt-2">No social accounts connected. Please connect accounts in Social page.</p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -788,7 +802,7 @@ export default function CalendarPage() {
                 <div className="flex items-center gap-3 mt-6">
                   <button onClick={() => setShowCreate(false)}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
-                  <button onClick={handleCreate} disabled={!form.contentId || !form.date || !form.time || actionId === "create"}
+                  <button onClick={handleCreate} disabled={!form.contentId || !form.integrationId || !form.date || !form.time || actionId === "create"}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
                     {actionId === "create" ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -820,20 +834,14 @@ export default function CalendarPage() {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Platform</label>
-                    <div className="flex gap-2">
-                      {Object.entries(PLATFORM_CONFIG).map(([key, cfg]) => (
-                        <button key={key} onClick={() => setEditForm((f) => ({ ...f, platform: key }))}
-                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[11px] font-semibold transition-all flex-1 ${
-                            editForm.platform === key
-                              ? "bg-primary/5 border-primary/30 text-primary"
-                              : "border-outline-variant/20 text-outline hover:border-outline-variant/40"
-                          }`}>
-                          <PlatformIcon platform={cfg.icon} className="w-[14px] h-[14px]" />
-                          {cfg.label}
-                        </button>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Account</label>
+                    <select value={editForm.integrationId} onChange={(e) => setEditForm((f) => ({ ...f, integrationId: e.target.value }))}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
+                      <option value="">Select social account...</option>
+                      {integrations.filter((i) => i.isActive).map((i) => (
+                        <option key={i.id} value={i.id}>{i.accountName} - {i.targetName} ({i.provider})</option>
                       ))}
-                    </div>
+                    </select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -851,7 +859,7 @@ export default function CalendarPage() {
                 <div className="flex items-center gap-3 mt-6">
                   <button onClick={() => setEditingSchedule(null)}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
-                  <button onClick={handleEditSave} disabled={!editForm.date || !editForm.time || actionId === "edit"}
+                  <button onClick={handleEditSave} disabled={!editForm.integrationId || !editForm.date || !editForm.time || actionId === "edit"}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
                     {actionId === "edit" ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
