@@ -417,29 +417,82 @@ SUPABASE_KEY=your-supabase-key
 ```
 
 ## 13. PayOS Payment
+## 13. PayOS Payment
 
-### Mục đích
+### Muc dich
 
-Checkout, webhook và subscription.
+Tao checkout subscription qua PayOS, nhan callback/webhook, cap nhat payment status va kich hoat subscription cho profile.
 
-### Trạng thái
+### Trang thai
 
-<span style="color:gray"><strong>OPTIONAL / FUTURE</strong></span>
+<span style="color:red"><strong>REQUIRED ONLY FOR REAL PHASE 8 PAYMENT TEST</strong></span>
 
-### Cần tạo tài khoản ở đâu
+Khong bat buoc neu chi chay backend, auth, profile, content, AI mock/automated tests. Bat buoc neu muon test `POST /api/payment/checkout` voi checkout URL that tu PayOS.
+
+### Can tao tai khoan o dau
 
 ```text
 https://payos.vn/
 ```
 
-### Thêm vào file nào
+### Can lay key/token gi
+
+```text
+Client ID
+API Key
+Checksum Key
+Return URL
+Cancel URL
+Webhook URL neu PayOS dashboard yeu cau
+```
+
+### Them vao file nao
+
+Them vao:
+
+```text
+AISAM-BE/AISAM.API/.env
+```
 
 ```env
 PAYOS_CLIENT_ID=your-payos-client-id
 PAYOS_API_KEY=your-payos-api-key
 PAYOS_CHECKSUM_KEY=your-payos-checksum-key
+PAYOS_BASE_URL=https://api-merchant.payos.vn
+PAYOS_RETURN_URL=http://localhost:3000/payment/success
+PAYOS_CANCEL_URL=http://localhost:3000/payment/cancel
 ```
 
+### API lien quan
+
+```text
+POST /api/payment/checkout
+POST /api/payment/callback
+POST /api/payment/webhook
+GET  /api/payment/history
+GET  /api/payment/subscription/current
+GET  /api/quota/profile/{profileId}
+```
+
+### Loi thuong gap neu thieu config
+
+```text
+503 PAYOS_NOT_CONFIGURED
+```
+
+Nghia la backend da chay dung, nhung chua co `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, hoac `PAYOS_CHECKSUM_KEY`.
+
+```text
+503 PAYOS_URL_NOT_CONFIGURED
+```
+
+Nghia la thieu `PAYOS_RETURN_URL` hoac `PAYOS_CANCEL_URL`.
+
+```text
+502 PAYOS_CHECKOUT_FAILED
+```
+
+Nghia la backend da goi PayOS nhung PayOS tra loi loi. Kiem tra key, amount, return/cancel URL va merchant status tren PayOS.
 ## 14. Ví Dụ `.env`
 
 Tạo file local:
@@ -483,6 +536,9 @@ SUPABASE_KEY=
 PAYOS_CLIENT_ID=
 PAYOS_API_KEY=
 PAYOS_CHECKSUM_KEY=
+PAYOS_BASE_URL=https://api-merchant.payos.vn
+PAYOS_RETURN_URL=http://localhost:3000/payment/success
+PAYOS_CANCEL_URL=http://localhost:3000/payment/cancel
 ```
 
 ## 15. Chạy Backend Local
@@ -525,6 +581,7 @@ GET http://localhost:{port}/api/health
 - [ ] Test register/login.
 - [ ] Test Profile, Brand, Product.
 - [ ] Test Content với `Authorization` và `X-Profile-Id`.
+- [ ] <span style="color:red"><strong>REQUIRED FOR REAL PHASE 8 PAYMENT TEST</strong></span> Them `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`, `PAYOS_BASE_URL`, `PAYOS_RETURN_URL`, `PAYOS_CANCEL_URL` neu test PayOS that.
 
 ### Test Gemini thật
 

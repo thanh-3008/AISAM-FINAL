@@ -6,6 +6,8 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.Service;
 using Microsoft.Extensions.Options;
+using System.Net;
+using System.Text;
 
 namespace AISAM.IntegrationTests;
 
@@ -72,21 +74,164 @@ public class PaymentServiceTests
         Assert.Equal("PayOS", result.Data.Data[0].PaymentMethod);
     }
 
+    [Fact]
+    public async Task CreateCheckoutAsync_CreatesPendingPaymentAndReturnsPayOsCheckoutUrl()
+    {
+        var profileId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var paymentRepository = new FakePaymentRepository();
+        var subscriptionRepository = new FakeSubscriptionRepository();
+        var service = CreateService(
+            paymentRepository,
+            subscriptionRepository,
+            new FakeProfileRepository(new Profile
+            {
+                Id = profileId,
+                UserId = userId,
+                Name = "Owner",
+                ProfileType = ProfileTypeEnum.Basic,
+                Status = ProfileStatusEnum.Active
+            }),
+            CreateConfiguredSettings(),
+            new HttpClient(new StubHttpMessageHandler("""
+            {
+              "code": "00",
+              "desc": "success",
+              "data": {
+                "checkoutUrl": "https://pay.payos.vn/web/mock",
+                "paymentLinkId": "plink_123",
+                "orderCode": "123456"
+              }
+            }
+            """)));
+
+        var result = await service.CreateCheckoutAsync(profileId, new CreateCheckoutRequest { PlanCode = "Plus" });
+
+        Assert.True(result.Success);
+        Assert.Equal("https://pay.payos.vn/web/mock", result.Data!.CheckoutUrl);
+        Assert.Single(paymentRepository.Payments);
+        Assert.Single(subscriptionRepository.Subscriptions);
+        Assert.Equal(PaymentStatusEnum.Pending, paymentRepository.Payments[0].Status);
+        Assert.False(subscriptionRepository.Subscriptions[0].IsActive);
+        Assert.Equal("plink_123", subscriptionRepository.Subscriptions[0].PayOSPaymentLinkId);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_MarksPaymentSuccessAndActivatesSubscription()
+    {
+        var profileId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var subscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            Plan = SubscriptionPlanEnum.Plus,
+            StartDate = new DateTime(2026, 6, 1),
+            EndDate = new DateTime(2026, 6, 30),
+            IsActive = false,
+            PayOSOrderCode = "987654",
+            PayOSPaymentLinkId = "plink_987"
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            SubscriptionId = subscription.Id,
+            Amount = 99_000m,
+            Status = PaymentStatusEnum.Pending,
+            PaymentMethod = "PayOS",
+            TransactionId = "987654",
+            Subscription = subscription
+        };
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            Name = "Owner",
+            ProfileType = ProfileTypeEnum.Basic,
+            Status = ProfileStatusEnum.Active
+        };
+        var service = CreateService(
+            new FakePaymentRepository(payment),
+            new FakeSubscriptionRepository(subscription),
+            new FakeProfileRepository(profile),
+            CreateConfiguredSettings());
+
+        var result = await service.HandleWebhookAsync("""
+        {
+          "code": "00",
+          "desc": "success",
+          "data": {
+            "orderCode": "987654",
+            "paymentLinkId": "plink_987",
+            "status": "PAID",
+            "reference": "txn_987"
+          }
+        }
+        """);
+
+        Assert.True(result.Success);
+        Assert.Equal(PaymentStatusEnum.Success, payment.Status);
+        Assert.True(subscription.IsActive);
+        Assert.Equal(subscription.Id, profile.SubscriptionId);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_AcknowledgesValidPayOsVerificationPayload_WhenPaymentDoesNotExist()
+    {
+        var service = CreateService(
+            settings: CreateConfiguredSettings(),
+            httpClient: new HttpClient());
+
+        var result = await service.HandleWebhookAsync("""
+        {
+          "code": "00",
+          "desc": "success",
+          "success": true,
+          "data": {
+            "orderCode": 123,
+            "status": "PAID",
+            "reference": "verification"
+          }
+        }
+        """);
+
+        Assert.True(result.Success);
+        Assert.Equal(200, result.StatusCode);
+    }
+
     private static PayOSPaymentService CreateService(
         FakePaymentRepository? paymentRepository = null,
         FakeSubscriptionRepository? subscriptionRepository = null,
-        PayOSSettings? settings = null)
+        FakeProfileRepository? profileRepository = null,
+        PayOSSettings? settings = null,
+        HttpClient? httpClient = null)
     {
         return new PayOSPaymentService(
             paymentRepository ?? new FakePaymentRepository(),
             subscriptionRepository ?? new FakeSubscriptionRepository(),
+            profileRepository ?? new FakeProfileRepository(),
             Options.Create(settings ?? new PayOSSettings()),
-            new HttpClient());
+            httpClient ?? new HttpClient());
+    }
+
+    private static PayOSSettings CreateConfiguredSettings()
+    {
+        return new PayOSSettings
+        {
+            ClientId = "client-id",
+            ApiKey = "api-key",
+            ChecksumKey = "checksum-key",
+            BaseUrl = "https://payos.test",
+            ReturnUrl = "https://app.test/payment/success",
+            CancelUrl = "https://app.test/payment/cancel"
+        };
     }
 
     private sealed class FakePaymentRepository : IPaymentRepository
     {
         private readonly Dictionary<Guid, Payment> _payments;
+        public List<Payment> Payments => _payments.Values.ToList();
 
         public FakePaymentRepository(params Payment[] payments)
         {
@@ -101,7 +246,10 @@ public class PaymentServiceTests
 
         public Task<Payment?> GetByReferenceAsync(string reference, CancellationToken cancellationToken = default)
         {
-            var payment = _payments.Values.FirstOrDefault(item => item.TransactionId == reference);
+            var payment = _payments.Values.FirstOrDefault(item =>
+                item.TransactionId == reference ||
+                item.Subscription?.PayOSOrderCode == reference ||
+                item.Subscription?.PayOSPaymentLinkId == reference);
             return Task.FromResult(payment);
         }
 
@@ -132,6 +280,7 @@ public class PaymentServiceTests
     private sealed class FakeSubscriptionRepository : ISubscriptionRepository
     {
         private readonly Dictionary<Guid, Subscription> _subscriptions;
+        public List<Subscription> Subscriptions => _subscriptions.Values.ToList();
 
         public FakeSubscriptionRepository(params Subscription[] subscriptions)
         {
@@ -173,6 +322,60 @@ public class PaymentServiceTests
         public Task<int> CountSuccessfulPostUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(0);
+        }
+    }
+
+    private sealed class FakeProfileRepository : IProfileRepository
+    {
+        private readonly Dictionary<Guid, Profile> _profiles;
+
+        public FakeProfileRepository(params Profile[] profiles)
+        {
+            _profiles = profiles.ToDictionary(profile => profile.Id);
+        }
+
+        public Task<Profile?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            _profiles.TryGetValue(id, out var profile);
+            return Task.FromResult(profile);
+        }
+
+        public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.Values.Where(profile => profile.UserId == userId).AsEnumerable());
+        public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
+        public Task<IEnumerable<Profile>> SearchUserProfilesAsync(Guid userId, string? searchTerm = null, bool? isDeleted = null, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
+        public Task<Profile> CreateAsync(Profile profile, CancellationToken cancellationToken = default)
+        {
+            _profiles[profile.Id] = profile;
+            return Task.FromResult(profile);
+        }
+
+        public Task<Profile> UpdateAsync(Profile profile, CancellationToken cancellationToken = default)
+        {
+            _profiles[profile.Id] = profile;
+            return Task.FromResult(profile);
+        }
+
+        public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.Remove(id));
+        public Task RestoreAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.ContainsKey(id));
+    }
+
+    private sealed class StubHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly string _responseBody;
+
+        public StubHttpMessageHandler(string responseBody)
+        {
+            _responseBody = responseBody;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_responseBody, Encoding.UTF8, "application/json")
+            });
         }
     }
 }

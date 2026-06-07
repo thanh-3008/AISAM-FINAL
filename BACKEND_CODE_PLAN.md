@@ -4001,7 +4001,7 @@ Checklist:
 
 ## Current Backend Status - Updated 2026-06-04
 
-Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP/basic, trong khi Phase 9 Admin chua thay ro la da hoan thanh.
+Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP hoan thien hon: checkout goi PayOS Merchant API, callback/webhook dong bo payment/subscription, history/current subscription va quota display da co. Phase 9 Admin chua thay ro la da hoan thanh.
 
 | Phase | Trang thai hien tai | Ghi chu |
 | --- | --- | --- |
@@ -4013,15 +4013,21 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 5 - AI va Content MVP | DONE | Content CRUD, Gemini text, conversation history da co. |
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
-| Phase 8 - Payment, subscription, quota display | DONE/BASIC | Payment checkout/callback/webhook/history/current subscription va quota display da co. |
+| Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
 | Phase 9 - Admin backend MVP | TODO/UNCLEAR | Chua thay controller admin/user management rieng trong source hien tai. |
 | Phase 10 - Test hardening va backend release MVP | IN PROGRESS | 119 automated tests pass; docs/setup can tiep tuc dong bo. |
 
 Ket qua kiem tra gan nhat ngay 2026-06-04:
 
 ```text
-dotnet test
-Passed. 119/119 tests passed.
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build --filter "Payment|Quota"
+Passed. 23/23 tests passed.
+
+dotnet test --no-build
+Passed. 121/121 tests passed.
 
 Warnings:
 CS8981 in migration 20260124133308_verifytoken.cs and .Designer.cs.
@@ -4097,15 +4103,105 @@ Luu y thu cong:
 - `.env` local bat buoc neu muon test database/Gemini/SMTP/Google/Facebook that; file nay khong commit len Git.
 - `GEMINI_API_KEY` chi bat buoc khi test AI voi Gemini that. Automated tests co the dung fake/mock.
 - Facebook publish that can Meta App permissions va Page quan ly hop le.
-- PayOS payment that can PayOS config va webhook/callback URL hop le.
+- PayOS payment that can PayOS config, `PAYOS_BASE_URL`, return/cancel URL va webhook/callback URL hop le.
 - Cac API theo active profile nhu `/api/content`, `/api/ai`, `/api/conversations`, `/api/social-*`, `/api/posts`, `/api/content-schedules`, `/api/notifications`, `/api/dashboard`, `/api/quota` can gui `Authorization: Bearer {accessToken}` va header `X-Profile-Id: {profileId}` neu middleware yeu cau.
 
 Next recommended tasks:
 
-1. Cap nhat chi tiet Progress Detail cho Phase 6, Phase 7, Phase 8 theo source code hien tai.
+1. Cap nhat chi tiet Progress Detail cho Phase 6 va Phase 7 theo source code hien tai.
 2. Ra soat Phase 9 Admin: xac dinh can viet moi hay reuse module admin cu.
-3. Hardening Phase 6-8: Facebook error handling, scheduler retry/failed-state, PayOS webhook verification, quota enforcement.
+3. Hardening Phase 6-8: Facebook error handling, scheduler retry/failed-state, PayOS idempotency/retry, quota edge cases.
 4. Dong bo `SETUP_GUIDE.md` voi config thuc te cua Phase 6-8.
+
+### Progress Detail - Phase 8 Payment, Subscription, Quota
+
+Ngay cap nhat: 2026-06-04
+
+Muc tieu:
+
+- Hoan thien Phase 8 o muc MVP backend co the test duoc.
+- Checkout khong con la placeholder tra `ReturnUrl`; backend tao pending subscription/payment va goi PayOS Merchant API de lay checkout URL.
+- Callback/webhook PayOS dong bo payment status va active subscription cho profile.
+- Quota display va quota enforcement basic tiep tuc dung subscription hien tai.
+
+File da tao/sua:
+
+- `AISAM-BE/AISAM.API/Program.cs`
+- `AISAM-BE/AISAM.API/.env.example`
+- `AISAM-BE/AISAM.Common/Models/PayOSSettings.cs`
+- `AISAM-BE/AISAM.Repositories/Repository/PaymentRepository.cs`
+- `AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs`
+- `AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs`
+
+Behavior:
+
+```text
+POST /api/payment/checkout
+- Required: Authorization Bearer token + X-Profile-Id
+- Required PayOS config: PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY, PAYOS_BASE_URL, PAYOS_RETURN_URL, PAYOS_CANCEL_URL
+- Plus/Premium tao subscription inactive + payment pending
+- Goi PayOS: POST /v2/payment-requests
+- Tra ve checkoutUrl, paymentLinkId, orderCode
+
+POST /api/payment/callback
+- AllowAnonymous
+- Nhan query params tu PayOS
+- Neu co signature thi verify HMAC SHA256
+- Status paid/success/00 => payment Success, subscription active
+- Status cancelled/failed/expired => payment Failed
+
+POST /api/payment/webhook
+- AllowAnonymous
+- Nhan JSON payload tu PayOS
+- Neu co signature thi verify HMAC SHA256 theo data primitives
+- Dong bo payment/subscription nhu callback
+
+GET /api/payment/history
+GET /api/payment/subscription/current
+GET /api/quota/profile/{profileId}
+```
+
+Cai tien so voi source/trang thai cu:
+
+- Truoc: `PayOSPaymentService.CreateCheckoutAsync` chi tra `_settings.ReturnUrl`, khong tao payment link that.
+- Sau: tao pending subscription/payment, ky request bang checksum key, goi PayOS Merchant API, luu checkout URL/paymentLinkId/orderCode.
+- Truoc: callback/webhook chi return accepted.
+- Sau: callback/webhook sync payment status va active subscription.
+
+Luu y:
+
+- Plan/pricing/quota van hardcoded theo enum `Free/Plus/Premium/PlusTrial`, dung cho MVP.
+- Chua lam dynamic plan CRUD admin, refund/cancel/expiry job, proration, webhook retry/idempotency nang cao.
+
+Kiem tra:
+
+```text
+dotnet build --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build --filter "Payment|Quota"
+Passed. 23/23 tests passed.
+
+dotnet test --no-build
+Passed. 121/121 tests passed.
+```
+
+Checklist Phase 8:
+
+- [x] Payment checkout tao checkout request that qua PayOS Merchant API.
+- [x] Payment pending duoc luu truoc khi redirect PayOS.
+- [x] Subscription inactive duoc tao khi checkout.
+- [x] Callback/webhook co logic dong bo payment status.
+- [x] Payment success active subscription va gan `Profile.SubscriptionId`.
+- [x] Payment history doc theo profile.
+- [x] Current subscription API doc active subscription.
+- [x] Quota display API doc active subscription va usage.
+- [x] Quota enforcement basic cho AI prompt va publish post.
+- [x] Build thanh cong.
+- [x] Payment/Quota tests pass.
+- [x] Full tests pass.
+- [x] PayOS webhook verification payload duoc acknowledge HTTP 200 khi orderCode mau khong ton tai trong database.
+- [x] Quota queries chuan hoa PostgreSQL `date`/DateTimeKind.Unspecified sang UTC truoc khi loc cac cot `timestamp with time zone`.
 
 ### Progress Detail - Active Profile Context Middleware
 

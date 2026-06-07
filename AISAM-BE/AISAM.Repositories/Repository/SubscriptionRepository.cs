@@ -51,17 +51,20 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
 
     public async Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
     {
+        var utcWindowStart = NormalizeUtc(windowStart);
+        var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
+
         var query = _context.AiGenerations
             .Include(generation => generation.Content)
             .Where(generation =>
                 !generation.IsDeleted &&
                 generation.Status == AiStatusEnum.Completed &&
                 generation.Content.ProfileId == profileId &&
-                generation.CreatedAt >= windowStart);
+                generation.CreatedAt >= utcWindowStart);
 
-        if (windowEnd.HasValue)
+        if (utcWindowEndExclusive.HasValue)
         {
-            query = query.Where(generation => generation.CreatedAt <= windowEnd.Value);
+            query = query.Where(generation => generation.CreatedAt < utcWindowEndExclusive.Value);
         }
 
         return await query.CountAsync(cancellationToken);
@@ -69,19 +72,43 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
 
     public async Task<int> CountSuccessfulPostUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
     {
+        var utcWindowStart = NormalizeUtc(windowStart);
+        var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
+
         var query = _context.Posts
             .Include(post => post.Content)
             .Where(post =>
                 !post.IsDeleted &&
                 post.Status == ContentStatusEnum.Published &&
                 post.Content.ProfileId == profileId &&
-                post.PublishedAt >= windowStart);
+                post.PublishedAt >= utcWindowStart);
 
-        if (windowEnd.HasValue)
+        if (utcWindowEndExclusive.HasValue)
         {
-            query = query.Where(post => post.PublishedAt <= windowEnd.Value);
+            query = query.Where(post => post.PublishedAt < utcWindowEndExclusive.Value);
         }
 
         return await query.CountAsync(cancellationToken);
+    }
+
+    private static DateTime NormalizeUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+    }
+
+    private static DateTime? NormalizeEndExclusiveUtc(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        var end = NormalizeUtc(value.Value);
+        return end.TimeOfDay == TimeSpan.Zero ? end.AddDays(1) : end;
     }
 }
