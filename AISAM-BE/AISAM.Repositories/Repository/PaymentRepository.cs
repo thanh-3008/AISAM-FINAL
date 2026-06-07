@@ -24,7 +24,12 @@ public sealed class PaymentRepository : IPaymentRepository
     {
         return await Query()
             .FirstOrDefaultAsync(
-                payment => !payment.IsDeleted && payment.TransactionId == reference,
+                payment =>
+                    !payment.IsDeleted &&
+                    (payment.TransactionId == reference ||
+                     (payment.Subscription != null &&
+                      (payment.Subscription.PayOSOrderCode == reference ||
+                       payment.Subscription.PayOSPaymentLinkId == reference))),
                 cancellationToken);
     }
 

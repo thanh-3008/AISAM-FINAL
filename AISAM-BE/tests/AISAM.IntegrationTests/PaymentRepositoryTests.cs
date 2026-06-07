@@ -69,6 +69,22 @@ public class PaymentRepositoryTests
         Assert.Equal(1, count);
     }
 
+    [Fact]
+    public async Task UsageQueries_AcceptUnspecifiedSubscriptionDatesFromPostgreSqlDateColumns()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedFixture(context);
+        var repository = new SubscriptionRepository(context);
+        var start = DateTime.SpecifyKind(fixture.ActiveSubscription.StartDate, DateTimeKind.Unspecified);
+        var end = DateTime.SpecifyKind(fixture.ActiveSubscription.EndDate!.Value, DateTimeKind.Unspecified);
+
+        var promptCount = await repository.CountSuccessfulPromptUsageAsync(fixture.OwnerProfile.Id, start, end);
+        var postCount = await repository.CountSuccessfulPostUsageAsync(fixture.OwnerProfile.Id, start, end);
+
+        Assert.Equal(1, promptCount);
+        Assert.Equal(1, postCount);
+    }
+
     private static AisamContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AisamContext>()
