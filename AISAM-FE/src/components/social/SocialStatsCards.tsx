@@ -40,7 +40,7 @@ export default function SocialStatsCards({ allAccounts }: SocialStatsCardsProps)
               <span className="material-symbols-outlined text-[18px]">{s.icon}</span>
             </div>
             <div>
-              <p className="text-[10px] text-outline uppercase font-medium">{s.label}</p>
+              <p className="text-label-xs text-outline uppercase font-medium">{s.label}</p>
               <p className="text-lg font-bold text-on-surface leading-tight">{s.value}</p>
             </div>
           </div>

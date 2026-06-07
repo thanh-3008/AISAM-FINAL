@@ -99,7 +99,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
             className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
           >
             <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:scale-110 transition-transform duration-200" style={{ fontVariationSettings: "'FILL' 1" }}>notifications_active</span>
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-danger-red rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 shadow-sm ring-2 ring-surface">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-danger-red rounded-full text-label-xs font-bold text-white flex items-center justify-center px-1 shadow-sm ring-2 ring-surface">
               3
             </span>
           </button>

@@ -26,7 +26,7 @@ export default function BulkActionsBar({
             <p className="text-label-sm font-bold text-on-surface">
               {selectedCount} account{selectedCount > 1 ? "s" : ""} selected
             </p>
-            <p className="text-[10px] text-outline">Choose an action to perform</p>
+            <p className="text-label-xs text-outline">Choose an action to perform</p>
           </div>
         </div>
 

@@ -276,7 +276,7 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-label-sm text-on-surface-variant mb-1.5 font-medium">{kpi.label}</p>
                 <div className="flex items-baseline gap-2">
-                  <h3 className="text-[32px] font-bold text-on-surface leading-none tracking-tight">
+                  <h3 className="text-kpi-lg text-on-surface">
                     <CountUp value={kpi.value} />
                   </h3>
                   {kpi.max && <span className="text-label-md text-outline">/ {kpi.max}</span>}
@@ -299,7 +299,7 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="text-headline-sm text-on-surface">Performance Overview</h4>
-                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-semibold inline-flex items-center gap-1">
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold inline-flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                     LIVE
                   </span>
@@ -342,21 +342,21 @@ export default function DashboardPage() {
               <div className="absolute top-4 right-4 flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-[#0f62fe] rounded animate-glow-pulse" />
-                  <span className="text-[10px] text-outline">Engagement</span>
+                  <span className="text-label-xs text-outline">Engagement</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-[#731be5]" style={{ borderTop: "1px dashed" }} />
-                  <span className="text-[10px] text-outline">Predicted</span>
+                  <span className="text-label-xs text-outline">Predicted</span>
                 </div>
               </div>
               <div className="absolute right-0 top-0 bottom-0 w-1/4 bg-gradient-to-r from-transparent to-primary/[0.02] border-l border-dashed border-primary/20 flex items-center justify-center backdrop-blur-[1px]">
-                <div className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1.5 rounded-full text-[10px] font-semibold flex items-center gap-1.5 shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
+                <div className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1.5 rounded-full text-label-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
                   <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
                   AI PREDICTION
                 </div>
               </div>
             </div>
-            <div className="flex justify-between mt-4 px-1 text-[10px] text-outline font-medium">
+            <div className="flex justify-between mt-4 px-1 text-label-xs text-outline font-medium">
               <span className="hover:text-on-surface transition-colors cursor-pointer">Oct 01</span>
               <span className="relative hover:text-on-surface transition-colors cursor-pointer">Oct 15 <span className="absolute -top-1 -right-2 w-1.5 h-1.5 bg-primary rounded-full animate-ping" style={{ animationDuration: "2s" }} /></span>
               <span className="text-primary font-bold cursor-pointer">Today</span>
@@ -369,7 +369,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <h4 className="text-headline-sm text-on-surface">Schedule</h4>
-                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px] font-semibold">{scheduleItems.length}</span>
+                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-label-xs font-semibold">{scheduleItems.length}</span>
               </div>
               <Link href="/calendar" className="text-label-sm text-primary font-semibold hover:text-primary-container transition-colors flex items-center gap-1 group">
                 View All
@@ -395,14 +395,14 @@ export default function DashboardPage() {
                       {pConfig ? (
                         <PlatformIcon platform={post.platform || "facebook"} className="w-[18px] h-[18px]" />
                       ) : (
-                        <span className={`text-[11px] font-bold ${pDisplay.color}`}>{(post.platform || "?").slice(0, 2).toUpperCase()}</span>
+                        <span className={`text-label-sm font-bold ${pDisplay.color}`}>{(post.platform || "?").slice(0, 2).toUpperCase()}</span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title || "Untitled"}</p>
-                      <p className="text-[11px] text-outline">{formatScheduleDate(post.scheduledAt)}</p>
+                      <p className="text-label-sm text-outline">{formatScheduleDate(post.scheduledAt)}</p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-semibold tracking-wide ${
+                    <span className={`px-2 py-0.5 rounded text-label-2xs font-semibold tracking-wide ${
                       post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
                       post.status === "Failed" ? "bg-red-50 text-red-500" :
                       "bg-amber-50 text-amber-600"
@@ -419,7 +419,7 @@ export default function DashboardPage() {
                   <span className="material-symbols-outlined text-purple-500 text-[16px] animate-float">auto_awesome</span>
                   <span className="text-label-sm text-purple-600 font-semibold">AI Insight</span>
                 </div>
-                <p className="text-[11px] leading-relaxed text-on-surface-variant">
+                <p className="text-label-sm leading-relaxed text-on-surface-variant">
                   Your audience is <span className="text-on-surface font-semibold">24% more active</span> at 8:00 PM on Sundays. Consider rescheduling.
                 </p>
               </div>
@@ -432,7 +432,7 @@ export default function DashboardPage() {
           <div className="px-6 py-5 border-b border-outline-variant/20 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h4 className="text-headline-sm text-on-surface">Recent Campaigns</h4>
-              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-semibold">{campaignsData.length} active</span>
+              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">{campaignsData.length} active</span>
             </div>
             <button className="flex items-center gap-1.5 text-label-sm text-primary font-semibold hover:text-primary-container transition-colors group">
               <span className="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">download</span>
@@ -466,7 +466,7 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 ${row.bg} ${row.color} rounded-lg text-[10px] font-bold tracking-wide inline-block hover:scale-105 transition-transform`}>{row.platform}</span>
+                      <span className={`px-2.5 py-1 ${row.bg} ${row.color} rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform`}>{row.platform}</span>
                     </td>
                     <td className="px-6 py-4 text-body-sm text-on-surface font-medium">{row.budget}</td>
                     <td className="px-6 py-4">
@@ -564,7 +564,7 @@ export default function DashboardPage() {
                 </div>
                 <h6 className="text-label-md text-on-surface font-semibold mb-2 group-hover:text-primary transition-colors">{item.title}</h6>
                 <p className="text-[12px] text-on-surface-variant leading-relaxed">{item.desc}</p>
-                <div className="mt-3 flex items-center gap-1 text-[10px] text-primary font-semibold opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0">
+                <div className="mt-3 flex items-center gap-1 text-label-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0">
                   View insights <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
                 </div>
                 <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary/[0.03] to-transparent rounded-bl-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -577,7 +577,7 @@ export default function DashboardPage() {
         <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.96s" }}>
           <div className="flex items-center gap-2 mb-6">
             <h4 className="text-headline-sm text-on-surface">Platform Distribution</h4>
-            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-semibold">TOTAL 4</span>
+            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">TOTAL 4</span>
           </div>
           <div className="h-56 flex items-end gap-6 px-4 pb-2 border-b border-outline-variant/20">
             {[
@@ -587,7 +587,7 @@ export default function DashboardPage() {
               { label: "Others", height: "25%", color: "bg-gradient-to-t from-outline to-outline-variant", value: "9%" },
             ].map((item, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                <span className="text-[10px] text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</span>
+                <span className="text-label-xs text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</span>
                 <div
                   className={`w-full ${item.color} rounded-t-lg transition-all duration-700 group-hover:rounded-t-xl`}
                   style={{

@@ -51,7 +51,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
               </div>
               <div>
                 <h2 className="text-headline-sm font-bold text-on-surface">Edit Campaign</h2>
-                <p className="text-[10px] text-outline">Update campaign details</p>
+                <p className="text-label-xs text-outline">Update campaign details</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-full transition-colors">
@@ -63,7 +63,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
           <div className="p-6 space-y-5">
             {/* Campaign Name */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Campaign Name</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Campaign Name</label>
               <input
                 type="text"
                 value={name}
@@ -75,7 +75,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
 
             {/* Brand */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Brand</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Brand</label>
               <select
                 value={brandId}
                 onChange={(e) => setBrandId(e.target.value)}
@@ -90,7 +90,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
 
             {/* Objective */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Objective</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Objective</label>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(OBJECTIVE_CONFIG).map(([key, config]) => (
                   <button
@@ -113,7 +113,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
 
             {/* Budget */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Budget (USD)</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Budget (USD)</label>
               <input
                 type="number"
                 value={budget}
@@ -127,7 +127,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
             {/* Date Range */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Start Date</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Start Date</label>
                 <input
                   type="date"
                   value={startDate}
@@ -136,7 +136,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
                 />
               </div>
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">End Date</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">End Date</label>
                 <input
                   type="date"
                   value={endDate}

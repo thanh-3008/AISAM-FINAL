@@ -178,7 +178,7 @@ export default function BrandsPage() {
                     <span className="material-symbols-outlined text-[24px]">{s.icon}</span>
                   </div>
                   <div>
-                    <p className="text-[9px] text-outline/50 uppercase tracking-widest font-semibold">{s.label}</p>
+                    <p className="text-label-2xs text-outline/50 uppercase tracking-widest font-semibold">{s.label}</p>
                     <p className="text-3xl font-extrabold text-on-surface tabular-nums tracking-tight">{s.value}</p>
                   </div>
                 </div>
@@ -208,12 +208,12 @@ export default function BrandsPage() {
         {hasFilters && (
           <div className={`flex flex-wrap items-center gap-1.5 -mt-5 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.4s" }}>
             {search && (
-              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/8 text-primary text-[10px] font-semibold">
+              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/8 text-primary text-label-xs font-semibold">
                 &ldquo;{search}&rdquo;
-                <button onClick={() => setSearch("")} className="hover:text-primary/60 active:scale-[0.97]"><span className="material-symbols-outlined text-[10px]">close</span></button>
+                <button onClick={() => setSearch("")} className="hover:text-primary/60 active:scale-[0.97]"><span className="material-symbols-outlined text-label-xs">close</span></button>
               </span>
             )}
-            <button onClick={clearFilters} className="text-[10px] text-outline/40 hover:text-on-surface underline underline-offset-2 decoration-dotted ml-0.5">Clear</button>
+            <button onClick={clearFilters} className="text-label-xs text-outline/40 hover:text-on-surface underline underline-offset-2 decoration-dotted ml-0.5">Clear</button>
           </div>
         )}
 
@@ -300,7 +300,7 @@ export default function BrandsPage() {
                       {/* Actions */}
                       <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
                         <button onClick={() => router.push(`/brands/${brand.id}`)}
-                          className="px-3 py-1.5 bg-primary text-on-primary rounded-xl text-[10px] font-semibold hover:bg-primary/90 hover:shadow-md active:scale-[0.97] transition-all relative overflow-hidden group/btn">
+                          className="px-3 py-1.5 bg-primary text-on-primary rounded-xl text-label-xs font-semibold hover:bg-primary/90 hover:shadow-md active:scale-[0.97] transition-all relative overflow-hidden group/btn">
                           <span className="relative z-10">Details</span>
                           <span className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-300" />
                         </button>

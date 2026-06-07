@@ -613,7 +613,7 @@ export default function BrandDetailPage() {
                             </div>
                           </td>
                           <td className="px-5 py-4">
-                            <span className={`px-2.5 py-1 ${camp.platformBg} ${camp.platformColor} rounded-lg text-[10px] font-bold tracking-wide inline-block`}>{camp.platform}</span>
+                            <span className={`px-2.5 py-1 ${camp.platformBg} ${camp.platformColor} rounded-lg text-label-xs font-bold tracking-wide inline-block`}>{camp.platform}</span>
                           </td>
                           <td className="px-5 py-4 text-body-sm text-on-surface font-medium">{camp.budget}</td>
                           <td className="px-5 py-4">

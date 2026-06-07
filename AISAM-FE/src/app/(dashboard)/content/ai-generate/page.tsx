@@ -252,7 +252,7 @@ export default function AIGeneratePage() {
                     <p className="text-[11px] text-outline/60 font-medium mb-1 line-clamp-1">Prompt: {v.prompt}</p>
                     <p className="text-[11px] text-on-surface-variant line-clamp-3 mb-2 leading-relaxed">{v.result}</p>
                     <button onClick={() => handleApplyVariation(v)}
-                      className="text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
+                      className="text-label-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
                       <span className="material-symbols-outlined text-[12px]">check</span>
                       Apply
                     </button>
@@ -263,11 +263,11 @@ export default function AIGeneratePage() {
 
             {/* Quick Templates */}
             <div className="border-t border-outline-variant/10 p-3">
-              <p className="text-[10px] font-semibold text-outline/50 uppercase tracking-wider mb-2">Quick Templates</p>
+              <p className="text-label-xs font-semibold text-outline/50 uppercase tracking-wider mb-2">Quick Templates</p>
               <div className="grid grid-cols-3 gap-1.5">
                 {Object.keys(VARIATION_TEMPLATES).map((key) => (
                   <button key={key} onClick={() => handleQuickTemplate(key)}
-                    className="px-2 py-1.5 rounded-lg bg-surface-container text-[10px] text-on-surface-variant font-medium hover:bg-surface-container-high hover:text-on-surface transition-all active:scale-[0.97] truncate">
+                    className="px-2 py-1.5 rounded-lg bg-surface-container text-label-xs text-on-surface-variant font-medium hover:bg-surface-container-high hover:text-on-surface transition-all active:scale-[0.97] truncate">
                     {key.charAt(0).toUpperCase() + key.slice(1)}
                   </button>
                 ))}
@@ -296,7 +296,7 @@ export default function AIGeneratePage() {
               </div>
               {justGenerated && generatedId && (
                 <button onClick={() => router.push(`/content/${generatedId}`)}
-                  className="ml-auto px-3 py-1.5 rounded-lg bg-success-green text-white text-[10px] font-semibold hover:bg-success-green/90 transition-all active:scale-[0.97] flex items-center gap-1">
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-success-green text-white text-label-xs font-semibold hover:bg-success-green/90 transition-all active:scale-[0.97] flex items-center gap-1">
                   <span className="material-symbols-outlined text-[12px]">open_in_new</span>
                   View Post
                 </button>
@@ -311,7 +311,7 @@ export default function AIGeneratePage() {
                 <div className="flex gap-1">
                   {PLATFORMS.map((p) => (
                     <button key={p.value} onClick={() => setPlatform(p.value)}
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-label-xs font-semibold transition-all ${
                         platform === p.value
                           ? "bg-surface-container text-on-surface shadow-sm"
                           : "text-outline/50 hover:bg-surface-container/50 hover:text-outline"
@@ -327,7 +327,7 @@ export default function AIGeneratePage() {
                 <div className="w-full max-w-[500px] bg-white rounded-2xl border border-[#e4e6eb] shadow-sm overflow-hidden">
                   {/* Facebook Post */}
                   {platform.startsWith("facebook") && (
-                    <div className="font-[system-ui,sans-serif]">
+                    <div className="font-sans">
                       <div className="p-3.5 flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0"
                           style={{ background: BRAND_COLORS[brandName] || "#1877F2" }}>
@@ -336,7 +336,7 @@ export default function AIGeneratePage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{brandName}</p>
                           <p className="text-[11px] text-[#65676b]">
-                            {productName ? `Promoting ${productName} · ` : ""}Just now · <span className="material-symbols-outlined text-[10px] align-middle">public</span>
+                            {productName ? `Promoting ${productName} · ` : ""}Just now · <span className="material-symbols-outlined text-label-xs align-middle">public</span>
                           </p>
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
@@ -371,11 +371,11 @@ export default function AIGeneratePage() {
 
                   {/* Instagram Post */}
                   {platform.startsWith("instagram") && (
-                    <div className="font-[system-ui,sans-serif] bg-white">
+                    <div className="font-sans bg-white">
                       <div className="p-3 flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-[2px]">
                           <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                            <span className="text-[9px] font-bold" style={{ color: BRAND_COLORS[brandName] || "#666" }}>{brandName.charAt(0)}</span>
+                            <span className="text-label-2xs font-bold" style={{ color: BRAND_COLORS[brandName] || "#666" }}>{brandName.charAt(0)}</span>
                           </div>
                         </div>
                         <p className="text-[12px] font-semibold text-[#262626] flex-1">{brandName || "brand"}</p>
@@ -398,21 +398,21 @@ export default function AIGeneratePage() {
                         {hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{hashtags.map((h) => `#${h}`).join(" ")}</p>
                         )}
-                        <p className="text-[10px] text-[#8e8e8e] uppercase tracking-wide">View all comments</p>
+                        <p className="text-label-xs text-[#8e8e8e] uppercase tracking-wide">View all comments</p>
                       </div>
                     </div>
                   )}
 
                   {/* TikTok / dark-themed post */}
                   {platform.startsWith("tiktok") && (
-                    <div className="font-[system-ui,sans-serif] bg-[#111111] text-white relative overflow-hidden">
+                    <div className="font-sans bg-[#111111] text-white relative overflow-hidden">
                       <div className="aspect-[9/16] flex items-center justify-center relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                           <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z"/></svg>
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-[10px] font-bold shrink-0 border border-white/30"
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-label-xs font-bold shrink-0 border border-white/30"
                               style={{ background: `linear-gradient(135deg, ${BRAND_COLORS[brandName] || "#666"}, ${BRAND_COLORS[brandName] || "#999"}` }}>
                               {brandName.charAt(0)}
                             </div>
@@ -432,13 +432,13 @@ export default function AIGeneratePage() {
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
                               <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z"/></svg>
                             </div>
-                            <span className="text-[10px]">12.4K</span>
+                            <span className="text-label-xs">12.4K</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
                               <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm5.5 12.5h-11v-1h11v1zm-2 3h-7v-1h7v1zm2-6h-11v-1h11v1z"/></svg>
                             </div>
-                            <span className="text-[10px]">834</span>
+                            <span className="text-label-xs">834</span>
                           </div>
                         </div>
                       </div>
@@ -456,7 +456,7 @@ export default function AIGeneratePage() {
                 <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
                 <h2 className="text-label-md font-semibold text-on-surface">AI Assistant</h2>
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-outline/60">
+              <div className="flex items-center gap-1.5 text-label-xs text-outline/60">
                 <span className="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-medium">{brandName}</span>
                 {productName && (
                   <span className="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-medium">{productName}</span>
@@ -484,14 +484,14 @@ export default function AIGeneratePage() {
                       {msg.role === "assistant" && (
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="material-symbols-outlined text-[12px] text-primary">auto_awesome</span>
-                          <span className="text-[9px] font-semibold text-primary uppercase tracking-wider">AI</span>
+                          <span className="text-label-2xs font-semibold text-primary uppercase tracking-wider">AI</span>
                         </div>
                       )}
                       <p className="text-[12px] leading-relaxed whitespace-pre-line">{msg.text}</p>
                       {msg.role === "assistant" && (
                         <button onClick={() => handleApplyVariation({ id: msg.id, prompt: "", result: msg.text })}
-                          className="mt-1.5 text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-0.5">
-                          <span className="material-symbols-outlined text-[10px]">check</span>
+                          className="mt-1.5 text-label-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-label-xs">check</span>
                           Apply to editor
                         </button>
                       )}

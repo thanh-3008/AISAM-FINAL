@@ -254,7 +254,7 @@ export default function CalendarPage() {
               <div className="flex items-center rounded-xl border border-outline-variant/20 p-0.5 bg-surface-container-low">
                 {(["month", "week", "list"] as ViewMode[]).map((v) => (
                   <button key={v} onClick={() => setView(v)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-label-xs font-semibold transition-all ${
                       view === v ? "bg-surface-container-lowest text-on-surface shadow-sm" : "text-outline hover:text-on-surface"
                     }`}>
                     <span className="flex items-center gap-1.5">
@@ -302,7 +302,7 @@ export default function CalendarPage() {
               </div>
             </div>
             <div className="bg-surface-container-lowest rounded-xl border border-secondary/20 p-4 flex items-center gap-4 shadow-sm relative overflow-hidden" style={{ boxShadow: "0 0 15px rgba(115, 27, 229, 0.08)", borderColor: "rgba(115, 27, 229, 0.25)" }}>
-              <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-secondary text-on-secondary text-[8px] font-bold rounded uppercase tracking-wider">Roadmap</span>
+              <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-secondary text-on-secondary text-label-3xs font-bold rounded uppercase tracking-wider">Roadmap</span>
               <div className="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
                 <span className="material-symbols-outlined">auto_awesome</span>
               </div>
@@ -376,7 +376,7 @@ export default function CalendarPage() {
                     </button>
                   </div>
                   <button onClick={goToday}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-[10px] font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-label-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
                     <span className="material-symbols-outlined text-[14px]">calendar_today</span>
                     Today
                   </button>
@@ -384,7 +384,7 @@ export default function CalendarPage() {
                 <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden">
                   <div className="grid grid-cols-7 bg-surface-container-low">
                     {WEEKDAYS.map((d) => (
-                      <div key={d} className="px-3 py-2.5 text-[10px] font-bold text-outline uppercase tracking-wider text-center">{d}</div>
+                      <div key={d} className="px-3 py-2.5 text-label-xs font-bold text-outline uppercase tracking-wider text-center">{d}</div>
                     ))}
                   </div>
                   <div className="grid grid-cols-7" style={{ gridAutoRows: "minmax(120px, auto)" }}>
@@ -409,7 +409,7 @@ export default function CalendarPage() {
                                     const cfg = PLATFORM_CONFIG[s.platform || ""];
                                     return (
                                       <div key={s.id}
-                                        className={`flex items-center gap-1 px-1.5 py-1 rounded text-[9px] font-semibold truncate border ${
+                                        className={`flex items-center gap-1 px-1.5 py-1 rounded text-label-2xs font-semibold truncate border ${
                                           s.status === "Completed" ? "bg-emerald-50/60 border-emerald-200/40 text-emerald-700" :
                                           s.status === "Failed" ? "bg-danger-red/5 border-danger-red/20 text-danger-red" :
                                           "bg-white border-outline-variant/30 text-on-surface shadow-sm"
@@ -420,7 +420,7 @@ export default function CalendarPage() {
                                     );
                                   })}
                                   {dayScheds.length > 3 && (
-                                    <span className="text-[8px] text-outline font-medium px-1 flex items-center gap-1">
+                                    <span className="text-label-3xs text-outline font-medium px-1 flex items-center gap-1">
                                       <span className="w-1 h-1 rounded-full bg-outline/40" />
                                       +{dayScheds.length - 3} more
                                     </span>
@@ -443,7 +443,7 @@ export default function CalendarPage() {
                     <h3 className="text-label-sm font-bold text-on-surface">
                       {selectedDay ? selectedDay.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "Select a day"}
                     </h3>
-                    <span className="text-[10px] text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-semibold">{daySchedules.length}</span>
+                    <span className="text-label-xs text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-semibold">{daySchedules.length}</span>
                   </div>
                   {daySchedules.length === 0 ? (
                     <div className="flex flex-col items-center py-12 text-center">
@@ -460,38 +460,38 @@ export default function CalendarPage() {
                             <div className="flex items-start gap-3">
                               <div className="flex flex-col items-center min-w-[36px] pt-0.5">
                                 <span className="text-[13px] font-bold text-on-surface leading-none">{new Date(s.scheduledAt).getDate()}</span>
-                                <span className="text-[8px] text-outline uppercase">{MONTHS[new Date(s.scheduledAt).getMonth()].slice(0, 3)}</span>
+                                <span className="text-label-3xs text-outline uppercase">{MONTHS[new Date(s.scheduledAt).getMonth()].slice(0, 3)}</span>
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 mb-1">
                                   {s.type && (
                                     <div className={`w-5 h-5 rounded bg-gradient-to-br ${getTypeStyle(s.type)} flex items-center justify-center text-white shrink-0`}>
-                                      <span className="material-symbols-outlined text-[9px]">{getTypeConfig(s.type).icon}</span>
+                                      <span className="material-symbols-outlined text-label-2xs">{getTypeConfig(s.type).icon}</span>
                                     </div>
                                   )}
                                   <p className="text-[11px] font-semibold text-on-surface truncate">{s.title}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold border ${STATUS_STYLE[s.status] || ""}`}>
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-label-3xs font-bold border ${STATUS_STYLE[s.status] || ""}`}>
                                     <span className={`w-1 h-1 rounded-full ${STATUS_DOT[s.status] || "bg-outline"}`} />
                                     {s.status}
                                   </span>
                                   {cfg && (
-                                    <span className="flex items-center gap-0.5 text-[8px] font-semibold" style={{ color: cfg.color }}>
+                                    <span className="flex items-center gap-0.5 text-label-3xs font-semibold" style={{ color: cfg.color }}>
                                       <PlatformIcon platform={cfg.icon} className="w-[8px] h-[8px]" />
                                       {cfg.label}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[9px] text-outline">
-                                    <span className="material-symbols-outlined text-[9px] align-text-bottom">schedule</span>
+                                  <span className="text-label-2xs text-outline">
+                                    <span className="material-symbols-outlined text-label-2xs align-text-bottom">schedule</span>
                                     {formatTime(s.scheduledAt)}
                                   </span>
                                   {s.brandName && (
                                     <>
                                       <span className="text-outline/20">·</span>
-                                      <span className="text-[9px] text-outline">{s.brandName}</span>
+                                      <span className="text-label-2xs text-outline">{s.brandName}</span>
                                     </>
                                   )}
                                 </div>
@@ -524,11 +524,11 @@ export default function CalendarPage() {
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-1.5">
                     <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
-                    <span className="text-[10px] text-outline font-medium">{item.label}</span>
+                    <span className="text-label-xs text-outline font-medium">{item.label}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-outline italic">API: /api/content-schedules</p>
+              <p className="text-label-xs text-outline italic">API: /api/content-schedules</p>
             </div>
             </>
           ) : view === "week" ? (
@@ -545,7 +545,7 @@ export default function CalendarPage() {
                   </button>
                 </div>
                 <button onClick={() => { const d = new Date(); setYear(d.getFullYear()); setMonth(d.getMonth()); setWeekOffset(0); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-[10px] font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-label-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
                   <span className="material-symbols-outlined text-[14px]">calendar_today</span>
                   Today
                 </button>
@@ -557,7 +557,7 @@ export default function CalendarPage() {
                     const isToday = sameDay(weekDays[i], today);
                     return (
                       <div key={d} className={`px-3 py-2.5 text-center ${isToday ? "text-primary" : "text-outline"}`}>
-                        <div className="text-[9px] font-bold uppercase tracking-wider">{d}</div>
+                        <div className="text-label-2xs font-bold uppercase tracking-wider">{d}</div>
                         <div className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold mt-0.5 ${
                           isToday ? "bg-primary text-on-primary" : "text-on-surface"
                         }`}>{weekDays[i].getDate()}</div>
@@ -574,7 +574,7 @@ export default function CalendarPage() {
                         {dayScheds.length === 0 ? (
                           <div className="flex flex-col items-center justify-center h-full py-8 text-center">
                             <span className="material-symbols-outlined text-lg text-outline/20">event_busy</span>
-                            <p className="text-[9px] text-outline/40 mt-1">No schedules</p>
+                            <p className="text-label-2xs text-outline/40 mt-1">No schedules</p>
                           </div>
                         ) : (
                           <div className="space-y-1.5">
@@ -586,18 +586,18 @@ export default function CalendarPage() {
                                   style={{ borderColor: cfg?.color + "30" }}>
                                   <div className="flex items-center gap-1.5 mb-1">
                                     {cfg && <PlatformIcon platform={cfg.icon} className="w-[10px] h-[10px]" />}
-                                    <span className="text-[9px] font-semibold truncate flex-1">{s.title}</span>
+                                    <span className="text-label-2xs font-semibold truncate flex-1">{s.title}</span>
                                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[s.status] || "bg-outline"}`} />
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[8px] text-outline flex items-center gap-0.5">
-                                      <span className="material-symbols-outlined text-[8px]">schedule</span>
+                                    <span className="text-label-3xs text-outline flex items-center gap-0.5">
+                                      <span className="material-symbols-outlined text-label-3xs">schedule</span>
                                       {formatTime(s.scheduledAt)}
                                     </span>
                                     {s.brandName && (
                                       <>
                                         <span className="text-outline/20">·</span>
-                                        <span className="text-[8px] text-outline truncate">{s.brandName}</span>
+                                        <span className="text-label-3xs text-outline truncate">{s.brandName}</span>
                                       </>
                                     )}
                                   </div>
@@ -628,7 +628,7 @@ export default function CalendarPage() {
                   ].map((item) => (
                     <div key={item.label} className="flex items-center gap-1">
                       <span className={`w-2 h-2 rounded-full ${item.color}`} />
-                      <span className="text-[9px] text-outline">{item.label}</span>
+                      <span className="text-label-2xs text-outline">{item.label}</span>
                     </div>
                   ))}
                 </div>
@@ -672,7 +672,7 @@ export default function CalendarPage() {
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="text-body-sm font-semibold text-on-surface">{formatDate(s.scheduledAt)}</span>
-                            <span className="text-[10px] text-outline">{formatTime(s.scheduledAt)}</span>
+                            <span className="text-label-xs text-outline">{formatTime(s.scheduledAt)}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -693,22 +693,22 @@ export default function CalendarPage() {
                         </td>
                         <td className="px-6 py-4">
                           {cfg ? (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold"
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-semibold"
                               style={{ backgroundColor: cfg.color + "12", color: cfg.color }}>
                               <PlatformIcon platform={cfg.icon} className="w-[10px] h-[10px]" />
                               {cfg.label}
                             </span>
-                          ) : <span className="text-[10px] text-outline">—</span>}
+                          ) : <span className="text-label-xs text-outline">—</span>}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${STATUS_STYLE[s.status] || ""}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-bold border ${STATUS_STYLE[s.status] || ""}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[s.status] || "bg-outline"}`} />
                             {s.status}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[11px] text-outline">{s.attemptCount}</span>
-                          {s.lastError && <span className="text-[9px] text-danger-red block">{s.lastError}</span>}
+                          {s.lastError && <span className="text-label-2xs text-danger-red block">{s.lastError}</span>}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <button onClick={() => handleDelete(s.id)} disabled={actionId === s.id}
@@ -742,12 +742,12 @@ export default function CalendarPage() {
                   </div>
                   <div>
                     <h3 className="text-label-sm font-bold text-on-surface">Schedule Content</h3>
-                    <p className="text-[10px] text-outline">Pick content, platform, and time</p>
+                    <p className="text-label-xs text-outline">Pick content, platform, and time</p>
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Content</label>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Content</label>
                     <select value={form.contentId} onChange={(e) => setForm((f) => ({ ...f, contentId: e.target.value }))}
                       className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
                       <option value="">Select content...</option>
@@ -757,7 +757,7 @@ export default function CalendarPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Platform</label>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Platform</label>
                     <div className="flex gap-2">
                       {Object.entries(PLATFORM_CONFIG).map(([key, cfg]) => (
                         <button key={key} onClick={() => setForm((f) => ({ ...f, platform: key }))}
@@ -774,12 +774,12 @@ export default function CalendarPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Date</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Date</label>
                       <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
                         className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
                     </div>
                     <div>
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Time</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Time</label>
                       <input type="time" value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
                         className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
                     </div>
@@ -815,12 +815,12 @@ export default function CalendarPage() {
                   </div>
                   <div>
                     <h3 className="text-label-sm font-bold text-on-surface">Edit Schedule</h3>
-                    <p className="text-[10px] text-outline">{editingSchedule.title || "Untitled"}</p>
+                    <p className="text-label-xs text-outline">{editingSchedule.title || "Untitled"}</p>
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Platform</label>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Platform</label>
                     <div className="flex gap-2">
                       {Object.entries(PLATFORM_CONFIG).map(([key, cfg]) => (
                         <button key={key} onClick={() => setEditForm((f) => ({ ...f, platform: key }))}
@@ -837,12 +837,12 @@ export default function CalendarPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Date</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Date</label>
                       <input type="date" value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))}
                         className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
                     </div>
                     <div>
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Time</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Time</label>
                       <input type="time" value={editForm.time} onChange={(e) => setEditForm((f) => ({ ...f, time: e.target.value }))}
                         className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
                     </div>

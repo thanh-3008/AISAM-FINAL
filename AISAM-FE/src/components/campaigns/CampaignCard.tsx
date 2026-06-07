@@ -61,7 +61,7 @@ export default function CampaignCard({
             <p className="text-[11px] text-outline mt-0.5">{campaign.brandName}</p>
           </div>
         </div>
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusConfig.bg} ${statusConfig.color}`}>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold border ${statusConfig.bg} ${statusConfig.color}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot} ${campaign.status === "ACTIVE" ? "animate-pulse" : ""}`} />
           {statusConfig.label}
         </span>
@@ -71,7 +71,7 @@ export default function CampaignCard({
       <div className="px-5 pb-3 flex items-center gap-3">
         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${objectiveConfig.bg}`}>
           <span className={`material-symbols-outlined text-[14px] ${objectiveConfig.color}`}>{objectiveConfig.icon}</span>
-          <span className={`text-[10px] font-semibold ${objectiveConfig.color}`}>{objectiveConfig.label}</span>
+          <span className={`text-label-xs font-semibold ${objectiveConfig.color}`}>{objectiveConfig.label}</span>
         </div>
         {campaign.budget && (
           <span className="text-[11px] text-outline font-medium">{formatCurrency(campaign.budget)} budget</span>
@@ -79,7 +79,7 @@ export default function CampaignCard({
       </div>
 
       {/* Date range */}
-      <div className="px-5 pb-3 flex items-center gap-2 text-[10px] text-outline">
+      <div className="px-5 pb-3 flex items-center gap-2 text-label-xs text-outline">
         <span className="material-symbols-outlined text-[12px]">calendar_today</span>
         <span>{formatDateShort(campaign.startDate)} – {formatDateShort(campaign.endDate)}</span>
         {daysRemaining !== null && daysRemaining > 0 && campaign.status === "ACTIVE" && (
@@ -91,19 +91,19 @@ export default function CampaignCard({
       <div className="px-5 pb-3 grid grid-cols-4 gap-2">
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
           <p className="text-[11px] font-bold text-on-surface">{campaign.impressions >= 1000 ? `${(campaign.impressions / 1000).toFixed(1)}K` : campaign.impressions}</p>
-          <p className="text-[8px] text-outline uppercase">Impr.</p>
+          <p className="text-label-3xs text-outline uppercase">Impr.</p>
         </div>
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
           <p className="text-[11px] font-bold text-on-surface">{ctr}</p>
-          <p className="text-[8px] text-outline uppercase">CTR</p>
+          <p className="text-label-3xs text-outline uppercase">CTR</p>
         </div>
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
           <p className="text-[11px] font-bold text-on-surface">{formatCurrency(campaign.spend)}</p>
-          <p className="text-[8px] text-outline uppercase">Spend</p>
+          <p className="text-label-3xs text-outline uppercase">Spend</p>
         </div>
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
           <p className="text-[11px] font-bold text-on-surface">{campaign.conversions}</p>
-          <p className="text-[8px] text-outline uppercase">Conv.</p>
+          <p className="text-label-3xs text-outline uppercase">Conv.</p>
         </div>
       </div>
 
@@ -111,8 +111,8 @@ export default function CampaignCard({
       {campaign.budget && (
         <div className="px-5 pb-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-outline font-medium">Budget Used</span>
-            <span className={`text-[9px] font-bold ${budgetProgress >= 90 ? "text-danger-red" : budgetProgress >= 70 ? "text-amber-600" : "text-on-surface"}`}>
+            <span className="text-label-2xs text-outline font-medium">Budget Used</span>
+            <span className={`text-label-2xs font-bold ${budgetProgress >= 90 ? "text-danger-red" : budgetProgress >= 70 ? "text-amber-600" : "text-on-surface"}`}>
               {budgetProgress}%
             </span>
           </div>

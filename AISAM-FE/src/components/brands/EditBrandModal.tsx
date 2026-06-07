@@ -99,7 +99,7 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
       <div className="bg-surface rounded-2xl border border-outline-variant/20 shadow-xl w-full max-w-lg mx-4 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-outline-variant/20">
-          <h3 className="text-headline-md font-headline-md text-on-surface">Edit Brand</h3>
+          <h3 className="text-headline-sm font-headline-sm text-on-surface">Edit Brand</h3>
           <button onClick={handleClose} className="p-2 hover:bg-surface-container rounded-full transition-colors active:scale-[0.97]">
             <span className="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
           </button>

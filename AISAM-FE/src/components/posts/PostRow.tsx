@@ -18,7 +18,7 @@ interface PostRowProps {
 
 function PlatformBadge({ platform }: { platform?: string }) {
   const cfg = PLATFORM_CONFIG[platform || ""];
-  if (!cfg) return <span className="text-[10px] text-outline">—</span>;
+  if (!cfg) return <span className="text-label-xs text-outline">—</span>;
   
   if (platform === "facebook") return (
     <div className="flex items-center gap-2">
@@ -98,20 +98,20 @@ export default function PostRow({
             <p className="text-[11px] text-outline line-clamp-1 mt-0.5">{post.caption || ""}</p>
             <div className="flex items-center gap-2.5 mt-1">
               {post.likes !== undefined && (
-                <span className="flex items-center gap-0.5 text-[9px] text-outline/60">
-                  <span className="material-symbols-outlined text-[10px]">favorite</span>
+                <span className="flex items-center gap-0.5 text-label-2xs text-outline/60">
+                  <span className="material-symbols-outlined text-label-xs">favorite</span>
                   {post.likes >= 1000 ? `${(post.likes / 1000).toFixed(1)}k` : post.likes}
                 </span>
               )}
               {post.comments !== undefined && (
-                <span className="flex items-center gap-0.5 text-[9px] text-outline/60">
-                  <span className="material-symbols-outlined text-[10px]">chat_bubble</span>
+                <span className="flex items-center gap-0.5 text-label-2xs text-outline/60">
+                  <span className="material-symbols-outlined text-label-xs">chat_bubble</span>
                   {post.comments}
                 </span>
               )}
               {post.shares !== undefined && (
-                <span className="flex items-center gap-0.5 text-[9px] text-outline/60">
-                  <span className="material-symbols-outlined text-[10px]">share</span>
+                <span className="flex items-center gap-0.5 text-label-2xs text-outline/60">
+                  <span className="material-symbols-outlined text-label-xs">share</span>
                   {post.shares}
                 </span>
               )}
@@ -124,9 +124,9 @@ export default function PostRow({
       <td className="px-6 py-5">
         <div className="flex flex-col gap-1">
           <PlatformBadge platform={post.platform} />
-          <span className="text-[10px] text-outline">{post.brandName}</span>
+          <span className="text-label-xs text-outline">{post.brandName}</span>
           {post.type && (
-            <span className="text-[9px] text-outline/60 uppercase font-semibold tracking-wide">
+            <span className="text-label-2xs text-outline/60 uppercase font-semibold tracking-wide">
               {post.type}
             </span>
           )}
@@ -144,7 +144,7 @@ export default function PostRow({
           {post.status}
         </span>
         {post.errorMessage && (
-          <p className="text-[10px] text-danger-red font-bold mt-1 truncate max-w-[200px]" title={post.errorMessage}>
+          <p className="text-label-xs text-danger-red font-bold mt-1 truncate max-w-[200px]" title={post.errorMessage}>
             {post.errorMessage}
           </p>
         )}
@@ -154,12 +154,12 @@ export default function PostRow({
       <td className="px-6 py-5">
         <p className="text-label-md text-on-surface">{formatDate(post.publishedAt)}</p>
         {isScheduled && days && (
-          <p className="text-[10px] text-primary font-bold uppercase tracking-tight">{days}</p>
+          <p className="text-label-xs text-primary font-bold uppercase tracking-tight">{days}</p>
         )}
         {isPublished && (
-          <p className="text-[10px] text-outline">{formatTime(post.publishedAt)}</p>
+          <p className="text-label-xs text-outline">{formatTime(post.publishedAt)}</p>
         )}
-        <p className="text-[9px] text-outline/60 mt-1">Created: {formatDate(post.createdAt)}</p>
+        <p className="text-label-2xs text-outline/60 mt-1">Created: {formatDate(post.createdAt)}</p>
       </td>
       
       {/* Actions */}

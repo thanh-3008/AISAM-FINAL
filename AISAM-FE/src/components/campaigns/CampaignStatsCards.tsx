@@ -35,7 +35,7 @@ export default function CampaignStatsCards({ campaigns }: CampaignStatsCardsProp
               <span className="material-symbols-outlined text-[20px]">{s.icon}</span>
             </div>
             <div>
-              <p className="text-[10px] text-outline uppercase font-medium">{s.label}</p>
+              <p className="text-label-xs text-outline uppercase font-medium">{s.label}</p>
               <p className="text-lg font-bold text-on-surface leading-tight">{s.value}</p>
             </div>
           </div>
@@ -56,8 +56,8 @@ export default function CampaignStatsCards({ campaigns }: CampaignStatsCardsProp
           />
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[10px] text-outline">{paused} paused · {completed} completed</span>
-          <span className="text-[10px] text-primary font-medium">
+          <span className="text-label-xs text-outline">{paused} paused · {completed} completed</span>
+          <span className="text-label-xs text-primary font-medium">
             {totalBudget > 0 ? Math.round((totalSpend / totalBudget) * 100) : 0}% used
           </span>
         </div>

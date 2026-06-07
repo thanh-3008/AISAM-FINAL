@@ -81,7 +81,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
               </div>
               <div>
                 <h2 className="text-headline-sm font-bold text-on-surface">Manage Targets</h2>
-                <p className="text-[10px] text-outline">{displayName}</p>
+                <p className="text-label-xs text-outline">{displayName}</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-full transition-colors">
@@ -133,7 +133,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-semibold text-on-surface truncate">{target.name}</p>
-                        <p className="text-[9px] text-outline uppercase">{target.type}{target.category ? ` · ${target.category}` : ""}</p>
+                        <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` · ${target.category}` : ""}</p>
                       </div>
                     </label>
                   ))}

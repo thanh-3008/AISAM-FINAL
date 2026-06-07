@@ -232,7 +232,7 @@ export default function CreateContentPage() {
                     <textarea value={form.textContent} onChange={(e) => update({ textContent: e.target.value })}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[200px] resize-y leading-relaxed"
                       placeholder="Write your content here..." />
-                    <div className="flex items-center justify-end gap-3 mt-1.5 text-[10px] text-outline">
+                    <div className="flex items-center justify-end gap-3 mt-1.5 text-label-xs text-outline">
                       <span>{form.textContent.length} characters</span>
                       <span>{form.textContent.split(/\s+/).filter(Boolean).length} words</span>
                     </div>
@@ -266,7 +266,7 @@ export default function CreateContentPage() {
                               <span className="material-symbols-outlined text-[16px]">close</span>
                             </button>
                           </div>
-                          <p className="text-[10px] text-outline mt-2">Click to replace or drag a new image</p>
+                          <p className="text-label-xs text-outline mt-2">Click to replace or drag a new image</p>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-2">
@@ -277,7 +277,7 @@ export default function CreateContentPage() {
                             <p className="text-body-sm text-on-surface font-medium">Click to upload</p>
                             <p className="text-label-sm text-outline/60 mt-0.5">or drag and drop your image here</p>
                           </div>
-                          <p className="text-[9px] text-outline/40">PNG, JPG, WebP up to 10MB</p>
+                          <p className="text-label-2xs text-outline/40">PNG, JPG, WebP up to 10MB</p>
                         </div>
                       )}
                     </div>
@@ -320,7 +320,7 @@ export default function CreateContentPage() {
                               <p className="text-body-sm text-on-surface font-medium">Click to upload</p>
                               <p className="text-label-sm text-outline/60 mt-0.5">or drag and drop your video here</p>
                             </div>
-                            <p className="text-[9px] text-outline/40">MP4, WebM, MOV up to 100MB</p>
+                            <p className="text-label-2xs text-outline/40">MP4, WebM, MOV up to 100MB</p>
                           </div>
                         )}
                       </div>
@@ -348,7 +348,7 @@ export default function CreateContentPage() {
                   <textarea value={form.caption} onChange={(e) => update({ caption: e.target.value })}
                     className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[100px] resize-y leading-relaxed"
                     placeholder="Write the caption that will appear on social media posts..." />
-                  <div className="flex items-center justify-end gap-3 mt-1.5 text-[10px] text-outline">
+                  <div className="flex items-center justify-end gap-3 mt-1.5 text-label-xs text-outline">
                     <span>{form.caption.length} characters</span>
                     <span>{form.caption.split(/\s+/).filter(Boolean).length} words</span>
                   </div>
@@ -414,12 +414,12 @@ export default function CreateContentPage() {
                       {form.platforms.map((p) => {
                         const cfg = PLATFORM_CONFIG[p];
                         return (
-                          <span key={p} className="px-2 py-0.5 rounded-lg flex items-center gap-1 text-[10px] font-semibold"
+                          <span key={p} className="px-2 py-0.5 rounded-lg flex items-center gap-1 text-label-xs font-semibold"
                             style={{ backgroundColor: (cfg?.color || "#666") + "20", color: cfg?.color || "#666" }}>
                             <PlatformIcon platform={cfg?.icon || "default"} />
                             {cfg?.label || p}
                             <button onClick={() => update({ platforms: form.platforms.filter((x) => x !== p) })} className="hover:opacity-60">
-                              <span className="material-symbols-outlined text-[10px]">close</span>
+                              <span className="material-symbols-outlined text-label-xs">close</span>
                             </button>
                           </span>
                         );
@@ -458,10 +458,10 @@ export default function CreateContentPage() {
                   {form.tags.length > 0 && (
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       {form.tags.map((t) => (
-                        <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-[10px] font-semibold text-on-surface-variant flex items-center gap-1">
+                        <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-label-xs font-semibold text-on-surface-variant flex items-center gap-1">
                           {t}
                           <button onClick={() => update({ tags: form.tags.filter((x) => x !== t) })} className="hover:opacity-60">
-                            <span className="material-symbols-outlined text-[10px]">close</span>
+                            <span className="material-symbols-outlined text-label-xs">close</span>
                           </button>
                         </span>
                       ))}
@@ -475,10 +475,10 @@ export default function CreateContentPage() {
                   <div className="flex items-center flex-wrap gap-1.5 px-3 py-2 bg-surface-container border border-outline-variant/20 rounded-xl min-h-[44px] cursor-text transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5"
                     onClick={() => document.getElementById("hashtag-input")?.focus()}>
                     {form.hashtags.map((tag) => (
-                      <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-semibold">
+                      <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-label-xs font-semibold">
                         #{tag}
                         <button onClick={() => removeHashtag(tag)} className="hover:opacity-60">
-                          <span className="material-symbols-outlined text-[10px]">close</span>
+                          <span className="material-symbols-outlined text-label-xs">close</span>
                         </button>
                       </span>
                     ))}
@@ -564,7 +564,7 @@ export default function CreateContentPage() {
                       if (!isSelected) return null;
                       return (
                         <button key={p} onClick={() => setPreviewPlatform(p)}
-                          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-label-xs font-semibold transition-all ${
                             previewPlatform === p
                               ? "bg-surface-container text-on-surface shadow-sm"
                               : "text-outline/50 hover:bg-surface-container/50 hover:text-outline"
@@ -581,14 +581,14 @@ export default function CreateContentPage() {
                 <div className="bg-white rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden">
                   {/* Facebook Post */}
                   {previewPlatform === "facebook" && (
-                    <div className="font-[system-ui,sans-serif]">
+                    <div className="font-sans">
                       <div className="p-3.5 flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-[12px] font-bold shrink-0">
                           {form.brandName.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{form.brandName || "Brand Name"}</p>
-                          <p className="text-[11px] text-[#65676b]">{form.productName ? `Promoting ${form.productName} · ` : ""}Just now · <span className="material-symbols-outlined text-[10px] align-middle">public</span></p>
+                          <p className="text-[11px] text-[#65676b]">{form.productName ? `Promoting ${form.productName} · ` : ""}Just now · <span className="material-symbols-outlined text-label-xs align-middle">public</span></p>
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
                       </div>
@@ -651,11 +651,11 @@ export default function CreateContentPage() {
 
                   {/* Instagram Post */}
                   {previewPlatform === "instagram" && (
-                    <div className="font-[system-ui,sans-serif] bg-white">
+                    <div className="font-sans bg-white">
                       <div className="p-3 flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-[2px]">
                           <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                            <span className="text-[9px] font-bold" style={{ color: BRAND_COLORS[form.brandName] || "#666" }}>{form.brandName.charAt(0)}</span>
+                            <span className="text-label-2xs font-bold" style={{ color: BRAND_COLORS[form.brandName] || "#666" }}>{form.brandName.charAt(0)}</span>
                           </div>
                         </div>
                         <p className="text-[12px] font-semibold text-[#262626] flex-1">{form.brandName || "brand"}</p>
@@ -682,14 +682,14 @@ export default function CreateContentPage() {
                         {form.hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
                         )}
-                        <p className="text-[10px] text-[#8e8e8e] uppercase tracking-wide">View all comments</p>
+                        <p className="text-label-xs text-[#8e8e8e] uppercase tracking-wide">View all comments</p>
                       </div>
                     </div>
                   )}
 
                   {/* TikTok Post */}
                   {previewPlatform === "tiktok" && (
-                    <div className="font-[system-ui,sans-serif] bg-[#111111] text-white relative overflow-hidden">
+                    <div className="font-sans bg-[#111111] text-white relative overflow-hidden">
                       <div className="aspect-[9/16] flex items-center justify-center relative">
                         {form.thumbnail ? (
                           <img src={form.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -704,7 +704,7 @@ export default function CreateContentPage() {
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-[10px] font-bold shrink-0 border border-white/30"
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-label-xs font-bold shrink-0 border border-white/30"
                               style={{ background: `linear-gradient(135deg, ${BRAND_COLORS[form.brandName] || "#666"}, ${BRAND_COLORS[form.brandName] || "#999"}` }}>
                               {form.brandName.charAt(0)}
                             </div>
@@ -724,19 +724,19 @@ export default function CreateContentPage() {
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
                               <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z"/></svg>
                             </div>
-                            <span className="text-[10px]">12.4K</span>
+                            <span className="text-label-xs">12.4K</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
                               <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm5.5 12.5h-11v-1h11v1zm-2 3h-7v-1h7v1zm2-6h-11v-1h11v1z"/></svg>
                             </div>
-                            <span className="text-[10px]">834</span>
+                            <span className="text-label-xs">834</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
                               <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l5-3 5 3V5c0-1.1-.9-2-2-2z"/></svg>
                             </div>
-                            <span className="text-[10px]">2.1K</span>
+                            <span className="text-label-xs">2.1K</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">

@@ -183,7 +183,7 @@ export default function Filters({
         <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-xl border border-outline-variant/30 px-5 py-4 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-sm">
           {/* Post Type */}
           <div className="space-y-1">
-            <label className="text-[10px] text-outline uppercase font-semibold">Post Type</label>
+            <label className="text-label-xs text-outline uppercase font-semibold">Post Type</label>
             <select
               value={filters.type}
               onChange={(e) => handleInputChange("type", e.target.value)}
@@ -200,7 +200,7 @@ export default function Filters({
 
           {/* Minimum Likes */}
           <div className="space-y-1">
-            <label className="text-[10px] text-outline uppercase font-semibold">Min Likes</label>
+            <label className="text-label-xs text-outline uppercase font-semibold">Min Likes</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -210,13 +210,13 @@ export default function Filters({
                 className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-[11px] text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="0"
               />
-              <span className="text-[10px] text-outline">+</span>
+              <span className="text-label-xs text-outline">+</span>
             </div>
           </div>
 
           {/* Minimum Comments */}
           <div className="space-y-1">
-            <label className="text-[10px] text-outline uppercase font-semibold">Min Comments</label>
+            <label className="text-label-xs text-outline uppercase font-semibold">Min Comments</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -226,13 +226,13 @@ export default function Filters({
                 className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-[11px] text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="0"
               />
-              <span className="text-[10px] text-outline">+</span>
+              <span className="text-label-xs text-outline">+</span>
             </div>
           </div>
 
           {/* Minimum Shares */}
           <div className="space-y-1">
-            <label className="text-[10px] text-outline uppercase font-semibold">Min Shares</label>
+            <label className="text-label-xs text-outline uppercase font-semibold">Min Shares</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -242,7 +242,7 @@ export default function Filters({
                 className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-[11px] text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="0"
               />
-              <span className="text-[10px] text-outline">+</span>
+              <span className="text-label-xs text-outline">+</span>
             </div>
           </div>
         </div>

@@ -59,7 +59,7 @@ export default function StatsCards({ posts }: StatsCardsProps) {
               <span className="material-symbols-outlined text-[12px]">trending_up</span>
               +12%
             </p>
-            <p className="text-[10px] text-outline">{totalLikes.toLocaleString()} likes</p>
+            <p className="text-label-xs text-outline">{totalLikes.toLocaleString()} likes</p>
           </div>
         </div>
       </div>
@@ -114,18 +114,18 @@ export default function StatsCards({ posts }: StatsCardsProps) {
           <div className="grid grid-cols-3 gap-1 mt-1">
             <div className="text-center">
               <p className="text-label-md text-on-surface font-bold">{totalLikes.toLocaleString()}</p>
-              <p className="text-[10px] text-outline">Likes</p>
+              <p className="text-label-xs text-outline">Likes</p>
             </div>
             <div className="text-center">
               <p className="text-label-md text-on-surface font-bold">{totalComments.toLocaleString()}</p>
-              <p className="text-[10px] text-outline">Comments</p>
+              <p className="text-label-xs text-outline">Comments</p>
             </div>
             <div className="text-center">
               <p className="text-label-md text-on-surface font-bold">{totalShares.toLocaleString()}</p>
-              <p className="text-[10px] text-outline">Shares</p>
+              <p className="text-label-xs text-outline">Shares</p>
             </div>
           </div>
-          <p className="text-[10px] text-outline mt-2 text-center">
+          <p className="text-label-xs text-outline mt-2 text-center">
             Total across {posts.length} posts
           </p>
         </div>

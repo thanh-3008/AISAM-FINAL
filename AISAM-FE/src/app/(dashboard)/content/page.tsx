@@ -346,7 +346,7 @@ export default function ContentPage() {
                     <span className="material-symbols-outlined text-[22px]">{s.icon}</span>
                   </div>
                   <div>
-                    <p className="text-[9px] text-outline/50 uppercase tracking-widest font-semibold">{s.label}</p>
+                    <p className="text-label-2xs text-outline/50 uppercase tracking-widest font-semibold">{s.label}</p>
                     <p className="text-3xl font-extrabold text-on-surface tabular-nums tracking-tight">{s.value}</p>
                   </div>
                 </div>
@@ -384,7 +384,7 @@ export default function ContentPage() {
           <div className="flex items-center gap-1.5">
             <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm w-[140px]" />
-            <span className="text-outline/30 text-[10px]">–</span>
+            <span className="text-outline/30 text-label-xs">–</span>
             <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
               className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm w-[140px]" />
           </div>
@@ -425,7 +425,7 @@ export default function ContentPage() {
             {dateFrom && <FilterChip label={`From ${dateFrom}`} onRemove={() => setDateFrom("")} />}
             {dateTo && <FilterChip label={`To ${dateTo}`} onRemove={() => setDateTo("")} />}
             {sortBy !== "newest" && <FilterChip label={SORT_OPTIONS.find((s) => s.value === sortBy)?.label || ""} color="indigo" onRemove={() => setSortBy("newest")} />}
-            <button onClick={clearFilters} className="text-[10px] text-outline/40 hover:text-on-surface underline underline-offset-2 decoration-dotted ml-0.5">Clear</button>
+            <button onClick={clearFilters} className="text-label-xs text-outline/40 hover:text-on-surface underline underline-offset-2 decoration-dotted ml-0.5">Clear</button>
           </div>
         )}
 
@@ -552,10 +552,10 @@ export default function ContentPage() {
                         </td>
                         <td className="px-5 py-3.5 text-body-sm text-on-surface-variant">{item.brandName}</td>
                         <td className="px-5 py-3.5">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${getTypeConfig(item.type).color}`}>{item.type}</span>
+                          <span className={`px-2 py-0.5 rounded-md text-label-xs font-semibold ${getTypeConfig(item.type).color}`}>{item.type}</span>
                         </td>
                         <td className="px-5 py-3.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLES[item.status]}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${STATUS_STYLES[item.status]}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
                             {item.status}
                           </span>
@@ -563,9 +563,9 @@ export default function ContentPage() {
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-1 flex-wrap">
                             {(item.tags ?? []).slice(0, 2).map((t) => (
-                              <span key={t} className="px-1.5 py-0.5 rounded-md bg-surface-container text-[9px] font-semibold text-on-surface-variant">{t}</span>
+                              <span key={t} className="px-1.5 py-0.5 rounded-md bg-surface-container text-label-2xs font-semibold text-on-surface-variant">{t}</span>
                             ))}
-                            {(item.tags ?? []).length > 2 && <span className="text-[9px] text-outline font-semibold">+{(item.tags ?? []).length - 2}</span>}
+                            {(item.tags ?? []).length > 2 && <span className="text-label-2xs text-outline font-semibold">+{(item.tags ?? []).length - 2}</span>}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-body-sm text-outline">{new Date(item.createdAt).toLocaleDateString()}</td>
@@ -579,7 +579,7 @@ export default function ContentPage() {
                                 </div>
                               );
                             })}
-                            {item.platforms.length > 3 && <span className="text-[9px] text-outline font-semibold ml-0.5">+{item.platforms.length - 3}</span>}
+                            {item.platforms.length > 3 && <span className="text-label-2xs text-outline font-semibold ml-0.5">+{item.platforms.length - 3}</span>}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 relative">
@@ -639,8 +639,8 @@ export default function ContentPage() {
                 <div className="h-2 bg-outline-variant/10 rounded-full overflow-hidden mb-2">
                   <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000" style={{ width: `${QUOTA_USAGE.pct}%` }} />
                 </div>
-                <p className="text-[10px] text-on-surface-variant">{QUOTA_USAGE.pct}% used this month</p>
-                <div className="mt-4 flex items-center justify-between text-[10px]">
+                <p className="text-label-xs text-on-surface-variant">{QUOTA_USAGE.pct}% used this month</p>
+                <div className="mt-4 flex items-center justify-between text-label-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span className="text-on-surface-variant">Images</span>
@@ -675,7 +675,7 @@ export default function ContentPage() {
                   </div>
                   <div>
                     <h3 className="text-label-md text-on-surface font-semibold">AI Quick Assistant</h3>
-                    <p className="text-[10px] text-on-surface-variant">Smart tools for your content</p>
+                    <p className="text-label-xs text-on-surface-variant">Smart tools for your content</p>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -687,7 +687,7 @@ export default function ContentPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-label-sm text-on-surface font-medium group-hover:text-purple-600 transition-colors">{action.label}</p>
-                        <p className="text-[10px] text-on-surface-variant">{action.desc}</p>
+                        <p className="text-label-xs text-on-surface-variant">{action.desc}</p>
                       </div>
                       <span className="material-symbols-outlined text-[14px] text-outline/30 group-hover:text-purple-400 transition-colors">arrow_forward</span>
                     </button>
@@ -713,7 +713,7 @@ export default function ContentPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-body-sm text-on-surface">{act.text}</p>
-                        <p className="text-[10px] text-outline mt-0.5">{act.time}</p>
+                        <p className="text-label-xs text-outline mt-0.5">{act.time}</p>
                       </div>
                     </div>
                   ))}
@@ -736,7 +736,7 @@ export default function ContentPage() {
                 </div>
                 <div>
                   <p className="text-label-md text-on-surface font-semibold">Manual Creation</p>
-                  <p className="text-[10px] text-on-surface-variant">Write and format your content</p>
+                  <p className="text-label-xs text-on-surface-variant">Write and format your content</p>
                 </div>
               </button>
               <div className="h-px bg-outline-variant/10 mx-4" />
@@ -746,7 +746,7 @@ export default function ContentPage() {
                 </div>
                 <div>
                   <p className="text-label-md text-on-surface font-semibold">AI Generate</p>
-                  <p className="text-[10px] text-on-surface-variant">Let AI create content for you</p>
+                  <p className="text-label-xs text-on-surface-variant">Let AI create content for you</p>
                 </div>
               </button>
               <div className="h-px bg-outline-variant/10 mx-4" />
@@ -756,7 +756,7 @@ export default function ContentPage() {
                 </div>
                 <div>
                   <p className="text-label-md text-on-surface font-semibold">Import Content</p>
-                  <p className="text-[10px] text-on-surface-variant">Upload from external sources</p>
+                  <p className="text-label-xs text-on-surface-variant">Upload from external sources</p>
                 </div>
               </button>
             </div>
@@ -801,7 +801,7 @@ export default function ContentPage() {
               <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(previewItem.type)} flex items-center justify-center text-white shadow-lg`}>
                 <span className="material-symbols-outlined text-4xl">{getTypeConfig(previewItem.type).icon}</span>
               </div>
-              <span className={`absolute top-3 right-3 px-2 py-0.5 rounded-md text-[10px] font-semibold text-white ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
+              <span className={`absolute top-3 right-3 px-2 py-0.5 rounded-md text-label-xs font-semibold text-white ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
             </div>
             <div className="p-5">
               <div className="flex items-start justify-between mb-3">
@@ -809,7 +809,7 @@ export default function ContentPage() {
                   <h3 className="text-headline-sm text-on-surface font-bold">{previewItem.title}</h3>
                   <p className="text-body-sm text-on-surface-variant mt-0.5">{previewItem.brandName} &middot; {previewItem.productName}</p>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${STATUS_STYLES[previewItem.status]}`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold shrink-0 ${STATUS_STYLES[previewItem.status]}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${previewItem.status === "Published" ? "bg-emerald-500 animate-pulse" : previewItem.status === "Scheduled" ? "bg-blue-500" : previewItem.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
                   {previewItem.status}
                 </span>
@@ -818,7 +818,7 @@ export default function ContentPage() {
                 {previewItem.platforms.map((p) => {
                   const cfg = PLATFORM_CONFIG[p];
                   return (
-                    <div key={p} className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: cfg?.color + "20", color: cfg?.color || "#666" }} title={cfg?.label || p}>
+                    <div key={p} className="w-7 h-7 rounded-lg flex items-center justify-center text-label-xs font-bold" style={{ backgroundColor: cfg?.color + "20", color: cfg?.color || "#666" }} title={cfg?.label || p}>
                       <PlatformIcon platform={cfg?.icon || "default"} className="w-[12px] h-[12px]" />
                     </div>
                   );
@@ -827,7 +827,7 @@ export default function ContentPage() {
               {(previewItem.tags ?? []).length > 0 && (
                 <div className="flex items-center gap-1 mb-4 flex-wrap">
                   {previewItem.tags!.map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-[10px] font-semibold text-on-surface-variant">{t}</span>
+                    <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-label-xs font-semibold text-on-surface-variant">{t}</span>
                   ))}
                 </div>
               )}
@@ -865,9 +865,9 @@ export default function ContentPage() {
 function FilterChip({ label, color, onRemove }: { label: string; color?: string; onRemove: () => void }) {
   const bg = color === "blue" ? "bg-blue-50 text-blue-600" : color === "purple" ? "bg-purple-50 text-purple-600" : color === "amber" ? "bg-amber-50 text-amber-600" : color === "rose" ? "bg-rose-50 text-rose-600" : color === "indigo" ? "bg-indigo-50 text-indigo-600" : "bg-primary/8 text-primary";
   return (
-    <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${bg}`}>
+    <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-label-xs font-semibold ${bg}`}>
       {label}
-      <button onClick={onRemove} className="hover:opacity-60 active:scale-[0.97]"><span className="material-symbols-outlined text-[10px]">close</span></button>
+      <button onClick={onRemove} className="hover:opacity-60 active:scale-[0.97]"><span className="material-symbols-outlined text-label-xs">close</span></button>
     </span>
   );
 }
@@ -924,8 +924,8 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
             </div>
           )}
           <div className="absolute top-3 left-3">
-            <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold text-white ${typeBadgeColor} backdrop-blur-[2px] flex items-center gap-1`}>
-              <span className="material-symbols-outlined text-[10px]">{tc.icon}</span>
+            <span className={`px-2 py-0.5 rounded-md text-label-xs font-semibold text-white ${typeBadgeColor} backdrop-blur-[2px] flex items-center gap-1`}>
+              <span className="material-symbols-outlined text-label-xs">{tc.icon}</span>
               {item.type}
             </span>
           </div>
@@ -947,25 +947,25 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
             <span>{item.productName}</span>
           </div>
           <div className="flex items-center justify-between mb-3">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLES[item.status]}`}>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${STATUS_STYLES[item.status]}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
               {item.status}
             </span>
-            <span className="text-[10px] text-outline">{new Date(item.createdAt).toLocaleDateString()}</span>
+            <span className="text-label-xs text-outline">{new Date(item.createdAt).toLocaleDateString()}</span>
           </div>
           {(item.tags?.length ?? 0) > 0 && (
             <div className="flex items-center gap-1 mb-3 flex-wrap">
               {item.tags!.slice(0, 2).map((t) => (
-                <span key={t} className="px-1.5 py-0.5 rounded-md bg-surface-container text-[9px] font-semibold text-on-surface-variant">{t}</span>
+                <span key={t} className="px-1.5 py-0.5 rounded-md bg-surface-container text-label-2xs font-semibold text-on-surface-variant">{t}</span>
               ))}
-              {item.tags!.length > 2 && <span className="text-[9px] text-outline font-semibold">+{item.tags!.length - 2}</span>}
+              {item.tags!.length > 2 && <span className="text-label-2xs text-outline font-semibold">+{item.tags!.length - 2}</span>}
             </div>
           )}
           <div className="flex items-center gap-1.5 pt-3 border-t border-outline-variant/10">
             {item.platforms.map((p) => {
               const cfg = PLATFORM_CONFIG[p];
               return (
-                <div key={p} className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold" style={{ backgroundColor: cfg?.color + "20", color: cfg?.color || "#666" }} title={cfg?.label || p}>
+                <div key={p} className="w-6 h-6 rounded-lg flex items-center justify-center text-label-2xs font-bold" style={{ backgroundColor: cfg?.color + "20", color: cfg?.color || "#666" }} title={cfg?.label || p}>
                     <PlatformIcon platform={cfg?.icon || "default"} className="w-[11px] h-[11px]" />
                 </div>
               );
@@ -1082,7 +1082,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
                       : "border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-primary/30"
                   }`}>
                   <span className="material-symbols-outlined text-[20px]">{t.icon}</span>
-                  <span className="text-[10px] font-semibold">{t.label}</span>
+                  <span className="text-label-xs font-semibold">{t.label}</span>
                 </button>
               ))}
             </div>
@@ -1126,11 +1126,11 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
             {form.platforms.length > 0 && (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 {form.platforms.map((p) => (
-                  <span key={p} className="px-2 py-0.5 rounded-lg flex items-center gap-1 text-[10px] font-semibold" style={{ backgroundColor: (PLATFORM_CONFIG[p]?.color || "#666") + "20", color: PLATFORM_CONFIG[p]?.color || "#666" }}>
+                  <span key={p} className="px-2 py-0.5 rounded-lg flex items-center gap-1 text-label-xs font-semibold" style={{ backgroundColor: (PLATFORM_CONFIG[p]?.color || "#666") + "20", color: PLATFORM_CONFIG[p]?.color || "#666" }}>
                     <PlatformIcon platform={PLATFORM_CONFIG[p]?.icon || "default"} className="w-[10px] h-[10px]" />
                     {p}
                     <button onClick={() => setForm((prev) => ({ ...prev, platforms: prev.platforms.filter((x) => x !== p) }))} className="hover:opacity-60">
-                      <span className="material-symbols-outlined text-[10px]">close</span>
+                      <span className="material-symbols-outlined text-label-xs">close</span>
                     </button>
                   </span>
                 ))}
@@ -1167,10 +1167,10 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
             {form.tags.length > 0 && (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 {form.tags.map((t) => (
-                  <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-[10px] font-semibold text-on-surface-variant flex items-center gap-1">
+                  <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-label-xs font-semibold text-on-surface-variant flex items-center gap-1">
                     {t}
                     <button onClick={() => setForm((prev) => ({ ...prev, tags: prev.tags.filter((x) => x !== t) }))} className="hover:opacity-60">
-                      <span className="material-symbols-outlined text-[10px]">close</span>
+                      <span className="material-symbols-outlined text-label-xs">close</span>
                     </button>
                   </span>
                 ))}
@@ -1191,7 +1191,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); setForm((p) => ({ ...p, thumbnail: "" })); }}
                     className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-danger-red/80 transition-all">
-                    <span className="material-symbols-outlined text-[10px]">close</span>
+                    <span className="material-symbols-outlined text-label-xs">close</span>
                   </button>
                 </div>
               ) : (

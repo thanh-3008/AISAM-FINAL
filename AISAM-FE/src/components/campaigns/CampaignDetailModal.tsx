@@ -73,32 +73,32 @@ export default function CampaignDetailModal({ campaign, onClose }: CampaignDetai
                 <div className="bg-surface-container-low rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-[16px] text-blue-600">visibility</span>
-                    <span className="text-[10px] text-outline uppercase font-medium">Impressions</span>
+                    <span className="text-label-xs text-outline uppercase font-medium">Impressions</span>
                   </div>
                   <p className="text-headline-sm font-bold text-on-surface">{formatNumber(campaign.impressions)}</p>
                 </div>
                 <div className="bg-surface-container-low rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-[16px] text-cyan-600">touch_app</span>
-                    <span className="text-[10px] text-outline uppercase font-medium">Clicks</span>
+                    <span className="text-label-xs text-outline uppercase font-medium">Clicks</span>
                   </div>
                   <p className="text-headline-sm font-bold text-on-surface">{formatNumber(campaign.clicks)}</p>
-                  <p className="text-[10px] text-outline mt-1">CTR: {ctr}</p>
+                  <p className="text-label-xs text-outline mt-1">CTR: {ctr}</p>
                 </div>
                 <div className="bg-surface-container-low rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-[16px] text-violet-600">payments</span>
-                    <span className="text-[10px] text-outline uppercase font-medium">Spend</span>
+                    <span className="text-label-xs text-outline uppercase font-medium">Spend</span>
                   </div>
                   <p className="text-headline-sm font-bold text-on-surface">{formatCurrency(campaign.spend)}</p>
                   {campaign.budget && (
-                    <p className="text-[10px] text-outline mt-1">of {formatCurrency(campaign.budget)}</p>
+                    <p className="text-label-xs text-outline mt-1">of {formatCurrency(campaign.budget)}</p>
                   )}
                 </div>
                 <div className="bg-surface-container-low rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-[16px] text-emerald-600">conversion_path</span>
-                    <span className="text-[10px] text-outline uppercase font-medium">Conversions</span>
+                    <span className="text-label-xs text-outline uppercase font-medium">Conversions</span>
                   </div>
                   <p className="text-headline-sm font-bold text-on-surface">{campaign.conversions}</p>
                 </div>
@@ -124,7 +124,7 @@ export default function CampaignDetailModal({ campaign, onClose }: CampaignDetai
                       style={{ width: `${budgetProgress}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-outline">
+                  <div className="flex items-center justify-between text-label-xs text-outline">
                     <span>{formatCurrency(campaign.spend)} spent</span>
                     <span>{formatCurrency(campaign.budget - campaign.spend)} remaining</span>
                   </div>
@@ -194,13 +194,13 @@ export default function CampaignDetailModal({ campaign, onClose }: CampaignDetai
                     <div key={adSet.id} className="bg-surface-container-low rounded-xl p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-semibold text-on-surface">{adSet.name}</span>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        <span className={`text-label-2xs font-bold px-2 py-0.5 rounded-full ${
                           adSet.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                         }`}>
                           {adSet.status}
                         </span>
                       </div>
-                      <div className="grid grid-cols-4 gap-2 text-[10px]">
+                      <div className="grid grid-cols-4 gap-2 text-label-xs">
                         <div>
                           <span className="text-outline">Impressions</span>
                           <p className="font-bold text-on-surface">{formatNumber(adSet.impressions)}</p>

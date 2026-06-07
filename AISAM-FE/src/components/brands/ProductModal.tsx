@@ -162,10 +162,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                       <p className="text-label-sm text-primary">{files.length} file(s) selected</p>
                       <div className="flex flex-wrap gap-1 mt-1.5 justify-center">
                         {files.map((f, i) => (
-                          <span key={i} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/8 text-primary text-[10px]">
+                          <span key={i} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/8 text-primary text-label-xs">
                             {f.name.length > 12 ? f.name.slice(0, 10) + ".." : f.name}
                             <button type="button" onClick={(e) => { e.stopPropagation(); removeFile(i); }} className="hover:text-primary/60">
-                              <span className="material-symbols-outlined text-[10px]">close</span>
+                              <span className="material-symbols-outlined text-label-xs">close</span>
                             </button>
                           </span>
                         ))}

@@ -31,7 +31,7 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
               </div>
               <div>
                 <h2 className="text-headline-sm font-bold text-on-surface">Connect Account</h2>
-                <p className="text-[10px] text-outline">Link your social media via OAuth</p>
+                <p className="text-label-xs text-outline">Link your social media via OAuth</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-full transition-colors">
@@ -41,7 +41,7 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
 
           <div className="p-6 space-y-5">
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Select Platform</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Select Platform</label>
               <div className="grid grid-cols-3 gap-2">
                 {(Object.keys(PLATFORM_INFO) as SocialPlatform[]).map((platform) => {
                   const info = PLATFORM_INFO[platform];
@@ -55,7 +55,7 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
                       <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${info.gradient} flex items-center justify-center text-white`}>
                         <PlatformIcon platform={platform} className="w-4 h-4" />
                       </div>
-                      <span className="text-[10px] font-semibold text-on-surface">{info.label}</span>
+                      <span className="text-label-xs font-semibold text-on-surface">{info.label}</span>
                     </button>
                   );
                 })}
@@ -67,13 +67,13 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
                 <span className="material-symbols-outlined text-[16px]">security</span>
                 Secure OAuth Authentication
               </p>
-              <p className="text-[10px] text-on-surface-variant">
+              <p className="text-label-xs text-on-surface-variant">
                 You will be redirected to {PLATFORM_INFO[selectedPlatform].label} to authorize access. Your credentials are never stored on our servers.
               </p>
             </div>
 
             <div className="p-3 bg-surface-container-low rounded-xl">
-              <p className="text-[10px] text-outline flex items-start gap-2">
+              <p className="text-label-xs text-outline flex items-start gap-2">
                 <span className="material-symbols-outlined text-[14px] shrink-0">info</span>
                 After authorization, you can link pages/profiles from your {PLATFORM_INFO[selectedPlatform].label} account to publish content.
               </p>

@@ -238,7 +238,7 @@ export default function ApprovalsPage() {
                   <span className="material-symbols-outlined text-[18px]">approval</span>
                 </span>
                 <h1 className="text-headline-sm text-on-surface font-bold">Content Approvals</h1>
-                <span className="text-[10px] text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-semibold">{filtered.length} items</span>
+                <span className="text-label-xs text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-semibold">{filtered.length} items</span>
               </div>
               <p className="text-body-md text-on-surface-variant ml-11">Review and manage AI-generated marketing assets across your portfolio.</p>
             </div>
@@ -246,7 +246,7 @@ export default function ApprovalsPage() {
               <div className="flex items-center -space-x-2">
                 {TEAM.map((m, i) => (
                   <span key={i}
-                    className={`w-8 h-8 rounded-full ${m.color} text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-surface-container-lowest`}
+                    className={`w-8 h-8 rounded-full ${m.color} text-white text-label-xs font-bold flex items-center justify-center ring-2 ring-surface-container-lowest`}
                     title={m.name}>{getInitials(m.name)}</span>
                 ))}
                 <span className="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant text-[14px] font-medium flex items-center justify-center ring-2 ring-surface-container-lowest cursor-pointer hover:bg-surface-container-high transition-all">
@@ -293,7 +293,7 @@ export default function ApprovalsPage() {
                 <span className="flex items-center gap-2">
                   {DOT_COLORS[t.key] && <span className={`w-2 h-2 rounded-full ${DOT_COLORS[t.key]}`} />}
                   {t.label}
-                  <span className="text-[10px] text-outline/60">({tabCounts[t.key]})</span>
+                  <span className="text-label-xs text-outline/60">({tabCounts[t.key]})</span>
                 </span>
               </button>
             ))}
@@ -340,17 +340,17 @@ export default function ApprovalsPage() {
               <span className="text-label-sm font-semibold text-primary">{selected.size} selected</span>
               <div className="flex items-center gap-2 ml-auto">
                 <button onClick={batchApprove}
-                  className="px-4 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-600 transition-all flex items-center gap-1.5">
+                  className="px-4 py-1.5 bg-emerald-500 text-white text-label-xs font-bold rounded-lg hover:bg-emerald-600 transition-all flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[12px]">check_circle</span>
                   Approve All
                 </button>
                 <button onClick={batchReject}
-                  className="px-4 py-1.5 bg-danger-red/10 text-danger-red text-[10px] font-bold rounded-lg hover:bg-danger-red/20 transition-all flex items-center gap-1.5">
+                  className="px-4 py-1.5 bg-danger-red/10 text-danger-red text-label-xs font-bold rounded-lg hover:bg-danger-red/20 transition-all flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[12px]">block</span>
                   Reject All
                 </button>
                 <button onClick={() => setSelected(new Set())}
-                  className="px-3 py-1.5 text-[10px] font-semibold text-outline hover:text-on-surface transition-all">Clear</button>
+                  className="px-3 py-1.5 text-label-xs font-semibold text-outline hover:text-on-surface transition-all">Clear</button>
               </div>
             </div>
           )}
@@ -461,7 +461,7 @@ export default function ApprovalsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white text-[8px] font-bold shrink-0">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white text-label-3xs font-bold shrink-0">
                                 <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
                               </div>
                               <span className="text-[11px] font-semibold text-on-surface bg-primary/5 px-1.5 py-0.5 rounded">AI</span>
@@ -472,14 +472,14 @@ export default function ApprovalsPage() {
                               {item.platforms.slice(0, 2).map((p) => {
                                 const cfg = PLATFORM_CONFIG[p];
                                 return cfg ? (
-                                  <span key={p} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                                  <span key={p} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-label-xs font-semibold"
                                     style={{ backgroundColor: cfg.color + "15", color: cfg.color }}>
                                     <PlatformIcon platform={cfg.icon} className="w-[12px] h-[12px]" />
                                   </span>
                                 ) : null;
                               })}
                               {item.platforms.length > 2 && (
-                                <span className="text-[10px] text-outline font-medium px-1">+{item.platforms.length - 2}</span>
+                                <span className="text-label-xs text-outline font-medium px-1">+{item.platforms.length - 2}</span>
                               )}
                             </div>
                           </td>
@@ -487,8 +487,8 @@ export default function ApprovalsPage() {
                             <p className="text-[11px] text-outline font-medium">{new Date(item.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${priority.color}`}>
-                              {priority.label === "Urgent" && <span className="material-symbols-outlined text-[10px]">priority_high</span>}
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-bold ${priority.color}`}>
+                              {priority.label === "Urgent" && <span className="material-symbols-outlined text-label-xs">priority_high</span>}
                               {priority.label}
                             </span>
                           </td>
@@ -501,28 +501,28 @@ export default function ApprovalsPage() {
                                 ) : (
                                   <span className="material-symbols-outlined text-[17px]">check_circle</span>
                                 )}
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-[9px] px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
                               </button>
                               <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id}
                                 className="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Request Changes">
                                 <span className="material-symbols-outlined text-[17px]">rate_review</span>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-[9px] px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
                               </button>
                               <button onClick={() => setDrawerItem(item)}
                                 className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Review">
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-[9px] px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
                               </button>
                               <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />
                               <button onClick={() => setConfirmItem(item)} disabled={actionId === item.id}
                                 className="p-2 text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Reject (R)">
                                 <span className="material-symbols-outlined text-[17px]">block</span>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-[9px] px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Reject</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Reject</span>
                               </button>
                               <button onClick={(e) => e.stopPropagation()}
                                 className="p-2 text-outline/40 hover:text-outline hover:bg-surface-container rounded-lg transition-all relative group/btn cursor-not-allowed" title="Leader Only">
                                 <span className="material-symbols-outlined text-[15px]">lock</span>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-[9px] px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Leader only</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Leader only</span>
                               </button>
                             </div>
                           </td>
@@ -589,7 +589,7 @@ export default function ApprovalsPage() {
                   </div>
                   <div>
                     <h3 className="text-label-sm font-bold text-on-surface">Asset Review</h3>
-                    <p className="text-[10px] text-outline">{drawerItem.type} · ID: {drawerItem.id.toUpperCase()}</p>
+                    <p className="text-label-xs text-outline">{drawerItem.type} · ID: {drawerItem.id.toUpperCase()}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -612,10 +612,10 @@ export default function ApprovalsPage() {
                     </span>
                   </div>
                   <div className="absolute top-3 right-3 flex gap-1.5">
-                    <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-surface-container-lowest/70 backdrop-blur-sm text-on-surface-variant">
+                    <span className="text-label-xs font-bold px-2 py-1 rounded-md bg-surface-container-lowest/70 backdrop-blur-sm text-on-surface-variant">
                       {getTypeConfig(drawerItem.type).label}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${getPriority(drawerItem).color}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-label-xs font-bold ${getPriority(drawerItem).color}`}>
                       {getPriority(drawerItem).label}
                     </span>
                   </div>
@@ -658,19 +658,19 @@ export default function ApprovalsPage() {
                         { icon: "flag", label: "Priority", value: getPriority(drawerItem).label, chip: getPriority(drawerItem).color },
                       ].map((f, i) => (
                         <div key={i} className={`${f.full ? "col-span-2" : ""} p-4 rounded-xl bg-surface-container-low border border-outline-variant/10`}>
-                          <label className="flex items-center gap-1 text-[9px] text-outline uppercase font-bold tracking-widest mb-2">
+                          <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest mb-2">
                             <span className="material-symbols-outlined text-[11px]">{f.icon}</span>
                             {f.label}
                           </label>
                           {f.badge ? (
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white shrink-0">
-                                <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
+                                <span className="material-symbols-outlined text-label-xs">auto_awesome</span>
                               </div>
                               <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
                             </div>
                           ) : f.chip ? (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${f.chip}`}>{f.value}</span>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-bold ${f.chip}`}>{f.value}</span>
                           ) : f.color ? (
                             <div className="flex items-center gap-2">
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
@@ -687,14 +687,14 @@ export default function ApprovalsPage() {
                   {drawerItem.tags && drawerItem.tags.length > 0 && (
                     <section>
                       <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-                        <label className="flex items-center gap-1 text-[9px] text-outline uppercase font-bold tracking-widest mb-2.5">
+                        <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest mb-2.5">
                           <span className="material-symbols-outlined text-[11px]">label</span>
                           Campaign Tags
                         </label>
                         <div className="flex flex-wrap gap-1.5">
                           {drawerItem.tags.map((tag) => (
                             <span key={tag}
-                              className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-[10px] font-medium border border-outline-variant/10">{tag}</span>
+                              className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-label-xs font-medium border border-outline-variant/10">{tag}</span>
                           ))}
                         </div>
                       </div>
@@ -704,7 +704,7 @@ export default function ApprovalsPage() {
                   <hr className="border-outline-variant/20" />
 
                   <section>
-                    <h4 className="text-[10px] text-outline uppercase font-bold tracking-widest mb-4 flex items-center gap-2">
+                    <h4 className="text-label-xs text-outline uppercase font-bold tracking-widest mb-4 flex items-center gap-2">
                       <span className="material-symbols-outlined text-[14px]">share</span>
                       Distribution
                     </h4>
@@ -717,7 +717,7 @@ export default function ApprovalsPage() {
                             <PlatformIcon platform={cfg.icon} className="w-[18px] h-[18px]" />
                             <div>
                               <p className="text-[11px] font-bold">{cfg.label}</p>
-                              <p className="text-[9px] opacity-60">Post scheduled</p>
+                              <p className="text-label-2xs opacity-60">Post scheduled</p>
                             </div>
                           </div>
                         ) : null;
@@ -728,7 +728,7 @@ export default function ApprovalsPage() {
                   <hr className="border-outline-variant/20" />
 
                   <section>
-                    <h4 className="text-[10px] text-outline uppercase font-bold tracking-widest mb-5 flex items-center gap-2">
+                    <h4 className="text-label-xs text-outline uppercase font-bold tracking-widest mb-5 flex items-center gap-2">
                       <span className="material-symbols-outlined text-[14px]">timeline</span>
                       Audit Trail
                     </h4>
@@ -746,11 +746,11 @@ export default function ApprovalsPage() {
                           <div className="pt-0.5 flex-1 min-w-0">
                             <p className="text-body-sm font-semibold text-on-surface">{step.label}</p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-outline">{step.time}</span>
+                              <span className="text-label-xs text-outline">{step.time}</span>
                               {step.desc && (
                                 <>
                                   <span className="text-outline/20">·</span>
-                                  <span className="text-[10px] text-outline">{step.desc}</span>
+                                  <span className="text-label-xs text-outline">{step.desc}</span>
                                 </>
                               )}
                             </div>
@@ -800,7 +800,7 @@ export default function ApprovalsPage() {
                   </div>
                   <div>
                     <h3 className="text-label-sm font-bold text-on-surface">Request Changes</h3>
-                    <p className="text-[10px] text-outline">Send feedback for AI revision</p>
+                    <p className="text-label-xs text-outline">Send feedback for AI revision</p>
                   </div>
                 </div>
                 <button onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }} className="p-2 hover:bg-surface-container rounded-lg transition-all">
@@ -816,25 +816,25 @@ export default function ApprovalsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-body-sm font-bold text-on-surface truncate">{revisionDrawer.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: (BRAND_COLORS[revisionDrawer.brandName] || "#6366f1") + "15", color: BRAND_COLORS[revisionDrawer.brandName] || "#6366f1" }}>
+                      <span className="text-label-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: (BRAND_COLORS[revisionDrawer.brandName] || "#6366f1") + "15", color: BRAND_COLORS[revisionDrawer.brandName] || "#6366f1" }}>
                         {revisionDrawer.brandName}
                       </span>
                       <span className="text-outline/20">·</span>
-                      <span className="text-[10px] text-outline">{revisionDrawer.type}</span>
+                      <span className="text-label-xs text-outline">{revisionDrawer.type}</span>
                       <span className="text-outline/20">·</span>
-                      <span className="text-[10px] text-outline">{revisionDrawer.productName}</span>
+                      <span className="text-label-xs text-outline">{revisionDrawer.productName}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/10">
-                    <label className="text-[8px] text-outline uppercase font-bold tracking-widest block mb-1">Platforms</label>
+                    <label className="text-label-3xs text-outline uppercase font-bold tracking-widest block mb-1">Platforms</label>
                     <div className="flex flex-wrap gap-1">
                       {revisionDrawer.platforms.map((p) => {
                         const cfg = PLATFORM_CONFIG[p];
                         return cfg ? (
-                          <span key={p} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                          <span key={p} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-label-2xs font-semibold"
                             style={{ backgroundColor: cfg.color + "12", color: cfg.color }}>
                             <PlatformIcon platform={cfg.icon} className="w-[9px] h-[9px]" />
                             {cfg.label}
@@ -844,8 +844,8 @@ export default function ApprovalsPage() {
                     </div>
                   </div>
                   <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/10">
-                    <label className="text-[8px] text-outline uppercase font-bold tracking-widest block mb-1">Priority</label>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${getPriority(revisionDrawer).color}`}>
+                    <label className="text-label-3xs text-outline uppercase font-bold tracking-widest block mb-1">Priority</label>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold ${getPriority(revisionDrawer).color}`}>
                       {getPriority(revisionDrawer).label}
                     </span>
                   </div>
@@ -853,11 +853,11 @@ export default function ApprovalsPage() {
 
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-warning-amber/5 to-transparent border border-warning-amber/20">
                   <span className="material-symbols-outlined text-warning-amber text-[16px] shrink-0 mt-0.5">info</span>
-                  <p className="text-[10px] text-outline leading-relaxed">Your feedback will be sent to AISAM for regeneration. The current version will be rejected and replaced with a new AI-generated version addressing your notes.</p>
+                  <p className="text-label-xs text-outline leading-relaxed">Your feedback will be sent to AISAM for regeneration. The current version will be rejected and replaced with a new AI-generated version addressing your notes.</p>
                 </div>
 
                 <div>
-                  <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Quick suggestions</label>
+                  <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Quick suggestions</label>
                   <div className="flex flex-wrap gap-1.5">
                     {["Adjust copy", "Change image", "Fix CTA", "Branding issue", "Tone of voice", "Formatting", "Other"].map((s) => (
                       <button key={s} onClick={() => {
@@ -866,7 +866,7 @@ export default function ApprovalsPage() {
                         setRevisionNote(current + prefix + s + ".");
                         revisionsRef.current?.focus();
                       }}
-                        className="px-2.5 py-1.5 rounded-lg border border-outline-variant/20 text-[9px] font-semibold text-on-surface-variant hover:bg-surface-container hover:border-outline-variant/40 transition-all active:scale-95">
+                        className="px-2.5 py-1.5 rounded-lg border border-outline-variant/20 text-label-2xs font-semibold text-on-surface-variant hover:bg-surface-container hover:border-outline-variant/40 transition-all active:scale-95">
                         {s}
                       </button>
                     ))}
@@ -874,7 +874,7 @@ export default function ApprovalsPage() {
                 </div>
 
                 <div>
-                  <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">
+                  <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">
                     Revision Notes <span className="text-danger-red">*</span>
                   </label>
                   <div className="relative">
@@ -889,7 +889,7 @@ export default function ApprovalsPage() {
                           "bg-primary/40"
                         }`} style={{ width: `${Math.min(100, (revisionNote.length / 500) * 100)}%` }} />
                       </div>
-                      <span className={`text-[9px] font-semibold ${
+                      <span className={`text-label-2xs font-semibold ${
                         revisionNote.length >= 500 ? "text-danger-red" :
                         revisionNote.length > 400 ? "text-warning-amber" :
                         "text-outline"

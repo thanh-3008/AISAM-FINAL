@@ -79,13 +79,13 @@ export default function SocialAccountCard({
             <h3 className="text-body-sm font-bold text-on-surface truncate">{displayName}</h3>
             <p className="text-[11px] text-outline truncate">{handle}</p>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusConfig.bg} ${statusConfig.color}`}>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold border ${statusConfig.bg} ${statusConfig.color}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot} ${status === "connected" ? "" : "animate-pulse"}`} />
                 {statusConfig.label}
               </span>
               {expiresDays !== null && (
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${expiresColor.bg} ${expiresColor.color}`}>
-                  <span className="material-symbols-outlined text-[10px]">timer</span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold ${expiresColor.bg} ${expiresColor.color}`}>
+                  <span className="material-symbols-outlined text-label-xs">timer</span>
                   {expiresColor.label}
                 </span>
               )}
@@ -96,23 +96,23 @@ export default function SocialAccountCard({
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="text-center p-2.5 bg-surface-container-low rounded-xl">
             <p className="text-label-md font-bold text-on-surface">{formatNumber(account.followers || 0)}</p>
-            <p className="text-[9px] text-outline uppercase font-medium">Followers</p>
+            <p className="text-label-2xs text-outline uppercase font-medium">Followers</p>
           </div>
           <div className="text-center p-2.5 bg-surface-container-low rounded-xl">
             <p className="text-label-md font-bold text-on-surface">{formatNumber(account.following || 0)}</p>
-            <p className="text-[9px] text-outline uppercase font-medium">Following</p>
+            <p className="text-label-2xs text-outline uppercase font-medium">Following</p>
           </div>
           <div className="text-center p-2.5 bg-surface-container-low rounded-xl">
             <p className="text-label-md font-bold text-on-surface">{formatNumber(account.postsCount || 0)}</p>
-            <p className="text-[9px] text-outline uppercase font-medium">Posts</p>
+            <p className="text-label-2xs text-outline uppercase font-medium">Posts</p>
           </div>
         </div>
 
         {account.expiresAt && (
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] text-outline font-medium">Token Validity</span>
-              <span className={`text-[10px] font-bold ${expiresColor.color}`}>{expiresProgress}%</span>
+              <span className="text-label-xs text-outline font-medium">Token Validity</span>
+              <span className={`text-label-xs font-bold ${expiresColor.color}`}>{expiresProgress}%</span>
             </div>
             <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
               <div
@@ -125,7 +125,7 @@ export default function SocialAccountCard({
           </div>
         )}
 
-        <div className="space-y-1.5 mb-4 text-[10px]">
+        <div className="space-y-1.5 mb-4 text-label-xs">
           <div className="flex items-center justify-between">
             <span className="text-outline flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[12px]">schedule</span>
@@ -151,7 +151,7 @@ export default function SocialAccountCard({
 
         {account.targets && account.targets.length > 0 && (
           <div className="mb-4 p-3 bg-surface-container-low rounded-xl">
-            <p className="text-[10px] text-outline font-semibold mb-2 flex items-center gap-1">
+            <p className="text-label-xs text-outline font-semibold mb-2 flex items-center gap-1">
               <span className="material-symbols-outlined text-[12px]">target</span>
               Linked Targets
             </p>
@@ -159,12 +159,12 @@ export default function SocialAccountCard({
               {account.targets.slice(0, 2).map((target) => (
                 <div key={target.id} className="flex items-center gap-2">
                   <span className={`w-1.5 h-1.5 rounded-full ${target.isActive ? "bg-emerald-500" : "bg-outline/40"}`} />
-                  <span className="text-[10px] text-on-surface truncate flex-1">{target.name}</span>
-                  <span className="text-[8px] text-outline uppercase bg-surface-container-high px-1.5 py-0.5 rounded">{target.type}</span>
+                  <span className="text-label-xs text-on-surface truncate flex-1">{target.name}</span>
+                  <span className="text-label-3xs text-outline uppercase bg-surface-container-high px-1.5 py-0.5 rounded">{target.type}</span>
                 </div>
               ))}
               {account.targets.length > 2 && (
-                <p className="text-[9px] text-outline text-center pt-0.5">+{account.targets.length - 2} more</p>
+                <p className="text-label-2xs text-outline text-center pt-0.5">+{account.targets.length - 2} more</p>
               )}
             </div>
           </div>

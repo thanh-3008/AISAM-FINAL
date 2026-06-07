@@ -40,7 +40,7 @@ export default function DeleteConfirmModal({ campaigns, isLoading, onConfirm, on
 
             {isBulk && (
               <div className="mb-4 p-3 bg-surface-container-low rounded-xl max-h-32 overflow-y-auto">
-                <p className="text-[10px] text-outline font-semibold mb-2">Campaigns to delete:</p>
+                <p className="text-label-xs text-outline font-semibold mb-2">Campaigns to delete:</p>
                 <ul className="space-y-1">
                   {campaigns.map((c) => (
                     <li key={c.id} className="text-[11px] text-on-surface flex items-center gap-2">

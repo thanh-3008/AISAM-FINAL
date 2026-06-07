@@ -58,7 +58,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
               </div>
               <div>
                 <h2 className="text-headline-sm font-bold text-on-surface">Create Campaign</h2>
-                <p className="text-[10px] text-outline">Set up your advertising campaign</p>
+                <p className="text-label-xs text-outline">Set up your advertising campaign</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-full transition-colors">
@@ -70,7 +70,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
           <div className="p-6 space-y-5">
             {/* Campaign Name */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Campaign Name</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Campaign Name</label>
               <input
                 type="text"
                 value={name}
@@ -82,7 +82,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
             {/* Brand */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Brand</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Brand</label>
               <select
                 value={brandId}
                 onChange={(e) => setBrandId(e.target.value)}
@@ -97,7 +97,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
             {/* Objective */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Objective</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Objective</label>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(OBJECTIVE_CONFIG).map(([key, config]) => (
                   <button
@@ -120,7 +120,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
             {/* Budget */}
             <div>
-              <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Budget (USD)</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Budget (USD)</label>
               <input
                 type="number"
                 value={budget}
@@ -134,7 +134,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
             {/* Date Range */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">Start Date</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Start Date</label>
                 <input
                   type="date"
                   value={startDate}
@@ -143,7 +143,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                 />
               </div>
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-1.5">End Date</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">End Date</label>
                 <input
                   type="date"
                   value={endDate}

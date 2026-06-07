@@ -310,7 +310,7 @@ export default function PostsPage() {
                   {/* Left: Form */}
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest block">Select Platform</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block">Select Platform</label>
                       <div className="flex gap-3">
                         {[
                           { key: "facebook", label: "Facebook", bg: "#1877F2", icon: <span className="text-white text-[11px] font-bold">f</span> },
@@ -322,13 +322,13 @@ export default function PostsPage() {
                               createPlatform === p.key ? "border-primary bg-primary/5" : "border-outline-variant/20 hover:border-primary/50"
                             }`}>
                             <div className="w-8 h-8 rounded flex items-center justify-center" style={{ background: p.bg }}>{p.icon}</div>
-                            <span className="text-[10px] font-semibold text-on-surface">{p.label}</span>
+                            <span className="text-label-xs font-semibold text-on-surface">{p.label}</span>
                           </button>
                         ))}
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest block">Brand</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block">Brand</label>
                       <select value={createBrand} onChange={(e) => setCreateBrand(e.target.value)}
                         className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10">
                         <option value="">Select brand...</option>
@@ -337,7 +337,7 @@ export default function PostsPage() {
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-[9px] text-outline uppercase font-bold tracking-widest">Post Caption</label>
+                        <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Post Caption</label>
                         <button className="flex items-center gap-1 text-primary text-label-sm font-semibold hover:bg-primary/5 px-2 py-1 rounded-lg transition-colors">
                           <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
                           AI Refine
@@ -348,15 +348,15 @@ export default function PostsPage() {
                         className="w-full h-32 p-4 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 outline-none transition-all placeholder:text-outline/40 resize-none" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest">Media</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Media</label>
                       <div className="border-2 border-dashed border-outline-variant/30 rounded-xl p-8 flex flex-col items-center justify-center gap-2 bg-surface-container-lowest hover:bg-surface-container-low transition-colors cursor-pointer">
                         <span className="material-symbols-outlined text-3xl text-outline/40">cloud_upload</span>
                         <p className="text-label-sm text-on-surface font-semibold">Click to upload or drag and drop</p>
-                        <p className="text-[10px] text-outline">PNG, JPG or MP4 (max. 50MB)</p>
+                        <p className="text-label-xs text-outline">PNG, JPG or MP4 (max. 50MB)</p>
                       </div>
                     </div>
                     <div className="space-y-4">
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest">Scheduling</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Scheduling</label>
                       <div className="flex gap-4">
                         <label className={`flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           createSchedule === "now" ? "border-primary bg-primary/5" : "border-outline-variant/20 hover:border-outline-variant/40"
@@ -384,7 +384,7 @@ export default function PostsPage() {
 
                   {/* Right: Mobile Preview */}
                   <div className="bg-surface-container-low rounded-2xl p-6 flex flex-col gap-4">
-                    <label className="text-[9px] text-outline uppercase font-bold tracking-widest">Mobile Preview</label>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Mobile Preview</label>
                     <div className="mx-auto w-[280px] h-[540px] bg-black rounded-[3rem] border-[6px] border-inverse-surface relative overflow-hidden shadow-xl">
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-inverse-surface rounded-b-2xl z-10" />
                       <div className="bg-white h-full w-full mt-5 overflow-y-auto">
@@ -407,7 +407,7 @@ export default function PostsPage() {
                             <span className="material-symbols-outlined text-[18px] text-on-surface">chat_bubble</span>
                             <span className="material-symbols-outlined text-[18px] text-on-surface">send</span>
                           </div>
-                          <p className="text-[9px] text-on-surface-variant line-clamp-3">{createCaption || "Your caption will appear here..."}</p>
+                          <p className="text-label-2xs text-on-surface-variant line-clamp-3">{createCaption || "Your caption will appear here..."}</p>
                         </div>
                       </div>
                     </div>
@@ -441,12 +441,12 @@ export default function PostsPage() {
                   <p className="text-body-sm text-on-surface font-semibold">{editPost.contentTitle}</p>
                   <div className="flex gap-4">
                     <div className="flex-1 space-y-1">
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest">Date</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Date</label>
                       <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
                         className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-lg text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10" />
                     </div>
                     <div className="flex-1 space-y-1">
-                      <label className="text-[9px] text-outline uppercase font-bold tracking-widest">Time</label>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Time</label>
                       <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)}
                         className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-lg text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10" />
                     </div>

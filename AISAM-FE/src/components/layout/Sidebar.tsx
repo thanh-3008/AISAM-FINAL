@@ -36,7 +36,13 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
     items: [
       { label: "Social Accounts", href: "/social", icon: "public" },
       { label: "Campaigns", href: "/campaigns", icon: "campaign" },
-      { label: "Analysis", href: "/analytics", icon: "insights", disabled: true },
+      { label: "Analysis", href: "/analytics", icon: "bar_chart" },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
+      { label: "Team Management", href: "/team", icon: "group" },
     ],
   },
 ];
@@ -64,7 +70,7 @@ function NavItem({ href, icon, label, active, disabled }: NavItemConfig & { acti
     return (
       <div className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-on-surface-variant/40 cursor-not-allowed" title="Coming soon">
         {content}
-        <span className="ml-auto text-[9px] text-outline/30 font-semibold tracking-wider">SOON</span>
+        <span className="ml-auto text-label-2xs text-outline/30 font-semibold tracking-wider">SOON</span>
       </div>
     );
   }
@@ -155,23 +161,15 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* System Section */}
+      {/* Logout */}
       <div className="border-t border-outline-variant/20 px-4 pt-3 pb-4">
-        <p className="text-label-sm text-outline/50 mb-2 px-2 tracking-wider">System</p>
-        <div className="space-y-0.5">
-          <div className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-on-surface-variant/40 cursor-not-allowed" title="Coming soon">
-            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
-            <span className="text-body-sm font-semibold">Settings</span>
-            <span className="ml-auto text-[9px] text-outline/30 font-semibold tracking-wider">SOON</span>
-          </div>
-          <button
+        <button
             onClick={async () => { await logout(); window.location.href = "/login"; }}
             className="w-full group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-on-surface-variant hover:bg-surface-container hover:text-danger-red text-left"
           >
             <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform duration-200">logout</span>
             <span className="text-body-sm font-semibold">Logout</span>
           </button>
-        </div>
       </div>
 
       {/* Profile Selector - Bottom */}
@@ -189,7 +187,7 @@ export default function Sidebar() {
                 <span className="inline-block w-16 h-3 bg-surface-container-high rounded animate-pulse" />
               ) : displayName}
             </p>
-            <p className="text-[10px] text-label-sm text-on-surface-variant truncate">
+            <p className="text-label-xs text-label-sm text-on-surface-variant truncate">
               {loading ? "" : displayPlan}
             </p>
           </div>
@@ -226,7 +224,7 @@ export default function Sidebar() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-body-sm text-on-surface truncate font-medium">{p.name}</p>
-                      <p className="text-[10px] text-label-sm text-on-surface-variant truncate">{getProfileTypeLabel(p.profileType)}</p>
+                      <p className="text-label-xs text-label-sm text-on-surface-variant truncate">{getProfileTypeLabel(p.profileType)}</p>
                     </div>
                     {active && (
                       <span className="material-symbols-outlined text-primary text-[16px] shrink-0">check</span>

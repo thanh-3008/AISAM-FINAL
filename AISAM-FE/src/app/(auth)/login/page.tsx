@@ -345,7 +345,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading || isSuccess}
-              className={`w-full h-12 font-headline-sm text-headline-sm rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
+              className={`w-full h-12 font-label-md text-label-md rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
                 isSuccess
                   ? "bg-success-green text-white"
                   : "bg-primary-container text-on-primary-container"

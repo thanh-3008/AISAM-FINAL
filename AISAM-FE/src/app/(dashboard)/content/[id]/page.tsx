@@ -182,8 +182,8 @@ export default function ContentDetailPage() {
               <div className="p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-label-sm text-outline font-semibold uppercase tracking-wider">Preview</span>
-                  <span className="px-2 py-0.5 rounded-md bg-gradient-to-br text-white text-[10px] font-semibold flex items-center gap-1" style={{ background: `linear-gradient(135deg, var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-500), var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-400))` }}>
-                    <span className="material-symbols-outlined text-[10px]">{typeIcon}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-gradient-to-br text-white text-label-xs font-semibold flex items-center gap-1" style={{ background: `linear-gradient(135deg, var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-500), var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-400))` }}>
+                    <span className="material-symbols-outlined text-label-xs">{typeIcon}</span>
                     {item.type}
                   </span>
                 </div>
@@ -210,7 +210,7 @@ export default function ContentDetailPage() {
                         {item.textContent || "No content yet."}
                       </p>
                     </div>
-                    <div className="flex items-center gap-4 mt-3 text-[10px] text-outline">
+                    <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
                       <span>{(item.textContent || "").length} characters</span>
                       {item.textContent && <span>{item.textContent.split(/\s+/).length} words</span>}
                     </div>
@@ -224,12 +224,12 @@ export default function ContentDetailPage() {
                         <span className="material-symbols-outlined text-4xl">play_arrow</span>
                       </div>
                       {item.duration && (
-                        <span className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 text-white text-[10px] rounded-md font-semibold">
+                        <span className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 text-white text-label-xs rounded-md font-semibold">
                           {item.duration}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 mt-3 text-[10px] text-outline">
+                    <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
                       {item.duration && <span>{item.duration}</span>}
                       {item.fileSize && <span>{item.fileSize}</span>}
                     </div>
@@ -261,7 +261,7 @@ export default function ContentDetailPage() {
               <div className="p-5 space-y-5">
                 {/* Title */}
                 <div>
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Title</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Title</p>
                   {editing ? (
                     <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all" />
@@ -272,17 +272,17 @@ export default function ContentDetailPage() {
 
                 {/* Brand / Product */}
                 <div>
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Brand</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Brand</p>
                   <p className="text-body-sm text-on-surface">{item.brandName}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Product</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Product</p>
                   <p className="text-body-sm text-on-surface">{item.productName}</p>
                 </div>
 
                 {/* Status */}
                 <div>
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Status</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Status</p>
                   {editing ? (
                     <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ContentStatus }))}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
@@ -303,17 +303,17 @@ export default function ContentDetailPage() {
 
                 {/* Created / Updated */}
                 <div>
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Created</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Created</p>
                   <p className="text-body-sm text-on-surface">{new Date(item.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Last Updated</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Last Updated</p>
                   <p className="text-body-sm text-on-surface">{new Date(item.updatedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
                 </div>
 
                 {/* Platforms */}
                 <div className="relative">
-                  <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Platforms</p>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Platforms</p>
                   {editing ? (
                     <>
                       <button onClick={() => setShowPlatformPicker(!showPlatformPicker)}
@@ -347,7 +347,7 @@ export default function ContentDetailPage() {
                       {item.platforms.length === 0 ? (
                         <span className="text-body-sm text-outline/50">None</span>
                       ) : item.platforms.map((p) => (
-                        <div key={p} className="px-2 py-0.5 rounded-lg bg-surface-container text-[10px] font-semibold flex items-center gap-1" style={{ backgroundColor: (PLATFORM_CONFIG[p]?.color || "#666") + "20", color: PLATFORM_CONFIG[p]?.color || "#666" }}>
+                        <div key={p} className="px-2 py-0.5 rounded-lg bg-surface-container text-label-xs font-semibold flex items-center gap-1" style={{ backgroundColor: (PLATFORM_CONFIG[p]?.color || "#666") + "20", color: PLATFORM_CONFIG[p]?.color || "#666" }}>
                           <PlatformIcon platform={PLATFORM_CONFIG[p]?.icon || "default"} />
                           {p}
                         </div>
@@ -359,7 +359,7 @@ export default function ContentDetailPage() {
                 {/* Hashtags */}
                 {item.hashtags && item.hashtags.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Hashtags</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Hashtags</p>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {item.hashtags.map((h) => (
                         <span key={h} className="text-[11px] text-primary font-medium">#{h}</span>
@@ -371,7 +371,7 @@ export default function ContentDetailPage() {
                 {/* Caption */}
                 {item.caption && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
                     <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption}</p>
                   </div>
                 )}
@@ -379,7 +379,7 @@ export default function ContentDetailPage() {
                 {/* CTA Link */}
                 {item.ctaLink && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">CTA Link</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">CTA Link</p>
                     <p className="text-body-sm text-primary break-all">{item.ctaLink}</p>
                   </div>
                 )}
@@ -387,7 +387,7 @@ export default function ContentDetailPage() {
                 {/* Scheduled Date */}
                 {item.scheduledAt && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Scheduled For</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Scheduled For</p>
                     <p className="text-body-sm text-on-surface">{new Date(item.scheduledAt).toLocaleString()}</p>
                   </div>
                 )}
@@ -395,7 +395,7 @@ export default function ContentDetailPage() {
                 {/* Internal Notes */}
                 {item.internalNotes && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Internal Notes</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Internal Notes</p>
                     <p className="text-body-sm text-on-surface-variant bg-amber-50 rounded-lg px-3 py-2 leading-relaxed">{item.internalNotes}</p>
                   </div>
                 )}
@@ -403,7 +403,7 @@ export default function ContentDetailPage() {
                 {/* Type-specific metadata */}
                 {item.type === "IMAGE" && item.dimensions && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Dimensions</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Dimensions</p>
                     <p className="text-body-sm text-on-surface">{item.dimensions}</p>
                   </div>
                 )}
@@ -411,7 +411,7 @@ export default function ContentDetailPage() {
                   <>
                     {item.duration && (
                       <div>
-                        <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">Duration</p>
+                        <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Duration</p>
                         <p className="text-body-sm text-on-surface">{item.duration}</p>
                       </div>
                     )}
@@ -419,7 +419,7 @@ export default function ContentDetailPage() {
                 )}
                 {item.fileSize && (
                   <div>
-                    <p className="text-[10px] text-outline font-semibold uppercase tracking-wider mb-1.5">File Size</p>
+                    <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">File Size</p>
                     <p className="text-body-sm text-on-surface">{item.fileSize}</p>
                   </div>
                 )}

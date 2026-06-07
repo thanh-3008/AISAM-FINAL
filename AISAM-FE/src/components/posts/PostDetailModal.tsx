@@ -11,7 +11,7 @@ interface PostDetailModalProps {
 
 function PlatformBadge({ platform }: { platform?: string }) {
   const cfg = PLATFORM_CONFIG[platform || ""];
-  if (!cfg) return <span className="text-[10px] text-outline">—</span>;
+  if (!cfg) return <span className="text-label-xs text-outline">—</span>;
   
   if (platform === "facebook") return (
     <div className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
             <div className="space-y-6">
               {/* Status Badge */}
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Status</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Status</label>
                 <span className={`px-4 py-2 rounded-full text-label-md flex items-center gap-2 w-fit border ${getStatusStyle(post.status)}`}>
                   <span className={`w-2 h-2 rounded-full ${
                     isPublished ? "bg-emerald-500" :
@@ -85,7 +85,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
 
               {/* Platform & Brand */}
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Platform & Brand</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Platform & Brand</label>
                 <div className="space-y-3">
                   <PlatformBadge platform={post.platform} />
                   <div className="flex items-center gap-2">
@@ -105,15 +105,15 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
 
               {/* Content */}
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Content</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Content</label>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-[10px] text-outline mb-1">Title</p>
+                    <p className="text-label-xs text-outline mb-1">Title</p>
                     <p className="text-body-sm text-on-surface font-semibold">{post.contentTitle || "Untitled"}</p>
                   </div>
                   {post.caption && (
                     <div>
-                      <p className="text-[10px] text-outline mb-1">Caption</p>
+                      <p className="text-label-xs text-outline mb-1">Caption</p>
                       <p className="text-body-sm text-on-surface leading-relaxed bg-surface-container-low p-3 rounded-lg">{post.caption}</p>
                     </div>
                   )}
@@ -122,7 +122,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
 
               {/* Dates */}
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Schedule</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Schedule</label>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-outline">Published At</span>
@@ -143,8 +143,8 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
 
               {/* IDs */}
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-2">Identifiers</label>
-                <div className="space-y-1.5 text-[10px]">
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Identifiers</label>
+                <div className="space-y-1.5 text-label-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-outline">Post ID</span>
                     <span className="text-on-surface font-mono">{post.id}</span>
@@ -156,7 +156,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
                   {post.externalPostId && (
                     <div className="flex items-center justify-between">
                       <span className="text-outline">External ID</span>
-                      <span className="text-on-surface font-mono text-[9px]">{post.externalPostId}</span>
+                      <span className="text-on-surface font-mono text-label-2xs">{post.externalPostId}</span>
                     </div>
                   )}
                 </div>
@@ -168,22 +168,22 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
               {/* Engagement Stats (only for published) */}
               {isPublished && (
                 <div>
-                  <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-3">Engagement</label>
+                  <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-3">Engagement</label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl p-4 text-center border border-rose-200/30">
                       <span className="material-symbols-outlined text-rose-500 text-[24px]">favorite</span>
                       <p className="text-headline-sm text-on-surface font-bold mt-2">{(post.likes || 0).toLocaleString()}</p>
-                      <p className="text-[10px] text-outline uppercase font-semibold">Likes</p>
+                      <p className="text-label-xs text-outline uppercase font-semibold">Likes</p>
                     </div>
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center border border-blue-200/30">
                       <span className="material-symbols-outlined text-blue-500 text-[24px]">chat_bubble</span>
                       <p className="text-headline-sm text-on-surface font-bold mt-2">{(post.comments || 0).toLocaleString()}</p>
-                      <p className="text-[10px] text-outline uppercase font-semibold">Comments</p>
+                      <p className="text-label-xs text-outline uppercase font-semibold">Comments</p>
                     </div>
                     <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 text-center border border-emerald-200/30">
                       <span className="material-symbols-outlined text-emerald-500 text-[24px]">share</span>
                       <p className="text-headline-sm text-on-surface font-bold mt-2">{(post.shares || 0).toLocaleString()}</p>
-                      <p className="text-[10px] text-outline uppercase font-semibold">Shares</p>
+                      <p className="text-label-xs text-outline uppercase font-semibold">Shares</p>
                     </div>
                   </div>
                   <div className="mt-3 p-3 bg-surface-container-low rounded-lg">
@@ -199,7 +199,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
 
               {/* Mobile Preview */}
               <div>
-                <label className="text-[9px] text-outline uppercase font-bold tracking-widest block mb-3">Mobile Preview</label>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-3">Mobile Preview</label>
                 <div className="mx-auto w-[280px] h-[540px] bg-black rounded-[3rem] border-[6px] border-inverse-surface relative overflow-hidden shadow-xl">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-inverse-surface rounded-b-2xl z-10" />
                   <div className="bg-white h-full w-full mt-5 overflow-y-auto">
@@ -222,7 +222,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
                         <span className="material-symbols-outlined text-[18px] text-on-surface">chat_bubble</span>
                         <span className="material-symbols-outlined text-[18px] text-on-surface">send</span>
                       </div>
-                      <p className="text-[9px] text-on-surface-variant line-clamp-3">{post.caption || "No caption"}</p>
+                      <p className="text-label-2xs text-on-surface-variant line-clamp-3">{post.caption || "No caption"}</p>
                     </div>
                   </div>
                 </div>
