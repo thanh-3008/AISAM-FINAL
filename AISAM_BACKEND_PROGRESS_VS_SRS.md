@@ -1,5 +1,26 @@
 # Báo cáo tiến độ backend AISAM so với SRS
 
+## Change Request Impact Notice - Chua Trien Khai
+
+Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+Bao cao ben duoi danh gia backend Profile-based hien tai. Target architecture moi da duoc phe duyet nhung chua code:
+
+- Workspace thay Profile lam ownership/subscription/credit boundary.
+- `X-Workspace-Id` thay `X-Profile-Id`.
+- Moi Workspace co dung mot Owner va mot Credit Wallet.
+- Subscription Credits, Post Quota, Feature Matrix, Permission Matrix, Member Limit va Workspace lifecycle da duoc chot.
+
+Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Change Request. Tien do Change Request hien tai:
+
+| Hang muc | Trang thai |
+|---|---|
+| Business decisions va impact analysis | DONE |
+| Tai lieu lien quan | IN PROGRESS |
+| Workspace entities/migration/API | NOT STARTED |
+| Subscription/Credits migration | NOT STARTED |
+| Ownership backfill va regression | NOT STARTED |
+
 Ngày đánh giá: 2026-05-26  
 Tài liệu yêu cầu: `D:\final\AISAM-FINAL\README.md`, `D:\final\AISAM-FINAL\SPECIFICATION_ANSWERS.md`  
 Source được rà: `D:\NEWCODE\PRN232_Backend`  

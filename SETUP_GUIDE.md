@@ -1,5 +1,25 @@
 # AISAM Backend Setup Guide
 
+## Planned Workspace Migration Notice
+
+Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+Backend hien tai van dung:
+
+```text
+X-Profile-Id
+Profile-based subscription/payment/quota
+```
+
+Sau khi Workspace migration duoc code va test thanh cong, backend se dung:
+
+```text
+X-Workspace-Id
+Workspace-based subscription/payment/credits/post quota
+```
+
+Hien tai developer **khong can them config/secret moi** cho Change Request nay. Migration Workspace se dung PostgreSQL hien co. Khi task migration bat dau, developer phai chay migration tren database test/backup truoc, khong chay truc tiep tren du lieu quan trong.
+
 Tài liệu này ghi lại các cấu hình thủ công để chạy backend AISAM `.NET 8`.
 
 Backend hiện tại:

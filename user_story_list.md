@@ -1,5 +1,23 @@
 # Danh sach User Story AISAM
 
+## Approved Planned Stories - Workspace Migration
+
+Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`. Cac story duoi day **chua co trong code**:
+
+- US-69: Tao Personal Workspace mac dinh va Owner khi register.
+- US-70: Chon Active Workspace va gui `X-Workspace-Id`.
+- US-71: Invite/accept member voi Member Limit theo Business Plan.
+- US-72: Atomic Ownership Transfer tu Owner sang Manager.
+- US-73: Subscription va PayOS Payment theo Workspace.
+- US-74: Mot Credit Wallet cho moi Workspace.
+- US-75: Credit Pack, Maximum Credit Balance va tu choi giao dich vuot maximum.
+- US-76: Shared Pool, Lifetime Assigned Limit va Monthly Assigned Limit.
+- US-77: Plan Feature Gate, Credits va Post Quota theo plan.
+- US-78: Limited Mode, Archived va Admin Soft Delete lifecycle.
+- US-79: Workspace Dashboard va Credit Usage metadata.
+
+US-44 den US-50 ve payment/quota Profile la current baseline va se duoc migration sang Workspace, khong xoa lich su.
+
 Danh sach duoi day bam sat active backend codebase hien tai, `BACKEND_CODE_PLAN.md`, `AISAM-BE/docs/superpowers/CODEBASE_UPDATE.md` va scope MVP thuc te. Cac user story duoc tach thanh 3 nhan de viet detail va bam roadmap cho khop:
 
 - `Da co trong codebase`: da co controller/service/repository/DTO/DI active trong backend.

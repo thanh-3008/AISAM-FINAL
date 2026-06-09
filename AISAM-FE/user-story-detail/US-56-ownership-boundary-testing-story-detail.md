@@ -1,5 +1,7 @@
 # US-56 - Kiểm thử ownership và boundary chính
 
+> Migration notice: ownership boundary target la Workspace. Test moi phai bao gom `X-Workspace-Id`, dung mot Owner/Credit Wallet, atomic Ownership Transfer va cross-workspace isolation.
+
 ## Mô tả
 
 **Là** nhóm phát triển,

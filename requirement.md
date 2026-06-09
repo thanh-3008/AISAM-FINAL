@@ -1,6 +1,31 @@
 # SOFTWARE REQUIREMENTS DOCUMENT
 ## AI-POWERED SOCIAL MEDIA ADVERTISING MANAGER (AISAM)
 
+## Approved Requirement Change - Workspace Subscription and Credit Model
+
+Nguon quyet dinh: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`. Day la requirement muc tieu da phe duyet, **chua phai trang thai code hien tai**.
+
+- Chuyen ownership boundary tu Profile sang Workspace.
+- Profile chi con la thong tin ca nhan/doanh nghiep.
+- Moi Workspace co dung mot Owner va mot Credit Wallet.
+- Owner co the transfer ownership cho Manager trong cung transaction.
+- Credits chi dung cho AI; publish dung Post Quota rieng.
+- Plan ke thua toan bo feature cua plan thap hon.
+
+| Plan | Credits khi mua/gia han | Post Quota | Member Limit |
+|---|---:|---:|---:|
+| Free | 50 / 7 ngay | 20 / tuan | Khong co team |
+| Personal Plus | 500 | 300 / thang | Khong co team |
+| Personal Pro | 2.000 | 1.000 / thang | Khong co team |
+| Business Plus | 15.000 | 5.000 / thang | 10 |
+| Business Pro | 50.000 | 20.000 / thang | 50 |
+
+- Maximum Credit Balance: Personal 15.000; Business 500.000.
+- Giao dich lam vuot maximum balance bi tu choi toan bo.
+- Het han duoi 90 ngay: Limited Mode.
+- Het han 90-180 ngay: Archived; Owner View/Export/Renew, Member View Only.
+- Het han tren 180 ngay: Admin co quyen Soft Delete.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -149,10 +174,24 @@ He thong phai ho tro:
 - Nang cap, gia han hoac thay doi goi.
 - Xem lich su giao dich.
 - Hien thi quota con lai.
-- Tu dong tru quota khi generate AI hoac dang bai thanh cong.
-- Chan generate neu da het quota.
+- Tru Credits sau khi AI generate thanh cong; AI that bai khong tru Credits.
+- Publish khong tru Credits va duoc kiem soat bang Post Quota rieng.
+- Chan AI neu Workspace khong du Credits hoac feature bi khoa theo plan.
+- Chan publish neu Workspace het Post Quota.
+- Quan ly Credit Wallet duy nhat cua Workspace va tu choi giao dich lam vuot Maximum Credit Balance.
+- Ap dung Plan Feature Gate, Member Limit va Permission Matrix da phe duyet.
 
-### 6.3 Business Profile and Brand Kit
+### 6.3 Workspace, Business Profile and Brand Kit
+He thong muc tieu phai ho tro:
+- Tao Personal Workspace mac dinh khi register.
+- Chon Active Workspace.
+- Moi Workspace co dung mot Owner va mot Credit Wallet.
+- Invite/accept member theo Member Limit.
+- Ownership Transfer tu Owner sang Manager trong cung transaction.
+- Business Workspace lifecycle: Limited Mode, Archived va Admin Soft Delete.
+
+Profile chi con luu thong tin ca nhan/doanh nghiep. Workspace la ownership boundary cua du lieu nghiep vu.
+
 He thong phai ho tro:
 - Tao, sua, xoa business profile.
 - Tao, sua, xoa brand kit.
@@ -254,10 +293,10 @@ He thong admin phai ho tro:
 
 ## 7. Business Rules
 
-- Moi content phai thuoc mot business profile va mot brand hop le.
+- Sau Workspace migration, moi content phai thuoc mot Workspace va mot brand hop le.
 - Product neu duoc chon phai thuoc dung brand tuong ung.
 - Chi content da duoc approve moi duoc len lich hoac dang bai.
-- Quota AI va quota publish phai duoc tru sau khi tac vu hop le thanh cong theo chinh sach he thong.
+- Credits chi bi tru sau khi AI thanh cong; Post Quota duoc cap nhat sau khi publish thanh cong.
 - He thong khong cho phep overage trong MVP khi quota da het.
 - Subscription duoc tinh theo chu ky thang va co the auto-renew.
 - Payment phai co trang thai ro rang va duoc doi chieu qua callback/xac nhan thanh toan.

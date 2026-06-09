@@ -1,5 +1,16 @@
 ﻿# AISAM Frontend - Comprehensive Code Plan
 
+## Approved Frontend Direction Change - Active Workspace
+
+Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+- Planned, chi trien khai sau khi backend Workspace API san sang.
+- Active context muc tieu chuyen tu Profile Store sang Workspace Store.
+- Request ownership se gui `X-Workspace-Id`.
+- Profile van ton tai de quan ly thong tin ca nhan/doanh nghiep.
+- Bo sung Workspace selector, member/invitation, ownership transfer, billing/credits, member quota va lifecycle states.
+- Khong doi Profile flow hien tai truoc khi backend migration build/test thanh cong.
+
 **Status:** Ready for implementation via AI  
 **Version:** 1.0  
 **Last Updated:** 2026-06-03

@@ -1,5 +1,7 @@
 # US-53 - Quan ly profile, subscription va payment trong admin
 
+> Migration notice: Admin target se quan ly Workspace subscription/payment, Archived lifecycle va Soft Delete. Profile chi con la thong tin ca nhan/doanh nghiep.
+
 ## Mo ta
 
 La quan tri vien, toi muon xem va cap nhat mot so du lieu profile, subscription va payment de ho tro van hanh demo.
