@@ -1,5 +1,30 @@
 # AISAM Backend Code Plan
 
+## Approved Next Migration - Workspace Subscription and Credits
+
+Nguon ke hoach chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+Trang thai: **approved/planned, chua bat dau code**. Phase 8 hien tai van la Profile-based va van duoc giu lam baseline cho den khi migration Workspace hoan tat.
+
+Thu tu code tiep theo:
+
+1. Workspace, WorkspaceMember va `WorkspaceTypeEnum`.
+2. Tao Personal Workspace mac dinh khi register.
+3. Active Workspace context voi `X-Workspace-Id`.
+4. Invitation, role, member limit va atomic Ownership Transfer.
+5. Chuyen Subscription/Payment sang Workspace.
+6. Credit Wallet, Credit Usage, Credit Pack va member quota modes.
+7. Plan entitlement, Post Quota va Permission Matrix.
+8. Chuyen ownership tung domain, backfill va khoa schema.
+
+Nguyen tac bat buoc:
+
+- Moi Workspace co dung mot Owner va mot Credit Wallet.
+- Business Plus cap 15.000 Credits/toi da 10 members.
+- Business Pro cap 50.000 Credits/toi da 50 members.
+- Khong danh dau task Workspace hoan thanh neu chua build, test, migration va API test.
+- Khong sua/xoa migration cu; migration Workspace phai duoc them theo nhieu buoc.
+
 Vai trò áp dụng: **Senior .NET Backend Architect + Tech Lead**
 
 Phạm vi tài liệu: **chỉ backend .NET 8**.
