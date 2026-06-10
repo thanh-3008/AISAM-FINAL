@@ -3181,8 +3181,8 @@ Mục tiêu phase:
 |---|---|---|---|
 | 9.1 | Workspace domain foundation | DONE | Không |
 | 9.2 | DbContext và migration Workspace foundation | DONE | 9.1 |
-| 9.3 | Workspace và WorkspaceMember repositories | NEXT | 9.2 |
-| 9.4 | Workspace service và CRUD API | TODO | 9.3 |
+| 9.3 | Workspace và WorkspaceMember repositories | DONE | 9.2 |
+| 9.4 | Workspace service và CRUD API | NEXT | 9.3 |
 | 9.5 | Tạo Personal Workspace khi register | TODO | 9.4 |
 | 9.6 | Active Workspace context và `X-Workspace-Id` | TODO | 9.3 |
 | 9.7 | Invitation, role management và Member Limit | TODO | 9.4, 9.6 |
@@ -3334,21 +3334,74 @@ Task 9.3 - Thêm Workspace và WorkspaceMember repositories.
 
 ### Task 9.3 - Workspace và WorkspaceMember repositories
 
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
 Mục tiêu:
 
 - Thêm repository đọc/ghi Workspace và membership.
 - Hỗ trợ truy vấn tất cả Workspace một User tham gia.
 
-Cách test:
+File đã tạo:
 
-- Một User tham gia nhiều Workspace.
-- Không tạo trùng membership trong cùng Workspace.
-- Repository tests pass.
+```text
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceRepository.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceMemberRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceMemberRepository.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceRepositoryTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm Workspace repository để đọc theo ID/User, thêm, cập nhật và kiểm tra tồn tại.
+- Thêm WorkspaceMember repository để đọc theo Workspace/User, thêm, cập nhật, deactivate và kiểm tra membership.
+- Chỉ trả về active membership trong các truy vấn membership thông thường.
+- Chặn tạo trùng `WorkspaceId + UserId` tại repository; database unique index vẫn bảo vệ ở tầng schema.
+- Đăng ký hai repository với scoped lifetime trong dependency injection.
+- Chưa thêm service, controller, API hoặc business rule Owner/role/member limit.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 133/133.
+
+Repository tests:
+- Một User truy vấn được nhiều Workspace đang tham gia.
+- Workspace add/update được lưu.
+- Membership trùng trong cùng Workspace bị từ chối.
+- Remove membership chuyển IsActive thành false.
+```
+
+Migration/API test:
+
+```text
+N/A - task này không thay đổi schema và chưa expose Workspace API.
+```
 
 Commit đề xuất:
 
 ```text
 feat(workspace): add workspace repositories
+```
+
+Task tiếp theo:
+
+```text
+Task 9.4 - Workspace service và CRUD API.
 ```
 
 ### Task 9.4 - Workspace service và CRUD API
@@ -4792,7 +4845,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.2 da hoan thanh; Task 9.3 repositories la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.3 da hoan thanh; Task 9.4 Workspace service va CRUD API la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
