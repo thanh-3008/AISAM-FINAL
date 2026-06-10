@@ -70,6 +70,22 @@ namespace AISAM.Services.Service
             user.EmailVerificationToken = verificationToken;
             user.EmailVerificationTokenExpiresAt = verificationTokenExpiration;
 
+            var personalWorkspace = new Workspace
+            {
+                Name = string.IsNullOrWhiteSpace(user.FullName)
+                    ? "Personal Workspace"
+                    : $"{user.FullName.Trim()}'s Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Personal
+            };
+            user.WorkspaceMembers.Add(new WorkspaceMember
+            {
+                UserId = user.Id,
+                User = user,
+                WorkspaceId = personalWorkspace.Id,
+                Workspace = personalWorkspace,
+                Role = WorkspaceMemberRoleEnum.Owner
+            });
+
             await _userRepository.CreateAsync(user);
 
             // Send verification email

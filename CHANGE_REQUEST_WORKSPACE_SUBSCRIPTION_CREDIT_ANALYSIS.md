@@ -2,7 +2,7 @@
 
 ## Workspace-Based Subscription, Credit và Business Workspace MVP
 
-> Trạng thái: **ĐANG TRIỂN KHAI - TASK 9.4 WORKSPACE CRUD API ĐÃ HOÀN THÀNH**
+> Trạng thái: **ĐANG TRIỂN KHAI - TASK 9.5 PERSONAL WORKSPACE KHI REGISTER ĐÃ HOÀN THÀNH**
 >
 > Tài liệu này chỉ phân tích ảnh hưởng và lập kế hoạch triển khai. Không tự ý refactor, đổi tên hoặc cải tiến ngoài Change Request.
 >
@@ -1537,4 +1537,4 @@ public enum WorkspaceTypeEnum
 
 Change Request này có blast radius lớn vì thay đổi ownership boundary của hệ thống. Kế hoạch trên giữ phạm vi đúng yêu cầu, triển khai theo từng module nhỏ, có migration an toàn và không tự ý thay đổi provider, auth core, UI/UX hoặc chức năng nâng cao.
 
-**25 quyết định, WorkspaceTypeEnum, Credits, Post Quota, Member Limit, Feature Matrix và Permission Matrix đã được lưu. Implementation đang ở Phase 9; Task 9.4 Workspace CRUD API đã build, pass 140/140 tests và được xác nhận route qua Swagger runtime. Task tiếp theo là 9.5 tạo Personal Workspace khi register.**
+**25 quyết định, WorkspaceTypeEnum, Credits, Post Quota, Member Limit, Feature Matrix và Permission Matrix đã được lưu. Implementation đang ở Phase 9; Task 9.5 tạo Personal Workspace khi register đã build và pass 143/143 tests. Task tiếp theo là 9.6 Active Workspace context và `X-Workspace-Id`.**

@@ -3183,8 +3183,8 @@ Mục tiêu phase:
 | 9.2 | DbContext và migration Workspace foundation | DONE | 9.1 |
 | 9.3 | Workspace và WorkspaceMember repositories | DONE | 9.2 |
 | 9.4 | Workspace service và CRUD API | DONE | 9.3 |
-| 9.5 | Tạo Personal Workspace khi register | NEXT | 9.4 |
-| 9.6 | Active Workspace context và `X-Workspace-Id` | TODO | 9.3 |
+| 9.5 | Tạo Personal Workspace khi register | DONE | 9.4 |
+| 9.6 | Active Workspace context và `X-Workspace-Id` | NEXT | 9.3 |
 | 9.7 | Invitation, role management và Member Limit | TODO | 9.4, 9.6 |
 | 9.8 | Atomic Ownership Transfer | TODO | 9.7 |
 | 9.9 | Chuyển Subscription và Payment sang Workspace | TODO | 9.4, 9.6 |
@@ -3492,20 +3492,69 @@ Task 9.5 - Tạo Personal Workspace khi register.
 
 ### Task 9.5 - Tạo Personal Workspace khi register
 
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
 Mục tiêu:
 
 - Tạo một Personal Workspace và Owner membership khi đăng ký tài khoản.
 
-Cách test:
+File đã sửa:
 
-- Register thành công tạo đúng một Personal Workspace.
-- Retry/register failure không tạo dữ liệu thừa.
-- Auth regression pass.
+```text
+AISAM-BE/AISAM.Services/Service/AuthService.cs
+```
+
+File đã tạo:
+
+```text
+AISAM-BE/tests/AISAM.IntegrationTests/AuthRegistrationWorkspaceTests.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Luồng register email/password tạo Personal Workspace mặc định.
+- Tên mặc định dùng `{FullName}'s Workspace`; nếu không có FullName dùng `Personal Workspace`.
+- User mới là Owner duy nhất của Personal Workspace.
+- User, Workspace và Owner membership được gắn thành một EF graph và lưu bằng cùng một `SaveChanges`.
+- Duplicate email bị từ chối trước khi tạo thêm Workspace/membership.
+- Không thay đổi Google login, email delivery hoặc session semantics hiện tại ngoài phạm vi task.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 143/143.
+
+Registration workspace tests:
+- Register tạo đúng một Personal Workspace.
+- Personal Workspace có đúng một Owner là User vừa đăng ký.
+- Duplicate register không tạo thêm User, Workspace hoặc membership.
+```
+
+Migration/config/API:
+
+```text
+Không có migration hoặc config thủ công mới.
+Endpoint hiện tại tiếp tục dùng: POST /api/Auth/register.
+```
 
 Commit đề xuất:
 
 ```text
 feat(auth): create personal workspace on registration
+```
+
+Task tiếp theo:
+
+```text
+Task 9.6 - Active Workspace context và X-Workspace-Id.
 ```
 
 ### Task 9.6 - Active Workspace context và X-Workspace-Id
@@ -4912,7 +4961,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.4 da hoan thanh; Task 9.5 tao Personal Workspace khi register la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.5 da hoan thanh; Task 9.6 Active Workspace context la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
