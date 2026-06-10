@@ -20,6 +20,8 @@ namespace AISAM.Repositories
         public DbSet<Brand> Brands { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Profile> Profiles { get; set; }
+        public DbSet<Workspace> Workspaces { get; set; }
+        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
         public DbSet<Team> Teams { get; set; }
         public DbSet<TeamMember> TeamMembers { get; set; }
         public DbSet<TeamBrand> TeamBrands { get; set; }
@@ -195,6 +197,40 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(p => p.SubscriptionId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // Workspace foundation configuration
+            modelBuilder.Entity<Workspace>(entity =>
+            {
+                entity.HasKey(w => w.Id);
+                entity.Property(w => w.Name).HasMaxLength(255).IsRequired();
+                entity.Property(w => w.WorkspaceType).HasConversion<int>();
+                entity.Property(w => w.Status).HasConversion<int>().HasDefaultValue(WorkspaceStatusEnum.Active);
+                entity.HasIndex(w => w.WorkspaceType);
+                entity.HasIndex(w => w.Status);
+                entity.HasIndex(w => w.SubscriptionExpiredAt);
+                entity.HasIndex(w => w.ArchivedAt);
+                entity.HasIndex(w => w.DeletedAt);
+            });
+
+            modelBuilder.Entity<WorkspaceMember>(entity =>
+            {
+                entity.HasKey(wm => wm.Id);
+                entity.Property(wm => wm.Role).HasConversion<int>();
+                entity.Property(wm => wm.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool);
+                entity.HasIndex(wm => wm.WorkspaceId);
+                entity.HasIndex(wm => wm.UserId);
+                entity.HasIndex(wm => new { wm.WorkspaceId, wm.UserId }).IsUnique();
+                entity.HasIndex(wm => new { wm.WorkspaceId, wm.Role });
+                entity.HasIndex(wm => wm.IsActive);
+                entity.HasOne(wm => wm.Workspace)
+                      .WithMany(w => w.Members)
+                      .HasForeignKey(wm => wm.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(wm => wm.User)
+                      .WithMany(u => u.WorkspaceMembers)
+                      .HasForeignKey(wm => wm.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Team entity configuration

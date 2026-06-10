@@ -63,6 +63,7 @@ namespace AISAM.Data.Model
         // Navigation properties
         public virtual ICollection<Profile> Profiles { get; set; } = new List<Profile>();
         public virtual ICollection<TeamMember> TeamMembers { get; set; } = new List<TeamMember>();
+        public virtual ICollection<WorkspaceMember> WorkspaceMembers { get; set; } = new List<WorkspaceMember>();
         public virtual ICollection<Session> Sessions { get; set; } = new List<Session>();
     }
 }

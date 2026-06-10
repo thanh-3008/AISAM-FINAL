@@ -290,6 +290,17 @@ Tuy nhiên, nếu tính cả nhóm Planned/Future Features và 19 câu hỏi c�
 
 ## Đề xuất thứ tự làm tiếp
 
+Thu tu phase chinh thuc da duoc cap nhat trong `BACKEND_CODE_PLAN.md`:
+
+```text
+Phase 9  - Workspace Migration
+Phase 10 - Admin Backend theo Workspace
+Phase 11 - Facebook Ads Campaign MVP
+Phase 12 - Test Hardening va Backend Release
+```
+
+Khong bat dau Facebook Ads truoc khi Workspace va Admin theo Workspace hoan thanh.
+
 1. Sprint 0: khóa security ngay
    - Thêm `[Authorize]` cho controller/action thiếu.
    - Check admin role cho `AdminToolsController`.

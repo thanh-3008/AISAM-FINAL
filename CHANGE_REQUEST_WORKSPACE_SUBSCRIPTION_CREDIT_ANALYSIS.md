@@ -2,7 +2,7 @@
 
 ## Workspace-Based Subscription, Credit và Business Workspace MVP
 
-> Trạng thái: **CÁC QUYẾT ĐỊNH KIẾN TRÚC ĐÃ ĐƯỢC XÁC NHẬN - CHƯA BẮT ĐẦU CODE**
+> Trạng thái: **ĐANG TRIỂN KHAI - TASK 9.2 WORKSPACE DATABASE FOUNDATION ĐÃ HOÀN THÀNH**
 >
 > Tài liệu này chỉ phân tích ảnh hưởng và lập kế hoạch triển khai. Không tự ý refactor, đổi tên hoặc cải tiến ngoài Change Request.
 >
@@ -693,6 +693,8 @@ Business Workspace hỗ trợ member, invitation, shared credits, lifetime/month
 - [x] `AISAM-FE/user-story-detail/US-56-ownership-boundary-testing-story-detail.md`
 - [x] `AISAM-FE/user-story-detail/US-59-team-permissions-story-detail.md`
 - [x] `AISAM-FE/src/features/payment/README.md`
+- [x] `BACKEND_CODE_PLAN.md`: da chot thu tu Phase 9 Workspace -> Phase 10 Admin theo Workspace -> Phase 11 Facebook Ads -> Phase 12 Release.
+- [x] `AISAM-FE/user-story-detail/US-60-facebook-ads-mvp-story-detail.md`
 
 Các tài liệu tren da duoc cap nhat theo dang approved/planned change. Source code hien tai van duoc mo ta rieng la Profile-based baseline cho den khi migration hoan tat.
 
@@ -1535,4 +1537,4 @@ public enum WorkspaceTypeEnum
 
 Change Request này có blast radius lớn vì thay đổi ownership boundary của hệ thống. Kế hoạch trên giữ phạm vi đúng yêu cầu, triển khai theo từng module nhỏ, có migration an toàn và không tự ý thay đổi provider, auth core, UI/UX hoặc chức năng nâng cao.
 
-**25 quyết định, WorkspaceTypeEnum, Credits, Post Quota, Member Limit, Feature Matrix và Permission Matrix đã được lưu. Hiện tại chưa code; chỉ bắt đầu triển khai khi người dùng yêu cầu.**
+**25 quyết định, WorkspaceTypeEnum, Credits, Post Quota, Member Limit, Feature Matrix và Permission Matrix đã được lưu. Implementation đang ở Phase 9; Task 9.2 database foundation đã build, pass 129/129 tests và áp dụng migration `20260610064359_AddWorkspaceFoundation` thành công.**

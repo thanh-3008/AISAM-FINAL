@@ -210,6 +210,8 @@ Danh sach duoi day bam sat active backend codebase hien tai, `BACKEND_CODE_PLAN.
 ### US-60 - Facebook Ads MVP
 **Mo ta:** La nguoi dung marketing, toi muon tao campaign, ad set, ad creative va ad tu content de mo rong sang quang cao tra phi.
 
+**Plan:** Backend Phase 11, bat dau sau Phase 9 Workspace Migration va Phase 10 Admin theo Workspace.
+
 ### US-61 - Upload media qua storage service
 **Mo ta:** La nguoi dung, toi muon upload va quan ly file media de dung trong product va content thay vi chi tham chieu URL thu cong.
 

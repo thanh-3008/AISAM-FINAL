@@ -8,14 +8,19 @@ Trang thai: **approved/planned, chua bat dau code**. Phase 8 hien tai van la Pro
 
 Thu tu code tiep theo:
 
-1. Workspace, WorkspaceMember va `WorkspaceTypeEnum`.
-2. Tao Personal Workspace mac dinh khi register.
-3. Active Workspace context voi `X-Workspace-Id`.
-4. Invitation, role, member limit va atomic Ownership Transfer.
-5. Chuyen Subscription/Payment sang Workspace.
-6. Credit Wallet, Credit Usage, Credit Pack va member quota modes.
-7. Plan entitlement, Post Quota va Permission Matrix.
-8. Chuyen ownership tung domain, backfill va khoa schema.
+1. Phase 9 - Workspace Migration.
+2. Phase 10 - Admin Backend theo Workspace.
+3. Phase 11 - Facebook Ads Campaign MVP.
+4. Phase 12 - Test Hardening va Backend Release.
+
+Khong duoc bo qua dependency:
+
+```text
+Phase 9 Workspace
+  -> Phase 10 Admin theo Workspace
+  -> Phase 11 Facebook Ads Campaign
+  -> Phase 12 Regression/Release
+```
 
 Nguyen tac bat buoc:
 
@@ -2740,14 +2745,19 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-## Phase 9 - Admin backend MVP
+## Phase 10 - Admin backend theo Workspace
 
 Mục tiêu phase:
 
-- Admin có API quản lý user/payment/subscription.
+- Admin có API quản lý user/workspace/payment/subscription.
+- Admin operations phải dùng Workspace model sau Phase 9 migration.
 - Không làm frontend admin ở tài liệu này.
 
-### Task 9.1 - Migrate UserController admin/user list APIs
+Dependency bắt buộc:
+
+- Phase 9 Workspace Migration hoàn thành.
+
+### Task 10.1 - Migrate UserController admin/user/workspace list APIs
 
 Mục tiêu:
 
@@ -2871,7 +2881,7 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-### Task 9.2 - Migrate AdminToolsController ở mức an toàn
+### Task 10.2 - Migrate AdminToolsController ở mức an toàn
 
 Mục tiêu:
 
@@ -2973,15 +2983,19 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-## Phase 10 - Test hardening và backend release MVP
+## Phase 12 - Test hardening và backend release
 
 Mục tiêu phase:
 
-- Backend MVP đủ ổn để frontend bắt đầu dùng.
+- Regression toàn hệ thống sau Workspace, Admin và Facebook Ads.
 - Có test tối thiểu.
 - Có tài liệu API/env.
 
-### Task 10.1 - Thêm integration tests cho API host và auth
+Dependency bắt buộc:
+
+- Phase 9, Phase 10 và Phase 11 hoàn thành.
+
+### Task 12.1 - Thêm integration tests cho API host và auth
 
 Mục tiêu:
 
@@ -3058,7 +3072,7 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-### Task 10.2 - Viết backend environment và API testing guide
+### Task 12.2 - Viết backend environment và API testing guide
 
 Mục tiêu:
 
@@ -3152,6 +3166,745 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
+## Phase 9 - Workspace Migration
+
+Mục tiêu phase:
+
+- Hoàn thành Workspace-based ownership trước khi triển khai Admin theo Workspace và Facebook Ads Campaign.
+- Thực hiện theo `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+### Tổng quan đầy đủ Task Phase 9
+
+> Đây là danh sách chính thức của toàn bộ Phase 9. Không chuyển sang task tiếp theo nếu task hiện tại chưa build/test được.
+
+| Task | Nội dung | Trạng thái | Dependency chính |
+|---|---|---|---|
+| 9.1 | Workspace domain foundation | DONE | Không |
+| 9.2 | DbContext và migration Workspace foundation | DONE | 9.1 |
+| 9.3 | Workspace và WorkspaceMember repositories | NEXT | 9.2 |
+| 9.4 | Workspace service và CRUD API | TODO | 9.3 |
+| 9.5 | Tạo Personal Workspace khi register | TODO | 9.4 |
+| 9.6 | Active Workspace context và `X-Workspace-Id` | TODO | 9.3 |
+| 9.7 | Invitation, role management và Member Limit | TODO | 9.4, 9.6 |
+| 9.8 | Atomic Ownership Transfer | TODO | 9.7 |
+| 9.9 | Chuyển Subscription và Payment sang Workspace | TODO | 9.4, 9.6 |
+| 9.10 | Credit Wallet, Credit Usage và Maximum Balance | TODO | 9.9 |
+| 9.11 | Credit Pack và `PaymentType` | TODO | 9.10 |
+| 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | TODO | 9.7, 9.10 |
+| 9.13 | Plan Entitlement, Permission Matrix và Post Quota | TODO | 9.9, 9.12 |
+| 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
+| 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
+| 9.16 | Chuyển ownership từng domain sang Workspace | TODO | 9.6, 9.13 |
+| 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | TODO | 9.9-9.16 |
+| 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | TODO | 9.17 |
+
+### Task 9.1 - Thêm Workspace domain foundation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm domain contract tối thiểu cho Workspace và WorkspaceMember.
+- Hỗ trợ một User tham gia nhiều Workspace thông qua nhiều WorkspaceMember.
+- Chưa cấu hình DbContext, migration, repository, service hoặc API.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Data/Model/WorkspaceMember.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceTypeEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceStatusEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceMemberRoleEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/MemberQuotaModeEnum.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceDomainFoundationTests.cs
+```
+
+Quyết định đã áp dụng:
+
+- `WorkspaceTypeEnum`: Personal = 1, Business = 2.
+- Role: Owner, Manager, Content Creator, Viewer.
+- Quota mode: Shared Pool, Lifetime Assigned Limit, Monthly Assigned Limit.
+- Workspace lifecycle status foundation.
+- Owner được biểu diễn bằng WorkspaceMember role; không tạo `OwnerUserId` riêng.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 127/127.
+```
+
+Migration/API test:
+
+```text
+N/A - task này chưa nối DbContext và chưa expose API.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace domain foundation
+```
+
+Task tiếp theo:
+
+```text
+Task 9.2 - Cấu hình Workspace/WorkspaceMember trong DbContext và tạo migration foundation.
+```
+
+### Task 9.2 - DbContext và migration Workspace foundation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm DbSet/configuration cho Workspace và WorkspaceMember.
+- Tạo migration chỉ thêm foundation; chưa chuyển ownership cũ.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/User.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/Migrations/AisamContextModelSnapshot.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceDomainFoundationTests.cs
+```
+
+File migration đã tạo:
+
+```text
+AISAM-BE/AISAM.Repositories/Migrations/20260610064359_AddWorkspaceFoundation.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260610064359_AddWorkspaceFoundation.Designer.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm `DbSet<Workspace>` và `DbSet<WorkspaceMember>`.
+- Cấu hình enum, index, default value và quan hệ cascade.
+- Thêm unique index `WorkspaceId + UserId` để một User không bị lặp membership trong cùng Workspace.
+- Giữ khả năng một User tham gia nhiều Workspace.
+- Migration chỉ tạo `workspaces`, `workspace_members`, index và foreign key liên quan; không sửa migration cũ hoặc ownership cũ.
+- Quy tắc đúng một Owner chưa được enforce ở database foundation; sẽ xử lý atomic trong Task 9.8.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 129/129.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+Applied migration: 20260610064359_AddWorkspaceFoundation.
+
+dotnet ef migrations list --project AISAM.Repositories --startup-project AISAM.API --no-build
+Migration AddWorkspaceFoundation xuất hiện và không có trạng thái Pending.
+```
+
+API test:
+
+```text
+N/A - task này chỉ tạo database foundation, chưa expose Workspace API.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace database foundation
+```
+
+Task tiếp theo:
+
+```text
+Task 9.3 - Thêm Workspace và WorkspaceMember repositories.
+```
+
+### Task 9.3 - Workspace và WorkspaceMember repositories
+
+Mục tiêu:
+
+- Thêm repository đọc/ghi Workspace và membership.
+- Hỗ trợ truy vấn tất cả Workspace một User tham gia.
+
+Cách test:
+
+- Một User tham gia nhiều Workspace.
+- Không tạo trùng membership trong cùng Workspace.
+- Repository tests pass.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace repositories
+```
+
+### Task 9.4 - Workspace service và CRUD API
+
+Mục tiêu:
+
+- Thêm Workspace service/controller/DTO.
+- Tạo Personal/Business Workspace theo rule được phép.
+
+Cách test:
+
+- Create/get/list/update Workspace.
+- Mỗi Workspace mới có đúng một Owner.
+- Personal Workspace không nhận member.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace management api
+```
+
+### Task 9.5 - Tạo Personal Workspace khi register
+
+Mục tiêu:
+
+- Tạo một Personal Workspace và Owner membership khi đăng ký tài khoản.
+
+Cách test:
+
+- Register thành công tạo đúng một Personal Workspace.
+- Retry/register failure không tạo dữ liệu thừa.
+- Auth regression pass.
+
+Commit đề xuất:
+
+```text
+feat(auth): create personal workspace on registration
+```
+
+### Task 9.6 - Active Workspace context và X-Workspace-Id
+
+Mục tiêu:
+
+- Thêm middleware/helper đọc `X-Workspace-Id` và kiểm tra membership.
+- Chưa xóa Active Profile middleware trong task này.
+
+Cách test:
+
+- Thiếu/sai header, không phải member và member hợp lệ.
+- Workspace A không truy cập dữ liệu Workspace B.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add active workspace context
+```
+
+### Task 9.7 - Invitation, role management và Member Limit
+
+Mục tiêu:
+
+- Invite/accept/list/remove/update role member.
+- Business Plus tối đa 10 members; Business Pro tối đa 50 members.
+
+Cách test:
+
+- Chặn member thứ 11/51.
+- Personal Workspace không invite member.
+- Enforce Owner/Manager/Content Creator/Viewer permissions.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add invitations roles and member limits
+```
+
+### Task 9.8 - Atomic Ownership Transfer
+
+Mục tiêu:
+
+- Transfer ownership từ Owner sang Manager trong cùng transaction.
+
+Cách test:
+
+- Manager mới thành Owner, Owner cũ thành Manager.
+- Rollback toàn bộ khi lỗi.
+- Owner không thể tự remove trước khi transfer.
+- Workspace luôn có đúng một Owner.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add atomic ownership transfer
+```
+
+### Task 9.9 - Chuyển Subscription và Payment sang Workspace
+
+Mục tiêu:
+
+- Checkout, webhook, current subscription và history dùng Workspace.
+
+Cách test:
+
+- PayOS payment kích hoạt đúng Workspace Subscription.
+- Gia hạn cộng thời gian và Credits theo rule.
+- Payment history cô lập theo Workspace.
+
+Commit đề xuất:
+
+```text
+feat(payment): move subscriptions and payments to workspace
+```
+
+### Task 9.10 - Credit Wallet, Credit Usage và Maximum Balance
+
+Mục tiêu:
+
+- Mỗi Workspace có đúng một Credit Wallet.
+- Lưu Credit Usage metadata, không lưu full prompt.
+
+Cách test:
+
+- Personal không vượt 15.000; Business không vượt 500.000.
+- Giao dịch vượt maximum bị từ chối toàn bộ.
+- Unique Wallet constraint hoạt động.
+
+Commit đề xuất:
+
+```text
+feat(credits): add workspace wallet and usage tracking
+```
+
+### Task 9.11 - Credit Pack và PaymentType
+
+Mục tiêu:
+
+- Mua Credit Pack qua PayOS và phân biệt `Subscription`/`CreditPack`.
+
+Cách test:
+
+- Credit Pack cộng Credits, không đổi subscription expiry/feature.
+- Credit Pack không hết hạn.
+- Vượt maximum balance bị từ chối.
+
+Commit đề xuất:
+
+```text
+feat(credits): add workspace credit pack payments
+```
+
+### Task 9.12 - Shared Pool, Lifetime và Monthly Assigned Limit
+
+Mục tiêu:
+
+- Business Plus dùng Shared Pool.
+- Business Pro hỗ trợ Shared Pool, Lifetime và Monthly Assigned Limit.
+
+Cách test:
+
+- Assigned member hết quota bị chặn dù Workspace còn Credits.
+- Monthly usage reset ngày 01.
+- Workspace Credit balance không bị reset.
+
+Commit đề xuất:
+
+```text
+feat(credits): add workspace member quota modes
+```
+
+### Task 9.13 - Plan Entitlement, Permission Matrix và Post Quota
+
+Mục tiêu:
+
+- Áp dụng feature inheritance, role permissions và Post Quota đã chốt.
+
+Cách test:
+
+- Feature/permission đúng theo matrix.
+- Publish không trừ Credits.
+- Post Quota đúng theo từng plan.
+
+Commit đề xuất:
+
+```text
+feat(subscription): enforce workspace plan entitlements
+```
+
+### Task 9.14 - Áp dụng Credits vào AI generation
+
+Mục tiêu:
+
+- Trừ Credits chỉ sau AI generate/regenerate/refine thành công.
+
+Cách test:
+
+- AI thành công trừ đúng Credits.
+- AI/provider thất bại không trừ Credits.
+- AI Chat không trừ Credits trong MVP.
+
+Commit đề xuất:
+
+```text
+feat(ai): enforce workspace credit usage
+```
+
+### Task 9.15 - Limited Mode, Archived và Admin Soft Delete lifecycle
+
+Mục tiêu:
+
+- Áp dụng lifecycle Workspace hết hạn.
+
+Cách test:
+
+- Dưới 90 ngày Limited Mode.
+- 90-180 ngày Archived: Owner View/Export/Renew, Member View Only.
+- Trên 180 ngày chỉ Admin được Soft Delete.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add expiration lifecycle
+```
+
+### Task 9.16 - Chuyển ownership từng domain sang Workspace
+
+Mục tiêu:
+
+- Chuyển ownership Brand, Product, Content/Post, Social, Calendar, Conversation, Notification và Campaign.
+
+Quy tắc commit:
+
+- Mỗi domain là một commit riêng; không gom toàn bộ domain vào một commit.
+
+Cách test:
+
+- CRUD và isolation theo Workspace sau từng domain.
+- Không phá API/module đã migrate trước đó.
+
+Commit đề xuất:
+
+```text
+refactor(<domain>): move ownership to workspace
+```
+
+### Task 9.17 - Backfill dữ liệu cũ và khóa schema Workspace
+
+Mục tiêu:
+
+- Mỗi Profile cũ tạo một Personal Workspace.
+- Backfill Subscription/resources/Credits rồi mới khóa schema mới.
+
+Cách test:
+
+- Chạy trên database test có dữ liệu cũ.
+- Không mất dữ liệu.
+- Migration rollback được trên database test.
+
+Commit đề xuất:
+
+```text
+migration(workspace): backfill legacy profile data
+```
+
+### Task 9.18 - Workspace Dashboard, regression và tài liệu cuối Phase 9
+
+Mục tiêu:
+
+- Hoàn thiện Workspace Dashboard và xác minh toàn bộ Phase 9.
+
+Cách test:
+
+- Credits/Posts/AI Usage/Top Members đúng.
+- `dotnet build`, `dotnet test`, migration và Swagger/Postman regression pass.
+- Cập nhật `BACKEND_CODE_PLAN.md`, `SETUP_GUIDE.md` và Change Request.
+
+Commit đề xuất:
+
+```text
+test(workspace): complete workspace migration regression
+```
+
+Điều kiện hoàn thành:
+
+- `X-Workspace-Id` hoạt động và kiểm tra membership.
+- Brand, Content và Social Integration dùng Workspace ownership.
+- Mỗi Workspace có đúng một Owner và một Credit Wallet.
+- Subscription, Credits, Post Quota, Feature Gate và Permission Matrix hoạt động theo Workspace.
+- Business Plus/Business Pro member limit hoạt động.
+- Build, test, migration và API regression pass.
+
+Không bắt đầu Phase 10 hoặc Phase 11 nếu Phase 9 chưa hoàn thành.
+
+## Phase 11 - Facebook Ads Campaign MVP
+
+Mục tiêu phase:
+
+- Cung cấp luồng Campaign -> Ad Set -> Ad Creative -> Ad theo Active Workspace.
+- Ưu tiên tái sử dụng Ads entities/schema hiện có.
+- Chỉ triển khai Facebook Marketing API; chưa làm multi-platform Ads hoặc tự động tối ưu ngân sách.
+
+Dependency bắt buộc:
+
+- Phase 9 Workspace Migration hoàn thành.
+- Phase 10 Admin Backend theo Workspace hoàn thành.
+- Facebook App có Marketing API permissions phù hợp.
+- Workspace đã liên kết Facebook Ad Account hợp lệ.
+- Brand và Content dùng Workspace ownership.
+
+### Task 11.1 - Kích hoạt Campaign repository và CRUD API local
+
+Mục tiêu:
+
+- Người dùng có quyền có thể tạo, xem, cập nhật và soft delete Campaign trong Workspace.
+
+Loại task:
+
+Copy từ source cũ / Cải tiến bắt buộc
+
+Source cũ liên quan:
+
+```text
+PRN232_Backend/AISAM.Data/Model/AdCampaign.cs
+PRN232_Backend/AISAM.Repositories/
+PRN232_Backend/AISAM.Services/
+PRN232_Backend/AISAM.API/Controllers/
+```
+
+File/thư mục repo mới:
+
+```text
+AISAM-BE/AISAM.Repositories/
+AISAM-BE/AISAM.Services/
+AISAM-BE/AISAM.API/Controllers/AdCampaignController.cs
+AISAM-BE/tests/
+```
+
+Việc cần làm:
+
+- Giữ entity/schema Ads hiện có nếu phù hợp.
+- Chuyển Campaign ownership từ Profile sang Workspace.
+- Thêm repository/service/controller CRUD.
+- Kiểm tra Brand thuộc Active Workspace.
+- Chưa gọi Facebook Marketing API trong task này.
+
+Cải tiến so với source cũ nếu có:
+
+Có: bắt buộc dùng Workspace ownership và Permission Matrix mới.
+
+Commit đề xuất:
+
+```text
+feat(ads): add workspace campaign crud
+```
+
+Lệnh kiểm tra sau task:
+
+```text
+dotnet build
+dotnet test
+dotnet ef database update
+dotnet run --project AISAM.API
+```
+
+API cần test bằng Swagger/Postman:
+
+```text
+POST   /api/ad-campaigns
+GET    /api/ad-campaigns
+GET    /api/ad-campaigns/{id}
+PUT    /api/ad-campaigns/{id}
+DELETE /api/ad-campaigns/{id}
+```
+
+Expected result:
+
+- Workspace A không truy cập được Campaign của Workspace B.
+- Viewer không tạo/sửa/xóa Campaign.
+- Manager và Owner quản lý Campaign theo Permission Matrix.
+
+### Task 11.2 - Kích hoạt Ad Set CRUD local
+
+Mục tiêu:
+
+- Quản lý Ad Set thuộc Campaign trong Active Workspace.
+
+Việc cần làm:
+
+- Thêm repository/service/controller cho Ad Set.
+- Kiểm tra Campaign thuộc Active Workspace.
+- Validate budget, schedule và targeting cơ bản.
+- Chưa gọi Facebook Marketing API.
+
+Commit đề xuất:
+
+```text
+feat(ads): add workspace ad set crud
+```
+
+API cần test:
+
+```text
+POST   /api/ad-sets
+GET    /api/ad-sets/campaign/{campaignId}
+GET    /api/ad-sets/{id}
+PUT    /api/ad-sets/{id}
+DELETE /api/ad-sets/{id}
+```
+
+Sau task phải chạy `dotnet build`, `dotnet test` và API test.
+
+### Task 11.3 - Kích hoạt Ad Creative CRUD từ Content
+
+Mục tiêu:
+
+- Tạo Ad Creative local từ Content đã có trong cùng Workspace.
+
+Việc cần làm:
+
+- Thêm repository/service/controller cho Ad Creative.
+- Kiểm tra Content, Brand và Campaign cùng Workspace.
+- Validate text/media URL cần thiết.
+- Chưa gọi Facebook Marketing API.
+
+Commit đề xuất:
+
+```text
+feat(ads): add ad creative from workspace content
+```
+
+Sau task phải build/test/API test riêng.
+
+### Task 11.4 - Kích hoạt Ad CRUD local
+
+Mục tiêu:
+
+- Tạo Ad liên kết Ad Set và Ad Creative trong cùng Workspace.
+
+Việc cần làm:
+
+- Thêm repository/service/controller cho Ad.
+- Kiểm tra Ad Set và Ad Creative cùng Workspace.
+- Quản lý trạng thái local Draft/Ready/Paused theo enum hiện có nếu phù hợp.
+
+Commit đề xuất:
+
+```text
+feat(ads): add workspace ad crud
+```
+
+Sau task phải build/test/API test riêng.
+
+### Task 11.5 - Liên kết Facebook Ad Account và Marketing API client
+
+Mục tiêu:
+
+- Xác minh Ad Account đã liên kết và cung cấp client gọi Facebook Marketing API.
+
+Loại task:
+
+Security hardening / Viết mới
+
+Việc cần làm:
+
+- Dùng Facebook config/provider hiện có.
+- Không log access token.
+- Kiểm tra Ad Account thuộc Social Integration của Active Workspace.
+- Trả lỗi rõ khi thiếu permission/token/config.
+
+Commit đề xuất:
+
+```text
+feat(ads): add facebook marketing api client
+```
+
+API test:
+
+- List/validate linked Ad Accounts.
+- Invalid token/permission trả lỗi rõ.
+
+### Task 11.6 - Publish Campaign structure lên Facebook
+
+Mục tiêu:
+
+- Tạo Campaign, Ad Set, Ad Creative và Ad trên Facebook theo thứ tự an toàn.
+
+Việc cần làm:
+
+- Sync từng resource và lưu Facebook ID.
+- Không tạo resource con nếu parent chưa sync thành công.
+- Lưu trạng thái lỗi để retry thủ công.
+- Không tự động bật chạy Ads nếu chưa được người dùng xác nhận.
+
+Commit đề xuất:
+
+```text
+feat(ads): publish campaign structure to facebook
+```
+
+API cần test:
+
+```text
+POST /api/ad-campaigns/{id}/sync
+POST /api/ad-sets/{id}/sync
+POST /api/ad-creatives/{id}/sync
+POST /api/ads/{id}/sync
+```
+
+### Task 11.7 - Sync status và basic insights
+
+Mục tiêu:
+
+- Đồng bộ trạng thái và chỉ số cơ bản của Ads đã publish.
+
+Việc cần làm:
+
+- Sync status Campaign/Ad Set/Ad/Creative.
+- Đọc basic insights từ Facebook khi permission cho phép.
+- Không triển khai auto-optimization.
+
+Commit đề xuất:
+
+```text
+feat(ads): sync facebook ad status and basic insights
+```
+
+### Task 11.8 - Facebook Ads regression, security và documentation
+
+Mục tiêu:
+
+- Xác minh luồng Campaign end-to-end không phá module đã hoàn thành.
+
+Việc cần làm:
+
+- Unit/integration tests cho ownership, permission và validation.
+- Swagger/Postman test local CRUD.
+- Test Marketing API bằng Facebook test account/ad account.
+- Cập nhật `SETUP_GUIDE.md`, API docs và progress log.
+
+Commit đề xuất:
+
+```text
+test(ads): harden facebook campaign workflow
+```
+
+Phase 11 chỉ hoàn thành khi:
+
+- [ ] Campaign/Ad Set/Ad Creative/Ad CRUD local pass.
+- [ ] Workspace isolation và Permission Matrix pass.
+- [ ] Facebook Ad Account validation pass.
+- [ ] Sync Facebook IDs/status pass hoặc trả lỗi provider rõ ràng.
+- [ ] Không tự động bật Ads ngoài xác nhận người dùng.
+- [ ] `dotnet build` pass.
+- [ ] `dotnet test` pass.
+- [ ] Migration pass.
+- [ ] Swagger/Postman test được ghi lại.
+
 ## Backend MVP Definition of Done
 
 Backend MVP chỉ được xem là xong khi:
@@ -3179,7 +3932,7 @@ Không làm trong MVP backend đầu tiên:
 
 - TikTok integration thật.
 - Instagram Business integration đầy đủ.
-- Facebook Ads end-to-end.
+- Facebook Ads end-to-end chưa thuộc baseline hiện tại; đã được đưa vào Phase 11 sau Workspace và Admin.
 - Video AI generation.
 - Mobile app APIs riêng.
 - AI cost tracking chi tiết.
@@ -4026,7 +4779,7 @@ Checklist:
 
 ## Current Backend Status - Updated 2026-06-04
 
-Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP hoan thien hon: checkout goi PayOS Merchant API, callback/webhook dong bo payment/subscription, history/current subscription va quota display da co. Phase 9 Admin chua thay ro la da hoan thanh.
+Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP hoan thien hon. Thu tu tiep theo da duoc chot: Phase 9 Workspace -> Phase 10 Admin theo Workspace -> Phase 11 Facebook Ads -> Phase 12 Release.
 
 | Phase | Trang thai hien tai | Ghi chu |
 | --- | --- | --- |
@@ -4039,8 +4792,10 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Admin backend MVP | TODO/UNCLEAR | Chua thay controller admin/user management rieng trong source hien tai. |
-| Phase 10 - Test hardening va backend release MVP | IN PROGRESS | 119 automated tests pass; docs/setup can tiep tuc dong bo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.2 da hoan thanh; Task 9.3 repositories la task tiep theo. |
+| Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
+| Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
+| Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
 
 Ket qua kiem tra gan nhat ngay 2026-06-04:
 
@@ -4134,7 +4889,10 @@ Luu y thu cong:
 Next recommended tasks:
 
 1. Cap nhat chi tiet Progress Detail cho Phase 6 va Phase 7 theo source code hien tai.
-2. Ra soat Phase 9 Admin: xac dinh can viet moi hay reuse module admin cu.
+2. Hoan thanh Phase 9 Workspace Migration.
+3. Cap nhat va hoan thanh Phase 10 Admin theo Workspace.
+4. Trien khai Phase 11 Facebook Ads Campaign MVP.
+5. Chay Phase 12 regression/release cuoi.
 3. Hardening Phase 6-8: Facebook error handling, scheduler retry/failed-state, PayOS idempotency/retry, quota edge cases.
 4. Dong bo `SETUP_GUIDE.md` voi config thuc te cua Phase 6-8.
 
