@@ -3182,8 +3182,8 @@ Mục tiêu phase:
 | 9.1 | Workspace domain foundation | DONE | Không |
 | 9.2 | DbContext và migration Workspace foundation | DONE | 9.1 |
 | 9.3 | Workspace và WorkspaceMember repositories | DONE | 9.2 |
-| 9.4 | Workspace service và CRUD API | NEXT | 9.3 |
-| 9.5 | Tạo Personal Workspace khi register | TODO | 9.4 |
+| 9.4 | Workspace service và CRUD API | DONE | 9.3 |
+| 9.5 | Tạo Personal Workspace khi register | NEXT | 9.4 |
 | 9.6 | Active Workspace context và `X-Workspace-Id` | TODO | 9.3 |
 | 9.7 | Invitation, role management và Member Limit | TODO | 9.4, 9.6 |
 | 9.8 | Atomic Ownership Transfer | TODO | 9.7 |
@@ -3406,21 +3406,88 @@ Task 9.4 - Workspace service và CRUD API.
 
 ### Task 9.4 - Workspace service và CRUD API
 
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
 Mục tiêu:
 
 - Thêm Workspace service/controller/DTO.
 - Tạo Personal/Business Workspace theo rule được phép.
 
-Cách test:
+File đã tạo:
 
-- Create/get/list/update Workspace.
-- Mỗi Workspace mới có đúng một Owner.
-- Personal Workspace không nhận member.
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceControllerTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm API list/get/create/update Workspace của user đang đăng nhập.
+- Tạo được Personal Workspace hoặc Business Workspace.
+- Workspace mới được lưu cùng đúng một Owner membership trong cùng một lần repository save.
+- Active member được list/get Workspace đang tham gia.
+- Non-member nhận Not Found để không lộ Workspace.
+- Chỉ Owner được đổi tên Workspace trong phạm vi CRUD foundation.
+- Đăng ký `IWorkspaceService` trong dependency injection.
+- Chưa thêm delete, invitation, member role management, member limit hoặc ownership transfer.
+- Personal Workspace chưa có API nhận member; rule không nhận member sẽ tiếp tục được giữ khi Task 9.7 thêm invitation.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed: 140/140.
+```
+
+API runtime smoke test:
+
+```text
+API chạy tại http://localhost:5054 trong thời gian smoke test.
+Swagger nhận diện:
+- /api/workspaces
+- /api/workspaces/{id}
+
+Endpoints:
+- GET  /api/workspaces
+- GET  /api/workspaces/{id}
+- POST /api/workspaces
+- PUT  /api/workspaces/{id}
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới trong task này.
+```
 
 Commit đề xuất:
 
 ```text
 feat(workspace): add workspace management api
+```
+
+Task tiếp theo:
+
+```text
+Task 9.5 - Tạo Personal Workspace khi register.
 ```
 
 ### Task 9.5 - Tạo Personal Workspace khi register
@@ -4845,7 +4912,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.3 da hoan thanh; Task 9.4 Workspace service va CRUD API la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.4 da hoan thanh; Task 9.5 tao Personal Workspace khi register la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
