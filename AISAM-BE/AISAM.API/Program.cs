@@ -242,6 +242,7 @@ app.UseMiddleware<ExceptionHandlerMiddleware>();
 
 app.UseAuthentication();
 app.UseMiddleware<ActiveProfileMiddleware>();
+app.UseMiddleware<ActiveWorkspaceMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

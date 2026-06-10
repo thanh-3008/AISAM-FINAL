@@ -176,7 +176,15 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<bool>.CreateError("PayOS callback is missing payment reference.", HttpStatusCode.BadRequest, "PAYOS_REFERENCE_MISSING");
         }
 
-        if (query.TryGetValue("signature", out var signature) && !string.IsNullOrWhiteSpace(signature.FirstOrDefault()))
+        if (!query.TryGetValue("signature", out var signature) || string.IsNullOrWhiteSpace(signature.FirstOrDefault()))
+        {
+            return GenericResponse<bool>.CreateError(
+                "PayOS callback signature is required.",
+                HttpStatusCode.BadRequest,
+                "PAYOS_SIGNATURE_REQUIRED");
+        }
+
+        if (!string.IsNullOrWhiteSpace(signature.FirstOrDefault()))
         {
             var signedValues = query
                 .Where(item => !string.Equals(item.Key, "signature", StringComparison.OrdinalIgnoreCase))
@@ -212,7 +220,15 @@ public sealed class PayOSPaymentService : IPaymentService
         var signature = TryGetString(root, "signature");
         var data = root.TryGetProperty("data", out var dataElement) ? dataElement : root;
 
-        if (!string.IsNullOrWhiteSpace(signature) && !VerifySignature(ExtractPrimitiveValues(data), signature))
+        if (string.IsNullOrWhiteSpace(signature))
+        {
+            return GenericResponse<bool>.CreateError(
+                "PayOS webhook signature is required.",
+                HttpStatusCode.BadRequest,
+                "PAYOS_SIGNATURE_REQUIRED");
+        }
+
+        if (!VerifySignature(ExtractPrimitiveValues(data), signature))
         {
             return GenericResponse<bool>.CreateError("Invalid PayOS webhook signature.", HttpStatusCode.BadRequest, "PAYOS_SIGNATURE_INVALID");
         }

@@ -494,6 +494,14 @@ GET  /api/payment/subscription/current
 GET  /api/quota/profile/{profileId}
 ```
 
+### Bao mat callback/webhook
+
+```text
+Callback va webhook PayOS bat buoc phai co signature hop le.
+Request thieu signature se bi tu choi voi PAYOS_SIGNATURE_REQUIRED.
+Khong tu tao request PAID thu cong neu khong tao dung HMAC bang PAYOS_CHECKSUM_KEY.
+```
+
 ### Loi thuong gap neu thieu config
 
 ```text
@@ -513,6 +521,44 @@ Nghia la thieu `PAYOS_RETURN_URL` hoac `PAYOS_CANCEL_URL`.
 ```
 
 Nghia la backend da goi PayOS nhung PayOS tra loi loi. Kiem tra key, amount, return/cancel URL va merchant status tren PayOS.
+
+```text
+400 PAYOS_SIGNATURE_REQUIRED
+```
+
+Nghia la callback/webhook khong co signature. Kiem tra Webhook URL tren PayOS dashboard va khong dung payload PAID tu tao thu cong.
+
+## Active Workspace Header
+
+### Muc dich
+
+Xac dinh Workspace dang hoat dong cho cac API Workspace-scoped va kiem tra user la active member.
+
+### Trang thai
+
+<span style="color:red"><strong>REQUIRED FOR WORKSPACE-SCOPED APIs</strong></span>
+
+### Header can them
+
+```http
+Authorization: Bearer your-access-token
+X-Workspace-Id: your-workspace-guid
+```
+
+Lay Workspace ID bang:
+
+```text
+GET /api/workspaces
+```
+
+### Loi thuong gap
+
+```text
+401 Missing or invalid X-Workspace-Id header.
+403 You are not a member of this workspace.
+404 Workspace not found.
+```
+
 ## 14. Ví Dụ `.env`
 
 Tạo file local:

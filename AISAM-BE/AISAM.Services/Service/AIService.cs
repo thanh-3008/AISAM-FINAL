@@ -77,6 +77,15 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
 
+        var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<AiGenerationResponse>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
+        }
+
         var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
         return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
     }

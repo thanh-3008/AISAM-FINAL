@@ -3184,8 +3184,8 @@ Mục tiêu phase:
 | 9.3 | Workspace và WorkspaceMember repositories | DONE | 9.2 |
 | 9.4 | Workspace service và CRUD API | DONE | 9.3 |
 | 9.5 | Tạo Personal Workspace khi register | DONE | 9.4 |
-| 9.6 | Active Workspace context và `X-Workspace-Id` | NEXT | 9.3 |
-| 9.7 | Invitation, role management và Member Limit | TODO | 9.4, 9.6 |
+| 9.6 | Active Workspace context và `X-Workspace-Id` | DONE | 9.3 |
+| 9.7 | Invitation, role management và Member Limit | NEXT | 9.4, 9.6 |
 | 9.8 | Atomic Ownership Transfer | TODO | 9.7 |
 | 9.9 | Chuyển Subscription và Payment sang Workspace | TODO | 9.4, 9.6 |
 | 9.10 | Credit Wallet, Credit Usage và Maximum Balance | TODO | 9.9 |
@@ -3557,22 +3557,152 @@ Task tiếp theo:
 Task 9.6 - Active Workspace context và X-Workspace-Id.
 ```
 
+### Regression fixes trước Task 9.6 - Security, quota và account consistency
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Lý do:
+
+- Rà soát Phase 0-8 và Task 9.1-9.5 phát hiện các blocker cần sửa trước khi chuyển active context sang Workspace.
+
+Nội dung đã sửa:
+
+- PayOS callback/webhook bắt buộc có signature hợp lệ trước khi đồng bộ payment/subscription.
+- Subscription có `EndDate` đã hết hạn hoặc chưa đến `StartDate` không còn được xem là active.
+- Prompt quota theo ngày chỉ đếm AI generation thành công trong ngày UTC hiện tại.
+- AI Improve/Regenerate kiểm tra prompt quota trước khi gọi provider.
+- Google user mới được tạo Personal Workspace và Owner membership giống register email/password.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Repositories/Repository/SubscriptionRepository.cs
+AISAM-BE/AISAM.Services/Service/QuotaService.cs
+AISAM-BE/AISAM.Services/Service/AIService.cs
+AISAM-BE/AISAM.Services/Service/AuthService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/SubscriptionRepositoryTests.cs
+```
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 148/148.
+
+dotnet ef migrations has-pending-model-changes
+No changes have been made to the model since the last migration.
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới.
+PayOS callback/webhook thiếu signature hiện trả PAYOS_SIGNATURE_REQUIRED.
+```
+
+Commit đề xuất:
+
+```text
+fix(regression): secure payment and workspace account flows
+```
+
 ### Task 9.6 - Active Workspace context và X-Workspace-Id
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
 
 Mục tiêu:
 
 - Thêm middleware/helper đọc `X-Workspace-Id` và kiểm tra membership.
 - Chưa xóa Active Profile middleware trong task này.
 
-Cách test:
+Rà soát trước khi code:
 
-- Thiếu/sai header, không phải member và member hợp lệ.
-- Workspace A không truy cập dữ liệu Workspace B.
+- Xác nhận Workspace repository/membership foundation và registration flow đã pass regression.
+- Phát hiện active membership vẫn có thể trỏ tới Workspace đã Soft Delete.
+- Fix trong middleware: Workspace có status `Deleted` trả `404`; các lifecycle status khác được giữ context để Task 9.15 áp quyền.
+- Không áp `X-Workspace-Id` lên route Profile-based hiện tại vì ownership chưa được migrate.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.API/Utils/WorkspaceContextHelper.cs
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Middleware đọc và validate `X-Workspace-Id` cho các route Workspace-scoped.
+- Kiểm tra authentication và active membership theo JWT user.
+- Lưu Active Workspace ID và WorkspaceMember vào `HttpContext.Items`.
+- Helper cung cấp Active Workspace ID và membership/role cho controller/service sau.
+- Non-member nhận `403`; Workspace đã Deleted nhận `404`.
+- Active Profile middleware tiếp tục hoạt động độc lập cho module cũ.
+- Các prefix foundation hiện được bảo vệ: `/api/workspace-context`, `/api/workspace-members`, `/api/workspace-invitations`, `/api/workspace-dashboard`.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 154/154.
+```
+
+Runtime smoke test:
+
+```text
+GET /api/workspace-members không có authentication
+Result: 401 Authentication is required.
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới.
+Client phải gửi X-Workspace-Id khi gọi API Workspace-scoped.
+```
+
+Test đã xác nhận:
+
+- Thiếu/sai header.
+- Non-member và Workspace A không dùng được context Workspace B.
+- Member hợp lệ nhận đúng Workspace ID và membership.
+- Workspace Deleted bị chặn.
+- Route Profile-based không bị middleware mới yêu cầu Workspace header.
 
 Commit đề xuất:
 
 ```text
 feat(workspace): add active workspace context
+```
+
+Task tiếp theo:
+
+```text
+Task 9.7 - Invitation, role management và Member Limit.
 ```
 
 ### Task 9.7 - Invitation, role management và Member Limit
@@ -4961,7 +5091,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.5 da hoan thanh; Task 9.6 Active Workspace context la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.6 da hoan thanh; Task 9.7 invitation, role management va Member Limit la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
@@ -5098,14 +5228,14 @@ POST /api/payment/checkout
 POST /api/payment/callback
 - AllowAnonymous
 - Nhan query params tu PayOS
-- Neu co signature thi verify HMAC SHA256
+- Bat buoc co signature HMAC SHA256 hop le; thieu signature tra PAYOS_SIGNATURE_REQUIRED
 - Status paid/success/00 => payment Success, subscription active
 - Status cancelled/failed/expired => payment Failed
 
 POST /api/payment/webhook
 - AllowAnonymous
 - Nhan JSON payload tu PayOS
-- Neu co signature thi verify HMAC SHA256 theo data primitives
+- Bat buoc co signature HMAC SHA256 hop le theo data primitives
 - Dong bo payment/subscription nhu callback
 
 GET /api/payment/history

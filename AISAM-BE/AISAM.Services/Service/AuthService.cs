@@ -70,21 +70,7 @@ namespace AISAM.Services.Service
             user.EmailVerificationToken = verificationToken;
             user.EmailVerificationTokenExpiresAt = verificationTokenExpiration;
 
-            var personalWorkspace = new Workspace
-            {
-                Name = string.IsNullOrWhiteSpace(user.FullName)
-                    ? "Personal Workspace"
-                    : $"{user.FullName.Trim()}'s Workspace",
-                WorkspaceType = WorkspaceTypeEnum.Personal
-            };
-            user.WorkspaceMembers.Add(new WorkspaceMember
-            {
-                UserId = user.Id,
-                User = user,
-                WorkspaceId = personalWorkspace.Id,
-                Workspace = personalWorkspace,
-                Role = WorkspaceMemberRoleEnum.Owner
-            });
+            AddPersonalWorkspace(user);
 
             await _userRepository.CreateAsync(user);
 
@@ -151,6 +137,7 @@ namespace AISAM.Services.Service
                         PasswordHash = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
                     };
 
+                    AddPersonalWorkspace(user);
                     await _userRepository.CreateAsync(user);
                 }
                 else
@@ -361,6 +348,26 @@ namespace AISAM.Services.Service
         }
 
         #region Private Helper Methods
+
+        private static void AddPersonalWorkspace(User user)
+        {
+            var personalWorkspace = new Workspace
+            {
+                Name = string.IsNullOrWhiteSpace(user.FullName)
+                    ? "Personal Workspace"
+                    : $"{user.FullName.Trim()}'s Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Personal
+            };
+
+            user.WorkspaceMembers.Add(new WorkspaceMember
+            {
+                UserId = user.Id,
+                User = user,
+                WorkspaceId = personalWorkspace.Id,
+                Workspace = personalWorkspace,
+                Role = WorkspaceMemberRoleEnum.Owner
+            });
+        }
 
         private async Task<TokenResponse> GenerateTokensAsync(User user, string? userAgent, string? ipAddress)
         {

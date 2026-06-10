@@ -112,6 +112,33 @@ public class AIServiceTests
     }
 
     [Fact]
+    public async Task ImproveAsync_ReturnsForbidden_WhenPromptQuotaIsExceeded()
+    {
+        var profileId = Guid.NewGuid();
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = Guid.NewGuid(),
+            TextContent = "Draft"
+        };
+        var generationRepository = new FakeAiGenerationRepository();
+        var service = CreateService(
+            new FakeContentRepository(content),
+            generationRepository,
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("unused"),
+            quotaService: new DeniedPromptQuotaService());
+
+        var result = await service.ImproveAsync(content.Id, profileId, new ImproveContentRequest { Prompt = "Improve" });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Equal("PROMPT_QUOTA_EXCEEDED", result.Error?.ErrorCode);
+        Assert.Empty(await generationRepository.GetByContentIdAsync(content.Id));
+    }
+
+    [Fact]
     public async Task ChatAsync_SavesUserAndAiMessages_WhenGeminiSucceeds()
     {
         var profileId = Guid.NewGuid();
@@ -318,5 +345,20 @@ public class AIServiceTests
 
         public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
             => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+    }
+
+    private sealed class DeniedPromptQuotaService : IQuotaService
+    {
+        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateError(
+                "Prompt quota exceeded.",
+                HttpStatusCode.Forbidden,
+                "PROMPT_QUOTA_EXCEEDED"));
+
+        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
     }
 }

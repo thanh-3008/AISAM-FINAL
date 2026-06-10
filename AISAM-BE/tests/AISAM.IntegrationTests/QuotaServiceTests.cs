@@ -90,11 +90,38 @@ public class QuotaServiceTests
         Assert.Equal("POST_QUOTA_EXCEEDED", result.Error?.ErrorCode);
     }
 
+    [Fact]
+    public async Task GetSummaryAsync_CountsPromptUsageForCurrentUtcDay()
+    {
+        var profileId = Guid.NewGuid();
+        var repository = new FakeSubscriptionRepository(
+            new Subscription
+            {
+                Id = Guid.NewGuid(),
+                ProfileId = profileId,
+                Plan = SubscriptionPlanEnum.Plus,
+                QuotaAIContentPerDay = 3,
+                StartDate = DateTime.UtcNow.Date.AddDays(-10),
+                EndDate = DateTime.UtcNow.Date.AddDays(20),
+                IsActive = true
+            },
+            promptUsage: 0,
+            postUsage: 0);
+        var service = new QuotaService(repository);
+
+        await service.GetSummaryAsync(profileId);
+
+        Assert.Equal(DateTime.UtcNow.Date, repository.LastPromptWindowStart);
+        Assert.Equal(DateTime.UtcNow.Date, repository.LastPromptWindowEnd);
+    }
+
     private sealed class FakeSubscriptionRepository : ISubscriptionRepository
     {
         private readonly Subscription? _subscription;
         private readonly int _promptUsage;
         private readonly int _postUsage;
+        public DateTime? LastPromptWindowStart { get; private set; }
+        public DateTime? LastPromptWindowEnd { get; private set; }
 
         public FakeSubscriptionRepository(Subscription? subscription, int promptUsage, int postUsage)
         {
@@ -125,6 +152,8 @@ public class QuotaServiceTests
 
         public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
         {
+            LastPromptWindowStart = windowStart;
+            LastPromptWindowEnd = windowEnd;
             return Task.FromResult(_promptUsage);
         }
 

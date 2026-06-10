@@ -26,7 +26,8 @@ public sealed class QuotaService : IQuotaService
 
         var windowStart = subscription.StartDate;
         var windowEnd = subscription.EndDate;
-        var promptUsage = await _subscriptionRepository.CountSuccessfulPromptUsageAsync(profileId, windowStart, windowEnd, cancellationToken);
+        var promptDay = DateTime.UtcNow.Date;
+        var promptUsage = await _subscriptionRepository.CountSuccessfulPromptUsageAsync(profileId, promptDay, promptDay, cancellationToken);
         var postUsage = await _subscriptionRepository.CountSuccessfulPostUsageAsync(profileId, windowStart, windowEnd, cancellationToken);
 
         var promptLimit = subscription.QuotaAIContentPerDay;

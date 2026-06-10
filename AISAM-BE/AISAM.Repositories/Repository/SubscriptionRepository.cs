@@ -16,12 +16,16 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
 
     public async Task<Subscription?> GetCurrentActiveByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default)
     {
+        var today = DateTime.UtcNow.Date;
+
         return await _context.Subscriptions
             .Include(subscription => subscription.Profile)
             .Where(subscription =>
                 subscription.ProfileId == profileId &&
                 !subscription.IsDeleted &&
-                subscription.IsActive)
+                subscription.IsActive &&
+                subscription.StartDate <= today &&
+                (!subscription.EndDate.HasValue || subscription.EndDate.Value >= today))
             .OrderByDescending(subscription => subscription.StartDate)
             .FirstOrDefaultAsync(cancellationToken);
     }

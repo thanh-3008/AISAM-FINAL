@@ -7,6 +7,7 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.Service;
 using Microsoft.Extensions.Options;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace AISAM.IntegrationTests;
@@ -157,10 +158,18 @@ public class PaymentServiceTests
             new FakeProfileRepository(profile),
             CreateConfiguredSettings());
 
-        var result = await service.HandleWebhookAsync("""
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["orderCode"] = "987654",
+            ["paymentLinkId"] = "plink_987",
+            ["status"] = "PAID",
+            ["reference"] = "txn_987"
+        });
+        var result = await service.HandleWebhookAsync($$"""
         {
           "code": "00",
           "desc": "success",
+          "signature": "{{signature}}",
           "data": {
             "orderCode": "987654",
             "paymentLinkId": "plink_987",
@@ -177,7 +186,7 @@ public class PaymentServiceTests
     }
 
     [Fact]
-    public async Task HandleWebhookAsync_AcknowledgesValidPayOsVerificationPayload_WhenPaymentDoesNotExist()
+    public async Task HandleWebhookAsync_RejectsPayloadWithoutSignature()
     {
         var service = CreateService(
             settings: CreateConfiguredSettings(),
@@ -196,8 +205,26 @@ public class PaymentServiceTests
         }
         """);
 
-        Assert.True(result.Success);
-        Assert.Equal(200, result.StatusCode);
+        Assert.False(result.Success);
+        Assert.Equal(400, result.StatusCode);
+        Assert.Equal("PAYOS_SIGNATURE_REQUIRED", result.Error?.ErrorCode);
+    }
+
+    [Fact]
+    public async Task HandleCallbackAsync_RejectsQueryWithoutSignature()
+    {
+        var service = CreateService(settings: CreateConfiguredSettings());
+        var query = new Microsoft.AspNetCore.Http.QueryCollection(
+            new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+            {
+                ["orderCode"] = "123",
+                ["status"] = "PAID"
+            });
+
+        var result = await service.HandleCallbackAsync(query);
+
+        Assert.False(result.Success);
+        Assert.Equal("PAYOS_SIGNATURE_REQUIRED", result.Error?.ErrorCode);
     }
 
     private static PayOSPaymentService CreateService(
@@ -226,6 +253,13 @@ public class PaymentServiceTests
             ReturnUrl = "https://app.test/payment/success",
             CancelUrl = "https://app.test/payment/cancel"
         };
+    }
+
+    private static string CreateSignature(IReadOnlyDictionary<string, string> values)
+    {
+        var data = string.Join("&", values.OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}"));
+        return Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes("checksum-key"), Encoding.UTF8.GetBytes(data)))
+            .ToLowerInvariant();
     }
 
     private sealed class FakePaymentRepository : IPaymentRepository
