@@ -26,7 +26,28 @@ public class ScheduledPostingServiceTests
             })
         };
         var repository = new FakeContentCalendarRepository(schedule);
-        var service = new ScheduledPostingService(repository, contentService, notificationRepository);
+        var profileRepository = new FakeProfileRepository(new Profile
+        {
+            Id = schedule.ProfileId,
+            UserId = Guid.NewGuid(),
+            Name = "Profile",
+            ProfileType = ProfileTypeEnum.Basic
+        });
+        var membershipRepository = new FakeWorkspaceMemberRepository(new WorkspaceMember
+        {
+            WorkspaceId = Guid.NewGuid(),
+            Workspace = new Workspace
+            {
+                Id = Guid.NewGuid(),
+                Name = "Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active
+            },
+            UserId = profileRepository.Profiles.Values.Single().UserId,
+            Role = WorkspaceMemberRoleEnum.ContentCreator,
+            IsActive = true
+        });
+        var service = new ScheduledPostingService(repository, contentService, notificationRepository, profileRepository, membershipRepository);
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -38,6 +59,7 @@ public class ScheduledPostingServiceTests
         Assert.Null(schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
         Assert.Equal("Scheduled publish succeeded", notificationRepository.Notifications.Values.Single().Title);
+        Assert.Equal(membershipRepository.Memberships.Values.Single().WorkspaceId, contentService.LastWorkspaceId);
     }
 
     [Fact]
@@ -50,7 +72,12 @@ public class ScheduledPostingServiceTests
             PublishResult = GenericResponse<PublishResultDto>.CreateError("Facebook rejected the request.", HttpStatusCode.BadGateway)
         };
         var repository = new FakeContentCalendarRepository(schedule);
-        var service = new ScheduledPostingService(repository, contentService, notificationRepository);
+        var service = new ScheduledPostingService(
+            repository,
+            contentService,
+            notificationRepository,
+            new FakeProfileRepository(),
+            new FakeWorkspaceMemberRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -77,7 +104,12 @@ public class ScheduledPostingServiceTests
                 "POST_QUOTA_EXCEEDED")
         };
         var repository = new FakeContentCalendarRepository(schedule);
-        var service = new ScheduledPostingService(repository, contentService, notificationRepository);
+        var service = new ScheduledPostingService(
+            repository,
+            contentService,
+            notificationRepository,
+            new FakeProfileRepository(),
+            new FakeWorkspaceMemberRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -100,7 +132,9 @@ public class ScheduledPostingServiceTests
         var service = new ScheduledPostingService(
             new FakeContentCalendarRepository(completed),
             contentService,
-            new FakeNotificationRepository());
+            new FakeNotificationRepository(),
+            new FakeProfileRepository(),
+            new FakeWorkspaceMemberRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -164,6 +198,7 @@ public class ScheduledPostingServiceTests
     private sealed class FakeContentService : AISAM.Services.IServices.IContentService
     {
         public int PublishCallCount { get; private set; }
+        public Guid? LastWorkspaceId { get; private set; }
         public GenericResponse<PublishResultDto> PublishResult { get; set; } = GenericResponse<PublishResultDto>.CreateSuccess(new PublishResultDto
         {
             Success = true,
@@ -177,6 +212,13 @@ public class ScheduledPostingServiceTests
             return Task.FromResult(PublishResult);
         }
 
+        public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            PublishCallCount++;
+            LastWorkspaceId = workspaceId;
+            return Task.FromResult(PublishResult);
+        }
+
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CreateAsync(Guid profileId, AISAM.Common.Dtos.Request.CreateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<PagedResult<AISAM.Common.Dtos.Response.ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -184,6 +226,51 @@ public class ScheduledPostingServiceTests
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeProfileRepository : IProfileRepository
+    {
+        public Dictionary<Guid, Profile> Profiles { get; }
+
+        public FakeProfileRepository(params Profile[] profiles)
+        {
+            Profiles = profiles.ToDictionary(profile => profile.Id);
+        }
+
+        public Task<Profile?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => Task.FromResult(Profiles.GetValueOrDefault(id));
+
+        public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IEnumerable<Profile>> SearchUserProfilesAsync(Guid userId, string? searchTerm = null, bool? isDeleted = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Profile> CreateAsync(Profile profile, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Profile> UpdateAsync(Profile profile, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task RestoreAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeWorkspaceMemberRepository : IWorkspaceMemberRepository
+    {
+        public Dictionary<(Guid WorkspaceId, Guid UserId), WorkspaceMember> Memberships { get; }
+
+        public FakeWorkspaceMemberRepository(params WorkspaceMember[] memberships)
+        {
+            Memberships = memberships.ToDictionary(member => (member.WorkspaceId, member.UserId));
+        }
+
+        public Task<IReadOnlyList<WorkspaceMember>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<WorkspaceMember>>(Memberships.Values.Where(member => member.UserId == userId).ToList());
+
+        public Task<WorkspaceMember?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<WorkspaceMember?> GetByWorkspaceAndUserAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<WorkspaceMember>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<WorkspaceMember> AddAsync(WorkspaceMember member, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(WorkspaceMember member, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<WorkspaceMember> TransferOwnershipAsync(Guid workspaceId, Guid currentOwnerUserId, Guid targetMemberId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> ExistsAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeNotificationRepository : INotificationRepository

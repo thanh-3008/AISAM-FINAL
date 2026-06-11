@@ -108,6 +108,16 @@ public class PhaseEQuotaIntegrationTests
         {
             return Task.FromResult(PostResult);
         }
+
+        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SummaryResult);
+        }
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(PostResult);
+        }
     }
 
     private sealed class FakeGeminiTextClient : IGeminiTextClient

@@ -20,17 +20,11 @@ public sealed class QuotaController : ControllerBase
         _quotaService = quotaService;
     }
 
-    [HttpGet("profile/{profileId:guid}")]
-    public async Task<ActionResult<GenericResponse<QuotaSummaryDto>>> GetProfileQuota(Guid profileId, CancellationToken cancellationToken = default)
+    [HttpGet("workspace/current")]
+    public async Task<ActionResult<GenericResponse<QuotaSummaryDto>>> GetCurrentWorkspaceQuota(CancellationToken cancellationToken = default)
     {
-        var activeProfileId = ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-        if (activeProfileId != profileId)
-        {
-            var error = GenericResponse<QuotaSummaryDto>.CreateError("Profile not found.", HttpStatusCode.NotFound);
-            return StatusCode(error.StatusCode, error);
-        }
-
-        var result = await _quotaService.GetSummaryAsync(profileId, cancellationToken);
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var result = await _quotaService.GetWorkspaceSummaryAsync(workspaceId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }

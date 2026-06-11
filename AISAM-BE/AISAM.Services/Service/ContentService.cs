@@ -198,6 +198,26 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default)
     {
+        return await PublishInternalAsync(contentId, integrationId, profileId, null, cancellationToken);
+    }
+
+    public async Task<GenericResponse<PublishResultDto>> PublishAsync(
+        Guid contentId,
+        Guid integrationId,
+        Guid profileId,
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, cancellationToken);
+    }
+
+    private async Task<GenericResponse<PublishResultDto>> PublishInternalAsync(
+        Guid contentId,
+        Guid integrationId,
+        Guid profileId,
+        Guid? workspaceId,
+        CancellationToken cancellationToken)
+    {
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
         if (content == null || content.ProfileId != profileId || content.IsDeleted)
         {
@@ -215,7 +235,9 @@ public sealed class ContentService : IContentService
             return GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
         }
 
-        var quotaCheck = await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
+        var quotaCheck = workspaceId.HasValue
+            ? await _quotaService.EnsureWorkspacePostQuotaAsync(workspaceId.Value, cancellationToken)
+            : await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
         if (!quotaCheck.Success)
         {
             return GenericResponse<PublishResultDto>.CreateError(

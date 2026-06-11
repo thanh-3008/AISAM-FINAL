@@ -91,7 +91,12 @@ public sealed class ContentController : ControllerBase
         Guid integrationId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.PublishAsync(contentId, integrationId, GetProfileId(), cancellationToken);
+        var result = await _contentService.PublishAsync(
+            contentId,
+            integrationId,
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

@@ -11,15 +11,21 @@ public sealed class ScheduledPostingService : IScheduledPostingService
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly IContentService _contentService;
     private readonly INotificationRepository _notificationRepository;
+    private readonly IProfileRepository _profileRepository;
+    private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
 
     public ScheduledPostingService(
         IContentCalendarRepository contentCalendarRepository,
         IContentService contentService,
-        INotificationRepository notificationRepository)
+        INotificationRepository notificationRepository,
+        IProfileRepository profileRepository,
+        IWorkspaceMemberRepository workspaceMemberRepository)
     {
         _contentCalendarRepository = contentCalendarRepository;
         _contentService = contentService;
         _notificationRepository = notificationRepository;
+        _profileRepository = profileRepository;
+        _workspaceMemberRepository = workspaceMemberRepository;
     }
 
     public async Task<SchedulerRunResultDto> RunDueSchedulesAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -38,7 +44,10 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                 await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
 
                 var integrationId = schedule.IntegrationId ?? Guid.Empty;
-                var publishResult = await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, cancellationToken);
+                var workspaceId = await ResolveWorkspaceIdAsync(schedule.ProfileId, cancellationToken);
+                var publishResult = workspaceId.HasValue
+                    ? await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, workspaceId.Value, cancellationToken)
+                    : await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, cancellationToken);
                 if (publishResult.Success)
                 {
                     schedule.Status = ScheduleStatusEnum.Completed;
@@ -87,6 +96,21 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         }
 
         return result;
+    }
+
+    private async Task<Guid?> ResolveWorkspaceIdAsync(Guid profileId, CancellationToken cancellationToken)
+    {
+        var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
+        if (profile == null)
+        {
+            return null;
+        }
+
+        var memberships = await _workspaceMemberRepository.GetByUserIdAsync(profile.UserId, cancellationToken);
+        return memberships
+            .Where(member => member.IsActive && member.Workspace.Status == WorkspaceStatusEnum.Active)
+            .Select(member => (Guid?)member.WorkspaceId)
+            .FirstOrDefault();
     }
 
     private async Task CreateNotificationAsync(

@@ -1,6 +1,7 @@
 using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Data.Enumeration;
+using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using System.Net;
 
@@ -10,6 +11,13 @@ public sealed class ActiveWorkspaceMiddleware
 {
     private static readonly PathString[] ProtectedPrefixes =
     {
+        new("/api/ai"),
+        new("/api/brands"),
+        new("/api/content"),
+        new("/api/content-schedules"),
+        new("/api/dashboard"),
+        new("/api/products"),
+        new("/api/quota"),
         new("/api/workspace-context"),
         new("/api/workspace-members"),
         new("/api/workspace-invitations"),
@@ -24,7 +32,10 @@ public sealed class ActiveWorkspaceMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, IWorkspaceMemberRepository workspaceMemberRepository)
+    public async Task InvokeAsync(
+        HttpContext context,
+        IWorkspaceMemberRepository workspaceMemberRepository,
+        ISubscriptionRepository subscriptionRepository)
     {
         if (context.Request.Method == HttpMethods.Post &&
             (context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase) ||
@@ -71,14 +82,221 @@ public sealed class ActiveWorkspaceMiddleware
             return;
         }
 
+        var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository);
+        if (authorizationError != null)
+        {
+            await WriteErrorAsync(context, authorizationError.Value.Status, authorizationError.Value.Message, authorizationError.Value.ErrorCode);
+            return;
+        }
+
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = membership;
         await _next(context);
     }
 
-    private static async Task WriteErrorAsync(HttpContext context, HttpStatusCode status, string message)
+    private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> ValidateRequestAuthorizationAsync(
+        HttpContext context,
+        WorkspaceMember membership,
+        ISubscriptionRepository subscriptionRepository)
+    {
+        var path = context.Request.Path;
+        var method = context.Request.Method;
+
+        if (path.StartsWithSegments("/api/payment"))
+        {
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBilling);
+        }
+
+        var featureError = await EnsureFeatureByRouteAsync(context, membership, subscriptionRepository);
+        if (featureError != null)
+        {
+            return featureError;
+        }
+
+        if (path.StartsWithSegments("/api/ai"))
+        {
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.GenerateAiContent);
+        }
+
+        if (path.StartsWithSegments("/api/brands"))
+        {
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBrands);
+        }
+
+        if (path.StartsWithSegments("/api/products"))
+        {
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageProducts);
+        }
+
+        if (path.StartsWithSegments("/api/content-schedules"))
+        {
+            var permissionError = EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageSchedules);
+            if (permissionError != null)
+            {
+                return permissionError;
+            }
+
+            if (method != HttpMethods.Get)
+            {
+                return await EnsureFeatureAsync(membership.WorkspaceId, subscriptionRepository, membership.Workspace.WorkspaceType, WorkspaceFeatureEnum.SchedulePost);
+            }
+
+            return null;
+        }
+
+        if (path.StartsWithSegments("/api/content"))
+        {
+            var permission = path.Value?.Contains("/publish/", StringComparison.OrdinalIgnoreCase) == true
+                ? WorkspacePermissionEnum.PublishContent
+                : WorkspacePermissionEnum.ManageContent;
+
+            var permissionError = EnsurePermission(membership.Role, permission);
+            if (permissionError != null)
+            {
+                return permissionError;
+            }
+
+            if (path.Value?.Contains("/publish/", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return await EnsureFeatureAsync(membership.WorkspaceId, subscriptionRepository, membership.Workspace.WorkspaceType, WorkspaceFeatureEnum.MultiPlatformPublish);
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> EnsureFeatureByRouteAsync(
+        HttpContext context,
+        WorkspaceMember membership,
+        ISubscriptionRepository subscriptionRepository)
+    {
+        var feature = ResolveFeature(context.Request.Path);
+        if (!feature.HasValue)
+        {
+            return null;
+        }
+
+        return await EnsureFeatureAsync(
+            membership.WorkspaceId,
+            subscriptionRepository,
+            membership.Workspace.WorkspaceType,
+            feature.Value);
+    }
+
+    private static WorkspaceFeatureEnum? ResolveFeature(PathString path)
+    {
+        var value = path.Value ?? string.Empty;
+        if (path.StartsWithSegments("/api/workspace-dashboard"))
+        {
+            return WorkspaceFeatureEnum.WorkspaceDashboard;
+        }
+
+        if (path.StartsWithSegments("/api/dashboard"))
+        {
+            return WorkspaceFeatureEnum.BasicAnalytics;
+        }
+
+        if (path.StartsWithSegments("/api/content-schedules"))
+        {
+            return WorkspaceFeatureEnum.SchedulePost;
+        }
+
+        if (path.StartsWithSegments("/api/content") &&
+            value.Contains("/publish/", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceFeatureEnum.MultiPlatformPublish;
+        }
+
+        if (!path.StartsWithSegments("/api/ai"))
+        {
+            return null;
+        }
+
+        if (value.Contains("generate-image", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceFeatureEnum.AiImage;
+        }
+
+        if (value.Contains("generate-video", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceFeatureEnum.AiVideo;
+        }
+
+        if (value.Contains("trend", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceFeatureEnum.TrendAnalysis;
+        }
+
+        if (value.Contains("holiday", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceFeatureEnum.HolidaySuggestion;
+        }
+
+        if (value.Contains("campaign", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceFeatureEnum.CampaignRecommendation;
+        }
+
+        return WorkspaceFeatureEnum.GenerateText;
+    }
+
+    private static (HttpStatusCode Status, string Message, string? ErrorCode)? EnsurePermission(
+        WorkspaceMemberRoleEnum role,
+        WorkspacePermissionEnum permission)
+    {
+        var allowed = permission switch
+        {
+            WorkspacePermissionEnum.ManageBilling => role == WorkspaceMemberRoleEnum.Owner,
+            WorkspacePermissionEnum.ManageBrands => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
+            WorkspacePermissionEnum.ManageProducts => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
+            WorkspacePermissionEnum.ManageContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
+            _ => false
+        };
+
+        return allowed
+            ? null
+            : (HttpStatusCode.Forbidden, "You do not have permission to perform this action in the active workspace.", "WORKSPACE_PERMISSION_DENIED");
+    }
+
+    private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> EnsureFeatureAsync(
+        Guid workspaceId,
+        ISubscriptionRepository subscriptionRepository,
+        WorkspaceTypeEnum workspaceType,
+        WorkspaceFeatureEnum feature)
+    {
+        var subscription = await subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId);
+        if (subscription == null)
+        {
+            return (HttpStatusCode.Forbidden, "Active subscription is required for this feature.", "WORKSPACE_SUBSCRIPTION_REQUIRED");
+        }
+
+        var enabled = feature switch
+        {
+            WorkspaceFeatureEnum.GenerateText => true,
+            WorkspaceFeatureEnum.MultiPlatformPublish => subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium or SubscriptionPlanEnum.PlusTrial,
+            WorkspaceFeatureEnum.SchedulePost => subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium or SubscriptionPlanEnum.PlusTrial,
+            WorkspaceFeatureEnum.AiImage => subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium or SubscriptionPlanEnum.PlusTrial,
+            WorkspaceFeatureEnum.AiVideo => subscription.Plan is SubscriptionPlanEnum.Premium,
+            WorkspaceFeatureEnum.TrendAnalysis => subscription.Plan is SubscriptionPlanEnum.Premium,
+            WorkspaceFeatureEnum.HolidaySuggestion => subscription.Plan is SubscriptionPlanEnum.Premium,
+            WorkspaceFeatureEnum.CampaignRecommendation => subscription.Plan is SubscriptionPlanEnum.Premium,
+            WorkspaceFeatureEnum.BasicAnalytics => true,
+            WorkspaceFeatureEnum.AdvancedAnalytics => subscription.Plan is SubscriptionPlanEnum.Premium,
+            WorkspaceFeatureEnum.WorkspaceDashboard => workspaceType == WorkspaceTypeEnum.Business && subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium,
+            _ => false
+        };
+
+        return enabled
+            ? null
+            : (HttpStatusCode.Forbidden, "The active subscription plan does not include this feature.", "WORKSPACE_FEATURE_NOT_AVAILABLE");
+    }
+
+    private static async Task WriteErrorAsync(HttpContext context, HttpStatusCode status, string message, string? errorCode = null)
     {
         context.Response.StatusCode = (int)status;
-        await context.Response.WriteAsJsonAsync(GenericResponse<object>.CreateError(message, status));
+        await context.Response.WriteAsJsonAsync(GenericResponse<object>.CreateError(message, status, errorCode));
     }
 }

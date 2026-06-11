@@ -12,35 +12,24 @@ namespace AISAM.IntegrationTests;
 public class QuotaControllerTests
 {
     [Fact]
-    public async Task GetProfileQuota_UsesValidatedActiveProfileFromHttpContext()
+    public async Task GetCurrentWorkspaceQuota_UsesValidatedActiveWorkspaceFromHttpContext()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = new FakeQuotaService
         {
             SummaryResult = GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto())
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, workspaceId);
 
-        await controller.GetProfileQuota(profileId);
+        await controller.GetCurrentWorkspaceQuota();
 
-        Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
     }
 
-    [Fact]
-    public async Task GetProfileQuota_ReturnsNotFound_WhenRouteProfileDiffersFromActiveProfile()
-    {
-        var controller = CreateController(new FakeQuotaService(), Guid.NewGuid());
-
-        var result = await controller.GetProfileQuota(Guid.NewGuid());
-
-        var objectResult = Assert.IsAssignableFrom<ObjectResult>(result.Result);
-        Assert.Equal((int)HttpStatusCode.NotFound, objectResult.StatusCode);
-    }
-
-    private static QuotaController CreateController(IQuotaService service, Guid profileId)
+    private static QuotaController CreateController(IQuotaService service, Guid workspaceId)
     {
         var context = new DefaultHttpContext();
-        context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
 
         return new QuotaController(service)
         {
@@ -51,6 +40,7 @@ public class QuotaControllerTests
     private sealed class FakeQuotaService : IQuotaService
     {
         public Guid LastProfileId { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
         public GenericResponse<QuotaSummaryDto> SummaryResult { get; set; } = GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto());
         public GenericResponse<bool> PromptResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<bool> PostResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
@@ -70,6 +60,18 @@ public class QuotaControllerTests
         public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
         {
             LastProfileId = profileId;
+            return Task.FromResult(PostResult);
+        }
+
+        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            return Task.FromResult(SummaryResult);
+        }
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(PostResult);
         }
     }

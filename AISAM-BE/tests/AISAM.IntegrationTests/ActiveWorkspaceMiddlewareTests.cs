@@ -17,7 +17,7 @@ public class ActiveWorkspaceMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -29,7 +29,7 @@ public class ActiveWorkspaceMiddlewareTests
         context.Request.Headers["X-Workspace-Id"] = "invalid";
         var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -41,7 +41,7 @@ public class ActiveWorkspaceMiddlewareTests
         context.Request.Headers["X-Workspace-Id"] = Guid.NewGuid().ToString();
         var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
@@ -55,7 +55,7 @@ public class ActiveWorkspaceMiddlewareTests
         context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
         var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership));
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
 
         Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }
@@ -74,7 +74,7 @@ public class ActiveWorkspaceMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership));
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
 
         Assert.True(nextCalled);
         Assert.Equal(membership.WorkspaceId, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(context));
@@ -82,19 +82,14 @@ public class ActiveWorkspaceMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_DoesNotRequireWorkspaceHeader_ForProfileBasedRoute()
+    public async Task InvokeAsync_RequiresWorkspaceHeader_ForContentRoute()
     {
-        var nextCalled = false;
         var context = CreateContext(Guid.NewGuid(), "/api/content");
-        var middleware = new ActiveWorkspaceMiddleware(_ =>
-        {
-            nextCalled = true;
-            return Task.CompletedTask;
-        });
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
-        Assert.True(nextCalled);
+        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
 
     [Fact]
@@ -109,7 +104,7 @@ public class ActiveWorkspaceMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
         Assert.True(nextCalled);
     }
@@ -120,7 +115,7 @@ public class ActiveWorkspaceMiddlewareTests
         var context = CreateContext(Guid.NewGuid(), "/api/payment/history");
         var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -139,9 +134,171 @@ public class ActiveWorkspaceMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
         Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenNonOwnerAccessesBillingRoute()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Manager);
+        var context = CreateContext(userId, "/api/payment/history");
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenViewerPublishesContent()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        var context = CreateContext(userId, $"/api/content/{Guid.NewGuid():D}/publish/{Guid.NewGuid():D}");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(
+                new Subscription
+                {
+                    WorkspaceId = membership.WorkspaceId,
+                    Plan = SubscriptionPlanEnum.Plus,
+                    IsActive = true,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(30)
+                }));
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenFreePlanSchedulesContent()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.ContentCreator);
+        var context = CreateContext(userId, "/api/content-schedules");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(
+                new Subscription
+                {
+                    WorkspaceId = membership.WorkspaceId,
+                    Plan = SubscriptionPlanEnum.Free,
+                    IsActive = true,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(7)
+                }));
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenFreePlanUsesAiImageFeature()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(
+            userId,
+            WorkspaceStatusEnum.Active,
+            WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspaceTypeEnum.Personal);
+        var context = CreateContext(userId, "/api/ai/generate-image");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(
+                new Subscription
+                {
+                    WorkspaceId = membership.WorkspaceId,
+                    Plan = SubscriptionPlanEnum.Free,
+                    IsActive = true,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(7)
+                }));
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenPersonalPlusUsesWorkspaceDashboardFeature()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(
+            userId,
+            WorkspaceStatusEnum.Active,
+            WorkspaceMemberRoleEnum.Owner,
+            WorkspaceTypeEnum.Personal);
+        var context = CreateContext(userId, "/api/workspace-dashboard/summary");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(
+                new Subscription
+                {
+                    WorkspaceId = membership.WorkspaceId,
+                    Plan = SubscriptionPlanEnum.Plus,
+                    IsActive = true,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(30)
+                }));
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsBusinessPlusWorkspaceDashboardFeature()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(
+            userId,
+            WorkspaceStatusEnum.Active,
+            WorkspaceMemberRoleEnum.Owner,
+            WorkspaceTypeEnum.Business);
+        var nextCalled = false;
+        var context = CreateContext(userId, "/api/workspace-dashboard/summary");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(
+                new Subscription
+                {
+                    WorkspaceId = membership.WorkspaceId,
+                    Plan = SubscriptionPlanEnum.Plus,
+                    IsActive = true,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(30)
+                }));
+
+        Assert.True(nextCalled);
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode == 0 ? StatusCodes.Status200OK : context.Response.StatusCode);
     }
 
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")
@@ -155,13 +312,17 @@ public class ActiveWorkspaceMiddlewareTests
         };
     }
 
-    private static WorkspaceMember CreateMembership(Guid userId, WorkspaceStatusEnum status)
+    private static WorkspaceMember CreateMembership(
+        Guid userId,
+        WorkspaceStatusEnum status,
+        WorkspaceMemberRoleEnum role = WorkspaceMemberRoleEnum.Manager,
+        WorkspaceTypeEnum workspaceType = WorkspaceTypeEnum.Business)
     {
         var workspace = new Workspace
         {
             Id = Guid.NewGuid(),
             Name = "Workspace",
-            WorkspaceType = WorkspaceTypeEnum.Business,
+            WorkspaceType = workspaceType,
             Status = status
         };
         return new WorkspaceMember
@@ -176,7 +337,7 @@ public class ActiveWorkspaceMiddlewareTests
                 PasswordHash = "hash",
                 PasswordSalt = "salt"
             },
-            Role = WorkspaceMemberRoleEnum.Manager
+            Role = role
         };
     }
 
@@ -200,5 +361,26 @@ public class ActiveWorkspaceMiddlewareTests
         public Task<WorkspaceMember> TransferOwnershipAsync(Guid workspaceId, Guid currentOwnerUserId, Guid targetMemberId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeSubscriptionRepository : ISubscriptionRepository
+    {
+        private readonly Dictionary<Guid, Subscription> _subscriptions;
+
+        public FakeSubscriptionRepository(params Subscription[] subscriptions)
+        {
+            _subscriptions = subscriptions.ToDictionary(subscription => subscription.WorkspaceId ?? Guid.NewGuid());
+        }
+
+        public Task<Subscription?> GetCurrentActiveByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<Subscription?> GetCurrentActiveByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_subscriptions.GetValueOrDefault(workspaceId));
+
+        public Task<Subscription?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Subscription> AddAsync(Subscription subscription, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Subscription subscription, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountSuccessfulPostUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

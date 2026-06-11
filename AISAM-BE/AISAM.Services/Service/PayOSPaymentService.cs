@@ -85,7 +85,13 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Invalid subscription plan.", HttpStatusCode.BadRequest, "INVALID_PLAN");
         }
 
-        var planDefinition = GetPlanDefinition(plan.Value);
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        var planDefinition = GetPlanDefinition(workspace.WorkspaceType, plan.Value);
         if (planDefinition.Amount <= 0)
         {
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Selected plan does not require PayOS checkout.", HttpStatusCode.BadRequest, "PLAN_DOES_NOT_REQUIRE_PAYMENT");
@@ -590,14 +596,17 @@ public sealed class PayOSPaymentService : IPaymentService
             : null;
     }
 
-    private static PlanDefinition GetPlanDefinition(SubscriptionPlanEnum plan)
+    private static PlanDefinition GetPlanDefinition(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
     {
-        return plan switch
+        return (workspaceType, plan) switch
         {
-            SubscriptionPlanEnum.Plus => new PlanDefinition(99_000m, 30, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            SubscriptionPlanEnum.Premium => new PlanDefinition(199_000m, 100, 200, 30, 3, 5, 2, 10_000_000m, 10),
-            SubscriptionPlanEnum.PlusTrial => new PlanDefinition(0m, 7, 10, 3, 1, 1, 1, 0m, 1),
-            _ => new PlanDefinition(0m, 5, 0, 0, 1, 1, 0, 0m, 0)
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 300, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
         };
     }
 

@@ -3191,7 +3191,7 @@ Mục tiêu phase:
 | 9.10 | Credit Wallet, Credit Usage và Maximum Balance | DONE | 9.9 |
 | 9.11 | Credit Pack và `PaymentType` | DONE | 9.10 |
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | DONE | 9.7, 9.10 |
-| 9.13 | Plan Entitlement, Permission Matrix và Post Quota | TODO | 9.9, 9.12 |
+| 9.13 | Plan Entitlement, Permission Matrix và Post Quota | DONE | 9.9, 9.12 |
 | 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
 | 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
 | 9.16 | Chuyển ownership từng domain sang Workspace | TODO | 9.6, 9.13 |
@@ -4515,9 +4515,83 @@ feat(credits): add workspace member quota modes
 
 ### Task 9.13 - Plan Entitlement, Permission Matrix và Post Quota
 
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.14 Áp dụng Credits vào AI generation.
+```
+
 Mục tiêu:
 
 - Áp dụng feature inheritance, role permissions và Post Quota đã chốt.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Controllers/ContentController.cs
+AISAM-BE/AISAM.API/Controllers/QuotaController.cs
+AISAM-BE/AISAM.API/Middleware/ActiveProfileMiddleware.cs
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceFeatureEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspacePermissionEnum.cs
+AISAM-BE/AISAM.Services/IServices/IContentService.cs
+AISAM-BE/AISAM.Services/IServices/IQuotaService.cs
+AISAM-BE/AISAM.Services/Service/ContentService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Services/Service/QuotaService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentControllerPublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServicePublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PhaseEQuotaIntegrationTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ScheduledPostingServiceTests.cs
+```
+
+Kết quả đã có:
+
+- Thêm `WorkspaceFeatureEnum` và `WorkspacePermissionEnum` để gom entitlement/permission theo Workspace.
+- `QuotaService` có `GetWorkspaceSummaryAsync` và `EnsureWorkspacePostQuotaAsync`; Post Quota theo plan đã map đúng:
+  - Free -> `20/tuần`
+  - Personal Plus -> `300/tháng`
+  - Personal Pro -> `1.000/tháng`
+  - Business Plus -> `5.000/tháng`
+  - Business Pro -> `20.000/tháng`
+- `QuotaController` chuyển sang `GET /api/quota/workspace/current` để trả quota summary theo Active Workspace.
+- `ContentController` publish truyền `workspaceId`; `ContentService` có overload publish theo Workspace và publish chỉ kiểm tra Post Quota, không trừ Credits.
+- `ActiveWorkspaceMiddleware` bảo vệ thêm `/api/ai`, `/api/brands`, `/api/content`, `/api/content-schedules`, `/api/dashboard`, `/api/products`, `/api/quota`, đồng thời áp dụng permission gate cơ bản cho billing/content/brand/product/AI/schedule.
+- `ActiveWorkspaceMiddleware` đã gate feature cho `SchedulePost` và `MultiPlatformPublish`.
+- `ActiveWorkspaceMiddleware` tiếp tục được mở rộng để gate entitlement theo route/feature cho:
+  - `GenerateText`
+  - `AI Image`
+  - `AI Video`
+  - `Trend Analysis`
+  - `Holiday Suggestion`
+  - `Campaign Recommendation`
+  - `Basic Analytics`
+  - `Workspace Dashboard`
+- `PayOSPaymentService` đồng bộ lại plan definition để Post Quota trong subscription data khớp matrix đã chốt.
+- `ScheduledPostingService` đã resolve `workspaceId` từ `Profile -> User -> WorkspaceMember` và gọi overload publish theo Workspace, nên scheduled publish cũng đi qua `EnsureWorkspacePostQuotaAsync`; khoảng hở bypass Post Quota theo Workspace đã được đóng.
+- Thêm regression tests để khóa 2 behavior quan trọng:
+  - scheduled publish phải dùng workspace-aware publish path
+  - feature gate phải chặn đúng plan cho `AI Image` và `Workspace Dashboard`
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 222/222 tests passed.
+
+Focused Task 9.13 tests
+Passed. 20/20 tests passed.
+```
 
 Cách test:
 
@@ -5787,7 +5861,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.12 da hoan thanh; Task 9.13 Plan Entitlement, Permission Matrix va Post Quota la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.13 da hoan thanh; Task tiep theo la 9.14 ap dung Credits vao AI generation. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
