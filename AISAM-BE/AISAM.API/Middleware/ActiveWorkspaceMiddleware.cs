@@ -25,6 +25,13 @@ public sealed class ActiveWorkspaceMiddleware
 
     public async Task InvokeAsync(HttpContext context, IWorkspaceMemberRepository workspaceMemberRepository)
     {
+        if (context.Request.Method == HttpMethods.Post &&
+            context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         if (!ProtectedPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix)))
         {
             await _next(context);

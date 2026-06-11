@@ -22,6 +22,7 @@ namespace AISAM.Repositories
         public DbSet<Profile> Profiles { get; set; }
         public DbSet<Workspace> Workspaces { get; set; }
         public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
+        public DbSet<WorkspaceInvitation> WorkspaceInvitations { get; set; }
         public DbSet<Team> Teams { get; set; }
         public DbSet<TeamMember> TeamMembers { get; set; }
         public DbSet<TeamBrand> TeamBrands { get; set; }
@@ -206,6 +207,7 @@ namespace AISAM.Repositories
                 entity.Property(w => w.Name).HasMaxLength(255).IsRequired();
                 entity.Property(w => w.WorkspaceType).HasConversion<int>();
                 entity.Property(w => w.Status).HasConversion<int>().HasDefaultValue(WorkspaceStatusEnum.Active);
+                entity.Property(w => w.MemberLimit).HasDefaultValue(1);
                 entity.HasIndex(w => w.WorkspaceType);
                 entity.HasIndex(w => w.Status);
                 entity.HasIndex(w => w.SubscriptionExpiredAt);
@@ -231,6 +233,25 @@ namespace AISAM.Repositories
                       .WithMany(u => u.WorkspaceMembers)
                       .HasForeignKey(wm => wm.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<WorkspaceInvitation>(entity =>
+            {
+                entity.HasKey(invitation => invitation.Id);
+                entity.Property(invitation => invitation.Email).HasMaxLength(255).IsRequired();
+                entity.Property(invitation => invitation.Token).HasMaxLength(500).IsRequired();
+                entity.Property(invitation => invitation.Role).HasConversion<int>();
+                entity.HasIndex(invitation => invitation.Token).IsUnique();
+                entity.HasIndex(invitation => new { invitation.WorkspaceId, invitation.Email });
+                entity.HasIndex(invitation => invitation.ExpiresAt);
+                entity.HasOne(invitation => invitation.Workspace)
+                      .WithMany(workspace => workspace.Invitations)
+                      .HasForeignKey(invitation => invitation.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(invitation => invitation.InvitedByUser)
+                      .WithMany(user => user.SentWorkspaceInvitations)
+                      .HasForeignKey(invitation => invitation.InvitedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Team entity configuration

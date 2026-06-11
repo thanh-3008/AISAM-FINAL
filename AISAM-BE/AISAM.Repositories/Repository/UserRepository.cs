@@ -24,9 +24,10 @@ namespace AISAM.Repositories.Repository
 
         public async Task<User?> GetByEmailAsync(string email)
         {
+            var normalizedEmail = email.Trim().ToLower();
             return await _context.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Email == email);
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
         }
 
         public async Task<User> CreateAsync(User user)

@@ -3185,8 +3185,8 @@ Mục tiêu phase:
 | 9.4 | Workspace service và CRUD API | DONE | 9.3 |
 | 9.5 | Tạo Personal Workspace khi register | DONE | 9.4 |
 | 9.6 | Active Workspace context và `X-Workspace-Id` | DONE | 9.3 |
-| 9.7 | Invitation, role management và Member Limit | NEXT | 9.4, 9.6 |
-| 9.8 | Atomic Ownership Transfer | TODO | 9.7 |
+| 9.7 | Invitation, role management và Member Limit | DONE | 9.4, 9.6 |
+| 9.8 | Atomic Ownership Transfer | NEXT | 9.7 |
 | 9.9 | Chuyển Subscription và Payment sang Workspace | TODO | 9.4, 9.6 |
 | 9.10 | Credit Wallet, Credit Usage và Maximum Balance | TODO | 9.9 |
 | 9.11 | Credit Pack và `PaymentType` | TODO | 9.10 |
@@ -3705,12 +3705,297 @@ Task tiếp theo:
 Task 9.7 - Invitation, role management và Member Limit.
 ```
 
+### Regression fixes trước Task 9.7 - Workspace membership và Owner safety
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Vấn đề phát hiện:
+
+- Membership đã inactive không thể tham gia lại vì unique index `(WorkspaceId, UserId)`.
+- Generic repository cho phép remove Owner, làm Workspace không còn Owner.
+- Generic repository cho phép thêm/nâng member khác thành Owner hoặc hạ Owner, có thể phá rule mỗi Workspace đúng một Owner.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceMemberRepository.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceRepositoryTests.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Tái kích hoạt membership inactive thay vì tạo record trùng.
+- Vẫn từ chối thêm membership đang active lần thứ hai.
+- Chặn thêm membership Owner ngoài workspace creation/ownership transfer.
+- Chặn remove Owner nếu chưa ownership transfer.
+- Chặn đổi role Owner và chặn nâng member thành Owner qua generic update.
+- Giữ atomic ownership transfer cho Task 9.8.
+
+Kết quả kiểm tra:
+
+```text
+WorkspaceRepositoryTests: Passed 9/9.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 159/159.
+git diff --check: không có whitespace error.
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới.
+```
+
+Commit đề xuất:
+
+```text
+fix(workspace): protect owner membership invariants
+```
+
 ### Task 9.7 - Invitation, role management và Member Limit
 
 Mục tiêu:
 
 - Invite/accept/list/remove/update role member.
 - Business Plus tối đa 10 members; Business Pro tối đa 50 members.
+
+Chia task nhỏ:
+
+| Task | Nội dung | Trạng thái |
+|---|---|---|
+| 9.7.1 | Workspace Invitation entity, repository, migration và tests | DONE - 2026-06-10 |
+| 9.7.2 | Invite/accept invitation service và API | DONE - 2026-06-10 |
+| 9.7.3 | List/remove/update role member và permission tests | DONE - 2026-06-11 |
+| 9.7.4 | Member limit integration và hoàn tất Task 9.7 | DONE - 2026-06-11 |
+
+### Task 9.7.1 - Workspace Invitation foundation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Tạo nền tảng lưu invitation độc lập trước khi expose API.
+- Lưu email chuẩn hóa, role được mời, token, người mời, thời hạn, trạng thái accepted/revoked.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Data/Model/WorkspaceInvitation.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260610160919_AddWorkspaceInvitationFoundation.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260610160919_AddWorkspaceInvitationFoundation.Designer.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationRepositoryTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/User.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/Migrations/AisamContextModelSnapshot.cs
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm bảng `workspace_invitations` và navigation tới Workspace/người mời.
+- Token invitation có unique index.
+- Repository hỗ trợ lấy invitation theo token và lấy/đếm pending invitation.
+- Pending invitation tự loại accepted, revoked và expired.
+- Email được chuẩn hóa lowercase khi lưu và tìm kiếm.
+
+Kết quả kiểm tra:
+
+```text
+WorkspaceInvitationRepositoryTests: Passed 4/4.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 errors, 2 warnings migration cũ verifytoken.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 163/163.
+dotnet ef database update: Applied 20260610160919_AddWorkspaceInvitationFoundation.
+dotnet ef migrations has-pending-model-changes: No changes have been made to the model since the last migration.
+```
+
+Giới hạn đã xác nhận:
+
+- Task này chưa expose invitation API và chưa gửi email.
+- Task 9.7.4 lưu và enforce `MemberLimit` ngay trên Workspace; Task 9.9 sẽ tự động gán limit `10/50` khi Subscription Business Plus/Business Pro được chuyển sang Workspace.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add invitation persistence foundation
+```
+
+### Task 9.7.2 - Invite/Accept Invitation service và API
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Owner tạo invitation cho Business Workspace.
+- User đã đăng nhập accept invitation bằng token và email đúng tài khoản.
+- Người nhận chưa phải member vẫn gọi được endpoint accept.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceInvitationRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceInvitationResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceInvitationService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceInvitationService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceInvitationController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationControllerTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/UserRepository.cs
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/AISAM.API/Program.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationRepositoryTests.cs
+```
+
+Nội dung đã hoàn thành:
+
+- `POST /api/workspace-invitations` yêu cầu JWT và `X-Workspace-Id`.
+- Chỉ Owner của Business Workspace đang Active được invite.
+- Chặn Personal Workspace, non-owner, role Owner, member đã tồn tại và pending invitation trùng.
+- User lookup theo email không phân biệt chữ hoa/thường để tránh mời trùng member cũ.
+- Token invitation được sinh bằng random bytes và hết hạn sau 7 ngày.
+- Gửi invitation link bằng EmailService hiện có; thiếu SMTP không làm hỏng API local.
+- `POST /api/workspace-invitations/accept` yêu cầu JWT nhưng không yêu cầu `X-Workspace-Id`.
+- Accept chỉ thành công khi email invitation khớp email tài khoản đăng nhập.
+- Tạo hoặc reactivate membership và đánh dấu invitation accepted trong cùng `SaveChanges`.
+
+API test:
+
+```text
+POST /api/workspace-invitations
+Headers: Authorization: Bearer <owner-token>, X-Workspace-Id: <business-workspace-id>
+Body: { "email": "member@example.com", "role": 3 }
+
+POST /api/workspace-invitations/accept
+Headers: Authorization: Bearer <invited-user-token>
+Body: { "token": "<token-from-invitation-email>" }
+```
+
+Kết quả kiểm tra:
+
+```text
+Focused Workspace Invitation + middleware tests: Passed 22/22.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 175/175.
+dotnet ef migrations has-pending-model-changes: No changes have been made to the model since the last migration.
+Runtime Swagger smoke test: invite path = true, accept path = true.
+Runtime unauthenticated accept: 401.
+```
+
+Config:
+
+```text
+Không có config bắt buộc mới.
+SMTP chỉ cần khi muốn gửi invitation email thật.
+FRONTEND_BASE_URL được dùng để tạo link accept invitation.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add invite and accept invitation APIs
+```
+
+### Task 9.7.3 - List/Remove/Update Role Member
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Nội dung đã hoàn thành:
+
+- `GET /api/workspace-members`: mọi active member được xem danh sách team.
+- `PUT /api/workspace-members/{memberId}/role`: chỉ Owner được đổi role non-owner.
+- `DELETE /api/workspace-members/{memberId}`: chỉ Owner được remove non-owner.
+- Không cho gán role Owner hoặc sửa/remove Owner; ownership transfer giữ cho Task 9.8.
+- Limited/Archived Workspace vẫn xem team nhưng bị chặn role management/remove.
+
+File chính:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceMemberRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceMemberResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceMemberController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberControllerTests.cs
+```
+
+### Task 9.7.4 - Member Limit integration và hoàn tất Task 9.7
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm `Workspace.MemberLimit`.
+- Personal Workspace mặc định `1`; Business Workspace mặc định `10`.
+- Hỗ trợ Workspace limit `50` để dùng cho Business Pro.
+- Invite kiểm tra tổng active members + pending invitations.
+- Accept kiểm tra lại active member count để tránh vượt limit sau khi invitation đã tạo.
+- Invitation không thể accept sau khi Workspace rời trạng thái Active.
+- Migration cập nhật Business Workspace cũ thành limit `10`; Personal giữ `1`.
+
+Migration:
+
+```text
+AISAM-BE/AISAM.Repositories/Migrations/20260610172441_AddWorkspaceMemberLimit.cs
+Applied successfully to PostgreSQL local.
+No pending model changes.
+```
+
+Kết quả hoàn tất Task 9.7:
+
+```text
+Focused Workspace/member/invitation tests: Passed 41/41.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 186/186.
+Runtime Swagger smoke: invite, accept, member list, role update và remove routes đều tồn tại.
+Runtime thiếu JWT: member list và invitation accept đều trả 401.
+```
+
+Lưu ý dependency:
+
+- Task 9.7 đã enforce đúng giá trị `MemberLimit` của Workspace.
+- Task 9.9 sẽ tự động đặt `MemberLimit = 10` cho Business Plus và `MemberLimit = 50` cho Business Pro khi chuyển Subscription sang Workspace.
+
+Commit đề xuất:
+
+```text
+feat(workspace): complete member roles and limits
+```
 
 Cách test:
 
@@ -5091,25 +5376,19 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.6 da hoan thanh; Task 9.7 invitation, role management va Member Limit la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.7 da hoan thanh; Task 9.8 atomic ownership transfer la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
 
-Ket qua kiem tra gan nhat ngay 2026-06-04:
+Ket qua kiem tra gan nhat ngay 2026-06-10:
 
 ```text
 dotnet build --no-restore
 Build succeeded. 0 warnings, 0 errors.
 
-dotnet test --no-build --filter "Payment|Quota"
-Passed. 23/23 tests passed.
-
 dotnet test --no-build
-Passed. 121/121 tests passed.
-
-Warnings:
-CS8981 in migration 20260124133308_verifytoken.cs and .Designer.cs.
+Passed. 186/186 tests passed.
 ```
 
 Test files hien tai:

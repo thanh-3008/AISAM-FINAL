@@ -97,6 +97,23 @@ public class ActiveWorkspaceMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Fact]
+    public async Task InvokeAsync_DoesNotRequireWorkspaceHeader_ForInvitationAcceptRoute()
+    {
+        var nextCalled = false;
+        var context = CreateContext(Guid.NewGuid(), "/api/workspace-invitations/accept");
+        context.Request.Method = HttpMethods.Post;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+
+        Assert.True(nextCalled);
+    }
+
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")
     {
         return new DefaultHttpContext

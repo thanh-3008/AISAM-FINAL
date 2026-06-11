@@ -29,6 +29,7 @@ public class WorkspaceServiceTests
         var owner = Assert.Single(workspace.Members);
         Assert.Equal(user.Id, owner.UserId);
         Assert.Equal(WorkspaceMemberRoleEnum.Owner, owner.Role);
+        Assert.Equal(1, workspace.MemberLimit);
     }
 
     [Fact]
@@ -46,6 +47,7 @@ public class WorkspaceServiceTests
         Assert.True(result.Success);
         Assert.Equal(2, result.Data!.Count);
         Assert.All(result.Data, workspace => Assert.Equal(WorkspaceMemberRoleEnum.Owner, workspace.CurrentUserRole));
+        Assert.Contains(result.Data, workspace => workspace.MemberLimit == 10);
     }
 
     [Fact]

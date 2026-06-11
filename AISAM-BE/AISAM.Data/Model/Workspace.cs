@@ -24,6 +24,10 @@ namespace AISAM.Data.Model
         [Column("status")]
         public WorkspaceStatusEnum Status { get; set; } = WorkspaceStatusEnum.Active;
 
+        [Required]
+        [Column("member_limit")]
+        public int MemberLimit { get; set; } = 1;
+
         [Column("subscription_expired_at")]
         public DateTime? SubscriptionExpiredAt { get; set; }
 
@@ -40,5 +44,6 @@ namespace AISAM.Data.Model
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         public virtual ICollection<WorkspaceMember> Members { get; set; } = new List<WorkspaceMember>();
+        public virtual ICollection<WorkspaceInvitation> Invitations { get; set; } = new List<WorkspaceInvitation>();
     }
 }

@@ -68,6 +68,7 @@ public sealed class WorkspaceService : IWorkspaceService
         {
             Name = request.Name.Trim(),
             WorkspaceType = request.WorkspaceType,
+            MemberLimit = request.WorkspaceType == WorkspaceTypeEnum.Business ? 10 : 1,
             Members =
             [
                 new WorkspaceMember
@@ -131,6 +132,7 @@ public sealed class WorkspaceService : IWorkspaceService
             Status = workspace.Status,
             CurrentUserRole = membership.Role,
             ActiveMemberCount = workspace.Members.Count(member => member.IsActive),
+            MemberLimit = workspace.MemberLimit,
             SubscriptionExpiredAt = workspace.SubscriptionExpiredAt,
             CreatedAt = workspace.CreatedAt,
             UpdatedAt = workspace.UpdatedAt

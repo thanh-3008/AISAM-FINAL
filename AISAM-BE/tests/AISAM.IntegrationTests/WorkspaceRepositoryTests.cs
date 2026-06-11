@@ -62,17 +62,109 @@ public class WorkspaceRepositoryTests
     }
 
     [Fact]
+    public async Task AddAsync_RejectsAssigningOwnerRole()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+        var ownerMembership = new WorkspaceMember
+        {
+            WorkspaceId = fixture.SecondWorkspace.Id,
+            UserId = Guid.NewGuid(),
+            Role = WorkspaceMemberRoleEnum.Owner
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.AddAsync(ownerMembership));
+
+        Assert.Equal("Use workspace creation or ownership transfer to assign the owner.", exception.Message);
+    }
+
+    [Fact]
+    public async Task AddAsync_ReactivatesInactiveMembershipWithoutCreatingDuplicate()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+        var reactivatedMembership = new WorkspaceMember
+        {
+            WorkspaceId = fixture.InactiveWorkspace.Id,
+            UserId = fixture.User.Id,
+            Role = WorkspaceMemberRoleEnum.ContentCreator,
+            QuotaMode = MemberQuotaModeEnum.MonthlyAssignedLimit,
+            CreditLimit = 100
+        };
+
+        var result = await repository.AddAsync(reactivatedMembership);
+
+        Assert.Equal(fixture.InactiveMembership.Id, result.Id);
+        Assert.True(result.IsActive);
+        Assert.Equal(WorkspaceMemberRoleEnum.ContentCreator, result.Role);
+        Assert.Equal(MemberQuotaModeEnum.MonthlyAssignedLimit, result.QuotaMode);
+        Assert.Equal(100, result.CreditLimit);
+        Assert.Equal(
+            1,
+            await context.WorkspaceMembers.CountAsync(member =>
+                member.WorkspaceId == fixture.InactiveWorkspace.Id &&
+                member.UserId == fixture.User.Id));
+    }
+
+    [Fact]
     public async Task RemoveAsync_DeactivatesMembership()
     {
         await using var context = CreateContext();
         var fixture = SeedMemberships(context);
         var repository = new WorkspaceMemberRepository(context);
 
-        var removed = await repository.RemoveAsync(fixture.FirstMembership.Id);
+        var removed = await repository.RemoveAsync(fixture.SecondMembership.Id);
 
         Assert.True(removed);
-        Assert.False(await repository.ExistsAsync(fixture.FirstWorkspace.Id, fixture.User.Id));
-        Assert.Null(await repository.GetByWorkspaceAndUserAsync(fixture.FirstWorkspace.Id, fixture.User.Id));
+        Assert.False(await repository.ExistsAsync(fixture.SecondWorkspace.Id, fixture.User.Id));
+        Assert.Null(await repository.GetByWorkspaceAndUserAsync(fixture.SecondWorkspace.Id, fixture.User.Id));
+    }
+
+    [Fact]
+    public async Task RemoveAsync_RejectsRemovingWorkspaceOwner()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.RemoveAsync(fixture.FirstMembership.Id));
+
+        Assert.Equal("Workspace owner cannot be removed. Transfer ownership first.", exception.Message);
+        Assert.True(await repository.ExistsAsync(fixture.FirstWorkspace.Id, fixture.User.Id));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsChangingWorkspaceOwnerRole()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+        context.Entry(fixture.FirstMembership).State = EntityState.Detached;
+        fixture.FirstMembership.Role = WorkspaceMemberRoleEnum.Manager;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.UpdateAsync(fixture.FirstMembership));
+
+        Assert.Equal("Workspace owner role cannot be changed. Transfer ownership first.", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsPromotingMemberToOwnerWithoutOwnershipTransfer()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+        context.Entry(fixture.SecondMembership).State = EntityState.Detached;
+        fixture.SecondMembership.Role = WorkspaceMemberRoleEnum.Owner;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.UpdateAsync(fixture.SecondMembership));
+
+        Assert.Equal("Use ownership transfer to change the workspace owner.", exception.Message);
     }
 
     private static AisamContext CreateContext()
@@ -142,7 +234,9 @@ public class WorkspaceRepositoryTests
             firstWorkspace,
             secondWorkspace,
             inactiveWorkspace,
-            firstMembership);
+            firstMembership,
+            secondMembership,
+            inactiveMembership);
     }
 
     private sealed record WorkspaceRepositoryFixture(
@@ -150,5 +244,7 @@ public class WorkspaceRepositoryTests
         Workspace FirstWorkspace,
         Workspace SecondWorkspace,
         Workspace InactiveWorkspace,
-        WorkspaceMember FirstMembership);
+        WorkspaceMember FirstMembership,
+        WorkspaceMember SecondMembership,
+        WorkspaceMember InactiveMembership);
 }
