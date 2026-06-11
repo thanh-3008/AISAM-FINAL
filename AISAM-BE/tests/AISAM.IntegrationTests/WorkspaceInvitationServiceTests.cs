@@ -35,6 +35,50 @@ public class WorkspaceInvitationServiceTests
         Assert.Equal(1, await context.WorkspaceInvitations.CountAsync());
     }
 
+    [Fact]
+    public async Task InviteAsync_PersistsMonthlyAssignedLimitForBusinessPro()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business, subscriptionPlan: SubscriptionPlanEnum.Premium);
+        var service = CreateService(context);
+
+        var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
+        {
+            Email = "invited@example.com",
+            Role = WorkspaceMemberRoleEnum.Viewer,
+            QuotaMode = MemberQuotaModeEnum.MonthlyAssignedLimit,
+            CreditLimit = 250
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(MemberQuotaModeEnum.MonthlyAssignedLimit, result.Data!.QuotaMode);
+        Assert.Equal(250, result.Data.CreditLimit);
+
+        var invitation = await context.WorkspaceInvitations.SingleAsync();
+        Assert.Equal(MemberQuotaModeEnum.MonthlyAssignedLimit, invitation.QuotaMode);
+        Assert.Equal(250, invitation.CreditLimit);
+    }
+
+    [Fact]
+    public async Task InviteAsync_RejectsAssignedLimitForBusinessPlus()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business, subscriptionPlan: SubscriptionPlanEnum.Plus);
+        var service = CreateService(context);
+
+        var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
+        {
+            Email = "invited@example.com",
+            Role = WorkspaceMemberRoleEnum.Viewer,
+            QuotaMode = MemberQuotaModeEnum.LifetimeAssignedLimit,
+            CreditLimit = 100
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Empty(context.WorkspaceInvitations);
+    }
+
     [Theory]
     [InlineData(WorkspaceTypeEnum.Personal, WorkspaceMemberRoleEnum.Owner, HttpStatusCode.Forbidden)]
     [InlineData(WorkspaceTypeEnum.Business, WorkspaceMemberRoleEnum.Manager, HttpStatusCode.Forbidden)]
@@ -258,6 +302,7 @@ public class WorkspaceInvitationServiceTests
             new WorkspaceRepository(context),
             new WorkspaceMemberRepository(context),
             new WorkspaceInvitationRepository(context),
+            new SubscriptionRepository(context),
             new UserRepository(context),
             emailService ?? new FakeEmailService(),
             Options.Create(new FrontendSettings { BaseUrl = "http://localhost:3000" }));
@@ -267,7 +312,8 @@ public class WorkspaceInvitationServiceTests
         AisamContext context,
         WorkspaceTypeEnum workspaceType,
         WorkspaceMemberRoleEnum ownerRole = WorkspaceMemberRoleEnum.Owner,
-        int? memberLimit = null)
+        int? memberLimit = null,
+        SubscriptionPlanEnum subscriptionPlan = SubscriptionPlanEnum.Premium)
     {
         var owner = AddUser(context, $"{Guid.NewGuid():N}@example.com");
         var workspace = new Workspace
@@ -285,6 +331,17 @@ public class WorkspaceInvitationServiceTests
             ]
         };
         context.Workspaces.Add(workspace);
+        if (workspaceType == WorkspaceTypeEnum.Business)
+        {
+            context.Subscriptions.Add(new Subscription
+            {
+                WorkspaceId = workspace.Id,
+                Plan = subscriptionPlan,
+                StartDate = DateTime.UtcNow.Date.AddDays(-1),
+                EndDate = DateTime.UtcNow.Date.AddDays(29),
+                IsActive = true
+            });
+        }
         context.SaveChanges();
         return new WorkspaceInvitationFixture(owner, workspace);
     }

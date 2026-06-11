@@ -108,6 +108,11 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
                 WorkspaceId = invitation.WorkspaceId,
                 UserId = userId,
                 Role = invitation.Role,
+                QuotaMode = invitation.QuotaMode,
+                CreditLimit = invitation.CreditLimit,
+                CreditPeriodStart = invitation.QuotaMode == AISAM.Data.Enumeration.MemberQuotaModeEnum.MonthlyAssignedLimit
+                    ? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1)
+                    : null,
                 JoinedAt = DateTime.UtcNow
             };
             _context.WorkspaceMembers.Add(membership);
@@ -115,6 +120,12 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
         else
         {
             membership.Role = invitation.Role;
+            membership.QuotaMode = invitation.QuotaMode;
+            membership.CreditLimit = invitation.CreditLimit;
+            membership.CreditUsed = 0;
+            membership.CreditPeriodStart = invitation.QuotaMode == AISAM.Data.Enumeration.MemberQuotaModeEnum.MonthlyAssignedLimit
+                ? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1)
+                : null;
             membership.JoinedAt = DateTime.UtcNow;
             membership.IsActive = true;
         }

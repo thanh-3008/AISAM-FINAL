@@ -57,11 +57,117 @@ public class CreditServiceTests
         Assert.Equal(14_500, (await context.CreditWallets.SingleAsync()).Balance);
     }
 
+    [Fact]
+    public async Task ConsumeCreditsAsync_UsesSharedPoolForSharedPoolMember()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var workspace = AddWorkspace(context);
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = user.Id,
+            Role = WorkspaceMemberRoleEnum.Viewer,
+            QuotaMode = MemberQuotaModeEnum.SharedPool
+        });
+        context.CreditWallets.Add(new CreditWallet
+        {
+            WorkspaceId = workspace.Id,
+            Balance = 100
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.ConsumeCreditsAsync(
+            workspace.Id,
+            user.Id,
+            CreditActionEnum.GenerateText,
+            25);
+
+        Assert.True(result.Success);
+        Assert.Equal(75, (await context.CreditWallets.SingleAsync()).Balance);
+        Assert.Equal(0, (await context.WorkspaceMembers.SingleAsync()).CreditUsed);
+    }
+
+    [Fact]
+    public async Task ConsumeCreditsAsync_RejectsLifetimeAssignedMemberWhenLimitExceededEvenIfWorkspaceHasBalance()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var workspace = AddWorkspace(context);
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = user.Id,
+            Role = WorkspaceMemberRoleEnum.Viewer,
+            QuotaMode = MemberQuotaModeEnum.LifetimeAssignedLimit,
+            CreditLimit = 50,
+            CreditUsed = 40
+        });
+        context.CreditWallets.Add(new CreditWallet
+        {
+            WorkspaceId = workspace.Id,
+            Balance = 500
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.ConsumeCreditsAsync(
+            workspace.Id,
+            user.Id,
+            CreditActionEnum.GenerateText,
+            20);
+
+        Assert.False(result.Success);
+        Assert.Equal("MEMBER_CREDIT_LIMIT_EXCEEDED", result.Error?.ErrorCode);
+        Assert.Equal(500, (await context.CreditWallets.SingleAsync()).Balance);
+        Assert.Equal(40, (await context.WorkspaceMembers.SingleAsync()).CreditUsed);
+    }
+
+    [Fact]
+    public async Task ConsumeCreditsAsync_ResetsMonthlyAssignedUsageOnFirstDayOfMonth()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var workspace = AddWorkspace(context);
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = user.Id,
+            Role = WorkspaceMemberRoleEnum.Viewer,
+            QuotaMode = MemberQuotaModeEnum.MonthlyAssignedLimit,
+            CreditLimit = 100,
+            CreditUsed = 90,
+            CreditPeriodStart = new DateTime(2026, 5, 1)
+        });
+        context.CreditWallets.Add(new CreditWallet
+        {
+            WorkspaceId = workspace.Id,
+            Balance = 500
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.ConsumeCreditsAsync(
+            workspace.Id,
+            user.Id,
+            CreditActionEnum.GenerateText,
+            20,
+            now: new DateTime(2026, 6, 1, 7, 0, 0, DateTimeKind.Utc));
+
+        Assert.True(result.Success);
+        var member = await context.WorkspaceMembers.SingleAsync();
+        Assert.Equal(20, member.CreditUsed);
+        Assert.Equal(new DateTime(2026, 6, 1), member.CreditPeriodStart);
+        Assert.Equal(480, (await context.CreditWallets.SingleAsync()).Balance);
+    }
+
     private static CreditService CreateService(AisamContext context)
     {
         return new CreditService(
             new CreditWalletRepository(context),
             new CreditUsageRecordRepository(context),
+            new WorkspaceMemberRepository(context),
             new WorkspaceRepository(context));
     }
 

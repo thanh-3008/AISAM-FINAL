@@ -14,15 +14,18 @@ public sealed class CreditService : ICreditService
 
     private readonly ICreditWalletRepository _creditWalletRepository;
     private readonly ICreditUsageRecordRepository _creditUsageRecordRepository;
+    private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
 
     public CreditService(
         ICreditWalletRepository creditWalletRepository,
         ICreditUsageRecordRepository creditUsageRecordRepository,
+        IWorkspaceMemberRepository workspaceMemberRepository,
         IWorkspaceRepository workspaceRepository)
     {
         _creditWalletRepository = creditWalletRepository;
         _creditUsageRecordRepository = creditUsageRecordRepository;
+        _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceRepository = workspaceRepository;
     }
 
@@ -127,6 +130,112 @@ public sealed class CreditService : ICreditService
         return GenericResponse<CreditUsageRecord>.CreateSuccess(record, "Credit usage metadata recorded successfully.");
     }
 
+    public async Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreditActionEnum action,
+        long credits,
+        Guid? aiGenerationId = null,
+        DateTime? now = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (credits <= 0)
+        {
+            return GenericResponse<CreditUsageRecord>.CreateError(
+                "Credits to consume must be greater than zero.",
+                HttpStatusCode.BadRequest,
+                "INVALID_CREDIT_AMOUNT");
+        }
+
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
+        {
+            return GenericResponse<CreditUsageRecord>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        var member = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId, userId, cancellationToken);
+        if (member == null || !member.IsActive)
+        {
+            return GenericResponse<CreditUsageRecord>.CreateError(
+                "Active workspace member not found.",
+                HttpStatusCode.Forbidden,
+                "WORKSPACE_MEMBER_NOT_FOUND");
+        }
+
+        var wallet = await EnsureWalletAsync(workspaceId, cancellationToken);
+        var utcNow = (now ?? DateTime.UtcNow).Date;
+
+        ResetMonthlyUsageIfNeeded(member, utcNow);
+
+        if (member.QuotaMode != MemberQuotaModeEnum.SharedPool)
+        {
+            if (!member.CreditLimit.HasValue)
+            {
+                return GenericResponse<CreditUsageRecord>.CreateError(
+                    "Assigned member quota is not configured correctly.",
+                    HttpStatusCode.BadRequest,
+                    "INVALID_MEMBER_CREDIT_LIMIT");
+            }
+
+            if (member.CreditUsed + credits > member.CreditLimit.Value)
+            {
+                await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+                {
+                    WorkspaceId = workspaceId,
+                    UserId = userId,
+                    AiGenerationId = aiGenerationId,
+                    Action = action,
+                    Credits = credits,
+                    Status = CreditUsageStatusEnum.Failed
+                }, cancellationToken);
+
+                return GenericResponse<CreditUsageRecord>.CreateError(
+                    "Member credit limit exceeded.",
+                    HttpStatusCode.BadRequest,
+                    "MEMBER_CREDIT_LIMIT_EXCEEDED");
+            }
+        }
+
+        if (wallet.Balance < credits)
+        {
+            await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+            {
+                WorkspaceId = workspaceId,
+                UserId = userId,
+                AiGenerationId = aiGenerationId,
+                Action = action,
+                Credits = credits,
+                Status = CreditUsageStatusEnum.Failed
+            }, cancellationToken);
+
+            return GenericResponse<CreditUsageRecord>.CreateError(
+                "Workspace does not have enough credits.",
+                HttpStatusCode.BadRequest,
+                "INSUFFICIENT_WORKSPACE_CREDITS");
+        }
+
+        wallet.Balance -= credits;
+        await _creditWalletRepository.UpdateAsync(wallet, cancellationToken);
+
+        if (member.QuotaMode != MemberQuotaModeEnum.SharedPool)
+        {
+            member.CreditUsed += credits;
+            await _workspaceMemberRepository.UpdateAsync(member, cancellationToken);
+        }
+
+        var record = await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+        {
+            WorkspaceId = workspaceId,
+            UserId = userId,
+            AiGenerationId = aiGenerationId,
+            Action = action,
+            Credits = credits,
+            Status = CreditUsageStatusEnum.Success
+        }, cancellationToken);
+
+        return GenericResponse<CreditUsageRecord>.CreateSuccess(record, "Credits consumed successfully.");
+    }
+
     private static long ResolvePlanCredits(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
     {
         return (workspaceType, plan) switch
@@ -179,5 +288,22 @@ public sealed class CreditService : ICreditService
         }, cancellationToken);
 
         return GenericResponse<CreditWallet>.CreateSuccess(walletToUpdate, successMessage);
+    }
+
+    private static void ResetMonthlyUsageIfNeeded(WorkspaceMember member, DateTime utcDate)
+    {
+        if (member.QuotaMode != MemberQuotaModeEnum.MonthlyAssignedLimit)
+        {
+            return;
+        }
+
+        var currentMonthStart = new DateTime(utcDate.Year, utcDate.Month, 1);
+        if (member.CreditPeriodStart == currentMonthStart)
+        {
+            return;
+        }
+
+        member.CreditUsed = 0;
+        member.CreditPeriodStart = currentMonthStart;
     }
 }

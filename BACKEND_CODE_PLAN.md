@@ -3190,7 +3190,7 @@ Mục tiêu phase:
 | 9.9 | Chuyển Subscription và Payment sang Workspace | DONE | 9.4, 9.6 |
 | 9.10 | Credit Wallet, Credit Usage và Maximum Balance | DONE | 9.9 |
 | 9.11 | Credit Pack và `PaymentType` | DONE | 9.10 |
-| 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | NEXT | 9.7, 9.10 |
+| 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | DONE | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | TODO | 9.9, 9.12 |
 | 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
 | 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
@@ -4429,16 +4429,83 @@ feat(credits): add workspace credit pack payments
 
 ### Task 9.12 - Shared Pool, Lifetime và Monthly Assigned Limit
 
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.13 Plan Entitlement, Permission Matrix và Post Quota.
+```
+
 Mục tiêu:
 
 - Business Plus dùng Shared Pool.
 - Business Pro hỗ trợ Shared Pool, Lifetime và Monthly Assigned Limit.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Controllers/WorkspaceMemberController.cs
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceInvitationRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceMemberRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceInvitationResponseDto.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceMemberResponseDto.cs
+AISAM-BE/AISAM.Data/Model/WorkspaceInvitation.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceInvitationService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/CreditServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberServiceTests.cs
+```
+
+Migration:
+
+```text
+20260611131708_AddWorkspaceInvitationQuotaModes
+```
+
+Kết quả:
+
+- Mở rộng `WorkspaceInvitation` và invitation DTO để owner có thể cấu hình `QuotaMode` và `CreditLimit` ngay từ lúc invite member.
+- `WorkspaceInvitationService` validate plan/quota rule:
+  - `Business Plus` chỉ được `SharedPool`.
+  - `Business Pro` mới được dùng `LifetimeAssignedLimit` và `MonthlyAssignedLimit`.
+  - Assigned quota bắt buộc `CreditLimit > 0`.
+- `WorkspaceInvitationRepository.AcceptAsync` copy quota config từ invitation sang `WorkspaceMember`.
+- Thêm endpoint `PUT /api/workspace-members/{memberId}/quota` để owner cập nhật quota mode cho member sau khi join.
+- `WorkspaceMemberService` hỗ trợ chuyển mode giữa `SharedPool`, `LifetimeAssignedLimit` và `MonthlyAssignedLimit`, đồng thời reset usage phù hợp khi đổi mode.
+- `WorkspaceMemberResponseDto` trả thêm `QuotaMode`, `CreditLimit`, `CreditUsed`, `CreditPeriodStart` để frontend/admin theo dõi quota member.
+- `CreditService` có thêm `ConsumeCreditsAsync`:
+  - Shared Pool chỉ trừ `CreditWallet` của Workspace.
+  - Assigned member phải đồng thời còn workspace credits và chưa vượt member limit.
+  - `MonthlyAssignedLimit` reset `CreditUsed` theo calendar month, vào ngày 01 của tháng mới khi phát sinh usage tiếp theo.
+  - Khi member quota bị vượt, wallet không bị trừ dù workspace vẫn còn credits.
+- Task này chỉ hoàn thiện quota mode foundation, invitation/member management flow và credit consume enforcement primitive.
+- Chưa nối AI generation endpoints sang `ConsumeCreditsAsync`; phần cắm AI flow vẫn thuộc Task 9.14.
 
 Cách test:
 
 - Assigned member hết quota bị chặn dù Workspace còn Credits.
 - Monthly usage reset ngày 01.
 - Workspace Credit balance không bị reset.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 214/214 tests passed.
+
+Focused Task 9.12 tests
+Passed. 30/30 tests passed.
+```
 
 Commit đề xuất:
 
@@ -5720,7 +5787,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.11 da hoan thanh; Task 9.12 Shared Pool, Lifetime va Monthly Assigned Limit la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.12 da hoan thanh; Task 9.13 Plan Entitlement, Permission Matrix va Post Quota la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

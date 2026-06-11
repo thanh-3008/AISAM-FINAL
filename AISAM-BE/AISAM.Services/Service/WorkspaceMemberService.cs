@@ -12,10 +12,17 @@ namespace AISAM.Services.Service;
 public sealed class WorkspaceMemberService : IWorkspaceMemberService
 {
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
+    private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
 
-    public WorkspaceMemberService(IWorkspaceMemberRepository workspaceMemberRepository)
+    public WorkspaceMemberService(
+        IWorkspaceMemberRepository workspaceMemberRepository,
+        IWorkspaceRepository workspaceRepository,
+        ISubscriptionRepository subscriptionRepository)
     {
         _workspaceMemberRepository = workspaceMemberRepository;
+        _workspaceRepository = workspaceRepository;
+        _subscriptionRepository = subscriptionRepository;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>> GetMembersAsync(
@@ -74,6 +81,56 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         return GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(
             Map(member),
             "Workspace member role updated successfully.");
+    }
+
+    public async Task<GenericResponse<WorkspaceMemberResponseDto>> UpdateQuotaAsync(
+        Guid workspaceId,
+        Guid actorUserId,
+        Guid memberId,
+        UpdateWorkspaceMemberQuotaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var authorizationError = await RequireOwnerAsync(workspaceId, actorUserId, cancellationToken);
+        if (authorizationError != null)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
+                authorizationError.Value.Message,
+                authorizationError.Value.Status);
+        }
+
+        var member = await _workspaceMemberRepository.GetByIdAsync(memberId, cancellationToken);
+        if (member == null || member.WorkspaceId != workspaceId)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError("Workspace member not found.", HttpStatusCode.NotFound);
+        }
+
+        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
+                "Workspace owner quota mode cannot be changed.",
+                HttpStatusCode.BadRequest);
+        }
+
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        var quotaValidationError = await ValidateQuotaRequestAsync(workspace, request, cancellationToken);
+        if (quotaValidationError != null)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
+                quotaValidationError.Value.Message,
+                quotaValidationError.Value.Status,
+                quotaValidationError.Value.ErrorCode);
+        }
+
+        ApplyQuota(member, request.QuotaMode, request.CreditLimit, DateTime.UtcNow);
+        await _workspaceMemberRepository.UpdateAsync(member, cancellationToken);
+        return GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(
+            Map(member),
+            "Workspace member quota updated successfully.");
     }
 
     public async Task<GenericResponse<object>> RemoveAsync(
@@ -174,7 +231,81 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             Email = member.User.Email,
             FullName = member.User.FullName,
             Role = member.Role,
+            QuotaMode = member.QuotaMode,
+            CreditLimit = member.CreditLimit,
+            CreditUsed = member.CreditUsed,
+            CreditPeriodStart = member.CreditPeriodStart,
             JoinedAt = member.JoinedAt
         };
+    }
+
+    private async Task<(string Message, HttpStatusCode Status, string? ErrorCode)?> ValidateQuotaRequestAsync(
+        Workspace workspace,
+        UpdateWorkspaceMemberQuotaRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(request.QuotaMode))
+        {
+            return ("Invalid member quota mode.", HttpStatusCode.BadRequest, "INVALID_MEMBER_QUOTA_MODE");
+        }
+
+        if (request.QuotaMode == MemberQuotaModeEnum.SharedPool)
+        {
+            return request.CreditLimit.HasValue
+                ? ("Shared pool members cannot have an assigned credit limit.", HttpStatusCode.BadRequest, "INVALID_MEMBER_CREDIT_LIMIT")
+                : null;
+        }
+
+        if (request.CreditLimit is null or <= 0)
+        {
+            return ("Assigned member quota requires a positive credit limit.", HttpStatusCode.BadRequest, "INVALID_MEMBER_CREDIT_LIMIT");
+        }
+
+        var activeSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspace.Id, cancellationToken);
+        if (workspace.WorkspaceType != WorkspaceTypeEnum.Business || activeSubscription?.Plan != SubscriptionPlanEnum.Premium)
+        {
+            return ("Assigned member quotas are only available for Business Pro workspaces.", HttpStatusCode.BadRequest, "PLAN_DOES_NOT_SUPPORT_MEMBER_QUOTA_MODE");
+        }
+
+        return null;
+    }
+
+    private static void ApplyQuota(
+        WorkspaceMember member,
+        MemberQuotaModeEnum quotaMode,
+        long? creditLimit,
+        DateTime utcNow)
+    {
+        if (quotaMode == MemberQuotaModeEnum.SharedPool)
+        {
+            member.QuotaMode = MemberQuotaModeEnum.SharedPool;
+            member.CreditLimit = null;
+            member.CreditUsed = 0;
+            member.CreditPeriodStart = null;
+            return;
+        }
+
+        var isModeChanged = member.QuotaMode != quotaMode;
+        member.QuotaMode = quotaMode;
+        member.CreditLimit = creditLimit;
+
+        if (quotaMode == MemberQuotaModeEnum.MonthlyAssignedLimit)
+        {
+            var currentMonthStart = new DateTime(utcNow.Year, utcNow.Month, 1);
+            if (isModeChanged || member.CreditPeriodStart != currentMonthStart)
+            {
+                member.CreditUsed = 0;
+                member.CreditPeriodStart = currentMonthStart;
+            }
+        }
+        else
+        {
+            if (isModeChanged)
+            {
+                member.CreditUsed = 0;
+            }
+
+            member.CreditPeriodStart = null;
+        }
     }
 }

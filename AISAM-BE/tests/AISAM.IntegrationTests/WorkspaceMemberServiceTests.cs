@@ -64,6 +64,50 @@ public class WorkspaceMemberServiceTests
     }
 
     [Fact]
+    public async Task UpdateQuotaAsync_AllowsBusinessProOwnerToAssignMonthlyLimit()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, SubscriptionPlanEnum.Premium);
+        var service = CreateService(context);
+
+        var result = await service.UpdateQuotaAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            fixture.Viewer.Id,
+            new UpdateWorkspaceMemberQuotaRequest
+            {
+                QuotaMode = MemberQuotaModeEnum.MonthlyAssignedLimit,
+                CreditLimit = 100
+            });
+
+        Assert.True(result.Success);
+        Assert.Equal(MemberQuotaModeEnum.MonthlyAssignedLimit, result.Data!.QuotaMode);
+        Assert.Equal(100, result.Data.CreditLimit);
+        Assert.Equal(0, result.Data.CreditUsed);
+    }
+
+    [Fact]
+    public async Task UpdateQuotaAsync_RejectsAssignedLimitForBusinessPlus()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, SubscriptionPlanEnum.Plus);
+        var service = CreateService(context);
+
+        var result = await service.UpdateQuotaAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            fixture.Viewer.Id,
+            new UpdateWorkspaceMemberQuotaRequest
+            {
+                QuotaMode = MemberQuotaModeEnum.LifetimeAssignedLimit,
+                CreditLimit = 100
+            });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+    }
+
+    [Fact]
     public async Task RemoveAsync_AllowsOwnerToRemoveNonOwner()
     {
         await using var context = CreateContext();
@@ -171,9 +215,14 @@ public class WorkspaceMemberServiceTests
     }
 
     private static WorkspaceMemberService CreateService(AisamContext context)
-        => new(new WorkspaceMemberRepository(context));
+        => new(
+            new WorkspaceMemberRepository(context),
+            new WorkspaceRepository(context),
+            new SubscriptionRepository(context));
 
-    private static WorkspaceMemberFixture SeedWorkspace(AisamContext context)
+    private static WorkspaceMemberFixture SeedWorkspace(
+        AisamContext context,
+        SubscriptionPlanEnum plan = SubscriptionPlanEnum.Premium)
     {
         var ownerUser = AddUser(context);
         var managerUser = AddUser(context);
@@ -187,7 +236,15 @@ public class WorkspaceMemberServiceTests
         var owner = CreateMember(workspace, ownerUser, WorkspaceMemberRoleEnum.Owner);
         var manager = CreateMember(workspace, managerUser, WorkspaceMemberRoleEnum.Manager);
         var viewer = CreateMember(workspace, viewerUser, WorkspaceMemberRoleEnum.Viewer);
-        context.AddRange(workspace, owner, manager, viewer);
+        var subscription = new Subscription
+        {
+            WorkspaceId = workspace.Id,
+            Plan = plan,
+            StartDate = DateTime.UtcNow.Date.AddDays(-1),
+            EndDate = DateTime.UtcNow.Date.AddDays(29),
+            IsActive = true
+        };
+        context.AddRange(workspace, owner, manager, viewer, subscription);
         context.SaveChanges();
         return new WorkspaceMemberFixture(workspace, owner, manager, viewer);
     }

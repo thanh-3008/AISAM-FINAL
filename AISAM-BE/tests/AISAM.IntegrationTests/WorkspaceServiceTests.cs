@@ -128,6 +128,7 @@ public class WorkspaceServiceTests
             new CreditService(
                 new CreditWalletRepository(context),
                 new CreditUsageRecordRepository(context),
+                new WorkspaceMemberRepository(context),
                 new WorkspaceRepository(context)));
     }
 

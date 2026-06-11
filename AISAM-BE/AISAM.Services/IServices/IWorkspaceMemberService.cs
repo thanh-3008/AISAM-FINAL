@@ -18,6 +18,13 @@ public interface IWorkspaceMemberService
         UpdateWorkspaceMemberRoleRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<GenericResponse<WorkspaceMemberResponseDto>> UpdateQuotaAsync(
+        Guid workspaceId,
+        Guid actorUserId,
+        Guid memberId,
+        UpdateWorkspaceMemberQuotaRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<GenericResponse<object>> RemoveAsync(
         Guid workspaceId,
         Guid actorUserId,

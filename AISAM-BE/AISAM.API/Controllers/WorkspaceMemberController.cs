@@ -42,6 +42,18 @@ public sealed class WorkspaceMemberController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPut("{memberId:guid}/quota")]
+    public async Task<ActionResult<GenericResponse<WorkspaceMemberResponseDto>>> UpdateQuota(
+        Guid memberId,
+        [FromBody] UpdateWorkspaceMemberQuotaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _workspaceMemberService.UpdateQuotaAsync(workspaceId, userId, memberId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpDelete("{memberId:guid}")]
     public async Task<ActionResult<GenericResponse<object>>> Remove(
         Guid memberId,

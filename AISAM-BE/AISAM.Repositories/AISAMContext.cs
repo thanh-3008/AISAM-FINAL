@@ -246,6 +246,7 @@ namespace AISAM.Repositories
                 entity.Property(invitation => invitation.Email).HasMaxLength(255).IsRequired();
                 entity.Property(invitation => invitation.Token).HasMaxLength(500).IsRequired();
                 entity.Property(invitation => invitation.Role).HasConversion<int>();
+                entity.Property(invitation => invitation.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool);
                 entity.HasIndex(invitation => invitation.Token).IsUnique();
                 entity.HasIndex(invitation => new { invitation.WorkspaceId, invitation.Email });
                 entity.HasIndex(invitation => invitation.ExpiresAt);

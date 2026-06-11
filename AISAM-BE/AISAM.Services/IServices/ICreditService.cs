@@ -19,6 +19,14 @@ public interface ICreditService
         WorkspaceTypeEnum workspaceType,
         long credits,
         CancellationToken cancellationToken = default);
+    Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreditActionEnum action,
+        long credits,
+        Guid? aiGenerationId = null,
+        DateTime? now = null,
+        CancellationToken cancellationToken = default);
     Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(
         Guid workspaceId,
         Guid userId,

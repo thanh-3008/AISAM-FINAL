@@ -12,6 +12,11 @@ public sealed class CreateWorkspaceInvitationRequest
 
     [Required]
     public WorkspaceMemberRoleEnum Role { get; set; }
+
+    public MemberQuotaModeEnum QuotaMode { get; set; } = MemberQuotaModeEnum.SharedPool;
+
+    [Range(1, long.MaxValue)]
+    public long? CreditLimit { get; set; }
 }
 
 public sealed class AcceptWorkspaceInvitationRequest

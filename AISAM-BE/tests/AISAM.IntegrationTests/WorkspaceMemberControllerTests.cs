@@ -29,6 +29,9 @@ public class WorkspaceMemberControllerTests
         await controller.UpdateRole(memberId, new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.Viewer });
         Assert.Equal(memberId, service.LastMemberId);
 
+        await controller.UpdateQuota(memberId, new UpdateWorkspaceMemberQuotaRequest { QuotaMode = MemberQuotaModeEnum.SharedPool });
+        Assert.Equal(memberId, service.LastMemberId);
+
         await controller.Remove(memberId);
         Assert.Equal(memberId, service.LastMemberId);
 
@@ -67,6 +70,12 @@ public class WorkspaceMemberControllerTests
         }
 
         public Task<GenericResponse<WorkspaceMemberResponseDto>> UpdateRoleAsync(Guid workspaceId, Guid actorUserId, Guid memberId, UpdateWorkspaceMemberRoleRequest request, CancellationToken cancellationToken = default)
+        {
+            Capture(workspaceId, actorUserId, memberId);
+            return Task.FromResult(GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(new WorkspaceMemberResponseDto()));
+        }
+
+        public Task<GenericResponse<WorkspaceMemberResponseDto>> UpdateQuotaAsync(Guid workspaceId, Guid actorUserId, Guid memberId, UpdateWorkspaceMemberQuotaRequest request, CancellationToken cancellationToken = default)
         {
             Capture(workspaceId, actorUserId, memberId);
             return Task.FromResult(GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(new WorkspaceMemberResponseDto()));

@@ -25,6 +25,13 @@ namespace AISAM.Data.Model
         public WorkspaceMemberRoleEnum Role { get; set; }
 
         [Required]
+        [Column("quota_mode")]
+        public MemberQuotaModeEnum QuotaMode { get; set; } = MemberQuotaModeEnum.SharedPool;
+
+        [Column("credit_limit")]
+        public long? CreditLimit { get; set; }
+
+        [Required]
         [MaxLength(500)]
         [Column("token")]
         public string Token { get; set; } = string.Empty;

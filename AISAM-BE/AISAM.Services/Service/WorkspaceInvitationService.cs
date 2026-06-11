@@ -17,6 +17,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceInvitationRepository _workspaceInvitationRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
     private readonly string _frontendBaseUrl;
@@ -25,6 +26,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         IWorkspaceRepository workspaceRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
         IWorkspaceInvitationRepository workspaceInvitationRepository,
+        ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
         IEmailService emailService,
         IOptions<FrontendSettings> frontendSettings)
@@ -32,6 +34,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         _workspaceRepository = workspaceRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceInvitationRepository = workspaceInvitationRepository;
+        _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
         _emailService = emailService;
         _frontendBaseUrl = frontendSettings.Value.BaseUrl.TrimEnd('/');
@@ -108,12 +111,23 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 HttpStatusCode.Conflict);
         }
 
+        var quotaValidationError = await ValidateQuotaRequestAsync(workspace, request.QuotaMode, request.CreditLimit, cancellationToken);
+        if (quotaValidationError != null)
+        {
+            return GenericResponse<WorkspaceInvitationResponseDto>.CreateError(
+                quotaValidationError.Value.Message,
+                quotaValidationError.Value.Status,
+                quotaValidationError.Value.ErrorCode);
+        }
+
         var invitation = await _workspaceInvitationRepository.AddAsync(new WorkspaceInvitation
         {
             WorkspaceId = workspaceId,
             InvitedByUserId = inviterUserId,
             Email = normalizedEmail,
             Role = request.Role,
+            QuotaMode = request.QuotaMode,
+            CreditLimit = request.QuotaMode == MemberQuotaModeEnum.SharedPool ? null : request.CreditLimit,
             Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
             ExpiresAt = DateTime.UtcNow.AddDays(7)
         }, cancellationToken);
@@ -182,9 +196,43 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             {
                 WorkspaceId = membership.WorkspaceId,
                 WorkspaceName = invitation.Workspace.Name,
-                Role = membership.Role
+                Role = membership.Role,
+                QuotaMode = membership.QuotaMode,
+                CreditLimit = membership.CreditLimit
             },
             "Workspace invitation accepted successfully.");
+    }
+
+    private async Task<(string Message, HttpStatusCode Status, string? ErrorCode)?> ValidateQuotaRequestAsync(
+        Workspace workspace,
+        MemberQuotaModeEnum quotaMode,
+        long? creditLimit,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(quotaMode))
+        {
+            return ("Invalid member quota mode.", HttpStatusCode.BadRequest, "INVALID_MEMBER_QUOTA_MODE");
+        }
+
+        if (quotaMode == MemberQuotaModeEnum.SharedPool)
+        {
+            return creditLimit.HasValue
+                ? ("Shared pool members cannot have an assigned credit limit.", HttpStatusCode.BadRequest, "INVALID_MEMBER_CREDIT_LIMIT")
+                : null;
+        }
+
+        if (creditLimit is null or <= 0)
+        {
+            return ("Assigned member quota requires a positive credit limit.", HttpStatusCode.BadRequest, "INVALID_MEMBER_CREDIT_LIMIT");
+        }
+
+        var activeSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspace.Id, cancellationToken);
+        if (workspace.WorkspaceType != WorkspaceTypeEnum.Business || activeSubscription?.Plan != SubscriptionPlanEnum.Premium)
+        {
+            return ("Assigned member quotas are only available for Business Pro workspaces.", HttpStatusCode.BadRequest, "PLAN_DOES_NOT_SUPPORT_MEMBER_QUOTA_MODE");
+        }
+
+        return null;
     }
 
     private static WorkspaceInvitationResponseDto Map(WorkspaceInvitation invitation)
@@ -196,6 +244,8 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             WorkspaceName = invitation.Workspace.Name,
             Email = invitation.Email,
             Role = invitation.Role,
+            QuotaMode = invitation.QuotaMode,
+            CreditLimit = invitation.CreditLimit,
             InvitedByUserId = invitation.InvitedByUserId,
             ExpiresAt = invitation.ExpiresAt,
             CreatedAt = invitation.CreatedAt

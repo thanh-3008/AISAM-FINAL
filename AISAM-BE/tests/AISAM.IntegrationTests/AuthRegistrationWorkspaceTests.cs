@@ -72,6 +72,7 @@ public class AuthRegistrationWorkspaceTests
             new CreditService(
                 new CreditWalletRepository(context),
                 new CreditUsageRecordRepository(context),
+                new WorkspaceMemberRepository(context),
                 new WorkspaceRepository(context)),
             Options.Create(new JwtSettings
             {

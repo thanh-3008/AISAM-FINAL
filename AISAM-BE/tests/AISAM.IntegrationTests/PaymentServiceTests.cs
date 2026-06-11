@@ -941,6 +941,26 @@ public class PaymentServiceTests
                 AiGenerationId = aiGenerationId
             }));
         }
+
+        public Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsAsync(
+            Guid workspaceId,
+            Guid userId,
+            CreditActionEnum action,
+            long credits,
+            Guid? aiGenerationId = null,
+            DateTime? now = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<CreditUsageRecord>.CreateSuccess(new CreditUsageRecord
+            {
+                WorkspaceId = workspaceId,
+                UserId = userId,
+                Action = action,
+                Credits = credits,
+                Status = CreditUsageStatusEnum.Success,
+                AiGenerationId = aiGenerationId
+            }));
+        }
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
