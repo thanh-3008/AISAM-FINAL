@@ -23,6 +23,8 @@ namespace AISAM.Repositories
         public DbSet<Workspace> Workspaces { get; set; }
         public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
         public DbSet<WorkspaceInvitation> WorkspaceInvitations { get; set; }
+        public DbSet<CreditWallet> CreditWallets { get; set; }
+        public DbSet<CreditUsageRecord> CreditUsageRecords { get; set; }
         public DbSet<Team> Teams { get; set; }
         public DbSet<TeamMember> TeamMembers { get; set; }
         public DbSet<TeamBrand> TeamBrands { get; set; }
@@ -255,6 +257,39 @@ namespace AISAM.Repositories
                       .WithMany(user => user.SentWorkspaceInvitations)
                       .HasForeignKey(invitation => invitation.InvitedByUserId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CreditWallet>(entity =>
+            {
+                entity.HasKey(wallet => wallet.Id);
+                entity.HasIndex(wallet => wallet.WorkspaceId).IsUnique();
+                entity.HasOne(wallet => wallet.Workspace)
+                      .WithOne(workspace => workspace.CreditWallet)
+                      .HasForeignKey<CreditWallet>(wallet => wallet.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CreditUsageRecord>(entity =>
+            {
+                entity.HasKey(record => record.Id);
+                entity.Property(record => record.Action).HasConversion<int>();
+                entity.Property(record => record.Status).HasConversion<int>();
+                entity.HasIndex(record => record.WorkspaceId);
+                entity.HasIndex(record => record.UserId);
+                entity.HasIndex(record => record.AiGenerationId);
+                entity.HasIndex(record => record.CreatedAt);
+                entity.HasOne(record => record.Workspace)
+                      .WithMany(workspace => workspace.CreditUsageRecords)
+                      .HasForeignKey(record => record.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(record => record.User)
+                      .WithMany()
+                      .HasForeignKey(record => record.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(record => record.AiGeneration)
+                      .WithMany()
+                      .HasForeignKey(record => record.AiGenerationId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // Team entity configuration

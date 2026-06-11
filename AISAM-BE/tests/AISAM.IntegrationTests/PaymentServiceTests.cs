@@ -4,6 +4,7 @@ using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using Microsoft.Extensions.Options;
 using System.Net;
@@ -154,11 +155,13 @@ public class PaymentServiceTests
             TransactionId = "987654",
             Subscription = subscription
         };
+        var creditService = new FakeCreditService();
         var service = CreateService(
             new FakePaymentRepository(payment),
             new FakeSubscriptionRepository(subscription),
             settings: CreateConfiguredSettings(),
-            workspaceRepository: new FakeWorkspaceRepository(workspace));
+            workspaceRepository: new FakeWorkspaceRepository(workspace),
+            creditService: creditService);
 
         var signature = CreateSignature(new Dictionary<string, string>
         {
@@ -186,6 +189,8 @@ public class PaymentServiceTests
         Assert.True(subscription.IsActive);
         Assert.Equal(subscription.EndDate, workspace.SubscriptionExpiredAt);
         Assert.Equal(50, workspace.MemberLimit);
+        Assert.Single(creditService.Wallets);
+        Assert.Equal(50_000, creditService.Wallets[workspaceId].Balance);
     }
 
     [Fact]
@@ -232,11 +237,13 @@ public class PaymentServiceTests
             TransactionId = "renewal-123",
             Subscription = renewalSubscription
         };
+        var creditService = new FakeCreditService();
         var service = CreateService(
             new FakePaymentRepository(payment),
             new FakeSubscriptionRepository(currentSubscription, renewalSubscription),
             workspaceRepository: new FakeWorkspaceRepository(workspace),
-            settings: CreateConfiguredSettings());
+            settings: CreateConfiguredSettings(),
+            creditService: creditService);
 
         var signature = CreateSignature(new Dictionary<string, string>
         {
@@ -259,6 +266,75 @@ public class PaymentServiceTests
         Assert.Equal(currentEndDate.AddDays(30), renewalSubscription.EndDate);
         Assert.Equal(renewalSubscription.EndDate, workspace.SubscriptionExpiredAt);
         Assert.Equal(10, workspace.MemberLimit);
+        Assert.Equal(15_000, creditService.Wallets[workspaceId].Balance);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_RejectsCreditGrantThatWouldExceedWorkspaceMaximumBalance()
+    {
+        var workspaceId = Guid.NewGuid();
+        var workspace = new Workspace
+        {
+            Id = workspaceId,
+            Name = "Personal Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Personal,
+            MemberLimit = 1
+        };
+        var subscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Plan = SubscriptionPlanEnum.Premium,
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(30),
+            IsActive = false,
+            PayOSOrderCode = "overflow-123"
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            SubscriptionId = subscription.Id,
+            Amount = 199_000m,
+            Status = PaymentStatusEnum.Pending,
+            PaymentMethod = "PayOS",
+            TransactionId = "overflow-123",
+            Subscription = subscription
+        };
+        var creditService = new FakeCreditService();
+        creditService.Wallets[workspaceId] = new CreditWallet
+        {
+            WorkspaceId = workspaceId,
+            Balance = 14_000
+        };
+
+        var service = CreateService(
+            new FakePaymentRepository(payment),
+            new FakeSubscriptionRepository(subscription),
+            workspaceRepository: new FakeWorkspaceRepository(workspace),
+            settings: CreateConfiguredSettings(),
+            creditService: creditService);
+
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["orderCode"] = "overflow-123",
+            ["status"] = "PAID"
+        });
+        var result = await service.HandleWebhookAsync($$"""
+        {
+          "signature": "{{signature}}",
+          "data": {
+            "orderCode": "overflow-123",
+            "status": "PAID"
+          }
+        }
+        """);
+
+        Assert.False(result.Success);
+        Assert.Equal(PaymentStatusEnum.Failed, payment.Status);
+        Assert.False(subscription.IsActive);
+        Assert.Equal(14_000, creditService.Wallets[workspaceId].Balance);
     }
 
     [Fact]
@@ -369,6 +445,7 @@ public class PaymentServiceTests
         FakeSubscriptionRepository? subscriptionRepository = null,
         FakeProfileRepository? profileRepository = null,
         FakeWorkspaceRepository? workspaceRepository = null,
+        FakeCreditService? creditService = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
     {
@@ -377,6 +454,7 @@ public class PaymentServiceTests
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
+            creditService ?? new FakeCreditService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
     }
@@ -593,6 +671,82 @@ public class PaymentServiceTests
 
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspaces.ContainsKey(id));
+    }
+
+    private sealed class FakeCreditService : ICreditService
+    {
+        public Dictionary<Guid, CreditWallet> Wallets { get; } = [];
+
+        public Task<CreditWallet> EnsureWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            if (!Wallets.TryGetValue(workspaceId, out var wallet))
+            {
+                wallet = new CreditWallet
+                {
+                    WorkspaceId = workspaceId,
+                    Balance = 0
+                };
+                Wallets[workspaceId] = wallet;
+            }
+
+            return Task.FromResult(wallet);
+        }
+
+        public Task<GenericResponse<CreditWallet>> GrantSubscriptionCreditsAsync(
+            Guid workspaceId,
+            Guid userId,
+            WorkspaceTypeEnum workspaceType,
+            SubscriptionPlanEnum plan,
+            CancellationToken cancellationToken = default)
+        {
+            var wallet = Wallets.TryGetValue(workspaceId, out var existing)
+                ? existing
+                : new CreditWallet
+                {
+                    WorkspaceId = workspaceId,
+                    Balance = 0
+                };
+
+            var increment = (workspaceType, plan) switch
+            {
+                (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => 50L,
+                (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 500L,
+                (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 2_000L,
+                (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 15_000L,
+                (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 50_000L,
+                _ => 0L
+            };
+
+            var maximum = workspaceType == WorkspaceTypeEnum.Business ? 500_000L : 15_000L;
+            if (wallet.Balance + increment > maximum)
+            {
+                return Task.FromResult(GenericResponse<CreditWallet>.CreateError("Wallet balance exceeds workspace maximum balance.", HttpStatusCode.BadRequest, "CREDIT_BALANCE_LIMIT_EXCEEDED"));
+            }
+
+            wallet.Balance += increment;
+            Wallets[workspaceId] = wallet;
+            return Task.FromResult(GenericResponse<CreditWallet>.CreateSuccess(wallet));
+        }
+
+        public Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(
+            Guid workspaceId,
+            Guid userId,
+            CreditActionEnum action,
+            long credits,
+            CreditUsageStatusEnum status,
+            Guid? aiGenerationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<CreditUsageRecord>.CreateSuccess(new CreditUsageRecord
+            {
+                WorkspaceId = workspaceId,
+                UserId = userId,
+                Action = action,
+                Credits = credits,
+                Status = status,
+                AiGenerationId = aiGenerationId
+            }));
+        }
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

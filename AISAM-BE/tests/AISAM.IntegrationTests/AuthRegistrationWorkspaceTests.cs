@@ -43,6 +43,7 @@ public class AuthRegistrationWorkspaceTests
 
         Assert.Equal(1, await context.Workspaces.CountAsync());
         Assert.Equal(1, await context.WorkspaceMembers.CountAsync());
+        Assert.Equal(1, await context.CreditWallets.CountAsync());
         Assert.Equal(1, await context.WorkspaceMembers.CountAsync(member => member.Role == WorkspaceMemberRoleEnum.Owner));
     }
 
@@ -59,6 +60,7 @@ public class AuthRegistrationWorkspaceTests
         Assert.Equal(1, await context.Users.CountAsync());
         Assert.Equal(1, await context.Workspaces.CountAsync());
         Assert.Equal(1, await context.WorkspaceMembers.CountAsync());
+        Assert.Equal(1, await context.CreditWallets.CountAsync());
     }
 
     private static AuthService CreateService(AisamContext context)
@@ -67,6 +69,10 @@ public class AuthRegistrationWorkspaceTests
             new UserRepository(context),
             new InMemorySessionRepository(),
             new NoOpEmailService(),
+            new CreditService(
+                new CreditWalletRepository(context),
+                new CreditUsageRecordRepository(context),
+                new WorkspaceRepository(context)),
             Options.Create(new JwtSettings
             {
                 SecretKey = "aisam-test-secret-key-with-at-least-thirty-two-characters",

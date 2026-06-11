@@ -21,6 +21,7 @@ namespace AISAM.Services.Service
         private readonly IUserRepository _userRepository;
         private readonly ISessionRepository _sessionRepository;
         private readonly IEmailService _emailService;
+        private readonly ICreditService _creditService;
         private readonly JwtSettings _jwtSettings;
         private readonly GoogleSettings _googleSettings;
 
@@ -28,12 +29,14 @@ namespace AISAM.Services.Service
             IUserRepository userRepository,
             ISessionRepository sessionRepository,
             IEmailService emailService,
+            ICreditService creditService,
             IOptions<JwtSettings> jwtSettings,
             IOptions<GoogleSettings> googleSettings)
         {
             _userRepository = userRepository;
             _sessionRepository = sessionRepository;
             _emailService = emailService;
+            _creditService = creditService;
             _jwtSettings = jwtSettings.Value;
             _googleSettings = googleSettings.Value;
         }
@@ -73,6 +76,8 @@ namespace AISAM.Services.Service
             AddPersonalWorkspace(user);
 
             await _userRepository.CreateAsync(user);
+            var workspaceId = user.WorkspaceMembers.Single().WorkspaceId;
+            await _creditService.EnsureWalletAsync(workspaceId);
 
             // Send verification email
             await _emailService.SendEmailVerificationAsync(user.Email, user.FullName ?? "User", verificationToken);

@@ -3188,8 +3188,8 @@ Mục tiêu phase:
 | 9.7 | Invitation, role management và Member Limit | DONE | 9.4, 9.6 |
 | 9.8 | Atomic Ownership Transfer | DONE | 9.7 |
 | 9.9 | Chuyển Subscription và Payment sang Workspace | DONE | 9.4, 9.6 |
-| 9.10 | Credit Wallet, Credit Usage và Maximum Balance | NEXT | 9.9 |
-| 9.11 | Credit Pack và `PaymentType` | TODO | 9.10 |
+| 9.10 | Credit Wallet, Credit Usage và Maximum Balance | DONE | 9.9 |
+| 9.11 | Credit Pack và `PaymentType` | NEXT | 9.10 |
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | TODO | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | TODO | 9.9, 9.12 |
 | 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
@@ -4255,16 +4255,91 @@ feat(payment): move subscriptions and payments to workspace
 
 ### Task 9.10 - Credit Wallet, Credit Usage và Maximum Balance
 
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.11 Credit Pack và PaymentType.
+```
+
 Mục tiêu:
 
 - Mỗi Workspace có đúng một Credit Wallet.
 - Lưu Credit Usage metadata, không lưu full prompt.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditActionEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditUsageStatusEnum.cs
+AISAM-BE/AISAM.Data/Model/CreditUsageRecord.cs
+AISAM-BE/AISAM.Data/Model/CreditWallet.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/IRepositories/ICreditUsageRecordRepository.cs
+AISAM-BE/AISAM.Repositories/IRepositories/ICreditWalletRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/CreditUsageRecordRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/CreditWalletRepository.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/Service/AuthService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+AISAM-BE/tests/AISAM.IntegrationTests/AuthRegistrationWorkspaceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/CreditServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/CreditWalletRepositoryTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceServiceTests.cs
+```
+
+Migration:
+
+```text
+20260611115818_AddCreditWalletAndUsageTracking
+```
+
+Kết quả:
+
+- Thêm `CreditWallet` one-to-one với `Workspace` và unique index trên `WorkspaceId`.
+- Thêm `CreditUsageRecord` để lưu metadata usage gồm `WorkspaceId`, `UserId`, `Action`, `Credits`, `Status`, `AiGenerationId`; không lưu full prompt.
+- Thêm `ICreditService` và `CreditService` để:
+  - tạo wallet mặc định cho Workspace,
+  - grant credits theo `WorkspaceTypeEnum` + `SubscriptionPlanEnum`,
+  - chặn toàn bộ giao dịch nếu số dư mới vượt maximum balance.
+- `AuthService.RegisterAsync` và `WorkspaceService.CreateAsync` tự tạo wallet cho Personal/Business Workspace mới.
+- `PayOSPaymentService` cộng credits khi payment subscription thành công và fail toàn bộ nếu vượt maximum balance.
+- Mapping credits hiện dùng enum/plan đang có:
+  - Personal `Free` -> `50`
+  - Personal `Plus` -> `500`
+  - Personal `Premium` -> `2_000`
+  - Business `Plus` -> `15_000`
+  - Business `Premium` -> `50_000`
+- Maximum balance đã enforce:
+  - Personal -> `15_000`
+  - Business -> `500_000`
+- Task này chỉ hoàn thiện wallet/usage/max-balance foundation cho Workspace.
+- Chưa triển khai `PaymentType`/Credit Pack, shared-lifetime-monthly member quota, AI debit flow hay post quota theo Workspace; các phần đó vẫn thuộc Task 9.11-9.14.
 
 Cách test:
 
 - Personal không vượt 15.000; Business không vượt 500.000.
 - Giao dịch vượt maximum bị từ chối toàn bộ.
 - Unique Wallet constraint hoạt động.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 203/203 tests passed.
+
+Focused Task 9.10 tests
+Passed. 22/22 tests passed.
+```
 
 Commit đề xuất:
 
@@ -5568,7 +5643,7 @@ Checklist:
 - [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
-## Current Backend Status - Updated 2026-06-04
+## Current Backend Status - Updated 2026-06-11
 
 Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP hoan thien hon. Thu tu tiep theo da duoc chot: Phase 9 Workspace -> Phase 10 Admin theo Workspace -> Phase 11 Facebook Ads -> Phase 12 Release.
 
@@ -5583,7 +5658,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.9 da hoan thanh; Task 9.10 Credit Wallet, Credit Usage va Maximum Balance la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.10 da hoan thanh; Task 9.11 Credit Pack va `PaymentType` la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

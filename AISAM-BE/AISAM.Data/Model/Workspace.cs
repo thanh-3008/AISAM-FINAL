@@ -47,5 +47,7 @@ namespace AISAM.Data.Model
         public virtual ICollection<WorkspaceInvitation> Invitations { get; set; } = new List<WorkspaceInvitation>();
         public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
         public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
+        public virtual CreditWallet? CreditWallet { get; set; }
+        public virtual ICollection<CreditUsageRecord> CreditUsageRecords { get; set; } = new List<CreditUsageRecord>();
     }
 }

@@ -13,11 +13,16 @@ public sealed class WorkspaceService : IWorkspaceService
 {
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IUserRepository _userRepository;
+    private readonly ICreditService _creditService;
 
-    public WorkspaceService(IWorkspaceRepository workspaceRepository, IUserRepository userRepository)
+    public WorkspaceService(
+        IWorkspaceRepository workspaceRepository,
+        IUserRepository userRepository,
+        ICreditService creditService)
     {
         _workspaceRepository = workspaceRepository;
         _userRepository = userRepository;
+        _creditService = creditService;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceResponseDto>>> GetByUserIdAsync(
@@ -80,6 +85,7 @@ public sealed class WorkspaceService : IWorkspaceService
         };
 
         var createdWorkspace = await _workspaceRepository.AddAsync(workspace, cancellationToken);
+        await _creditService.EnsureWalletAsync(createdWorkspace.Id, cancellationToken);
         return GenericResponse<WorkspaceResponseDto>.CreateSuccess(
             MapToDto(createdWorkspace, userId),
             "Workspace created successfully.");

@@ -24,6 +24,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IProfileRepository _profileRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly ICreditService _creditService;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
 
@@ -32,6 +33,7 @@ public sealed class PayOSPaymentService : IPaymentService
         ISubscriptionRepository subscriptionRepository,
         IProfileRepository profileRepository,
         IWorkspaceRepository workspaceRepository,
+        ICreditService creditService,
         IOptions<PayOSSettings> settings,
         HttpClient httpClient)
     {
@@ -39,6 +41,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _subscriptionRepository = subscriptionRepository;
         _profileRepository = profileRepository;
         _workspaceRepository = workspaceRepository;
+        _creditService = creditService;
         _settings = settings.Value;
         _httpClient = httpClient;
     }
@@ -334,6 +337,29 @@ public sealed class PayOSPaymentService : IPaymentService
                     var renewalBaseDate = currentSubscription?.EndDate is { } currentEndDate && currentEndDate > today
                         ? currentEndDate
                         : today;
+                    Workspace? workspace = null;
+                    if (subscription.WorkspaceId.HasValue)
+                    {
+                        workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId.Value, cancellationToken);
+                        if (workspace != null)
+                        {
+                            var creditGrant = await _creditService.GrantSubscriptionCreditsAsync(
+                                workspace.Id,
+                                payment.UserId,
+                                workspace.WorkspaceType,
+                                subscription.Plan,
+                                cancellationToken);
+                            if (!creditGrant.Success)
+                            {
+                                payment.Status = PaymentStatusEnum.Failed;
+                                await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                                return GenericResponse<bool>.CreateError(
+                                    creditGrant.Message ?? "Unable to grant subscription credits.",
+                                    (HttpStatusCode)creditGrant.StatusCode,
+                                    creditGrant.Error?.ErrorCode);
+                            }
+                        }
+                    }
 
                     if (currentSubscription != null && currentSubscription.Id != subscription.Id)
                     {
@@ -346,15 +372,11 @@ public sealed class PayOSPaymentService : IPaymentService
                     subscription.EndDate = renewalBaseDate.AddDays(30);
                     await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
 
-                    if (subscription.WorkspaceId.HasValue)
+                    if (workspace != null)
                     {
-                        var workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId.Value, cancellationToken);
-                        if (workspace != null)
-                        {
-                            workspace.SubscriptionExpiredAt = subscription.EndDate;
-                            workspace.MemberLimit = ResolveMemberLimit(workspace.WorkspaceType, subscription.Plan);
-                            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
-                        }
+                        workspace.SubscriptionExpiredAt = subscription.EndDate;
+                        workspace.MemberLimit = ResolveMemberLimit(workspace.WorkspaceType, subscription.Plan);
+                        await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
                     }
 
                     var profile = subscription.ProfileId.HasValue
