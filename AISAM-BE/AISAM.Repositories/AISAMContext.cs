@@ -310,11 +310,16 @@ namespace AISAM.Repositories
                 entity.HasKey(s => s.Id);
                 entity.Property(s => s.Plan).HasConversion<int>();
                 entity.HasIndex(s => s.ProfileId);
+                entity.HasIndex(s => s.WorkspaceId);
                 entity.HasIndex(s => s.IsActive);
                 entity.HasOne(s => s.Profile)
                       .WithMany()
                       .HasForeignKey(s => s.ProfileId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                      .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(s => s.Workspace)
+                      .WithMany(w => w.Subscriptions)
+                      .HasForeignKey(s => s.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Approval entity configuration
@@ -461,6 +466,7 @@ namespace AISAM.Repositories
                 entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(PaymentStatusEnum.Pending);
                 entity.Property(p => p.Amount).HasPrecision(10, 2);
                 entity.HasIndex(p => p.UserId);
+                entity.HasIndex(p => p.WorkspaceId);
                 entity.HasIndex(p => p.Status);
                 entity.HasOne(p => p.User)
                       .WithMany()
@@ -470,6 +476,10 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(p => p.SubscriptionId)
                       .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(p => p.Workspace)
+                      .WithMany(w => w.Payments)
+                      .HasForeignKey(p => p.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // ContentTemplate entity configuration

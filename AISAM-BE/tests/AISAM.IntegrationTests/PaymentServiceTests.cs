@@ -19,7 +19,7 @@ public class PaymentServiceTests
     {
         var service = CreateService();
 
-        var result = await service.CreateCheckoutAsync(Guid.NewGuid(), new CreateCheckoutRequest
+        var result = await service.CreateCheckoutAsync(Guid.NewGuid(), Guid.NewGuid(), new CreateCheckoutRequest
         {
             PlanCode = "Plus"
         });
@@ -32,11 +32,11 @@ public class PaymentServiceTests
     [Fact]
     public async Task GetCurrentSubscriptionAsync_DoesNotRequirePayOsOutboundConfig()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var subscription = new Subscription
         {
             Id = Guid.NewGuid(),
-            ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Plan = SubscriptionPlanEnum.Premium,
             StartDate = new DateTime(2026, 6, 1),
             EndDate = new DateTime(2026, 6, 30),
@@ -44,7 +44,7 @@ public class PaymentServiceTests
         };
         var service = CreateService(subscriptionRepository: new FakeSubscriptionRepository(subscription));
 
-        var result = await service.GetCurrentSubscriptionAsync(profileId);
+        var result = await service.GetCurrentSubscriptionAsync(workspaceId);
 
         Assert.True(result.Success);
         Assert.NotNull(result.Data);
@@ -53,14 +53,15 @@ public class PaymentServiceTests
     }
 
     [Fact]
-    public async Task GetPaymentHistoryAsync_ReturnsProfilesPaymentsWithoutPayOsConfig()
+    public async Task GetPaymentHistoryAsync_ReturnsWorkspacesPaymentsWithoutPayOsConfig()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = CreateService(paymentRepository: new FakePaymentRepository(
             new Payment
             {
                 Id = Guid.NewGuid(),
                 UserId = Guid.NewGuid(),
+                WorkspaceId = workspaceId,
                 SubscriptionId = Guid.NewGuid(),
                 Amount = 150_000m,
                 PaymentMethod = "PayOS",
@@ -68,7 +69,7 @@ public class PaymentServiceTests
                 CreatedAt = new DateTime(2026, 6, 2, 8, 0, 0, DateTimeKind.Utc)
             }));
 
-        var result = await service.GetPaymentHistoryAsync(profileId, new PaginationRequest { Page = 1, PageSize = 10 });
+        var result = await service.GetPaymentHistoryAsync(workspaceId, new PaginationRequest { Page = 1, PageSize = 10 });
 
         Assert.True(result.Success);
         Assert.Single(result.Data!.Data);
@@ -78,23 +79,21 @@ public class PaymentServiceTests
     [Fact]
     public async Task CreateCheckoutAsync_CreatesPendingPaymentAndReturnsPayOsCheckoutUrl()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var paymentRepository = new FakePaymentRepository();
         var subscriptionRepository = new FakeSubscriptionRepository();
         var service = CreateService(
             paymentRepository,
             subscriptionRepository,
-            new FakeProfileRepository(new Profile
+            workspaceRepository: new FakeWorkspaceRepository(new Workspace
             {
-                Id = profileId,
-                UserId = userId,
-                Name = "Owner",
-                ProfileType = ProfileTypeEnum.Basic,
-                Status = ProfileStatusEnum.Active
+                Id = workspaceId,
+                Name = "Business Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business
             }),
-            CreateConfiguredSettings(),
-            new HttpClient(new StubHttpMessageHandler("""
+            settings: CreateConfiguredSettings(),
+            httpClient: new HttpClient(new StubHttpMessageHandler("""
             {
               "code": "00",
               "desc": "success",
@@ -106,27 +105,37 @@ public class PaymentServiceTests
             }
             """)));
 
-        var result = await service.CreateCheckoutAsync(profileId, new CreateCheckoutRequest { PlanCode = "Plus" });
+        var result = await service.CreateCheckoutAsync(workspaceId, userId, new CreateCheckoutRequest { PlanCode = "Plus" });
 
         Assert.True(result.Success);
         Assert.Equal("https://pay.payos.vn/web/mock", result.Data!.CheckoutUrl);
         Assert.Single(paymentRepository.Payments);
         Assert.Single(subscriptionRepository.Subscriptions);
         Assert.Equal(PaymentStatusEnum.Pending, paymentRepository.Payments[0].Status);
+        Assert.Equal(workspaceId, paymentRepository.Payments[0].WorkspaceId);
+        Assert.Equal(userId, paymentRepository.Payments[0].UserId);
         Assert.False(subscriptionRepository.Subscriptions[0].IsActive);
+        Assert.Equal(workspaceId, subscriptionRepository.Subscriptions[0].WorkspaceId);
         Assert.Equal("plink_123", subscriptionRepository.Subscriptions[0].PayOSPaymentLinkId);
     }
 
     [Fact]
     public async Task HandleWebhookAsync_MarksPaymentSuccessAndActivatesSubscription()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+        var workspace = new Workspace
+        {
+            Id = workspaceId,
+            Name = "Business Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            MemberLimit = 10
+        };
         var subscription = new Subscription
         {
             Id = Guid.NewGuid(),
-            ProfileId = profileId,
-            Plan = SubscriptionPlanEnum.Plus,
+            WorkspaceId = workspaceId,
+            Plan = SubscriptionPlanEnum.Premium,
             StartDate = new DateTime(2026, 6, 1),
             EndDate = new DateTime(2026, 6, 30),
             IsActive = false,
@@ -137,6 +146,7 @@ public class PaymentServiceTests
         {
             Id = Guid.NewGuid(),
             UserId = userId,
+            WorkspaceId = workspaceId,
             SubscriptionId = subscription.Id,
             Amount = 99_000m,
             Status = PaymentStatusEnum.Pending,
@@ -144,19 +154,11 @@ public class PaymentServiceTests
             TransactionId = "987654",
             Subscription = subscription
         };
-        var profile = new Profile
-        {
-            Id = profileId,
-            UserId = userId,
-            Name = "Owner",
-            ProfileType = ProfileTypeEnum.Basic,
-            Status = ProfileStatusEnum.Active
-        };
         var service = CreateService(
             new FakePaymentRepository(payment),
             new FakeSubscriptionRepository(subscription),
-            new FakeProfileRepository(profile),
-            CreateConfiguredSettings());
+            settings: CreateConfiguredSettings(),
+            workspaceRepository: new FakeWorkspaceRepository(workspace));
 
         var signature = CreateSignature(new Dictionary<string, string>
         {
@@ -182,7 +184,142 @@ public class PaymentServiceTests
         Assert.True(result.Success);
         Assert.Equal(PaymentStatusEnum.Success, payment.Status);
         Assert.True(subscription.IsActive);
-        Assert.Equal(subscription.Id, profile.SubscriptionId);
+        Assert.Equal(subscription.EndDate, workspace.SubscriptionExpiredAt);
+        Assert.Equal(50, workspace.MemberLimit);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_RenewsFromCurrentWorkspaceExpiryAndDeactivatesPreviousSubscription()
+    {
+        var workspaceId = Guid.NewGuid();
+        var currentEndDate = DateTime.UtcNow.Date.AddDays(12);
+        var workspace = new Workspace
+        {
+            Id = workspaceId,
+            Name = "Business Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            MemberLimit = 50,
+            SubscriptionExpiredAt = currentEndDate
+        };
+        var currentSubscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Plan = SubscriptionPlanEnum.Premium,
+            StartDate = DateTime.UtcNow.Date.AddDays(-18),
+            EndDate = currentEndDate,
+            IsActive = true
+        };
+        var renewalSubscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Plan = SubscriptionPlanEnum.Plus,
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(30),
+            IsActive = false,
+            PayOSOrderCode = "renewal-123"
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            SubscriptionId = renewalSubscription.Id,
+            Amount = 99_000m,
+            Status = PaymentStatusEnum.Pending,
+            PaymentMethod = "PayOS",
+            TransactionId = "renewal-123",
+            Subscription = renewalSubscription
+        };
+        var service = CreateService(
+            new FakePaymentRepository(payment),
+            new FakeSubscriptionRepository(currentSubscription, renewalSubscription),
+            workspaceRepository: new FakeWorkspaceRepository(workspace),
+            settings: CreateConfiguredSettings());
+
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["orderCode"] = "renewal-123",
+            ["status"] = "PAID"
+        });
+        var result = await service.HandleWebhookAsync($$"""
+        {
+          "signature": "{{signature}}",
+          "data": {
+            "orderCode": "renewal-123",
+            "status": "PAID"
+          }
+        }
+        """);
+
+        Assert.True(result.Success);
+        Assert.False(currentSubscription.IsActive);
+        Assert.True(renewalSubscription.IsActive);
+        Assert.Equal(currentEndDate.AddDays(30), renewalSubscription.EndDate);
+        Assert.Equal(renewalSubscription.EndDate, workspace.SubscriptionExpiredAt);
+        Assert.Equal(10, workspace.MemberLimit);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_IsIdempotent_WhenSubscriptionIsAlreadyActive()
+    {
+        var workspaceId = Guid.NewGuid();
+        var existingEndDate = DateTime.UtcNow.Date.AddDays(30);
+        var workspace = new Workspace
+        {
+            Id = workspaceId,
+            Name = "Business Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            MemberLimit = 10,
+            SubscriptionExpiredAt = existingEndDate
+        };
+        var subscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Plan = SubscriptionPlanEnum.Plus,
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = existingEndDate,
+            IsActive = true,
+            PayOSOrderCode = "paid-123"
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            SubscriptionId = subscription.Id,
+            Amount = 99_000m,
+            Status = PaymentStatusEnum.Success,
+            PaymentMethod = "PayOS",
+            TransactionId = "paid-123",
+            Subscription = subscription
+        };
+        var service = CreateService(
+            new FakePaymentRepository(payment),
+            new FakeSubscriptionRepository(subscription),
+            workspaceRepository: new FakeWorkspaceRepository(workspace),
+            settings: CreateConfiguredSettings());
+
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["orderCode"] = "paid-123",
+            ["status"] = "PAID"
+        });
+        var result = await service.HandleWebhookAsync($$"""
+        {
+          "signature": "{{signature}}",
+          "data": {
+            "orderCode": "paid-123",
+            "status": "PAID"
+          }
+        }
+        """);
+
+        Assert.True(result.Success);
+        Assert.Equal(existingEndDate, subscription.EndDate);
+        Assert.Equal(existingEndDate, workspace.SubscriptionExpiredAt);
     }
 
     [Fact]
@@ -231,6 +368,7 @@ public class PaymentServiceTests
         FakePaymentRepository? paymentRepository = null,
         FakeSubscriptionRepository? subscriptionRepository = null,
         FakeProfileRepository? profileRepository = null,
+        FakeWorkspaceRepository? workspaceRepository = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
     {
@@ -238,6 +376,7 @@ public class PaymentServiceTests
             paymentRepository ?? new FakePaymentRepository(),
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
+            workspaceRepository ?? new FakeWorkspaceRepository(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
     }
@@ -298,6 +437,21 @@ public class PaymentServiceTests
             });
         }
 
+        public Task<PagedResult<Payment>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+        {
+            var payments = _payments.Values
+                .Where(payment => payment.WorkspaceId == workspaceId)
+                .OrderByDescending(payment => payment.CreatedAt)
+                .ToList();
+            return Task.FromResult(new PagedResult<Payment>
+            {
+                Data = payments,
+                TotalCount = payments.Count,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
+
         public Task<Payment> AddAsync(Payment payment, CancellationToken cancellationToken = default)
         {
             _payments[payment.Id] = payment;
@@ -325,6 +479,15 @@ public class PaymentServiceTests
         {
             var subscription = _subscriptions.Values
                 .Where(item => item.ProfileId == profileId && item.IsActive && !item.IsDeleted)
+                .OrderByDescending(item => item.StartDate)
+                .FirstOrDefault();
+            return Task.FromResult(subscription);
+        }
+
+        public Task<Subscription?> GetCurrentActiveByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            var subscription = _subscriptions.Values
+                .Where(item => item.WorkspaceId == workspaceId && item.IsActive && !item.IsDeleted)
                 .OrderByDescending(item => item.StartDate)
                 .FirstOrDefault();
             return Task.FromResult(subscription);
@@ -393,6 +556,43 @@ public class PaymentServiceTests
         public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.Remove(id));
         public Task RestoreAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.ContainsKey(id));
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        private readonly Dictionary<Guid, Workspace> _workspaces;
+
+        public FakeWorkspaceRepository(params Workspace[] workspaces)
+        {
+            _workspaces = workspaces.ToDictionary(workspace => workspace.Id);
+        }
+
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            _workspaces.TryGetValue(id, out var workspace);
+            return Task.FromResult(workspace);
+        }
+
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) =>
+            GetByIdAsync(id, cancellationToken);
+
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.ToList());
+
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default)
+        {
+            _workspaces[workspace.Id] = workspace;
+            return Task.FromResult(workspace);
+        }
+
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default)
+        {
+            _workspaces[workspace.Id] = workspace;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspaces.ContainsKey(id));
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

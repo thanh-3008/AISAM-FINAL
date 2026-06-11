@@ -40,6 +40,37 @@ public class PaymentRepositoryTests
     }
 
     [Fact]
+    public async Task GetCurrentActiveByWorkspaceIdAsync_ReturnsOnlyWorkspaceSubscription()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedFixture(context);
+        var repository = new SubscriptionRepository(context);
+
+        var subscription = await repository.GetCurrentActiveByWorkspaceIdAsync(fixture.OwnerWorkspace.Id);
+
+        Assert.NotNull(subscription);
+        Assert.Equal(fixture.ActiveSubscription.Id, subscription!.Id);
+        Assert.Equal(fixture.OwnerWorkspace.Id, subscription.WorkspaceId);
+    }
+
+    [Fact]
+    public async Task GetHistoryByWorkspaceIdAsync_ReturnsOnlyWorkspacePaymentsSortedNewestFirst()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedFixture(context);
+        var repository = new PaymentRepository(context);
+
+        var result = await repository.GetPagedByWorkspaceIdAsync(
+            fixture.OwnerWorkspace.Id,
+            new PaginationRequest { Page = 1, PageSize = 10 });
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(
+            new[] { fixture.NewestPayment.Id, fixture.OlderPayment.Id },
+            result.Data.Select(payment => payment.Id).ToArray());
+    }
+
+    [Fact]
     public async Task CountSuccessfulPromptUsageAsync_CountsOnlyCompletedGenerationsInsideSubscriptionWindow()
     {
         await using var context = CreateContext();
@@ -127,11 +158,24 @@ public class PaymentRepositoryTests
             ProfileType = ProfileTypeEnum.Basic,
             Status = ProfileStatusEnum.Active
         };
+        var ownerWorkspace = new Workspace
+        {
+            Name = "Owner workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            MemberLimit = 10
+        };
+        var otherWorkspace = new Workspace
+        {
+            Name = "Other workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            MemberLimit = 10
+        };
 
         var activeSubscription = new Subscription
         {
             Id = Guid.NewGuid(),
             ProfileId = ownerProfile.Id,
+            WorkspaceId = ownerWorkspace.Id,
             Plan = SubscriptionPlanEnum.Plus,
             QuotaPostsPerMonth = 5,
             QuotaAIContentPerDay = 3,
@@ -152,6 +196,7 @@ public class PaymentRepositoryTests
         {
             Id = Guid.NewGuid(),
             ProfileId = otherProfile.Id,
+            WorkspaceId = otherWorkspace.Id,
             Plan = SubscriptionPlanEnum.Premium,
             StartDate = new DateTime(2026, 6, 1),
             EndDate = new DateTime(2026, 6, 30),
@@ -166,6 +211,7 @@ public class PaymentRepositoryTests
             Id = Guid.NewGuid(),
             UserId = owner.Id,
             SubscriptionId = activeSubscription.Id,
+            WorkspaceId = ownerWorkspace.Id,
             Amount = 100_000m,
             Status = PaymentStatusEnum.Success,
             PaymentMethod = "PayOS",
@@ -177,6 +223,7 @@ public class PaymentRepositoryTests
             Id = Guid.NewGuid(),
             UserId = owner.Id,
             SubscriptionId = activeSubscription.Id,
+            WorkspaceId = ownerWorkspace.Id,
             Amount = 200_000m,
             Status = PaymentStatusEnum.Success,
             PaymentMethod = "PayOS",
@@ -188,6 +235,7 @@ public class PaymentRepositoryTests
             Id = Guid.NewGuid(),
             UserId = otherUser.Id,
             SubscriptionId = otherSubscription.Id,
+            WorkspaceId = otherWorkspace.Id,
             Amount = 300_000m,
             Status = PaymentStatusEnum.Success,
             PaymentMethod = "PayOS",
@@ -348,6 +396,7 @@ public class PaymentRepositoryTests
 
         context.Users.AddRange(owner, otherUser);
         context.Profiles.AddRange(ownerProfile, otherProfile);
+        context.Workspaces.AddRange(ownerWorkspace, otherWorkspace);
         context.Subscriptions.AddRange(activeSubscription, inactiveSubscription, otherSubscription);
         context.Payments.AddRange(olderPayment, newestPayment, otherProfilePayment, userOnlyPayment);
         context.Brands.AddRange(brand, otherBrand);
@@ -358,11 +407,12 @@ public class PaymentRepositoryTests
         context.Posts.AddRange(publishedInsideWindow, publishedOutsideWindow, draftInsideWindow, otherPublishedInsideWindow);
         context.SaveChanges();
 
-        return new PaymentRepositoryFixture(ownerProfile, activeSubscription, olderPayment, newestPayment);
+        return new PaymentRepositoryFixture(ownerProfile, ownerWorkspace, activeSubscription, olderPayment, newestPayment);
     }
 
     private sealed record PaymentRepositoryFixture(
         Profile OwnerProfile,
+        Workspace OwnerWorkspace,
         Subscription ActiveSubscription,
         Payment OlderPayment,
         Payment NewestPayment);

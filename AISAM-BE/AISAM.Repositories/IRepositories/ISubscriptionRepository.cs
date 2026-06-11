@@ -5,6 +5,7 @@ namespace AISAM.Repositories.IRepositories;
 public interface ISubscriptionRepository
 {
     Task<Subscription?> GetCurrentActiveByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default);
+    Task<Subscription?> GetCurrentActiveByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default);
     Task<Subscription?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Subscription> AddAsync(Subscription subscription, CancellationToken cancellationToken = default);
     Task UpdateAsync(Subscription subscription, CancellationToken cancellationToken = default);

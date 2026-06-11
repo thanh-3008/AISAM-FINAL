@@ -23,6 +23,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly IPaymentRepository _paymentRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IProfileRepository _profileRepository;
+    private readonly IWorkspaceRepository _workspaceRepository;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
 
@@ -30,17 +31,23 @@ public sealed class PayOSPaymentService : IPaymentService
         IPaymentRepository paymentRepository,
         ISubscriptionRepository subscriptionRepository,
         IProfileRepository profileRepository,
+        IWorkspaceRepository workspaceRepository,
         IOptions<PayOSSettings> settings,
         HttpClient httpClient)
     {
         _paymentRepository = paymentRepository;
         _subscriptionRepository = subscriptionRepository;
         _profileRepository = profileRepository;
+        _workspaceRepository = workspaceRepository;
         _settings = settings.Value;
         _httpClient = httpClient;
     }
 
-    public async Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(Guid profileId, CreateCheckoutRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreateCheckoutRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!HasPayOsConfig())
         {
@@ -56,10 +63,10 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Invalid subscription plan.", HttpStatusCode.BadRequest, "INVALID_PLAN");
         }
 
-        var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
-        if (profile == null)
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
         {
-            return GenericResponse<PayOSCheckoutResponse>.CreateError("Profile not found.", HttpStatusCode.NotFound);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
         }
 
         var planDefinition = GetPlanDefinition(plan.Value);
@@ -79,7 +86,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var description = $"AISAM {plan.Value}";
         var subscription = await _subscriptionRepository.AddAsync(new Subscription
         {
-            ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Plan = plan.Value,
             QuotaPostsPerMonth = planDefinition.PostQuota,
             QuotaAIContentPerDay = planDefinition.PromptQuota,
@@ -97,8 +104,9 @@ public sealed class PayOSPaymentService : IPaymentService
 
         var payment = await _paymentRepository.AddAsync(new Payment
         {
-            UserId = profile.UserId,
+            UserId = userId,
             SubscriptionId = subscription.Id,
+            WorkspaceId = workspaceId,
             Amount = planDefinition.Amount,
             Currency = "VND",
             Status = PaymentStatusEnum.Pending,
@@ -249,9 +257,9 @@ public sealed class PayOSPaymentService : IPaymentService
         return await ApplyPaymentStatusAsync(reference, status, transactionId, acknowledgeMissingPayment: true, cancellationToken);
     }
 
-    public async Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
     {
-        var payments = await _paymentRepository.GetPagedByProfileIdAsync(profileId, request, cancellationToken);
+        var payments = await _paymentRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, cancellationToken);
 
         var mapped = new PagedResult<PaymentHistoryItemDto>
         {
@@ -264,9 +272,9 @@ public sealed class PayOSPaymentService : IPaymentService
         return GenericResponse<PagedResult<PaymentHistoryItemDto>>.CreateSuccess(mapped);
     }
 
-    public async Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
-        var subscription = await _subscriptionRepository.GetCurrentActiveByProfileIdAsync(profileId, cancellationToken);
+        var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
         if (subscription == null)
         {
             return GenericResponse<CurrentSubscriptionDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
@@ -313,12 +321,45 @@ public sealed class PayOSPaymentService : IPaymentService
                 var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value, cancellationToken);
                 if (subscription != null)
                 {
+                    if (subscription.IsActive)
+                    {
+                        await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                        return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
+                    }
+
+                    var today = DateTime.UtcNow.Date;
+                    var currentSubscription = subscription.WorkspaceId.HasValue
+                        ? await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(subscription.WorkspaceId.Value, cancellationToken)
+                        : null;
+                    var renewalBaseDate = currentSubscription?.EndDate is { } currentEndDate && currentEndDate > today
+                        ? currentEndDate
+                        : today;
+
+                    if (currentSubscription != null && currentSubscription.Id != subscription.Id)
+                    {
+                        currentSubscription.IsActive = false;
+                        await _subscriptionRepository.UpdateAsync(currentSubscription, cancellationToken);
+                    }
+
                     subscription.IsActive = true;
-                    subscription.StartDate = DateTime.UtcNow.Date;
-                    subscription.EndDate ??= DateTime.UtcNow.Date.AddDays(30);
+                    subscription.StartDate = today;
+                    subscription.EndDate = renewalBaseDate.AddDays(30);
                     await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
 
-                    var profile = await _profileRepository.GetByIdAsync(subscription.ProfileId, cancellationToken);
+                    if (subscription.WorkspaceId.HasValue)
+                    {
+                        var workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId.Value, cancellationToken);
+                        if (workspace != null)
+                        {
+                            workspace.SubscriptionExpiredAt = subscription.EndDate;
+                            workspace.MemberLimit = ResolveMemberLimit(workspace.WorkspaceType, subscription.Plan);
+                            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+                        }
+                    }
+
+                    var profile = subscription.ProfileId.HasValue
+                        ? await _profileRepository.GetByIdAsync(subscription.ProfileId.Value, cancellationToken)
+                        : null;
                     if (profile != null)
                     {
                         profile.SubscriptionId = subscription.Id;
@@ -395,6 +436,21 @@ public sealed class PayOSPaymentService : IPaymentService
             SubscriptionPlanEnum.Premium => new PlanDefinition(199_000m, 100, 200, 30, 3, 5, 2, 10_000_000m, 10),
             SubscriptionPlanEnum.PlusTrial => new PlanDefinition(0m, 7, 10, 3, 1, 1, 1, 0m, 1),
             _ => new PlanDefinition(0m, 5, 0, 0, 1, 1, 0, 0m, 0)
+        };
+    }
+
+    private static int ResolveMemberLimit(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
+    {
+        if (workspaceType == WorkspaceTypeEnum.Personal)
+        {
+            return 1;
+        }
+
+        return plan switch
+        {
+            SubscriptionPlanEnum.Premium => 50,
+            SubscriptionPlanEnum.Plus => 10,
+            _ => 1
         };
     }
 

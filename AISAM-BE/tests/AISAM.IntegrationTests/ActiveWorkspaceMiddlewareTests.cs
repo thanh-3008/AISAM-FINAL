@@ -114,6 +114,36 @@ public class ActiveWorkspaceMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Fact]
+    public async Task InvokeAsync_RequiresWorkspaceHeader_ForPaymentWorkspaceRoute()
+    {
+        var context = CreateContext(Guid.NewGuid(), "/api/payment/history");
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+
+        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/payment/callback")]
+    [InlineData("/api/payment/webhook")]
+    public async Task InvokeAsync_DoesNotRequireWorkspaceHeader_ForPaymentProviderRoutes(string path)
+    {
+        var nextCalled = false;
+        var context = CreateContext(Guid.NewGuid(), path);
+        context.Request.Method = HttpMethods.Post;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository());
+
+        Assert.True(nextCalled);
+    }
+
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")
     {
         return new DefaultHttpContext

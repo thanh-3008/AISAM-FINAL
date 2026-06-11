@@ -30,10 +30,27 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<Subscription?> GetCurrentActiveByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        return await _context.Subscriptions
+            .Include(subscription => subscription.Workspace)
+            .Where(subscription =>
+                subscription.WorkspaceId == workspaceId &&
+                !subscription.IsDeleted &&
+                subscription.IsActive &&
+                subscription.StartDate <= today &&
+                (!subscription.EndDate.HasValue || subscription.EndDate.Value >= today))
+            .OrderByDescending(subscription => subscription.StartDate)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<Subscription?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _context.Subscriptions
             .Include(subscription => subscription.Profile)
+            .Include(subscription => subscription.Workspace)
             .FirstOrDefaultAsync(subscription => subscription.Id == id && !subscription.IsDeleted, cancellationToken);
     }
 

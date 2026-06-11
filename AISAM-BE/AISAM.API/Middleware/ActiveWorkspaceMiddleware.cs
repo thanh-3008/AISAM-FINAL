@@ -13,7 +13,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/workspace-context"),
         new("/api/workspace-members"),
         new("/api/workspace-invitations"),
-        new("/api/workspace-dashboard")
+        new("/api/workspace-dashboard"),
+        new("/api/payment")
     };
 
     private readonly RequestDelegate _next;
@@ -26,7 +27,9 @@ public sealed class ActiveWorkspaceMiddleware
     public async Task InvokeAsync(HttpContext context, IWorkspaceMemberRepository workspaceMemberRepository)
     {
         if (context.Request.Method == HttpMethods.Post &&
-            context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase))
+            (context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/api/payment/callback", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/api/payment/webhook", StringComparison.OrdinalIgnoreCase)))
         {
             await _next(context);
             return;

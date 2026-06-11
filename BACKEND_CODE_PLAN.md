@@ -4,7 +4,7 @@
 
 Nguon ke hoach chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
-Trang thai: **approved/planned, chua bat dau code**. Phase 8 hien tai van la Profile-based va van duoc giu lam baseline cho den khi migration Workspace hoan tat.
+Trang thai: **implementation in progress**. Phase 9 dang chuyen tung ownership boundary tu Profile sang Workspace; cac module chua migrate van giu Profile-based lam baseline.
 
 Thu tu code tiep theo:
 
@@ -3187,8 +3187,8 @@ Mục tiêu phase:
 | 9.6 | Active Workspace context và `X-Workspace-Id` | DONE | 9.3 |
 | 9.7 | Invitation, role management và Member Limit | DONE | 9.4, 9.6 |
 | 9.8 | Atomic Ownership Transfer | DONE | 9.7 |
-| 9.9 | Chuyển Subscription và Payment sang Workspace | NEXT | 9.4, 9.6 |
-| 9.10 | Credit Wallet, Credit Usage và Maximum Balance | TODO | 9.9 |
+| 9.9 | Chuyển Subscription và Payment sang Workspace | DONE | 9.4, 9.6 |
+| 9.10 | Credit Wallet, Credit Usage và Maximum Balance | NEXT | 9.9 |
 | 9.11 | Credit Pack và `PaymentType` | TODO | 9.10 |
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | TODO | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | TODO | 9.9, 9.12 |
@@ -4098,10 +4098,153 @@ Mục tiêu:
 
 - Checkout, webhook, current subscription và history dùng Workspace.
 
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.10 Credit Wallet, Credit Usage và Maximum Balance.
+```
+
+#### Task 9.9.1 - Schema và repository tương thích Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Thêm ownership Workspace nullable cho `Subscription` và `Payment`.
+- Giữ tương thích tạm thời với dữ liệu và API Profile cũ.
+- Thêm repository query subscription/payment cô lập theo Workspace.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/Payment.cs
+AISAM-BE/AISAM.Data/Model/Subscription.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IPaymentRepository.cs
+AISAM-BE/AISAM.Repositories/IRepositories/ISubscriptionRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/PaymentRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/SubscriptionRepository.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentRepositoryTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/SubscriptionRepositoryTests.cs
+```
+
+Migration:
+
+```text
+20260611092549_AddWorkspacePaymentSubscriptionOwnership
+```
+
+Kết quả:
+
+- `subscriptions.profile_id` chuyển nullable để hỗ trợ giai đoạn chuyển tiếp.
+- Thêm `subscriptions.workspace_id` và `payments.workspace_id` nullable, có index và foreign key.
+- Không backfill dữ liệu cũ trong task này vì chưa có quan hệ Profile -> Workspace đủ tin cậy; backfill thuộc Task 9.17.
+- Payment API, PayOS flow và quota usage hiện vẫn Profile-based; chuyển sang Workspace thuộc Task 9.9.2 và các task ownership sau.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore
+Passed. 193/193 tests passed.
+
+Focused repository/payment/quota tests
+Passed. 21/21 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
+Database is already up to date; migration exists in migration history.
+
+dotnet ef migrations has-pending-model-changes --project AISAM.Repositories --startup-project AISAM.API
+No changes have been made to the model since the last migration.
+```
+
+Commit đề xuất:
+
+```text
+feat(payment): prepare workspace subscription payment ownership
+```
+
+#### Task 9.9.2 - Chuyển payment API và PayOS flow sang Active Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Checkout, callback, webhook, current subscription và history dùng Active Workspace.
+- Giữ validation để payment không thể kích hoạt nhầm Workspace.
+
+Kết quả:
+
+- `POST /api/payment/checkout`, `GET /api/payment/history` và `GET /api/payment/subscription/current` bắt buộc Active Workspace hợp lệ.
+- Checkout tạo `Subscription.WorkspaceId` và `Payment.WorkspaceId`; `Payment.UserId` lưu người thực hiện checkout.
+- Payment history và current subscription được cô lập theo Workspace.
+- `POST /api/payment/callback` và `POST /api/payment/webhook` vẫn anonymous cho PayOS, nhưng bỏ qua Workspace middleware đúng hai route provider này.
+- Các payment route Workspace khác yêu cầu JWT và header `X-Workspace-Id`.
+
+#### Task 9.9.3 - Renewal, Member Limit và regression
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Áp dụng renewal và Member Limit theo plan Workspace.
+- Chạy regression và cập nhật tài liệu hoàn tất Task 9.9.
+
+Kết quả:
+
+- Thanh toán thành công kích hoạt đúng Workspace Subscription.
+- Renewal dùng ngày hết hạn hiện tại làm mốc nếu gói cũ vẫn còn hạn, sau đó cộng thêm 30 ngày.
+- Subscription Workspace cũ được deactivate khi renewal thành công.
+- Webhook lặp lại không cộng thêm thời hạn lần thứ hai.
+- `Workspace.SubscriptionExpiredAt` được đồng bộ theo subscription mới.
+- Với enum plan hiện tại: Business `Plus` đặt Member Limit `10`, Business `Premium` đặt Member Limit `50`; Personal luôn là `1`.
+- Cộng Credits khi renewal chưa áp dụng vì Credit Wallet chưa tồn tại; thuộc Task 9.10.
+- Payment/subscription cũ chưa có `WorkspaceId` chưa xuất hiện trong Workspace history/current cho đến Task 9.17 backfill.
+
+Kiểm tra hoàn tất Task 9.9:
+
+```text
+Focused payment/workspace tests
+Passed. 32/32 tests passed.
+
+dotnet build AISAM-BE/AISAM.sln --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore
+Passed. 198/198 tests passed.
+
+dotnet ef migrations has-pending-model-changes --project AISAM.Repositories --startup-project AISAM.API
+No changes have been made to the model since the last migration.
+
+Runtime smoke:
+GET /swagger/index.html -> 200
+GET /api/payment/history without authentication -> 401
+POST /api/payment/webhook with empty anonymous payload -> 400
+```
+
 Cách test:
 
 - PayOS payment kích hoạt đúng Workspace Subscription.
-- Gia hạn cộng thời gian và Credits theo rule.
+- Gia hạn cộng thời gian; Credits được bổ sung sau khi Task 9.10 tạo Credit Wallet.
 - Payment history cô lập theo Workspace.
 
 Commit đề xuất:
@@ -5440,19 +5583,19 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.8 da hoan thanh; Task 9.9 chuyen Subscription va Payment sang Workspace la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.9 da hoan thanh; Task 9.10 Credit Wallet, Credit Usage va Maximum Balance la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
 
-Ket qua kiem tra gan nhat ngay 2026-06-10:
+Ket qua kiem tra gan nhat ngay 2026-06-11:
 
 ```text
 dotnet build --no-restore
 Build succeeded. 0 warnings, 0 errors.
 
-dotnet test --no-build
-Passed. 190/190 tests passed.
+dotnet test --no-build --no-restore
+Passed. 198/198 tests passed.
 ```
 
 Test files hien tai:

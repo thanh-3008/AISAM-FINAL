@@ -60,6 +60,34 @@ public sealed class PaymentRepository : IPaymentRepository
         };
     }
 
+    public async Task<PagedResult<Payment>> GetPagedByWorkspaceIdAsync(
+        Guid workspaceId,
+        PaginationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query()
+            .Where(payment =>
+                !payment.IsDeleted &&
+                payment.WorkspaceId == workspaceId)
+            .OrderByDescending(payment => payment.CreatedAt);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<Payment>
+        {
+            Data = data,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
     public async Task<Payment> AddAsync(Payment payment, CancellationToken cancellationToken = default)
     {
         payment.CreatedAt = DateTime.UtcNow;
@@ -78,6 +106,7 @@ public sealed class PaymentRepository : IPaymentRepository
     {
         return _context.Payments
             .Include(payment => payment.Subscription)
+            .Include(payment => payment.Workspace)
             .Include(payment => payment.User);
     }
 }

@@ -135,6 +135,11 @@ public class QuotaServiceTests
             return Task.FromResult(_subscription?.ProfileId == profileId ? _subscription : null);
         }
 
+        public Task<Subscription?> GetCurrentActiveByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_subscription?.WorkspaceId == workspaceId ? _subscription : null);
+        }
+
         public Task<Subscription?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_subscription?.Id == id ? _subscription : null);
