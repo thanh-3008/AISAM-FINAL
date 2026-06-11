@@ -137,8 +137,8 @@ export async function logout(): Promise<void> {
     removeRefreshToken();
     removeStoredUser();
     try {
-      const { invalidateProfileCache } = await import("@/hooks/useProfiles");
-      invalidateProfileCache();
+      const { invalidateWorkspaceCache } = await import("@/hooks/useWorkspaces");
+      invalidateWorkspaceCache();
     } catch {
       // ignore
     }

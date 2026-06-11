@@ -1,5 +1,5 @@
 import { getToken, refreshAccessToken } from "./auth";
-import { getStoredActiveProfile } from "@/stores/profile-store";
+import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
@@ -10,10 +10,10 @@ type ApiOptions = RequestInit & {
 
 async function buildHeaders(customHeaders?: Record<string, string>) {
   let token = getToken();
-  const profile = getStoredActiveProfile();
+  const workspace = getStoredActiveWorkspace();
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(profile ? { "X-Profile-Id": profile.id } : {}),
+    ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
     ...(customHeaders || {}),
   };
   return { headers, token };
@@ -31,11 +31,11 @@ async function handleResponse(response: Response) {
 async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<any> {
   const newToken = await refreshAccessToken();
   if (!newToken) throw new Error("Session expired");
-  const profile = getStoredActiveProfile();
+  const workspace = getStoredActiveWorkspace();
   const newHeaders: Record<string, string> = {
     ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
-    ...(profile ? { "X-Profile-Id": profile.id } : {}),
+    ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
   };
   const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
   return handleResponse(retryResponse);

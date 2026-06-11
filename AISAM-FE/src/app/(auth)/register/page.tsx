@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
-import { invalidateProfileCache } from "@/hooks/useProfiles";
+import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 
 export default function RegisterPage() {
@@ -41,7 +41,7 @@ export default function RegisterPage() {
       });
 
       if (result.success) {
-        invalidateProfileCache();
+        invalidateWorkspaceCache();
         if (result.data?.accessToken) {
           setToken(result.data.accessToken);
         }

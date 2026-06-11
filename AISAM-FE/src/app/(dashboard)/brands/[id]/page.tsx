@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { apiClient, apiFetch } from "@/lib/apiClient";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 
 interface Brand {
@@ -157,7 +157,7 @@ const labelClass = "font-label-md text-label-md text-on-surface-variant";
 export default function BrandDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { activeProfile } = useProfiles();
+  const { activeWorkspace } = useWorkspaces();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

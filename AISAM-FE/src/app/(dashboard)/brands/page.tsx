@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/apiClient";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
 import EditBrandModal from "@/components/brands/EditBrandModal";
 
@@ -49,7 +49,7 @@ function getInitials(name: string) {
 
 export default function BrandsPage() {
   const router = useRouter();
-  const { activeProfile } = useProfiles();
+  const { activeWorkspace } = useWorkspaces();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -64,14 +64,14 @@ export default function BrandsPage() {
   }, []);
 
   const fetchBrands = useCallback(async () => {
-    if (!activeProfile) { setLoading(false); setBrands(MOCK_BRANDS); return; }
+    if (!activeWorkspace) { setLoading(false); setBrands(MOCK_BRANDS); return; }
     try {
-      const result = await apiFetch(`/brands?profileId=${activeProfile.id}&pageSize=100`);
+      const result = await apiFetch(`/brands?workspaceId=${activeWorkspace.id}&pageSize=100`);
       if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
       else setBrands(MOCK_BRANDS);
     } catch { setBrands(MOCK_BRANDS); }
     finally { setLoading(false); }
-  }, [activeProfile]);
+  }, [activeWorkspace]);
 
   useEffect(() => { fetchBrands(); }, [fetchBrands]);
 
@@ -330,7 +330,7 @@ export default function BrandsPage() {
           MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
           return next;
         })}
-        profileId={activeProfile?.id || ""}
+        profileId={activeWorkspace?.id || ""}
       />
 
       {editingBrand && (

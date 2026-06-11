@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type WorkspaceDashboard } from "@/services/workspaceService";
 import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 
@@ -61,13 +62,6 @@ function parseCurrency(str: string) {
   return parseFloat(str.replace(/[^0-9.]/g, ""));
 }
 
-const kpiData = [
-  { icon: "insights", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "Total Reach", value: "1.2M", delta: "+12%", deltaUp: true, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
-  { icon: "bolt", iconBg: "from-purple-500/20 to-purple-600/10", iconColor: "text-purple-500", label: "Engagement Rate", value: "4.8%", delta: "+0.5%", deltaUp: true, gradient: "from-purple-500/5 to-transparent", accent: "#a855f7" },
-  { icon: "layers", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Active Campaigns", value: "12", delta: "Steady", deltaUp: null, gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
-  { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: "850", max: "1000", pct: 85, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
-];
-
 function formatScheduleDate(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -101,10 +95,13 @@ const aiSuggestions = [
 ];
 
 export default function DashboardPage() {
-  const { activeProfile } = useProfiles();
-  const profileName = activeProfile?.name || "User";
+  const { activeWorkspace } = useWorkspaces();
+  const workspaceName = activeWorkspace?.name || "User";
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
+  const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
@@ -120,6 +117,12 @@ export default function DashboardPage() {
     const unsubscribe = onScheduleChange(loadSchedules);
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
+    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
+    fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
+  }, [activeWorkspace?.id]);
 
   return (
     <>
@@ -209,7 +212,7 @@ export default function DashboardPage() {
                     if (h < 12) return "Good morning";
                     if (h < 18) return "Good afternoon";
                     return "Good evening";
-                  })()}, <span className="text-primary">{profileName}</span>!
+                  })()}, <span className="text-primary">{workspaceName}</span>!
                 </h2>
                 <p className="text-body-lg text-on-surface-variant max-w-xl mb-6">Here&apos;s your brand performance snapshot. Everything you need is right here.</p>
 
@@ -241,12 +244,12 @@ export default function DashboardPage() {
               <div className="hidden lg:flex flex-col items-center gap-3 shrink-0">
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-outline-variant/30 flex items-center justify-center shadow-sm">
                   <span className="text-[28px] font-bold text-primary">
-                    {profileName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                    {workspaceName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                   </span>
                 </div>
                 <div className="text-center">
-                  <p className="text-body-sm text-on-surface font-semibold">{profileName}</p>
-                  <p className="text-label-sm text-outline">Active Profile</p>
+                  <p className="text-body-sm text-on-surface font-semibold">{workspaceName}</p>
+                  <p className="text-label-sm text-outline">{activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace"}</p>
                 </div>
               </div>
             </div>
@@ -255,7 +258,12 @@ export default function DashboardPage() {
 
         {/* ===== KPI GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
-          {kpiData.map((kpi, i) => (
+          {[
+            { icon: "insights", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "Total Reach", value: "1.2M", delta: "+12%", deltaUp: true, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
+            { icon: "bolt", iconBg: "from-purple-500/20 to-purple-600/10", iconColor: "text-purple-500", label: "Engagement Rate", value: "4.8%", delta: "+0.5%", deltaUp: true, gradient: "from-purple-500/5 to-transparent", accent: "#a855f7" },
+            { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 850), max: "15000", pct: Math.min(100, Math.round(((creditBalance ?? 850) / 15000) * 100)), gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
+            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? 0), max: String(postQuota?.total ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
+          ].map((kpi, i) => (
             <div
               key={kpi.label}
               className={`relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden group ${visible ? "animate-fade-up" : ""} card-hover`}
@@ -287,7 +295,7 @@ export default function DashboardPage() {
                   </h3>
                   {kpi.max && <span className="text-label-md text-outline">/ {kpi.max}</span>}
                 </div>
-                {kpi.pct && (
+                {kpi.pct !== undefined && (
                   <div className="mt-3">
                     <AnimatedBar value={kpi.pct} color="bg-gradient-to-r from-emerald-400 to-emerald-500" delay={800 + i * 100} />
                   </div>

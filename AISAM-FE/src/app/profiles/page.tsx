@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import { useProfiles, getProfileTypeLabel, Profile } from "@/hooks/useProfiles";
+import { useWorkspaces, getWorkspaceTypeLabel, WorkspaceData } from "@/hooks/useWorkspaces";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function getInitials(name: string) {
@@ -30,38 +30,38 @@ const item = {
 
 export default function ProfilesListPage() {
   const router = useRouter();
-  const { profiles, loading, error, activeProfile, selectProfile, refetch } = useProfiles();
+  const { workspaces, loading, error, activeWorkspace, selectWorkspace, refetch } = useWorkspaces();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<number | "all">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const reduceMotion = useReducedMotion();
 
   const filtered = useMemo(() => {
-    let list = profiles;
+    let list = workspaces;
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.companyName && p.companyName.toLowerCase().includes(q)) ||
-        getProfileTypeLabel(p.profileType).toLowerCase().includes(q)
+      list = list.filter(w =>
+        w.name.toLowerCase().includes(q) ||
+        (w.companyName && w.companyName.toLowerCase().includes(q)) ||
+        getWorkspaceTypeLabel(w.workspaceType).toLowerCase().includes(q)
       );
     }
     if (filterStatus !== "all") {
-      list = list.filter(p => p.status === filterStatus);
+      list = list.filter(w => w.status === filterStatus);
     }
     return list;
-  }, [search, filterStatus, profiles]);
+  }, [search, filterStatus, workspaces]);
 
   const stats = useMemo(() => ({
-    total: profiles.length,
-    active: profiles.filter(p => p.status === 1).length,
-    free: profiles.filter(p => p.profileType === 0).length,
-    basic: profiles.filter(p => p.profileType === 1).length,
-    pro: profiles.filter(p => p.profileType === 2).length,
-  }), [profiles]);
+    total: workspaces.length,
+    active: workspaces.filter(w => w.status === 1).length,
+    free: workspaces.filter(w => w.workspaceType === 0).length,
+    basic: workspaces.filter(w => w.workspaceType === 1).length,
+    pro: workspaces.filter(w => w.workspaceType === 2).length,
+  }), [workspaces]);
 
-  const handleSelect = (profile: Profile) => {
-    selectProfile(profile);
+  const handleSelect = (workspace: WorkspaceData) => {
+    selectWorkspace(workspace);
     router.push("/dashboard");
   };
 
@@ -78,9 +78,9 @@ export default function ProfilesListPage() {
               className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
             >
               <div>
-                <h1 className="text-3xl font-bold text-on-surface tracking-tight">Profiles</h1>
+                <h1 className="text-3xl font-bold text-on-surface tracking-tight">Workspaces</h1>
                 <p className="text-body-sm text-on-surface-variant mt-1.5">
-                  Manage your business profiles across AISAM
+                  Manage your workspaces across AISAM
                 </p>
               </div>
               <motion.button
@@ -89,12 +89,12 @@ export default function ProfilesListPage() {
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 shrink-0"
               >
                 <span className="material-symbols-outlined text-[18px]">add</span>
-                Create Profile
+                Create Workspace
               </motion.button>
             </motion.div>
 
             {/* Stats row */}
-            {!loading && !error && profiles.length > 0 && (
+            {!loading && !error && workspaces.length > 0 && (
               <motion.div
                 variants={reduceMotion ? undefined : container}
                 initial={reduceMotion ? undefined : "hidden"}
@@ -210,7 +210,7 @@ export default function ProfilesListPage() {
                 <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-red-50 flex items-center justify-center">
                   <span className="material-symbols-outlined text-red-500 text-3xl">error_outline</span>
                 </div>
-                <p className="text-body-md text-red-600 font-semibold mb-1">Failed to load profiles</p>
+                <p className="text-body-md text-red-600 font-semibold mb-1">Failed to load workspaces</p>
                 <p className="text-body-sm text-outline mb-5">{error}</p>
                 <motion.button
                   whileTap={reduceMotion ? undefined : { scale: 0.97 }}
@@ -235,12 +235,12 @@ export default function ProfilesListPage() {
                   )}
                 </div>
                 <h3 className="text-body-lg text-on-surface font-semibold mb-2">
-                  {search || filterStatus !== "all" ? "No matching profiles" : "No profiles yet"}
+                  {search || filterStatus !== "all" ? "No matching workspaces" : "No workspaces yet"}
                 </h3>
                 <p className="text-body-sm text-outline mb-6 max-w-md mx-auto">
                   {search || filterStatus !== "all"
                     ? "Try different search terms or filters."
-                    : "Create your first business profile to start managing your content across AISAM."
+                    : "Create your first workspace to start managing your content across AISAM."
                   }
                 </p>
                 {!search && filterStatus === "all" && (
@@ -250,14 +250,14 @@ export default function ProfilesListPage() {
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
                   >
                     <span className="material-symbols-outlined text-[18px]">add</span>
-                    Create Profile
+                    Create Workspace
                   </motion.button>
                 )}
               </motion.div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-label-sm text-outline">{filtered.length} profile{filtered.length !== 1 ? "s" : ""}</p>
+                  <p className="text-label-sm text-outline">{filtered.length} workspace{filtered.length !== 1 ? "s" : ""}</p>
                 </div>
                 <motion.div
                   variants={reduceMotion ? undefined : container}
@@ -266,12 +266,12 @@ export default function ProfilesListPage() {
                   key={`${filterStatus}-${search}`}
                   className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
                 >
-                  {filtered.map((p) => {
-                    const isActive = activeProfile?.id === p.id;
-                    const statusInfo = statusConfig[p.status] || statusConfig[0];
+                  {filtered.map((w) => {
+                    const isActive = activeWorkspace?.id === w.id;
+                    const statusInfo = statusConfig[w.status] || statusConfig[0];
                     return (
                       <motion.div
-                        key={p.id}
+                        key={w.id}
                         variants={reduceMotion ? undefined : item}
                         whileHover={reduceMotion ? undefined : { y: -2 }}
                         className={`group bg-surface-container-lowest border rounded-2xl p-5 flex flex-col transition-shadow ${
@@ -286,43 +286,43 @@ export default function ProfilesListPage() {
                               ? "bg-primary text-on-primary shadow-sm shadow-primary/20"
                               : "bg-gradient-to-br from-primary/10 to-primary/5 text-primary"
                           }`}>
-                            {getInitials(p.name)}
+                            {getInitials(w.name)}
                           </div>
                           <div className="flex-1 min-w-0 pt-0.5">
                             <div className="flex items-center gap-2">
-                              <h3 className="text-body-md font-semibold text-on-surface truncate">{p.name}</h3>
+                              <h3 className="text-body-md font-semibold text-on-surface truncate">{w.name}</h3>
                               {isActive && (
-                                <span className="shrink-0 w-2 h-2 rounded-full bg-primary animate-pulse" title="Active profile" />
+                                <span className="shrink-0 w-2 h-2 rounded-full bg-primary animate-pulse" title="Active workspace" />
                               )}
                             </div>
-                            <p className="text-label-sm text-on-surface-variant font-medium">{getProfileTypeLabel(p.profileType)}</p>
+                            <p className="text-label-sm text-on-surface-variant font-medium">{getWorkspaceTypeLabel(w.workspaceType)}</p>
                           </div>
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium shrink-0 border ${statusInfo.class}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${p.status === 1 ? "animate-pulse" : ""}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${w.status === 1 ? "animate-pulse" : ""}`} />
                             {statusInfo.label}
                           </span>
                         </div>
 
                         <div className="space-y-1.5 mb-4 flex-1">
-                          {p.companyName && (
+                          {w.companyName && (
                             <p className="text-label-sm text-outline flex items-center gap-1.5">
                               <span className="material-symbols-outlined text-[14px]">business</span>
-                              {p.companyName}
+                              {w.companyName}
                             </p>
                           )}
-                          {p.bio && (
-                            <p className="text-label-sm text-outline line-clamp-2 leading-relaxed">{p.bio}</p>
+                          {w.bio && (
+                            <p className="text-label-sm text-outline line-clamp-2 leading-relaxed">{w.bio}</p>
                           )}
                           <p className="text-label-sm text-outline flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-[14px]">calendar_today</span>
-                            Created {new Date(p.createdAt).toLocaleDateString()}
+                            Created {new Date(w.createdAt).toLocaleDateString()}
                           </p>
                         </div>
 
                         <div className="flex gap-2 pt-3 border-t border-outline-variant/10">
                           <motion.button
                             whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                            onClick={() => handleSelect(p)}
+                            onClick={() => handleSelect(w)}
                             className={`flex-1 px-3.5 py-2 rounded-xl text-label-sm font-semibold transition-all ${
                               isActive
                                 ? "bg-primary text-on-primary shadow-sm shadow-primary/20 hover:bg-primary/90"
@@ -332,12 +332,12 @@ export default function ProfilesListPage() {
                             {isActive ? "Dashboard" : "Select"}
                           </motion.button>
                           <Link
-                            href={`/profiles/${p.id}`}
+                            href={`/profiles/${w.id}`}
                             className="px-3.5 py-2 rounded-xl text-label-sm font-medium border border-outline-variant/30 text-on-surface hover:bg-surface-container hover:border-outline-variant/50 transition-colors inline-flex items-center gap-1"
                           >
                             <span className="material-symbols-outlined text-[16px]">settings</span>
                           </Link>
-                          {p.isOwner && (
+                          {w.isOwner && (
                             <div className="px-2 py-2 rounded-xl text-amber-600 bg-amber-50 flex items-center border border-amber-200/30" title="Owner">
                               <span className="material-symbols-outlined text-[16px]">star</span>
                             </div>

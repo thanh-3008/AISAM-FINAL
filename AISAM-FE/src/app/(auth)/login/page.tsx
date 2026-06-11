@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
-import { invalidateProfileCache } from "@/hooks/useProfiles";
+import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 
 declare global {
@@ -44,7 +44,7 @@ export default function LoginPage() {
     try {
       const result = await apiClient("/auth/google", { data: { idToken: credential } });
       if (result.success && result.data?.accessToken) {
-        invalidateProfileCache();
+        invalidateWorkspaceCache();
         setToken(result.data.accessToken);
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
         if (result.data.user) setStoredUser(result.data.user);
@@ -92,7 +92,7 @@ export default function LoginPage() {
       });
 
       if (result.success && result.data?.accessToken) {
-        invalidateProfileCache();
+        invalidateWorkspaceCache();
         setToken(result.data.accessToken);
 
         if (result.data.refreshToken) {

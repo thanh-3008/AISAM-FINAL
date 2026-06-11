@@ -6,6 +6,8 @@ import Header from "@/components/layout/Header";
 import { createContent, generateAIDraft, chatWithAI, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, BRANDS, PRODUCTS, BRAND_COLORS, PlatformIcon } from "@/lib/contentConstants";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { fetchCreditWallet } from "@/services/workspaceService";
 
 interface ChatMessage {
   id: string;
@@ -45,6 +47,9 @@ const AUTO_HASHTAGS: Record<string, string[]> = {
 export default function AIGeneratePage() {
   const router = useRouter();
   const { addToast } = useToast();
+  const { activeWorkspace } = useWorkspaces();
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [insufficientCredits, setInsufficientCredits] = useState(false);
 
   const [brandName, setBrandName] = useState(BRANDS[0]);
   const [productName, setProductName] = useState("");
@@ -70,7 +75,17 @@ export default function AIGeneratePage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
+  }, [activeWorkspace?.id]);
+
   const simulateAIResponse = async (userPrompt: string) => {
+    if (creditBalance !== null && creditBalance <= 0) {
+      setInsufficientCredits(true);
+      addToast("Insufficient AI Credits. Please purchase more credits.");
+      return;
+    }
+    setInsufficientCredits(false);
     setIsGenerating(true);
 
     const aiReply = await chatWithAI(userPrompt, messages.map(m => ({ role: m.role, text: m.text })));
@@ -294,6 +309,20 @@ export default function AIGeneratePage() {
                   {availableProducts.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
+              {creditBalance !== null && (
+                <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${
+                  creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"
+                }`}>
+                  <span className="material-symbols-outlined text-[14px]">token</span>
+                  {creditBalance} Credits
+                </span>
+              )}
+              {insufficientCredits && (
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-danger-red/10 text-danger-red text-label-xs font-semibold">
+                  <span className="material-symbols-outlined text-[12px]">error</span>
+                  Insufficient Credits
+                </span>
+              )}
               {justGenerated && generatedId && (
                 <button onClick={() => router.push(`/content/${generatedId}`)}
                   className="ml-auto px-3 py-1.5 rounded-lg bg-success-green text-white text-label-xs font-semibold hover:bg-success-green/90 transition-all active:scale-[0.97] flex items-center gap-1">

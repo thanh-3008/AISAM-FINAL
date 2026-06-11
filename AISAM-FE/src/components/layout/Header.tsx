@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useProfiles, getProfileTypeLabel } from "@/hooks/useProfiles";
+import { useRouter } from "next/navigation";
+import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { getUserFromToken, logout } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
@@ -11,6 +12,7 @@ import {
   markAllNotificationsRead,
   type NotificationListItem,
 } from "@/services/notificationService";
+import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 interface HeaderProps {
   title?: string;
@@ -73,18 +75,22 @@ function TimeAgo({ dateStr }: { dateStr: string }) {
 }
 
 export default function Header({ breadcrumbs }: HeaderProps) {
+  const router = useRouter();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifs, setRecentNotifs] = useState<NotificationListItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
-  const { activeProfile } = useProfiles();
+  const [wsOpen, setWsOpen] = useState(false);
+  const { workspaces, activeWorkspace, selectWorkspace } = useWorkspaces();
   const { toggle } = useSidebar();
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("darkMode") === "true";
@@ -145,6 +151,9 @@ export default function Header({ breadcrumbs }: HeaderProps) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (wsRef.current && !wsRef.current.contains(e.target as Node)) {
+        setWsOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -156,9 +165,9 @@ export default function Header({ breadcrumbs }: HeaderProps) {
     window.location.href = "/login";
   };
 
-  const displayName = user?.name || activeProfile?.name || "User";
+  const displayName = user?.name || activeWorkspace?.name || "User";
   const initials = getInitials(displayName);
-  const displayPlan = activeProfile ? getProfileTypeLabel(activeProfile.profileType) : "Enterprise Plan";
+  const displayPlan = activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace";
 
   return (
     <header className="h-16 bg-surface-gray border-b border-outline-variant/30 flex justify-between items-center px-gutter z-40 sticky top-0">
@@ -167,6 +176,66 @@ export default function Header({ breadcrumbs }: HeaderProps) {
         <button onClick={toggle} className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center transition-all shrink-0 active:scale-95" title="Toggle sidebar">
           <span className="material-symbols-outlined text-on-surface-variant text-[20px]">menu</span>
         </button>
+
+        {/* Workspace Selector */}
+        <div className="relative" ref={wsRef}>
+          <button
+            onClick={() => setWsOpen(!wsOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 transition-all group"
+          >
+            <span className="material-symbols-outlined text-[18px] text-primary">workspaces</span>
+            <span className="text-label-sm font-semibold text-on-surface truncate max-w-[120px]">
+              {activeWorkspace?.name || "Select Workspace"}
+            </span>
+            <span className={`material-symbols-outlined text-[16px] text-outline transition-transform ${wsOpen ? "rotate-180" : ""}`}>unfold_more</span>
+          </button>
+          {wsOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setWsOpen(false)} />
+              <div className="absolute left-0 top-full mt-1.5 w-56 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-lg z-50 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                {workspaces.length === 0 ? (
+                  <div className="px-4 py-3 text-center">
+                    <p className="text-label-sm text-on-surface-variant mb-2">No workspaces yet</p>
+                    <button
+                      onClick={() => { setWsOpen(false); setShowCreateModal(true); }}
+                      className="text-label-sm text-primary font-semibold hover:text-primary/80"
+                    >
+                      Create workspace
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {workspaces.map((w) => {
+                      const active = activeWorkspace?.id === w.id;
+                      return (
+                        <button
+                          key={w.id}
+                          onClick={() => { selectWorkspace(w); setWsOpen(false); }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-body-sm transition-colors text-left ${
+                            active ? "bg-primary/5 text-primary font-semibold" : "text-on-surface hover:bg-surface-container"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">workspaces</span>
+                          <span className="flex-1 truncate">{w.name}</span>
+                          {active && <span className="material-symbols-outlined text-[14px]">check</span>}
+                        </button>
+                      );
+                    })}
+                    <div className="border-t border-outline-variant/10 mt-1 pt-1 mx-3">
+                      <button
+                        onClick={() => { setWsOpen(false); setShowCreateModal(true); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-surface-container transition-all duration-150 text-primary text-body-sm font-medium"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                        Create New Workspace
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Breadcrumbs / Search */}
         {breadcrumbs && breadcrumbs.length > 0 ? (
@@ -274,7 +343,10 @@ export default function Header({ breadcrumbs }: HeaderProps) {
         </div>
 
         {/* Settings */}
-        <button className="hover:bg-surface-container rounded-full p-2 transition-all relative group">
+        <button 
+          onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles")}
+          className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
+        >
           <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:rotate-90 transition-transform duration-300" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
         </button>
 
@@ -308,20 +380,12 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                 </div>
                 <div className="pt-1">
                   <Link
-                    href={activeProfile ? `/profiles/${activeProfile.id}` : "/profiles"}
+                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles"}
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
                   >
                     <span className="material-symbols-outlined text-[18px] text-outline/60">account_circle</span>
-                    My Profile
-                  </Link>
-                  <Link
-                    href="/settings"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[18px] text-outline/60" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
-                    Settings
+                    Workspace Settings
                   </Link>
                   <button
                     onClick={() => setDarkMode(!darkMode)}
@@ -345,6 +409,8 @@ export default function Header({ breadcrumbs }: HeaderProps) {
           )}
         </div>
       </div>
+
+      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </header>
   );
 }

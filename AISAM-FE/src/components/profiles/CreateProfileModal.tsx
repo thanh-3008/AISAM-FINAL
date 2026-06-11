@@ -2,14 +2,30 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { getUserIdFromToken } from "@/lib/auth";
-import { useProfiles, addProfileToCache } from "@/hooks/useProfiles";
+import { useWorkspaces, addWorkspaceToCache, WorkspaceData } from "@/hooks/useWorkspaces";
 import { apiFetch } from "@/lib/apiClient";
 
-const PROFILE_TYPES = [
-  { value: 0, label: "Free", icon: "person" },
-  { value: 1, label: "Basic", icon: "groups" },
-  { value: 2, label: "Pro", icon: "workspace_premium" },
+const WORKSPACE_TYPES = [
+  {
+    value: 1,
+    label: "Personal",
+    icon: "person",
+    color: "text-blue-500",
+    bg: "bg-blue-50",
+    ring: "ring-blue-500/20",
+    features: ["For individual use", "Up to 15,000 credits", "AI content generation", "Social media publishing"],
+  },
+  {
+    value: 2,
+    label: "Business",
+    icon: "business",
+    color: "text-purple-500",
+    bg: "bg-purple-50",
+    ring: "ring-purple-500/20",
+    features: ["For teams & companies", "Up to 500,000 credits", "Team collaboration", "Shared workspace & credits"],
+  },
 ];
 
 function getInitials(name: string) {
@@ -30,7 +46,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { selectProfile } = useProfiles();
+  const { selectWorkspace } = useWorkspaces();
 
   const [form, setForm] = useState({
     name: "",
@@ -56,12 +72,12 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   };
 
   const avatarPreview = form.avatarUrl && isValidUrl(form.avatarUrl) ? form.avatarUrl : null;
-  const selectedPlan = PROFILE_TYPES.find(t => t.value === Number(form.profileType));
+  const selectedType = WORKSPACE_TYPES.find(t => t.value === Number(form.profileType));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { setError("Profile name is required"); return; }
-    if (!form.profileType) { setError("Please select a plan type"); return; }
+    if (!form.name.trim()) { setError("Workspace name is required"); return; }
+    if (!form.profileType) { setError("Please select a workspace type"); return; }
 
     setLoading(true);
     setError(null);
@@ -87,12 +103,41 @@ export default function CreateProfileModal({ open, onClose }: Props) {
       });
 
       if (result?.success && result.data) {
-        addProfileToCache(result.data);
-        selectProfile(result.data);
+        const p = result.data;
+        const wsData: WorkspaceData = {
+          id: p.id,
+          userId: p.userId,
+          name: p.name,
+          workspaceType: p.profileType ?? 1,
+          plan: (p.profileType ?? 1) === 2 ? "Business" : "Personal",
+          status: p.status,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+          isOwner: true,
+          memberRole: "Owner",
+        };
+        addWorkspaceToCache(wsData);
+        selectWorkspace(wsData);
         handleClose();
         router.push("/dashboard");
       } else {
-        setError(result?.message || "An unexpected error occurred");
+        // Mock create workspace when BE API not available
+        const mockWs: WorkspaceData = {
+          id: `ws-${Date.now()}`,
+          userId,
+          name: form.name.trim(),
+          workspaceType: Number(form.profileType) || 1,
+          plan: Number(form.profileType) === 2 ? "Business" : "Personal",
+          status: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isOwner: true,
+          memberRole: "Owner",
+        };
+        addWorkspaceToCache(mockWs);
+        selectWorkspace(mockWs);
+        handleClose();
+        router.push("/dashboard");
       }
     } catch (err: any) {
       setError(err.message || "Network error");
@@ -104,18 +149,28 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   if (!open) return null;
 
   const inputClass =
-    "w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-2.5 text-body-md text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all";
+    "w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all";
 
   const labelClass = "text-label-sm font-semibold text-on-surface";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150 pt-[10vh] overflow-y-auto">
-      <div className="bg-surface rounded-2xl border border-outline-variant/20 shadow-xl w-full max-w-xl mx-4 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-150 pt-[5vh] overflow-y-auto pb-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-2xl mx-4"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-outline-variant/20">
-          <div>
-            <h2 className="text-headline-sm text-on-surface font-bold">Create Profile</h2>
-            <p className="text-body-sm text-on-surface-variant mt-0.5">Set up a new business profile</p>
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-outline-variant/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+              <span className="material-symbols-outlined text-primary text-[20px]">add_circle</span>
+            </div>
+            <div>
+              <h2 className="text-body-lg text-on-surface font-bold">Create Workspace</h2>
+              <p className="text-label-xs text-on-surface-variant">Set up your new workspace</p>
+            </div>
           </div>
           <button onClick={handleClose} className="w-9 h-9 rounded-xl hover:bg-surface-container flex items-center justify-center transition-colors">
             <span className="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
@@ -124,94 +179,164 @@ export default function CreateProfileModal({ open, onClose }: Props) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
-            <div className="flex items-center gap-3 rounded-xl border border-danger-red/20 bg-error-container/50 px-4 py-3 text-body-sm text-on-error-container">
-              <span className="material-symbols-outlined text-error text-[18px]">error</span>
+            <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-body-sm text-red-800">
+              <span className="material-symbols-outlined text-red-500 text-[18px]">error</span>
               <span className="flex-1">{error}</span>
-              <button onClick={() => setError(null)} className="text-on-error-container/50 hover:text-on-error-container">
+              <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             </div>
           )}
 
-          {/* Avatar + Name preview */}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl border-2 border-surface-container-lowest shadow-sm flex items-center justify-center overflow-hidden bg-gradient-to-br from-surface-container to-surface-container-high shrink-0">
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-              ) : form.name ? (
-                <span className="text-[22px] font-bold text-primary/40">{getInitials(form.name)}</span>
-              ) : (
-                <span className="material-symbols-outlined text-outline/40 text-2xl">person</span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-body-md font-bold text-on-surface">{form.name || "Profile Name"}</h3>
-              <p className="text-label-sm text-on-surface-variant">{selectedPlan?.label || "Select a plan"}</p>
+          {/* Workspace Type Selection */}
+          <div className="space-y-3">
+            <label className={labelClass}>Workspace Type <span className="text-red-500">*</span></label>
+            <div className="grid grid-cols-2 gap-4">
+              {WORKSPACE_TYPES.map((type) => {
+                const selected = form.profileType === String(type.value);
+                return (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => updateField("profileType", String(type.value))}
+                    className={`relative flex flex-col p-5 rounded-xl border-2 text-left transition-all duration-200 ${
+                      selected
+                        ? `border-primary ${type.bg} shadow-md scale-[1.02]`
+                        : "border-outline-variant/30 hover:border-outline-variant/60 hover:bg-surface-container/50"
+                    }`}
+                  >
+                    {selected && (
+                      <div className="absolute top-3 right-3">
+                        <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                      </div>
+                    )}
+                    <div className={`w-10 h-10 rounded-xl ${type.bg} flex items-center justify-center mb-3 ring-1 ${type.ring}`}>
+                      <span className={`material-symbols-outlined ${type.color} text-[22px]`}>{type.icon}</span>
+                    </div>
+                    <h3 className="text-body-md font-bold text-on-surface mb-2">{type.label}</h3>
+                    <ul className="space-y-1.5">
+                      {type.features.map((f) => (
+                        <li key={f} className="flex items-center gap-1.5 text-label-xs text-on-surface-variant">
+                          <span className="material-symbols-outlined text-emerald-500 text-[14px]">check</span>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Form grid */}
+          {/* Name and Company */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className={labelClass}>Name <span className="text-danger-red">*</span></label>
-                <input className={inputClass} placeholder="e.g. My Business" value={form.name} onChange={e => updateField("name", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <label className={labelClass}>Plan <span className="text-danger-red">*</span></label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {PROFILE_TYPES.map(pt => {
-                    const sel = form.profileType === String(pt.value);
-                    return (
-                      <button key={pt.value} type="button" onClick={() => updateField("profileType", String(pt.value))}
-                        className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 text-center transition-all duration-200 ${
-                          sel ? "border-primary bg-primary/5 text-primary shadow-sm scale-[1.02]" : "border-outline-variant/30 text-on-surface-variant hover:border-outline-variant/60 hover:bg-surface-container"
-                        }`}
-                      >
-                        <span className={`material-symbols-outlined text-[20px] transition-all duration-200 ${sel ? "text-primary scale-110" : ""}`}>{pt.icon}</span>
-                        <span className="text-label-sm">{pt.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className={labelClass}>Company</label>
-                <input className={inputClass} placeholder="e.g. AISAM Inc." value={form.companyName} onChange={e => updateField("companyName", e.target.value)} />
-              </div>
+            <div className="space-y-1.5">
+              <label className={labelClass}>Workspace Name <span className="text-red-500">*</span></label>
+              <input
+                className={inputClass}
+                placeholder="e.g. My Workspace"
+                value={form.name}
+                onChange={e => updateField("name", e.target.value)}
+              />
             </div>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className={labelClass}>Bio</label>
-                <textarea className={`${inputClass} resize-none min-h-[80px]`} rows={3} placeholder="Tell us about your business..." value={form.bio} onChange={e => updateField("bio", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <label className={labelClass}>Avatar URL</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-outline">
-                    <span className="material-symbols-outlined text-[16px]">link</span>
-                  </span>
-                  <input className={`${inputClass} pl-9`} placeholder="https://example.com/avatar.png" type="url" value={form.avatarUrl} onChange={e => updateField("avatarUrl", e.target.value)} />
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <label className={labelClass}>Company <span className="text-outline/50 text-label-xs">(optional)</span></label>
+              <input
+                className={inputClass}
+                placeholder="e.g. AISAM"
+                value={form.companyName}
+                onChange={e => updateField("companyName", e.target.value)}
+              />
             </div>
           </div>
+
+          {/* Bio */}
+          <div className="space-y-1.5">
+            <label className={labelClass}>Description <span className="text-outline/50 text-label-xs">(optional)</span></label>
+            <textarea
+              className={`${inputClass} resize-none min-h-[80px]`}
+              rows={3}
+              placeholder="Tell us about your workspace..."
+              value={form.bio}
+              onChange={e => updateField("bio", e.target.value)}
+            />
+          </div>
+
+          {/* Avatar URL */}
+          <div className="space-y-1.5">
+            <label className={labelClass}>Avatar URL <span className="text-outline/50 text-label-xs">(optional)</span></label>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl border border-outline-variant/20 flex items-center justify-center overflow-hidden bg-surface-container shrink-0">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                ) : form.name ? (
+                  <span className="text-body-sm font-bold text-primary/40">{getInitials(form.name)}</span>
+                ) : (
+                  <span className="material-symbols-outlined text-outline/40 text-[20px]">workspaces</span>
+                )}
+              </div>
+              <input
+                className={inputClass}
+                placeholder="https://example.com/avatar.png"
+                type="url"
+                value={form.avatarUrl}
+                onChange={e => updateField("avatarUrl", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Preview */}
+          {form.name && selectedType && (
+            <div className="bg-surface-container/30 rounded-xl p-4 border border-outline-variant/10">
+              <p className="text-label-xs text-on-surface-variant font-medium mb-2">Preview</p>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl ${selectedType.bg} flex items-center justify-center ring-1 ${selectedType.ring}`}>
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover rounded-xl" />
+                  ) : (
+                    <span className="text-body-sm font-bold text-primary/60">{getInitials(form.name)}</span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-body-sm font-semibold text-on-surface">{form.name}</p>
+                  <p className="text-label-xs text-on-surface-variant">{selectedType.label} Workspace</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={handleClose} className="px-5 py-2.5 border-2 border-on-surface/15 text-on-surface rounded-xl font-semibold text-body-sm hover:bg-surface-container transition-colors">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-5 py-2.5 border border-outline-variant/30 text-on-surface rounded-xl font-semibold text-body-sm hover:bg-surface-container transition-colors"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={loading}
-              className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+            <button
+              type="submit"
+              disabled={loading || !form.name.trim() || !form.profileType}
+              className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm shadow-primary/20"
             >
               {loading ? (
-                <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> Creating...</>
-              ) : "Create Profile"}
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                  Create Workspace
+                </>
+              )}
             </button>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

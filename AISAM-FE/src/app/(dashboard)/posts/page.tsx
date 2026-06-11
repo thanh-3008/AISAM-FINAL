@@ -7,6 +7,8 @@ import Filters from "@/components/posts/Filters";
 import PostTable from "@/components/posts/PostTable";
 import PostDetailModal from "@/components/posts/PostDetailModal";
 import { fetchPosts, createPost, updatePost, deletePost, retryPost, type PostItem, type PostStatus, type PostPlatform } from "@/services/postService";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { fetchPostQuota } from "@/services/workspaceService";
 
 const PAGE_SIZE = 10;
 
@@ -27,11 +29,13 @@ const DEFAULT_FILTERS = {
 };
 
 export default function PostsPage() {
+  const { activeWorkspace } = useWorkspaces();
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [sortKey, setSortKey] = useState<SortKey>("publishedAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -98,7 +102,8 @@ export default function PostsPage() {
       setAllPostsForStats(res.data);
     };
     loadAll();
-  }, []);
+    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
+  }, [activeWorkspace?.id]);
 
   // Filter handlers
   const handleFilterChange = useCallback((partial: Partial<typeof filters>) => {
@@ -247,6 +252,11 @@ export default function PostsPage() {
               <div>
                 <h1 className="text-headline-sm font-bold text-on-surface">Social Posts</h1>
                 <p className="text-[11px] text-outline">{totalCount} total · {allPostsForStats.filter(p => p.status === "Published").length} live</p>
+                {postQuota && (
+                  <p className="text-[11px] text-outline/60 mt-0.5">
+                    Post Quota: {postQuota.used} / {postQuota.total} used
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">

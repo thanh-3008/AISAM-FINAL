@@ -50,13 +50,13 @@ src/
 │   ├── (dashboard)/             # Dashboard routes (require login)
 │   │   ├── layout.tsx           # Dashboard layout (Sidebar + Header)
 │   │   ├── dashboard/
-│   │   │   └── page.tsx         # Main Dashboard Overview
+│   │   │   └── page.tsx         # Main Dashboard Overview (with Credit Balance & Post Quota)
 │   │   ├── analytics/
 │   │   │   └── page.tsx         # Analytics & Performance Reports
 │   │   ├── approvals/
 │   │   │   └── page.tsx         # Content Approvals
 │   │   ├── brands/
-│   │   │   ├── page.tsx         # Brands Listing
+│   │   │   ├── page.tsx         # Brands Listing (workspace-scoped)
 │   │   │   └── [id]/
 │   │   │       └── page.tsx     # Brand Detail (Products, Campaigns, Settings)
 │   │   ├── calendar/
@@ -70,25 +70,25 @@ src/
 │   │   │   ├── create/
 │   │   │   │   └── page.tsx     # Create Content
 │   │   │   ├── ai-generate/
-│   │   │   │   └── page.tsx     # AI Content Generator
+│   │   │   │   └── page.tsx     # AI Content Generator (with Credit check)
 │   │   │   └── [id]/
 │   │   │       └── page.tsx     # Content Detail
 │   │   ├── posts/
-│   │   │   └── page.tsx         # Published Posts
+│   │   │   └── page.tsx         # Published Posts (with Post Quota display)
 │   │   ├── social/
 │   │   │   └── page.tsx         # Social Accounts
 │   │   └── team/
 │   │       └── page.tsx         # Team Management
 │   │
 │   ├── overview/
-│   │   └── page.tsx             # Overview / Profile selector
+│   │   └── page.tsx             # Workspace selector (Personal auto-create / Business modal)
 │   │
 │   └── profiles/
-│       ├── page.tsx             # Profiles listing
+│       ├── page.tsx             # Workspaces listing
 │       ├── new/
-│       │   └── page.tsx         # Create Profile
+│       │   └── page.tsx         # Create Workspace
 │       └── [id]/
-│           └── page.tsx         # Profile Detail (Settings, Team, Billing...)
+│           └── page.tsx         # Workspace Detail (Settings, Team, Billing, Credit Pack...)
 │
 ├── components/
 │   ├── brands/
@@ -106,10 +106,11 @@ src/
 │   │   ├── EditCampaignModal.tsx
 │   │   └── campaignUtils.ts
 │   ├── layout/
-│   │   ├── Header.tsx           # Dashboard Header
-│   │   └── Sidebar.tsx          # Dashboard Sidebar Navigation
+│   │   ├── Header.tsx           # Dashboard Header (with Workspace Selector)
+│   │   ├── Sidebar.tsx          # Dashboard Sidebar Navigation (with Workspace Selector)
+│   │   └── WorkspaceSettingsSidebar.tsx  # Workspace settings sidebar
 │   ├── profiles/
-│   │   └── CreateProfileModal.tsx
+│   │   └── CreateProfileModal.tsx  # Create Workspace modal (Personal/Business)
 │   └── team/
 │       ├── BulkActionsBar.tsx
 │       ├── CreateTeamModal.tsx
@@ -129,12 +130,14 @@ src/
 │       └── teamUtils.ts
 │
 ├── hooks/
-│   └── useProfiles.ts           # Profile state management + caching
+│   ├── useProfiles.ts           # Profile state management (legacy, deprecated)
+│   └── useWorkspaces.ts         # Workspace state management + caching + fallback
 │
 ├── lib/
-│   ├── apiClient.ts             # API client (JSON + FormData) with 401 auto-refresh
+│   ├── apiClient.ts             # API client (JSON + FormData) with X-Workspace-Id header
 │   ├── auth.ts                  # Token management, refresh, user storage
 │   ├── mockContent.ts           # Shared mock data for Content pages
+│   ├── mockWorkspace.ts         # Mock data for Workspace, Credit Wallet, Post Quota
 │   └── contentConstants.ts      # Shared constants (PlatformIcon, BRANDS, PRODUCTS, etc.)
 │
 ├── services/
@@ -144,12 +147,15 @@ src/
 │   ├── contentService.ts        # Content CRUD + AI draft/chat — API first, mock fallback
 │   ├── notificationService.ts   # Notifications list/detail + mark read/delete — API first, mock fallback
 │   ├── postService.ts           # Posts listing — API first, mock fallback
+│   ├── profileSettingsService.ts # Password, Payment, Subscription — API first, mock fallback
 │   ├── scheduleService.ts       # Schedules CRUD — API first, mock fallback
 │   ├── socialAccountService.ts  # Social accounts — localStorage mock
-│   └── teamService.ts           # Teams/Members CRUD — localStorage mock
+│   ├── teamService.ts           # Teams/Members CRUD — localStorage mock
+│   └── workspaceService.ts      # Workspace dashboard, Credit Wallet, Post Quota — API first, mock fallback
 │
 └── stores/
-    └── profile-store.ts         # Zustand-like active profile selector store
+    ├── profile-store.ts         # Legacy active profile store (deprecated)
+    └── workspace-store.ts       # Active workspace selector store
 ```
 
 ## Styling & Design System
@@ -227,6 +233,67 @@ Sau khi khởi chạy dự án, bạn có thể truy cập các đường dẫn 
     - Kết nối / Ngắt kết nối tài khoản
     - Xem thống kê followers, posts
 
+## Workspace System (New)
+
+### Overview
+Hệ thống đã chuyển từ **Profile-based** sang **Workspace-based** ownership. Mỗi user có thể có nhiều workspaces (Personal hoặc Business).
+
+### Workspace Types
+
+| Type | Value | Description |
+|------|-------|-------------|
+| **Personal** | 1 | Workspace cá nhân, chỉ có Owner |
+| **Business** | 2 | Workspace doanh nghiệp, hỗ trợ team members |
+
+### Workspace Selector
+
+Workspace selector có ở 2 vị trí:
+1. **Sidebar** (bottom) - Click để mở dropdown chọn workspace
+2. **Header** (left) - Click để mở dropdown chọn workspace
+
+Khi click vào workspace, hệ thống sẽ:
+- Lưu workspace vào localStorage (`aisam_active_workspace`)
+- Gửi `X-Workspace-Id` header trong tất cả API requests
+- Cập nhật UI hiển thị tên workspace
+
+### Personal Workspace (Auto-create)
+Khi user chọn "Continue" trên Personal Workspace card:
+- Tự động tạo workspace với tên: `"{User's Name}'s Workspace"` hoặc `"{email prefix}'s Workspace"`
+- Không cần nhập thông tin
+- Redirect thẳng vào Dashboard
+
+### Business Workspace (Modal)
+Khi user chọn "Create & Select" trên Business Workspace card:
+- Mở modal nhập:
+  - **Workspace Name** (bắt buộc)
+  - **Company Name** (tùy chọn)
+- Sau khi tạo xong, redirect vào Dashboard
+
+### Credit Balance & Post Quota
+
+Dashboard hiển thị 2 KPI cards mới:
+1. **AI Credits**: Hiển thị số credits còn lại / tổng (mock: 850/15000)
+2. **Posts This Month**: Hiển thị số posts đã dùng / quota (mock: 124/1000)
+
+### API Fallback Mechanism
+
+```
+1. Gọi API /workspaces/user/{userId}
+   ↓ (fail vì BE chưa có)
+2. Fallback sang /profiles/user/{userId}
+   ↓ (map Profile → WorkspaceData)
+3. Nếu vẫn fail → dùng mock data
+```
+
+### Mock Data
+
+| API | Mock Value |
+|-----|------------|
+| Workspaces | 1 Personal Workspace |
+| Credit Wallet | 850 / 15,000 credits |
+| Post Quota | 124 / 1,000 posts |
+| Dashboard | 850 credits, 876 posts remaining, 124 AI usage |
+
 ## Completed Pages & BE API Map
 
 Tất cả các trang dưới đây đã kết nối với Backend thật (base URL configurable qua `NEXT_PUBLIC_API_URL`).
@@ -243,16 +310,19 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Reset Password** | `/reset-password` | `/auth/reset-password` | POST | `{ email, token, newPassword, confirmPassword }` | ✅ |
 | **Logout** | (sidebar) | `/auth/logout` | POST | `{ refreshToken? }` | ✅ |
 
-### Profiles
+### Workspaces
 
 | Page | Route | BE Endpoint | Method | Body | Status |
 |------|-------|-------------|--------|------|--------|
-| **Overview** | `/overview` | `/profiles/user/{userId}` | GET | — | ✅ |
-| **Profiles List** | `/profiles` | `/profiles/user/{userId}` | GET | — | ✅ |
-| **Create Profile** | (modal) | `/profiles` | POST | FormData | ✅ |
-| **Profile Detail** | `/profiles/[id]` | `/profiles/{id}` | GET | — | ✅ |
+| **Overview** | `/overview` | `/workspaces/user/{userId}` | GET | — | ✅ (fallback → `/profiles`) |
+| | | `/profiles/user/{userId}` | POST | FormData: `name, profileType, companyName?` | ✅ |
+| **Workspaces List** | `/profiles` | `/profiles/user/{userId}` | GET | — | ✅ |
+| **Create Workspace** | (modal) | `/profiles/user/{userId}` | POST | FormData | ✅ |
+| **Workspace Detail** | `/profiles/[id]` | `/profiles/{id}` | GET | — | ✅ |
 | | | `/profiles/{id}` | PUT | FormData | ✅ |
 | | | `/profiles/{id}` | DELETE | — | ✅ |
+
+> **Note**: BE chưa có `/workspaces` endpoints. FE fallback sang `/profiles` API và map `profileType` → `workspaceType`.
 
 ### Brands & Products
 
@@ -376,41 +446,216 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | `src/services/teamService.ts` | Teams + Members CRUD | `INITIAL_MOCK_TEAMS` / `INITIAL_MOCK_MEMBERS` (localStorage) |
 | `src/services/analyticsService.ts` | Analytics data | `MOCK_ANALYTICS_DATA` (hardcoded) |
 | `src/services/socialAccountService.ts` | Social accounts CRUD | `INITIAL_MOCK_ACCOUNTS` (localStorage) |
+| `src/services/workspaceService.ts` | Workspace dashboard, Credit Wallet, Post Quota | `getMockWorkspaceDashboard()`, `getMockCreditWallet()`, `getMockPostQuota()` |
+| `src/services/profileSettingsService.ts` | Password, Payment, Subscription | Mock data nếu API lỗi |
 
 ### Auth Flow
 - JWT access token lưu trong `localStorage` key `aisam_token`
 - Refresh token lưu trong `localStorage` key `aisam_refresh_token`
 - User info lưu trong `localStorage` key `aisam_user`
+- Active workspace lưu trong `localStorage` key `aisam_active_workspace`
 - Tự động refresh token khi nhận 401 (qua `apiClient`/`apiFetch`)
 - Refresh token single-use: BE revoke token cũ mỗi lần refresh
 - Logout gọi `POST /auth/logout` + xoá toàn bộ storage
 
 ### API Layer
-- **`apiClient()`** — dùng cho JSON body endpoints (auth, brands). Tự động thêm `Authorization` + `X-Profile-Id`, auto-refresh 401.
-- **`apiFetch()`** — dùng cho FormData endpoints (products, profiles). Tự động thêm `Authorization` + `X-Profile-Id`, auto-refresh 401.
+- **`apiClient()`** — dùng cho JSON body endpoints (auth, brands). Tự động thêm `Authorization` + `X-Workspace-Id`, auto-refresh 401.
+- **`apiFetch()`** — dùng cho FormData endpoints (products, profiles). Tự động thêm `Authorization` + `X-Workspace-Id`, auto-refresh 401.
 - Generic response wrapper: `{ success, data, message }`
 - List endpoints trả về `PagedResult<T>`: `{ success, data: { data: T[], totalCount, page, pageSize } }`
 - Brand CRUD dùng **JSON body** (`[FromBody]`) — đúng BE
 - Product CRUD dùng **FormData** (`[FromForm]`) — đúng BE
 
+### Workspace API (Mock/Fallback)
+
+| API | Endpoint | Mock Data | Status |
+|-----|----------|-----------|--------|
+| **List Workspaces** | `/workspaces/user/{userId}` | 1 Personal Workspace | ✅ Fallback → `/profiles` |
+| **Credit Wallet** | `/credits/wallet` | 850/15000 credits | ✅ Mock |
+| **Post Quota** | `/quota/posts` | 124/1000 posts | ✅ Mock |
+| **Workspace Dashboard** | `/workspaces/dashboard` | credits, posts, AI usage | ✅ Mock |
+
+> **Note**: Các workspace API chưa có trên BE. FE dùng mock data từ `lib/mockWorkspace.ts`.
+
 ### Middleware Notes
-- `ActiveProfileMiddleware` yêu cầu header `X-Profile-Id` cho các prefix: `/api/content`, `/api/dashboard`, `/api/social`, `/api/posts`, `/api/ai`, `/api/quota`, `/api/payment`
-- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Profile-Id
+- `ActiveWorkspaceMiddleware` yêu cầu header `X-Workspace-Id` cho các prefix: `/api/content`, `/api/dashboard`, `/api/social`, `/api/posts`, `/api/ai`, `/api/quota`, `/api/payment`
+- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Workspace-Id
+- **Legacy**: `X-Profile-Id` đã được thay thế bằng `X-Workspace-Id` trong tất cả API requests
 
 ### Sections chưa map BE (chỉ UI / mock / localStorage)
 
 | Section | Route | Trạng thái | Chi tiết |
 |---------|-------|-----------|----------|
+| **Workspace Selector** | (sidebar, header) | ✅ Hoàn chỉnh | Dropdown chọn workspace, mock data fallback |
+| **Credit Balance** | `/dashboard` | ✅ Hoàn chỉnh | Hiển thị 850/15000 credits (mock) |
+| **Post Quota** | `/dashboard`, `/posts` | ✅ Hoàn chỉnh | Hiển thị 124/1000 posts (mock) |
+| **Personal Workspace** | `/overview` | ✅ Hoàn chỉnh | Auto-create với tên user |
+| **Business Workspace** | `/overview` | ✅ Hoàn chỉnh | Modal nhập tên công ty |
 | **Notifications** | `/notifications` | ✅ Hoàn chỉnh | BE có `NotificationsController`, FE dùng mock (`useMockData = true`), sẵn sàng switch qua API thật |
-| **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | Schedule section đã gọi BE, KPI & charts vẫn mock |
+| **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | Schedule section đã gọi BE, Credit/Post đã mock, KPI & charts khác vẫn mock |
 | **Campaigns** | `/campaigns` | ⏳ Mock | BE có entity `AdCampaign`, chưa có Controller/Service |
 | **Team Management** | `/team` | ⏳ Mock | BE có Models (`Team`, `TeamMember`, `TeamBrand`), chưa có Controller/Service/Repository |
 | **Analytics** | `/analytics` | ⏳ Mock | BE có `PerformanceReport` model + Repository, chưa có Controller/Service |
 | **Social Accounts** | `/social` | ⏳ Mock | BE có `SocialAccountController`, FE chưa kết nối |
-| **Security (change password)** | (profile) | ⏳ Mock | Trong Profile Detail |
-| **Billing & Quota** | (profile) | ⏳ Mock | Hardcoded data |
-| **Subscription** | (profile) | ⏳ Mock | Hardcoded data |
+| **Security (change password)** | (workspace) | ⏳ Mock | Trong Workspace Detail |
+| **Billing & Quota** | (workspace) | ⏳ Một phần | Credit Wallet + Post Quota đã mock, Payment history vẫn mock |
+| **Subscription** | (workspace) | ⏳ Mock | Hardcoded data, Credit Pack UI đã có |
 | **Content list filters** | `/content` | ⏳ Một phần | `tags`, `platforms`, `date range` chỉ mock, BE chưa hỗ trợ |
 | **Content thumbnails upload** | `/content` | ⏳ Mock | Chỉ mock object URL |
 | **Approvals batch actions** | `/approvals` | ⏳ Một phần | Frontend gọi lần lượt từng item |
 | **Approvals sort / search** | `/approvals` | ⏳ Một phần | `searchTerm`, `sortBy`, `sortDescending` đã có query params |
+
+## Recent UI/UX Improvements (2026-01-11)
+
+### Dashboard Sidebar Reorganization
+Đã tái cấu trúc sidebar để giảm clutter và cải thiện navigation:
+
+**Trước:**
+```
+Dashboard
+  ├── Dashboard
+  └── Workspace                    ← Đã xóa
+
+Content Workspace
+  └── ...
+
+Marketing
+  └── ...
+
+Administration
+  ├── Team Management
+  ├── Members                      ← Đã xóa (gộp vào Workspace Settings)
+  ├── Credit History               ← Đã xóa (gộp vào Workspace Settings)
+  └── Buy Credits                  ← Đã xóa (gộp vào Workspace Settings)
+```
+
+**Sau:**
+```
+Dashboard
+  └── Dashboard
+
+Content Workspace
+  └── ...
+
+Marketing
+  └── ...
+
+Administration
+  └── Team Management
+```
+
+### Workspace Settings Enhancements
+Đã gộp các chức năng vào Workspace Settings (`/profiles/[id]`):
+
+| Section | Tính năng mới |
+|---------|---------------|
+| **Overview** (mới) | KPI cards, Top Members, Usage Breakdown, Quick Actions |
+| **Team** | Gộp Members từ dashboard, hiển thị real member data với filter |
+| **Billing & Credits** | Thêm tab "Usage" để xem Credit History |
+| **Subscription** | Gộp Buy Credits section với purchase confirmation dialog |
+
+### New Pages & Routes
+
+| Route | Description |
+|-------|-------------|
+| `/invitation/[token]` | Accept invitation page - hiển thị workspace info, role, quota mode |
+| `/overview` | Thêm nút "Go to Dashboard" khi đã có workspace |
+
+### Navigation Flow Improvements
+
+1. **Create Workspace**
+   - Sidebar (bottom) → Workspace selector → "Create New Workspace" → Modal
+   - Header (left) → Workspace selector → "Create New Workspace" → Modal
+   - Sau khi tạo → Redirect `/dashboard`
+
+2. **Workspace Settings Access**
+   - Header → Icon settings (⚙️) → `/profiles/[id]`
+   - User menu dropdown đã xóa "Settings" để tránh trùng lặp
+
+3. **Overview Page**
+   - Thêm nút "Go to Dashboard" ở header
+   - User có thể vào dashboard nhanh mà không cần chọn workspace
+
+### Invite Member Flow
+Đã hoàn thiện flow mời thành viên:
+
+1. **Từ Workspace Settings** → Team tab → "Invite Member"
+2. **Modal** → Chọn email + role (Viewer/Creator/Manager)
+3. **API call** → `POST /workspaces/invitations`
+4. **Email link** → `/invitation/[token]`
+5. **Accept** → Redirect về workspace overview
+
+### Mock Data for Testing
+
+| Token | Trạng thái | Mô tả |
+|-------|-----------|-------|
+| `test` | Pending | Business workspace, ContentCreator, SharedPool |
+| `demo` | Pending | Business workspace, Manager, MonthlyAssigned 5000 |
+| `personal` | Pending | Personal workspace, Viewer |
+| `expired` | Expired | Lời mời đã hết hạn |
+| `cancelled` | Cancelled | Lời mời đã bị hủy |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `components/layout/Sidebar.tsx` | Xóa Members, Credit History, Buy Credits, Workspace; thêm CreateProfileModal |
+| `components/layout/Header.tsx` | Thêm icon settings navigation, xóa Settings từ user menu |
+| `components/layout/WorkspaceSettingsSidebar.tsx` | Thêm "overview" section |
+| `components/profiles/CreateProfileModal.tsx` | Cải thiện UI với card selection, features list |
+| `app/(auth)/invitation/[token]/page.tsx` | **NEW** - Accept invitation page |
+| `app/profiles/[id]/page.tsx` | Thêm Overview section, merge Members/Credit History/Buy Credits |
+| `app/overview/page.tsx` | Thêm "Go to Dashboard" button |
+| `services/workspaceInvitationService.ts` | **NEW** - Invitation API service với mock data |
+
+## Workspace Migration (Profile → Workspace)
+
+### Summary of Changes
+
+Hệ thống đã chuyển từ **Profile-based** sang **Workspace-based** ownership theo Change Request.
+
+### Files Changed
+
+| Category | Files |
+|----------|-------|
+| **Store** | `stores/workspace-store.ts` (new), `stores/profile-store.ts` (deprecated) |
+| **Hook** | `hooks/useWorkspaces.ts` (new), `hooks/useProfiles.ts` (deprecated) |
+| **API Client** | `lib/apiClient.ts` - Changed `X-Profile-Id` → `X-Workspace-Id` |
+| **Services** | `services/workspaceService.ts` (new), `services/profileSettingsService.ts` |
+| **Mock Data** | `lib/mockWorkspace.ts` (new) |
+| **Layout** | `components/layout/Header.tsx`, `components/layout/Sidebar.tsx` - Added Workspace Selector |
+| **Settings** | `components/layout/WorkspaceSettingsSidebar.tsx` (new) |
+| **Pages** | `app/overview/page.tsx`, `app/profiles/page.tsx`, `app/profiles/[id]/page.tsx` |
+| **Dashboard** | `app/(dashboard)/dashboard/page.tsx` - Added Credit Balance & Post Quota cards |
+| **AI Generate** | `app/(dashboard)/content/ai-generate/page.tsx` - Added Credit check |
+| **Posts** | `app/(dashboard)/posts/page.tsx` - Added Post Quota display |
+| **Auth** | `app/(auth)/login/page.tsx`, `app/(auth)/register/page.tsx` - Updated cache invalidation |
+
+### API Header Change
+
+```typescript
+// Before
+headers: { "X-Profile-Id": profile.id }
+
+// After
+headers: { "X-Workspace-Id": workspace.id }
+```
+
+### LocalStorage Keys
+
+| Key | Description |
+|-----|-------------|
+| `aisam_active_workspace` | Active workspace (new) |
+| `aisam_active_profile` | Legacy, auto-migrated to workspace |
+
+### Migration Path
+
+```
+1. User logs in
+2. Check localStorage for aisam_active_workspace
+3. If not found, check aisam_active_profile (legacy)
+4. Migrate legacy profile to workspace format
+5. Call /workspaces/user/{userId} API
+6. If API fails → fallback to /profiles/user/{userId}
+7. If still fails → use mock data
+```

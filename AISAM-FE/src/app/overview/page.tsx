@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { getUserIdFromToken } from "@/lib/auth";
-import { useProfiles, addProfileToCache, getProfileTypeLabel } from "@/hooks/useProfiles";
+import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
+import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { apiFetch } from "@/lib/apiClient";
-import type { Profile } from "@/hooks/useProfiles";
+import type { WorkspaceData } from "@/hooks/useWorkspaces";
 
-interface PendingProfile {
+interface PendingWorkspace {
   id: string;
   name: string;
-  profileType: number;
+  workspaceType: number;
   companyName: string | null;
   bio: string;
   brandCount: number;
@@ -22,7 +22,7 @@ interface PendingProfile {
   badgeClass: string;
 }
 
-type DisplayProfile = Profile | PendingProfile;
+type DisplayWorkspace = WorkspaceData | PendingWorkspace;
 
 const container = {
   hidden: { opacity: 0 },
@@ -42,12 +42,16 @@ const item = {
 
 export default function OverviewPage() {
   const router = useRouter();
-  const { profiles, loading, activeProfile, selectProfile } = useProfiles();
+  const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState<{ name: string } | null>(null);
+  const [showBusinessModal, setShowBusinessModal] = useState(false);
+  const [pendingBusinessWs, setPendingBusinessWs] = useState<PendingWorkspace | null>(null);
+  const [businessName, setBusinessName] = useState("");
+  const [businessCompany, setBusinessCompany] = useState("");
   const reduceMotion = useReducedMotion();
 
-  const createAndSelectProfile = async (name: string, profileType: number, companyName?: string) => {
+  const createAndSelectWorkspace = async (name: string, workspaceType: number, companyName?: string) => {
     setCreating(true);
     const userId = getUserIdFromToken();
     if (!userId) return;
@@ -55,7 +59,7 @@ export default function OverviewPage() {
     try {
       const formBody = new FormData();
       formBody.append("name", name);
-      formBody.append("profileType", profileType.toString());
+      formBody.append("profileType", workspaceType.toString());
       if (companyName) formBody.append("companyName", companyName);
 
       const result = await apiFetch(`/profiles/user/${userId}`, {
@@ -64,26 +68,90 @@ export default function OverviewPage() {
       });
 
       if (result?.success && result.data) {
-        addProfileToCache(result.data);
-        selectProfile(result.data);
+        const wsData: WorkspaceData = {
+          id: result.data.id,
+          userId: result.data.userId,
+          name: result.data.name,
+          workspaceType: result.data.profileType ?? workspaceType,
+          plan: workspaceType === 2 ? "Business" : "Personal",
+          status: result.data.status,
+          createdAt: result.data.createdAt,
+          updatedAt: result.data.updatedAt,
+          isOwner: true,
+          memberRole: "Owner",
+        };
+        addWorkspaceToCache(wsData);
+        selectWorkspace(wsData);
+      } else {
+        // Mock create workspace when BE API not available
+        const mockWs: WorkspaceData = {
+          id: `ws-${Date.now()}`,
+          userId,
+          name,
+          workspaceType,
+          plan: workspaceType === 2 ? "Business" : "Personal",
+          status: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isOwner: true,
+          memberRole: "Owner",
+        };
+        addWorkspaceToCache(mockWs);
+        selectWorkspace(mockWs);
       }
     } catch {
-      // silent
+      // Mock create workspace when BE API not available
+      const mockWs: WorkspaceData = {
+        id: `ws-${Date.now()}`,
+        userId: userId!,
+        name,
+        workspaceType,
+        plan: workspaceType === 2 ? "Business" : "Personal",
+        status: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isOwner: true,
+        memberRole: "Owner",
+      };
+      addWorkspaceToCache(mockWs);
+      selectWorkspace(mockWs);
     } finally {
       setCreating(false);
     }
   };
 
-  const handleSelect = async (profile: DisplayProfile) => {
-    if ('pendingCreate' in profile && profile.pendingCreate) {
-      await createAndSelectProfile(profile.name, profile.profileType, profile.companyName ?? undefined);
+  const handleSelect = async (workspace: DisplayWorkspace) => {
+    if ('pendingCreate' in workspace && workspace.pendingCreate) {
+      if (workspace.workspaceType === 1) {
+        const storedUser = getStoredUser();
+        const tokenUser = getUserFromToken();
+        const displayName = storedUser?.fullName || tokenUser?.name || "";
+        const email = storedUser?.email || tokenUser?.email || "user";
+        const wsName = displayName ? `${displayName}'s Workspace` : email.split("@")[0] + "'s Workspace";
+        await createAndSelectWorkspace(wsName, workspace.workspaceType);
+        setToast({ name: wsName });
+        setTimeout(() => router.push("/dashboard"), 2000);
+      } else {
+        setPendingBusinessWs(workspace);
+        setBusinessName("");
+        setBusinessCompany("");
+        setShowBusinessModal(true);
+      }
     } else {
-      selectProfile(profile as Profile);
+      selectWorkspace(workspace as WorkspaceData);
+      setToast({ name: workspace.name });
+      setTimeout(() => router.push("/dashboard"), 2000);
     }
-    setToast({ name: profile.name });
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 2000);
+  };
+
+  const handleCreateBusiness = async () => {
+    if (!businessName.trim()) return;
+    if (!pendingBusinessWs) return;
+    await createAndSelectWorkspace(businessName.trim(), pendingBusinessWs.workspaceType, businessCompany.trim() || undefined);
+    setToast({ name: businessName.trim() });
+    setShowBusinessModal(false);
+    setPendingBusinessWs(null);
+    setTimeout(() => router.push("/dashboard"), 2000);
   };
 
   if (loading || creating) {
@@ -112,12 +180,12 @@ export default function OverviewPage() {
     );
   }
 
-  const hasProfiles = profiles.length > 0;
-  const displayProfiles: DisplayProfile[] = hasProfiles ? profiles : [
+  const hasWorkspaces = workspaces.length > 0;
+  const displayWorkspaces: DisplayWorkspace[] = hasWorkspaces ? workspaces : [
     {
       id: "pending-personal",
       name: "Personal Workspace",
-      profileType: 0,
+      workspaceType: 1,
       companyName: null,
       bio: "Individual creator accounts and small brand projects.",
       brandCount: 0,
@@ -130,7 +198,7 @@ export default function OverviewPage() {
     {
       id: "pending-business",
       name: "Business Workspace",
-      profileType: 1,
+      workspaceType: 2,
       companyName: null,
       bio: "Team collaboration with advanced analytics and multi-brand support.",
       brandCount: 0,
@@ -168,13 +236,27 @@ export default function OverviewPage() {
           </div>
           
           <h1 className="text-3xl md:text-4xl font-bold text-on-surface tracking-tight leading-tight mb-3">
-            {hasProfiles ? "Choose your workspace" : "Get started"}
+            {hasWorkspaces ? "Choose your workspace" : "Get started"}
           </h1>
           <p className="text-body-md text-on-surface-variant max-w-md mx-auto leading-relaxed">
-            {hasProfiles
-              ? "Select a profile to access your brands, campaigns, and analytics."
+            {hasWorkspaces
+              ? "Select a workspace to access your brands, campaigns, and analytics."
               : "Create your first workspace to start managing social ads with AI."}
           </p>
+
+          {/* Go to Dashboard Button - Only show when has workspaces */}
+          {hasWorkspaces && (
+            <motion.button
+              initial={reduceMotion ? false : { opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              onClick={() => router.push("/dashboard")}
+              className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+            >
+              <span className="material-symbols-outlined text-[18px]">dashboard</span>
+              Go to Dashboard
+            </motion.button>
+          )}
         </MotionDiv>
 
         {/* Profile Grid */}
@@ -182,14 +264,14 @@ export default function OverviewPage() {
           variants={reduceMotion ? undefined : container}
           initial={reduceMotion ? undefined : "hidden"}
           animate="show"
-          className={`grid ${hasProfiles ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"} gap-4 md:gap-5 w-full mb-10`}
+          className={`grid ${hasWorkspaces ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"} gap-4 md:gap-5 w-full mb-10`}
         >
-          {displayProfiles.map((profile) => {
-            const isPending = 'pendingCreate' in profile && profile.pendingCreate;
-            const isActive = !isPending && activeProfile?.id === profile.id;
+          {displayWorkspaces.map((workspace) => {
+            const isPending = 'pendingCreate' in workspace && workspace.pendingCreate;
+            const isActive = !isPending && activeWorkspace?.id === workspace.id;
             return (
               <MotionDiv
-                key={profile.id}
+                key={workspace.id}
                 variants={reduceMotion ? undefined : item}
                 whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
                 className={`group relative bg-surface-container-lowest/80 backdrop-blur-sm border ${
@@ -212,32 +294,32 @@ export default function OverviewPage() {
                   <div className="flex justify-between items-start mb-4">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                       isPending
-                        ? profile.profileType === 0
+                        ? (workspace as PendingWorkspace).workspaceType === 1
                           ? "bg-gradient-to-br from-secondary/10 to-secondary/5"
                           : "bg-gradient-to-br from-primary/10 to-primary/5"
                         : "bg-gradient-to-br from-primary/10 to-primary/5"
                     }`}>
                       <span className={`material-symbols-outlined text-[20px] ${
                         isPending
-                          ? profile.profileType === 0 ? "text-secondary" : "text-primary"
+                          ? (workspace as PendingWorkspace).workspaceType === 1 ? "text-secondary" : "text-primary"
                           : "text-primary"
                       }`}>
-                        {isPending ? (profile as PendingProfile).icon : "account_circle"}
+                        {isPending ? (workspace as PendingWorkspace).icon : "account_circle"}
                       </span>
                     </div>
-                    <span className={`px-2 py-0.5 text-label-2xs rounded-full font-semibold border ${('badgeClass' in profile && (profile as PendingProfile).badgeClass) || "bg-surface-container text-outline border-outline-variant/20"}`}>
-                      {isPending ? (profile as PendingProfile).badge : getProfileTypeLabel(profile.profileType)}
+                    <span className={`px-2 py-0.5 text-label-2xs rounded-full font-semibold border ${('badgeClass' in workspace && (workspace as PendingWorkspace).badgeClass) || "bg-surface-container text-outline border-outline-variant/20"}`}>
+                      {isPending ? (workspace as PendingWorkspace).badge : getWorkspaceTypeLabel((workspace as WorkspaceData).workspaceType)}
                     </span>
                   </div>
 
                   {/* Name */}
                   <h3 className="text-body-lg font-bold text-on-surface mb-1.5 group-hover:text-primary transition-colors">
-                    {profile.name}
+                    {workspace.name}
                   </h3>
 
                   {/* Description */}
                   <p className="text-body-sm text-on-surface-variant mb-4 leading-relaxed line-clamp-2">
-                    {isPending ? (profile as PendingProfile).bio : (profile.bio || "No description yet.")}
+                    {isPending ? (workspace as PendingWorkspace).bio : ((workspace as WorkspaceData).bio || "No description yet.")}
                   </p>
 
                   {/* Stats */}
@@ -246,18 +328,18 @@ export default function OverviewPage() {
                       <>
                         <div className="flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-outline">workspaces</span>
-                          <span className="text-label-xs font-medium">{(profile as PendingProfile).brandCount} Brands</span>
+                          <span className="text-label-xs font-medium">{(workspace as PendingWorkspace).brandCount} Brands</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-outline">monitoring</span>
-                          <span className="text-label-xs font-medium">{(profile as PendingProfile).campaignCount} Campaigns</span>
+                          <span className="text-label-xs font-medium">{(workspace as PendingWorkspace).campaignCount} Campaigns</span>
                         </div>
                       </>
                     ) : (
                       <>
                         <div className="flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-outline">person</span>
-                          <span className="text-label-xs font-medium">{(profile as Profile).isOwner ? "Owner" : (profile as Profile).memberRole || "Member"}</span>
+                          <span className="text-label-xs font-medium">{(workspace as WorkspaceData).isOwner ? "Owner" : (workspace as WorkspaceData).memberRole || "Member"}</span>
                         </div>
                       </>
                     )}
@@ -272,16 +354,16 @@ export default function OverviewPage() {
                       ? "bg-primary text-on-primary shadow-md shadow-primary/20"
                       : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-primary hover:text-on-primary hover:border-primary hover:shadow-md hover:shadow-primary/20"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  onClick={() => handleSelect(profile)}
+                  onClick={() => handleSelect(workspace)}
                   disabled={creating}
                 >
-                  {isActive ? "Continue" : isPending ? "Create & Select" : "Select"}
+                  {isActive ? "Continue" : isPending ? ((workspace as PendingWorkspace).workspaceType === 1 ? "Continue" : "Create & Select") : "Select"}
                 </motion.button>
 
                 {/* Subtle gradient decoration */}
                 {isPending && (
                   <div className={`absolute -bottom-12 -right-12 w-32 h-32 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-                    profile.profileType === 0 
+                    (workspace as PendingWorkspace).workspaceType === 1 
                       ? "bg-gradient-to-bl from-secondary/10 to-transparent" 
                       : "bg-gradient-to-bl from-primary/10 to-transparent"
                   }`} />
@@ -298,19 +380,19 @@ export default function OverviewPage() {
           transition={{ delay: 0.4, duration: 0.5 }}
           className="flex flex-col items-center gap-2 text-center"
         >
-          {hasProfiles ? (
+          {hasWorkspaces ? (
             <p className="text-body-sm text-on-surface-variant">
               Need help managing permissions?{" "}
               <a className="text-primary font-semibold hover:underline underline-offset-2" href="#">Contact support</a>
             </p>
           ) : (
             <p className="text-body-sm text-on-surface-variant">
-              Already have profiles?{" "}
+              Already have workspaces?{" "}
               <button 
                 className="text-primary font-semibold hover:underline underline-offset-2 bg-transparent border-none p-0 cursor-pointer" 
                 onClick={() => router.push("/profiles")}
               >
-                View all profiles
+                View all workspaces
               </button>
             </p>
           )}
@@ -334,6 +416,70 @@ export default function OverviewPage() {
           <p className="text-label-xs text-outline-variant">Loading your dashboard...</p>
         </div>
       </motion.div>
+
+      {/* Business Workspace Creation Modal */}
+      {showBusinessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2 }}
+            className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-[22px]">business</span>
+              </div>
+              <div>
+                <h3 className="text-body-lg font-bold text-on-surface">Create Business Workspace</h3>
+                <p className="text-label-sm text-on-surface-variant">Set up your team workspace</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
+                  Workspace Name <span className="text-danger-red">*</span>
+                </label>
+                <input
+                  className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                  placeholder="e.g. Acme Marketing"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
+                  Company Name
+                </label>
+                <input
+                  className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                  placeholder="e.g. Acme Inc."
+                  value={businessCompany}
+                  onChange={(e) => setBusinessCompany(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => { setShowBusinessModal(false); setPendingBusinessWs(null); }}
+                className="px-5 py-2.5 border border-outline-variant/40 text-on-surface rounded-xl font-semibold text-body-sm hover:bg-surface-container transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateBusiness}
+                disabled={!businessName.trim() || creating}
+                className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-primary/20"
+              >
+                {creating ? "Creating..." : "Create Workspace"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </main>
   );
 }

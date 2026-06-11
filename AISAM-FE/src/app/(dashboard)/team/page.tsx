@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Header from "@/components/layout/Header";
+import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import {
   fetchTeams,
   fetchMembers,

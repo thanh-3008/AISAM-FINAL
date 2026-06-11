@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { getProfileTypeLabel, useProfiles, addProfileToCache } from "@/hooks/useProfiles";
-import ProfileSettingsSidebar, { ProfileSection } from "@/components/layout/ProfileSettingsSidebar";
+import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
 import { apiFetch } from "@/lib/apiClient";
 import {
   changePassword,
@@ -14,12 +14,26 @@ import {
   type PaymentHistoryItem,
   type CurrentSubscription,
 } from "@/services/profileSettingsService";
+import {
+  fetchWorkspaceMembers,
+  fetchCreditUsageHistory,
+  fetchCreditWallet,
+  fetchWorkspaceDashboard,
+  fetchPostQuota,
+  type WorkspaceMember,
+  type WorkspaceMemberRole,
+  type MemberStatus,
+  type CreditUsageRecord,
+  type CreditWallet,
+  type WorkspaceDashboard,
+} from "@/services/workspaceService";
+import { inviteMember, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 
-interface Profile {
+interface Workspace {
   id: string;
   userId: string;
   name: string;
-  profileType: number;
+  workspaceType: number;
   companyName: string | null;
   bio: string | null;
   avatarUrl: string | null;
@@ -36,8 +50,10 @@ function getInitials(name: string) {
 
 const PROFILE_TYPES = [
   { value: 0, label: "Free" },
-  { value: 1, label: "Basic" },
-  { value: 2, label: "Pro" },
+  { value: 1, label: "Personal Plus" },
+  { value: 2, label: "Personal Pro" },
+  { value: 3, label: "Business Plus" },
+  { value: 4, label: "Business Pro" },
 ];
 
 const inputClass =
@@ -66,17 +82,17 @@ export default function ProfileDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const initialSection = (searchParams.get("section") as ProfileSection) || "my-profile";
-  const [activeSection, setActiveSection] = useState<ProfileSection>(
-    ["my-profile", "team", "security", "billing", "subscription"].includes(initialSection) ? initialSection : "my-profile"
+  const initialSection = (searchParams.get("section") as WorkspaceSection) || "overview";
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>(
+    ["overview", "my-profile", "team", "security", "billing", "subscription"].includes(initialSection) ? initialSection : "overview"
   );
-  const { selectProfile } = useProfiles();
+  const { selectWorkspace, activeWorkspace } = useWorkspaces();
   const reduceMotion = useReducedMotion();
 
   const [form, setForm] = useState({ name: "", profileType: "", companyName: "", bio: "", avatarUrl: "" });
@@ -94,23 +110,55 @@ export default function ProfileDetailPage() {
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [upgradingPlan, setUpgradingPlan] = useState(false);
 
+  // Team members state
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberFilter, setMemberFilter] = useState<"all" | "active" | "pending">("all");
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", role: "Viewer" as InvitationRole });
+  const [sendingInvite, setSendingInvite] = useState(false);
+
+  // Credit usage state
+  const [creditHistory, setCreditHistory] = useState<CreditUsageRecord[]>([]);
+  const [loadingCreditHistory, setLoadingCreditHistory] = useState(false);
+  const [creditPage, setCreditPage] = useState(1);
+  const [creditTotalPages, setCreditTotalPages] = useState(0);
+  const [creditTotalCount, setCreditTotalCount] = useState(0);
+  const [creditFilter, setCreditFilter] = useState<"all" | "success" | "failed">("all");
+
+  // Credit wallet state
+  const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
+  const [selectedCreditPack, setSelectedCreditPack] = useState<{ name: string; credits: number; price: string } | null>(null);
+  const [showPurchaseConfirm, setShowPurchaseConfirm] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+
+  // Billing tab state
+  const [billingTab, setBillingTab] = useState<"overview" | "usage">("overview");
+
+  // Overview section state
+  const [dashboardData, setDashboardData] = useState<WorkspaceDashboard | null>(null);
+  const [overviewPostQuota, setOverviewPostQuota] = useState<{ used: number; total: number } | null>(null);
+  const [overviewCreditWallet, setOverviewCreditWallet] = useState<CreditWallet | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+
   useEffect(() => {
     if (!id) return;
-    const fetchProfile = async () => {
+    const fetchWorkspace = async () => {
       try {
         const result = await apiFetch(`/profiles/${id}`);
         if (result?.success && result.data) {
-          const p = result.data as Profile;
-          setProfile(p);
+          const w = result.data as Workspace;
+          setWorkspace(w);
           setForm({
-            name: p.name,
-            profileType: String(p.profileType),
-            companyName: p.companyName || "",
-            bio: p.bio || "",
-            avatarUrl: p.avatarUrl || "",
+            name: w.name,
+            profileType: String(w.workspaceType),
+            companyName: w.companyName || "",
+            bio: w.bio || "",
+            avatarUrl: w.avatarUrl || "",
           });
         } else {
-          setError(result?.message || "Profile not found");
+          setError(result?.message || "Workspace not found");
         }
       } catch {
         setError("Network error");
@@ -118,12 +166,12 @@ export default function ProfileDetailPage() {
         setLoading(false);
       }
     };
-    fetchProfile();
+    fetchWorkspace();
   }, [id]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Name is required"); return; }
-    if (!form.profileType) { setError("Profile type is required"); return; }
+    if (!form.profileType) { setError("Workspace type is required"); return; }
     setSaving(true);
     setError(null);
     try {
@@ -139,9 +187,7 @@ export default function ProfileDetailPage() {
         body: formBody,
       });
       if (result?.success && result.data) {
-        setProfile(result.data);
-        addProfileToCache(result.data);
-        selectProfile(result.data);
+        setWorkspace(result.data);
         setEditing(false);
       } else {
         setError(result?.message || "Update failed");
@@ -266,9 +312,104 @@ export default function ProfileDetailPage() {
   };
 
   // Team section handlers
+  const handleLoadMembers = async () => {
+    setLoadingMembers(true);
+    try {
+      const data = await fetchWorkspaceMembers();
+      if (data) {
+        setMembers(data.data);
+      }
+    } catch {
+      console.error("Failed to load members");
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
   const handleInviteMember = () => {
-    // TODO: Implement invite member when BE API is available
-    alert("Invite Member feature coming soon!");
+    setShowInviteModal(true);
+  };
+
+  const handleSendInvite = async () => {
+    if (!inviteForm.email.trim()) {
+      alert("Please enter an email address");
+      return;
+    }
+
+    setSendingInvite(true);
+    try {
+      const result = await inviteMember({
+        email: inviteForm.email.trim(),
+        role: inviteForm.role,
+      });
+
+      if (result) {
+        setShowInviteModal(false);
+        setInviteForm({ email: "", role: "Viewer" });
+        alert("Invitation sent successfully!");
+        handleLoadMembers();
+      } else {
+        alert("Failed to send invitation. Please try again.");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  // Credit usage handlers
+  const handleLoadCreditHistory = async (pg: number) => {
+    setLoadingCreditHistory(true);
+    try {
+      const data = await fetchCreditUsageHistory(pg, 10);
+      if (data) {
+        setCreditHistory(data.data);
+        setCreditTotalPages(data.totalPages);
+        setCreditTotalCount(data.totalCount);
+      }
+    } catch {
+      console.error("Failed to load credit history");
+    } finally {
+      setLoadingCreditHistory(false);
+    }
+  };
+
+  const handleLoadCreditWallet = async () => {
+    const wallet = await fetchCreditWallet();
+    setCreditWallet(wallet);
+  };
+
+  const handlePurchaseCredits = async () => {
+    if (!selectedCreditPack) return;
+    setPurchasing(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    setPurchasing(false);
+    setPurchaseSuccess(true);
+    setShowPurchaseConfirm(false);
+    if (creditWallet) {
+      setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
+    }
+    setTimeout(() => setPurchaseSuccess(false), 3000);
+  };
+
+  // Overview section handlers
+  const handleLoadOverview = async () => {
+    setLoadingOverview(true);
+    try {
+      const [dashData, walletData, quotaData] = await Promise.all([
+        fetchWorkspaceDashboard(),
+        fetchCreditWallet(),
+        fetchPostQuota(),
+      ]);
+      setDashboardData(dashData);
+      setOverviewCreditWallet(walletData);
+      setOverviewPostQuota(quotaData);
+    } catch {
+      console.error("Failed to load overview data");
+    } finally {
+      setLoadingOverview(false);
+    }
   };
 
   const handleUpdatePayment = () => {
@@ -287,8 +428,30 @@ export default function ProfileDetailPage() {
   useEffect(() => {
     if (activeSection === "subscription" && !subscription) {
       handleLoadSubscription();
+      handleLoadCreditWallet();
     }
   }, [activeSection, subscription]);
+
+  // Load members when team section is active
+  useEffect(() => {
+    if (activeSection === "team" && members.length === 0) {
+      handleLoadMembers();
+    }
+  }, [activeSection, members.length]);
+
+  // Load credit history when billing tab is usage
+  useEffect(() => {
+    if (activeSection === "billing" && billingTab === "usage" && creditHistory.length === 0) {
+      handleLoadCreditHistory(1);
+    }
+  }, [activeSection, billingTab, creditHistory.length]);
+
+  // Load overview data when overview section is active
+  useEffect(() => {
+    if (activeSection === "overview" && !dashboardData) {
+      handleLoadOverview();
+    }
+  }, [activeSection, dashboardData]);
 
   const nextPaymentDate = "2026-07-08";
 
@@ -319,7 +482,7 @@ export default function ProfileDetailPage() {
     );
   }
 
-  if (error && !profile) {
+  if (error && !workspace) {
     return (
       <div className="min-h-[100dvh] bg-surface flex">
         <div className="flex-1 flex flex-col">
@@ -340,7 +503,7 @@ export default function ProfileDetailPage() {
                   onClick={() => router.push("/profiles")}
                   className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
                 >
-                  Back to Profiles
+                  Back to Workspaces
                 </motion.button>
               </motion.div>
             </main>
@@ -353,19 +516,19 @@ export default function ProfileDetailPage() {
   const avatarPreview = form.avatarUrl && (() => { try { new URL(form.avatarUrl); return true; } catch { return false; } })()
     ? form.avatarUrl
     : null;
-  const planLabel = profile ? getProfileTypeLabel(profile.profileType) : "";
-  const initials = profile ? getInitials(profile.name) : "?";
-  const statusInfo = profile ? statusConfig[profile.status] || statusConfig[0] : statusConfig[0];
+  const planLabel = workspace ? getWorkspaceTypeLabel(workspace.workspaceType) : "";
+  const initials = workspace ? getInitials(workspace.name) : "?";
+  const statusInfo = workspace ? statusConfig[workspace.status] || statusConfig[0] : statusConfig[0];
 
   return (
     <div className="min-h-[100dvh] bg-surface flex">
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex overflow-hidden">
-          <ProfileSettingsSidebar
+          <WorkspaceSettingsSidebar
             activeSection={activeSection}
             onSectionChange={setActiveSection}
-            profileName={profile?.name}
-            profileInitials={initials}
+            workspaceName={workspace?.name}
+            workspaceInitials={initials}
           />
 
           <main className="flex-1 overflow-auto">
@@ -391,14 +554,344 @@ export default function ProfileDetailPage() {
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
+                {/* ===== OVERVIEW ===== */}
+                {activeSection === "overview" && (
+                  <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show" className="space-y-8">
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center ring-1 ring-primary/20">
+                          <span className="material-symbols-outlined text-primary text-[24px]">dashboard</span>
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold text-on-surface tracking-tight">Workspace Overview</h2>
+                          <p className="text-body-sm text-on-surface-variant mt-0.5">{workspace?.name || "Workspace"} - Analytics & Insights</p>
+                        </div>
+                      </div>
+                      <motion.button
+                        whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+                        whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                        onClick={() => handleLoadOverview()}
+                        disabled={loadingOverview}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant/20 text-body-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all disabled:opacity-50"
+                      >
+                        <span className={`material-symbols-outlined text-[18px] ${loadingOverview ? "animate-spin" : ""}`}>refresh</span>
+                        Refresh
+                      </motion.button>
+                    </motion.div>
+
+                    {loadingOverview && !dashboardData ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                        {[1, 2, 3, 4].map((i) => (
+                          <motion.div key={i} variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm">
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="w-10 h-10 rounded-xl bg-surface-container animate-pulse" />
+                              <div className="h-4 w-20 bg-surface-container rounded animate-pulse" />
+                            </div>
+                            <div className="h-8 w-24 bg-surface-container rounded animate-pulse mb-3" />
+                            <div className="h-2 bg-surface-container rounded-full" />
+                          </motion.div>
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        {/* KPI Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                          {/* Credits Remaining */}
+                          <motion.div
+                            variants={reduceMotion ? undefined : item}
+                            whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
+                            className="group bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm hover:shadow-lg hover:border-emerald-200/50 transition-all duration-300"
+                          >
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 flex items-center justify-center ring-1 ring-emerald-500/20 group-hover:ring-emerald-500/40 transition-all">
+                                  <span className="material-symbols-outlined text-emerald-500 text-[20px]">token</span>
+                                </div>
+                                <span className="text-label-sm text-on-surface-variant font-medium">Credits</span>
+                              </div>
+                              <span className="text-label-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
+                                Active
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-3xl font-bold text-on-surface tabular-nums">{overviewCreditWallet?.balance.toLocaleString() || 0}</span>
+                                <span className="text-label-sm text-outline">/ {overviewCreditWallet?.maxBalance.toLocaleString() || 0}</span>
+                              </div>
+                              <div className="relative h-2 bg-surface-container rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={reduceMotion ? undefined : { width: 0 }}
+                                  animate={{ width: `${overviewCreditWallet ? (overviewCreditWallet.balance / overviewCreditWallet.maxBalance) * 100 : 0}%` }}
+                                  transition={{ duration: 1, ease: "easeOut" }}
+                                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full"
+                                />
+                              </div>
+                              <p className="text-label-xs text-outline flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[14px] text-emerald-500">trending_up</span>
+                                {overviewCreditWallet ? Math.round((overviewCreditWallet.balance / overviewCreditWallet.maxBalance) * 100) : 0}% remaining
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* Posts This Month */}
+                          <motion.div
+                            variants={reduceMotion ? undefined : item}
+                            whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
+                            className="group bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm hover:shadow-lg hover:border-blue-200/50 transition-all duration-300"
+                          >
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 flex items-center justify-center ring-1 ring-blue-500/20 group-hover:ring-blue-500/40 transition-all">
+                                  <span className="material-symbols-outlined text-blue-500 text-[20px]">send</span>
+                                </div>
+                                <span className="text-label-sm text-on-surface-variant font-medium">Posts</span>
+                              </div>
+                              <span className="text-label-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-full">
+                                Monthly
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-3xl font-bold text-on-surface tabular-nums">{overviewPostQuota?.used.toLocaleString() || 0}</span>
+                                <span className="text-label-sm text-outline">/ {overviewPostQuota?.total.toLocaleString() || 0}</span>
+                              </div>
+                              <div className="relative h-2 bg-surface-container rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={reduceMotion ? undefined : { width: 0 }}
+                                  animate={{ width: `${overviewPostQuota ? (overviewPostQuota.used / overviewPostQuota.total) * 100 : 0}%` }}
+                                  transition={{ duration: 1, ease: "easeOut" }}
+                                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full"
+                                />
+                              </div>
+                              <p className="text-label-xs text-outline flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[14px] text-blue-500">schedule</span>
+                                {overviewPostQuota ? 100 - Math.round((overviewPostQuota.used / overviewPostQuota.total) * 100) : 100}% remaining
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* Total AI Usage */}
+                          <motion.div
+                            variants={reduceMotion ? undefined : item}
+                            whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
+                            className="group bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm hover:shadow-lg hover:border-purple-200/50 transition-all duration-300"
+                          >
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 flex items-center justify-center ring-1 ring-purple-500/20 group-hover:ring-purple-500/40 transition-all">
+                                  <span className="material-symbols-outlined text-purple-500 text-[20px]">auto_awesome</span>
+                                </div>
+                                <span className="text-label-sm text-on-surface-variant font-medium">AI Usage</span>
+                              </div>
+                              <span className="text-label-xs text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded-full">
+                                This Month
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.totalAiUsage.toLocaleString() || 0}</span>
+                              <p className="text-label-xs text-outline flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[14px] text-purple-500">insights</span>
+                                Total generations
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* Workspace Type */}
+                          <motion.div
+                            variants={reduceMotion ? undefined : item}
+                            whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
+                            className="group bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm hover:shadow-lg hover:border-amber-200/50 transition-all duration-300"
+                          >
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 flex items-center justify-center ring-1 ring-amber-500/20 group-hover:ring-amber-500/40 transition-all">
+                                  <span className="material-symbols-outlined text-amber-500 text-[20px]">
+                                    {workspace && workspace.workspaceType >= 3 ? "business" : "person"}
+                                  </span>
+                                </div>
+                                <span className="text-label-sm text-on-surface-variant font-medium">Type</span>
+                              </div>
+                              <span className="text-label-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
+                                {workspace && workspace.workspaceType >= 3 ? "Team" : "Personal"}
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              <span className="text-xl font-bold text-on-surface">{planLabel}</span>
+                              <p className="text-label-xs text-outline flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[14px] text-amber-500">info</span>
+                                {workspace && workspace.workspaceType >= 3 ? "Team workspace" : "Individual workspace"}
+                              </p>
+                            </div>
+                          </motion.div>
+                        </div>
+
+                        {/* Top Members & Usage Chart */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Top Members by Usage */}
+                          <motion.div
+                            variants={reduceMotion ? undefined : item}
+                            className="bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm"
+                          >
+                            <div className="flex items-center justify-between mb-6">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+                                  <span className="material-symbols-outlined text-primary text-[20px]">leaderboard</span>
+                                </div>
+                                <div>
+                                  <h3 className="text-body-lg font-bold text-on-surface">Top Members</h3>
+                                  <p className="text-label-xs text-on-surface-variant">By AI Usage</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              {dashboardData?.topMembers && dashboardData.topMembers.length > 0 ? (
+                                dashboardData.topMembers.map((member, index) => {
+                                  const maxUsage = dashboardData.topMembers[0]?.usage || 1;
+                                  const pct = Math.round((member.usage / maxUsage) * 100);
+                                  const medals = ["🥇", "🥈", "🥉"];
+                                  return (
+                                    <motion.div
+                                      key={member.userId}
+                                      initial={reduceMotion ? undefined : { opacity: 0, x: -20 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: index * 0.1 }}
+                                      className="flex items-center gap-4"
+                                    >
+                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-sm font-bold text-primary ring-2 ring-primary/20">
+                                        {index < 3 ? medals[index] : index + 1}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-body-sm text-on-surface font-semibold truncate">{member.name}</span>
+                                          <span className="text-label-sm text-on-surface-variant font-medium tabular-nums">{member.usage} credits</span>
+                                        </div>
+                                        <div className="relative h-2 bg-surface-container rounded-full overflow-hidden">
+                                          <motion.div
+                                            initial={reduceMotion ? undefined : { width: 0 }}
+                                            animate={{ width: `${pct}%` }}
+                                            transition={{ duration: 0.8, delay: index * 0.1, ease: "easeOut" }}
+                                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-primary-container rounded-full"
+                                          />
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })
+                              ) : (
+                                <div className="text-center py-12">
+                                  <div className="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center mx-auto mb-4">
+                                    <span className="material-symbols-outlined text-outline/40 text-3xl">group_off</span>
+                                  </div>
+                                  <p className="text-body-sm text-on-surface-variant">No member data yet</p>
+                                  <p className="text-label-xs text-outline mt-1">Invite team members to see usage stats</p>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+
+                          {/* Usage Breakdown */}
+                          <motion.div
+                            variants={reduceMotion ? undefined : item}
+                            className="bg-surface-container-lowest rounded-2xl border border-outline-variant/10 p-6 shadow-sm"
+                          >
+                            <div className="flex items-center justify-between mb-6">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 flex items-center justify-center ring-1 ring-secondary/20">
+                                  <span className="material-symbols-outlined text-secondary text-[20px]">pie_chart</span>
+                                </div>
+                                <div>
+                                  <h3 className="text-body-lg font-bold text-on-surface">Usage Breakdown</h3>
+                                  <p className="text-label-xs text-on-surface-variant">By content type</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-5">
+                              {[
+                                { label: "Text Generation", value: 45, color: "from-blue-400 to-blue-500", icon: "text_fields", bgColor: "bg-blue-50", textColor: "text-blue-500" },
+                                { label: "Image Generation", value: 30, color: "from-purple-400 to-purple-500", icon: "image", bgColor: "bg-purple-50", textColor: "text-purple-500" },
+                                { label: "Video Generation", value: 15, color: "from-pink-400 to-pink-500", icon: "videocam", bgColor: "bg-pink-50", textColor: "text-pink-500" },
+                                { label: "Other", value: 10, color: "from-gray-400 to-gray-500", icon: "more_horiz", bgColor: "bg-gray-50", textColor: "text-gray-500" },
+                              ].map((item, idx) => (
+                                <motion.div
+                                  key={item.label}
+                                  initial={reduceMotion ? undefined : { opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: idx * 0.1 }}
+                                  className="flex items-center gap-4"
+                                >
+                                  <div className={`w-10 h-10 rounded-xl ${item.bgColor} flex items-center justify-center shrink-0`}>
+                                    <span className={`material-symbols-outlined ${item.textColor} text-[20px]`}>{item.icon}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-body-sm text-on-surface font-medium">{item.label}</span>
+                                      <span className="text-label-sm text-on-surface-variant font-semibold tabular-nums">{item.value}%</span>
+                                    </div>
+                                    <div className="relative h-2 bg-surface-container rounded-full overflow-hidden">
+                                      <motion.div
+                                        initial={reduceMotion ? undefined : { width: 0 }}
+                                        animate={{ width: `${item.value}%` }}
+                                        transition={{ duration: 0.8, delay: idx * 0.1, ease: "easeOut" }}
+                                        className={`absolute inset-y-0 left-0 bg-gradient-to-r ${item.color} rounded-full`}
+                                      />
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        </div>
+
+                        {/* Quick Actions */}
+                        <motion.div
+                          variants={reduceMotion ? undefined : item}
+                          className="bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/10 p-6 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center ring-1 ring-primary/20">
+                              <span className="material-symbols-outlined text-primary text-[20px]">bolt</span>
+                            </div>
+                            <div>
+                              <h3 className="text-body-lg font-bold text-on-surface">Quick Actions</h3>
+                              <p className="text-label-xs text-on-surface-variant">Frequently used features</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {[
+                              { href: "/content/ai-generate", icon: "auto_awesome", label: "Generate Content", color: "text-primary", bg: "bg-primary/5", ring: "ring-primary/20" },
+                              { href: "/posts", icon: "send", label: "View Posts", color: "text-blue-500", bg: "bg-blue-50", ring: "ring-blue-500/20" },
+                              { onClick: () => setActiveSection("billing"), icon: "token", label: "Buy Credits", color: "text-emerald-500", bg: "bg-emerald-50", ring: "ring-emerald-500/20" },
+                              { onClick: () => setActiveSection("team"), icon: "group", label: "Manage Team", color: "text-purple-500", bg: "bg-purple-50", ring: "ring-purple-500/20" },
+                            ].map((action, idx) => (
+                              <motion.button
+                                key={idx}
+                                whileHover={reduceMotion ? undefined : { scale: 1.05, y: -2 }}
+                                whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+                                onClick={action.onClick as any}
+                                {...(action.href && !action.onClick ? { as: "a", href: action.href } : {})}
+                                className="flex flex-col items-center gap-3 p-5 rounded-xl bg-surface-container-lowest border border-outline-variant/10 hover:border-outline-variant/30 hover:shadow-md transition-all duration-200 group"
+                              >
+                                <div className={`w-12 h-12 rounded-xl ${action.bg} flex items-center justify-center ring-1 ${action.ring} group-hover:ring-2 transition-all`}>
+                                  <span className={`material-symbols-outlined ${action.color} text-[24px]`}>{action.icon}</span>
+                                </div>
+                                <span className="text-label-sm text-on-surface font-medium text-center">{action.label}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+
                 {/* ===== MY PROFILE ===== */}
                 {activeSection === "my-profile" && (
                   <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show">
                     {editing ? (
                       <div className="space-y-6">
                         <motion.div variants={reduceMotion ? undefined : item}>
-                          <h2 className="text-2xl font-bold text-on-surface tracking-tight">Edit Profile</h2>
-                          <p className="text-body-sm text-on-surface-variant mt-1.5">Update your business profile information below</p>
+                          <h2 className="text-2xl font-bold text-on-surface tracking-tight">Edit Workspace</h2>
+                          <p className="text-body-sm text-on-surface-variant mt-1.5">Update your workspace information below</p>
                         </motion.div>
 
                         {/* Profile Summary */}
@@ -411,7 +904,7 @@ export default function ProfileDetailPage() {
                             )}
                           </div>
                           <div className="text-center sm:text-left min-w-0 flex-1">
-                            <h3 className="text-xl text-on-surface font-bold">{profile?.name}</h3>
+                            <h3 className="text-xl text-on-surface font-bold">{workspace?.name}</h3>
                             <p className="text-label-sm text-on-surface-variant mt-0.5">{planLabel}</p>
                           </div>
                         </motion.div>
@@ -420,19 +913,19 @@ export default function ProfileDetailPage() {
                           <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5">
                             <div className="flex items-center gap-2.5 mb-2">
                               <div className="w-9 h-9 rounded-xl bg-primary/5 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-primary text-[18px]">business</span>
+                                <span className="material-symbols-outlined text-primary text-[18px]">workspaces</span>
                               </div>
-                              <h3 className="text-body-lg font-semibold text-on-surface">Business</h3>
+                              <h3 className="text-body-lg font-semibold text-on-surface">Workspace</h3>
                             </div>
                             <div className="space-y-1.5">
                               <label className={labelClass}>Name <span className="text-red-500">*</span></label>
                               <input className={inputClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                             </div>
                             <div className="space-y-1.5">
-                              <label className={labelClass}>Plan <span className="text-red-500">*</span></label>
+                              <label className={labelClass}>Workspace Type <span className="text-red-500">*</span></label>
                               <div className="relative">
                                 <select className={`${inputClass} appearance-none pr-10`} value={form.profileType} onChange={e => setForm(f => ({ ...f, profileType: e.target.value }))}>
-                                  <option value="" disabled>Select plan</option>
+                                  <option value="" disabled>Select workspace type</option>
                                   {PROFILE_TYPES.map(pt => (
                                     <option key={pt.value} value={pt.value}>{pt.label}</option>
                                   ))}
@@ -455,7 +948,7 @@ export default function ProfileDetailPage() {
                               <h3 className="text-body-lg font-semibold text-on-surface">Details</h3>
                             </div>
                             <div className="space-y-1.5">
-                              <label className={labelClass}>Bio</label>
+                              <label className={labelClass}>Description</label>
                               <textarea className={`${inputClass} resize-none min-h-[100px]`} rows={4} value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} />
                             </div>
                             <div className="space-y-1.5">
@@ -488,8 +981,8 @@ export default function ProfileDetailPage() {
                       <div className="space-y-6">
                         <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between">
                           <div>
-                            <h2 className="text-2xl font-bold text-on-surface tracking-tight">My Profile</h2>
-                            <p className="text-body-sm text-on-surface-variant mt-1.5">Manage your profile information</p>
+                            <h2 className="text-2xl font-bold text-on-surface tracking-tight">Workspace Info</h2>
+                            <p className="text-body-sm text-on-surface-variant mt-1.5">Manage your workspace information</p>
                           </div>
                           <motion.button
                             whileTap={reduceMotion ? undefined : { scale: 0.97 }}
@@ -510,16 +1003,16 @@ export default function ProfileDetailPage() {
                             )}
                           </div>
                           <div className="text-center sm:text-left min-w-0 flex-1">
-                            <h3 className="text-xl text-on-surface font-bold">{profile?.name}</h3>
+                            <h3 className="text-xl text-on-surface font-bold">{workspace?.name}</h3>
                             <div className="flex items-center justify-center sm:justify-start flex-wrap gap-x-3 gap-y-1.5 mt-2">
                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${statusInfo.class}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${profile?.status === 1 ? "animate-pulse" : ""}`} />
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${workspace?.status === 1 ? "animate-pulse" : ""}`} />
                                 {statusInfo.label}
                               </span>
                               <span className="text-label-sm text-outline">{planLabel}</span>
-                              {profile?.isOwner && <span className="text-label-sm text-amber-600 font-semibold flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">star</span>Owner</span>}
+                              {workspace?.isOwner && <span className="text-label-sm text-amber-600 font-semibold flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">star</span>Owner</span>}
                             </div>
-                            {profile?.companyName && <p className="text-body-sm text-outline mt-2">{profile.companyName}</p>}
+                            {workspace?.companyName && <p className="text-body-sm text-outline mt-2">{workspace.companyName}</p>}
                           </div>
                         </motion.div>
 
@@ -527,22 +1020,22 @@ export default function ProfileDetailPage() {
                           <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm">
                             <div className="flex items-center gap-2.5 mb-5">
                               <div className="w-9 h-9 rounded-xl bg-primary/5 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-primary text-[18px]">business</span>
+                                <span className="material-symbols-outlined text-primary text-[18px]">workspaces</span>
                               </div>
-                              <h3 className="text-body-lg font-semibold text-on-surface">Business</h3>
+                              <h3 className="text-body-lg font-semibold text-on-surface">Workspace</h3>
                             </div>
                             <dl className="space-y-2">
                               <div className="grid grid-cols-[110px_1fr] items-center py-2.5 px-3 -mx-3 rounded-xl bg-surface-container/40">
                                 <dt className="text-label-sm text-outline">Name</dt>
-                                <dd className="text-body-sm text-on-surface font-medium">{profile?.name}</dd>
+                                <dd className="text-body-sm text-on-surface font-medium">{workspace?.name}</dd>
                               </div>
                               <div className="grid grid-cols-[110px_1fr] items-center py-2.5 px-3 -mx-3 rounded-xl">
-                                <dt className="text-label-sm text-outline">Plan</dt>
+                                <dt className="text-label-sm text-outline">Type</dt>
                                 <dd className="text-body-sm text-on-surface font-medium">{planLabel}</dd>
                               </div>
                               <div className="grid grid-cols-[110px_1fr] items-center py-2.5 px-3 -mx-3 rounded-xl">
                                 <dt className="text-label-sm text-outline">Company</dt>
-                                <dd className="text-body-sm text-on-surface">{profile?.companyName || "—"}</dd>
+                                <dd className="text-body-sm text-on-surface">{workspace?.companyName || "—"}</dd>
                               </div>
                             </dl>
                           </motion.div>
@@ -555,16 +1048,16 @@ export default function ProfileDetailPage() {
                             </div>
                             <dl className="space-y-2">
                               <div className="grid grid-cols-[110px_1fr] items-start py-2.5 px-3 -mx-3 rounded-xl bg-surface-container/40">
-                                <dt className="text-label-sm text-outline">Bio</dt>
-                                <dd className="text-body-sm text-on-surface">{profile?.bio || "—"}</dd>
+                                <dt className="text-label-sm text-outline">Description</dt>
+                                <dd className="text-body-sm text-on-surface">{workspace?.bio || "—"}</dd>
                               </div>
                               <div className="grid grid-cols-[110px_1fr] items-center py-2.5 px-3 -mx-3 rounded-xl">
                                 <dt className="text-label-sm text-outline">Avatar</dt>
-                                <dd className="text-body-sm text-on-surface break-all">{profile?.avatarUrl || "—"}</dd>
+                                <dd className="text-body-sm text-on-surface break-all">{workspace?.avatarUrl || "—"}</dd>
                               </div>
                               <div className="grid grid-cols-[110px_1fr] items-center py-2.5 px-3 -mx-3 rounded-xl">
                                 <dt className="text-label-sm text-outline">Created</dt>
-                                <dd className="text-body-sm text-on-surface">{profile ? new Date(profile.createdAt).toLocaleDateString() : "—"}</dd>
+                                <dd className="text-body-sm text-on-surface">{workspace ? new Date(workspace.createdAt).toLocaleDateString() : "—"}</dd>
                               </div>
                             </dl>
                           </motion.div>
@@ -577,7 +1070,7 @@ export default function ProfileDetailPage() {
                             className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-xl text-body-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors"
                           >
                             <span className="material-symbols-outlined text-[16px]">delete</span>
-                            Delete Profile
+                            Delete Workspace
                           </motion.button>
                         </motion.div>
                       </div>
@@ -606,9 +1099,9 @@ export default function ProfileDetailPage() {
                     {/* Team Stats */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {[
-                        { label: "Total Members", value: "1", icon: "group", color: "text-primary", bg: "bg-primary/5" },
-                        { label: "Active", value: "1", icon: "check_circle", color: "text-emerald-600", bg: "bg-emerald-50" },
-                        { label: "Pending Invites", value: "0", icon: "schedule", color: "text-amber-600", bg: "bg-amber-50" },
+                        { label: "Total Members", value: String(members.length), icon: "group", color: "text-primary", bg: "bg-primary/5" },
+                        { label: "Active", value: String(members.filter(m => m.status === "Active").length), icon: "check_circle", color: "text-emerald-600", bg: "bg-emerald-50" },
+                        { label: "Pending Invites", value: String(members.filter(m => m.status === "Pending" || m.status === "Invited").length), icon: "schedule", color: "text-amber-600", bg: "bg-amber-50" },
                       ].map((stat) => (
                         <motion.div
                           key={stat.label}
@@ -628,72 +1121,136 @@ export default function ProfileDetailPage() {
                       ))}
                     </div>
 
+                    {/* Filters */}
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center gap-2">
+                      {[
+                        { key: "all" as const, label: "All", count: members.length },
+                        { key: "active" as const, label: "Active", count: members.filter(m => m.status === "Active").length },
+                        { key: "pending" as const, label: "Pending", count: members.filter(m => m.status === "Pending" || m.status === "Invited").length },
+                      ].map((f) => (
+                        <button
+                          key={f.key}
+                          onClick={() => setMemberFilter(f.key)}
+                          className={`px-4 py-2 rounded-xl text-label-sm font-medium transition-all ${
+                            memberFilter === f.key
+                              ? "bg-primary text-on-primary shadow-sm"
+                              : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/20"
+                          }`}
+                        >
+                          {f.label}
+                          <span className={`ml-2 px-1.5 py-0.5 rounded-full text-label-xs ${
+                            memberFilter === f.key ? "bg-white/20" : "bg-surface-container"
+                          }`}>
+                            {f.count}
+                          </span>
+                        </button>
+                      ))}
+                    </motion.div>
+
                     {/* Team Members List */}
                     <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
                       <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30">
                         <h3 className="text-body-md font-semibold text-on-surface">Members</h3>
                       </div>
                       <div className="divide-y divide-outline-variant/10">
-                        {profile && (
-                          <div className="px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-on-primary font-bold text-body-md">
-                              {getInitials(profile.name)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-body-sm font-semibold text-on-surface truncate">{profile.name}</p>
-                                {profile.isOwner && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-label-xs font-medium border border-amber-200/30">
-                                    <span className="material-symbols-outlined text-[12px]">star</span>
-                                    Owner
-                                  </span>
+                        {loadingMembers ? (
+                          <div className="px-6 py-8 text-center">
+                            <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+                            <p className="text-body-sm text-on-surface-variant">Loading members...</p>
+                          </div>
+                        ) : members.filter(m => {
+                          if (memberFilter === "all") return true;
+                          return m.status.toLowerCase() === memberFilter;
+                        }).length === 0 ? (
+                          <div className="px-6 py-12 text-center">
+                            <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">group_off</span>
+                            <p className="text-body-sm text-on-surface-variant">No members found</p>
+                          </div>
+                        ) : (
+                          members.filter(m => {
+                            if (memberFilter === "all") return true;
+                            return m.status.toLowerCase() === memberFilter;
+                          }).map((member) => {
+                            const roleConfig: Record<WorkspaceMemberRole, { label: string; color: string; bg: string; icon: string }> = {
+                              Owner: { label: "Owner", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", icon: "star" },
+                              Manager: { label: "Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
+                              ContentCreator: { label: "Content Creator", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
+                              Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "visibility" },
+                            };
+                            const statusConfigMember: Record<MemberStatus, { label: string; color: string; bg: string; dot: string }> = {
+                              Active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" },
+                              Pending: { label: "Pending", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", dot: "bg-amber-500" },
+                              Invited: { label: "Invited", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", dot: "bg-blue-500" },
+                            };
+                            const rb = roleConfig[member.role];
+                            const sb = statusConfigMember[member.status];
+                            return (
+                              <div key={member.id} className="px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-md font-bold text-primary shrink-0">
+                                  {getInitials(member.name)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-body-sm text-on-surface font-semibold truncate">{member.name}</p>
+                                    {member.role === "Owner" && (
+                                      <span className="material-symbols-outlined text-amber-500 text-[16px]">star</span>
+                                    )}
+                                  </div>
+                                  <p className="text-label-sm text-on-surface-variant truncate">{member.email}</p>
+                                  {member.lastActiveAt && (
+                                    <p className="text-label-xs text-outline mt-0.5">
+                                      Last active: {new Date(member.lastActiveAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${rb.bg} ${rb.color}`}>
+                                  <span className="material-symbols-outlined text-[12px]">{rb.icon}</span>
+                                  {rb.label}
+                                </span>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${sb.bg} ${sb.color}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${sb.dot} ${member.status === "Active" ? "animate-pulse" : ""}`} />
+                                  {sb.label}
+                                </span>
+                                {member.role !== "Owner" && (
+                                  <button className="p-2 rounded-lg hover:bg-surface-container transition-colors">
+                                    <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
+                                  </button>
                                 )}
                               </div>
-                              <p className="text-label-sm text-on-surface-variant mt-0.5">
-                                {profile.isOwner ? "Full access to all features" : profile.memberRole || "Member"}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-label-xs font-medium border border-emerald-200/50">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Active
-                              </span>
-                              {profile.isOwner && (
-                                <button className="p-2 rounded-lg hover:bg-surface-container transition-colors" title="Edit member">
-                                  <span className="material-symbols-outlined text-[18px] text-outline">more_vert</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                            );
+                          })
                         )}
                       </div>
                     </motion.div>
 
-                    {/* Permissions Info */}
+                    {/* Workspace Roles Info */}
                     <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
-                      <div className="flex items-start gap-4">
+                      <div className="flex items-start gap-4 mb-4">
                         <div className="w-12 h-12 rounded-xl bg-white/80 flex items-center justify-center shrink-0">
                           <span className="material-symbols-outlined text-primary text-[24px]">admin_panel_settings</span>
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-body-md font-semibold text-on-surface mb-1">Role Permissions</h4>
-                          <p className="text-body-sm text-on-surface-variant mb-4">
-                            As the owner, you have full control over this profile including billing, team management, and all settings.
+                          <h4 className="text-body-md font-semibold text-on-surface mb-1">Workspace Roles</h4>
+                          <p className="text-body-sm text-on-surface-variant">
+                            Manage team members with role-based permissions
                           </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {[
-                              "Manage team members",
-                              "Edit profile settings",
-                              "Access billing & payments",
-                              "View all analytics",
-                            ].map((permission) => (
-                              <div key={permission} className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-emerald-600 text-[16px]">check_circle</span>
-                                <span className="text-label-sm text-on-surface">{permission}</span>
-                              </div>
-                            ))}
-                          </div>
                         </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {[
+                          { role: "Owner", desc: "Full access, billing, subscription, invite/remove members, assign quota", icon: "star", color: "text-amber-600" },
+                          { role: "Manager", desc: "Brand, Product, Content, Campaign management, view team usage", icon: "manage_accounts", color: "text-blue-600" },
+                          { role: "Content Creator", desc: "Generate content, create drafts, publish", icon: "edit_note", color: "text-emerald-600" },
+                          { role: "Viewer", desc: "View dashboard and analytics only", icon: "visibility", color: "text-outline" },
+                        ].map((r) => (
+                          <div key={r.role} className="bg-white/60 rounded-xl p-4 border border-outline-variant/10">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`material-symbols-outlined ${r.color} text-[20px]`}>{r.icon}</span>
+                              <span className="text-body-sm font-semibold text-on-surface">{r.role}</span>
+                            </div>
+                            <p className="text-label-sm text-on-surface-variant leading-relaxed">{r.desc}</p>
+                          </div>
+                        ))}
                       </div>
                     </motion.div>
                   </motion.div>
@@ -864,7 +1421,7 @@ export default function ProfileDetailPage() {
                   <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show" className="space-y-6">
                     <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-2xl font-bold text-on-surface tracking-tight">Billing & Usage</h2>
+                        <h2 className="text-2xl font-bold text-on-surface tracking-tight">Billing & Credits</h2>
                         <p className="text-body-sm text-on-surface-variant mt-1.5">Monitor your usage and manage billing</p>
                       </div>
                       <motion.button
@@ -877,12 +1434,59 @@ export default function ProfileDetailPage() {
                       </motion.button>
                     </motion.div>
 
-                    {/* Usage Quotas */}
+                    {/* Billing Tabs */}
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center gap-1 bg-surface-container/50 rounded-xl p-1">
+                      {[
+                        { key: "overview" as const, label: "Overview", icon: "receipt_long" },
+                        { key: "usage" as const, label: "Usage", icon: "monitoring" },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          onClick={() => setBillingTab(tab.key)}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-body-sm font-semibold transition-all ${
+                            billingTab === tab.key
+                              ? "bg-surface-container-lowest text-primary shadow-sm"
+                              : "text-on-surface-variant hover:text-on-surface"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                          {tab.label}
+                        </button>
+                      ))}
+                    </motion.div>
+
+                    {billingTab === "overview" && (
+                      <>
+                    <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-emerald-50 to-emerald-50/50 rounded-2xl border border-emerald-200/30 p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-emerald-600 text-[28px]">token</span>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-body-lg font-semibold text-on-surface">Credit Wallet</h3>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-label-xs font-semibold">
+                                <span className="material-symbols-outlined text-[12px]">check</span>
+                                Active
+                              </span>
+                            </div>
+                            <p className="text-body-sm text-on-surface-variant">Workspace AI credits balance</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-3xl font-bold text-emerald-600">850</p>
+                          <p className="text-label-sm text-outline">Credits remaining</p>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Workspace Credits & Usage */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {[
-                        { label: "API Calls", used: "8,452", total: "10,000", pct: 85, icon: "api", color: "text-primary", bg: "bg-primary/5", bar: "bg-gradient-to-r from-primary to-primary-container", warning: true },
-                        { label: "Storage", used: "2.4 GB", total: "5 GB", pct: 48, icon: "storage", color: "text-secondary", bg: "bg-secondary/5", bar: "bg-gradient-to-r from-secondary to-secondary-container", warning: false },
-                        { label: "Team Members", used: "1", total: "5", pct: 20, icon: "group", color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-gradient-to-r from-emerald-500 to-emerald-400", warning: false },
+                        { label: "AI Credits", used: "850", total: "2,000", pct: 43, icon: "token", color: "text-primary", bg: "bg-primary/5", bar: "bg-gradient-to-r from-primary to-primary-container", warning: false },
+                        { label: "Posts This Month", used: "124", total: "1,000", pct: 12, icon: "send", color: "text-secondary", bg: "bg-secondary/5", bar: "bg-gradient-to-r from-secondary to-secondary-container", warning: false },
+                        { label: "Team Members", used: "3", total: "10", pct: 30, icon: "group", color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-gradient-to-r from-emerald-500 to-emerald-400", warning: false },
                       ].map((q) => (
                         <motion.div
                           key={q.label}
@@ -941,13 +1545,28 @@ export default function ProfileDetailPage() {
                           paymentHistory.map((invoice) => (
                             <div key={invoice.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-container/30 transition-colors">
                               <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
-                                  <span className="material-symbols-outlined text-primary text-[20px]">receipt</span>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                  invoice.description?.includes("Credit Pack") ? "bg-amber-50" : "bg-primary/5"
+                                }`}>
+                                  <span className={`material-symbols-outlined text-[20px] ${
+                                    invoice.description?.includes("Credit Pack") ? "text-amber-600" : "text-primary"
+                                  }`}>
+                                    {invoice.description?.includes("Credit Pack") ? "token" : "receipt"}
+                                  </span>
                                 </div>
                                 <div>
-                                  <p className="text-body-sm font-semibold text-on-surface">
-                                    {new Date(invoice.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-body-sm font-semibold text-on-surface">
+                                      {new Date(invoice.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                                    </p>
+                                    <span className={`px-2 py-0.5 rounded-full text-label-2xs font-semibold ${
+                                      invoice.description?.includes("Credit Pack")
+                                        ? "bg-amber-50 text-amber-700 border border-amber-200/50"
+                                        : "bg-primary/5 text-primary border border-primary/20"
+                                    }`}>
+                                      {invoice.description?.includes("Credit Pack") ? "Credit Pack" : "Subscription"}
+                                    </span>
+                                  </div>
                                   <p className="text-label-sm text-on-surface-variant">{invoice.description || invoice.paymentMethod}</p>
                                 </div>
                               </div>
@@ -999,10 +1618,175 @@ export default function ProfileDetailPage() {
                         </motion.button>
                       </div>
                     </motion.div>
+                      </>
+                    )}
+
+                    {billingTab === "usage" && (
+                      <>
+                        {/* Credit Usage Summary */}
+                        <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-5 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-emerald-600 text-[20px]">token</span>
+                            </div>
+                            <div>
+                              <p className="text-label-sm text-on-surface-variant">Total Credits Used</p>
+                              <p className="text-body-lg font-bold text-emerald-600">
+                                {creditHistory.filter(r => r.status === "Success").reduce((sum, r) => sum + r.credits, 0)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {[
+                              { key: "all" as const, label: "All", count: creditTotalCount },
+                              { key: "success" as const, label: "Success", count: creditHistory.filter(r => r.status === "Success").length },
+                              { key: "failed" as const, label: "Failed", count: creditHistory.filter(r => r.status === "Failed").length },
+                            ].map((f) => (
+                              <button
+                                key={f.key}
+                                onClick={() => setCreditFilter(f.key)}
+                                className={`px-3 py-1.5 rounded-lg text-label-xs font-medium transition-all ${
+                                  creditFilter === f.key
+                                    ? "bg-primary text-on-primary shadow-sm"
+                                    : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                                }`}
+                              >
+                                {f.label} ({f.count})
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+
+                        {/* Credit Usage Table */}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                          {loadingCreditHistory ? (
+                            <div className="px-6 py-12 text-center">
+                              <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+                              <p className="text-body-sm text-on-surface-variant">Loading credit history...</p>
+                            </div>
+                          ) : creditHistory.filter(r => {
+                            if (creditFilter === "all") return true;
+                            return r.status.toLowerCase() === creditFilter;
+                          }).length === 0 ? (
+                            <div className="px-6 py-12 text-center">
+                              <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">history</span>
+                              <p className="text-body-sm text-on-surface-variant">No credit usage yet</p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-surface-container/50 border-b border-outline-variant/10 text-label-sm font-semibold text-outline">
+                                <div className="col-span-5">Action</div>
+                                <div className="col-span-3">Feature</div>
+                                <div className="col-span-2 text-center">Credits</div>
+                                <div className="col-span-2 text-right">Time</div>
+                              </div>
+                              <div className="divide-y divide-outline-variant/10">
+                                {creditHistory.filter(r => {
+                                  if (creditFilter === "all") return true;
+                                  return r.status.toLowerCase() === creditFilter;
+                                }).map((record) => {
+                                  const actionIcons: Record<string, string> = {
+                                    "generate text": "text_fields", "generate image": "image", "generate video": "videocam",
+                                    "regenerate": "refresh", "refine": "refresh", "trend analysis": "trending_up",
+                                    "campaign recommendation": "campaign",
+                                  };
+                                  const actionColors: Record<string, string> = {
+                                    "generate text": "text-blue-500 bg-blue-50", "generate image": "text-purple-500 bg-purple-50",
+                                    "generate video": "text-pink-500 bg-pink-50", "regenerate": "text-amber-500 bg-amber-50",
+                                    "refine": "text-amber-500 bg-amber-50", "trend analysis": "text-emerald-500 bg-emerald-50",
+                                    "campaign recommendation": "text-indigo-500 bg-indigo-50",
+                                  };
+                                  const icon = actionIcons[record.action.toLowerCase()] || "auto_awesome";
+                                  const color = actionColors[record.action.toLowerCase()] || "text-primary bg-primary/5";
+                                  return (
+                                    <div key={record.id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-surface-container/30 transition-colors">
+                                      <div className="col-span-5 flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
+                                          <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                                        </div>
+                                        <div>
+                                          <p className="text-body-sm text-on-surface font-medium">{record.action}</p>
+                                          <p className="text-label-xs text-outline">{record.userName}</p>
+                                        </div>
+                                      </div>
+                                      <div className="col-span-3 flex items-center">
+                                        <span className="text-body-sm text-on-surface-variant">{record.featureUsed}</span>
+                                      </div>
+                                      <div className="col-span-2 flex items-center justify-center">
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
+                                          record.status === "Success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                                        }`}>
+                                          {record.status === "Failed" && <span className="material-symbols-outlined text-[14px]">close</span>}
+                                          {record.status === "Success" ? `-${record.credits}` : "0"}
+                                        </span>
+                                      </div>
+                                      <div className="col-span-2 flex items-center justify-end">
+                                        <span className="text-label-sm text-outline">
+                                          {new Date(record.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {creditTotalPages > 1 && (
+                                <div className="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10">
+                                  <span className="text-label-sm text-outline">Page {creditPage} of {creditTotalPages}</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => { setCreditPage(p => Math.max(1, p - 1)); handleLoadCreditHistory(Math.max(1, creditPage - 1)); }}
+                                      disabled={creditPage === 1}
+                                      className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                      Previous
+                                    </button>
+                                    <button
+                                      onClick={() => { setCreditPage(p => Math.min(creditTotalPages, p + 1)); handleLoadCreditHistory(Math.min(creditTotalPages, creditPage + 1)); }}
+                                      disabled={creditPage === creditTotalPages}
+                                      className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </motion.div>
+
+                        {/* About Credit Usage */}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
+                          <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-white/80 flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-primary text-[24px]">info</span>
+                            </div>
+                            <div>
+                              <h4 className="text-body-md font-semibold text-on-surface mb-1">About Credit Usage</h4>
+                              <ul className="space-y-1.5 text-body-sm text-on-surface-variant">
+                                <li className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+                                  Text generation costs 1 credit per request
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+                                  Image generation costs 5 credits per request
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+                                  Video generation costs 20 credits per request
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+                                  Failed requests do not consume credits
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
                   </motion.div>
                 )}
-
-                {/* ===== SUBSCRIPTION ===== */}
                 {activeSection === "subscription" && (
                   <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show" className="space-y-6">
                     <motion.div variants={reduceMotion ? undefined : item}>
@@ -1031,7 +1815,7 @@ export default function ProfileDetailPage() {
                                       {subscription?.planName || planLabel} Plan
                                     </h3>
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold border ${statusInfo.class}`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${profile?.status === 1 ? "animate-pulse" : ""}`} />
+                                      <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${workspace?.status === 1 ? "animate-pulse" : ""}`} />
                                       {subscription?.status || statusInfo.label}
                                     </span>
                                   </div>
@@ -1102,7 +1886,7 @@ export default function ProfileDetailPage() {
                     {/* Plan Comparison */}
                     <motion.div variants={reduceMotion ? undefined : item}>
                       <h3 className="text-body-lg font-semibold text-on-surface mb-4">Compare Plans</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {[
                           {
                             name: "Free",
@@ -1110,27 +1894,27 @@ export default function ProfileDetailPage() {
                             price: "$0",
                             period: "/month",
                             current: planLabel === "Free",
-                            features: ["1 Profile", "100 API Calls/month", "1 GB Storage", "Community Support"],
+                            features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
                             cta: "Current Plan",
                           },
                           {
-                            name: "Basic",
+                            name: "Personal Plus",
                             planType: 1,
                             price: "$29",
                             period: "/month",
-                            current: planLabel === "Basic",
+                            current: planLabel === "Personal Plus",
                             popular: true,
-                            features: ["5 Profiles", "10,000 API Calls/month", "5 GB Storage", "5 Team Members", "Email Support"],
-                            cta: planLabel === "Basic" ? "Current Plan" : "Upgrade to Basic",
+                            features: ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
+                            cta: planLabel === "Personal Plus" ? "Current Plan" : "Upgrade",
                           },
                           {
-                            name: "Pro",
+                            name: "Personal Pro",
                             planType: 2,
                             price: "$79",
                             period: "/month",
-                            current: planLabel === "Pro",
-                            features: ["Unlimited Profiles", "Unlimited API Calls", "50 GB Storage", "Unlimited Team Members", "Priority Support", "Advanced Analytics"],
-                            cta: planLabel === "Pro" ? "Current Plan" : "Upgrade to Pro",
+                            current: planLabel === "Personal Pro",
+                            features: ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
+                            cta: planLabel === "Personal Pro" ? "Current Plan" : "Upgrade",
                           },
                         ].map((plan) => (
                           <div
@@ -1184,6 +1968,75 @@ export default function ProfileDetailPage() {
                       </div>
                     </motion.div>
 
+                    {/* Credit Pack */}
+                    <motion.div variants={reduceMotion ? undefined : item}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-body-lg font-semibold text-on-surface">Buy Credits</h3>
+                          <p className="text-body-sm text-on-surface-variant">Purchase additional AI credits. Credits never expire.</p>
+                        </div>
+                        {creditWallet && (
+                          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200/30">
+                            <span className="material-symbols-outlined text-emerald-500 text-[20px]">account_balance_wallet</span>
+                            <span className="text-body-sm font-semibold text-emerald-700">{creditWallet.balance.toLocaleString()} credits</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {purchaseSuccess && (
+                        <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-600 text-white mb-4 animate-in slide-in-from-top-2">
+                          <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                          <span className="text-body-sm font-semibold">Credits added successfully!</span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[
+                          { name: "Starter", credits: 100, price: "29,000₫", icon: "bolt" },
+                          { name: "Standard", credits: 500, price: "99,000₫", icon: "electric_bolt", popular: true },
+                          { name: "Growth", credits: 1500, price: "249,000₫", icon: "local_fire_department" },
+                          { name: "Business", credits: 5000, price: "699,000₫", icon: "whatshot" },
+                        ].map((pack) => (
+                          <div
+                            key={pack.name}
+                            className={`relative rounded-2xl border p-5 ${
+                              pack.popular
+                                ? "border-primary shadow-lg shadow-primary/10 bg-gradient-to-b from-primary/5 to-transparent"
+                                : "border-outline-variant/20 bg-surface-container-lowest"
+                            }`}
+                          >
+                            {pack.popular && (
+                              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                                <span className="px-3 py-1 bg-gradient-to-r from-primary to-secondary text-white text-label-xs font-bold rounded-full shadow-md">
+                                  Best Value
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className={`material-symbols-outlined text-[24px] ${pack.popular ? "text-primary" : "text-outline"}`}>{pack.icon}</span>
+                              <h4 className="text-body-md font-bold text-on-surface">{pack.name}</h4>
+                            </div>
+                            <div className="mb-3">
+                              <span className="text-2xl font-bold text-on-surface">{pack.credits.toLocaleString()}</span>
+                              <span className="text-label-sm text-outline ml-1">Credits</span>
+                            </div>
+                            <p className="text-body-lg font-semibold text-primary mb-4">{pack.price}</p>
+                            <motion.button
+                              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                              onClick={() => { setSelectedCreditPack(pack); setShowPurchaseConfirm(true); }}
+                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${
+                                pack.popular
+                                  ? "bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
+                                  : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
+                              }`}
+                            >
+                              Purchase
+                            </motion.button>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+
                     {/* Cancel Subscription */}
                     <motion.div variants={reduceMotion ? undefined : item} className="bg-red-50/50 rounded-2xl border border-red-200/30 p-6">
                       <div className="flex items-center justify-between">
@@ -1227,12 +2080,12 @@ export default function ProfileDetailPage() {
                         <span className="material-symbols-outlined text-red-500 text-[22px]">delete</span>
                       </div>
                       <div>
-                        <h3 className="text-body-lg text-on-surface font-semibold">Delete Profile</h3>
+                        <h3 className="text-body-lg text-on-surface font-semibold">Delete Workspace</h3>
                         <p className="text-body-sm text-on-surface-variant">This action cannot be undone</p>
                       </div>
                     </div>
                     <p className="text-body-sm text-on-surface-variant mb-6">
-                      Are you sure you want to delete <span className="font-semibold text-on-surface">{profile?.name}</span>? All associated data will be permanently removed.
+                      Are you sure you want to delete <span className="font-semibold text-on-surface">{workspace?.name}</span>? All associated data will be permanently removed.
                     </p>
                     <div className="flex justify-end gap-3">
                       <motion.button
@@ -1252,6 +2105,156 @@ export default function ProfileDetailPage() {
                     </div>
                   </motion.div>
                 </motion.div>
+              )}
+
+              {/* Invite Member Modal */}
+              {showInviteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <motion.div
+                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
+                  >
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+                        <span className="material-symbols-outlined text-primary text-[24px]">person_add</span>
+                      </div>
+                      <div>
+                        <h3 className="text-body-lg font-bold text-on-surface">Invite Member</h3>
+                        <p className="text-label-sm text-on-surface-variant">Add a new team member to workspace</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 mb-6">
+                      <div>
+                        <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">Email Address</label>
+                        <input
+                          type="email"
+                          placeholder="colleague@company.com"
+                          value={inviteForm.email}
+                          onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                          className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">Role</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: "Viewer", label: "Viewer", icon: "visibility", desc: "View only" },
+                            { value: "ContentCreator", label: "Creator", icon: "edit_note", desc: "Create & publish" },
+                            { value: "Manager", label: "Manager", icon: "manage_accounts", desc: "Manage content" },
+                          ].map((r) => (
+                            <button
+                              key={r.value}
+                              type="button"
+                              onClick={() => setInviteForm({ ...inviteForm, role: r.value as InvitationRole })}
+                              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                                inviteForm.role === r.value
+                                  ? "border-primary bg-primary/5 text-primary"
+                                  : "border-outline-variant/30 text-on-surface-variant hover:border-outline-variant/60 hover:bg-surface-container"
+                              }`}
+                            >
+                              <span className={`material-symbols-outlined text-[20px] ${inviteForm.role === r.value ? "text-primary" : ""}`}>{r.icon}</span>
+                              <span className="text-label-sm font-medium">{r.label}</span>
+                              <span className="text-label-2xs text-on-surface-variant">{r.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setShowInviteModal(false); setInviteForm({ email: "", role: "Viewer" }); }}
+                        disabled={sendingInvite}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSendInvite}
+                        disabled={sendingInvite || !inviteForm.email.trim()}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {sendingInvite ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">send</span>
+                            Send Invite
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Purchase Credits Confirm Dialog */}
+              {showPurchaseConfirm && selectedCreditPack && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-[24px]">shopping_cart</span>
+                      </div>
+                      <div>
+                        <h3 className="text-body-lg font-bold text-on-surface">Confirm Purchase</h3>
+                        <p className="text-label-sm text-on-surface-variant">Review your order</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4 mb-6">
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container/50">
+                        <span className="text-body-sm font-semibold text-on-surface">{selectedCreditPack.name} Pack</span>
+                        <span className="text-body-sm font-bold text-on-surface">{selectedCreditPack.credits.toLocaleString()} credits</span>
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container/50">
+                        <span className="text-body-sm text-on-surface-variant">Current Balance</span>
+                        <span className="text-body-sm font-semibold text-on-surface">{creditWallet?.balance.toLocaleString() || 0} credits</span>
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-50 border border-emerald-200/30">
+                        <span className="text-body-sm font-semibold text-emerald-700">New Balance</span>
+                        <span className="text-body-sm font-bold text-emerald-700">{((creditWallet?.balance || 0) + selectedCreditPack.credits).toLocaleString()} credits</span>
+                      </div>
+                      <div className="pt-4 border-t border-outline-variant/20">
+                        <div className="flex items-center justify-between">
+                          <span className="text-body-md font-semibold text-on-surface">Total</span>
+                          <span className="text-2xl font-bold text-primary">{selectedCreditPack.price}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setShowPurchaseConfirm(false)}
+                        disabled={purchasing}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handlePurchaseCredits}
+                        disabled={purchasing}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {purchasing ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Processing...
+                          </>
+                        ) : "Confirm & Pay"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </main>
