@@ -106,6 +106,45 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         return GenericResponse<object>.CreateSuccess(null, "Workspace member removed successfully.");
     }
 
+    public async Task<GenericResponse<WorkspaceMemberResponseDto>> TransferOwnershipAsync(
+        Guid workspaceId,
+        Guid actorUserId,
+        TransferWorkspaceOwnershipRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var authorizationError = await RequireOwnerAsync(workspaceId, actorUserId, cancellationToken);
+        if (authorizationError != null)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
+                authorizationError.Value.Message,
+                authorizationError.Value.Status);
+        }
+
+        var target = await _workspaceMemberRepository.GetByIdAsync(request.TargetMemberId, cancellationToken);
+        if (target == null || target.WorkspaceId != workspaceId)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
+                "Workspace member not found.",
+                HttpStatusCode.NotFound);
+        }
+
+        if (target.Role != WorkspaceMemberRoleEnum.Manager)
+        {
+            return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
+                "Ownership can only be transferred to an active workspace manager.");
+        }
+
+        var newOwner = await _workspaceMemberRepository.TransferOwnershipAsync(
+            workspaceId,
+            actorUserId,
+            request.TargetMemberId,
+            cancellationToken);
+
+        return GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(
+            Map(newOwner),
+            "Workspace ownership transferred successfully.");
+    }
+
     private async Task<(string Message, HttpStatusCode Status)?> RequireOwnerAsync(
         Guid workspaceId,
         Guid actorUserId,

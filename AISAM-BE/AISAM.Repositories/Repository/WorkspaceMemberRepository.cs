@@ -2,6 +2,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AISAM.Repositories.Repository;
 
@@ -113,6 +114,39 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<WorkspaceMember> TransferOwnershipAsync(
+        Guid workspaceId,
+        Guid currentOwnerUserId,
+        Guid targetMemberId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            return await TransferOwnershipCoreAsync(workspaceId, currentOwnerUserId, targetMemberId, false, cancellationToken);
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        try
+        {
+            var newOwner = await TransferOwnershipCoreAsync(
+                workspaceId,
+                currentOwnerUserId,
+                targetMemberId,
+                true,
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return newOwner;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     public async Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var member = await _context.WorkspaceMembers
@@ -141,6 +175,42 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
                 member.UserId == userId &&
                 member.IsActive,
                 cancellationToken);
+    }
+
+    private async Task<WorkspaceMember> TransferOwnershipCoreAsync(
+        Guid workspaceId,
+        Guid currentOwnerUserId,
+        Guid targetMemberId,
+        bool saveInTwoSteps,
+        CancellationToken cancellationToken)
+    {
+        var members = await Query()
+            .Where(member => member.WorkspaceId == workspaceId && member.IsActive)
+            .ToListAsync(cancellationToken);
+        var owners = members.Where(member => member.Role == WorkspaceMemberRoleEnum.Owner).ToList();
+
+        if (owners.Count != 1 || owners[0].UserId != currentOwnerUserId)
+        {
+            throw new InvalidOperationException("Workspace must have exactly one current owner.");
+        }
+
+        var target = members.FirstOrDefault(member => member.Id == targetMemberId);
+        if (target?.Role != WorkspaceMemberRoleEnum.Manager)
+        {
+            throw new InvalidOperationException("Ownership can only be transferred to an active workspace manager.");
+        }
+
+        var currentOwner = owners[0];
+        currentOwner.Role = WorkspaceMemberRoleEnum.Manager;
+
+        if (saveInTwoSteps)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        target.Role = WorkspaceMemberRoleEnum.Owner;
+        await _context.SaveChangesAsync(cancellationToken);
+        return target;
     }
 
     private IQueryable<WorkspaceMember> Query()

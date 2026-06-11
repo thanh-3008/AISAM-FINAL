@@ -31,6 +31,9 @@ public class WorkspaceMemberControllerTests
 
         await controller.Remove(memberId);
         Assert.Equal(memberId, service.LastMemberId);
+
+        await controller.TransferOwnership(new TransferWorkspaceOwnershipRequest { TargetMemberId = memberId });
+        Assert.Equal(memberId, service.LastMemberId);
     }
 
     private static WorkspaceMemberController CreateController(
@@ -73,6 +76,12 @@ public class WorkspaceMemberControllerTests
         {
             Capture(workspaceId, actorUserId, memberId);
             return Task.FromResult(GenericResponse<object>.CreateSuccess(null));
+        }
+
+        public Task<GenericResponse<WorkspaceMemberResponseDto>> TransferOwnershipAsync(Guid workspaceId, Guid actorUserId, TransferWorkspaceOwnershipRequest request, CancellationToken cancellationToken = default)
+        {
+            Capture(workspaceId, actorUserId, request.TargetMemberId);
+            return Task.FromResult(GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(new WorkspaceMemberResponseDto()));
         }
 
         private void Capture(Guid workspaceId, Guid actorUserId, Guid? memberId = null)

@@ -224,6 +224,9 @@ namespace AISAM.Repositories
                 entity.HasIndex(wm => wm.UserId);
                 entity.HasIndex(wm => new { wm.WorkspaceId, wm.UserId }).IsUnique();
                 entity.HasIndex(wm => new { wm.WorkspaceId, wm.Role });
+                entity.HasIndex(wm => wm.WorkspaceId)
+                      .IsUnique()
+                      .HasFilter("\"role\" = 1 AND \"is_active\" = TRUE");
                 entity.HasIndex(wm => wm.IsActive);
                 entity.HasOne(wm => wm.Workspace)
                       .WithMany(w => w.Members)

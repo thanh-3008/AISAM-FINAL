@@ -8,3 +8,9 @@ public sealed class UpdateWorkspaceMemberRoleRequest
     [Required]
     public WorkspaceMemberRoleEnum Role { get; set; }
 }
+
+public sealed class TransferWorkspaceOwnershipRequest
+{
+    [Required]
+    public Guid TargetMemberId { get; set; }
+}

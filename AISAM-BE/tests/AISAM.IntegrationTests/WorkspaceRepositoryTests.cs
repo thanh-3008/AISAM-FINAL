@@ -167,6 +167,59 @@ public class WorkspaceRepositoryTests
         Assert.Equal("Use ownership transfer to change the workspace owner.", exception.Message);
     }
 
+    [Fact]
+    public async Task TransferOwnershipAsync_SwapsOwnerAndManagerRoles()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+
+        var newOwner = await repository.TransferOwnershipAsync(
+            fixture.SecondWorkspace.Id,
+            fixture.SecondOwner.UserId,
+            fixture.SecondMembership.Id);
+
+        Assert.Equal(WorkspaceMemberRoleEnum.Owner, newOwner.Role);
+        Assert.Equal(
+            WorkspaceMemberRoleEnum.Manager,
+            await context.WorkspaceMembers
+                .Where(member => member.Id == fixture.SecondOwner.Id)
+                .Select(member => member.Role)
+                .SingleAsync());
+        Assert.Equal(
+            1,
+            await context.WorkspaceMembers.CountAsync(member =>
+                member.WorkspaceId == fixture.SecondWorkspace.Id &&
+                member.IsActive &&
+                member.Role == WorkspaceMemberRoleEnum.Owner));
+    }
+
+    [Fact]
+    public async Task TransferOwnershipAsync_RejectsInvalidOwnerInvariantWithoutChangingRoles()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedMemberships(context);
+        var repository = new WorkspaceMemberRepository(context);
+        fixture.SecondOwner.Role = WorkspaceMemberRoleEnum.Manager;
+        await context.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            repository.TransferOwnershipAsync(
+                fixture.SecondWorkspace.Id,
+                fixture.SecondOwner.UserId,
+                fixture.SecondMembership.Id));
+
+        Assert.Equal("Workspace must have exactly one current owner.", exception.Message);
+        Assert.Equal(
+            0,
+            await context.WorkspaceMembers.CountAsync(member =>
+                member.WorkspaceId == fixture.SecondWorkspace.Id &&
+                member.Role == WorkspaceMemberRoleEnum.Owner));
+        Assert.Equal(
+            WorkspaceMemberRoleEnum.Manager,
+            await context.WorkspaceMembers.Where(member => member.Id == fixture.SecondMembership.Id).Select(member => member.Role).SingleAsync());
+    }
+
     private static AisamContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AisamContext>()
@@ -211,6 +264,18 @@ public class WorkspaceRepositoryTests
             UserId = user.Id,
             Role = WorkspaceMemberRoleEnum.Manager
         };
+        var secondOwnerUser = new User
+        {
+            Email = $"{Guid.NewGuid():N}@example.com",
+            PasswordHash = "hash",
+            PasswordSalt = "salt"
+        };
+        var secondOwner = new WorkspaceMember
+        {
+            WorkspaceId = secondWorkspace.Id,
+            UserId = secondOwnerUser.Id,
+            Role = WorkspaceMemberRoleEnum.Owner
+        };
         var inactiveMembership = new WorkspaceMember
         {
             WorkspaceId = inactiveWorkspace.Id,
@@ -221,11 +286,13 @@ public class WorkspaceRepositoryTests
 
         context.AddRange(
             user,
+            secondOwnerUser,
             firstWorkspace,
             secondWorkspace,
             inactiveWorkspace,
             firstMembership,
             secondMembership,
+            secondOwner,
             inactiveMembership);
         context.SaveChanges();
 
@@ -236,6 +303,7 @@ public class WorkspaceRepositoryTests
             inactiveWorkspace,
             firstMembership,
             secondMembership,
+            secondOwner,
             inactiveMembership);
     }
 
@@ -246,5 +314,6 @@ public class WorkspaceRepositoryTests
         Workspace InactiveWorkspace,
         WorkspaceMember FirstMembership,
         WorkspaceMember SecondMembership,
+        WorkspaceMember SecondOwner,
         WorkspaceMember InactiveMembership);
 }

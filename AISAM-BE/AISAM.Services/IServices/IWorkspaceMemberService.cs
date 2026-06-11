@@ -23,4 +23,10 @@ public interface IWorkspaceMemberService
         Guid actorUserId,
         Guid memberId,
         CancellationToken cancellationToken = default);
+
+    Task<GenericResponse<WorkspaceMemberResponseDto>> TransferOwnershipAsync(
+        Guid workspaceId,
+        Guid actorUserId,
+        TransferWorkspaceOwnershipRequest request,
+        CancellationToken cancellationToken = default);
 }

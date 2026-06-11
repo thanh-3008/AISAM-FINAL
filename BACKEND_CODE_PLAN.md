@@ -3186,8 +3186,8 @@ Mục tiêu phase:
 | 9.5 | Tạo Personal Workspace khi register | DONE | 9.4 |
 | 9.6 | Active Workspace context và `X-Workspace-Id` | DONE | 9.3 |
 | 9.7 | Invitation, role management và Member Limit | DONE | 9.4, 9.6 |
-| 9.8 | Atomic Ownership Transfer | NEXT | 9.7 |
-| 9.9 | Chuyển Subscription và Payment sang Workspace | TODO | 9.4, 9.6 |
+| 9.8 | Atomic Ownership Transfer | DONE | 9.7 |
+| 9.9 | Chuyển Subscription và Payment sang Workspace | NEXT | 9.4, 9.6 |
 | 9.10 | Credit Wallet, Credit Usage và Maximum Balance | TODO | 9.9 |
 | 9.11 | Credit Pack và `PaymentType` | TODO | 9.10 |
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | TODO | 9.7, 9.10 |
@@ -4011,9 +4011,73 @@ feat(workspace): add invitations roles and member limits
 
 ### Task 9.8 - Atomic Ownership Transfer
 
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
 Mục tiêu:
 
 - Transfer ownership từ Owner sang Manager trong cùng transaction.
+
+Nội dung đã hoàn thành:
+
+- Thêm `POST /api/workspace-members/ownership-transfer`.
+- Chỉ active Owner của Active Workspace được transfer ownership.
+- Target bắt buộc là active Manager trong cùng Workspace.
+- Repository tái kiểm tra Workspace có đúng một current Owner trước khi đổi role.
+- PostgreSQL dùng transaction isolation `Serializable`.
+- Owner cũ được hạ thành Manager và Manager được nâng thành Owner trong cùng transaction.
+- Validation failure xảy ra trước mutation; transaction rollback toàn bộ khi lỗi trong quá trình lưu.
+- Generic update/add/remove tiếp tục chặn mọi đường tạo zero/multiple Owner ngoài ownership transfer.
+- Database partial unique index chặn nhiều active Owner trong cùng Workspace.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceMemberRequests.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceMemberRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceMemberRepository.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceMemberController.cs
+```
+
+Migration:
+
+```text
+AISAM-BE/AISAM.Repositories/Migrations/20260611085418_EnforceSingleActiveWorkspaceOwner.cs
+Applied successfully to PostgreSQL local.
+No pending model changes.
+```
+
+API test:
+
+```text
+POST /api/workspace-members/ownership-transfer
+Headers:
+Authorization: Bearer <owner-token>
+X-Workspace-Id: <workspace-id>
+
+Body:
+{
+  "targetMemberId": "<active-manager-member-id>"
+}
+```
+
+Kết quả kiểm tra:
+
+```text
+Focused Workspace ownership/member tests: Passed 24/24.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 190/190.
+dotnet ef database update: Applied EnforceSingleActiveWorkspaceOwner.
+dotnet ef migrations has-pending-model-changes: No changes have been made to the model since the last migration.
+Runtime Swagger smoke: ownership-transfer path = true.
+Runtime thiếu JWT: 401.
+```
 
 Cách test:
 
@@ -5376,7 +5440,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.7 da hoan thanh; Task 9.8 atomic ownership transfer la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.8 da hoan thanh; Task 9.9 chuyen Subscription va Payment sang Workspace la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
@@ -5388,7 +5452,7 @@ dotnet build --no-restore
 Build succeeded. 0 warnings, 0 errors.
 
 dotnet test --no-build
-Passed. 186/186 tests passed.
+Passed. 190/190 tests passed.
 ```
 
 Test files hien tai:

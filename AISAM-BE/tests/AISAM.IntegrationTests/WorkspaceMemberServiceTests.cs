@@ -112,6 +112,64 @@ public class WorkspaceMemberServiceTests
         Assert.Equal((int)HttpStatusCode.Forbidden, removeResult.StatusCode);
     }
 
+    [Fact]
+    public async Task TransferOwnershipAsync_AllowsOwnerToTransferToManager()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context);
+        var service = CreateService(context);
+
+        var result = await service.TransferOwnershipAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            new TransferWorkspaceOwnershipRequest { TargetMemberId = fixture.Manager.Id });
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceMemberRoleEnum.Owner, result.Data!.Role);
+        Assert.Equal(WorkspaceMemberRoleEnum.Manager, fixture.Owner.Role);
+        Assert.Equal(WorkspaceMemberRoleEnum.Owner, fixture.Manager.Role);
+
+        var formerOwnerManageResult = await service.RemoveAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            fixture.Viewer.Id);
+        var newOwnerManageResult = await service.UpdateRoleAsync(
+            fixture.Workspace.Id,
+            fixture.Manager.UserId,
+            fixture.Viewer.Id,
+            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.ContentCreator });
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, formerOwnerManageResult.StatusCode);
+        Assert.True(newOwnerManageResult.Success);
+    }
+
+    [Fact]
+    public async Task TransferOwnershipAsync_RejectsNonOwnerNonManagerAndLimitedWorkspace()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context);
+        var service = CreateService(context);
+
+        var nonOwnerResult = await service.TransferOwnershipAsync(
+            fixture.Workspace.Id,
+            fixture.Manager.UserId,
+            new TransferWorkspaceOwnershipRequest { TargetMemberId = fixture.Manager.Id });
+        var nonManagerResult = await service.TransferOwnershipAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            new TransferWorkspaceOwnershipRequest { TargetMemberId = fixture.Viewer.Id });
+        fixture.Workspace.Status = WorkspaceStatusEnum.Limited;
+        await context.SaveChangesAsync();
+        var limitedResult = await service.TransferOwnershipAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            new TransferWorkspaceOwnershipRequest { TargetMemberId = fixture.Manager.Id });
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, nonOwnerResult.StatusCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, nonManagerResult.StatusCode);
+        Assert.Equal((int)HttpStatusCode.Forbidden, limitedResult.StatusCode);
+    }
+
     private static WorkspaceMemberService CreateService(AisamContext context)
         => new(new WorkspaceMemberRepository(context));
 

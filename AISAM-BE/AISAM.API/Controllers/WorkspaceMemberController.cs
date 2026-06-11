@@ -52,4 +52,15 @@ public sealed class WorkspaceMemberController : ControllerBase
         var result = await _workspaceMemberService.RemoveAsync(workspaceId, userId, memberId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpPost("ownership-transfer")]
+    public async Task<ActionResult<GenericResponse<WorkspaceMemberResponseDto>>> TransferOwnership(
+        [FromBody] TransferWorkspaceOwnershipRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _workspaceMemberService.TransferOwnershipAsync(workspaceId, userId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }
