@@ -499,10 +499,13 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(PaymentStatusEnum.Pending);
+                entity.Property(p => p.PaymentType).HasConversion<int>().HasDefaultValue(PaymentTypeEnum.Subscription);
+                entity.Property(p => p.CreditPackCode).HasConversion<int>();
                 entity.Property(p => p.Amount).HasPrecision(10, 2);
                 entity.HasIndex(p => p.UserId);
                 entity.HasIndex(p => p.WorkspaceId);
                 entity.HasIndex(p => p.Status);
+                entity.HasIndex(p => p.PaymentType);
                 entity.HasOne(p => p.User)
                       .WithMany()
                       .HasForeignKey(p => p.UserId)

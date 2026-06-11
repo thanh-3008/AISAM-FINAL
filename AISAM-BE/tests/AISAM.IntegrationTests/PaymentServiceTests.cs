@@ -121,6 +121,49 @@ public class PaymentServiceTests
     }
 
     [Fact]
+    public async Task CreateCheckoutAsync_CreatesCreditPackPaymentWithoutSubscription()
+    {
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var paymentRepository = new FakePaymentRepository();
+        var subscriptionRepository = new FakeSubscriptionRepository();
+        var service = CreateService(
+            paymentRepository,
+            subscriptionRepository,
+            workspaceRepository: new FakeWorkspaceRepository(new Workspace
+            {
+                Id = workspaceId,
+                Name = "Business Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business
+            }),
+            settings: CreateConfiguredSettings(),
+            httpClient: new HttpClient(new StubHttpMessageHandler("""
+            {
+              "code": "00",
+              "desc": "success",
+              "data": {
+                "checkoutUrl": "https://pay.payos.vn/web/credit-pack",
+                "paymentLinkId": "plink_pack",
+                "orderCode": "654321"
+              }
+            }
+            """)));
+
+        var result = await service.CreateCheckoutAsync(workspaceId, userId, new CreateCheckoutRequest
+        {
+            PaymentType = PaymentTypeEnum.CreditPack,
+            CreditPackCode = CreditPackCodeEnum.Growth
+        });
+
+        Assert.True(result.Success);
+        Assert.Single(paymentRepository.Payments);
+        Assert.Empty(subscriptionRepository.Subscriptions);
+        Assert.Equal(PaymentTypeEnum.CreditPack, paymentRepository.Payments[0].PaymentType);
+        Assert.Equal(CreditPackCodeEnum.Growth, paymentRepository.Payments[0].CreditPackCode);
+        Assert.Equal(1_500, paymentRepository.Payments[0].CreditAmount);
+    }
+
+    [Fact]
     public async Task HandleWebhookAsync_MarksPaymentSuccessAndActivatesSubscription()
     {
         var workspaceId = Guid.NewGuid();
@@ -270,6 +313,73 @@ public class PaymentServiceTests
     }
 
     [Fact]
+    public async Task HandleWebhookAsync_CreditPackAddsCreditsWithoutChangingSubscription()
+    {
+        var workspaceId = Guid.NewGuid();
+        var currentEndDate = DateTime.UtcNow.Date.AddDays(20);
+        var workspace = new Workspace
+        {
+            Id = workspaceId,
+            Name = "Business Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            MemberLimit = 10,
+            SubscriptionExpiredAt = currentEndDate
+        };
+        var activeSubscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Plan = SubscriptionPlanEnum.Plus,
+            StartDate = DateTime.UtcNow.Date.AddDays(-10),
+            EndDate = currentEndDate,
+            IsActive = true
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Amount = 249_000m,
+            Status = PaymentStatusEnum.Pending,
+            PaymentMethod = "PayOS",
+            PaymentType = PaymentTypeEnum.CreditPack,
+            CreditPackCode = CreditPackCodeEnum.Growth,
+            CreditAmount = 1_500,
+            TransactionId = "pack-123"
+        };
+        var creditService = new FakeCreditService();
+
+        var service = CreateService(
+            new FakePaymentRepository(payment),
+            new FakeSubscriptionRepository(activeSubscription),
+            workspaceRepository: new FakeWorkspaceRepository(workspace),
+            settings: CreateConfiguredSettings(),
+            creditService: creditService);
+
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["orderCode"] = "pack-123",
+            ["status"] = "PAID"
+        });
+        var result = await service.HandleWebhookAsync($$"""
+        {
+          "signature": "{{signature}}",
+          "data": {
+            "orderCode": "pack-123",
+            "status": "PAID"
+          }
+        }
+        """);
+
+        Assert.True(result.Success);
+        Assert.Equal(PaymentStatusEnum.Success, payment.Status);
+        Assert.True(activeSubscription.IsActive);
+        Assert.Equal(currentEndDate, activeSubscription.EndDate);
+        Assert.Equal(currentEndDate, workspace.SubscriptionExpiredAt);
+        Assert.Equal(1_500, creditService.Wallets[workspaceId].Balance);
+    }
+
+    [Fact]
     public async Task HandleWebhookAsync_RejectsCreditGrantThatWouldExceedWorkspaceMaximumBalance()
     {
         var workspaceId = Guid.NewGuid();
@@ -334,6 +444,64 @@ public class PaymentServiceTests
         Assert.False(result.Success);
         Assert.Equal(PaymentStatusEnum.Failed, payment.Status);
         Assert.False(subscription.IsActive);
+        Assert.Equal(14_000, creditService.Wallets[workspaceId].Balance);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_RejectsCreditPackThatWouldExceedWorkspaceMaximumBalance()
+    {
+        var workspaceId = Guid.NewGuid();
+        var workspace = new Workspace
+        {
+            Id = workspaceId,
+            Name = "Personal Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Personal,
+            MemberLimit = 1
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Amount = 699_000m,
+            Status = PaymentStatusEnum.Pending,
+            PaymentMethod = "PayOS",
+            PaymentType = PaymentTypeEnum.CreditPack,
+            CreditPackCode = CreditPackCodeEnum.Business,
+            CreditAmount = 5_000,
+            TransactionId = "pack-overflow"
+        };
+        var creditService = new FakeCreditService();
+        creditService.Wallets[workspaceId] = new CreditWallet
+        {
+            WorkspaceId = workspaceId,
+            Balance = 14_000
+        };
+
+        var service = CreateService(
+            new FakePaymentRepository(payment),
+            new FakeSubscriptionRepository(),
+            workspaceRepository: new FakeWorkspaceRepository(workspace),
+            settings: CreateConfiguredSettings(),
+            creditService: creditService);
+
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["orderCode"] = "pack-overflow",
+            ["status"] = "PAID"
+        });
+        var result = await service.HandleWebhookAsync($$"""
+        {
+          "signature": "{{signature}}",
+          "data": {
+            "orderCode": "pack-overflow",
+            "status": "PAID"
+          }
+        }
+        """);
+
+        Assert.False(result.Success);
+        Assert.Equal(PaymentStatusEnum.Failed, payment.Status);
         Assert.Equal(14_000, creditService.Wallets[workspaceId].Balance);
     }
 
@@ -724,6 +892,32 @@ public class PaymentServiceTests
             }
 
             wallet.Balance += increment;
+            Wallets[workspaceId] = wallet;
+            return Task.FromResult(GenericResponse<CreditWallet>.CreateSuccess(wallet));
+        }
+
+        public Task<GenericResponse<CreditWallet>> GrantCreditPackCreditsAsync(
+            Guid workspaceId,
+            Guid userId,
+            WorkspaceTypeEnum workspaceType,
+            long credits,
+            CancellationToken cancellationToken = default)
+        {
+            var wallet = Wallets.TryGetValue(workspaceId, out var existing)
+                ? existing
+                : new CreditWallet
+                {
+                    WorkspaceId = workspaceId,
+                    Balance = 0
+                };
+
+            var maximum = workspaceType == WorkspaceTypeEnum.Business ? 500_000L : 15_000L;
+            if (wallet.Balance + credits > maximum)
+            {
+                return Task.FromResult(GenericResponse<CreditWallet>.CreateError("Wallet balance exceeds workspace maximum balance.", HttpStatusCode.BadRequest, "CREDIT_BALANCE_LIMIT_EXCEEDED"));
+            }
+
+            wallet.Balance += credits;
             Wallets[workspaceId] = wallet;
             return Task.FromResult(GenericResponse<CreditWallet>.CreateSuccess(wallet));
         }

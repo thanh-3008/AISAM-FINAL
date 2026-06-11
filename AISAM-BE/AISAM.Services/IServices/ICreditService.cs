@@ -13,6 +13,12 @@ public interface ICreditService
         WorkspaceTypeEnum workspaceType,
         SubscriptionPlanEnum plan,
         CancellationToken cancellationToken = default);
+    Task<GenericResponse<CreditWallet>> GrantCreditPackCreditsAsync(
+        Guid workspaceId,
+        Guid userId,
+        WorkspaceTypeEnum workspaceType,
+        long credits,
+        CancellationToken cancellationToken = default);
     Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(
         Guid workspaceId,
         Guid userId,

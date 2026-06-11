@@ -61,29 +61,42 @@ public sealed class CreditService : ICreditService
             return GenericResponse<CreditWallet>.CreateSuccess(wallet, "No credits granted for the selected plan.");
         }
 
-        var walletToUpdate = await EnsureWalletAsync(workspaceId, cancellationToken);
-        var maximumBalance = ResolveMaximumBalance(workspaceType);
-        if (walletToUpdate.Balance + creditsToGrant > maximumBalance)
+        return await GrantCreditsAsync(
+            workspaceId,
+            userId,
+            workspaceType,
+            creditsToGrant,
+            CreditActionEnum.SubscriptionGrant,
+            "Subscription credits granted successfully.",
+            cancellationToken);
+    }
+
+    public async Task<GenericResponse<CreditWallet>> GrantCreditPackCreditsAsync(
+        Guid workspaceId,
+        Guid userId,
+        WorkspaceTypeEnum workspaceType,
+        long credits,
+        CancellationToken cancellationToken = default)
+    {
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
         {
-            return GenericResponse<CreditWallet>.CreateError(
-                "Wallet balance exceeds workspace maximum balance.",
-                HttpStatusCode.BadRequest,
-                "CREDIT_BALANCE_LIMIT_EXCEEDED");
+            return GenericResponse<CreditWallet>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
         }
 
-        walletToUpdate.Balance += creditsToGrant;
-        await _creditWalletRepository.UpdateAsync(walletToUpdate, cancellationToken);
-
-        await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+        if (credits <= 0)
         {
-            WorkspaceId = workspaceId,
-            UserId = userId,
-            Action = CreditActionEnum.SubscriptionGrant,
-            Credits = creditsToGrant,
-            Status = CreditUsageStatusEnum.Success
-        }, cancellationToken);
+            return GenericResponse<CreditWallet>.CreateError("Credit pack amount is invalid.", HttpStatusCode.BadRequest, "INVALID_CREDIT_PACK");
+        }
 
-        return GenericResponse<CreditWallet>.CreateSuccess(walletToUpdate, "Subscription credits granted successfully.");
+        return await GrantCreditsAsync(
+            workspaceId,
+            userId,
+            workspaceType,
+            credits,
+            CreditActionEnum.CreditPackGrant,
+            "Credit pack applied successfully.",
+            cancellationToken);
     }
 
     public async Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(
@@ -132,5 +145,39 @@ public sealed class CreditService : ICreditService
         return workspaceType == WorkspaceTypeEnum.Business
             ? BusinessMaximumBalance
             : PersonalMaximumBalance;
+    }
+
+    private async Task<GenericResponse<CreditWallet>> GrantCreditsAsync(
+        Guid workspaceId,
+        Guid userId,
+        WorkspaceTypeEnum workspaceType,
+        long credits,
+        CreditActionEnum action,
+        string successMessage,
+        CancellationToken cancellationToken)
+    {
+        var walletToUpdate = await EnsureWalletAsync(workspaceId, cancellationToken);
+        var maximumBalance = ResolveMaximumBalance(workspaceType);
+        if (walletToUpdate.Balance + credits > maximumBalance)
+        {
+            return GenericResponse<CreditWallet>.CreateError(
+                "Wallet balance exceeds workspace maximum balance.",
+                HttpStatusCode.BadRequest,
+                "CREDIT_BALANCE_LIMIT_EXCEEDED");
+        }
+
+        walletToUpdate.Balance += credits;
+        await _creditWalletRepository.UpdateAsync(walletToUpdate, cancellationToken);
+
+        await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+        {
+            WorkspaceId = workspaceId,
+            UserId = userId,
+            Action = action,
+            Credits = credits,
+            Status = CreditUsageStatusEnum.Success
+        }, cancellationToken);
+
+        return GenericResponse<CreditWallet>.CreateSuccess(walletToUpdate, successMessage);
     }
 }

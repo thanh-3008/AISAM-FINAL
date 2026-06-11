@@ -3189,8 +3189,8 @@ Mục tiêu phase:
 | 9.8 | Atomic Ownership Transfer | DONE | 9.7 |
 | 9.9 | Chuyển Subscription và Payment sang Workspace | DONE | 9.4, 9.6 |
 | 9.10 | Credit Wallet, Credit Usage và Maximum Balance | DONE | 9.9 |
-| 9.11 | Credit Pack và `PaymentType` | NEXT | 9.10 |
-| 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | TODO | 9.7, 9.10 |
+| 9.11 | Credit Pack và `PaymentType` | DONE | 9.10 |
+| 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | NEXT | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | TODO | 9.9, 9.12 |
 | 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
 | 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
@@ -4349,15 +4349,77 @@ feat(credits): add workspace wallet and usage tracking
 
 ### Task 9.11 - Credit Pack và PaymentType
 
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.12 Shared Pool, Lifetime và Monthly Assigned Limit.
+```
+
 Mục tiêu:
 
 - Mua Credit Pack qua PayOS và phân biệt `Subscription`/`CreditPack`.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Common/Models/PaymentDtos.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditActionEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditPackCodeEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/PaymentTypeEnum.cs
+AISAM-BE/AISAM.Data/Model/Payment.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+```
+
+Migration:
+
+```text
+20260611123701_AddCreditPackPaymentType
+```
+
+Kết quả:
+
+- Thêm `PaymentTypeEnum` để phân biệt `Subscription` và `CreditPack`.
+- Thêm `CreditPackCodeEnum` theo catalog đã chốt:
+  - `Starter` -> `100` credits / `29.000`
+  - `Standard` -> `500` credits / `99.000`
+  - `Growth` -> `1.500` credits / `249.000`
+  - `Business` -> `5.000` credits / `699.000`
+- Mở rộng `CreateCheckoutRequest` để checkout được cả subscription và credit pack qua cùng payment API.
+- `payments` lưu thêm `payment_type`, `credit_pack_code`, `credit_amount` và index theo `payment_type`.
+- `PayOSPaymentService`:
+  - tạo payment `Subscription` như cũ,
+  - tạo payment `CreditPack` không cần `SubscriptionId`,
+  - webhook/callback xử lý riêng credit pack để cộng credits vào wallet,
+  - không đổi `Subscription.EndDate`, `Workspace.SubscriptionExpiredAt` hay feature/plan khi credit pack thành công.
+- `CreditService` có thêm `GrantCreditPackCreditsAsync` và dùng lại maximum balance rule của Task 9.10.
+- Credit Pack bị từ chối toàn bộ nếu cộng vào làm vượt maximum balance của Workspace.
+- Task này chỉ hoàn thiện `PaymentType` và Credit Pack purchase flow.
+- Chưa triển khai shared pool, lifetime/monthly assigned quota, AI debit flow hay post quota theo Workspace; các phần đó vẫn thuộc Task 9.12-9.14.
 
 Cách test:
 
 - Credit Pack cộng Credits, không đổi subscription expiry/feature.
 - Credit Pack không hết hạn.
 - Vượt maximum balance bị từ chối.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 207/207 tests passed.
+
+Focused Task 9.11 payment tests
+Passed. 17/17 tests passed.
+```
 
 Commit đề xuất:
 
@@ -5658,7 +5720,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.10 da hoan thanh; Task 9.11 Credit Pack va `PaymentType` la task tiep theo. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.11 da hoan thanh; Task 9.12 Shared Pool, Lifetime va Monthly Assigned Limit la task tiep theo. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

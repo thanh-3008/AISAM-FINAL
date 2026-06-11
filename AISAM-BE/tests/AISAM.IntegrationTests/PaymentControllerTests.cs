@@ -66,6 +66,23 @@ public class PaymentControllerTests
         Assert.Equal(userId, service.LastUserId);
     }
 
+    [Fact]
+    public async Task CreateCheckout_ForCreditPack_ForwardsPaymentTypeAndPackCode()
+    {
+        var service = new FakePaymentService();
+        var workspaceId = Guid.NewGuid();
+        var controller = CreateController(service, workspaceId, Guid.NewGuid());
+
+        await controller.CreateCheckout(new CreateCheckoutRequest
+        {
+            PaymentType = PaymentTypeEnum.CreditPack,
+            CreditPackCode = CreditPackCodeEnum.Growth
+        });
+
+        Assert.Equal(PaymentTypeEnum.CreditPack, service.LastRequest!.PaymentType);
+        Assert.Equal(CreditPackCodeEnum.Growth, service.LastRequest.CreditPackCode);
+    }
+
     private static PaymentController CreateController(IPaymentService service, Guid workspaceId, Guid? userId = null)
     {
         var context = new DefaultHttpContext();
@@ -87,6 +104,7 @@ public class PaymentControllerTests
     {
         public Guid LastWorkspaceId { get; private set; }
         public Guid LastUserId { get; private set; }
+        public CreateCheckoutRequest? LastRequest { get; private set; }
         public GenericResponse<PayOSCheckoutResponse> CheckoutResult { get; set; } = GenericResponse<PayOSCheckoutResponse>.CreateSuccess(new PayOSCheckoutResponse());
         public GenericResponse<bool> CallbackResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<bool> WebhookResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
@@ -97,6 +115,7 @@ public class PaymentControllerTests
         {
             LastWorkspaceId = workspaceId;
             LastUserId = userId;
+            LastRequest = request;
             return Task.FromResult(CheckoutResult);
         }
 

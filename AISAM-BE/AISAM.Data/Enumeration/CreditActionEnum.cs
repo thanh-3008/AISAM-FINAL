@@ -3,11 +3,12 @@ namespace AISAM.Data.Enumeration
     public enum CreditActionEnum
     {
         SubscriptionGrant = 1,
-        GenerateText = 2,
-        RegenerateText = 3,
-        GenerateImage = 4,
-        GenerateVideo = 5,
-        TrendAnalysis = 6,
-        CampaignRecommendation = 7
+        CreditPackGrant = 2,
+        GenerateText = 3,
+        RegenerateText = 4,
+        GenerateImage = 5,
+        GenerateVideo = 6,
+        TrendAnalysis = 7,
+        CampaignRecommendation = 8
     }
 }
