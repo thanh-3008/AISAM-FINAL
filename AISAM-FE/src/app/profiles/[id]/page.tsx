@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useToast } from "@/contexts/ToastContext";
 import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { apiFetch } from "@/lib/apiClient";
 import {
   changePassword,
@@ -94,6 +96,26 @@ export default function ProfileDetailPage() {
   );
   const { selectWorkspace, activeWorkspace } = useWorkspaces();
   const reduceMotion = useReducedMotion();
+  const { showToast } = useToast();
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+    confirmText?: string;
+    isLoading?: boolean;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  // Search state for members
+  const [memberSearch, setMemberSearch] = useState("");
 
   const [form, setForm] = useState({ name: "", profileType: "", companyName: "", bio: "", avatarUrl: "" });
   
@@ -133,6 +155,36 @@ export default function ProfileDetailPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
+  // Role management state
+  const [memberActionMenu, setMemberActionMenu] = useState<string | null>(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<WorkspaceMember | null>(null);
+  const [newRole, setNewRole] = useState<WorkspaceMemberRole>("Viewer");
+  const [changingRole, setChangingRole] = useState(false);
+
+  // Ownership transfer state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = useState<WorkspaceMember | null>(null);
+  const [transferring, setTransferring] = useState(false);
+
+  // Member quota management state
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaMember, setQuotaMember] = useState<WorkspaceMember | null>(null);
+  const [quotaMode, setQuotaMode] = useState<"SharedPool" | "LifetimeAssigned" | "MonthlyAssigned">("SharedPool");
+  const [quotaLimit, setQuotaLimit] = useState<number>(1000);
+  const [savingQuota, setSavingQuota] = useState(false);
+
+  // Member detail view state
+  const [selectedMemberDetail, setSelectedMemberDetail] = useState<WorkspaceMember | null>(null);
+
+  // Bulk actions state
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
+
+  // Pagination state
+  const [memberPage, setMemberPage] = useState(1);
+  const membersPerPage = 10;
+
   // Billing tab state
   const [billingTab, setBillingTab] = useState<"overview" | "usage">("overview");
 
@@ -141,6 +193,17 @@ export default function ProfileDetailPage() {
   const [overviewPostQuota, setOverviewPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [overviewCreditWallet, setOverviewCreditWallet] = useState<CreditWallet | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
+
+  // Subscription expired state
+  const [showExpiredBanner, setShowExpiredBanner] = useState(false);
+
+  // Limited mode state (subscription expired < 90 days)
+  const [isLimitedMode, setIsLimitedMode] = useState(false);
+  const [showLimitedModeBanner, setShowLimitedModeBanner] = useState(false);
+
+  // Archived workspace state (subscription expired 90-180 days)
+  const [isArchived, setIsArchived] = useState(false);
+  const [showArchivedBanner, setShowArchivedBanner] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -236,7 +299,7 @@ export default function ProfileDetailPage() {
       if (success) {
         setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
         setError(null);
-        alert("Password changed successfully! Please login again.");
+        showToast({ type: "success", title: "Password changed", message: "Please login again with your new password." });
         // Optionally redirect to login
         // router.push("/login");
       } else {
@@ -266,7 +329,7 @@ export default function ProfileDetailPage() {
 
   const handleDownloadInvoice = (invoiceId: string) => {
     // TODO: Implement invoice download when BE API is available
-    alert(`Download invoice ${invoiceId} - Feature coming soon!`);
+    showToast({ type: "info", title: "Download invoice", message: "Feature coming soon!" });
   };
 
   // Subscription section handlers
@@ -307,7 +370,7 @@ export default function ProfileDetailPage() {
   const handleCancelPlan = () => {
     if (confirm("Are you sure you want to cancel your subscription? You will lose access to premium features.")) {
       // TODO: Implement cancel subscription when BE API is available
-      alert("Cancel subscription feature coming soon!");
+      showToast({ type: "info", title: "Cancel subscription", message: "Feature coming soon!" });
     }
   };
 
@@ -332,7 +395,7 @@ export default function ProfileDetailPage() {
 
   const handleSendInvite = async () => {
     if (!inviteForm.email.trim()) {
-      alert("Please enter an email address");
+      showToast({ type: "error", title: "Invalid email", message: "Please enter an email address." });
       return;
     }
 
@@ -346,15 +409,116 @@ export default function ProfileDetailPage() {
       if (result) {
         setShowInviteModal(false);
         setInviteForm({ email: "", role: "Viewer" });
-        alert("Invitation sent successfully!");
+        showToast({ type: "success", title: "Invitation sent", message: `Invitation sent to ${inviteForm.email}` });
         handleLoadMembers();
       } else {
-        alert("Failed to send invitation. Please try again.");
+        showToast({ type: "error", title: "Invitation failed", message: "Failed to send invitation. Please try again." });
       }
     } catch {
-      alert("Network error. Please try again.");
+      showToast({ type: "error", title: "Network error", message: "Please check your connection and try again." });
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  // Role management handlers
+  const handleOpenRoleModal = (member: WorkspaceMember) => {
+    setSelectedMember(member);
+    setNewRole(member.role);
+    setShowRoleModal(true);
+    setMemberActionMenu(null);
+  };
+
+  const handleChangeRole = async () => {
+    if (!selectedMember) return;
+    setChangingRole(true);
+    try {
+      // TODO: Call API to change role when BE is ready
+      // await updateMemberRole(selectedMember.id, newRole);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
+      
+      // Update local state
+      setMembers(prev => prev.map(m => 
+        m.id === selectedMember.id ? { ...m, role: newRole } : m
+      ));
+      
+      setShowRoleModal(false);
+      setSelectedMember(null);
+      showToast({ type: "success", title: "Role updated", message: `Role updated to ${newRole} successfully!` });
+    } catch {
+      showToast({ type: "error", title: "Update failed", message: "Failed to update role. Please try again." });
+    } finally {
+      setChangingRole(false);
+    }
+  };
+
+  const handleRemoveMember = (member: WorkspaceMember) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Remove Member",
+      message: `Are you sure you want to remove ${member.name} from the workspace? This action cannot be undone.`,
+      type: "danger",
+      confirmText: "Remove",
+      onConfirm: () => {
+        setMembers(prev => prev.filter(m => m.id !== member.id));
+        setMemberActionMenu(null);
+        showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // Ownership transfer handlers
+  const handleOpenTransferModal = () => {
+    setShowTransferModal(true);
+    setSelectedNewOwner(null);
+  };
+
+  const handleTransferOwnership = async () => {
+    if (!selectedNewOwner) return;
+    setTransferring(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setMembers(prev => prev.map(m => {
+        if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
+        if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
+        return m;
+      }));
+      setShowTransferModal(false);
+      setSelectedNewOwner(null);
+      showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
+    } catch {
+      showToast({ type: "error", title: "Transfer failed", message: "Failed to transfer ownership. Please try again." });
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  // Member quota management handlers
+  const handleOpenQuotaModal = (member: WorkspaceMember) => {
+    setQuotaMember(member);
+    setQuotaMode("SharedPool");
+    setQuotaLimit(1000);
+    setShowQuotaModal(true);
+    setMemberActionMenu(null);
+  };
+
+  const handleSaveQuota = async () => {
+    if (!quotaMember) return;
+    setSavingQuota(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      showToast({ 
+        type: "success", 
+        title: "Quota updated", 
+        message: `Quota updated for ${quotaMember.name}: ${quotaMode}${quotaMode !== "SharedPool" ? ` - ${quotaLimit} credits` : ""}` 
+      });
+      setShowQuotaModal(false);
+      setQuotaMember(null);
+    } catch {
+      showToast({ type: "error", title: "Update failed", message: "Failed to update quota. Please try again." });
+    } finally {
+      setSavingQuota(false);
     }
   };
 
@@ -414,7 +578,7 @@ export default function ProfileDetailPage() {
 
   const handleUpdatePayment = () => {
     // TODO: Implement update payment method when BE API is available
-    alert("Update Payment Method feature coming soon!");
+    showToast({ type: "info", title: "Update Payment Method", message: "Feature coming soon!" });
   };
 
   // Load payment history when billing section is active
@@ -1081,19 +1245,35 @@ export default function ProfileDetailPage() {
                 {/* ===== TEAM ===== */}
                 {activeSection === "team" && (
                   <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show" className="space-y-6">
-                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between">
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
                         <h2 className="text-2xl font-bold text-on-surface tracking-tight">Team Members</h2>
                         <p className="text-body-sm text-on-surface-variant mt-1.5">Manage your team members and their permissions</p>
                       </div>
-                      <motion.button
-                        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                        onClick={handleInviteMember}
-                        className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 inline-flex items-center gap-2"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">person_add</span>
-                        Invite Member
-                      </motion.button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {workspace?.isOwner && (
+                          <motion.button
+                            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                            onClick={handleOpenTransferModal}
+                            disabled={isLimitedMode}
+                            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-surface-container border border-outline-variant/30 text-on-surface rounded-xl text-label-sm sm:text-body-sm font-semibold hover:bg-surface-container-high transition-all inline-flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">swap_horiz</span>
+                            <span className="hidden sm:inline">Transfer Ownership</span>
+                            <span className="sm:hidden">Transfer</span>
+                          </motion.button>
+                        )}
+                        <motion.button
+                          whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                          onClick={handleInviteMember}
+                          disabled={isLimitedMode}
+                          className="px-3 sm:px-5 py-2 sm:py-2.5 bg-primary text-on-primary rounded-xl text-label-sm sm:text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 inline-flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-[16px] sm:text-[18px]">person_add</span>
+                          {isLimitedMode ? "Limited" : <span className="hidden sm:inline">Invite Member</span>}
+                          {isLimitedMode ? "" : <span className="sm:hidden">Invite</span>}
+                        </motion.button>
+                      </div>
                     </motion.div>
 
                     {/* Team Stats */}
@@ -1121,30 +1301,50 @@ export default function ProfileDetailPage() {
                       ))}
                     </div>
 
-                    {/* Filters */}
-                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center gap-2">
-                      {[
-                        { key: "all" as const, label: "All", count: members.length },
-                        { key: "active" as const, label: "Active", count: members.filter(m => m.status === "Active").length },
-                        { key: "pending" as const, label: "Pending", count: members.filter(m => m.status === "Pending" || m.status === "Invited").length },
-                      ].map((f) => (
-                        <button
-                          key={f.key}
-                          onClick={() => setMemberFilter(f.key)}
-                          className={`px-4 py-2 rounded-xl text-label-sm font-medium transition-all ${
-                            memberFilter === f.key
-                              ? "bg-primary text-on-primary shadow-sm"
-                              : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/20"
-                          }`}
-                        >
-                          {f.label}
-                          <span className={`ml-2 px-1.5 py-0.5 rounded-full text-label-xs ${
-                            memberFilter === f.key ? "bg-white/20" : "bg-surface-container"
-                          }`}>
-                            {f.count}
-                          </span>
-                        </button>
-                      ))}
+                    {/* Filters and Search */}
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        {[
+                          { key: "all" as const, label: "All", count: members.length },
+                          { key: "active" as const, label: "Active", count: members.filter(m => m.status === "Active").length },
+                          { key: "pending" as const, label: "Pending", count: members.filter(m => m.status === "Pending" || m.status === "Invited").length },
+                        ].map((f) => (
+                          <button
+                            key={f.key}
+                            onClick={() => setMemberFilter(f.key)}
+                            className={`px-4 py-2 rounded-xl text-label-sm font-medium transition-all ${
+                              memberFilter === f.key
+                                ? "bg-primary text-on-primary shadow-sm"
+                                : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/20"
+                            }`}
+                          >
+                            {f.label}
+                            <span className={`ml-2 px-1.5 py-0.5 rounded-full text-label-xs ${
+                              memberFilter === f.key ? "bg-white/20" : "bg-surface-container"
+                            }`}>
+                              {f.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="relative flex-1 w-full sm:w-auto sm:max-w-xs">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+                        <input
+                          type="text"
+                          placeholder="Search members..."
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest text-body-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                        />
+                        {memberSearch && (
+                          <button
+                            onClick={() => setMemberSearch("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        )}
+                      </div>
                     </motion.div>
 
                     {/* Team Members List */}
@@ -1154,23 +1354,72 @@ export default function ProfileDetailPage() {
                       </div>
                       <div className="divide-y divide-outline-variant/10">
                         {loadingMembers ? (
-                          <div className="px-6 py-8 text-center">
-                            <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-body-sm text-on-surface-variant">Loading members...</p>
+                          <div className="divide-y divide-outline-variant/10">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <div key={i} className="px-6 py-4 flex items-center gap-4 animate-pulse">
+                                <div className="w-12 h-12 rounded-full bg-surface-container-high shrink-0" />
+                                <div className="flex-1 min-w-0 space-y-2">
+                                  <div className="h-4 bg-surface-container-high rounded w-32" />
+                                  <div className="h-3 bg-surface-container-high rounded w-48" />
+                                </div>
+                                <div className="h-6 bg-surface-container-high rounded-full w-20" />
+                                <div className="h-6 bg-surface-container-high rounded-full w-16" />
+                              </div>
+                            ))}
                           </div>
                         ) : members.filter(m => {
-                          if (memberFilter === "all") return true;
-                          return m.status.toLowerCase() === memberFilter;
+                          const matchesFilter = memberFilter === "all" || m.status.toLowerCase() === memberFilter;
+                          const matchesSearch = !memberSearch || 
+                            m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                            m.email.toLowerCase().includes(memberSearch.toLowerCase());
+                          return matchesFilter && matchesSearch;
                         }).length === 0 ? (
-                          <div className="px-6 py-12 text-center">
-                            <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">group_off</span>
-                            <p className="text-body-sm text-on-surface-variant">No members found</p>
+                          <div className="px-6 py-16 text-center">
+                            <div className="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
+                              <span className="material-symbols-outlined text-outline/40 text-4xl">group_off</span>
+                            </div>
+                            <h4 className="text-body-md font-semibold text-on-surface mb-2">
+                              {memberSearch ? "No members match your search" : "No members found"}
+                            </h4>
+                            <p className="text-body-sm text-on-surface-variant max-w-sm mx-auto mb-4">
+                              {memberSearch 
+                                ? "Try adjusting your search terms or filters to find what you're looking for."
+                                : "Start building your team by inviting members to collaborate on this workspace."}
+                            </p>
+                            {memberSearch ? (
+                              <button
+                                onClick={() => setMemberSearch("")}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">close</span>
+                                Clear search
+                              </button>
+                            ) : (
+                              <button
+                                onClick={handleInviteMember}
+                                disabled={isLimitedMode}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">person_add</span>
+                                Invite first member
+                              </button>
+                            )}
                           </div>
                         ) : (
-                          members.filter(m => {
-                            if (memberFilter === "all") return true;
-                            return m.status.toLowerCase() === memberFilter;
-                          }).map((member) => {
+                          (() => {
+                            const filteredMembers = members.filter(m => {
+                              const matchesFilter = memberFilter === "all" || m.status.toLowerCase() === memberFilter;
+                              const matchesSearch = !memberSearch || 
+                                m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                                m.email.toLowerCase().includes(memberSearch.toLowerCase());
+                              return matchesFilter && matchesSearch;
+                            });
+                            const totalPages = Math.ceil(filteredMembers.length / membersPerPage);
+                            const paginatedMembers = filteredMembers.slice((memberPage - 1) * membersPerPage, memberPage * membersPerPage);
+                            
+                            return (
+                              <>
+                                {paginatedMembers.map((member) => {
                             const roleConfig: Record<WorkspaceMemberRole, { label: string; color: string; bg: string; icon: string }> = {
                               Owner: { label: "Owner", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", icon: "star" },
                               Manager: { label: "Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
@@ -1184,12 +1433,33 @@ export default function ProfileDetailPage() {
                             };
                             const rb = roleConfig[member.role];
                             const sb = statusConfigMember[member.status];
+                            const isSelected = selectedMembers.has(member.id);
                             return (
-                              <div key={member.id} className="px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-md font-bold text-primary shrink-0">
+                              <div key={member.id} className={`px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const newSelected = new Set(selectedMembers);
+                                    if (isSelected) {
+                                      newSelected.delete(member.id);
+                                    } else {
+                                      newSelected.add(member.id);
+                                    }
+                                    setSelectedMembers(newSelected);
+                                    setShowBulkActions(newSelected.size > 0);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-4 h-4 rounded border-outline-variant/40 text-primary focus:ring-primary/20 cursor-pointer"
+                                />
+                                <div 
+                                  className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-md font-bold text-primary shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
+                                  onClick={() => setSelectedMemberDetail(member)}
+                                >
                                   {getInitials(member.name)}
                                 </div>
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedMemberDetail(member)}>
                                   <div className="flex items-center gap-2">
                                     <p className="text-body-sm text-on-surface font-semibold truncate">{member.name}</p>
                                     {member.role === "Owner" && (
@@ -1212,16 +1482,228 @@ export default function ProfileDetailPage() {
                                   {sb.label}
                                 </span>
                                 {member.role !== "Owner" && (
-                                  <button className="p-2 rounded-lg hover:bg-surface-container transition-colors">
-                                    <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
-                                  </button>
+                                  <div className="relative">
+                                    <button 
+                                      onClick={() => setMemberActionMenu(memberActionMenu === member.id ? null : member.id)}
+                                      className="p-2 rounded-lg hover:bg-surface-container transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
+                                    </button>
+                                    {memberActionMenu === member.id && (
+                                      <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setMemberActionMenu(null)} />
+                                        <div className="absolute right-0 top-full mt-1 w-48 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-lg z-20 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                          <button
+                                            onClick={() => handleOpenRoleModal(member)}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
+                                          >
+                                            <span className="material-symbols-outlined text-[18px] text-blue-500">swap_horiz</span>
+                                            Change Role
+                                          </button>
+                                          <button
+                                            onClick={() => handleOpenQuotaModal(member)}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
+                                          >
+                                            <span className="material-symbols-outlined text-[18px] text-purple-500">data_thresholding</span>
+                                            Assign Quota
+                                          </button>
+                                          <button
+                                            onClick={() => handleRemoveMember(member)}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-danger-red hover:bg-danger-red/5 transition-colors text-left"
+                                          >
+                                            <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                                            Remove Member
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             );
-                          })
-                        )}
+                          })}
+                          
+                          {/* Pagination */}
+                          {totalPages > 1 && (
+                            <div className="px-6 py-4 border-t border-outline-variant/10 flex items-center justify-between bg-surface-container/20">
+                              <p className="text-body-sm text-on-surface-variant">
+                                Showing {(memberPage - 1) * membersPerPage + 1} to {Math.min(memberPage * membersPerPage, filteredMembers.length)} of {filteredMembers.length} members
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setMemberPage(p => Math.max(1, p - 1))}
+                                  disabled={memberPage === 1}
+                                  className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  Previous
+                                </button>
+                                <span className="px-3 py-1.5 text-label-sm text-on-surface-variant">
+                                  Page {memberPage} of {totalPages}
+                                </span>
+                                <button
+                                  onClick={() => setMemberPage(p => Math.min(totalPages, p + 1))}
+                                  disabled={memberPage === totalPages}
+                                  className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Bulk Actions Bar */}
+              {showBulkActions && selectedMembers.size > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto z-40 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-2xl px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4"
+                >
+                  <span className="text-body-sm font-semibold text-on-surface text-center sm:text-left">
+                    {selectedMembers.size} member{selectedMembers.size > 1 ? "s" : ""} selected
+                  </span>
+                  <div className="hidden sm:block h-6 w-px bg-outline-variant/20" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setConfirmModal({
+                          isOpen: true,
+                          title: "Remove Members",
+                          message: `Are you sure you want to remove ${selectedMembers.size} member${selectedMembers.size > 1 ? "s" : ""}? This action cannot be undone.`,
+                          type: "danger",
+                          confirmText: "Remove All",
+                          onConfirm: () => {
+                            setMembers(prev => prev.filter(m => !selectedMembers.has(m.id)));
+                            setSelectedMembers(new Set());
+                            setShowBulkActions(false);
+                            showToast({ type: "success", title: "Members removed", message: `${selectedMembers.size} member${selectedMembers.size > 1 ? "s" : ""} removed successfully.` });
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                          },
+                        });
+                      }}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-body-sm font-semibold text-danger-red hover:bg-danger-red/5 transition-colors flex items-center justify-center sm:justify-start gap-2"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">person_remove</span>
+                      Remove
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedMembers(new Set());
+                        setShowBulkActions(false);
+                      }}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Member Detail Modal */}
+              {selectedMemberDetail && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <motion.div
+                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
+                  >
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-body-lg font-bold text-on-surface">Member Details</h3>
+                      <button
+                        onClick={() => setSelectedMemberDetail(null)}
+                        className="w-8 h-8 rounded-lg hover:bg-surface-container flex items-center justify-center transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-lg font-bold text-primary">
+                        {getInitials(selectedMemberDetail.name)}
                       </div>
-                    </motion.div>
+                      <div>
+                        <h4 className="text-body-md font-semibold text-on-surface">{selectedMemberDetail.name}</h4>
+                        <p className="text-body-sm text-on-surface-variant">{selectedMemberDetail.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                        <span className="text-body-sm text-on-surface-variant">Role</span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${
+                          selectedMemberDetail.role === "Owner" ? "bg-amber-50 text-amber-700 border-amber-200/50" :
+                          selectedMemberDetail.role === "Manager" ? "bg-blue-50 text-blue-700 border-blue-200/50" :
+                          selectedMemberDetail.role === "ContentCreator" ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
+                          "bg-surface-container text-on-surface-variant border-outline-variant/20"
+                        }`}>
+                          <span className="material-symbols-outlined text-[12px]">
+                            {selectedMemberDetail.role === "Owner" ? "star" :
+                             selectedMemberDetail.role === "Manager" ? "manage_accounts" :
+                             selectedMemberDetail.role === "ContentCreator" ? "edit_note" : "visibility"}
+                          </span>
+                          {selectedMemberDetail.role === "ContentCreator" ? "Content Creator" : selectedMemberDetail.role}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                        <span className="text-body-sm text-on-surface-variant">Status</span>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${
+                          selectedMemberDetail.status === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
+                          selectedMemberDetail.status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200/50" :
+                          "bg-blue-50 text-blue-700 border-blue-200/50"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            selectedMemberDetail.status === "Active" ? "bg-emerald-500 animate-pulse" :
+                            selectedMemberDetail.status === "Pending" ? "bg-amber-500" : "bg-blue-500"
+                          }`} />
+                          {selectedMemberDetail.status}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                        <span className="text-body-sm text-on-surface-variant">Joined</span>
+                        <span className="text-body-sm text-on-surface">
+                          {new Date(selectedMemberDetail.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      </div>
+
+                      {selectedMemberDetail.lastActiveAt && (
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                          <span className="text-body-sm text-on-surface-variant">Last Active</span>
+                          <span className="text-body-sm text-on-surface">
+                            {new Date(selectedMemberDetail.lastActiveAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        onClick={() => setSelectedMemberDetail(null)}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors"
+                      >
+                        Close
+                      </button>
+                      {selectedMemberDetail.role !== "Owner" && (
+                        <button
+                          onClick={() => {
+                            setSelectedMemberDetail(null);
+                            handleOpenRoleModal(selectedMemberDetail);
+                          }}
+                          className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                        >
+                          Change Role
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                </div>
+              )}
 
                     {/* Workspace Roles Info */}
                     <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
@@ -1789,10 +2271,181 @@ export default function ProfileDetailPage() {
                 )}
                 {activeSection === "subscription" && (
                   <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show" className="space-y-6">
-                    <motion.div variants={reduceMotion ? undefined : item}>
-                      <h2 className="text-2xl font-bold text-on-surface tracking-tight">Subscription</h2>
-                      <p className="text-body-sm text-on-surface-variant mt-1.5">Manage your plan and billing details</p>
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold text-on-surface tracking-tight">Subscription</h2>
+                        <p className="text-body-sm text-on-surface-variant mt-1.5">Manage your plan and billing details</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowExpiredBanner(!showExpiredBanner)}
+                          className="px-4 py-2 bg-amber-100 text-amber-800 rounded-lg text-body-sm font-medium hover:bg-amber-200 transition-colors inline-flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">warning</span>
+                          {showExpiredBanner ? "Hide" : "Test"} Expired
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowLimitedModeBanner(!showLimitedModeBanner);
+                            setIsLimitedMode(!isLimitedMode);
+                          }}
+                          className="px-4 py-2 bg-red-100 text-red-800 rounded-lg text-body-sm font-medium hover:bg-red-200 transition-colors inline-flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">lock</span>
+                          {showLimitedModeBanner ? "Hide" : "Test"} Limited
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowArchivedBanner(!showArchivedBanner);
+                            setIsArchived(!isArchived);
+                          }}
+                          className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-body-sm font-medium hover:bg-gray-200 transition-colors inline-flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">archive</span>
+                          {showArchivedBanner ? "Hide" : "Test"} Archived
+                        </button>
+                      </div>
                     </motion.div>
+
+                    {/* Test Banners */}
+                    {showExpiredBanner && (
+                      <motion.div
+                        initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-amber-600 text-[20px]">warning</span>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-body-md font-semibold text-amber-900 mb-1">Subscription Expired</h4>
+                            <p className="text-body-sm text-amber-800 mb-3">
+                              Your subscription has expired. You still have <span className="font-bold">850 credits</span> remaining, but premium features are locked.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <button 
+                                className="px-4 py-2 bg-amber-600 text-white rounded-lg text-body-sm font-semibold hover:bg-amber-700 transition-colors inline-flex items-center gap-2"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">credit_card</span>
+                                Renew Subscription
+                              </button>
+                              <button 
+                                onClick={() => setShowExpiredBanner(false)}
+                                className="px-4 py-2 bg-white border border-amber-300 text-amber-800 rounded-lg text-body-sm font-medium hover:bg-amber-50 transition-colors"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {showLimitedModeBanner && (
+                      <motion.div
+                        initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-orange-50 px-5 py-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-red-600 text-[20px]">lock</span>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-body-md font-semibold text-red-900 mb-1">Limited Mode Active</h4>
+                            <p className="text-body-sm text-red-800 mb-2">
+                              Your workspace subscription expired <span className="font-bold">45 days ago</span>. Workspace is in read-only mode.
+                            </p>
+                            <ul className="text-body-sm text-red-700 space-y-1 mb-3">
+                              <li className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                Members can still login and view data
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px]">cancel</span>
+                                Creating, publishing, and inviting members are disabled
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px]">cancel</span>
+                                Premium and Business features are locked
+                              </li>
+                            </ul>
+                            <div className="flex flex-wrap gap-2">
+                              <button 
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg text-body-sm font-semibold hover:bg-red-700 transition-colors inline-flex items-center gap-2"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">credit_card</span>
+                                Renew Now
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setShowLimitedModeBanner(false);
+                                  setIsLimitedMode(false);
+                                }}
+                                className="px-4 py-2 bg-white border border-red-300 text-red-800 rounded-lg text-body-sm font-medium hover:bg-red-50 transition-colors"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {showArchivedBanner && (
+                      <motion.div
+                        initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-xl border border-gray-300 bg-gradient-to-r from-gray-50 to-slate-50 px-5 py-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-gray-600 text-[20px]">archive</span>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-body-md font-semibold text-gray-900 mb-1">Workspace Archived</h4>
+                            <p className="text-body-sm text-gray-700 mb-2">
+                              Your workspace subscription expired <span className="font-bold">120 days ago</span>. Workspace is now archived.
+                            </p>
+                            <ul className="text-body-sm text-gray-600 space-y-1 mb-3">
+                              <li className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px] text-gray-500">info</span>
+                                As Owner, you can view, export data, or renew subscription
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px] text-gray-500">info</span>
+                                Workspace will be eligible for deletion after 180 days
+                              </li>
+                            </ul>
+                            <div className="flex flex-wrap gap-2">
+                              <button 
+                                className="px-4 py-2 bg-gray-700 text-white rounded-lg text-body-sm font-semibold hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">credit_card</span>
+                                Renew Subscription
+                              </button>
+                              <button 
+                                onClick={() => showToast({ type: "info", title: "Export Data", message: "Feature coming soon!" })}
+                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-body-sm font-medium hover:bg-gray-50 transition-colors inline-flex items-center gap-2"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">download</span>
+                                Export Data
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setShowArchivedBanner(false);
+                                  setIsArchived(false);
+                                }}
+                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-body-sm font-medium hover:bg-gray-50 transition-colors"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Current Plan Card */}
                     <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary via-primary-container to-secondary rounded-2xl p-[1px] shadow-lg shadow-primary/20">
@@ -2102,12 +2755,299 @@ export default function ProfileDetailPage() {
                       >
                         Delete
                       </motion.button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
+                      </div>
+                    </motion.div>
 
-              {/* Invite Member Modal */}
+                    {/* Change Role Modal */}
+                    {showRoleModal && selectedMember && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
+                        >
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-blue-500 text-[24px]">swap_horiz</span>
+                            </div>
+                            <div>
+                              <h3 className="text-body-lg font-bold text-on-surface">Change Role</h3>
+                              <p className="text-label-sm text-on-surface-variant">Update role for {selectedMember.name}</p>
+                            </div>
+                          </div>
+
+                          <div className="mb-6">
+                            <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Role</label>
+                            <div className="space-y-2">
+                              {[
+                                { value: "Manager", label: "Manager", icon: "manage_accounts", color: "text-blue-600", bg: "bg-blue-50", desc: "Manage brands, content, campaigns" },
+                                { value: "ContentCreator", label: "Content Creator", icon: "edit_note", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Create and publish content" },
+                                { value: "Viewer", label: "Viewer", icon: "visibility", color: "text-outline", bg: "bg-surface-container", desc: "View dashboard and analytics only" },
+                              ].map((role) => (
+                                <button
+                                  key={role.value}
+                                  onClick={() => setNewRole(role.value as WorkspaceMemberRole)}
+                                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                                    newRole === role.value
+                                      ? "border-primary bg-primary/5"
+                                      : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
+                                  }`}
+                                >
+                                  <div className={`w-10 h-10 rounded-lg ${role.bg} flex items-center justify-center`}>
+                                    <span className={`material-symbols-outlined ${role.color} text-[20px]`}>{role.icon}</span>
+                                  </div>
+                                  <div className="flex-1 text-left">
+                                    <p className="text-body-sm font-semibold text-on-surface">{role.label}</p>
+                                    <p className="text-label-xs text-on-surface-variant">{role.desc}</p>
+                                  </div>
+                                  {newRole === role.value && (
+                                    <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => { setShowRoleModal(false); setSelectedMember(null); }}
+                              disabled={changingRole}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleChangeRole}
+                              disabled={changingRole || newRole === selectedMember.role}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                              {changingRole ? (
+                                <>
+                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                  Updating...
+                                </>
+                              ) : (
+                                "Update Role"
+                              )}
+                            </button>
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Transfer Ownership Modal */}
+                    {showTransferModal && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg mx-4 p-6"
+                        >
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-amber-500 text-[24px]">admin_panel_settings</span>
+                            </div>
+                            <div>
+                              <h3 className="text-body-lg font-bold text-on-surface">Transfer Ownership</h3>
+                              <p className="text-label-sm text-on-surface-variant">Select a Manager to become the new Owner</p>
+                            </div>
+                          </div>
+
+                          <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200/50">
+                            <div className="flex items-start gap-2">
+                              <span className="material-symbols-outlined text-amber-600 text-[18px] mt-0.5">warning</span>
+                              <div className="text-body-sm text-amber-800">
+                                <p className="font-semibold mb-1">Important:</p>
+                                <ul className="space-y-1 text-amber-700">
+                                  <li>• You will become a Manager after transfer</li>
+                                  <li>• The new Owner will have full access to billing and settings</li>
+                                  <li>• This action can be reversed by the new Owner</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mb-6">
+                            <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Manager only)</label>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {members.filter(m => m.role === "Manager" && m.status === "Active").length === 0 ? (
+                                <div className="text-center py-8">
+                                  <span className="material-symbols-outlined text-outline/40 text-4xl mb-2 block">person_off</span>
+                                  <p className="text-body-sm text-on-surface-variant">No Manager members found</p>
+                                  <p className="text-label-xs text-outline mt-1">You need to have at least one Manager to transfer ownership</p>
+                                </div>
+                              ) : (
+                                members.filter(m => m.role === "Manager" && m.status === "Active").map((member) => (
+                                  <button
+                                    key={member.id}
+                                    onClick={() => setSelectedNewOwner(member)}
+                                    className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                                      selectedNewOwner?.id === member.id
+                                        ? "border-primary bg-primary/5"
+                                        : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
+                                    }`}
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-sm font-bold text-primary">
+                                      {getInitials(member.name)}
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <p className="text-body-sm font-semibold text-on-surface">{member.name}</p>
+                                      <p className="text-label-xs text-on-surface-variant">{member.email}</p>
+                                    </div>
+                                    {selectedNewOwner?.id === member.id && (
+                                      <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => { setShowTransferModal(false); setSelectedNewOwner(null); }}
+                              disabled={transferring}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleTransferOwnership}
+                              disabled={transferring || !selectedNewOwner}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:opacity-90 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                              {transferring ? (
+                                <>
+                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                  Transferring...
+                                </>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-[18px]">check</span>
+                                  Confirm Transfer
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Member Quota Modal */}
+                    {showQuotaModal && quotaMember && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg mx-4 p-6"
+                        >
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-purple-500 text-[24px]">data_thresholding</span>
+                            </div>
+                            <div>
+                              <h3 className="text-body-lg font-bold text-on-surface">Assign Quota</h3>
+                              <p className="text-label-sm text-on-surface-variant">Set credit quota for {quotaMember.name}</p>
+                            </div>
+                          </div>
+
+                          <div className="mb-6">
+                            <label className="text-label-sm font-semibold text-on-surface mb-3 block">Quota Mode</label>
+                            <div className="space-y-2">
+                              {[
+                                { value: "SharedPool", label: "Shared Pool", icon: "pool", color: "text-blue-600", bg: "bg-blue-50", desc: "Use workspace's shared credit pool. No individual limit." },
+                                { value: "LifetimeAssigned", label: "Lifetime Assigned", icon: "lock_clock", color: "text-purple-600", bg: "bg-purple-50", desc: "Fixed credit limit that never resets. Owner must increase when used up." },
+                                { value: "MonthlyAssigned", label: "Monthly Assigned", icon: "calendar_month", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Monthly credit limit that resets on the 1st of each month." },
+                              ].map((mode) => (
+                                <button
+                                  key={mode.value}
+                                  onClick={() => setQuotaMode(mode.value as typeof quotaMode)}
+                                  className={`w-full flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${
+                                    quotaMode === mode.value
+                                      ? "border-primary bg-primary/5"
+                                      : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
+                                  }`}
+                                >
+                                  <div className={`w-10 h-10 rounded-lg ${mode.bg} flex items-center justify-center shrink-0`}>
+                                    <span className={`material-symbols-outlined ${mode.color} text-[20px]`}>{mode.icon}</span>
+                                  </div>
+                                  <div className="flex-1 text-left">
+                                    <p className="text-body-sm font-semibold text-on-surface">{mode.label}</p>
+                                    <p className="text-label-xs text-on-surface-variant mt-0.5">{mode.desc}</p>
+                                  </div>
+                                  {quotaMode === mode.value && (
+                                    <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {quotaMode !== "SharedPool" && (
+                            <div className="mb-6">
+                              <label className="text-label-sm font-semibold text-on-surface mb-2 block">
+                                Credit Limit
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={quotaLimit}
+                                  onChange={(e) => setQuotaLimit(Number(e.target.value))}
+                                  min={100}
+                                  step={100}
+                                  className="w-full px-4 py-3 pr-16 rounded-xl border border-outline-variant/40 bg-surface-container-lowest text-body-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                                  placeholder="Enter credit limit"
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-label-sm text-on-surface-variant font-medium">credits</span>
+                              </div>
+                              <p className="text-label-xs text-on-surface-variant mt-2">
+                                {quotaMode === "LifetimeAssigned" 
+                                  ? "This limit will never reset. Member will be blocked when reached."
+                                  : "This limit will reset to 0 on the 1st of each month."}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => { setShowQuotaModal(false); setQuotaMember(null); }}
+                              disabled={savingQuota}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleSaveQuota}
+                              disabled={savingQuota || (quotaMode !== "SharedPool" && quotaLimit < 100)}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                              {savingQuota ? (
+                                <>
+                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-[18px]">check</span>
+                                  Save Quota
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
               {showInviteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                   <motion.div
@@ -2256,6 +3196,18 @@ export default function ProfileDetailPage() {
                   </div>
                 </div>
               )}
+
+              {/* Confirmation Modal */}
+              <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                type={confirmModal.type}
+                confirmText={confirmModal.confirmText}
+                isLoading={confirmModal.isLoading}
+              />
             </div>
           </main>
         </div>

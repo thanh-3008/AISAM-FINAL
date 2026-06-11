@@ -1,47 +1,39 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
-export type ToastType = "success" | "error" | "warning" | "info";
+type ToastType = "success" | "error" | "warning" | "info";
 
-export interface Toast {
-  id: number;
+interface Toast {
+  id: string;
   type: ToastType;
   title: string;
   message?: string;
+  duration?: number;
 }
 
-interface ToastContextValue {
-  toasts: Toast[];
+interface ToastContextType {
   showToast: (toast: Omit<Toast, "id">) => void;
-  addToast: (message: string, icon?: string) => void;
-  removeToast: (id: number) => void;
 }
 
-const ToastContext = createContext<ToastContextValue | null>(null);
-
-let toastId = 0;
+const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const showToast = useCallback((toast: Omit<Toast, "id">) => {
-    const id = ++toastId;
-    setToasts((prev) => [...prev, { ...toast, id }]);
+    const id = Math.random().toString(36).substring(7);
+    const newToast = { ...toast, id };
+    setToasts((prev) => [...prev, newToast]);
+
+    const duration = toast.duration || 4000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, duration);
   }, []);
 
-  const addToast = useCallback((message: string, icon = "check_circle") => {
-    const type: ToastType = icon === "error" || icon === "delete" ? "error" : 
-                           icon === "warning" || icon === "construction" ? "warning" : 
-                           icon === "info" ? "info" : "success";
-    showToast({ type, title: message });
-  }, [showToast]);
-
-  const removeToast = useCallback((id: number) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
@@ -80,9 +72,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ToastContext.Provider value={{ toasts, showToast, addToast, removeToast }}>
+    <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[999] flex flex-col gap-2 max-w-sm">
+      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
         <AnimatePresence>
           {toasts.map((toast) => {
             const styles = getToastStyles(toast.type);
@@ -120,7 +112,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used within a ToastProvider");
-  return ctx;
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider");
+  }
+  return context;
 }

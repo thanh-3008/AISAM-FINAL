@@ -608,6 +608,145 @@ Administration
 | `app/overview/page.tsx` | Thêm "Go to Dashboard" button |
 | `services/workspaceInvitationService.ts` | **NEW** - Invitation API service với mock data |
 
+## UI/UX Enhancements (2026-01-11)
+
+### Toast Notifications System
+Thay thế tất cả `alert()` bằng toast notifications đẹp với 4 loại:
+
+| Type | Icon | Color | Usage |
+|------|------|-------|-------|
+| **success** | `check_circle` | Emerald | Thành công (invite, update role, etc.) |
+| **error** | `error` | Red | Lỗi (network, failed, etc.) |
+| **warning** | `warning` | Amber | Cảnh báo (expired, limited mode) |
+| **info** | `info` | Blue | Thông tin (feature coming soon) |
+
+**Usage:**
+```typescript
+const { showToast } = useToast();
+showToast({ type: "success", title: "Invitation sent", message: "Invitation sent to user@example.com" });
+```
+
+### Confirmation Modal Component
+Thay thế `confirm()` bằng modal đẹp với 3 loại:
+
+| Type | Icon | Color | Usage |
+|------|------|-------|-------|
+| **danger** | `dangerous` | Red | Xóa member, transfer ownership |
+| **warning** | `warning` | Amber | Cảnh báo quan trọng |
+| **info** | `info` | Blue | Xác nhận thông tin |
+
+**Usage:**
+```typescript
+<ConfirmationModal
+  isOpen={confirmModal.isOpen}
+  onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+  onConfirm={confirmModal.onConfirm}
+  title="Remove Member"
+  message="Are you sure you want to remove this member?"
+  type="danger"
+  confirmText="Remove"
+/>
+```
+
+### Team Members Enhancements
+
+#### 1. Search Members
+- Search box tìm theo tên hoặc email
+- Real-time filter khi gõ
+- Nút clear search
+- Hiển thị "No members match your search" khi không tìm thấy
+
+#### 2. Loading Skeletons
+- Skeleton loading cho member list (5 items)
+- Hiển thị avatar, name, email, role, status placeholders
+- Smooth animation khi loading
+
+#### 3. Empty States
+- Empty state đẹp khi không có members
+- Icon lớn + description
+- CTA button "Invite first member"
+- Different message cho search result vs no members
+
+#### 4. Member Detail View
+- Click vào avatar hoặc name để xem chi tiết
+- Modal hiển thị:
+  - Avatar + name + email
+  - Role badge
+  - Status badge
+  - Joined date
+  - Last active time
+  - Quick action: "Change Role" button
+
+#### 5. Bulk Actions
+- Checkbox cho mỗi member
+- Select all / deselect all
+- Bulk action bar hiển thị khi có members được chọn
+- Actions: Remove selected members
+- Confirmation modal trước khi remove
+
+#### 6. Pagination
+- Phân trang 10 members/trang
+- Hiển thị "Showing X to Y of Z members"
+- Previous / Next buttons
+- Page indicator "Page X of Y"
+
+#### 7. Mobile Responsive
+- Team header: buttons wrap trên mobile
+- Bulk actions bar: full-width trên mobile
+- Filters + search: stack vertically trên mobile
+- Pagination: responsive layout
+
+### Workspace Type Badge
+Thêm badge Personal/Business vào:
+- Sidebar workspace selector
+- Header workspace selector
+- Workspace dropdown list
+
+**Style:**
+- Personal: Blue badge với icon `person`
+- Business: Purple badge với icon `business`
+
+### Subscription State Banners
+
+#### 1. Expired Banner
+- Hiển thị khi subscription hết hạn
+- Thông báo credits còn lại
+- Button "Renew Subscription"
+- Button "Dismiss"
+
+#### 2. Limited Mode Banner
+- Hiển thị khi workspace ở Limited Mode (< 90 ngày)
+- Danh sách features bị khóa
+- Button "Renew Now" (chỉ Owner thấy)
+- Button "Dismiss"
+
+#### 3. Archived Banner
+- Hiển thị khi workspace Archived (90-180 ngày)
+- Thông báo thời gian hết hạn
+- Owner: "Renew Subscription" + "Export Data"
+- Member: "Contact workspace owner"
+- Button "Dismiss"
+
+### Test Buttons (Subscription Tab)
+Thêm 3 buttons để test các trạng thái:
+
+| Button | Color | Action |
+|--------|-------|--------|
+| **Test Expired** | Amber | Toggle Expired Banner |
+| **Test Limited** | Red | Toggle Limited Mode Banner |
+| **Test Archived** | Gray | Toggle Archived Banner |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `contexts/ToastContext.tsx` | Toast system mới với 4 types, animations |
+| `components/ui/ConfirmationModal.tsx` | **NEW** - Confirmation modal component |
+| `components/ui/Toast.tsx` | **NEW** - Toast component (unused, kept for reference) |
+| `app/profiles/[id]/page.tsx` | Toast integration, search, skeletons, empty states, member detail, bulk actions, pagination, responsive |
+| `components/layout/Sidebar.tsx` | Workspace type badge |
+| `components/layout/Header.tsx` | Workspace type badge |
+
 ## Workspace Migration (Profile → Workspace)
 
 ### Summary of Changes

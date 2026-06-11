@@ -187,6 +187,18 @@ export default function Header({ breadcrumbs }: HeaderProps) {
             <span className="text-label-sm font-semibold text-on-surface truncate max-w-[120px]">
               {activeWorkspace?.name || "Select Workspace"}
             </span>
+            {activeWorkspace && (
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border ${
+                activeWorkspace.workspaceType === 2 
+                  ? "bg-purple-50 text-purple-700 border-purple-200/50" 
+                  : "bg-blue-50 text-blue-700 border-blue-200/50"
+              }`}>
+                <span className="material-symbols-outlined text-[10px]">
+                  {activeWorkspace.workspaceType === 2 ? "business" : "person"}
+                </span>
+                {activeWorkspace.workspaceType === 2 ? "Biz" : "Per"}
+              </span>
+            )}
             <span className={`material-symbols-outlined text-[16px] text-outline transition-transform ${wsOpen ? "rotate-180" : ""}`}>unfold_more</span>
           </button>
           {wsOpen && (
@@ -217,6 +229,16 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                         >
                           <span className="material-symbols-outlined text-[18px]">workspaces</span>
                           <span className="flex-1 truncate">{w.name}</span>
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border ${
+                            w.workspaceType === 2 
+                              ? "bg-purple-50 text-purple-700 border-purple-200/50" 
+                              : "bg-blue-50 text-blue-700 border-blue-200/50"
+                          }`}>
+                            <span className="material-symbols-outlined text-[10px]">
+                              {w.workspaceType === 2 ? "business" : "person"}
+                            </span>
+                            {w.workspaceType === 2 ? "Biz" : "Per"}
+                          </span>
                           {active && <span className="material-symbols-outlined text-[14px]">check</span>}
                         </button>
                       );

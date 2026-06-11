@@ -185,11 +185,25 @@ export default function Sidebar() {
             {loading ? "?" : initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-label-md text-on-surface truncate font-medium">
-              {loading ? (
-                <span className="inline-block w-16 h-3 bg-surface-container-high rounded animate-pulse" />
-              ) : displayName}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-label-md text-on-surface truncate font-medium">
+                {loading ? (
+                  <span className="inline-block w-16 h-3 bg-surface-container-high rounded animate-pulse" />
+                ) : displayName}
+              </p>
+              {!loading && activeWorkspace && (
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border ${
+                  activeWorkspace.workspaceType === 2 
+                    ? "bg-purple-50 text-purple-700 border-purple-200/50" 
+                    : "bg-blue-50 text-blue-700 border-blue-200/50"
+                }`}>
+                  <span className="material-symbols-outlined text-[10px]">
+                    {activeWorkspace.workspaceType === 2 ? "business" : "person"}
+                  </span>
+                  {activeWorkspace.workspaceType === 2 ? "Business" : "Personal"}
+                </span>
+              )}
+            </div>
             <p className="text-label-xs text-label-sm text-on-surface-variant truncate">
               {loading ? "" : displayPlan}
             </p>
@@ -237,7 +251,19 @@ export default function Sidebar() {
                           {getInitials(w.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-body-sm text-on-surface truncate font-medium">{w.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-body-sm text-on-surface truncate font-medium">{w.name}</p>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border shrink-0 ${
+                              w.workspaceType === 2 
+                                ? "bg-purple-50 text-purple-700 border-purple-200/50" 
+                                : "bg-blue-50 text-blue-700 border-blue-200/50"
+                            }`}>
+                              <span className="material-symbols-outlined text-[10px]">
+                                {w.workspaceType === 2 ? "business" : "person"}
+                              </span>
+                              {w.workspaceType === 2 ? "Business" : "Personal"}
+                            </span>
+                          </div>
                           <p className="text-label-xs text-label-sm text-on-surface-variant truncate">{getWorkspaceTypeLabel(w.workspaceType)}</p>
                         </div>
                         {active && (
