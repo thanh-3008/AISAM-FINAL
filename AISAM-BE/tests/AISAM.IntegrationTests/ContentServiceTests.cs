@@ -17,11 +17,15 @@ public class ContentServiceTests
     public async Task CreateAsync_UsesActiveProfile_WhenBrandBelongsToProfile()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brand = CreateBrand(profileId);
         var repository = new FakeContentRepository();
-        var service = CreateService(repository, new FakeBrandRepository(brand));
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.CreateAsync(profileId, new CreateContentRequest
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentRequest
         {
             BrandId = brand.Id,
             AdType = AdTypeEnum.TextOnly,
@@ -36,11 +40,15 @@ public class ContentServiceTests
     [Fact]
     public async Task CreateAsync_ReturnsNotFound_WhenBrandBelongsToAnotherProfile()
     {
+        var workspaceId = Guid.NewGuid();
         var brand = CreateBrand(Guid.NewGuid());
         var repository = new FakeContentRepository();
-        var service = CreateService(repository, new FakeBrandRepository(brand));
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.CreateAsync(Guid.NewGuid(), new CreateContentRequest
+        var result = await service.CreateAsync(Guid.NewGuid(), workspaceId, new CreateContentRequest
         {
             BrandId = brand.Id,
             TextContent = "Draft"
@@ -55,12 +63,17 @@ public class ContentServiceTests
     public async Task CreateAsync_ReturnsBadRequest_WhenProductDoesNotBelongToBrand()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brand = CreateBrand(profileId);
         var product = new Product { Id = Guid.NewGuid(), BrandId = Guid.NewGuid(), Name = "Other product" };
         var repository = new FakeContentRepository();
-        var service = CreateService(repository, new FakeBrandRepository(brand), new FakeProductRepository(product));
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            new FakeProductRepository(product),
+            CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.CreateAsync(profileId, new CreateContentRequest
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentRequest
         {
             BrandId = brand.Id,
             ProductId = product.Id,
@@ -76,11 +89,15 @@ public class ContentServiceTests
     public async Task CreateAsync_FormatsSingleImageUrl_ForJsonbColumn()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brand = CreateBrand(profileId);
         var repository = new FakeContentRepository();
-        var service = CreateService(repository, new FakeBrandRepository(brand));
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        await service.CreateAsync(profileId, new CreateContentRequest
+        await service.CreateAsync(profileId, workspaceId, new CreateContentRequest
         {
             BrandId = brand.Id,
             TextContent = "Draft",
@@ -94,6 +111,7 @@ public class ContentServiceTests
     public async Task CloneAsync_CreatesNewDraft()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brand = CreateBrand(profileId);
         var existing = new Content
         {
@@ -105,9 +123,12 @@ public class ContentServiceTests
             Status = ContentStatusEnum.Published
         };
         var repository = new FakeContentRepository(existing);
-        var service = CreateService(repository, new FakeBrandRepository(brand));
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.CloneAsync(existing.Id, profileId);
+        var result = await service.CloneAsync(existing.Id, profileId, workspaceId);
 
         Assert.True(result.Success);
         Assert.NotEqual(existing.Id, result.Data!.Id);
@@ -119,6 +140,7 @@ public class ContentServiceTests
     public async Task RestoreAsync_ResetsStatusToDraft()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brand = CreateBrand(profileId);
         var content = new Content
         {
@@ -131,19 +153,53 @@ public class ContentServiceTests
             Status = ContentStatusEnum.Published
         };
         var repository = new FakeContentRepository(content);
-        var service = CreateService(repository, new FakeBrandRepository(brand));
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.RestoreAsync(content.Id, profileId);
+        var result = await service.RestoreAsync(content.Id, profileId, workspaceId);
 
         Assert.True(result.Success);
         Assert.False(content.IsDeleted);
         Assert.Equal(ContentStatusEnum.Draft, content.Status);
     }
 
+    [Fact]
+    public async Task CreateAsync_ReturnsForbidden_WhenWorkspaceIsRuntimeLimited()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var repository = new FakeContentRepository();
+        var service = CreateService(
+            repository,
+            new FakeBrandRepository(brand),
+            workspaceRepository: new FakeWorkspaceRepository(new Workspace
+            {
+                Id = workspaceId,
+                Name = "Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active,
+                SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30)
+            }));
+
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentRequest
+        {
+            BrandId = brand.Id,
+            TextContent = "Draft"
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Empty(repository.Added);
+    }
+
     private static ContentService CreateService(
         IContentRepository contentRepository,
         IBrandRepository brandRepository,
-        IProductRepository? productRepository = null)
+        IProductRepository? productRepository = null,
+        IWorkspaceRepository? workspaceRepository = null)
     {
         return new ContentService(
             contentRepository,
@@ -152,11 +208,22 @@ public class ContentServiceTests
             new FakeSocialIntegrationRepository(),
             new FakeSocialAccountRepository(),
             new FakePostRepository(),
-            new FakeWorkspaceRepository(),
+            workspaceRepository ?? new FakeWorkspaceRepository(),
             Array.Empty<IProviderService>(),
             new FakeSocialTokenProtector(),
             new FakeQuotaService(),
             new WorkspaceLifecycleService());
+    }
+
+    private static FakeWorkspaceRepository CreateActiveWorkspaceRepository(Guid workspaceId)
+    {
+        return new FakeWorkspaceRepository(new Workspace
+        {
+            Id = workspaceId,
+            Name = "Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active
+        });
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -233,12 +300,20 @@ public class ContentServiceTests
 
     private sealed class FakeWorkspaceRepository : IWorkspaceRepository
     {
-        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
-        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
-        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>([]);
+        private readonly Dictionary<Guid, Workspace> _workspaces;
+
+        public FakeWorkspaceRepository(params Workspace[] workspaces)
+        {
+            _workspaces = workspaces.ToDictionary(workspace => workspace.Id);
+        }
+
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_workspaces.GetValueOrDefault(id));
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.ToList());
+        public Task<IReadOnlyList<Workspace>> GetLifecycleCandidatesAsync(int batchSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.Take(batchSize).ToList());
         public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_workspaces.ContainsKey(id));
     }
 
     private sealed class FakeSocialIntegrationRepository : ISocialIntegrationRepository

@@ -265,13 +265,13 @@ public class ScheduledPostingServiceTests
             return Task.FromResult(PublishResult);
         }
 
-        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CreateAsync(Guid profileId, AISAM.Common.Dtos.Request.CreateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CreateAsync(Guid profileId, Guid workspaceId, AISAM.Common.Dtos.Request.CreateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<PagedResult<AISAM.Common.Dtos.Response.ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, AISAM.Common.Dtos.Request.UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, Guid workspaceId, AISAM.Common.Dtos.Request.UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeProfileRepository : IProfileRepository

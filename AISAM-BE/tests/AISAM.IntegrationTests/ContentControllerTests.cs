@@ -22,7 +22,7 @@ public class ContentControllerTests
         {
             CreateResult = GenericResponse<ContentResponseDto>.CreateError("Brand not found.", HttpStatusCode.NotFound)
         };
-        var controller = CreateController(service, Guid.NewGuid());
+        var controller = CreateController(service, Guid.NewGuid(), Guid.NewGuid());
 
         var result = await controller.Create(new CreateContentRequest());
 
@@ -38,17 +38,31 @@ public class ContentControllerTests
         {
             PagedResult = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>())
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, profileId, Guid.NewGuid());
 
         await controller.GetPaged();
 
         Assert.Equal(profileId, service.LastProfileId);
     }
 
-    private static ContentController CreateController(IContentService service, Guid profileId)
+    [Fact]
+    public async Task Create_UsesValidatedActiveWorkspaceFromHttpContext()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var service = new FakeContentService();
+        var controller = CreateController(service, profileId, workspaceId);
+
+        await controller.Create(new CreateContentRequest());
+
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
+    }
+
+    private static ContentController CreateController(IContentService service, Guid profileId, Guid workspaceId)
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
 
         return new ContentController(service)
         {
@@ -59,12 +73,14 @@ public class ContentControllerTests
     private sealed class FakeContentService : IContentService
     {
         public Guid LastProfileId { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
         public GenericResponse<ContentResponseDto> CreateResult { get; set; } = GenericResponse<ContentResponseDto>.CreateSuccess(new ContentResponseDto());
         public GenericResponse<PagedResult<ContentResponseDto>> PagedResult { get; set; } = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>());
 
-        public Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, Guid workspaceId, CreateContentRequest request, CancellationToken cancellationToken = default)
         {
             LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(CreateResult);
         }
 
@@ -75,11 +91,11 @@ public class ContentControllerTests
         }
 
         public Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

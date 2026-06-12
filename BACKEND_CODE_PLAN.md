@@ -3193,7 +3193,7 @@ Mục tiêu phase:
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | DONE | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | DONE | 9.9, 9.12 |
 | 9.14 | Áp dụng Credits vào AI generation | IN PROGRESS/PARTIAL | 9.10, 9.13 |
-| 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
+| 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | DONE | 9.9, 9.13 |
 | 9.16 | Chuyển ownership từng domain sang Workspace | TODO | 9.6, 9.13 |
 | 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | TODO | 9.9-9.16 |
 | 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | TODO | 9.17 |
@@ -4954,17 +4954,31 @@ File đã sửa:
 
 ```text
 AISAM-BE/AISAM.Services/Service/WorkspaceLifecycleService.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceLifecycleProcessingService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceLifecycleProcessingService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceLifecycleBackgroundService.cs
 AISAM-BE/AISAM.Services/Service/WorkspaceInvitationService.cs
 AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
 AISAM-BE/AISAM.Services/Service/ContentService.cs
+AISAM-BE/AISAM.Services/IServices/IContentService.cs
 AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
 AISAM-BE/AISAM.Services/Service/ScheduledPostingService.cs
+AISAM-BE/AISAM.Services/Service/ContentScheduleService.cs
+AISAM-BE/AISAM.Services/IServices/IContentScheduleService.cs
 AISAM-BE/AISAM.API/Program.cs
+AISAM-BE/AISAM.API/Controllers/ContentController.cs
+AISAM-BE/AISAM.API/Controllers/ContentSchedulesController.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceRepository.cs
 AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceLifecycleServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceLifecycleProcessingServiceTests.cs
 AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationServiceTests.cs
 AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberServiceTests.cs
 AISAM-BE/tests/AISAM.IntegrationTests/ContentServiceTests.cs
 AISAM-BE/tests/AISAM.IntegrationTests/ContentServicePublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentSchedulesControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentScheduleServiceTests.cs
 AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
 AISAM-BE/tests/AISAM.IntegrationTests/ScheduledPostingServiceTests.cs
 ```
@@ -4984,20 +4998,22 @@ Kết quả:
   - transfer ownership
   đều bị chặn nếu Workspace không còn `Active`, kể cả khi persisted status chưa được sync trước đó.
 - `ContentService.PublishAsync(..., workspaceId, ...)` hiện verify Workspace tồn tại và đang `Active` trước khi đi vào quota/provider publish flow. Điều này khóa bypass publish trực tiếp ở service layer.
+- `ContentService` write flows (`create`, `update`, `clone`, `soft delete`, `restore`) hiện cũng nhận `workspaceId` từ controller và tự enforce `Workspace must be active`, không còn chỉ dựa vào middleware.
 - `PayOSPaymentService.CreateCheckoutAsync(...)` hiện resolve lifecycle trước khi tạo checkout:
   - cho phép `Active`, `Limited`, `Archived`,
   - chặn `EligibleForAdminDeletion` và `Deleted`.
   Như vậy renew/billing không còn bypass rule lifecycle qua service call trực tiếp.
+- `ContentScheduleService` write flows (`create`, `update`, `delete`) hiện cũng nhận `workspaceId` từ controller và tự enforce `Workspace must be active`, không còn chỉ dựa vào middleware.
 - `ScheduledPostingService` không còn chỉ nhìn `workspace.Status == Active`; background scheduler giờ resolve runtime lifecycle của workspace membership:
   - chỉ publish khi có `Active workspace`,
   - nếu workspace đã chuyển `Limited`/`Archived`/`Eligible`, schedule bị mark `Failed` và không attempt publish.
-- Với `content create/update/delete` và `content-schedule create/update/delete`, service signature hiện chỉ có `profileId` mà không mang `workspaceId`; các flow này vẫn tiếp tục được chặn ở middleware/runtime gate hiện có. Task này tập trung đóng các bypass path ở service layer nơi workspace context đã có sẵn hoặc scheduler có thể chạy ngoài HTTP middleware.
+- Bổ sung `WorkspaceLifecycleProcessingService` và `WorkspaceLifecycleBackgroundService` để sync lifecycle theo batch nền, không còn phụ thuộc hoàn toàn vào lazy-sync trên read path.
 
 Kiểm tra đã chạy:
 
 ```text
-dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~WorkspaceInvitationServiceTests|FullyQualifiedName~WorkspaceMemberServiceTests|FullyQualifiedName~PaymentServiceTests|FullyQualifiedName~ScheduledPostingServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~WorkspaceLifecycleServiceTests"
-Passed. 70/70 tests passed.
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~ActiveWorkspaceMiddlewareTests|FullyQualifiedName~WorkspaceLifecycleServiceTests|FullyQualifiedName~WorkspaceLifecycleProcessingServiceTests|FullyQualifiedName~WorkspaceServiceTests|FullyQualifiedName~WorkspaceInvitationServiceTests|FullyQualifiedName~WorkspaceMemberServiceTests|FullyQualifiedName~PaymentServiceTests|FullyQualifiedName~ScheduledPostingServiceTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~ContentScheduleServiceTests|FullyQualifiedName~ContentControllerTests|FullyQualifiedName~ContentSchedulesControllerTests|FullyQualifiedName~WorkspaceControllerTests"
+Passed. 121/121 tests passed.
 
 dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
 Build succeeded. 0 warnings, 0 errors.
@@ -5034,21 +5050,27 @@ Kết quả:
   - admin soft delete,
   - invitation/member management runtime guard,
   - payment checkout lifecycle guard,
-  - content publish runtime guard,
-  - scheduled posting runtime guard.
+  - content write/publish runtime guard,
+  - content schedule write runtime guard,
+  - scheduled posting runtime guard,
+  - background lifecycle synchronization.
 - Chạy full integration suite để xác minh các thay đổi Phase `9.15` không làm vỡ các module integration hiện có ngoài lifecycle scope.
 - Cập nhật `BACKEND_CODE_PLAN.md` để chốt toàn bộ `9.15` theo trạng thái thực tế sau khi verify xong.
+- Chốt dứt điểm 2 khoảng hở cuối của `9.15`:
+  - content/schedule write flows tự enforce lifecycle ở service layer, không còn chỉ dựa vào middleware,
+  - workspace lifecycle có background processing riêng thay vì chỉ lazy-sync.
+- Task `9.15` được xem là DONE thực sự sau khi 2 khoảng hở trên đã được code hóa, có test và pass regression đầy đủ.
 
 Kiểm tra đã chạy:
 
 ```text
 Focused lifecycle and service wiring regression
-dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~WorkspaceInvitationServiceTests|FullyQualifiedName~WorkspaceMemberServiceTests|FullyQualifiedName~PaymentServiceTests|FullyQualifiedName~ScheduledPostingServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~WorkspaceLifecycleServiceTests"
-Passed. 70/70 tests passed.
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~ActiveWorkspaceMiddlewareTests|FullyQualifiedName~WorkspaceLifecycleServiceTests|FullyQualifiedName~WorkspaceLifecycleProcessingServiceTests|FullyQualifiedName~WorkspaceServiceTests|FullyQualifiedName~WorkspaceInvitationServiceTests|FullyQualifiedName~WorkspaceMemberServiceTests|FullyQualifiedName~PaymentServiceTests|FullyQualifiedName~ScheduledPostingServiceTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~ContentScheduleServiceTests|FullyQualifiedName~ContentControllerTests|FullyQualifiedName~ContentSchedulesControllerTests|FullyQualifiedName~WorkspaceControllerTests"
+Passed. 121/121 tests passed.
 
 Full integration regression
 dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
-Passed. 255/255 tests passed.
+Passed. 260/260 tests passed.
 
 dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
 Build succeeded. 0 warnings, 0 errors.

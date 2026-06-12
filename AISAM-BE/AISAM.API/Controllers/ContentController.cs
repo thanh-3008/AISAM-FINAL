@@ -28,7 +28,11 @@ public sealed class ContentController : ControllerBase
         [FromBody] CreateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CreateAsync(GetProfileId(), request, cancellationToken);
+        var result = await _contentService.CreateAsync(
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            request,
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -72,7 +76,12 @@ public sealed class ContentController : ControllerBase
         [FromBody] UpdateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.UpdateAsync(contentId, GetProfileId(), request, cancellationToken);
+        var result = await _contentService.UpdateAsync(
+            contentId,
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            request,
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -81,7 +90,11 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CloneAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.CloneAsync(
+            contentId,
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -105,7 +118,11 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.SoftDeleteAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.SoftDeleteAsync(
+            contentId,
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -114,7 +131,11 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.RestoreAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.RestoreAsync(
+            contentId,
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

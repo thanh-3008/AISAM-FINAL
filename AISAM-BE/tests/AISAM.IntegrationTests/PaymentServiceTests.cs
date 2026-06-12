@@ -865,6 +865,8 @@ public class PaymentServiceTests
 
         public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.ToList());
+        public Task<IReadOnlyList<Workspace>> GetLifecycleCandidatesAsync(int batchSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.Take(batchSize).ToList());
 
         public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default)
         {

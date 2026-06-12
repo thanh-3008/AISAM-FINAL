@@ -139,6 +139,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IWorkspaceLifecycleService, WorkspaceLifecycleService>();
+builder.Services.AddScoped<IWorkspaceLifecycleProcessingService, WorkspaceLifecycleProcessingService>();
 builder.Services.AddScoped<IWorkspaceInvitationService, WorkspaceInvitationService>();
 builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
@@ -163,6 +164,7 @@ builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
+builder.Services.AddHostedService<WorkspaceLifecycleBackgroundService>();
 
 var controllers = builder.Services
     .AddControllers(options =>

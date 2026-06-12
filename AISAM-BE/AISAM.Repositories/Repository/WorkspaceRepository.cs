@@ -39,6 +39,21 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Workspace>> GetLifecycleCandidatesAsync(int batchSize, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .Where(workspace =>
+                workspace.Status != WorkspaceStatusEnum.Deleted &&
+                (workspace.SubscriptionExpiredAt.HasValue ||
+                 workspace.ArchivedAt.HasValue ||
+                 workspace.Status == WorkspaceStatusEnum.Limited ||
+                 workspace.Status == WorkspaceStatusEnum.Archived ||
+                 workspace.Status == WorkspaceStatusEnum.EligibleForDeletion))
+            .OrderBy(workspace => workspace.UpdatedAt)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default)
     {
         var utcNow = DateTime.UtcNow;

@@ -16,21 +16,36 @@ public sealed class ContentScheduleService : IContentScheduleService
     private readonly ISocialIntegrationRepository _socialIntegrationRepository;
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly INotificationRepository _notificationRepository;
+    private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
 
     public ContentScheduleService(
         IContentRepository contentRepository,
         ISocialIntegrationRepository socialIntegrationRepository,
         IContentCalendarRepository contentCalendarRepository,
-        INotificationRepository notificationRepository)
+        INotificationRepository notificationRepository,
+        IWorkspaceRepository workspaceRepository,
+        IWorkspaceLifecycleService workspaceLifecycleService)
     {
         _contentRepository = contentRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
         _contentCalendarRepository = contentCalendarRepository;
         _notificationRepository = notificationRepository;
+        _workspaceRepository = workspaceRepository;
+        _workspaceLifecycleService = workspaceLifecycleService;
     }
 
-    public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, Guid workspaceId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<ContentScheduleDto>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var validationResult = await ValidateContentAndIntegrationAsync(profileId, request.ContentId, request.IntegrationId, cancellationToken);
         if (!validationResult.Success)
         {
@@ -95,8 +110,17 @@ public sealed class ContentScheduleService : IContentScheduleService
         return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule retrieved successfully.");
     }
 
-    public async Task<GenericResponse<ContentScheduleDto>> UpdateAsync(Guid profileId, Guid scheduleId, UpdateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentScheduleDto>> UpdateAsync(Guid profileId, Guid workspaceId, Guid scheduleId, UpdateContentScheduleRequest request, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<ContentScheduleDto>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.ProfileId != profileId || schedule.IsDeleted)
         {
@@ -157,8 +181,17 @@ public sealed class ContentScheduleService : IContentScheduleService
         return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule updated successfully.");
     }
 
-    public async Task<GenericResponse<bool>> DeleteAsync(Guid profileId, Guid scheduleId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> DeleteAsync(Guid profileId, Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<bool>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.ProfileId != profileId || schedule.IsDeleted)
         {
@@ -273,5 +306,34 @@ public sealed class ContentScheduleService : IContentScheduleService
             AttemptCount = schedule.AttemptCount,
             LastError = schedule.LastError
         };
+    }
+
+    private async Task<(string Message, HttpStatusCode Status, string? ErrorCode)?> EnsureActiveWorkspaceForWriteAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
+        {
+            return ("Workspace not found.", HttpStatusCode.NotFound, null);
+        }
+
+        var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(workspace, cancellationToken);
+        return lifecycleState == WorkspaceLifecycleState.Active
+            ? null
+            : ("Workspace must be active to manage schedules.", HttpStatusCode.Forbidden, "WORKSPACE_NOT_ACTIVE");
+    }
+
+    private async Task<WorkspaceLifecycleState> SynchronizeWorkspaceLifecycleAsync(
+        Workspace workspace,
+        CancellationToken cancellationToken)
+    {
+        var state = _workspaceLifecycleService.ResolveState(workspace);
+        if (_workspaceLifecycleService.TrySynchronizePersistenceState(workspace))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
+
+        return state;
     }
 }

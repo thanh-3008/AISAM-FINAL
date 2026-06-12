@@ -52,8 +52,17 @@ public sealed class ContentService : IContentService
         _workspaceLifecycleService = workspaceLifecycleService;
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, Guid workspaceId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var validation = await ValidateBrandAndProductAsync(profileId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
@@ -112,8 +121,17 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content retrieved successfully.");
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, UpdateContentRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.ProfileId != profileId)
         {
@@ -140,8 +158,17 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content updated successfully.");
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.ProfileId != profileId)
         {
@@ -170,8 +197,17 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), "Content cloned successfully.");
     }
 
-    public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<bool>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.ProfileId != profileId)
         {
@@ -183,8 +219,17 @@ public sealed class ContentService : IContentService
         return GenericResponse<bool>.CreateSuccess(true, "Content deleted successfully.");
     }
 
-    public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default)
     {
+        var workspaceAccessError = await EnsureActiveWorkspaceForWriteAsync(workspaceId, cancellationToken);
+        if (workspaceAccessError != null)
+        {
+            return GenericResponse<bool>.CreateError(
+                workspaceAccessError.Value.Message,
+                workspaceAccessError.Value.Status,
+                workspaceAccessError.Value.ErrorCode);
+        }
+
         var content = await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
         if (content == null || content.ProfileId != profileId)
         {
@@ -354,6 +399,22 @@ public sealed class ContentService : IContentService
         }
 
         return state;
+    }
+
+    private async Task<(string Message, HttpStatusCode Status, string? ErrorCode)?> EnsureActiveWorkspaceForWriteAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
+        {
+            return ("Workspace not found.", HttpStatusCode.NotFound, null);
+        }
+
+        var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(workspace, cancellationToken);
+        return lifecycleState == WorkspaceLifecycleState.Active
+            ? null
+            : ("Workspace must be active to modify content.", HttpStatusCode.Forbidden, "WORKSPACE_NOT_ACTIVE");
     }
 
     private static GenericResponse<ContentResponseDto> NotFound()

@@ -14,6 +14,7 @@ public class ContentScheduleServiceTests
     public async Task CreateAsync_CreatesPendingSchedule_WhenContentAndIntegrationBelongToProfile()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
@@ -38,10 +39,11 @@ public class ContentScheduleServiceTests
             contentRepository: new FakeContentRepository(content),
             socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
             contentCalendarRepository: scheduleRepository,
-            notificationRepository: notificationRepository);
+            notificationRepository: notificationRepository,
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
         var scheduledAt = DateTime.UtcNow.AddHours(2);
-        var result = await service.CreateAsync(profileId, new CreateContentScheduleRequest
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentScheduleRequest
         {
             ContentId = content.Id,
             IntegrationId = integration.Id,
@@ -63,6 +65,7 @@ public class ContentScheduleServiceTests
     public async Task CreateAsync_ReturnsNotFound_WhenIntegrationBelongsToAnotherProfile()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
@@ -83,9 +86,10 @@ public class ContentScheduleServiceTests
         };
         var service = CreateService(
             contentRepository: new FakeContentRepository(content),
-            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration));
+            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.CreateAsync(profileId, new CreateContentScheduleRequest
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentScheduleRequest
         {
             ContentId = content.Id,
             IntegrationId = integration.Id,
@@ -101,6 +105,7 @@ public class ContentScheduleServiceTests
     public async Task CreateAsync_ReturnsBadRequest_WhenContentAlreadyPublished()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
@@ -121,9 +126,10 @@ public class ContentScheduleServiceTests
         };
         var service = CreateService(
             contentRepository: new FakeContentRepository(content),
-            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration));
+            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.CreateAsync(profileId, new CreateContentScheduleRequest
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentScheduleRequest
         {
             ContentId = content.Id,
             IntegrationId = integration.Id,
@@ -139,6 +145,7 @@ public class ContentScheduleServiceTests
     public async Task UpdateAsync_ReturnsBadRequest_WhenScheduleAlreadyCompleted()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
@@ -172,9 +179,10 @@ public class ContentScheduleServiceTests
         var service = CreateService(
             contentRepository: new FakeContentRepository(content),
             socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
-            contentCalendarRepository: new FakeContentCalendarRepository(schedule));
+            contentCalendarRepository: new FakeContentCalendarRepository(schedule),
+            workspaceRepository: CreateActiveWorkspaceRepository(workspaceId));
 
-        var result = await service.UpdateAsync(profileId, schedule.Id, new UpdateContentScheduleRequest
+        var result = await service.UpdateAsync(profileId, workspaceId, schedule.Id, new UpdateContentScheduleRequest
         {
             ScheduledAt = DateTime.UtcNow.AddHours(3)
         });
@@ -182,6 +190,52 @@ public class ContentScheduleServiceTests
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
         Assert.Equal("Completed schedules cannot be updated.", result.Message);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsForbidden_WhenWorkspaceIsRuntimeLimited()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = Guid.NewGuid(),
+            AdType = AdTypeEnum.TextOnly,
+            TextContent = "Draft content",
+            Status = ContentStatusEnum.Draft
+        };
+        var integration = new SocialIntegration
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = content.BrandId,
+            SocialAccountId = Guid.NewGuid(),
+            Platform = SocialPlatformEnum.Facebook,
+            AccessToken = "token"
+        };
+        var service = CreateService(
+            contentRepository: new FakeContentRepository(content),
+            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
+            workspaceRepository: new FakeWorkspaceRepository(new Workspace
+            {
+                Id = workspaceId,
+                Name = "Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active,
+                SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30)
+            }));
+
+        var result = await service.CreateAsync(profileId, workspaceId, new CreateContentScheduleRequest
+        {
+            ContentId = content.Id,
+            IntegrationId = integration.Id,
+            ScheduledAt = DateTime.UtcNow.AddHours(2)
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
     }
 
     [Fact]
@@ -246,13 +300,27 @@ public class ContentScheduleServiceTests
         IContentRepository? contentRepository = null,
         ISocialIntegrationRepository? socialIntegrationRepository = null,
         IContentCalendarRepository? contentCalendarRepository = null,
-        INotificationRepository? notificationRepository = null)
+        INotificationRepository? notificationRepository = null,
+        IWorkspaceRepository? workspaceRepository = null)
     {
         return new ContentScheduleService(
             contentRepository ?? new FakeContentRepository(),
             socialIntegrationRepository ?? new FakeSocialIntegrationRepository(),
             contentCalendarRepository ?? new FakeContentCalendarRepository(),
-            notificationRepository ?? new FakeNotificationRepository());
+            notificationRepository ?? new FakeNotificationRepository(),
+            workspaceRepository ?? new FakeWorkspaceRepository(),
+            new WorkspaceLifecycleService());
+    }
+
+    private static FakeWorkspaceRepository CreateActiveWorkspaceRepository(Guid workspaceId)
+    {
+        return new FakeWorkspaceRepository(new Workspace
+        {
+            Id = workspaceId,
+            Name = "Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active
+        });
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -427,5 +495,33 @@ public class ContentScheduleServiceTests
 
         public Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        private readonly Dictionary<Guid, Workspace> _workspaces;
+
+        public FakeWorkspaceRepository(params Workspace[] workspaces)
+        {
+            _workspaces = workspaces.ToDictionary(workspace => workspace.Id);
+        }
+
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            _workspaces.TryGetValue(id, out var workspace);
+            return Task.FromResult(workspace);
+        }
+
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.ToList());
+        public Task<IReadOnlyList<Workspace>> GetLifecycleCandidatesAsync(int batchSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.Take(batchSize).ToList());
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default)
+        {
+            _workspaces[workspace.Id] = workspace;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_workspaces.ContainsKey(id));
     }
 }
