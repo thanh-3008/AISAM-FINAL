@@ -44,10 +44,15 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                 await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
 
                 var integrationId = schedule.IntegrationId ?? Guid.Empty;
-                var workspaceId = await ResolveWorkspaceIdAsync(schedule.ProfileId, cancellationToken);
-                var publishResult = workspaceId.HasValue
-                    ? await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, workspaceId.Value, cancellationToken)
-                    : await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, cancellationToken);
+                var workspaceResolution = await ResolveWorkspaceAsync(schedule.ProfileId, cancellationToken);
+                var publishResult = workspaceResolution.WorkspaceId.HasValue
+                    ? await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, workspaceResolution.WorkspaceId.Value, cancellationToken)
+                    : workspaceResolution.HasMembership
+                        ? AISAM.Common.GenericResponse<PublishResultDto>.CreateError(
+                            "Scheduled publishing is blocked because the workspace is expired or inactive.",
+                            System.Net.HttpStatusCode.Forbidden,
+                            "WORKSPACE_READ_ONLY")
+                        : await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, cancellationToken);
                 if (publishResult.Success)
                 {
                     schedule.Status = ScheduleStatusEnum.Completed;
@@ -98,19 +103,26 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         return result;
     }
 
-    private async Task<Guid?> ResolveWorkspaceIdAsync(Guid profileId, CancellationToken cancellationToken)
+    private async Task<WorkspaceResolution> ResolveWorkspaceAsync(Guid profileId, CancellationToken cancellationToken)
     {
         var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
         if (profile == null)
         {
-            return null;
+            return new WorkspaceResolution(null, false);
         }
 
         var memberships = await _workspaceMemberRepository.GetByUserIdAsync(profile.UserId, cancellationToken);
-        return memberships
-            .Where(member => member.IsActive && member.Workspace.Status == WorkspaceStatusEnum.Active)
+        var utcNow = DateTime.UtcNow;
+        var workspaceId = memberships
+            .Where(member =>
+                member.IsActive &&
+                member.Workspace.Status == WorkspaceStatusEnum.Active &&
+                (!member.Workspace.SubscriptionExpiredAt.HasValue ||
+                 member.Workspace.SubscriptionExpiredAt.Value >= utcNow))
             .Select(member => (Guid?)member.WorkspaceId)
             .FirstOrDefault();
+
+        return new WorkspaceResolution(workspaceId, memberships.Any(member => member.IsActive));
     }
 
     private async Task CreateNotificationAsync(
@@ -131,4 +143,6 @@ public sealed class ScheduledPostingService : IScheduledPostingService
             IsRead = false
         }, cancellationToken);
     }
+
+    private sealed record WorkspaceResolution(Guid? WorkspaceId, bool HasMembership);
 }

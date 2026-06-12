@@ -157,7 +157,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<Post>(entity =>
             {
                 entity.HasKey(p => p.Id);
-                entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(ContentStatusEnum.Published);
+                entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(ContentStatusEnum.Published).HasSentinel(ContentStatusEnum.Draft);
                 entity.HasIndex(p => p.ContentId);
                 entity.HasIndex(p => p.IntegrationId);
                 entity.HasIndex(p => p.PublishedAt);
@@ -208,7 +208,7 @@ namespace AISAM.Repositories
                 entity.HasKey(w => w.Id);
                 entity.Property(w => w.Name).HasMaxLength(255).IsRequired();
                 entity.Property(w => w.WorkspaceType).HasConversion<int>();
-                entity.Property(w => w.Status).HasConversion<int>().HasDefaultValue(WorkspaceStatusEnum.Active);
+                entity.Property(w => w.Status).HasConversion<int>().HasDefaultValue(WorkspaceStatusEnum.Active).HasSentinel((WorkspaceStatusEnum)0);
                 entity.Property(w => w.MemberLimit).HasDefaultValue(1);
                 entity.HasIndex(w => w.WorkspaceType);
                 entity.HasIndex(w => w.Status);
@@ -221,7 +221,7 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(wm => wm.Id);
                 entity.Property(wm => wm.Role).HasConversion<int>();
-                entity.Property(wm => wm.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool);
+                entity.Property(wm => wm.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool).HasSentinel((MemberQuotaModeEnum)0);
                 entity.HasIndex(wm => wm.WorkspaceId);
                 entity.HasIndex(wm => wm.UserId);
                 entity.HasIndex(wm => new { wm.WorkspaceId, wm.UserId }).IsUnique();
@@ -246,7 +246,7 @@ namespace AISAM.Repositories
                 entity.Property(invitation => invitation.Email).HasMaxLength(255).IsRequired();
                 entity.Property(invitation => invitation.Token).HasMaxLength(500).IsRequired();
                 entity.Property(invitation => invitation.Role).HasConversion<int>();
-                entity.Property(invitation => invitation.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool);
+                entity.Property(invitation => invitation.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool).HasSentinel((MemberQuotaModeEnum)0);
                 entity.HasIndex(invitation => invitation.Token).IsUnique();
                 entity.HasIndex(invitation => new { invitation.WorkspaceId, invitation.Email });
                 entity.HasIndex(invitation => invitation.ExpiresAt);
@@ -500,7 +500,7 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(PaymentStatusEnum.Pending);
-                entity.Property(p => p.PaymentType).HasConversion<int>().HasDefaultValue(PaymentTypeEnum.Subscription);
+                entity.Property(p => p.PaymentType).HasConversion<int>().HasDefaultValue(PaymentTypeEnum.Subscription).HasSentinel((PaymentTypeEnum)0);
                 entity.Property(p => p.CreditPackCode).HasConversion<int>();
                 entity.Property(p => p.Amount).HasPrecision(10, 2);
                 entity.HasIndex(p => p.UserId);

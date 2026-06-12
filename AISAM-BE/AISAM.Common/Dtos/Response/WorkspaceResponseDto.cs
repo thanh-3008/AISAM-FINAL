@@ -12,6 +12,7 @@ public sealed class WorkspaceResponseDto
     public int ActiveMemberCount { get; set; }
     public int MemberLimit { get; set; }
     public DateTime? SubscriptionExpiredAt { get; set; }
+    public DateTime? ArchivedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

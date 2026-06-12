@@ -3192,8 +3192,8 @@ Mục tiêu phase:
 | 9.11 | Credit Pack và `PaymentType` | DONE | 9.10 |
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | DONE | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | DONE | 9.9, 9.12 |
-| 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
-| 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
+| 9.14 | Áp dụng Credits vào AI generation | DONE - 2026-06-12 | 9.10, 9.13 |
+| 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | DONE - 2026-06-12 | 9.9, 9.13 |
 | 9.16 | Chuyển ownership từng domain sang Workspace | TODO | 9.6, 9.13 |
 | 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | TODO | 9.9-9.16 |
 | 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | TODO | 9.17 |
@@ -4607,6 +4607,13 @@ feat(subscription): enforce workspace plan entitlements
 
 ### Task 9.14 - Áp dụng Credits vào AI generation
 
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16 Chuyển ownership từng domain sang Workspace.
+```
+
 Mục tiêu:
 
 - Trừ Credits chỉ sau AI generate/regenerate/refine thành công.
@@ -4617,6 +4624,38 @@ Cách test:
 - AI/provider thất bại không trừ Credits.
 - AI Chat không trừ Credits trong MVP.
 
+Kết quả đã có:
+
+- `GeminiController` truyền Active Workspace membership vào generate/refine.
+- Generate text và refine kiểm tra Workspace/member Credits trước khi gọi provider.
+- Chỉ generation thành công mới trừ `1` Credit và lưu `CreditUsageRecord`.
+- Provider thất bại và AI Chat không trừ Credits.
+- Generate Text/Basic Analytics là feature Free/basic, không bắt buộc active subscription nếu Workspace vẫn còn Credits.
+- Loại bỏ dependency AutoMapper không sử dụng có cảnh báo lỗ hổng mức High.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 2 legacy migration naming warnings, 0 errors.
+
+dotnet test AISAM-BE/AISAM.sln
+Passed. 226/226 tests passed.
+
+dotnet ef migrations has-pending-model-changes
+No changes have been made to the model since the last migration.
+
+dotnet ef database update
+Applied pending Workspace credit migrations and `20260612020911_FixEfModelConfigurationWarnings` successfully.
+
+Runtime smoke
+GET /api/health -> 200
+GET /swagger/index.html -> 200
+
+dotnet list AISAM.sln package --vulnerable --include-transitive
+No vulnerable packages found.
+```
+
 Commit đề xuất:
 
 ```text
@@ -4624,6 +4663,13 @@ feat(ai): enforce workspace credit usage
 ```
 
 ### Task 9.15 - Limited Mode, Archived và Admin Soft Delete lifecycle
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16 Chuyển ownership từng domain sang Workspace.
+```
 
 Mục tiêu:
 
@@ -4634,6 +4680,25 @@ Cách test:
 - Dưới 90 ngày Limited Mode.
 - 90-180 ngày Archived: Owner View/Export/Renew, Member View Only.
 - Trên 180 ngày chỉ Admin được Soft Delete.
+
+Kết quả đã có:
+
+- Business Workspace tự đồng bộ `Limited`, `Archived`, `EligibleForDeletion` theo `SubscriptionExpiredAt`.
+- Limited/Archived/EligibleForDeletion chặn thao tác ghi; member vẫn được View; Owner vẫn được Billing/Renew và Export.
+- `DELETE /api/workspaces/{id}` chỉ cho Admin và chỉ Soft Delete Workspace đã quá 180 ngày.
+- PayOS renewal khôi phục Workspace về `Active`.
+- Scheduled posting không chạy qua Workspace đã hết hạn.
+- Automated tests xác minh mốc 90/180 ngày, read-only, renew và Admin Soft Delete.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded.
+
+dotnet test AISAM-BE/AISAM.sln
+Passed. 242/242 tests passed.
+```
 
 Commit đề xuất:
 
@@ -5861,7 +5926,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.13 da hoan thanh; Task tiep theo la 9.14 ap dung Credits vao AI generation. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.15 da hoan thanh; Task tiep theo la 9.16 ownership migration. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

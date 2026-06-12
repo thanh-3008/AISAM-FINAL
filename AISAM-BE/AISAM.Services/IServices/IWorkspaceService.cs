@@ -10,4 +10,5 @@ public interface IWorkspaceService
     Task<GenericResponse<WorkspaceResponseDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
     Task<GenericResponse<WorkspaceResponseDto>> CreateAsync(Guid userId, CreateWorkspaceRequest request, CancellationToken cancellationToken = default);
     Task<GenericResponse<WorkspaceResponseDto>> UpdateAsync(Guid id, Guid userId, UpdateWorkspaceRequest request, CancellationToken cancellationToken = default);
+    Task<GenericResponse<bool>> AdminSoftDeleteAsync(Guid id, Guid adminUserId, CancellationToken cancellationToken = default);
 }

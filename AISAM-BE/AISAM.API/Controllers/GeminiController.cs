@@ -25,7 +25,13 @@ public sealed class GeminiController : ControllerBase
         [FromBody] CreateDraftRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.GenerateDraftAsync(GetProfileId(), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.GenerateDraftAsync(
+            GetProfileId(),
+            membership.WorkspaceId,
+            membership.UserId,
+            request,
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -35,7 +41,14 @@ public sealed class GeminiController : ControllerBase
         [FromBody] ImproveContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.ImproveAsync(contentId, GetProfileId(), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.ImproveAsync(
+            contentId,
+            GetProfileId(),
+            membership.WorkspaceId,
+            membership.UserId,
+            request,
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

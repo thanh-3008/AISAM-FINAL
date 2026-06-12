@@ -16,12 +16,16 @@ public class AIControllerTests
     public async Task GenerateDraft_UsesValidatedActiveProfileFromHttpContext()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var service = new FakeAIService();
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, profileId, workspaceId, userId);
 
         await controller.GenerateDraft(new CreateDraftRequest());
 
         Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
+        Assert.Equal(userId, service.LastUserId);
     }
 
     [Fact]
@@ -31,7 +35,7 @@ public class AIControllerTests
         {
             ChatResult = GenericResponse<ChatResponse>.CreateError("AI chat is temporarily unavailable.", HttpStatusCode.ServiceUnavailable)
         };
-        var controller = CreateController(service, Guid.NewGuid());
+        var controller = CreateController(service, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
 
         var result = await controller.Chat(new ChatRequest { Message = "Hello" });
 
@@ -39,10 +43,15 @@ public class AIControllerTests
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, objectResult.StatusCode);
     }
 
-    private static GeminiController CreateController(IAIService service, Guid profileId)
+    private static GeminiController CreateController(IAIService service, Guid profileId, Guid workspaceId, Guid userId)
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = new AISAM.Data.Model.WorkspaceMember
+        {
+            WorkspaceId = workspaceId,
+            UserId = userId
+        };
 
         return new GeminiController(service)
         {
@@ -53,15 +62,19 @@ public class AIControllerTests
     private sealed class FakeAIService : IAIService
     {
         public Guid LastProfileId { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
+        public Guid LastUserId { get; private set; }
         public GenericResponse<ChatResponse> ChatResult { get; set; } = GenericResponse<ChatResponse>.CreateSuccess(new ChatResponse());
 
-        public Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, CreateDraftRequest request, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
         {
             LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
             return Task.FromResult(GenericResponse<AiGenerationResponse>.CreateSuccess(new AiGenerationResponse()));
         }
 
-        public Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, ImproveContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, Guid workspaceId, Guid userId, ImproveContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid generationId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<IEnumerable<AiGenerationResponse>>> GetGenerationsAsync(Guid contentId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 

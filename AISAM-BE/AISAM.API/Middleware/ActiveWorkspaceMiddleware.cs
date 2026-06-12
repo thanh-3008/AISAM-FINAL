@@ -3,6 +3,7 @@ using AISAM.Common;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services;
 using System.Net;
 
 namespace AISAM.API.Middleware;
@@ -82,6 +83,7 @@ public sealed class ActiveWorkspaceMiddleware
             return;
         }
 
+        WorkspaceLifecyclePolicy.SynchronizeStatus(membership.Workspace, DateTime.UtcNow);
         var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository);
         if (authorizationError != null)
         {
@@ -107,6 +109,13 @@ public sealed class ActiveWorkspaceMiddleware
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBilling);
         }
 
+        if (WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) &&
+            method != HttpMethods.Get &&
+            !IsOwnerExportRequest(path, membership.Role))
+        {
+            return (HttpStatusCode.Forbidden, "Workspace is read-only while its subscription is expired.", "WORKSPACE_READ_ONLY");
+        }
+
         var featureError = await EnsureFeatureByRouteAsync(context, membership, subscriptionRepository);
         if (featureError != null)
         {
@@ -120,16 +129,31 @@ public sealed class ActiveWorkspaceMiddleware
 
         if (path.StartsWithSegments("/api/brands"))
         {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBrands);
         }
 
         if (path.StartsWithSegments("/api/products"))
         {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageProducts);
         }
 
         if (path.StartsWithSegments("/api/content-schedules"))
         {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
             var permissionError = EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageSchedules);
             if (permissionError != null)
             {
@@ -146,6 +170,11 @@ public sealed class ActiveWorkspaceMiddleware
 
         if (path.StartsWithSegments("/api/content"))
         {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
             var permission = path.Value?.Contains("/publish/", StringComparison.OrdinalIgnoreCase) == true
                 ? WorkspacePermissionEnum.PublishContent
                 : WorkspacePermissionEnum.ManageContent;
@@ -163,6 +192,12 @@ public sealed class ActiveWorkspaceMiddleware
         }
 
         return null;
+    }
+
+    private static bool IsOwnerExportRequest(PathString path, WorkspaceMemberRoleEnum role)
+    {
+        return role == WorkspaceMemberRoleEnum.Owner &&
+               path.Value?.Contains("/export", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> EnsureFeatureByRouteAsync(
@@ -270,7 +305,9 @@ public sealed class ActiveWorkspaceMiddleware
         var subscription = await subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId);
         if (subscription == null)
         {
-            return (HttpStatusCode.Forbidden, "Active subscription is required for this feature.", "WORKSPACE_SUBSCRIPTION_REQUIRED");
+            return feature is WorkspaceFeatureEnum.GenerateText or WorkspaceFeatureEnum.BasicAnalytics
+                ? null
+                : (HttpStatusCode.Forbidden, "Active subscription is required for this feature.", "WORKSPACE_SUBSCRIPTION_REQUIRED");
         }
 
         var enabled = feature switch

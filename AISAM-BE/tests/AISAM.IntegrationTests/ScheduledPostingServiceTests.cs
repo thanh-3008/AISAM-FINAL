@@ -144,6 +144,50 @@ public class ScheduledPostingServiceTests
         Assert.Equal(0, contentService.PublishCallCount);
     }
 
+    [Fact]
+    public async Task RunDueSchedulesAsync_BlocksExpiredWorkspaceWithoutFallingBackToLegacyProfilePublish()
+    {
+        var schedule = CreateDueSchedule();
+        var userId = Guid.NewGuid();
+        var profileRepository = new FakeProfileRepository(new Profile
+        {
+            Id = schedule.ProfileId,
+            UserId = userId,
+            Name = "Profile",
+            ProfileType = ProfileTypeEnum.Basic
+        });
+        var workspace = new Workspace
+        {
+            Id = Guid.NewGuid(),
+            Name = "Expired",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active,
+            SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-1)
+        };
+        var membershipRepository = new FakeWorkspaceMemberRepository(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
+            UserId = userId,
+            Role = WorkspaceMemberRoleEnum.ContentCreator,
+            IsActive = true
+        });
+        var contentService = new FakeContentService();
+        var service = new ScheduledPostingService(
+            new FakeContentCalendarRepository(schedule),
+            contentService,
+            new FakeNotificationRepository(),
+            profileRepository,
+            membershipRepository);
+
+        var result = await service.RunDueSchedulesAsync(20);
+
+        Assert.Equal(1, result.FailedCount);
+        Assert.Equal(0, contentService.PublishCallCount);
+        Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
+        Assert.Contains("workspace is expired or inactive", schedule.LastError);
+    }
+
     private static ContentCalendar CreateDueSchedule()
     {
         return new ContentCalendar

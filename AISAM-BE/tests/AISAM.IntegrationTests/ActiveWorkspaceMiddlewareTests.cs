@@ -236,6 +236,29 @@ public class ActiveWorkspaceMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_AllowsGenerateTextWithoutActiveSubscription_WhenCreditsMayRemain()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.ContentCreator);
+        var nextCalled = false;
+        var context = CreateContext(userId, "/api/ai/generate-draft");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ReturnsForbidden_WhenPersonalPlusUsesWorkspaceDashboardFeature()
     {
         var userId = Guid.NewGuid();
@@ -299,6 +322,61 @@ public class ActiveWorkspaceMiddlewareTests
 
         Assert.True(nextCalled);
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode == 0 ? StatusCodes.Status200OK : context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_BlocksWriteRequestInLimitedWorkspace()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Limited, WorkspaceMemberRoleEnum.Owner);
+        var context = CreateContext(userId, "/api/content");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsMemberReadRequestInArchivedWorkspace()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Archived, WorkspaceMemberRoleEnum.Viewer);
+        var context = CreateContext(userId, "/api/content");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsOwnerBillingRequestInArchivedWorkspace()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Archived, WorkspaceMemberRoleEnum.Owner);
+        var context = CreateContext(userId, "/api/payment/create");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
     }
 
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")

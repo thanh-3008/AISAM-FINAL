@@ -27,6 +27,12 @@ public interface ICreditService
         Guid? aiGenerationId = null,
         DateTime? now = null,
         CancellationToken cancellationToken = default);
+    Task<GenericResponse<bool>> EnsureCreditsAvailableAsync(
+        Guid workspaceId,
+        Guid userId,
+        long credits,
+        DateTime? now = null,
+        CancellationToken cancellationToken = default);
     Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(
         Guid workspaceId,
         Guid userId,

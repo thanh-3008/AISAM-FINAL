@@ -6,17 +6,17 @@
 
 Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
-- Source hien tai van la Profile-based.
-- Kien truc muc tieu da phe duyet nhung **chua code**: Workspace-based ownership, subscription, credits va quota.
-- Sau migration, API ownership context chuyen tu `X-Profile-Id` sang `X-Workspace-Id`.
+- Workspace migration dang duoc trien khai; Phase 9 da hoan thanh Task 9.1-9.15.
+- Workspace, member/invitation, ownership transfer, subscription/payment, Credit Wallet, member quota, entitlement, Post Quota va AI Credit charging da co code va automated tests.
+- Cac domain Brand/Product/Content/Social van con ownership Profile-based cho den Task 9.16, nen mot so API tam thoi can dong thoi `X-Profile-Id` va `X-Workspace-Id`.
 - `WorkspaceTypeEnum`: Personal = 1, Business = 2.
 - Moi Workspace co dung mot Owner va mot Credit Wallet.
 - Credits chi dung cho AI; publish dung Post Quota rieng.
 - Business Plus cap 15.000 Credits va toi da 10 members.
 - Business Pro cap 50.000 Credits va toi da 50 members.
-- Expired lifecycle: Limited Mode, Archived, sau 180 ngay Admin co quyen Soft Delete.
+- Expired lifecycle da co code: Limited Mode, Archived, sau 180 ngay Admin co quyen Soft Delete.
 
-Khong danh dau cac quy tac tren la implemented cho den khi task tu Change Request da build/test va migration thanh cong.
+Phan con lai cua Workspace migration: chuyen ownership domain Task 9.16, backfill/schema lock Task 9.17 va regression/dashboard cuoi Phase 9 Task 9.18.
 
 ## Document Control
 Tai lieu nay duoc xay dung theo nguyen tac source code hien tai la baseline trien khai. Cac chuc nang da co trong source duoc mo ta trong nhom Current Implemented Features. Cac chuc nang xuat hien trong tai lieu yeu cau goc nhung chua ton tai day du trong source duoc phan loai ro la Planned Features, Future Enhancement, Proposed Advanced AI Features hoac Optional Enterprise Features. Tai lieu khong mo ta cac chuc nang chua co nhu mot phan da hoan thanh.

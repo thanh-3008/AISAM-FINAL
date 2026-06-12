@@ -17,7 +17,8 @@ public sealed class AIService : IAIService
     private readonly IProductRepository _productRepository;
     private readonly IGeminiTextClient _geminiTextClient;
     private readonly IConversationRepository _conversationRepository;
-    private readonly IQuotaService _quotaService;
+    private readonly ICreditService _creditService;
+    private const long TextGenerationCredits = 1;
 
     public AIService(
         IContentRepository contentRepository,
@@ -26,7 +27,7 @@ public sealed class AIService : IAIService
         IProductRepository productRepository,
         IGeminiTextClient geminiTextClient,
         IConversationRepository conversationRepository,
-        IQuotaService quotaService)
+        ICreditService creditService)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -34,10 +35,10 @@ public sealed class AIService : IAIService
         _productRepository = productRepository;
         _geminiTextClient = geminiTextClient;
         _conversationRepository = conversationRepository;
-        _quotaService = quotaService;
+        _creditService = creditService;
     }
 
-    public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, CreateDraftRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateBrandAndProductAsync(profileId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
@@ -45,13 +46,13 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         }
 
-        var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
-        if (!quotaCheck.Success)
+        var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, TextGenerationCredits, cancellationToken: cancellationToken);
+        if (!creditCheck.Success)
         {
             return GenericResponse<AiGenerationResponse>.CreateError(
-                quotaCheck.Message!,
-                (HttpStatusCode)quotaCheck.StatusCode,
-                quotaCheck.Error?.ErrorCode);
+                creditCheck.Message!,
+                (HttpStatusCode)creditCheck.StatusCode,
+                creditCheck.Error?.ErrorCode);
         }
 
         var content = await _contentRepository.AddAsync(new Content
@@ -66,10 +67,10 @@ public sealed class AIService : IAIService
         }, cancellationToken);
 
         var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
-        return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
+        return await ChargeSuccessfulGenerationAsync(generation, workspaceId, userId, CreditActionEnum.GenerateText, cancellationToken);
     }
 
-    public async Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, ImproveContentRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, Guid workspaceId, Guid userId, ImproveContentRequest request, CancellationToken cancellationToken = default)
     {
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
         if (content == null || content.ProfileId != profileId)
@@ -77,17 +78,17 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
 
-        var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
-        if (!quotaCheck.Success)
+        var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, TextGenerationCredits, cancellationToken: cancellationToken);
+        if (!creditCheck.Success)
         {
             return GenericResponse<AiGenerationResponse>.CreateError(
-                quotaCheck.Message!,
-                (HttpStatusCode)quotaCheck.StatusCode,
-                quotaCheck.Error?.ErrorCode);
+                creditCheck.Message!,
+                (HttpStatusCode)creditCheck.StatusCode,
+                creditCheck.Error?.ErrorCode);
         }
 
         var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
-        return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
+        return await ChargeSuccessfulGenerationAsync(generation, workspaceId, userId, CreditActionEnum.RegenerateText, cancellationToken);
     }
 
     public async Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid generationId, Guid profileId, CancellationToken cancellationToken = default)
@@ -181,7 +182,7 @@ public sealed class AIService : IAIService
                 Response = responseText
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             const string errorMessage = "AI chat is temporarily unavailable.";
             await _conversationRepository.AddMessageAsync(new ChatMessage
@@ -191,7 +192,7 @@ public sealed class AIService : IAIService
                 Message = errorMessage
             }, cancellationToken);
 
-            return GenericResponse<ChatResponse>.CreateError($"{errorMessage} {ex.Message}", HttpStatusCode.ServiceUnavailable);
+            return GenericResponse<ChatResponse>.CreateError(errorMessage, HttpStatusCode.ServiceUnavailable);
         }
     }
 
@@ -218,6 +219,46 @@ public sealed class AIService : IAIService
 
         await _generationRepository.UpdateAsync(generation, cancellationToken);
         return MapGeneration(generation);
+    }
+
+    private async Task<GenericResponse<AiGenerationResponse>> ChargeSuccessfulGenerationAsync(
+        AiGenerationResponse generation,
+        Guid workspaceId,
+        Guid userId,
+        CreditActionEnum action,
+        CancellationToken cancellationToken)
+    {
+        if (generation.Status != AiStatusEnum.Completed)
+        {
+            return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
+        }
+
+        var charge = await _creditService.ConsumeCreditsAsync(
+            workspaceId,
+            userId,
+            action,
+            TextGenerationCredits,
+            generation.AiGenerationId,
+            cancellationToken: cancellationToken);
+
+        if (charge.Success)
+        {
+            return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
+        }
+
+        var storedGeneration = await _generationRepository.GetByIdAsync(generation.AiGenerationId, cancellationToken);
+        if (storedGeneration != null)
+        {
+            storedGeneration.Status = AiStatusEnum.Failed;
+            storedGeneration.GeneratedText = null;
+            storedGeneration.ErrorMessage = charge.Message;
+            await _generationRepository.UpdateAsync(storedGeneration, cancellationToken);
+        }
+
+        return GenericResponse<AiGenerationResponse>.CreateError(
+            charge.Message!,
+            (HttpStatusCode)charge.StatusCode,
+            charge.Error?.ErrorCode);
     }
 
     private async Task<GenericResponse<bool>> ValidateBrandAndProductAsync(Guid profileId, Guid brandId, Guid? productId, CancellationToken cancellationToken)

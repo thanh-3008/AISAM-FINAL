@@ -521,6 +521,9 @@ public sealed class PayOSPaymentService : IPaymentService
                     if (workspace != null)
                     {
                         workspace.SubscriptionExpiredAt = subscription.EndDate;
+                        workspace.Status = WorkspaceStatusEnum.Active;
+                        workspace.ArchivedAt = null;
+                        workspace.DeletedAt = null;
                         workspace.MemberLimit = ResolveMemberLimit(workspace.WorkspaceType, subscription.Plan);
                         await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
                     }

@@ -1,24 +1,17 @@
 # AISAM Backend Setup Guide
 
-## Planned Workspace Migration Notice
+## Workspace Migration Status
 
 Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
-Backend hien tai van dung:
+Backend hien tai dang o trang thai chuyen tiep:
 
 ```text
-X-Profile-Id
-Profile-based subscription/payment/quota
+X-Workspace-Id: Workspace membership, payment, subscription, credits, feature gate, permission va Post Quota
+X-Profile-Id: cac domain chua migrate ownership nhu Brand, Product, Content, Social
 ```
 
-Sau khi Workspace migration duoc code va test thanh cong, backend se dung:
-
-```text
-X-Workspace-Id
-Workspace-based subscription/payment/credits/post quota
-```
-
-Hien tai developer **khong can them config/secret moi** cho Change Request nay. Migration Workspace se dung PostgreSQL hien co. Khi task migration bat dau, developer phai chay migration tren database test/backup truoc, khong chay truc tiep tren du lieu quan trong.
+Phase 9 da hoan thanh Task 9.1-9.15. Khong bo `X-Profile-Id` khoi cac route Profile-based cho den khi Task 9.16 va backfill Task 9.17 hoan thanh.
 
 Tài liệu này ghi lại các cấu hình thủ công để chạy backend AISAM `.NET 8`.
 
@@ -43,7 +36,7 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 
 ## 2. Tiến Độ Hiện Tại
 
-Backend đã hoàn thành đến hết **Phase 5 - AI và Content MVP**:
+Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.15**:
 
 - API host, Swagger, Health.
 - PostgreSQL, EF Core và migrations.
@@ -55,15 +48,19 @@ Backend đã hoàn thành đến hết **Phase 5 - AI và Content MVP**:
 - Gemini text generation: generate draft, improve, approve, history, chat.
 - Conversation history.
 - Active profile context middleware.
+- Workspace CRUD, invitation/member role, ownership transfer.
+- Workspace subscription/payment, Credit Wallet va member quota.
+- Workspace feature/permission gate, Post Quota va AI Credit charging.
 
-Các API `/api/content`, `/api/ai`, `/api/conversations` bắt buộc có:
+Trong giai doan chuyen tiep, cac API `/api/content`, `/api/ai` va route Workspace-protected lien quan bat buoc co:
 
 ```text
 Authorization: Bearer {accessToken}
 X-Profile-Id: {profileId}
+X-Workspace-Id: {workspaceId}
 ```
 
-`X-Profile-Id` phải là profile thuộc user trong JWT.
+`X-Profile-Id` phai la profile thuoc user trong JWT va `X-Workspace-Id` phai la Workspace ma user dang la active member.
 
 ## 3. Không Commit Secrets Lên Git
 
@@ -118,14 +115,14 @@ dotnet build
 dotnet test
 ```
 
-Kết quả gần nhất ngày `2026-05-31`:
+Ket qua gan nhat ngay `2026-06-12`:
 
 ```text
 dotnet build --no-restore
-Build succeeded. 0 warnings, 0 errors.
+Build succeeded. 2 legacy migration naming warnings, 0 errors.
 
 dotnet test --no-build
-Passed. 36/36 tests passed.
+Passed. 226/226 tests passed.
 ```
 
 ## 5. PostgreSQL Database

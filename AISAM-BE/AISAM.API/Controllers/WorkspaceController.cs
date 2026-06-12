@@ -3,6 +3,7 @@ using AISAM.Common;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Services.IServices;
+using AISAM.Data.Enumeration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
@@ -64,6 +65,17 @@ public sealed class WorkspaceController : ControllerBase
     {
         var userId = UserClaimsHelper.GetUserIdOrThrow(User);
         var result = await _workspaceService.UpdateAsync(id, userId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = nameof(UserRoleEnum.Admin))]
+    public async Task<ActionResult<GenericResponse<bool>>> AdminSoftDelete(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _workspaceService.AdminSoftDeleteAsync(id, adminUserId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }

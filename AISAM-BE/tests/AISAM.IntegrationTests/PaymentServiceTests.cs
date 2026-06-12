@@ -247,7 +247,9 @@ public class PaymentServiceTests
             Name = "Business Workspace",
             WorkspaceType = WorkspaceTypeEnum.Business,
             MemberLimit = 50,
-            SubscriptionExpiredAt = currentEndDate
+            SubscriptionExpiredAt = currentEndDate,
+            Status = WorkspaceStatusEnum.Archived,
+            ArchivedAt = DateTime.UtcNow.Date.AddDays(-1)
         };
         var currentSubscription = new Subscription
         {
@@ -309,6 +311,8 @@ public class PaymentServiceTests
         Assert.Equal(currentEndDate.AddDays(30), renewalSubscription.EndDate);
         Assert.Equal(renewalSubscription.EndDate, workspace.SubscriptionExpiredAt);
         Assert.Equal(10, workspace.MemberLimit);
+        Assert.Equal(WorkspaceStatusEnum.Active, workspace.Status);
+        Assert.Null(workspace.ArchivedAt);
         Assert.Equal(15_000, creditService.Wallets[workspaceId].Balance);
     }
 
@@ -961,6 +965,14 @@ public class PaymentServiceTests
                 AiGenerationId = aiGenerationId
             }));
         }
+
+        public Task<GenericResponse<bool>> EnsureCreditsAvailableAsync(
+            Guid workspaceId,
+            Guid userId,
+            long credits,
+            DateTime? now = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

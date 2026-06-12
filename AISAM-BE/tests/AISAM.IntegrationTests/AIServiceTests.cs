@@ -23,7 +23,7 @@ public class AIServiceTests
             new FakeBrandRepository(brand),
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")));
 
-        var result = await service.GenerateDraftAsync(profileId, new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -45,7 +45,7 @@ public class AIServiceTests
             new FakeBrandRepository(brand),
             new FakeGeminiTextClient("Generated ad copy"));
 
-        var result = await service.GenerateDraftAsync(profileId, new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -54,6 +54,67 @@ public class AIServiceTests
         Assert.True(result.Success);
         Assert.Equal(AiStatusEnum.Completed, result.Data!.Status);
         Assert.Equal("Generated ad copy", result.Data.GeneratedText);
+    }
+
+    [Fact]
+    public async Task GenerateDraftAsync_ConsumesOneWorkspaceCredit_AfterGeminiSucceeds()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var credits = new FakeCreditService();
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(brand),
+            new FakeGeminiTextClient("Generated ad copy"),
+            creditService: credits);
+
+        var result = await service.GenerateDraftAsync(profileId, workspaceId, userId, new CreateDraftRequest
+        {
+            BrandId = brand.Id,
+            Prompt = "Create an ad"
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(1, credits.ConsumeCallCount);
+        Assert.Equal(workspaceId, credits.LastWorkspaceId);
+        Assert.Equal(userId, credits.LastUserId);
+        Assert.Equal(CreditActionEnum.GenerateText, credits.LastAction);
+        Assert.Equal(1, credits.LastCredits);
+    }
+
+    [Fact]
+    public async Task GenerateDraftAsync_HidesGeneratedText_WhenFinalCreditChargeFails()
+    {
+        var profileId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var generations = new FakeAiGenerationRepository();
+        var credits = new FakeCreditService
+        {
+            ConsumeResult = GenericResponse<CreditUsageRecord>.CreateError(
+                "Workspace does not have enough credits.",
+                HttpStatusCode.BadRequest,
+                "INSUFFICIENT_WORKSPACE_CREDITS")
+        };
+        var service = CreateService(
+            new FakeContentRepository(),
+            generations,
+            new FakeBrandRepository(brand),
+            new FakeGeminiTextClient("Generated ad copy"),
+            creditService: credits);
+
+        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
+        {
+            BrandId = brand.Id,
+            Prompt = "Create an ad"
+        });
+
+        Assert.False(result.Success);
+        var stored = Assert.Single(await generations.GetByContentIdAsync(generations.StoredContentId));
+        Assert.Equal(AiStatusEnum.Failed, stored.Status);
+        Assert.Null(stored.GeneratedText);
     }
 
     [Fact]
@@ -128,13 +189,19 @@ public class AIServiceTests
             generationRepository,
             new FakeBrandRepository(),
             new FakeGeminiTextClient("unused"),
-            quotaService: new DeniedPromptQuotaService());
+            creditService: new FakeCreditService
+            {
+                AvailabilityResult = GenericResponse<bool>.CreateError(
+                    "Workspace does not have enough credits.",
+                    HttpStatusCode.BadRequest,
+                    "INSUFFICIENT_WORKSPACE_CREDITS")
+            });
 
-        var result = await service.ImproveAsync(content.Id, profileId, new ImproveContentRequest { Prompt = "Improve" });
+        var result = await service.ImproveAsync(content.Id, profileId, Guid.NewGuid(), Guid.NewGuid(), new ImproveContentRequest { Prompt = "Improve" });
 
         Assert.False(result.Success);
-        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
-        Assert.Equal("PROMPT_QUOTA_EXCEEDED", result.Error?.ErrorCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("INSUFFICIENT_WORKSPACE_CREDITS", result.Error?.ErrorCode);
         Assert.Empty(await generationRepository.GetByContentIdAsync(content.Id));
     }
 
@@ -166,6 +233,23 @@ public class AIServiceTests
                 Assert.Equal(ChatSenderType.AI, message.SenderType);
                 Assert.Equal("AI response", message.Message);
             });
+    }
+
+    [Fact]
+    public async Task ChatAsync_DoesNotConsumeWorkspaceCredits()
+    {
+        var credits = new FakeCreditService();
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("AI response"),
+            creditService: credits);
+
+        var result = await service.ChatAsync(Guid.NewGuid(), new ChatRequest { Message = "User message" });
+
+        Assert.True(result.Success);
+        Assert.Equal(0, credits.ConsumeCallCount);
     }
 
     [Fact]
@@ -217,7 +301,7 @@ public class AIServiceTests
         IGeminiTextClient geminiTextClient,
         IConversationRepository? conversationRepository = null,
         IProductRepository? productRepository = null,
-        IQuotaService? quotaService = null)
+        ICreditService? creditService = null)
     {
         return new AIService(
             contentRepository,
@@ -226,7 +310,7 @@ public class AIServiceTests
             productRepository ?? new FakeProductRepository(),
             geminiTextClient,
             conversationRepository ?? new FakeConversationRepository(),
-            quotaService ?? new FakeQuotaService());
+            creditService ?? new FakeCreditService());
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -247,6 +331,7 @@ public class AIServiceTests
     private sealed class FakeAiGenerationRepository : IAiGenerationRepository
     {
         private readonly Dictionary<Guid, AiGeneration> _generations;
+        public Guid StoredContentId => _generations.Values.Single().ContentId;
         public FakeAiGenerationRepository(params AiGeneration[] generations) => _generations = generations.ToDictionary(generation => generation.Id);
         public Task<AiGeneration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_generations.GetValueOrDefault(id));
         public Task<IEnumerable<AiGeneration>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.FromResult(_generations.Values.Where(generation => generation.ContentId == contentId).AsEnumerable());
@@ -335,42 +420,34 @@ public class AIServiceTests
         }
     }
 
-    private sealed class FakeQuotaService : IQuotaService
+    private sealed class FakeCreditService : ICreditService
     {
-        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+        public GenericResponse<bool> AvailabilityResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+        public GenericResponse<CreditUsageRecord> ConsumeResult { get; set; } = GenericResponse<CreditUsageRecord>.CreateSuccess(new CreditUsageRecord());
+        public int ConsumeCallCount { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
+        public Guid LastUserId { get; private set; }
+        public CreditActionEnum LastAction { get; private set; }
+        public long LastCredits { get; private set; }
 
-        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
-
-        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
-
-        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
-
-        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
-    }
-
-    private sealed class DeniedPromptQuotaService : IQuotaService
-    {
-        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+        public Task<CreditWallet> EnsureWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CreditWallet { WorkspaceId = workspaceId, Balance = 100 });
+        public Task<GenericResponse<CreditWallet>> GrantSubscriptionCreditsAsync(Guid workspaceId, Guid userId, WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
-
-        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<CreditWallet>> GrantCreditPackCreditsAsync(Guid workspaceId, Guid userId, WorkspaceTypeEnum workspaceType, long credits, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
-
-        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateError(
-                "Prompt quota exceeded.",
-                HttpStatusCode.Forbidden,
-                "PROMPT_QUOTA_EXCEEDED"));
-
-        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
-
-        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<bool>> EnsureCreditsAvailableAsync(Guid workspaceId, Guid userId, long credits, DateTime? now = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(AvailabilityResult);
+        public Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsAsync(Guid workspaceId, Guid userId, CreditActionEnum action, long credits, Guid? aiGenerationId = null, DateTime? now = null, CancellationToken cancellationToken = default)
+        {
+            ConsumeCallCount++;
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
+            LastAction = action;
+            LastCredits = credits;
+            return Task.FromResult(ConsumeResult);
+        }
+        public Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(Guid workspaceId, Guid userId, CreditActionEnum action, long credits, CreditUsageStatusEnum status, Guid? aiGenerationId = null, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
     }
 }

@@ -1,15 +1,15 @@
 # Báo cáo tiến độ backend AISAM so với SRS
 
-## Change Request Impact Notice - Chua Trien Khai
+## Change Request Impact Notice - Dang Trien Khai
 
 Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
-Bao cao ben duoi danh gia backend Profile-based hien tai. Target architecture moi da duoc phe duyet nhung chua code:
+Bao cao chi tiet ben duoi duoc lap tu snapshot cu ngay 2026-05-26. Trang thai Workspace hien tai da tien xa hon snapshot do:
 
-- Workspace thay Profile lam ownership/subscription/credit boundary.
-- `X-Workspace-Id` thay `X-Profile-Id`.
-- Moi Workspace co dung mot Owner va mot Credit Wallet.
-- Subscription Credits, Post Quota, Feature Matrix, Permission Matrix, Member Limit va Workspace lifecycle da duoc chot.
+- Task 9.1-9.15 da hoan thanh va automated tests pass.
+- Workspace/subscription/payment/credits/member quota/feature gate/Post Quota/AI Credit charging da co.
+- Ownership cac domain van Profile-based cho den Task 9.16.
+- Lifecycle Limited/Archived/Admin Soft Delete da co; backfill/schema lock va regression cuoi Phase 9 van chua hoan thanh.
 
 Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Change Request. Tien do Change Request hien tai:
 
@@ -17,8 +17,8 @@ Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Cha
 |---|---|
 | Business decisions va impact analysis | DONE |
 | Tai lieu lien quan | IN PROGRESS |
-| Workspace entities/migration/API | NOT STARTED |
-| Subscription/Credits migration | NOT STARTED |
+| Workspace entities/migration/API | IN PROGRESS - Task 9.1-9.15 DONE |
+| Subscription/Credits migration | DONE cho payment/subscription/wallet/AI text charging |
 | Ownership backfill va regression | NOT STARTED |
 
 Ngày đánh giá: 2026-05-26  

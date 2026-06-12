@@ -73,7 +73,6 @@ namespace AISAM.Data.Model
         public string? PayOSPaymentLinkId { get; set; }
 
         // Navigation properties
-        [ForeignKey("ProfileId")]
         public virtual Profile? Profile { get; set; }
 
         [ForeignKey("WorkspaceId")]

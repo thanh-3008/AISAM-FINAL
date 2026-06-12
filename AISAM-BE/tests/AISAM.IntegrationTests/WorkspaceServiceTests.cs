@@ -120,6 +120,98 @@ public class WorkspaceServiceTests
         Assert.Equal("After", (await context.Workspaces.SingleAsync()).Name);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_SynchronizesExpiredBusinessWorkspaceLifecycle()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var service = CreateService(context);
+        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
+        {
+            Name = "Expired",
+            WorkspaceType = WorkspaceTypeEnum.Business
+        });
+        var workspace = await context.Workspaces.SingleAsync();
+        workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-100);
+        await context.SaveChangesAsync();
+
+        var result = await service.GetByIdAsync(created.Data!.Id, owner.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceStatusEnum.Archived, result.Data!.Status);
+        Assert.NotNull(result.Data.ArchivedAt);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsExpiredReadOnlyWorkspace()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var service = CreateService(context);
+        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
+        {
+            Name = "Expired",
+            WorkspaceType = WorkspaceTypeEnum.Business
+        });
+        var workspace = await context.Workspaces.SingleAsync();
+        workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-1);
+        await context.SaveChangesAsync();
+
+        var result = await service.UpdateAsync(created.Data!.Id, owner.Id, new UpdateWorkspaceRequest { Name = "Blocked" });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Equal("WORKSPACE_READ_ONLY", result.Error?.ErrorCode);
+    }
+
+    [Fact]
+    public async Task AdminSoftDeleteAsync_SoftDeletesEligibleWorkspace()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var admin = AddUser(context, UserRoleEnum.Admin);
+        var service = CreateService(context);
+        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
+        {
+            Name = "Eligible",
+            WorkspaceType = WorkspaceTypeEnum.Business
+        });
+        var workspace = await context.Workspaces.SingleAsync();
+        workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-181);
+        await context.SaveChangesAsync();
+
+        var result = await service.AdminSoftDeleteAsync(created.Data!.Id, admin.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceStatusEnum.Deleted, workspace.Status);
+        Assert.NotNull(workspace.DeletedAt);
+        Assert.Null(await new WorkspaceRepository(context).GetByIdAsync(workspace.Id));
+        Assert.NotNull(await new WorkspaceRepository(context).GetByIdIncludingDeletedAsync(workspace.Id));
+    }
+
+    [Fact]
+    public async Task AdminSoftDeleteAsync_RejectsWorkspaceBeforeDeletionEligibility()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var admin = AddUser(context, UserRoleEnum.Admin);
+        var service = CreateService(context);
+        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
+        {
+            Name = "Archived",
+            WorkspaceType = WorkspaceTypeEnum.Business
+        });
+        var workspace = await context.Workspaces.SingleAsync();
+        workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-179);
+        await context.SaveChangesAsync();
+
+        var result = await service.AdminSoftDeleteAsync(created.Data!.Id, admin.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal(WorkspaceStatusEnum.Archived, workspace.Status);
+    }
+
     private static WorkspaceService CreateService(AisamContext context)
     {
         return new WorkspaceService(
@@ -141,13 +233,14 @@ public class WorkspaceServiceTests
         return new AisamContext(options);
     }
 
-    private static User AddUser(AisamContext context)
+    private static User AddUser(AisamContext context, UserRoleEnum role = UserRoleEnum.User)
     {
         var user = new User
         {
             Email = $"{Guid.NewGuid():N}@example.com",
             PasswordHash = "hash",
-            PasswordSalt = "salt"
+            PasswordSalt = "salt",
+            Role = role
         };
         context.Users.Add(user);
         context.SaveChanges();

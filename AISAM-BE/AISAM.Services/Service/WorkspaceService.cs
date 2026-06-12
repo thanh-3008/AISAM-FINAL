@@ -30,6 +30,11 @@ public sealed class WorkspaceService : IWorkspaceService
         CancellationToken cancellationToken = default)
     {
         var workspaces = await _workspaceRepository.GetByUserIdAsync(userId, cancellationToken);
+        foreach (var workspace in workspaces)
+        {
+            await SynchronizeLifecycleAsync(workspace, cancellationToken);
+        }
+
         var response = workspaces.Select(workspace => MapToDto(workspace, userId)).ToList();
 
         return GenericResponse<IReadOnlyList<WorkspaceResponseDto>>.CreateSuccess(
@@ -48,6 +53,7 @@ public sealed class WorkspaceService : IWorkspaceService
             return GenericResponse<WorkspaceResponseDto>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
         }
 
+        await SynchronizeLifecycleAsync(workspace, cancellationToken);
         return GenericResponse<WorkspaceResponseDto>.CreateSuccess(
             MapToDto(workspace, userId),
             "Workspace retrieved successfully.");
@@ -112,12 +118,64 @@ public sealed class WorkspaceService : IWorkspaceService
                 HttpStatusCode.Forbidden);
         }
 
+        await SynchronizeLifecycleAsync(workspace, cancellationToken);
+        if (WorkspaceLifecyclePolicy.IsReadOnly(workspace.Status))
+        {
+            return GenericResponse<WorkspaceResponseDto>.CreateError(
+                "Workspace is read-only while its subscription is expired.",
+                HttpStatusCode.Forbidden,
+                "WORKSPACE_READ_ONLY");
+        }
+
         workspace.Name = request.Name.Trim();
         await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
 
         return GenericResponse<WorkspaceResponseDto>.CreateSuccess(
             MapToDto(workspace, userId),
             "Workspace updated successfully.");
+    }
+
+    public async Task<GenericResponse<bool>> AdminSoftDeleteAsync(
+        Guid id,
+        Guid adminUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await _userRepository.GetByIdAsync(adminUserId);
+        if (admin?.Role != UserRoleEnum.Admin)
+        {
+            return GenericResponse<bool>.CreateError(
+                "Only an administrator can delete a workspace.",
+                HttpStatusCode.Forbidden);
+        }
+
+        var workspace = await _workspaceRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
+        if (workspace == null || workspace.Status == WorkspaceStatusEnum.Deleted)
+        {
+            return GenericResponse<bool>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        await SynchronizeLifecycleAsync(workspace, cancellationToken);
+        if (workspace.Status != WorkspaceStatusEnum.EligibleForDeletion)
+        {
+            return GenericResponse<bool>.CreateError(
+                "Workspace is not eligible for deletion.",
+                HttpStatusCode.Conflict,
+                "WORKSPACE_NOT_ELIGIBLE_FOR_DELETION");
+        }
+
+        workspace.Status = WorkspaceStatusEnum.Deleted;
+        workspace.DeletedAt = DateTime.UtcNow;
+        await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+
+        return GenericResponse<bool>.CreateSuccess(true, "Workspace soft deleted successfully.");
+    }
+
+    private async Task SynchronizeLifecycleAsync(Workspace workspace, CancellationToken cancellationToken)
+    {
+        if (WorkspaceLifecyclePolicy.SynchronizeStatus(workspace, DateTime.UtcNow))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
     }
 
     private static WorkspaceMember? GetActiveMembership(Workspace workspace, Guid userId)
@@ -140,6 +198,7 @@ public sealed class WorkspaceService : IWorkspaceService
             ActiveMemberCount = workspace.Members.Count(member => member.IsActive),
             MemberLimit = workspace.MemberLimit,
             SubscriptionExpiredAt = workspace.SubscriptionExpiredAt,
+            ArchivedAt = workspace.ArchivedAt,
             CreatedAt = workspace.CreatedAt,
             UpdatedAt = workspace.UpdatedAt
         };

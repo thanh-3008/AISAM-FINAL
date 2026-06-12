@@ -41,6 +41,18 @@ public class WorkspaceControllerTests
         Assert.Equal(userId, service.LastUserId);
     }
 
+    [Fact]
+    public async Task AdminSoftDelete_UsesAuthenticatedAdminUser()
+    {
+        var adminUserId = Guid.NewGuid();
+        var service = new FakeWorkspaceService();
+        var controller = CreateController(service, adminUserId);
+
+        await controller.AdminSoftDelete(Guid.NewGuid());
+
+        Assert.Equal(adminUserId, service.LastUserId);
+    }
+
     private static WorkspaceController CreateController(IWorkspaceService service, Guid userId)
     {
         var identity = new ClaimsIdentity(
@@ -80,6 +92,12 @@ public class WorkspaceControllerTests
         {
             LastUserId = userId;
             return Task.FromResult(GenericResponse<WorkspaceResponseDto>.CreateSuccess(CreateResponse(id)));
+        }
+
+        public Task<GenericResponse<bool>> AdminSoftDeleteAsync(Guid id, Guid adminUserId, CancellationToken cancellationToken = default)
+        {
+            LastUserId = adminUserId;
+            return Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
         }
 
         private static WorkspaceResponseDto CreateResponse(Guid id)
