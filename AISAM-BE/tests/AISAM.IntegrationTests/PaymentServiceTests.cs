@@ -961,6 +961,16 @@ public class PaymentServiceTests
                 AiGenerationId = aiGenerationId
             }));
         }
+
+        public Task<GenericResponse<bool>> CanConsumeCreditsAsync(
+            Guid workspaceId,
+            Guid userId,
+            long credits,
+            DateTime? now = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+        }
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

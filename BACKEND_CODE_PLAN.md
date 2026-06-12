@@ -3192,7 +3192,7 @@ Mục tiêu phase:
 | 9.11 | Credit Pack và `PaymentType` | DONE | 9.10 |
 | 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | DONE | 9.7, 9.10 |
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | DONE | 9.9, 9.12 |
-| 9.14 | Áp dụng Credits vào AI generation | TODO | 9.10, 9.13 |
+| 9.14 | Áp dụng Credits vào AI generation | IN PROGRESS/PARTIAL | 9.10, 9.13 |
 | 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | TODO | 9.9, 9.13 |
 | 9.16 | Chuyển ownership từng domain sang Workspace | TODO | 9.6, 9.13 |
 | 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | TODO | 9.9-9.16 |
@@ -4607,9 +4607,82 @@ feat(subscription): enforce workspace plan entitlements
 
 ### Task 9.14 - Áp dụng Credits vào AI generation
 
+Trạng thái:
+
+```text
+IN PROGRESS/PARTIAL - 2026-06-12
+Đã nối Credits cho text generate/regenerate hiện có; chưa đủ scope AI task theo change request.
+```
+
 Mục tiêu:
 
 - Trừ Credits chỉ sau AI generate/regenerate/refine thành công.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Controllers/GeminiController.cs
+AISAM-BE/AISAM.Services/IServices/IAIService.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/Service/AIService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PhaseEQuotaIntegrationTests.cs
+```
+
+Kết quả:
+
+- `GeminiController` truyền `workspaceId` active xuống AI service cho các flow có phát sinh credit usage, tránh suy diễn sai Workspace khi một user có nhiều membership.
+- `IAIService` và `AIService` được đổi surface cho 2 flow đang thật sự generate AI trong codebase:
+  - `GenerateDraftAsync(profileId, workspaceId, request, ...)`
+  - `ImproveAsync(contentId, profileId, workspaceId, request, ...)`
+- `AIService` bỏ prompt quota gate cũ khỏi AI generation flow; thay vào đó:
+  - preflight `CanConsumeCreditsAsync(...)` để chặn sớm khi Workspace/member không đủ Credits,
+  - chỉ `ConsumeCreditsAsync(...)` sau khi provider trả kết quả thành công.
+- Mapping credit action/cost đang áp dụng cho runtime AI hiện có:
+  - `GenerateDraft` -> `CreditActionEnum.GenerateText` -> `1` credit
+  - `Improve` -> `CreditActionEnum.RegenerateText` -> `1` credit
+- Nếu provider AI fail:
+  - không trừ Credits,
+  - generation vẫn được lưu ở trạng thái `Failed`.
+- `ChatAsync` giữ nguyên hành vi MVP:
+  - không trừ Credits.
+- `ICreditService` có thêm `CanConsumeCreditsAsync(...)` và `CreditService` tách phần validate khả dụng credit/member quota ra khỏi `ConsumeCreditsAsync(...)` để AI flow có thể pre-check trước khi gọi provider.
+- Đã hoàn thành phần AI runtime hiện có:
+  - `GenerateDraft` -> `GenerateText` -> `1` credit
+  - `Improve` -> `RegenerateText` -> `1` credit
+  - `Chat` không charge
+
+Còn thiếu trước khi được coi là DONE:
+
+- Change request xác nhận scope AI credit test gồm `Generate text/image/video/trend/recommendation` theo từng task độc lập, ngoài `regenerate/refine`.
+- Runtime/API hiện tại ở `AISAM-BE/AISAM.API/Controllers/GeminiController.cs` chỉ có:
+  - `POST /api/ai/generate-draft`
+  - `POST /api/ai/improve/{contentId}`
+  - `POST /api/ai/approve/{aiGenerationId}`
+  - `GET /api/ai/generations/{contentId}`
+  - `POST /api/ai/chat`
+- Chưa có service/endpoint runtime tương ứng để áp dụng và verify credit cost cho:
+  - `Generate Image` -> `5`
+  - `Generate Video` -> `20`
+  - `Trend Content Generation` -> `2`
+  - `Campaign Recommendation` -> `2`
+- Vì vậy task 9.14 mới hoàn thành phần text AI hiện có, chưa thể chốt hoàn thiện toàn bộ scope AI credit usage đã được xác nhận trong change request.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 224/224 tests passed.
+
+Focused Task 9.14 tests
+Passed. 14/14 tests passed.
+```
 
 Cách test:
 
@@ -5861,7 +5934,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.13 da hoan thanh; Task tiep theo la 9.14 ap dung Credits vao AI generation. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.13 da hoan thanh; Task 9.14 moi xong phan text AI/runtime hien co, chua cover du image/video/trend/recommendation theo change request. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

@@ -17,7 +17,8 @@ public sealed class AIService : IAIService
     private readonly IProductRepository _productRepository;
     private readonly IGeminiTextClient _geminiTextClient;
     private readonly IConversationRepository _conversationRepository;
-    private readonly IQuotaService _quotaService;
+    private readonly IProfileRepository _profileRepository;
+    private readonly ICreditService _creditService;
 
     public AIService(
         IContentRepository contentRepository,
@@ -26,7 +27,8 @@ public sealed class AIService : IAIService
         IProductRepository productRepository,
         IGeminiTextClient geminiTextClient,
         IConversationRepository conversationRepository,
-        IQuotaService quotaService)
+        IProfileRepository profileRepository,
+        ICreditService creditService)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -34,10 +36,11 @@ public sealed class AIService : IAIService
         _productRepository = productRepository;
         _geminiTextClient = geminiTextClient;
         _conversationRepository = conversationRepository;
-        _quotaService = quotaService;
+        _profileRepository = profileRepository;
+        _creditService = creditService;
     }
 
-    public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, CreateDraftRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, CreateDraftRequest request, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateBrandAndProductAsync(profileId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
@@ -45,13 +48,21 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         }
 
-        var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
-        if (!quotaCheck.Success)
+        var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
+        if (profile == null)
         {
             return GenericResponse<AiGenerationResponse>.CreateError(
-                quotaCheck.Message!,
-                (HttpStatusCode)quotaCheck.StatusCode,
-                quotaCheck.Error?.ErrorCode);
+                "Profile not found.",
+                HttpStatusCode.NotFound);
+        }
+
+        var availability = await _creditService.CanConsumeCreditsAsync(workspaceId, profile.UserId, 1, cancellationToken: cancellationToken);
+        if (!availability.Success)
+        {
+            return GenericResponse<AiGenerationResponse>.CreateError(
+                availability.Message!,
+                (HttpStatusCode)availability.StatusCode,
+                availability.Error?.ErrorCode);
         }
 
         var content = await _contentRepository.AddAsync(new Content
@@ -65,11 +76,21 @@ public sealed class AIService : IAIService
             Status = ContentStatusEnum.Draft
         }, cancellationToken);
 
-        var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
-        return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
+        var generation = await GenerateForContentAsync(
+            content,
+            request.Prompt,
+            workspaceId,
+            profile.UserId,
+            CreditActionEnum.GenerateText,
+            1,
+            cancellationToken);
+
+        return generation.Success
+            ? GenericResponse<AiGenerationResponse>.CreateSuccess(generation.Data!, "AI generation processed.")
+            : GenericResponse<AiGenerationResponse>.CreateError(generation.Message!, (HttpStatusCode)generation.StatusCode, generation.Error?.ErrorCode);
     }
 
-    public async Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, ImproveContentRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, Guid workspaceId, ImproveContentRequest request, CancellationToken cancellationToken = default)
     {
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
         if (content == null || content.ProfileId != profileId)
@@ -77,17 +98,35 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
 
-        var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
-        if (!quotaCheck.Success)
+        var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
+        if (profile == null)
         {
             return GenericResponse<AiGenerationResponse>.CreateError(
-                quotaCheck.Message!,
-                (HttpStatusCode)quotaCheck.StatusCode,
-                quotaCheck.Error?.ErrorCode);
+                "Profile not found.",
+                HttpStatusCode.NotFound);
         }
 
-        var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
-        return GenericResponse<AiGenerationResponse>.CreateSuccess(generation, "AI generation processed.");
+        var availability = await _creditService.CanConsumeCreditsAsync(workspaceId, profile.UserId, 1, cancellationToken: cancellationToken);
+        if (!availability.Success)
+        {
+            return GenericResponse<AiGenerationResponse>.CreateError(
+                availability.Message!,
+                (HttpStatusCode)availability.StatusCode,
+                availability.Error?.ErrorCode);
+        }
+
+        var generation = await GenerateForContentAsync(
+            content,
+            request.Prompt,
+            workspaceId,
+            profile.UserId,
+            CreditActionEnum.RegenerateText,
+            1,
+            cancellationToken);
+
+        return generation.Success
+            ? GenericResponse<AiGenerationResponse>.CreateSuccess(generation.Data!, "AI generation processed.")
+            : GenericResponse<AiGenerationResponse>.CreateError(generation.Message!, (HttpStatusCode)generation.StatusCode, generation.Error?.ErrorCode);
     }
 
     public async Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid generationId, Guid profileId, CancellationToken cancellationToken = default)
@@ -195,7 +234,14 @@ public sealed class AIService : IAIService
         }
     }
 
-    private async Task<AiGenerationResponse> GenerateForContentAsync(Content content, string prompt, CancellationToken cancellationToken)
+    private async Task<GenericResponse<AiGenerationResponse>> GenerateForContentAsync(
+        Content content,
+        string prompt,
+        Guid workspaceId,
+        Guid userId,
+        CreditActionEnum action,
+        long credits,
+        CancellationToken cancellationToken)
     {
         var generation = await _generationRepository.AddAsync(new AiGeneration
         {
@@ -208,6 +254,26 @@ public sealed class AIService : IAIService
         try
         {
             generation.GeneratedText = await _geminiTextClient.GenerateAsync(prompt, cancellationToken);
+            var consumeResult = await _creditService.ConsumeCreditsAsync(
+                workspaceId,
+                userId,
+                action,
+                credits,
+                generation.Id,
+                cancellationToken: cancellationToken);
+
+            if (!consumeResult.Success)
+            {
+                generation.Status = AiStatusEnum.Failed;
+                generation.GeneratedText = null;
+                generation.ErrorMessage = consumeResult.Message;
+                await _generationRepository.UpdateAsync(generation, cancellationToken);
+                return GenericResponse<AiGenerationResponse>.CreateError(
+                    consumeResult.Message!,
+                    (HttpStatusCode)consumeResult.StatusCode,
+                    consumeResult.Error?.ErrorCode);
+            }
+
             generation.Status = AiStatusEnum.Completed;
         }
         catch (Exception ex)
@@ -217,7 +283,7 @@ public sealed class AIService : IAIService
         }
 
         await _generationRepository.UpdateAsync(generation, cancellationToken);
-        return MapGeneration(generation);
+        return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation));
     }
 
     private async Task<GenericResponse<bool>> ValidateBrandAndProductAsync(Guid profileId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
