@@ -402,6 +402,14 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                 </div>
                 <div className="pt-1">
                   <Link
+                    href="/pricing"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-outline/60">workspace_premium</span>
+                    Upgrade Plan
+                  </Link>
+                  <Link
                     href={activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles"}
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"

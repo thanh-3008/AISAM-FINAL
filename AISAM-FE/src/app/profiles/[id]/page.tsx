@@ -13,6 +13,8 @@ import {
   getPaymentHistory,
   getCurrentSubscription,
   createCheckout,
+  createCreditPackCheckout,
+  cancelSubscription,
   type PaymentHistoryItem,
   type CurrentSubscription,
 } from "@/services/profileSettingsService";
@@ -339,6 +341,33 @@ export default function ProfileDetailPage() {
       const data = await getCurrentSubscription();
       if (data) {
         setSubscription(data);
+
+        // Auto-detect subscription expired/limited/archived state
+        if (data.status === "Expired" || data.status === "Cancelled") {
+          setShowExpiredBanner(true);
+
+          const now = Date.now();
+          const endDate = new Date(data.endDate).getTime();
+          const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
+
+          if (daysSinceExpiry < 90) {
+            setIsLimitedMode(true);
+            setShowLimitedModeBanner(true);
+            setIsArchived(false);
+            setShowArchivedBanner(false);
+          } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
+            setIsLimitedMode(true);
+            setShowLimitedModeBanner(false);
+            setIsArchived(true);
+            setShowArchivedBanner(true);
+          }
+        } else {
+          setShowExpiredBanner(false);
+          setIsLimitedMode(false);
+          setShowLimitedModeBanner(false);
+          setIsArchived(false);
+          setShowArchivedBanner(false);
+        }
       }
     } catch {
       console.error("Failed to load subscription");
@@ -358,7 +387,7 @@ export default function ProfileDetailPage() {
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;
       } else {
-        setError("Failed to create checkout");
+        showToast({ type: "info", title: "Upgrade", message: "PayOS checkout will be available when backend is connected." });
       }
     } catch {
       setError("Network error while upgrading plan");
@@ -368,10 +397,27 @@ export default function ProfileDetailPage() {
   };
 
   const handleCancelPlan = () => {
-    if (confirm("Are you sure you want to cancel your subscription? You will lose access to premium features.")) {
-      // TODO: Implement cancel subscription when BE API is available
-      showToast({ type: "info", title: "Cancel subscription", message: "Feature coming soon!" });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancel Subscription",
+      message: "Are you sure you want to cancel your subscription? You will lose access to premium features immediately when the current period ends.",
+      type: "danger",
+      confirmText: "Cancel Subscription",
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        try {
+          const success = await cancelSubscription();
+          if (success) {
+            showToast({ type: "success", title: "Cancelled", message: "Subscription has been cancelled." });
+            handleLoadSubscription();
+          } else {
+            showToast({ type: "error", title: "Failed", message: "Failed to cancel subscription." });
+          }
+        } catch {
+          showToast({ type: "error", title: "Error", message: "Network error while cancelling subscription." });
+        }
+      },
+    });
   };
 
   // Team section handlers
@@ -547,14 +593,31 @@ export default function ProfileDetailPage() {
   const handlePurchaseCredits = async () => {
     if (!selectedCreditPack) return;
     setPurchasing(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setPurchasing(false);
-    setPurchaseSuccess(true);
-    setShowPurchaseConfirm(false);
-    if (creditWallet) {
-      setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
+    try {
+      const checkout = await createCreditPackCheckout({
+        packName: selectedCreditPack.name,
+        credits: selectedCreditPack.credits,
+        price: selectedCreditPack.price,
+        returnUrl: window.location.origin + "/profiles?payment=success",
+        cancelUrl: window.location.origin + "/profiles?payment=cancelled",
+      });
+      if (checkout?.checkoutUrl) {
+        window.location.href = checkout.checkoutUrl;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setPurchaseSuccess(true);
+        if (creditWallet) {
+          setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
+        }
+        showToast({ type: "success", title: "Purchase successful", message: `${selectedCreditPack.credits.toLocaleString()} credits added to your workspace.` });
+        setTimeout(() => setPurchaseSuccess(false), 3000);
+      }
+    } catch {
+      showToast({ type: "error", title: "Payment failed", message: "Failed to process credit pack purchase." });
+    } finally {
+      setPurchasing(false);
+      setShowPurchaseConfirm(false);
     }
-    setTimeout(() => setPurchaseSuccess(false), 3000);
   };
 
   // Overview section handlers

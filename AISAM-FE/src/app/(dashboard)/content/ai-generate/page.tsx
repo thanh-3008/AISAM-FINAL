@@ -7,7 +7,9 @@ import { createContent, generateAIDraft, chatWithAI, type CreateContentPayload }
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, BRANDS, PRODUCTS, BRAND_COLORS, PlatformIcon } from "@/lib/contentConstants";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { fetchCreditWallet } from "@/services/workspaceService";
+import { fetchCreditWallet, deductCredits } from "@/services/workspaceService";
+import { CREDIT_COST } from "@/lib/featureConfig";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 
 interface ChatMessage {
   id: string;
@@ -48,8 +50,28 @@ export default function AIGeneratePage() {
   const router = useRouter();
   const { addToast } = useToast();
   const { activeWorkspace } = useWorkspaces();
+  const featureGate = useFeatureGate();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
+
+  const getCreditCostForPrompt = (prompt: string): number => {
+    const lower = prompt.toLowerCase();
+    if (lower.includes("video") || lower.includes("generate video")) return CREDIT_COST.generateVideo;
+    if (lower.includes("image") || lower.includes("generate image")) return CREDIT_COST.generateImage;
+    if (lower.includes("trend") || lower.includes("trend analysis")) return CREDIT_COST.trendContent;
+    if (lower.includes("campaign") || lower.includes("recommend")) return CREDIT_COST.campaignRecommendation;
+    if (lower.includes("longer") || lower.includes("expand") || lower.includes("refine") || lower.includes("rewrite")) return CREDIT_COST.refine;
+    return CREDIT_COST.generateText;
+  };
+
+  const handleDeductCredits = async (prompt: string) => {
+    const cost = getCreditCostForPrompt(prompt);
+    const result = await deductCredits({ feature: "generateText", credits: cost });
+    if (result) {
+      setCreditBalance(result.balance);
+    }
+    return cost;
+  };
 
   const [brandName, setBrandName] = useState(BRANDS[0]);
   const [productName, setProductName] = useState("");
@@ -101,13 +123,16 @@ export default function AIGeneratePage() {
       };
       setVariations((prev) => [variation, ...prev]);
 
+      await handleDeductCredits(userPrompt);
+      addToast(`Credits deducted for AI generation.`);
+
       setIsGenerating(false);
 
       autoSavePost(`AI Generated — ${brandName}`, aiReply, generatedHashtags, variation.id);
       return;
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       let aiText = "";
       let aiTitle = "";
       const lower = userPrompt.toLowerCase();
@@ -163,6 +188,9 @@ export default function AIGeneratePage() {
         result: aiText,
       };
       setVariations((prev) => [variation, ...prev]);
+
+      await handleDeductCredits(userPrompt);
+      addToast(`Credits deducted for AI generation.`);
 
       setIsGenerating(false);
 

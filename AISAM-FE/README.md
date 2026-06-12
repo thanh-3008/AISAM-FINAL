@@ -80,6 +80,9 @@ src/
 │   │   └── team/
 │   │       └── page.tsx         # Team Management
 │   │
+│   ├── pricing/
+│   │   └── page.tsx             # Pricing & Subscription Plans (Subscription / Credits tabs)
+│   │
 │   ├── overview/
 │   │   └── page.tsx             # Workspace selector (Personal auto-create / Business modal)
 │   │
@@ -177,7 +180,10 @@ Sau khi khởi chạy dự án, bạn có thể truy cập các đường dẫn 
 
 4. **Trang Dashboard (`/dashboard`)**: Bảng điều khiển chính.
 
-5. **Brands (`/brands`)**: Quản lý danh sách thương hiệu.
+5. **Pricing (`/pricing`)**: Gói dịch vụ & nạp credits.
+   - Tab Subscription: Chọn gói Personal / Business, so sánh tính năng
+   - Tab Credits: Mua credit pack với nhiều mức giá
+   - Thanh toán qua PayOS
    - Tạo / Sửa / Xoá brand
    - Xem chi tiết brand với 3 tab: Products, Campaigns, Settings
 
@@ -797,4 +803,27 @@ headers: { "X-Workspace-Id": workspace.id }
 5. Call /workspaces/user/{userId} API
 6. If API fails → fallback to /profiles/user/{userId}
 7. If still fails → use mock data
+```
+
+## UI Polish — Brands Page (2026-06-12)
+
+### Summary
+Đã cải thiện toàn diện UI trang Brands (`/brands`) để đồng bộ với design system và các trang khác.
+
+### Changes
+
+| Thay đổi | Chi tiết |
+|----------|----------|
+| **Heading icon** | Thêm 3D animated gradient icon block (`w-10 h-10 rounded-xl`, `animate-float`) trước tiêu đề — đồng bộ với Campaigns & Social pages |
+| **KPI Stats Cards** | 3 card thống kê (Total Brands / With Products / No Products) với gradient icons, hover accent line, progress bars, percentage badges — phong cách Dashboard KPI |
+| **Brand Cards** | Restore design gốc: `w-14 h-14 rounded-2xl` gradient avatar, `h-1` accent bar, inline "Details" button, Edit/Delete icons — bỏ full-width button |
+| **Content count removed** | Brand cards chỉ hiển thị số lượng sản phẩm, không hiển thị content count |
+| **Shortened description** | "Manage your brand portfolios and products." |
+| **Typography** | Đồng bộ `text-headline-sm font-bold` / `text-body-sm` / `text-label-sm` với các trang khác |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `app/(dashboard)/brands/page.tsx` | Heading icon, KPI stats cards, card redesign, content count removed, description shortened |
 ```

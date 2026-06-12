@@ -147,6 +147,10 @@ export default function PostsPage() {
   const handleCreate = async () => {
     if (!createCaption.trim()) { showToast("Please enter a caption", "error"); return; }
     if (createSchedule === "later" && (!createDate || !createTime)) { showToast("Please select date and time", "error"); return; }
+    if (postQuota && postQuota.used >= postQuota.total) {
+      showToast("Post quota exhausted. Please upgrade your plan to publish more posts.", "error");
+      return;
+    }
     const publishedAt = createSchedule === "now" ? new Date().toISOString() : new Date(`${createDate}T${createTime}`).toISOString();
     const status = createSchedule === "now" ? "Published" : "Scheduled";
     const target = createBrand || "Lumina Tech";

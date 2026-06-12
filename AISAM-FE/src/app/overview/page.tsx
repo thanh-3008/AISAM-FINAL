@@ -45,10 +45,7 @@ export default function OverviewPage() {
   const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState<{ name: string } | null>(null);
-  const [showBusinessModal, setShowBusinessModal] = useState(false);
-  const [pendingBusinessWs, setPendingBusinessWs] = useState<PendingWorkspace | null>(null);
-  const [businessName, setBusinessName] = useState("");
-  const [businessCompany, setBusinessCompany] = useState("");
+
   const reduceMotion = useReducedMotion();
 
   const createAndSelectWorkspace = async (name: string, workspaceType: number, companyName?: string) => {
@@ -132,26 +129,13 @@ export default function OverviewPage() {
         setToast({ name: wsName });
         setTimeout(() => router.push("/dashboard"), 2000);
       } else {
-        setPendingBusinessWs(workspace);
-        setBusinessName("");
-        setBusinessCompany("");
-        setShowBusinessModal(true);
+        router.push("/pricing?create=business");
       }
     } else {
       selectWorkspace(workspace as WorkspaceData);
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }
-  };
-
-  const handleCreateBusiness = async () => {
-    if (!businessName.trim()) return;
-    if (!pendingBusinessWs) return;
-    await createAndSelectWorkspace(businessName.trim(), pendingBusinessWs.workspaceType, businessCompany.trim() || undefined);
-    setToast({ name: businessName.trim() });
-    setShowBusinessModal(false);
-    setPendingBusinessWs(null);
-    setTimeout(() => router.push("/dashboard"), 2000);
   };
 
   if (loading || creating) {
@@ -417,69 +401,6 @@ export default function OverviewPage() {
         </div>
       </motion.div>
 
-      {/* Business Workspace Creation Modal */}
-      {showBusinessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <motion.div
-            initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.2 }}
-            className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-[22px]">business</span>
-              </div>
-              <div>
-                <h3 className="text-body-lg font-bold text-on-surface">Create Business Workspace</h3>
-                <p className="text-label-sm text-on-surface-variant">Set up your team workspace</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
-                  Workspace Name <span className="text-danger-red">*</span>
-                </label>
-                <input
-                  className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
-                  placeholder="e.g. Acme Marketing"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
-                  Company Name
-                </label>
-                <input
-                  className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
-                  placeholder="e.g. Acme Inc."
-                  value={businessCompany}
-                  onChange={(e) => setBusinessCompany(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => { setShowBusinessModal(false); setPendingBusinessWs(null); }}
-                className="px-5 py-2.5 border border-outline-variant/40 text-on-surface rounded-xl font-semibold text-body-sm hover:bg-surface-container transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateBusiness}
-                disabled={!businessName.trim() || creating}
-                className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-primary/20"
-              >
-                {creating ? "Creating..." : "Create Workspace"}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </main>
   );
 }

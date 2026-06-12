@@ -171,6 +171,26 @@ const MOCK_CREDIT_USAGE: CreditUsageRecord[] = [
   },
 ];
 
+export interface DeductCreditsRequest {
+  feature: string;
+  credits: number;
+}
+
+export async function deductCredits(data: DeductCreditsRequest): Promise<{ balance: number } | null> {
+  try {
+    const res: GenericResponse<{ balance: number }> = await apiClient("/credits/deduct", {
+      data,
+      method: "POST",
+    });
+    return res?.data ?? null;
+  } catch {
+    // Mock: simulate deduction
+    const wallet = getMockCreditWallet();
+    const newBalance = Math.max(0, wallet.balance - data.credits);
+    return { balance: newBalance };
+  }
+}
+
 export async function fetchCreditUsageHistory(
   page = 1,
   pageSize = 10

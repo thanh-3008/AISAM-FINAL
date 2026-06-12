@@ -150,25 +150,49 @@ export interface CheckoutResponse {
   orderId: string;
 }
 
+export async function cancelSubscription(): Promise<boolean> {
+  try {
+    const res: GenericResponse<null> = await apiClient("/payment/subscription/cancel", {
+      method: "POST",
+    });
+    return res?.success ?? false;
+  } catch {
+    // Fallback: simulate cancel for demo
+    console.log("Mock: Subscription cancelled");
+    return true;
+  }
+}
+
+export interface CreateCreditPackCheckoutRequest {
+  packName: string;
+  credits: number;
+  price: string;
+  returnUrl: string;
+  cancelUrl: string;
+}
+
 export async function createCheckout(data: CreateCheckoutRequest): Promise<CheckoutResponse | null> {
   try {
     const res: GenericResponse<CheckoutResponse> = await apiClient("/payment/checkout", {
-      data,
+      data: { ...data, paymentType: "Subscription" },
       method: "POST",
     });
     return res?.data ?? null;
   } catch {
-    // Fallback: Simulate checkout for demo
     console.log("Mock: Creating checkout for plan type", data.planType);
-    const planNames = ["Free", "Basic", "Pro"];
-    const planName = planNames[data.planType] || "Unknown";
-    
-    // In real app, this would redirect to payment gateway
-    alert(`Mock: Redirecting to payment gateway for ${planName} plan upgrade.\n\nIn production, this would open PayOS checkout page.`);
-    
-    return {
-      checkoutUrl: "https://pay.example.com/checkout/mock",
-      orderId: `mock-order-${Date.now()}`,
-    };
+    return null;
+  }
+}
+
+export async function createCreditPackCheckout(data: CreateCreditPackCheckoutRequest): Promise<CheckoutResponse | null> {
+  try {
+    const res: GenericResponse<CheckoutResponse> = await apiClient("/payment/checkout", {
+      data: { ...data, paymentType: "CreditPack" },
+      method: "POST",
+    });
+    return res?.data ?? null;
+  } catch {
+    console.log("Mock: Creating credit pack checkout for", data.packName);
+    return null;
   }
 }
