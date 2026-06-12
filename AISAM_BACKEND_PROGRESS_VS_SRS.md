@@ -8,7 +8,7 @@ Bao cao chi tiet ben duoi duoc lap tu snapshot cu ngay 2026-05-26. Trang thai Wo
 
 - Task 9.1-9.15 da hoan thanh va automated tests pass.
 - Workspace/subscription/payment/credits/member quota/feature gate/Post Quota/AI Credit charging da co.
-- Ownership cac domain van Profile-based cho den Task 9.16.
+- Brand/Product da migrate sang Workspace ownership; cac domain con lai van Profile-based trong Task 9.16.
 - Lifecycle Limited/Archived/Admin Soft Delete da co; backfill/schema lock va regression cuoi Phase 9 van chua hoan thanh.
 
 Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Change Request. Tien do Change Request hien tai:

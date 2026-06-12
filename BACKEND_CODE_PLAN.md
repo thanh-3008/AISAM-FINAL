@@ -4708,6 +4708,14 @@ feat(workspace): add expiration lifecycle
 
 ### Task 9.16 - Chuyển ownership từng domain sang Workspace
 
+Trạng thái:
+
+```text
+IN PROGRESS - 2026-06-12
+Đã migrate: Brand, Product.
+Còn lại: Content/Post, Social, Calendar, Conversation, Notification, Campaign.
+```
+
 Mục tiêu:
 
 - Chuyển ownership Brand, Product, Content/Post, Social, Calendar, Conversation, Notification và Campaign.
@@ -4720,6 +4728,14 @@ Cách test:
 
 - CRUD và isolation theo Workspace sau từng domain.
 - Không phá API/module đã migrate trước đó.
+
+Kết quả hiện tại:
+
+- Brand có nullable `WorkspaceId`; Brand mới thuộc Active Workspace và CRUD/list được isolation theo Workspace.
+- `ProfileId` của Brand tạm giữ làm metadata tương thích cho đến Task 9.17 backfill/schema lock.
+- Product kế thừa ownership qua Brand; CRUD/list và pagination được lọc tại database theo `Brand.WorkspaceId`.
+- Migration `AddBrandWorkspaceOwnership` đã được áp dụng thành công.
+- Automated tests xác minh Brand/Product không đọc hoặc tạo dữ liệu xuyên Workspace.
 
 Commit đề xuất:
 

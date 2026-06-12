@@ -78,11 +78,16 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(b => b.Id);
                 entity.HasIndex(b => b.ProfileId);
+                entity.HasIndex(b => b.WorkspaceId);
                 entity.HasIndex(b => b.Name);
                 entity.HasOne(b => b.Profile)
                       .WithMany(p => p.Brands)
                       .HasForeignKey(b => b.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(b => b.Workspace)
+                      .WithMany(w => w.Brands)
+                      .HasForeignKey(b => b.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Content entity configuration

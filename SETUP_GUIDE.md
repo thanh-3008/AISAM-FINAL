@@ -8,7 +8,7 @@ Backend hien tai dang o trang thai chuyen tiep:
 
 ```text
 X-Workspace-Id: Workspace membership, payment, subscription, credits, feature gate, permission va Post Quota
-X-Profile-Id: cac domain chua migrate ownership nhu Brand, Product, Content, Social
+X-Profile-Id: cac domain chua migrate ownership nhu Content/Post, Social, Calendar, Conversation, Notification, Campaign
 ```
 
 Phase 9 da hoan thanh Task 9.1-9.15. Khong bo `X-Profile-Id` khoi cac route Profile-based cho den khi Task 9.16 va backfill Task 9.17 hoan thanh.

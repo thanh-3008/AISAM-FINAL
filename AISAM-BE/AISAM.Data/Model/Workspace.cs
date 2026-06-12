@@ -49,5 +49,6 @@ namespace AISAM.Data.Model
         public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
         public virtual CreditWallet? CreditWallet { get; set; }
         public virtual ICollection<CreditUsageRecord> CreditUsageRecords { get; set; } = new List<CreditUsageRecord>();
+        public virtual ICollection<Brand> Brands { get; set; } = new List<Brand>();
     }
 }

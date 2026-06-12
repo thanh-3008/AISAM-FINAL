@@ -8,7 +8,7 @@ Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
 - Workspace migration dang duoc trien khai; Phase 9 da hoan thanh Task 9.1-9.15.
 - Workspace, member/invitation, ownership transfer, subscription/payment, Credit Wallet, member quota, entitlement, Post Quota va AI Credit charging da co code va automated tests.
-- Cac domain Brand/Product/Content/Social van con ownership Profile-based cho den Task 9.16, nen mot so API tam thoi can dong thoi `X-Profile-Id` va `X-Workspace-Id`.
+- Brand/Product da migrate sang Workspace ownership. Content/Post, Social, Calendar, Conversation, Notification va Campaign van con Profile-based trong Task 9.16.
 - `WorkspaceTypeEnum`: Personal = 1, Business = 2.
 - Moi Workspace co dung mot Owner va mot Credit Wallet.
 - Credits chi dung cho AI; publish dung Post Quota rieng.
