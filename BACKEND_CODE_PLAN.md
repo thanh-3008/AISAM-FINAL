@@ -4702,6 +4702,358 @@ Mục tiêu:
 
 - Áp dụng lifecycle Workspace hết hạn.
 
+Checklist triển khai đề xuất:
+
+#### Task 9.15.1 - Lifecycle Resolver và Runtime State
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.15.2 Đồng bộ Status/Persistence cho Workspace hết hạn.
+```
+
+Mục tiêu:
+
+- Chuẩn hóa cách suy ra trạng thái hiệu lực từ `Status`, `SubscriptionExpiredAt`, `ArchivedAt`, `DeletedAt` và thời gian hiện tại.
+- Runtime state cần cover: `Active`, `Limited`, `Archived`, `EligibleForAdminDeletion`, `Deleted`.
+- Test đủ mốc ngày: `0`, `89`, `90`, `180`, `181`.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceLifecycleState.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceLifecycleService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceLifecycleService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceLifecycleServiceTests.cs
+```
+
+Kết quả:
+
+- Thêm `WorkspaceLifecycleState` để biểu diễn runtime lifecycle tách khỏi persisted `WorkspaceStatusEnum`.
+- Thêm `IWorkspaceLifecycleService` và `WorkspaceLifecycleService`.
+- Resolver hiện xử lý đúng các rule runtime cơ bản:
+  - `Deleted` nếu Workspace đã deleted hoặc có `DeletedAt`
+  - `Archived` nếu Workspace đã archived hoặc có `ArchivedAt`
+  - `Active` nếu chưa có `SubscriptionExpiredAt` hoặc chưa đến ngày hết hạn
+  - `Limited` khi hết hạn dưới `90` ngày
+  - `Archived` khi hết hạn từ `90` đến `180` ngày
+  - `EligibleForAdminDeletion` khi hết hạn trên `180` ngày
+- Task này mới giải quyết phần resolve runtime state độc lập; chưa sync ngược `Workspace.Status`/timestamps xuống database và chưa enforce policy ở middleware/service. Các phần đó thuộc `9.15.2` trở đi.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+
+Focused Task 9.15.1 tests
+Passed. 9/9 tests passed.
+```
+
+#### Task 9.15.2 - Đồng bộ Status/Persistence cho Workspace hết hạn
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.15.3 Limited Mode Policy.
+```
+
+Mục tiêu:
+
+- Thêm flow sync lifecycle để Workspace chuyển trạng thái nhất quán khi đã hết hạn.
+- Đồng bộ các field: `Status`, `ArchivedAt`, `DeletedAt`.
+- Tránh update DB lặp lại nếu state không đổi.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Services/IServices/IWorkspaceLifecycleService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceLifecycleService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceServiceTests.cs
+```
+
+Kết quả:
+
+- Mở rộng `IWorkspaceLifecycleService` với khả năng sync persisted lifecycle state từ runtime resolver.
+- `WorkspaceLifecycleService` hiện map runtime lifecycle sang persisted `WorkspaceStatusEnum`:
+  - `Active`
+  - `Limited`
+  - `Archived`
+  - `EligibleForDeletion`
+  - `Deleted`
+- `WorkspaceLifecycleService` tự set `ArchivedAt` khi Workspace lần đầu chuyển sang `Archived`/`EligibleForDeletion`; không tự set `DeletedAt` vì soft delete admin thuộc `9.15.5`.
+- `WorkspaceService.GetByIdAsync` và `WorkspaceService.GetByUserIdAsync` hiện lazy-sync lifecycle trước khi trả DTO, để dữ liệu đọc ra phản ánh đúng trạng thái đã hết hạn.
+- Đã cover các transition persistence cốt lõi:
+  - `Active -> Limited`
+  - `Limited -> Archived`
+  - `Archived -> EligibleForDeletion`
+- Task này mới xử lý sync persistence ở workspace read path; chưa enforce read-only/write-block theo lifecycle ở middleware/service khác. Các phần đó thuộc `9.15.3` trở đi.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+
+Focused Task 9.15.2 tests
+Passed. 17/17 tests passed.
+```
+
+#### Task 9.15.3 - Limited Mode Policy
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.15.4 Archived Policy.
+```
+
+Mục tiêu:
+
+- Member vẫn login/xem dữ liệu cũ/xem team.
+- Chặn mọi thao tác ghi.
+- Chặn Premium/Business feature.
+- Chỉ Owner được xem Billing/Gia hạn.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+```
+
+Kết quả:
+
+- `ActiveWorkspaceMiddleware` hiện resolve runtime lifecycle của Workspace trước khi đi vào permission/feature gate thông thường.
+- Khi Workspace ở `Limited`:
+  - route `payment` vẫn được đi tiếp để owner có thể xem billing/gia hạn,
+  - các read-only request (`GET`, `HEAD`, `OPTIONS`) vẫn được phép,
+  - các write request bị chặn sớm với lỗi `WORKSPACE_LIMITED_MODE`.
+- Cơ chế này giúp các Workspace đã hết hạn `<90` ngày nhưng persisted status chưa được sync trước đó vẫn bị áp rule `Limited Mode` đúng ở runtime.
+- Existing service guard vẫn tiếp tục cover các flow member/invitation khi persisted status đã là `Limited`.
+- Task này mới hoàn thành phần `Limited Mode` ở middleware/runtime write-block cơ bản; policy `Archived` và admin soft delete vẫn thuộc `9.15.4` và `9.15.5`.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+
+Focused Task 9.15.3 tests
+Passed. 43/43 tests passed.
+```
+
+#### Task 9.15.4 - Archived Policy
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.15.5 Admin Soft Delete sau 180 ngày.
+```
+
+Mục tiêu:
+
+- Owner: View + Export + Renew.
+- Member: View Only.
+- Mọi write action bị chặn.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+```
+
+Kết quả:
+
+- `ActiveWorkspaceMiddleware` hiện áp `Archived Policy` theo runtime lifecycle, không phụ thuộc persisted `Workspace.Status` đã được sync trước đó hay chưa.
+- Khi Workspace ở `Archived`:
+  - mọi `GET`/`HEAD`/`OPTIONS` vẫn được phép để member/owner xem dữ liệu cũ,
+  - mọi write route ngoài billing bị chặn sớm với lỗi `WORKSPACE_ARCHIVED_MODE`,
+  - route `payment` vẫn được mở cho `Owner` để renew/manage billing,
+  - member không phải owner bị chặn trên `payment` với lỗi `WORKSPACE_ARCHIVED_BILLING_OWNER_ONLY`.
+- Scope `Export` chưa có route riêng trong backend hiện tại; policy hiện được enforce theo nguyên tắc `read-only + owner billing/renew`, phù hợp với surface API đang tồn tại.
+- Task này mới hoàn thành phần archived enforcement ở middleware/runtime gate. Admin soft delete và service-level lifecycle guard vẫn thuộc `9.15.5` và `9.15.6`.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~ActiveWorkspaceMiddlewareTests"
+Passed. 23/23 tests passed.
+
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+```
+
+#### Task 9.15.5 - Admin Soft Delete sau 180 ngày
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.15.6 Policy Wiring cho Existing Services.
+```
+
+Mục tiêu:
+
+- Chỉ Admin được soft delete Workspace khi đã > `180` ngày kể từ lúc hết hạn.
+- Soft delete phải set đúng `Status = Deleted` và `DeletedAt`.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Services/IServices/IWorkspaceService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceControllerTests.cs
+```
+
+Kết quả:
+
+- Bổ sung `IWorkspaceService.AdminSoftDeleteAsync(...)` và implementation trong `WorkspaceService`.
+- Flow soft delete admin hiện hoạt động như sau:
+  - load Workspace bằng `GetByIdIncludingDeletedAsync`,
+  - resolve runtime lifecycle qua `WorkspaceLifecycleService`,
+  - chỉ cho phép soft delete khi state là `EligibleForAdminDeletion`,
+  - set `Status = Deleted` và `DeletedAt`,
+  - persist lại Workspace.
+- Bổ sung endpoint admin-only `DELETE /api/workspaces/{id}/admin-soft-delete` với `[Authorize(Roles = nameof(UserRoleEnum.Admin))]`.
+- Sau soft delete, Workspace không còn xuất hiện trong active query của user vì `GetByUserIdAsync` đã lọc `Status != Deleted`; behavior này đã được cover bằng test service sau khi soft delete.
+- Task này giải quyết admin soft delete thủ công theo runtime eligibility. Scheduled processing và service-level lifecycle guard diện rộng vẫn thuộc `9.15.6` và `9.15.7`.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~WorkspaceServiceTests|FullyQualifiedName~WorkspaceControllerTests"
+Passed. 14/14 tests passed.
+
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+```
+
+#### Task 9.15.6 - Policy Wiring cho Existing Services
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.15.7 Regression và cập nhật tài liệu.
+```
+
+Mục tiêu:
+
+- Không chỉ chặn ở middleware; các service write quan trọng cũng phải enforce lifecycle rule.
+- Rà các flow: invitation, member management, content write/publish, schedule write, renew/billing.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Services/Service/WorkspaceLifecycleService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceInvitationService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/ContentService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Services/Service/ScheduledPostingService.cs
+AISAM-BE/AISAM.API/Program.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceLifecycleServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServicePublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ScheduledPostingServiceTests.cs
+```
+
+Kết quả:
+
+- Đăng ký `IWorkspaceLifecycleService` vào DI để các service có thể resolve runtime lifecycle nhất quán thay vì chỉ nhìn `Workspace.Status`.
+- `WorkspaceLifecycleService` được hoàn thiện thêm rule fallback cho persisted `Limited` và `EligibleForDeletion` khi `SubscriptionExpiredAt` chưa có hoặc không còn được load vào object.
+- `WorkspaceInvitationService` hiện sync/resolve lifecycle trước khi:
+  - tạo invitation,
+  - accept invitation.
+  Các flow này chỉ tiếp tục khi Workspace thực sự ở `Active` runtime state.
+- `WorkspaceMemberService` hiện enforce runtime lifecycle ở `RequireOwnerAsync`, nên các flow:
+  - update role,
+  - update quota,
+  - remove member,
+  - transfer ownership
+  đều bị chặn nếu Workspace không còn `Active`, kể cả khi persisted status chưa được sync trước đó.
+- `ContentService.PublishAsync(..., workspaceId, ...)` hiện verify Workspace tồn tại và đang `Active` trước khi đi vào quota/provider publish flow. Điều này khóa bypass publish trực tiếp ở service layer.
+- `PayOSPaymentService.CreateCheckoutAsync(...)` hiện resolve lifecycle trước khi tạo checkout:
+  - cho phép `Active`, `Limited`, `Archived`,
+  - chặn `EligibleForAdminDeletion` và `Deleted`.
+  Như vậy renew/billing không còn bypass rule lifecycle qua service call trực tiếp.
+- `ScheduledPostingService` không còn chỉ nhìn `workspace.Status == Active`; background scheduler giờ resolve runtime lifecycle của workspace membership:
+  - chỉ publish khi có `Active workspace`,
+  - nếu workspace đã chuyển `Limited`/`Archived`/`Eligible`, schedule bị mark `Failed` và không attempt publish.
+- Với `content create/update/delete` và `content-schedule create/update/delete`, service signature hiện chỉ có `profileId` mà không mang `workspaceId`; các flow này vẫn tiếp tục được chặn ở middleware/runtime gate hiện có. Task này tập trung đóng các bypass path ở service layer nơi workspace context đã có sẵn hoặc scheduler có thể chạy ngoài HTTP middleware.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~WorkspaceInvitationServiceTests|FullyQualifiedName~WorkspaceMemberServiceTests|FullyQualifiedName~PaymentServiceTests|FullyQualifiedName~ScheduledPostingServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~WorkspaceLifecycleServiceTests"
+Passed. 70/70 tests passed.
+
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+```
+
+#### Task 9.15.7 - Regression và cập nhật tài liệu
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16 Chuyển ownership từng domain sang Workspace.
+```
+
+Mục tiêu:
+
+- Focused lifecycle tests.
+- Full integration tests.
+- Cập nhật `BACKEND_CODE_PLAN.md` theo trạng thái thực tế sau khi hoàn tất.
+
+File đã sửa:
+
+```text
+BACKEND_CODE_PLAN.md
+```
+
+Kết quả:
+
+- Rà lại toàn bộ cụm `9.15.1` đến `9.15.6` so với code runtime và test coverage hiện tại.
+- Xác nhận các regression trọng yếu của lifecycle Workspace đã được cover qua focused test groups:
+  - lifecycle resolver/persistence,
+  - limited mode middleware,
+  - archived policy middleware,
+  - admin soft delete,
+  - invitation/member management runtime guard,
+  - payment checkout lifecycle guard,
+  - content publish runtime guard,
+  - scheduled posting runtime guard.
+- Chạy full integration suite để xác minh các thay đổi Phase `9.15` không làm vỡ các module integration hiện có ngoài lifecycle scope.
+- Cập nhật `BACKEND_CODE_PLAN.md` để chốt toàn bộ `9.15` theo trạng thái thực tế sau khi verify xong.
+
+Kiểm tra đã chạy:
+
+```text
+Focused lifecycle and service wiring regression
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~WorkspaceInvitationServiceTests|FullyQualifiedName~WorkspaceMemberServiceTests|FullyQualifiedName~PaymentServiceTests|FullyQualifiedName~ScheduledPostingServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~WorkspaceLifecycleServiceTests"
+Passed. 70/70 tests passed.
+
+Full integration regression
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 255/255 tests passed.
+
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+```
+
 Cách test:
 
 - Dưới 90 ngày Limited Mode.

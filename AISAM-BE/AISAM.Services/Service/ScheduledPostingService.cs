@@ -13,19 +13,22 @@ public sealed class ScheduledPostingService : IScheduledPostingService
     private readonly INotificationRepository _notificationRepository;
     private readonly IProfileRepository _profileRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
 
     public ScheduledPostingService(
         IContentCalendarRepository contentCalendarRepository,
         IContentService contentService,
         INotificationRepository notificationRepository,
         IProfileRepository profileRepository,
-        IWorkspaceMemberRepository workspaceMemberRepository)
+        IWorkspaceMemberRepository workspaceMemberRepository,
+        IWorkspaceLifecycleService workspaceLifecycleService)
     {
         _contentCalendarRepository = contentCalendarRepository;
         _contentService = contentService;
         _notificationRepository = notificationRepository;
         _profileRepository = profileRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
+        _workspaceLifecycleService = workspaceLifecycleService;
     }
 
     public async Task<SchedulerRunResultDto> RunDueSchedulesAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -44,7 +47,25 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                 await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
 
                 var integrationId = schedule.IntegrationId ?? Guid.Empty;
-                var workspaceId = await ResolveWorkspaceIdAsync(schedule.ProfileId, cancellationToken);
+                var workspaceResolution = await ResolveWorkspaceAccessAsync(schedule.ProfileId, cancellationToken);
+                if (workspaceResolution.BlockedByLifecycle)
+                {
+                    schedule.Status = ScheduleStatusEnum.Failed;
+                    schedule.AttemptCount += 1;
+                    schedule.LastError = "Workspace must be active to publish scheduled content.";
+                    await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
+                    await CreateNotificationAsync(
+                        schedule.ProfileId,
+                        "Scheduled publish failed",
+                        schedule.LastError,
+                        schedule.Id,
+                        cancellationToken);
+
+                    result.FailedCount++;
+                    continue;
+                }
+
+                var workspaceId = workspaceResolution.WorkspaceId;
                 var publishResult = workspaceId.HasValue
                     ? await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, workspaceId.Value, cancellationToken)
                     : await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, cancellationToken);
@@ -98,19 +119,30 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         return result;
     }
 
-    private async Task<Guid?> ResolveWorkspaceIdAsync(Guid profileId, CancellationToken cancellationToken)
+    private async Task<(Guid? WorkspaceId, bool BlockedByLifecycle)> ResolveWorkspaceAccessAsync(Guid profileId, CancellationToken cancellationToken)
     {
         var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
         if (profile == null)
         {
-            return null;
+            return (null, false);
         }
 
         var memberships = await _workspaceMemberRepository.GetByUserIdAsync(profile.UserId, cancellationToken);
-        return memberships
-            .Where(member => member.IsActive && member.Workspace.Status == WorkspaceStatusEnum.Active)
-            .Select(member => (Guid?)member.WorkspaceId)
-            .FirstOrDefault();
+        var activeMemberships = memberships.Where(member => member.IsActive).ToList();
+        if (activeMemberships.Count == 0)
+        {
+            return (null, false);
+        }
+
+        foreach (var membership in activeMemberships)
+        {
+            if (_workspaceLifecycleService.ResolveState(membership.Workspace) == WorkspaceLifecycleState.Active)
+            {
+                return (membership.WorkspaceId, false);
+            }
+        }
+
+        return (null, true);
     }
 
     private async Task CreateNotificationAsync(

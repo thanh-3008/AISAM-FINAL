@@ -13,15 +13,18 @@ public sealed class WorkspaceService : IWorkspaceService
 {
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
     private readonly ICreditService _creditService;
 
     public WorkspaceService(
         IWorkspaceRepository workspaceRepository,
         IUserRepository userRepository,
+        IWorkspaceLifecycleService workspaceLifecycleService,
         ICreditService creditService)
     {
         _workspaceRepository = workspaceRepository;
         _userRepository = userRepository;
+        _workspaceLifecycleService = workspaceLifecycleService;
         _creditService = creditService;
     }
 
@@ -30,6 +33,7 @@ public sealed class WorkspaceService : IWorkspaceService
         CancellationToken cancellationToken = default)
     {
         var workspaces = await _workspaceRepository.GetByUserIdAsync(userId, cancellationToken);
+        await SynchronizeWorkspacesAsync(workspaces, cancellationToken);
         var response = workspaces.Select(workspace => MapToDto(workspace, userId)).ToList();
 
         return GenericResponse<IReadOnlyList<WorkspaceResponseDto>>.CreateSuccess(
@@ -47,6 +51,8 @@ public sealed class WorkspaceService : IWorkspaceService
         {
             return GenericResponse<WorkspaceResponseDto>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
         }
+
+        await SynchronizeWorkspaceAsync(workspace, cancellationToken);
 
         return GenericResponse<WorkspaceResponseDto>.CreateSuccess(
             MapToDto(workspace, userId),
@@ -120,9 +126,53 @@ public sealed class WorkspaceService : IWorkspaceService
             "Workspace updated successfully.");
     }
 
+    public Task<GenericResponse<bool>> AdminSoftDeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return AdminSoftDeleteInternalAsync(id, cancellationToken);
+    }
+
+    private async Task<GenericResponse<bool>> AdminSoftDeleteInternalAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var workspace = await _workspaceRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
+        if (workspace == null)
+        {
+            return GenericResponse<bool>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        var lifecycleState = _workspaceLifecycleService.ResolveState(workspace);
+        if (lifecycleState != WorkspaceLifecycleState.EligibleForAdminDeletion)
+        {
+            return GenericResponse<bool>.CreateError(
+                "Workspace is not eligible for admin soft delete.",
+                HttpStatusCode.BadRequest);
+        }
+
+        workspace.Status = WorkspaceStatusEnum.Deleted;
+        workspace.DeletedAt ??= DateTime.UtcNow;
+        await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+
+        return GenericResponse<bool>.CreateSuccess(true, "Workspace soft deleted successfully.");
+    }
+
     private static WorkspaceMember? GetActiveMembership(Workspace workspace, Guid userId)
     {
         return workspace.Members.FirstOrDefault(member => member.UserId == userId && member.IsActive);
+    }
+
+    private async Task SynchronizeWorkspacesAsync(IEnumerable<Workspace> workspaces, CancellationToken cancellationToken)
+    {
+        foreach (var workspace in workspaces)
+        {
+            await SynchronizeWorkspaceAsync(workspace, cancellationToken);
+        }
+    }
+
+    private async Task SynchronizeWorkspaceAsync(Workspace workspace, CancellationToken cancellationToken)
+    {
+        if (_workspaceLifecycleService.TrySynchronizePersistenceState(workspace))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
     }
 
     private static WorkspaceResponseDto MapToDto(Workspace workspace, Guid userId)

@@ -25,6 +25,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly IProfileRepository _profileRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly ICreditService _creditService;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
 
@@ -34,6 +35,7 @@ public sealed class PayOSPaymentService : IPaymentService
         IProfileRepository profileRepository,
         IWorkspaceRepository workspaceRepository,
         ICreditService creditService,
+        IWorkspaceLifecycleService workspaceLifecycleService,
         IOptions<PayOSSettings> settings,
         HttpClient httpClient)
     {
@@ -42,6 +44,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _profileRepository = profileRepository;
         _workspaceRepository = workspaceRepository;
         _creditService = creditService;
+        _workspaceLifecycleService = workspaceLifecycleService;
         _settings = settings.Value;
         _httpClient = httpClient;
     }
@@ -64,6 +67,20 @@ public sealed class PayOSPaymentService : IPaymentService
         if (workspace == null)
         {
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(workspace, cancellationToken);
+        if (lifecycleState == WorkspaceLifecycleState.Deleted)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        if (lifecycleState is not (WorkspaceLifecycleState.Active or WorkspaceLifecycleState.Limited or WorkspaceLifecycleState.Archived))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "Workspace billing is not available in the current lifecycle state.",
+                HttpStatusCode.Forbidden,
+                "WORKSPACE_BILLING_NOT_AVAILABLE");
         }
 
         return request.PaymentType switch
@@ -709,6 +726,19 @@ public sealed class PayOSPaymentService : IPaymentService
             Status = payment.Status.ToString(),
             CreatedAt = payment.CreatedAt
         };
+    }
+
+    private async Task<WorkspaceLifecycleState> SynchronizeWorkspaceLifecycleAsync(
+        Workspace workspace,
+        CancellationToken cancellationToken)
+    {
+        var state = _workspaceLifecycleService.ResolveState(workspace);
+        if (_workspaceLifecycleService.TrySynchronizePersistenceState(workspace))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
+
+        return state;
     }
 
     private sealed record PlanDefinition(

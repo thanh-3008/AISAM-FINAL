@@ -3,6 +3,7 @@ using AISAM.Common;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services.Service;
 using System.Net;
 
 namespace AISAM.API.Middleware;
@@ -82,6 +83,14 @@ public sealed class ActiveWorkspaceMiddleware
             return;
         }
 
+        var lifecycleState = new WorkspaceLifecycleService().ResolveState(membership.Workspace);
+        var lifecycleError = ValidateLifecycleAccess(context, membership, lifecycleState);
+        if (lifecycleError != null)
+        {
+            await WriteErrorAsync(context, lifecycleError.Value.Status, lifecycleError.Value.Message, lifecycleError.Value.ErrorCode);
+            return;
+        }
+
         var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository);
         if (authorizationError != null)
         {
@@ -92,6 +101,47 @@ public sealed class ActiveWorkspaceMiddleware
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = membership;
         await _next(context);
+    }
+
+    private static (HttpStatusCode Status, string Message, string? ErrorCode)? ValidateLifecycleAccess(
+        HttpContext context,
+        WorkspaceMember membership,
+        WorkspaceLifecycleState lifecycleState)
+    {
+        if (lifecycleState == WorkspaceLifecycleState.Limited)
+        {
+            if (context.Request.Path.StartsWithSegments("/api/payment"))
+            {
+                return null;
+            }
+
+            return IsReadOnlyRequest(context.Request.Method)
+                ? null
+                : (HttpStatusCode.Forbidden, "The active workspace is in limited mode. Write actions are temporarily disabled.", "WORKSPACE_LIMITED_MODE");
+        }
+
+        if (lifecycleState != WorkspaceLifecycleState.Archived)
+        {
+            return null;
+        }
+
+        if (context.Request.Path.StartsWithSegments("/api/payment"))
+        {
+            return membership.Role == WorkspaceMemberRoleEnum.Owner
+                ? null
+                : (HttpStatusCode.Forbidden, "Only the workspace owner can renew or manage billing while the workspace is archived.", "WORKSPACE_ARCHIVED_BILLING_OWNER_ONLY");
+        }
+
+        return IsReadOnlyRequest(context.Request.Method)
+            ? null
+            : (HttpStatusCode.Forbidden, "The active workspace is archived. Only read-only access is available until renewal.", "WORKSPACE_ARCHIVED_MODE");
+    }
+
+    private static bool IsReadOnlyRequest(string method)
+    {
+        return method == HttpMethods.Get ||
+               method == HttpMethods.Head ||
+               method == HttpMethods.Options;
     }
 
     private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> ValidateRequestAuthorizationAsync(

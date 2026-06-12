@@ -14,15 +14,18 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
 
     public WorkspaceMemberService(
         IWorkspaceMemberRepository workspaceMemberRepository,
         IWorkspaceRepository workspaceRepository,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository,
+        IWorkspaceLifecycleService workspaceLifecycleService)
     {
         _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceRepository = workspaceRepository;
         _subscriptionRepository = subscriptionRepository;
+        _workspaceLifecycleService = workspaceLifecycleService;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>> GetMembersAsync(
@@ -217,9 +220,23 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             return ("Only the workspace owner can manage members.", HttpStatusCode.Forbidden);
         }
 
-        return actor.Workspace.Status == WorkspaceStatusEnum.Active
+        var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(actor.Workspace, cancellationToken);
+        return lifecycleState == WorkspaceLifecycleState.Active
             ? null
             : ("Workspace must be active to manage members.", HttpStatusCode.Forbidden);
+    }
+
+    private async Task<WorkspaceLifecycleState> SynchronizeWorkspaceLifecycleAsync(
+        Workspace workspace,
+        CancellationToken cancellationToken)
+    {
+        var state = _workspaceLifecycleService.ResolveState(workspace);
+        if (_workspaceLifecycleService.TrySynchronizePersistenceState(workspace))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
+
+        return state;
     }
 
     private static WorkspaceMemberResponseDto Map(WorkspaceMember member)

@@ -20,6 +20,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
     private readonly string _frontendBaseUrl;
 
     public WorkspaceInvitationService(
@@ -29,6 +30,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
         IEmailService emailService,
+        IWorkspaceLifecycleService workspaceLifecycleService,
         IOptions<FrontendSettings> frontendSettings)
     {
         _workspaceRepository = workspaceRepository;
@@ -37,6 +39,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
         _emailService = emailService;
+        _workspaceLifecycleService = workspaceLifecycleService;
         _frontendBaseUrl = frontendSettings.Value.BaseUrl.TrimEnd('/');
     }
 
@@ -68,7 +71,8 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 HttpStatusCode.Forbidden);
         }
 
-        if (workspace.Status != WorkspaceStatusEnum.Active)
+        var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(workspace, cancellationToken);
+        if (lifecycleState != WorkspaceLifecycleState.Active)
         {
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError(
                 "Workspace must be active to invite members.",
@@ -165,8 +169,9 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError("Invitation is no longer valid.");
         }
 
+        var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(invitation.Workspace, cancellationToken);
         if (invitation.Workspace.WorkspaceType != WorkspaceTypeEnum.Business ||
-            invitation.Workspace.Status != WorkspaceStatusEnum.Active)
+            lifecycleState != WorkspaceLifecycleState.Active)
         {
             return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError(
                 "Workspace must be an active business workspace to accept invitations.",
@@ -250,5 +255,18 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             ExpiresAt = invitation.ExpiresAt,
             CreatedAt = invitation.CreatedAt
         };
+    }
+
+    private async Task<WorkspaceLifecycleState> SynchronizeWorkspaceLifecycleAsync(
+        Workspace workspace,
+        CancellationToken cancellationToken)
+    {
+        var state = _workspaceLifecycleService.ResolveState(workspace);
+        if (_workspaceLifecycleService.TrySynchronizePersistenceState(workspace))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
+
+        return state;
     }
 }

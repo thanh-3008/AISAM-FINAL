@@ -3,6 +3,7 @@ using AISAM.API.Utils;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services.Service;
 using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Security.Claims;
@@ -299,6 +300,159 @@ public class ActiveWorkspaceMiddlewareTests
 
         Assert.True(nextCalled);
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode == 0 ? StatusCodes.Status200OK : context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenLimitedWorkspaceAttemptsWriteRoute()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.ContentCreator);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30);
+        var context = CreateContext(userId, "/api/content");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsReadRoute_WhenWorkspaceIsLimited()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30);
+        var nextCalled = false;
+        var context = CreateContext(userId, "/api/workspace-members");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsBillingRoute_ForOwnerWhenWorkspaceIsLimited()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Owner);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30);
+        var nextCalled = false;
+        var context = CreateContext(userId, "/api/payment/history");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenArchivedWorkspaceAttemptsWriteRoute()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.ContentCreator);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-90);
+        var context = CreateContext(userId, "/api/content");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsReadRoute_WhenWorkspaceIsArchived()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-90);
+        var nextCalled = false;
+        var context = CreateContext(userId, "/api/workspace-members");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsBillingRoute_ForOwnerWhenWorkspaceIsArchived()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Owner);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-90);
+        var nextCalled = false;
+        var context = CreateContext(userId, "/api/payment/checkout");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenNonOwnerAccessesBillingRouteInArchivedWorkspace()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Manager);
+        membership.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-90);
+        var context = CreateContext(userId, "/api/payment/history");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
 
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")

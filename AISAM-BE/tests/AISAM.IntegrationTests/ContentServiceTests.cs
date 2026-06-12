@@ -152,9 +152,11 @@ public class ContentServiceTests
             new FakeSocialIntegrationRepository(),
             new FakeSocialAccountRepository(),
             new FakePostRepository(),
+            new FakeWorkspaceRepository(),
             Array.Empty<IProviderService>(),
             new FakeSocialTokenProtector(),
-            new FakeQuotaService());
+            new FakeQuotaService(),
+            new WorkspaceLifecycleService());
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -227,6 +229,16 @@ public class ContentServiceTests
         public Task<IEnumerable<Product>> GetProductsByBrandIdIncludingDeletedAsync(Guid brandId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Product> AddAsync(Product product, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Product product, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>([]);
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 
     private sealed class FakeSocialIntegrationRepository : ISocialIntegrationRepository

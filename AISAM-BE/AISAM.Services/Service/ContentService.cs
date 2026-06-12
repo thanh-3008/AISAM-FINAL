@@ -20,9 +20,11 @@ public sealed class ContentService : IContentService
     private readonly ISocialIntegrationRepository _socialIntegrationRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly IPostRepository _postRepository;
+    private readonly IWorkspaceRepository _workspaceRepository;
     private readonly Dictionary<string, IProviderService> _providers;
     private readonly ISocialTokenProtector _tokenProtector;
     private readonly IQuotaService _quotaService;
+    private readonly IWorkspaceLifecycleService _workspaceLifecycleService;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -31,9 +33,11 @@ public sealed class ContentService : IContentService
         ISocialIntegrationRepository socialIntegrationRepository,
         ISocialAccountRepository socialAccountRepository,
         IPostRepository postRepository,
+        IWorkspaceRepository workspaceRepository,
         IEnumerable<IProviderService> providers,
         ISocialTokenProtector tokenProtector,
-        IQuotaService quotaService)
+        IQuotaService quotaService,
+        IWorkspaceLifecycleService workspaceLifecycleService)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -41,9 +45,11 @@ public sealed class ContentService : IContentService
         _socialIntegrationRepository = socialIntegrationRepository;
         _socialAccountRepository = socialAccountRepository;
         _postRepository = postRepository;
+        _workspaceRepository = workspaceRepository;
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
         _tokenProtector = tokenProtector;
         _quotaService = quotaService;
+        _workspaceLifecycleService = workspaceLifecycleService;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -229,6 +235,24 @@ public sealed class ContentService : IContentService
             return GenericResponse<PublishResultDto>.CreateError("Content has already been published.", HttpStatusCode.BadRequest);
         }
 
+        if (workspaceId.HasValue)
+        {
+            var workspace = await _workspaceRepository.GetByIdAsync(workspaceId.Value, cancellationToken);
+            if (workspace == null)
+            {
+                return GenericResponse<PublishResultDto>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+            }
+
+            var lifecycleState = await SynchronizeWorkspaceLifecycleAsync(workspace, cancellationToken);
+            if (lifecycleState != WorkspaceLifecycleState.Active)
+            {
+                return GenericResponse<PublishResultDto>.CreateError(
+                    "Workspace must be active to publish content.",
+                    HttpStatusCode.Forbidden,
+                    "WORKSPACE_NOT_ACTIVE");
+            }
+        }
+
         var integration = await _socialIntegrationRepository.GetByIdAsync(integrationId, cancellationToken);
         if (integration == null || integration.ProfileId != profileId || integration.IsDeleted || integration.BrandId != content.BrandId)
         {
@@ -317,6 +341,19 @@ public sealed class ContentService : IContentService
         }
 
         return GenericResponse<bool>.CreateSuccess(true);
+    }
+
+    private async Task<WorkspaceLifecycleState> SynchronizeWorkspaceLifecycleAsync(
+        Workspace workspace,
+        CancellationToken cancellationToken)
+    {
+        var state = _workspaceLifecycleService.ResolveState(workspace);
+        if (_workspaceLifecycleService.TrySynchronizePersistenceState(workspace))
+        {
+            await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+        }
+
+        return state;
     }
 
     private static GenericResponse<ContentResponseDto> NotFound()

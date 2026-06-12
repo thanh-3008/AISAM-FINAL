@@ -164,6 +164,46 @@ public class PaymentServiceTests
     }
 
     [Fact]
+    public async Task CreateCheckoutAsync_RejectsWorkspaceThatIsEligibleForAdminDeletion()
+    {
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var paymentRepository = new FakePaymentRepository();
+        var subscriptionRepository = new FakeSubscriptionRepository();
+        var service = CreateService(
+            paymentRepository,
+            subscriptionRepository,
+            workspaceRepository: new FakeWorkspaceRepository(new Workspace
+            {
+                Id = workspaceId,
+                Name = "Expired Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active,
+                SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-181),
+                ArchivedAt = DateTime.UtcNow.Date.AddDays(-91)
+            }),
+            settings: CreateConfiguredSettings(),
+            httpClient: new HttpClient(new StubHttpMessageHandler("""
+            {
+              "code": "00",
+              "desc": "success",
+              "data": {
+                "checkoutUrl": "https://pay.payos.vn/web/mock",
+                "paymentLinkId": "plink_123",
+                "orderCode": "123456"
+              }
+            }
+            """)));
+
+        var result = await service.CreateCheckoutAsync(workspaceId, userId, new CreateCheckoutRequest { PlanCode = "Plus" });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Empty(paymentRepository.Payments);
+        Assert.Empty(subscriptionRepository.Subscriptions);
+    }
+
+    [Fact]
     public async Task HandleWebhookAsync_MarksPaymentSuccessAndActivatesSubscription()
     {
         var workspaceId = Guid.NewGuid();
@@ -623,6 +663,7 @@ public class PaymentServiceTests
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
             creditService ?? new FakeCreditService(),
+            new WorkspaceLifecycleService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
     }

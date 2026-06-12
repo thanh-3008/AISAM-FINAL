@@ -222,7 +222,14 @@ public class ContentServicePublishTests
                     "Post quota has been exceeded for the current subscription.",
                     HttpStatusCode.Forbidden,
                     "POST_QUOTA_EXCEEDED")
-            });
+            },
+            new FakeWorkspaceRepository(new Workspace
+            {
+                Id = workspaceId,
+                Name = "Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active
+            }));
 
         var result = await service.PublishAsync(content.Id, integration.Id, profileId, workspaceId);
 
@@ -277,11 +284,80 @@ public class ContentServicePublishTests
             new FakePostRepository(),
             new FakeProviderService(),
             new FakeSocialTokenProtector(),
-            quotaService);
+            quotaService,
+            new FakeWorkspaceRepository(new Workspace
+            {
+                Id = workspaceId,
+                Name = "Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active
+            }));
 
         await service.PublishAsync(content.Id, integration.Id, profileId, workspaceId);
 
         Assert.Equal(workspaceId, quotaService.LastWorkspaceId);
+    }
+
+    [Fact]
+    public async Task PublishAsync_ReturnsForbidden_WhenWorkspaceIsRuntimeLimited()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brandId = Guid.NewGuid();
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = brandId,
+            AdType = AdTypeEnum.TextOnly,
+            TextContent = "Publish me",
+            Status = ContentStatusEnum.Draft
+        };
+        var account = new SocialAccount
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            Platform = SocialPlatformEnum.Facebook,
+            UserAccessToken = "protected:user-token"
+        };
+        var integration = new SocialIntegration
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = brandId,
+            SocialAccountId = account.Id,
+            SocialAccount = account,
+            Platform = SocialPlatformEnum.Facebook,
+            ExternalId = "page-1",
+            AccessToken = "protected:page-token"
+        };
+        var provider = new FakeProviderService();
+        var workspaceRepository = new FakeWorkspaceRepository(new Workspace
+        {
+            Id = workspaceId,
+            Name = "Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active,
+            SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30)
+        });
+        var service = CreateService(
+            new FakeContentRepository(content),
+            new FakeBrandRepository(),
+            new FakeProductRepository(),
+            new FakeSocialIntegrationRepository(integration),
+            new FakeSocialAccountRepository(account),
+            new FakePostRepository(),
+            provider,
+            new FakeSocialTokenProtector(),
+            new FakeQuotaService(),
+            workspaceRepository);
+
+        var result = await service.PublishAsync(content.Id, integration.Id, profileId, workspaceId);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Equal("WORKSPACE_NOT_ACTIVE", result.Error?.ErrorCode);
+        Assert.Null(provider.LastPublishedPost);
     }
 
     [Fact]
@@ -338,7 +414,8 @@ public class ContentServicePublishTests
         IPostRepository? postRepository = null,
         IProviderService? providerService = null,
         ISocialTokenProtector? tokenProtector = null,
-        IQuotaService? quotaService = null)
+        IQuotaService? quotaService = null,
+        IWorkspaceRepository? workspaceRepository = null)
     {
         return new ContentService(
             contentRepository ?? new FakeContentRepository(),
@@ -347,9 +424,11 @@ public class ContentServicePublishTests
             socialIntegrationRepository ?? new FakeSocialIntegrationRepository(),
             socialAccountRepository ?? new FakeSocialAccountRepository(),
             postRepository ?? new FakePostRepository(),
+            workspaceRepository ?? new FakeWorkspaceRepository(),
             providerService is null ? Array.Empty<IProviderService>() : new[] { providerService },
             tokenProtector ?? new FakeSocialTokenProtector(),
-            quotaService ?? new FakeQuotaService());
+            quotaService ?? new FakeQuotaService(),
+            new WorkspaceLifecycleService());
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -467,6 +546,33 @@ public class ContentServicePublishTests
         }
 
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        private readonly Dictionary<Guid, Workspace> _workspaces;
+
+        public FakeWorkspaceRepository(params Workspace[] workspaces)
+        {
+            _workspaces = workspaces.ToDictionary(workspace => workspace.Id);
+        }
+
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            _workspaces.TryGetValue(id, out var workspace);
+            return Task.FromResult(workspace);
+        }
+
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.ToList());
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default)
+        {
+            _workspaces[workspace.Id] = workspace;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_workspaces.ContainsKey(id));
     }
 
     private sealed class FakeProviderService : IProviderService

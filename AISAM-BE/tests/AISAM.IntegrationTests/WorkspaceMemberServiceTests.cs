@@ -214,11 +214,37 @@ public class WorkspaceMemberServiceTests
         Assert.Equal((int)HttpStatusCode.Forbidden, limitedResult.StatusCode);
     }
 
+    [Fact]
+    public async Task MemberManagement_RejectsRuntimeLimitedWorkspaceEvenIfPersistedStatusIsStillActive()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context);
+        fixture.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var listResult = await service.GetMembersAsync(fixture.Workspace.Id, fixture.Viewer.UserId);
+        var updateResult = await service.UpdateRoleAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            fixture.Viewer.Id,
+            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.ContentCreator });
+        var transferResult = await service.TransferOwnershipAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            new TransferWorkspaceOwnershipRequest { TargetMemberId = fixture.Manager.Id });
+
+        Assert.True(listResult.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, updateResult.StatusCode);
+        Assert.Equal((int)HttpStatusCode.Forbidden, transferResult.StatusCode);
+    }
+
     private static WorkspaceMemberService CreateService(AisamContext context)
         => new(
             new WorkspaceMemberRepository(context),
             new WorkspaceRepository(context),
-            new SubscriptionRepository(context));
+            new SubscriptionRepository(context),
+            new WorkspaceLifecycleService());
 
     private static WorkspaceMemberFixture SeedWorkspace(
         AisamContext context,

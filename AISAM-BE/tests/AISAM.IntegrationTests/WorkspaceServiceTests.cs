@@ -120,11 +120,113 @@ public class WorkspaceServiceTests
         Assert.Equal("After", (await context.Workspaces.SingleAsync()).Name);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_SynchronizesWorkspaceToLimited_WhenExpiredLessThan90Days()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var workspace = AddWorkspace(context, owner.Id, WorkspaceStatusEnum.Active, DateTime.UtcNow.Date.AddDays(-30));
+        var service = CreateService(context);
+
+        var result = await service.GetByIdAsync(workspace.Id, owner.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceStatusEnum.Limited, result.Data!.Status);
+        var persisted = await context.Workspaces.SingleAsync(item => item.Id == workspace.Id);
+        Assert.Equal(WorkspaceStatusEnum.Limited, persisted.Status);
+        Assert.Null(persisted.ArchivedAt);
+        Assert.Null(persisted.DeletedAt);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_SynchronizesWorkspaceToArchivedAndSetsArchivedAt_WhenExpiredAtLeast90Days()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var workspace = AddWorkspace(context, owner.Id, WorkspaceStatusEnum.Limited, DateTime.UtcNow.Date.AddDays(-120));
+        var service = CreateService(context);
+
+        var result = await service.GetByIdAsync(workspace.Id, owner.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceStatusEnum.Archived, result.Data!.Status);
+        var persisted = await context.Workspaces.SingleAsync(item => item.Id == workspace.Id);
+        Assert.Equal(WorkspaceStatusEnum.Archived, persisted.Status);
+        Assert.NotNull(persisted.ArchivedAt);
+        Assert.Null(persisted.DeletedAt);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_SynchronizesWorkspaceToEligibleForDeletion_WhenExpiredMoreThan180Days()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var workspace = AddWorkspace(context, owner.Id, WorkspaceStatusEnum.Archived, DateTime.UtcNow.Date.AddDays(-181), archivedAt: DateTime.UtcNow.Date.AddDays(-91));
+        var service = CreateService(context);
+
+        var result = await service.GetByIdAsync(workspace.Id, owner.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceStatusEnum.EligibleForDeletion, result.Data!.Status);
+        var persisted = await context.Workspaces.SingleAsync(item => item.Id == workspace.Id);
+        Assert.Equal(WorkspaceStatusEnum.EligibleForDeletion, persisted.Status);
+        Assert.NotNull(persisted.ArchivedAt);
+        Assert.Null(persisted.DeletedAt);
+    }
+
+    [Fact]
+    public async Task AdminSoftDeleteAsync_SoftDeletesEligibleWorkspaceAndRemovesItFromActiveQueries()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var workspace = AddWorkspace(
+            context,
+            owner.Id,
+            WorkspaceStatusEnum.EligibleForDeletion,
+            DateTime.UtcNow.Date.AddDays(-181),
+            archivedAt: DateTime.UtcNow.Date.AddDays(-91));
+        var service = CreateService(context);
+
+        var result = await service.AdminSoftDeleteAsync(workspace.Id);
+
+        Assert.True(result.Success);
+        Assert.True(result.Data);
+
+        var persisted = await context.Workspaces.SingleAsync(item => item.Id == workspace.Id);
+        Assert.Equal(WorkspaceStatusEnum.Deleted, persisted.Status);
+        Assert.NotNull(persisted.DeletedAt);
+
+        var visibleWorkspaces = await service.GetByUserIdAsync(owner.Id);
+        Assert.DoesNotContain(visibleWorkspaces.Data!, item => item.Id == workspace.Id);
+    }
+
+    [Fact]
+    public async Task AdminSoftDeleteAsync_ReturnsBadRequest_WhenWorkspaceIsNotEligible()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var workspace = AddWorkspace(
+            context,
+            owner.Id,
+            WorkspaceStatusEnum.Archived,
+            DateTime.UtcNow.Date.AddDays(-120),
+            archivedAt: DateTime.UtcNow.Date.AddDays(-30));
+        var service = CreateService(context);
+
+        var result = await service.AdminSoftDeleteAsync(workspace.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal(WorkspaceStatusEnum.Archived, (await context.Workspaces.SingleAsync(item => item.Id == workspace.Id)).Status);
+        Assert.Null((await context.Workspaces.SingleAsync(item => item.Id == workspace.Id)).DeletedAt);
+    }
+
     private static WorkspaceService CreateService(AisamContext context)
     {
         return new WorkspaceService(
             new WorkspaceRepository(context),
             new UserRepository(context),
+            new WorkspaceLifecycleService(),
             new CreditService(
                 new CreditWalletRepository(context),
                 new CreditUsageRecordRepository(context),
@@ -152,5 +254,36 @@ public class WorkspaceServiceTests
         context.Users.Add(user);
         context.SaveChanges();
         return user;
+    }
+
+    private static Workspace AddWorkspace(
+        AisamContext context,
+        Guid ownerUserId,
+        WorkspaceStatusEnum status,
+        DateTime? subscriptionExpiredAt = null,
+        DateTime? archivedAt = null)
+    {
+        var workspace = new Workspace
+        {
+            Name = "Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = status,
+            MemberLimit = 10,
+            SubscriptionExpiredAt = subscriptionExpiredAt,
+            ArchivedAt = archivedAt,
+            Members =
+            [
+                new WorkspaceMember
+                {
+                    UserId = ownerUserId,
+                    Role = WorkspaceMemberRoleEnum.Owner,
+                    IsActive = true
+                }
+            ]
+        };
+
+        context.Workspaces.Add(workspace);
+        context.SaveChanges();
+        return workspace;
     }
 }

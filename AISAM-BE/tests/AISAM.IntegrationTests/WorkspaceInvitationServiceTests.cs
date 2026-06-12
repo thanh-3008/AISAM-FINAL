@@ -277,6 +277,44 @@ public class WorkspaceInvitationServiceTests
     }
 
     [Fact]
+    public async Task InviteAsync_RejectsRuntimeLimitedWorkspaceEvenIfPersistedStatusIsStillActive()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business);
+        fixture.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
+        {
+            Email = "invited@example.com",
+            Role = WorkspaceMemberRoleEnum.Viewer
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Empty(context.WorkspaceInvitations);
+    }
+
+    [Fact]
+    public async Task AcceptAsync_RejectsRuntimeArchivedWorkspaceEvenIfPersistedStatusIsStillActive()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business);
+        var invitedUser = AddUser(context, "invited@example.com");
+        var invitation = AddInvitation(context, fixture, invitedUser.Email);
+        fixture.Workspace.SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-90);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.AcceptAsync(invitedUser.Id, new AcceptWorkspaceInvitationRequest { Token = invitation.Token });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Null((await context.WorkspaceInvitations.SingleAsync(item => item.Id == invitation.Id)).AcceptedAt);
+    }
+
+    [Fact]
     public async Task AcceptAsync_RejectsAuthenticatedUserWithDifferentEmail()
     {
         await using var context = CreateContext();
@@ -305,6 +343,7 @@ public class WorkspaceInvitationServiceTests
             new SubscriptionRepository(context),
             new UserRepository(context),
             emailService ?? new FakeEmailService(),
+            new WorkspaceLifecycleService(),
             Options.Create(new FrontendSettings { BaseUrl = "http://localhost:3000" }));
     }
 

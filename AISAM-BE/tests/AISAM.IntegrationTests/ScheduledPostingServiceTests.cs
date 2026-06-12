@@ -47,7 +47,7 @@ public class ScheduledPostingServiceTests
             Role = WorkspaceMemberRoleEnum.ContentCreator,
             IsActive = true
         });
-        var service = new ScheduledPostingService(repository, contentService, notificationRepository, profileRepository, membershipRepository);
+        var service = new ScheduledPostingService(repository, contentService, notificationRepository, profileRepository, membershipRepository, new WorkspaceLifecycleService());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -77,7 +77,8 @@ public class ScheduledPostingServiceTests
             contentService,
             notificationRepository,
             new FakeProfileRepository(),
-            new FakeWorkspaceMemberRepository());
+            new FakeWorkspaceMemberRepository(),
+            new WorkspaceLifecycleService());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -109,7 +110,8 @@ public class ScheduledPostingServiceTests
             contentService,
             notificationRepository,
             new FakeProfileRepository(),
-            new FakeWorkspaceMemberRepository());
+            new FakeWorkspaceMemberRepository(),
+            new WorkspaceLifecycleService());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -134,7 +136,8 @@ public class ScheduledPostingServiceTests
             contentService,
             new FakeNotificationRepository(),
             new FakeProfileRepository(),
-            new FakeWorkspaceMemberRepository());
+            new FakeWorkspaceMemberRepository(),
+            new WorkspaceLifecycleService());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -142,6 +145,49 @@ public class ScheduledPostingServiceTests
         Assert.Equal(0, result.SuccessCount);
         Assert.Equal(0, result.FailedCount);
         Assert.Equal(0, contentService.PublishCallCount);
+    }
+
+    [Fact]
+    public async Task RunDueSchedulesAsync_FailsWithoutPublishing_WhenWorkspaceIsRuntimeLimited()
+    {
+        var schedule = CreateDueSchedule();
+        var notificationRepository = new FakeNotificationRepository();
+        var contentService = new FakeContentService();
+        var repository = new FakeContentCalendarRepository(schedule);
+        var profileRepository = new FakeProfileRepository(new Profile
+        {
+            Id = schedule.ProfileId,
+            UserId = Guid.NewGuid(),
+            Name = "Profile",
+            ProfileType = ProfileTypeEnum.Basic
+        });
+        var membershipRepository = new FakeWorkspaceMemberRepository(new WorkspaceMember
+        {
+            WorkspaceId = Guid.NewGuid(),
+            Workspace = new Workspace
+            {
+                Id = Guid.NewGuid(),
+                Name = "Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Business,
+                Status = WorkspaceStatusEnum.Active,
+                SubscriptionExpiredAt = DateTime.UtcNow.Date.AddDays(-30)
+            },
+            UserId = profileRepository.Profiles.Values.Single().UserId,
+            Role = WorkspaceMemberRoleEnum.ContentCreator,
+            IsActive = true
+        });
+        var service = new ScheduledPostingService(repository, contentService, notificationRepository, profileRepository, membershipRepository, new WorkspaceLifecycleService());
+
+        var result = await service.RunDueSchedulesAsync(20);
+
+        Assert.Equal(1, result.ScannedCount);
+        Assert.Equal(0, result.SuccessCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
+        Assert.Equal(1, schedule.AttemptCount);
+        Assert.Equal(0, contentService.PublishCallCount);
+        Assert.Single(notificationRepository.Notifications.Values);
+        Assert.Equal("Scheduled publish failed", notificationRepository.Notifications.Values.Single().Title);
     }
 
     private static ContentCalendar CreateDueSchedule()
