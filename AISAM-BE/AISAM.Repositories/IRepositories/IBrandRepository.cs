@@ -8,6 +8,7 @@ namespace AISAM.Repositories.IRepositories
         Task<Brand?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Brand?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default);
         Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default);
+        Task<PagedResult<Brand>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default);
         Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default);
         Task UpdateAsync(Brand brand, CancellationToken cancellationToken = default);
     }

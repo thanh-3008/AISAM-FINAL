@@ -85,7 +85,27 @@ public class ActiveProfileMiddlewareTests
         Assert.True(nextCalled);
     }
 
-    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/content")
+    [Fact]
+    public async Task InvokeAsync_ProtectsBrandRoutesWithActiveProfileContext()
+    {
+        var userId = Guid.NewGuid();
+        var profile = CreateProfile(userId);
+        var context = CreateContext(userId, "/api/brands");
+        context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveProfileMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+
+        Assert.True(nextCalled);
+        Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
+    }
+
+    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/ai")
     {
         return new DefaultHttpContext
         {

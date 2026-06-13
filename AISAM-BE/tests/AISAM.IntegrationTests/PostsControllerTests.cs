@@ -14,18 +14,18 @@ namespace AISAM.IntegrationTests;
 public class PostsControllerTests
 {
     [Fact]
-    public async Task GetPaged_UsesValidatedActiveProfileFromHttpContext()
+    public async Task GetPaged_UsesValidatedActiveWorkspaceFromHttpContext()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = new FakePostService
         {
             PagedResult = GenericResponse<PagedResult<PostListItemDto>>.CreateSuccess(new PagedResult<PostListItemDto>())
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, workspaceId);
 
         await controller.GetPaged();
 
-        Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
     }
 
     [Fact]
@@ -43,10 +43,10 @@ public class PostsControllerTests
         Assert.Equal((int)HttpStatusCode.NotFound, objectResult.StatusCode);
     }
 
-    private static PostsController CreateController(IPostService service, Guid profileId)
+    private static PostsController CreateController(IPostService service, Guid workspaceId)
     {
         var context = new DefaultHttpContext();
-        context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
 
         return new PostsController(service)
         {
@@ -56,19 +56,19 @@ public class PostsControllerTests
 
     private sealed class FakePostService : IPostService
     {
-        public Guid LastProfileId { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
         public GenericResponse<PagedResult<PostListItemDto>> PagedResult { get; set; } = GenericResponse<PagedResult<PostListItemDto>>.CreateSuccess(new PagedResult<PostListItemDto>());
         public GenericResponse<PostListItemDto> DetailResult { get; set; } = GenericResponse<PostListItemDto>.CreateSuccess(new PostListItemDto());
 
-        public Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
-            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(PagedResult);
         }
 
-        public Task<GenericResponse<PostListItemDto>> GetByIdAsync(Guid profileId, Guid postId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PostListItemDto>> GetByIdAsync(Guid workspaceId, Guid postId, CancellationToken cancellationToken = default)
         {
-            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(DetailResult);
         }
     }

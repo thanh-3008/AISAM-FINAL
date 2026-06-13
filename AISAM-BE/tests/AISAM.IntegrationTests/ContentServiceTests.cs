@@ -18,7 +18,7 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(profileId);
+        var brand = CreateBrand(profileId, workspaceId);
         var repository = new FakeContentRepository();
         var service = CreateService(
             repository,
@@ -38,10 +38,10 @@ public class ContentServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_ReturnsNotFound_WhenBrandBelongsToAnotherProfile()
+    public async Task CreateAsync_ReturnsNotFound_WhenBrandBelongsToAnotherWorkspace()
     {
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(Guid.NewGuid());
+        var brand = CreateBrand(Guid.NewGuid(), Guid.NewGuid());
         var repository = new FakeContentRepository();
         var service = CreateService(
             repository,
@@ -64,8 +64,14 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(profileId);
-        var product = new Product { Id = Guid.NewGuid(), BrandId = Guid.NewGuid(), Name = "Other product" };
+        var brand = CreateBrand(profileId, workspaceId);
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            BrandId = Guid.NewGuid(),
+            Brand = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Other brand" },
+            Name = "Other product"
+        };
         var repository = new FakeContentRepository();
         var service = CreateService(
             repository,
@@ -90,7 +96,7 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(profileId);
+        var brand = CreateBrand(profileId, workspaceId);
         var repository = new FakeContentRepository();
         var service = CreateService(
             repository,
@@ -112,11 +118,12 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(profileId);
+        var brand = CreateBrand(profileId, workspaceId);
         var existing = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brand.Id,
             Brand = brand,
             TextContent = "Published content",
@@ -141,11 +148,12 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(profileId);
+        var brand = CreateBrand(profileId, workspaceId);
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brand.Id,
             Brand = brand,
             TextContent = "Deleted content",
@@ -170,7 +178,7 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
-        var brand = CreateBrand(profileId);
+        var brand = CreateBrand(profileId, workspaceId);
         var repository = new FakeContentRepository();
         var service = CreateService(
             repository,
@@ -226,9 +234,9 @@ public class ContentServiceTests
         });
     }
 
-    private static Brand CreateBrand(Guid profileId)
+    private static Brand CreateBrand(Guid profileId, Guid workspaceId)
     {
-        return new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Test brand" };
+        return new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = workspaceId, Name = "Test brand" };
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -260,6 +268,12 @@ public class ContentServiceTests
             return Task.FromResult(new PagedResult<Content> { Data = data, TotalCount = data.Count, Page = 1, PageSize = 10 });
         }
 
+        public Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        {
+            var data = _contents.Values.Where(content => content.WorkspaceId == workspaceId || (content.WorkspaceId == null && content.Brand.WorkspaceId == workspaceId)).ToList();
+            return Task.FromResult(new PagedResult<Content> { Data = data, TotalCount = data.Count, Page = 1, PageSize = 10 });
+        }
+
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default)
         {
             Added.Add(content);
@@ -281,6 +295,7 @@ public class ContentServiceTests
         public Task<Brand?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_brands.GetValueOrDefault(id));
         public Task<Brand?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         public Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Brand>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Brand brand, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
@@ -292,6 +307,7 @@ public class ContentServiceTests
         public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_products.GetValueOrDefault(id));
         public Task<Product?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         public Task<PagedResult<Product>> GetPagedAsync(PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Product>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IEnumerable<Product>> GetProductsByBrandIdAsync(Guid brandId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IEnumerable<Product>> GetProductsByBrandIdIncludingDeletedAsync(Guid brandId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Product> AddAsync(Product product, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -341,6 +357,7 @@ public class ContentServiceTests
         public Task<Post?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Post?>(null);
         public Task<Post> AddAsync(Post post, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeSocialTokenProtector : ISocialTokenProtector

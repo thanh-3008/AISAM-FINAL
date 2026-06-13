@@ -153,6 +153,29 @@ public class DashboardServiceTests
             });
         }
 
+        public Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        {
+            var query = _contents.Where(content => content.WorkspaceId == workspaceId || (content.WorkspaceId == null && content.Brand.WorkspaceId == workspaceId));
+            if (!includeDeleted)
+            {
+                query = query.Where(content => !content.IsDeleted);
+            }
+
+            if (status.HasValue)
+            {
+                query = query.Where(content => content.Status == status.Value);
+            }
+
+            var data = query.ToList();
+            return Task.FromResult(new PagedResult<Content>
+            {
+                Data = data,
+                TotalCount = data.Count,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
+
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
@@ -200,6 +223,18 @@ public class DashboardServiceTests
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
             _counts.TryGetValue(profileId, out var count);
+            return Task.FromResult(new PagedResult<Post>
+            {
+                Data = new List<Post>(),
+                TotalCount = count,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
+
+        public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        {
+            _counts.TryGetValue(workspaceId, out var count);
             return Task.FromResult(new PagedResult<Post>
             {
                 Data = new List<Post>(),

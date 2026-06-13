@@ -19,13 +19,13 @@ public sealed class PostService : IPostService
     }
 
     public async Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedAsync(
-        Guid profileId,
+        Guid workspaceId,
         PaginationRequest request,
         Guid? brandId = null,
         ContentStatusEnum? status = null,
         CancellationToken cancellationToken = default)
     {
-        var posts = await _postRepository.GetPagedByProfileIdAsync(profileId, request, brandId, status, cancellationToken);
+        var posts = await _postRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, status, cancellationToken);
 
         return GenericResponse<PagedResult<PostListItemDto>>.CreateSuccess(new PagedResult<PostListItemDto>
         {
@@ -36,10 +36,10 @@ public sealed class PostService : IPostService
         }, "Posts retrieved successfully.");
     }
 
-    public async Task<GenericResponse<PostListItemDto>> GetByIdAsync(Guid profileId, Guid postId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PostListItemDto>> GetByIdAsync(Guid workspaceId, Guid postId, CancellationToken cancellationToken = default)
     {
         var post = await _postRepository.GetByIdAsync(postId, cancellationToken);
-        if (post == null || post.IsDeleted || post.Content.ProfileId != profileId)
+        if (post == null || post.IsDeleted || !BelongsToWorkspace(post, workspaceId))
         {
             return GenericResponse<PostListItemDto>.CreateError("Post not found.", HttpStatusCode.NotFound);
         }
@@ -60,5 +60,11 @@ public sealed class PostService : IPostService
             ContentTitle = post.Content.Title,
             BrandName = post.Content.Brand?.Name
         };
+    }
+
+    private static bool BelongsToWorkspace(Post post, Guid workspaceId)
+    {
+        return post.Content.WorkspaceId == workspaceId ||
+               (post.Content.WorkspaceId == null && post.Content.Brand?.WorkspaceId == workspaceId);
     }
 }

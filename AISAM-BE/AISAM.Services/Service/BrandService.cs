@@ -11,71 +11,51 @@ namespace AISAM.Services.Service
     public class BrandService : IBrandService
     {
         private readonly IBrandRepository _brandRepository;
-        private readonly IProfileRepository _profileRepository;
 
-        public BrandService(IBrandRepository brandRepository, IProfileRepository profileRepository)
+        public BrandService(IBrandRepository brandRepository)
         {
             _brandRepository = brandRepository;
-            _profileRepository = profileRepository;
         }
 
-        public async Task<GenericResponse<PagedResult<BrandResponseDto>>> GetPagedByProfileIdAsync(
-            Guid profileId,
-            Guid userId,
+        public async Task<GenericResponse<PagedResult<BrandResponseDto>>> GetPagedAsync(
+            Guid workspaceId,
             PaginationRequest request,
             bool includeDeleted = false,
             CancellationToken cancellationToken = default)
         {
-            var access = await EnsureProfileOwnerAsync(profileId, userId, cancellationToken);
-            if (!access.Success)
-            {
-                return GenericResponse<PagedResult<BrandResponseDto>>.CreateError(access.Message);
-            }
-
-            var brands = await _brandRepository.GetPagedByProfileIdAsync(profileId, request, includeDeleted, cancellationToken);
+            var brands = await _brandRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, includeDeleted, cancellationToken);
 
             return GenericResponse<PagedResult<BrandResponseDto>>.CreateSuccess(new PagedResult<BrandResponseDto>
             {
-                Data = brands.Data.Select(MapToDto).ToList(),
+                Data = brands.Data.Select(brand => MapToDto(brand)).ToList(),
                 TotalCount = brands.TotalCount,
                 Page = brands.Page,
                 PageSize = brands.PageSize
             }, "Brands retrieved successfully");
         }
 
-        public async Task<GenericResponse<BrandResponseDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<BrandResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             var brand = await _brandRepository.GetByIdAsync(id, cancellationToken);
-            if (brand == null)
+            if (brand == null || brand.WorkspaceId != workspaceId)
             {
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
-            }
-
-            var access = await EnsureProfileOwnerAsync(brand.ProfileId, userId, cancellationToken);
-            if (!access.Success)
-            {
-                return GenericResponse<BrandResponseDto>.CreateError(access.Message);
             }
 
             return GenericResponse<BrandResponseDto>.CreateSuccess(MapToDto(brand), "Brand retrieved successfully");
         }
 
-        public async Task<GenericResponse<BrandResponseDto>> CreateAsync(Guid userId, CreateBrandRequest request, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<BrandResponseDto>> CreateAsync(
+            Guid workspaceId,
+            Guid profileId,
+            Guid userId,
+            CreateBrandRequest request,
+            CancellationToken cancellationToken = default)
         {
-            if (!request.ProfileId.HasValue)
-            {
-                return GenericResponse<BrandResponseDto>.CreateError("ProfileId is required");
-            }
-
-            var access = await EnsureProfileOwnerAsync(request.ProfileId.Value, userId, cancellationToken);
-            if (!access.Success)
-            {
-                return GenericResponse<BrandResponseDto>.CreateError(access.Message);
-            }
-
             var brand = new Brand
             {
-                ProfileId = request.ProfileId.Value,
+                ProfileId = profileId,
+                WorkspaceId = workspaceId,
                 Name = request.Name,
                 Description = request.Description,
                 LogoUrl = request.LogoUrl,
@@ -86,21 +66,15 @@ namespace AISAM.Services.Service
 
             var created = await _brandRepository.AddAsync(brand, cancellationToken);
 
-            return GenericResponse<BrandResponseDto>.CreateSuccess(MapToDto(created), "Brand created successfully");
+            return GenericResponse<BrandResponseDto>.CreateSuccess(MapToDto(created, userId), "Brand created successfully");
         }
 
-        public async Task<GenericResponse<BrandResponseDto>> UpdateAsync(Guid id, Guid userId, UpdateBrandRequest request, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<BrandResponseDto>> UpdateAsync(Guid id, Guid workspaceId, UpdateBrandRequest request, CancellationToken cancellationToken = default)
         {
             var brand = await _brandRepository.GetByIdAsync(id, cancellationToken);
-            if (brand == null)
+            if (brand == null || brand.WorkspaceId != workspaceId)
             {
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
-            }
-
-            var access = await EnsureProfileOwnerAsync(brand.ProfileId, userId, cancellationToken);
-            if (!access.Success)
-            {
-                return GenericResponse<BrandResponseDto>.CreateError(access.Message);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Name))
@@ -138,18 +112,12 @@ namespace AISAM.Services.Service
             return GenericResponse<BrandResponseDto>.CreateSuccess(MapToDto(brand), "Brand updated successfully");
         }
 
-        public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             var brand = await _brandRepository.GetByIdAsync(id, cancellationToken);
-            if (brand == null)
+            if (brand == null || brand.WorkspaceId != workspaceId)
             {
                 return GenericResponse<bool>.CreateError("Brand not found");
-            }
-
-            var access = await EnsureProfileOwnerAsync(brand.ProfileId, userId, cancellationToken);
-            if (!access.Success)
-            {
-                return GenericResponse<bool>.CreateError(access.Message);
             }
 
             brand.IsDeleted = true;
@@ -158,18 +126,12 @@ namespace AISAM.Services.Service
             return GenericResponse<bool>.CreateSuccess(true, "Brand deleted successfully");
         }
 
-        public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             var brand = await _brandRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
-            if (brand == null)
+            if (brand == null || brand.WorkspaceId != workspaceId)
             {
                 return GenericResponse<bool>.CreateError("Brand not found");
-            }
-
-            var access = await EnsureProfileOwnerAsync(brand.ProfileId, userId, cancellationToken);
-            if (!access.Success)
-            {
-                return GenericResponse<bool>.CreateError(access.Message);
             }
 
             if (!brand.IsDeleted)
@@ -183,28 +145,13 @@ namespace AISAM.Services.Service
             return GenericResponse<bool>.CreateSuccess(true, "Brand restored successfully");
         }
 
-        private async Task<(bool Success, string Message)> EnsureProfileOwnerAsync(Guid profileId, Guid userId, CancellationToken cancellationToken)
-        {
-            var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
-            if (profile == null)
-            {
-                return (false, "Profile not found");
-            }
-
-            if (profile.UserId != userId)
-            {
-                return (false, "You are not allowed to access this profile");
-            }
-
-            return (true, string.Empty);
-        }
-
-        private static BrandResponseDto MapToDto(Brand brand)
+        private static BrandResponseDto MapToDto(Brand brand, Guid? fallbackUserId = null)
         {
             return new BrandResponseDto
             {
                 Id = brand.Id,
-                UserId = brand.Profile.UserId,
+                UserId = fallbackUserId ?? brand.Profile?.UserId ?? Guid.Empty,
+                WorkspaceId = brand.WorkspaceId,
                 Name = brand.Name,
                 Description = brand.Description,
                 LogoUrl = brand.LogoUrl,

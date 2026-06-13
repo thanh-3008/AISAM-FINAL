@@ -19,7 +19,5 @@ namespace AISAM.Common.Dtos.Request
         public string? Usp { get; set; }
 
         public string? TargetAudience { get; set; }
-
-        public Guid? ProfileId { get; set; }
     }
 }

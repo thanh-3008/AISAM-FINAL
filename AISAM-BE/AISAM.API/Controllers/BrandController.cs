@@ -1,3 +1,4 @@
+using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
@@ -5,7 +6,6 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace AISAM.API.Controllers
 {
@@ -25,7 +25,6 @@ namespace AISAM.API.Controllers
 
         [HttpGet]
         public async Task<ActionResult<GenericResponse<PagedResult<BrandResponseDto>>>> GetBrands(
-            [FromQuery] Guid profileId,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10,
             [FromQuery] string? searchTerm = null,
@@ -36,8 +35,8 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _brandService.GetPagedByProfileIdAsync(profileId, userId, new PaginationRequest
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _brandService.GetPagedAsync(workspaceId, new PaginationRequest
                 {
                     Page = page,
                     PageSize = pageSize,
@@ -46,7 +45,7 @@ namespace AISAM.API.Controllers
                     SortDescending = sortDescending
                 }, includeDeleted, cancellationToken);
 
-                return result.Success ? Ok(result) : BadRequest(result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -64,9 +63,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _brandService.GetByIdAsync(id, userId, cancellationToken);
-                return result.Success ? Ok(result) : NotFound(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _brandService.GetByIdAsync(id, workspaceId, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -84,14 +83,16 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _brandService.CreateAsync(userId, request, cancellationToken);
-                if (!result.Success)
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var profileId = ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var result = await _brandService.CreateAsync(workspaceId, profileId, userId, request, cancellationToken);
+                if (result.Success)
                 {
-                    return BadRequest(result);
+                    return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
                 }
 
-                return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -109,9 +110,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _brandService.UpdateAsync(id, userId, request, cancellationToken);
-                return result.Success ? Ok(result) : BadRequest(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _brandService.UpdateAsync(id, workspaceId, request, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -129,9 +130,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _brandService.SoftDeleteAsync(id, userId, cancellationToken);
-                return result.Success ? Ok(result) : NotFound(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _brandService.SoftDeleteAsync(id, workspaceId, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -149,9 +150,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _brandService.RestoreAsync(id, userId, cancellationToken);
-                return result.Success ? Ok(result) : BadRequest(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _brandService.RestoreAsync(id, workspaceId, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -162,17 +163,6 @@ namespace AISAM.API.Controllers
                 _logger.LogError(ex, "Error restoring brand {BrandId}", id);
                 return StatusCode(500, GenericResponse<bool>.CreateError("System error"));
             }
-        }
-
-        private Guid GetUserIdOrThrow()
-        {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdValue, out var userId))
-            {
-                throw new UnauthorizedAccessException("Invalid token");
-            }
-
-            return userId;
         }
     }
 }

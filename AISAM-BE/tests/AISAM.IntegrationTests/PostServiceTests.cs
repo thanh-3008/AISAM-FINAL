@@ -11,14 +11,15 @@ namespace AISAM.IntegrationTests;
 public class PostServiceTests
 {
     [Fact]
-    public async Task GetPagedAsync_ReturnsOnlyPostsForActiveProfile()
+    public async Task GetPagedAsync_ReturnsOnlyPostsForActiveWorkspace()
     {
-        var profileId = Guid.NewGuid();
-        var ownBrand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Own brand" };
+        var workspaceId = Guid.NewGuid();
+        var ownBrand = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Own brand" };
         var ownContent = new Content
         {
             Id = Guid.NewGuid(),
-            ProfileId = profileId,
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
             BrandId = ownBrand.Id,
             Brand = ownBrand,
             Title = "Owned content",
@@ -28,8 +29,9 @@ public class PostServiceTests
         {
             Id = Guid.NewGuid(),
             ProfileId = Guid.NewGuid(),
+            WorkspaceId = Guid.NewGuid(),
             BrandId = Guid.NewGuid(),
-            Brand = new Brand { Id = Guid.NewGuid(), ProfileId = Guid.NewGuid(), Name = "Other brand" },
+            Brand = new Brand { Id = Guid.NewGuid(), WorkspaceId = Guid.NewGuid(), ProfileId = Guid.NewGuid(), Name = "Other brand" },
             Title = "Other content",
             TextContent = "Other text"
         };
@@ -53,7 +55,7 @@ public class PostServiceTests
         };
         var service = new PostService(new FakePostRepository(ownPost, otherPost));
 
-        var result = await service.GetPagedAsync(profileId, new PaginationRequest { Page = 1, PageSize = 10 });
+        var result = await service.GetPagedAsync(workspaceId, new PaginationRequest { Page = 1, PageSize = 10 });
 
         Assert.True(result.Success);
         var item = Assert.Single(result.Data!.Data);
@@ -63,14 +65,15 @@ public class PostServiceTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_ReturnsNotFound_ForAnotherProfilesPost()
+    public async Task GetByIdAsync_ReturnsNotFound_ForAnotherWorkspacesPost()
     {
-        var otherProfileId = Guid.NewGuid();
-        var otherBrand = new Brand { Id = Guid.NewGuid(), ProfileId = otherProfileId, Name = "Other brand" };
+        var otherWorkspaceId = Guid.NewGuid();
+        var otherBrand = new Brand { Id = Guid.NewGuid(), WorkspaceId = otherWorkspaceId, ProfileId = Guid.NewGuid(), Name = "Other brand" };
         var otherContent = new Content
         {
             Id = Guid.NewGuid(),
-            ProfileId = otherProfileId,
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = otherWorkspaceId,
             BrandId = otherBrand.Id,
             Brand = otherBrand,
             Title = "Other content",
@@ -97,13 +100,14 @@ public class PostServiceTests
     [Fact]
     public async Task GetPagedAsync_AppliesOptionalBrandIdAndStatusFilters()
     {
-        var profileId = Guid.NewGuid();
-        var brandA = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Brand A" };
-        var brandB = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Brand B" };
+        var workspaceId = Guid.NewGuid();
+        var brandA = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Brand A" };
+        var brandB = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Brand B" };
         var contentA = new Content
         {
             Id = Guid.NewGuid(),
-            ProfileId = profileId,
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
             BrandId = brandA.Id,
             Brand = brandA,
             Title = "Published A",
@@ -112,7 +116,8 @@ public class PostServiceTests
         var contentB = new Content
         {
             Id = Guid.NewGuid(),
-            ProfileId = profileId,
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
             BrandId = brandB.Id,
             Brand = brandB,
             Title = "Draft B",
@@ -139,7 +144,7 @@ public class PostServiceTests
         var service = new PostService(new FakePostRepository(publishedPost, draftPost));
 
         var result = await service.GetPagedAsync(
-            profileId,
+            workspaceId,
             new PaginationRequest { Page = 1, PageSize = 10 },
             brandA.Id,
             ContentStatusEnum.Published);
@@ -170,6 +175,30 @@ public class PostServiceTests
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
             var query = _posts.Values.Where(post => !post.IsDeleted && post.Content.ProfileId == profileId);
+
+            if (brandId.HasValue)
+            {
+                query = query.Where(post => post.Content.BrandId == brandId.Value);
+            }
+
+            if (status.HasValue)
+            {
+                query = query.Where(post => post.Status == status.Value);
+            }
+
+            var data = query.OrderByDescending(post => post.PublishedAt).ToList();
+            return Task.FromResult(new PagedResult<Post>
+            {
+                Data = data,
+                TotalCount = data.Count,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
+
+        public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        {
+            var query = _posts.Values.Where(post => !post.IsDeleted && (post.Content.WorkspaceId == workspaceId || (post.Content.WorkspaceId == null && post.Content.Brand.WorkspaceId == workspaceId)));
 
             if (brandId.HasValue)
             {

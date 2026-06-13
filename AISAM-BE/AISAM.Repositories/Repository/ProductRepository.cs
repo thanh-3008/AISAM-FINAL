@@ -18,7 +18,7 @@ namespace AISAM.Repositories.Repository
         {
             return await _context.Products
                 .Include(p => p.Brand)
-                .ThenInclude(b => b.Profile)
+                .ThenInclude(b => b.Workspace)
                 .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
         }
 
@@ -26,7 +26,7 @@ namespace AISAM.Repositories.Repository
         {
             return await _context.Products
                 .Include(p => p.Brand)
-                .ThenInclude(b => b.Profile)
+                .ThenInclude(b => b.Workspace)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
@@ -43,6 +43,62 @@ namespace AISAM.Repositories.Repository
                 .Include(p => p.Brand)
                 .ThenInclude(b => b.Profile)
                 .AsQueryable();
+
+            if (brandId.HasValue)
+            {
+                query = query.Where(p => p.BrandId == brandId.Value);
+            }
+
+            if (!includeDeleted)
+            {
+                query = query.Where(p => !p.IsDeleted);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+            {
+                var searchPattern = $"%{request.SearchTerm}%";
+                query = query.Where(p =>
+                    EF.Functions.ILike(p.Name, searchPattern) ||
+                    (p.Description != null && EF.Functions.ILike(p.Description, searchPattern)));
+            }
+
+            query = (request.SortBy ?? string.Empty).ToLowerInvariant() switch
+            {
+                "name" => request.SortDescending ? query.OrderByDescending(p => p.Name) : query.OrderBy(p => p.Name),
+                "price" => request.SortDescending ? query.OrderByDescending(p => p.Price) : query.OrderBy(p => p.Price),
+                "createdat" => request.SortDescending ? query.OrderByDescending(p => p.CreatedAt) : query.OrderBy(p => p.CreatedAt),
+                _ => query.OrderByDescending(p => p.CreatedAt)
+            };
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            var data = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<Product>
+            {
+                Data = data,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
+
+        public async Task<PagedResult<Product>> GetPagedByWorkspaceIdAsync(
+            Guid workspaceId,
+            PaginationRequest request,
+            Guid? brandId = null,
+            bool includeDeleted = false,
+            CancellationToken cancellationToken = default)
+        {
+            var page = Math.Max(request.Page, 1);
+            var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+            var query = _context.Products
+                .Include(p => p.Brand)
+                .ThenInclude(b => b.Workspace)
+                .Where(p => p.Brand.WorkspaceId == workspaceId);
 
             if (brandId.HasValue)
             {

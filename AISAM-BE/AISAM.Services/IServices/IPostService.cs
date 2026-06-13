@@ -8,14 +8,14 @@ namespace AISAM.Services.IServices;
 public interface IPostService
 {
     Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedAsync(
-        Guid profileId,
+        Guid workspaceId,
         PaginationRequest request,
         Guid? brandId = null,
         ContentStatusEnum? status = null,
         CancellationToken cancellationToken = default);
 
     Task<GenericResponse<PostListItemDto>> GetByIdAsync(
-        Guid profileId,
+        Guid workspaceId,
         Guid postId,
         CancellationToken cancellationToken = default);
 }

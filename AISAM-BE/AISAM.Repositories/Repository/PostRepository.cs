@@ -62,11 +62,48 @@ public sealed class PostRepository : IPostRepository
         };
     }
 
+    public async Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query().Where(post =>
+            !post.IsDeleted &&
+            (post.Content.WorkspaceId == workspaceId ||
+             (post.Content.WorkspaceId == null && post.Content.Brand.WorkspaceId == workspaceId)));
+
+        if (brandId.HasValue)
+        {
+            query = query.Where(post => post.Content.BrandId == brandId.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(post => post.Status == status.Value);
+        }
+
+        query = query.OrderByDescending(post => post.PublishedAt);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<Post>
+        {
+            Data = data,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
     private IQueryable<Post> Query()
     {
         return _context.Posts
             .Include(post => post.Content)
                 .ThenInclude(content => content.Brand)
+                    .ThenInclude(brand => brand.Workspace)
             .Include(post => post.Integration);
     }
 }

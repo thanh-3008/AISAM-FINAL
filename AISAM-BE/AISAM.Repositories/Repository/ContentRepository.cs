@@ -91,6 +91,72 @@ public sealed class ContentRepository : IContentRepository
         };
     }
 
+    public async Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(
+        Guid workspaceId,
+        PaginationRequest request,
+        Guid? brandId = null,
+        AdTypeEnum? adType = null,
+        bool includeDeleted = false,
+        ContentStatusEnum? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query().Where(content =>
+            content.WorkspaceId == workspaceId ||
+            (content.WorkspaceId == null && content.Brand.WorkspaceId == workspaceId));
+
+        if (brandId.HasValue)
+        {
+            query = query.Where(content => content.BrandId == brandId.Value);
+        }
+
+        if (!includeDeleted)
+        {
+            query = query.Where(content => !content.IsDeleted);
+        }
+
+        if (adType.HasValue)
+        {
+            query = query.Where(content => content.AdType == adType.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(content => content.Status == status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+        {
+            var searchPattern = $"%{request.SearchTerm}%";
+            query = query.Where(content =>
+                (content.Title != null && EF.Functions.ILike(content.Title, searchPattern)) ||
+                EF.Functions.ILike(content.TextContent, searchPattern));
+        }
+
+        query = (request.SortBy ?? string.Empty).ToLowerInvariant() switch
+        {
+            "title" => request.SortDescending ? query.OrderByDescending(content => content.Title) : query.OrderBy(content => content.Title),
+            "updatedat" => request.SortDescending ? query.OrderByDescending(content => content.UpdatedAt) : query.OrderBy(content => content.UpdatedAt),
+            "createdat" => request.SortDescending ? query.OrderByDescending(content => content.CreatedAt) : query.OrderBy(content => content.CreatedAt),
+            _ => query.OrderByDescending(content => content.CreatedAt)
+        };
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<Content>
+        {
+            Data = data,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
     public async Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default)
     {
         content.CreatedAt = DateTime.UtcNow;
@@ -111,6 +177,8 @@ public sealed class ContentRepository : IContentRepository
     {
         return _context.Contents
             .Include(content => content.Brand)
+                .ThenInclude(brand => brand.Workspace)
+            .Include(content => content.Workspace)
             .Include(content => content.Product);
     }
 }

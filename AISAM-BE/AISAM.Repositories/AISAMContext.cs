@@ -78,11 +78,16 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(b => b.Id);
                 entity.HasIndex(b => b.ProfileId);
+                entity.HasIndex(b => b.WorkspaceId);
                 entity.HasIndex(b => b.Name);
                 entity.HasOne(b => b.Profile)
                       .WithMany(p => p.Brands)
                       .HasForeignKey(b => b.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(b => b.Workspace)
+                      .WithMany(w => w.Brands)
+                      .HasForeignKey(b => b.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Content entity configuration
@@ -91,10 +96,15 @@ namespace AISAM.Repositories
                 entity.HasKey(c => c.Id);
                 entity.Property(c => c.AdType).HasConversion<int>();
                 entity.Property(c => c.Status).HasConversion<int>().HasDefaultValue(ContentStatusEnum.Draft);
+                entity.HasIndex(c => c.WorkspaceId);
                 entity.HasIndex(c => c.BrandId);
                 entity.HasIndex(c => c.ProductId);
                 entity.HasIndex(c => c.Status);
                 entity.HasIndex(c => c.CreatedAt);
+                entity.HasOne(c => c.Workspace)
+                      .WithMany(w => w.Contents)
+                      .HasForeignKey(c => c.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(c => c.Brand)
                       .WithMany(b => b.Contents)
                       .HasForeignKey(c => c.BrandId)

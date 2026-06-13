@@ -5094,6 +5094,324 @@ Mục tiêu:
 
 - Chuyển ownership Brand, Product, Content/Post, Social, Calendar, Conversation, Notification và Campaign.
 
+Trạng thái:
+
+```text
+IN PROGRESS
+Task tiếp theo: 9.16.3 Content/Post ownership sang Workspace.
+```
+
+Checklist triển khai đề xuất:
+
+#### Task 9.16.1 - Brand ownership sang Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16.2 Product ownership theo Brand.WorkspaceId.
+```
+
+Mục tiêu:
+
+- Thêm `WorkspaceId` cho `Brand` và chuyển toàn bộ CRUD/filter/authorization của Brand sang Active Workspace.
+- Giữ `ProfileId` tạm thời cho dữ liệu legacy/audit nếu còn cần, nhưng không dùng nó làm ownership boundary nữa.
+- Mọi API Brand phải đi qua `X-Workspace-Id` + membership thay vì `profile.UserId`.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/Brand.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IBrandRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/BrandRepository.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260612080058_AddBrandWorkspaceOwnership.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260612080058_AddBrandWorkspaceOwnership.Designer.cs
+AISAM-BE/AISAM.Repositories/Migrations/AisamContextModelSnapshot.cs
+AISAM-BE/AISAM.Common/Dtos/Request/CreateBrandRequest.cs
+AISAM-BE/AISAM.Common/Dtos/Request/UpdateBrandRequest.cs
+AISAM-BE/AISAM.Common/Dtos/Response/BrandResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IBrandService.cs
+AISAM-BE/AISAM.Services/Service/BrandService.cs
+AISAM-BE/AISAM.API/Middleware/ActiveProfileMiddleware.cs
+AISAM-BE/AISAM.API/Controllers/BrandController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/BrandServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/BrandControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveProfileMiddlewareTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServicePublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/FoundationTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PhaseEQuotaIntegrationTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/SocialServiceTests.cs
+```
+
+Kết quả:
+
+- Thêm `Brand.WorkspaceId` nullable và relation `Brand -> Workspace`; đồng thời thêm `Workspace.Brands` để chuẩn hóa ownership path mới mà chưa ép backfill legacy ngay ở `9.16.1`.
+- Bổ sung migration `AddBrandWorkspaceOwnership`, index `workspace_id` và cập nhật `AisamContextModelSnapshot`.
+- `BrandRepository` giữ nguyên path cũ theo `ProfileId` để không làm gãy các module chưa migrate, đồng thời bổ sung `GetPagedByWorkspaceIdAsync(...)` cho runtime path mới của Brand.
+- `BrandService` đã chuyển toàn bộ Brand CRUD/read path của riêng domain Brand sang `WorkspaceId`:
+  - list theo workspace,
+  - get-by-id kiểm tra `brand.WorkspaceId`,
+  - create stamp `WorkspaceId`,
+  - update/delete/restore chặn truy cập chéo workspace.
+- `BrandController` không còn nhận `profileId` query/body để xác định ownership. Controller hiện:
+  - lấy `workspaceId` từ `WorkspaceContextHelper`,
+  - lấy `profileId` active từ `ActiveProfileMiddleware` chỉ để giữ metadata chuyển tiếp trên bản ghi mới,
+  - trả status code theo `GenericResponse.StatusCode` thay vì hard-code `BadRequest/NotFound`.
+- `CreateBrandRequest` và `UpdateBrandRequest` không còn `ProfileId` trong DTO body; `BrandResponseDto` được bổ sung `WorkspaceId`.
+- `ActiveProfileMiddleware` nay cũng bảo vệ route `/api/brands`, nghĩa là Brand API đã dùng:
+  - `X-Workspace-Id` làm ownership boundary,
+  - `X-Profile-Id` chỉ như actor/audit context chuyển tiếp trong giai đoạn trước `9.17`.
+- Bổ sung test mới cho Brand:
+  - `BrandServiceTests` cover create stamp workspace/profile metadata, list theo workspace, cross-workspace deny cho update/restore.
+  - `BrandControllerTests` cover context wiring của `workspaceId`, `profileId`, `userId`.
+  - `ActiveProfileMiddlewareTests` bổ sung case `/api/brands`.
+- Vá toàn bộ fake `IBrandRepository` ở các test AI/Content/Social/Foundation để tương thích interface mới mà không tự ý migrate các module đó sớm hơn `9.16` plan.
+
+Commit đề xuất:
+
+```text
+refactor(brand): move ownership to workspace
+```
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 warnings, 0 errors.
+
+Focused Brand + profile context tests
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~BrandServiceTests|FullyQualifiedName~BrandControllerTests|FullyQualifiedName~ActiveProfileMiddlewareTests"
+Passed. 13/13 tests passed.
+
+Broader regression around touched modules
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~BrandServiceTests|FullyQualifiedName~BrandControllerTests|FullyQualifiedName~ActiveProfileMiddlewareTests|FullyQualifiedName~AIServiceTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~SocialServiceTests|FullyQualifiedName~FoundationTests"
+Passed. 57/57 tests passed.
+
+dotnet ef migrations has-pending-model-changes --project AISAM-BE/AISAM.Repositories/AISAM.Repositories.csproj --startup-project AISAM-BE/AISAM.API/AISAM.API.csproj
+No changes have been made to the model since the last migration.
+```
+
+#### Task 9.16.2 - Product ownership theo Brand.WorkspaceId
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16.3 Content/Post ownership sang Workspace.
+```
+
+Mục tiêu:
+
+- Không thêm ownership path mới nếu chưa cần; `Product` phải được authorize/isolate theo `Brand.WorkspaceId`.
+- Loại bỏ các check kiểu `brand.Profile.UserId == userId`.
+- Toàn bộ list/detail/create/update/delete/restore của Product phải chỉ thao tác trong Active Workspace.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Repositories/IRepositories/IProductRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/ProductRepository.cs
+AISAM-BE/AISAM.Services/IServices/IProductService.cs
+AISAM-BE/AISAM.Services/Service/ProductService.cs
+AISAM-BE/AISAM.API/Controllers/ProductController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ProductServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ProductControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/FoundationTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServicePublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PhaseEQuotaIntegrationTests.cs
+```
+
+Kết quả:
+
+- Không thêm `WorkspaceId` riêng cho `Product`; ownership được giữ gián tiếp qua `Brand.WorkspaceId` đúng như plan của `9.16.2`.
+- `ProductRepository` bổ sung `GetPagedByWorkspaceIdAsync(...)` để query theo active workspace ngay từ DB/repository layer, tránh pattern load rộng rồi filter theo user ở service.
+- `ProductRepository.GetByIdAsync(...)` và `GetByIdIncludingDeletedAsync(...)` hiện eager-load `Brand.Workspace` thay vì `Brand.Profile`, phù hợp boundary mới của domain.
+- `ProductService` đã chuyển toàn bộ Product CRUD/read path sang `workspaceId`:
+  - list theo workspace,
+  - brand filter chỉ hợp lệ khi brand thuộc active workspace,
+  - get-by-id / update / delete / restore trả `Product not found` nếu product nằm ngoài workspace,
+  - create/update khi đổi brand trả `Brand not found` nếu brand không thuộc workspace hiện tại.
+- Toàn bộ check kiểu `brand.Profile.UserId == userId` đã bị loại bỏ khỏi Product domain; middleware `ActiveWorkspaceMiddleware` tiếp tục chịu trách nhiệm membership/role gate.
+- `ProductController` không còn resolve `userId` để authorize Product. Controller hiện chỉ lấy `workspaceId` từ `WorkspaceContextHelper` và forward xuống service.
+- `ProductController` cũng đã được chỉnh theo pattern Phase 9 mới:
+  - trả `StatusCode(result.StatusCode, result)` cho read/update/delete/restore,
+  - chỉ trả `201 Created` ở create khi service thành công.
+- Bổ sung test mới cho Product:
+  - `ProductServiceTests` cover list theo workspace, create với brand ngoài workspace bị chặn, update sản phẩm ngoài workspace bị chặn, và giữ nguyên behavior upload-image-disabled.
+  - `ProductControllerTests` cover context wiring theo active workspace và status code propagation.
+- Vá các fake `IProductRepository` ở test AI/Content/Foundation/Quota để tương thích interface repository mới mà không kéo theo migration domain khác ngoài scope `9.16.2`.
+
+Commit đề xuất:
+
+```text
+refactor(product): enforce workspace ownership through brand
+```
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln -nodeReuse:false
+Build succeeded. 0 errors.
+Lưu ý: còn 2 warning cũ từ migration verifytoken, không liên quan Task 9.16.2.
+
+Focused Product regression
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~ProductServiceTests|FullyQualifiedName~ProductControllerTests|FullyQualifiedName~FoundationTests"
+Passed. 21/21 tests passed.
+
+Broader regression around touched modules
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj --filter "FullyQualifiedName~BrandServiceTests|FullyQualifiedName~BrandControllerTests|FullyQualifiedName~ProductServiceTests|FullyQualifiedName~ProductControllerTests|FullyQualifiedName~AIServiceTests|FullyQualifiedName~ContentServiceTests|FullyQualifiedName~ContentServicePublishTests|FullyQualifiedName~SocialServiceTests|FullyQualifiedName~FoundationTests"
+Passed. 58/58 tests passed.
+
+dotnet ef migrations has-pending-model-changes --project AISAM-BE/AISAM.Repositories/AISAM.Repositories.csproj --startup-project AISAM-BE/AISAM.API/AISAM.API.csproj
+No changes have been made to the model since the last migration.
+```
+
+#### Task 9.16.3 - Content/Post ownership sang Workspace
+
+Mục tiêu:
+
+- `Content` là domain lớn nhất của `9.16`; phải chuyển read path, ownership filter và authorization từ `ProfileId` sang `WorkspaceId`.
+- `Post` đi theo ownership của `Content`/`Brand` trong Workspace.
+- Không phá các phần đã làm ở `9.13` và `9.14`: post quota theo Workspace, credits AI theo Workspace, lifecycle guard của `9.15`.
+
+Phạm vi chính:
+
+- Model/migration cho `Content` và relation phụ thuộc nếu cần.
+- `ContentRepository`, `PostRepository`, `ContentService`, `PostService`, `ContentController`.
+- Các validate path hiện đang check `content.ProfileId`, `brand.ProfileId`, `GetPagedByProfileIdAsync`.
+- Tests cho content CRUD/list/publish/post isolation theo Workspace.
+
+Commit đề xuất:
+
+```text
+refactor(content): move ownership to workspace
+```
+
+#### Task 9.16.4 - SocialAccount và SocialIntegration theo Workspace
+
+Mục tiêu:
+
+- Chuyển social account/link target/integration ownership sang Workspace để Workspace A không đọc hoặc unlink dữ liệu của Workspace B.
+- Brand validation trong social flow phải dùng `Brand.WorkspaceId`.
+- OAuth callback vẫn có thể dùng `profileId` như actor context nếu cần, nhưng persisted ownership phải thuộc Workspace.
+
+Phạm vi chính:
+
+- Model/migration cho `SocialAccount`, `SocialIntegration`.
+- `SocialService`, social repositories, social controllers, OAuth state flow nếu cần bổ sung workspace context.
+- Tests cho link account, link target, list targets, unlink account/target, brand isolation.
+
+Commit đề xuất:
+
+```text
+refactor(social): move ownership to workspace
+```
+
+#### Task 9.16.5 - Content Calendar/Schedule theo Workspace
+
+Mục tiêu:
+
+- Schedule/read model không còn lọc chính bằng `ProfileId`; ownership phải theo Workspace của content/integration.
+- Giữ `ProfileId` creator nếu cần, nhưng không dùng nó làm isolation boundary.
+- Không phá rule lifecycle và scheduled posting đã hoàn thành ở `9.15`.
+
+Phạm vi chính:
+
+- Model/migration cho `ContentCalendar` nếu cần `WorkspaceId`.
+- `ContentCalendarRepository`, `ContentScheduleService`, `ContentSchedulesController`, scheduler queries.
+- Tests cho create/update/delete/list/upcoming isolation theo Workspace.
+
+Commit đề xuất:
+
+```text
+refactor(calendar): move ownership to workspace
+```
+
+#### Task 9.16.6 - Conversation theo Workspace
+
+Mục tiêu:
+
+- AI conversation history phải thuộc Active Workspace thay vì chỉ thuộc Profile.
+- Các flow chat/get/list/delete phải chặn truy cập chéo Workspace.
+- Cần giữ tương thích với AI generation flow đã gắn credit/quota theo Workspace.
+
+Phạm vi chính:
+
+- Model/migration cho `Conversation`.
+- `ConversationRepository`, `ConversationService`, phần `AIService.ChatAsync(...)` và conversation lookup hiện còn theo `profileId`.
+- Tests cho conversation create/list/detail/delete isolation theo Workspace.
+
+Commit đề xuất:
+
+```text
+refactor(conversation): move ownership to workspace
+```
+
+#### Task 9.16.7 - Notification theo Workspace
+
+Mục tiêu:
+
+- Notification list/detail/read status phải gắn với Active Workspace hoặc membership context phù hợp.
+- Loại notification liên quan invitation/team/workspace phải không bị lẫn giữa nhiều workspace của cùng user.
+
+Phạm vi chính:
+
+- Model/migration cho `Notification`.
+- `NotificationRepository`, `NotificationService`, `DashboardService` unread count path.
+- Tests cho list/read/mark-all/unread-count isolation theo Workspace.
+
+Commit đề xuất:
+
+```text
+refactor(notification): move ownership to workspace
+```
+
+#### Task 9.16.8 - Campaign ownership sang Workspace
+
+Mục tiêu:
+
+- Chuyển `AdCampaign` sang ownership theo Workspace để chuẩn bị dependency cho Phase 11.
+- Campaign CRUD/filter/authorization phải theo Active Workspace; relation brand/content/social phải cùng workspace.
+
+Phạm vi chính:
+
+- Model/migration cho `AdCampaign`.
+- Repository/service/controller campaign hiện có hoặc phần source cũ cần kích hoạt lại.
+- Tests cho CRUD + cross-workspace denial + relation consistency với Brand/Content/Social.
+
+Commit đề xuất:
+
+```text
+refactor(campaign): move ownership to workspace
+```
+
+#### Task 9.16.9 - Regression và cập nhật tài liệu
+
+Mục tiêu:
+
+- Chạy focused regression sau từng domain và full regression khi chốt `9.16`.
+- Cập nhật `BACKEND_CODE_PLAN.md` theo trạng thái thật của từng subtask.
+- Ghi rõ domain nào đã xong schema, domain nào mới xong service/API wiring để tránh ghi DONE sớm.
+
+Checklist verify bắt buộc:
+
+- CRUD theo `Workspace A` pass.
+- `Workspace B` không đọc/ghi được dữ liệu domain tương ứng.
+- `dotnet build`, focused integration tests và full integration tests pass.
+- Không làm vỡ `9.9` đến `9.15`: subscription, credits, post quota, lifecycle, publish và scheduler.
+
+Commit đề xuất:
+
+```text
+test(workspace): verify domain ownership migration
+```
+
 Quy tắc commit:
 
 - Mỗi domain là một commit riêng; không gom toàn bộ domain vào một commit.

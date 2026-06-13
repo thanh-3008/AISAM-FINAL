@@ -49,7 +49,7 @@ public sealed class ContentController : ControllerBase
         [FromQuery] ContentStatusEnum? status = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.GetPagedAsync(GetProfileId(), new PaginationRequest
+        var result = await _contentService.GetPagedAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), new PaginationRequest
         {
             Page = page,
             PageSize = pageSize,
@@ -66,7 +66,7 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.GetByIdAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.GetByIdAsync(contentId, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

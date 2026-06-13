@@ -9,15 +9,14 @@ public sealed class ActiveProfileMiddleware
 {
     private static readonly PathString[] ProtectedPrefixes =
     {
-        new("/api/content"),
         new("/api/content-schedules"),
         new("/api/dashboard"),
         new("/api/dev/scheduler"),
         new("/api/ai"),
+        new("/api/brands"),
         new("/api/conversations"),
         new("/api/social-auth"),
         new("/api/social"),
-        new("/api/posts"),
         new("/api/notifications"),
         new("/api/payment")
     };
@@ -39,6 +38,13 @@ public sealed class ActiveProfileMiddleware
 
         if (context.Request.Path.StartsWithSegments("/api/payment/callback") ||
             context.Request.Path.StartsWithSegments("/api/payment/webhook"))
+        {
+            await _next(context);
+            return;
+        }
+
+        if (context.Request.Path.StartsWithSegments("/api/content") &&
+            HttpMethods.IsGet(context.Request.Method))
         {
             await _next(context);
             return;

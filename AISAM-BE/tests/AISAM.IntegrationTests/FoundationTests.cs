@@ -190,8 +190,10 @@ public class FoundationTests
     public async Task ProductService_ReturnsError_WhenImageFilesAreProvided()
     {
         var userId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brandId = Guid.NewGuid();
         var brand = CreateOwnedBrand(brandId, userId);
+        brand.WorkspaceId = workspaceId;
         var product = new Product
         {
             Id = Guid.NewGuid(),
@@ -205,7 +207,7 @@ public class FoundationTests
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 
-        var createResult = await service.CreateAsync(userId, new ProductCreateRequest
+        var createResult = await service.CreateAsync(workspaceId, new ProductCreateRequest
         {
             BrandId = brandId,
             Name = "New product",
@@ -214,7 +216,7 @@ public class FoundationTests
                 new FormFile(createStream, 0, createStream.Length, "image", "product.png")
             }
         });
-        var updateResult = await service.UpdateAsync(product.Id, userId, new ProductUpdateRequestDto
+        var updateResult = await service.UpdateAsync(product.Id, workspaceId, new ProductUpdateRequestDto
         {
             ImageFiles = new List<IFormFile>
             {
@@ -498,6 +500,18 @@ public class FoundationTests
             });
         }
 
+        public Task<PagedResult<Brand>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default)
+        {
+            var brands = _brands.Values.Where(brand => brand.WorkspaceId == workspaceId).ToList();
+            return Task.FromResult(new PagedResult<Brand>
+            {
+                Data = brands,
+                TotalCount = brands.Count,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
+
         public Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default)
         {
             _brands[brand.Id] = brand;
@@ -538,6 +552,22 @@ public class FoundationTests
         public Task<PagedResult<Product>> GetPagedAsync(PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default)
         {
             var products = _products.Values
+                .Where(product => !brandId.HasValue || product.BrandId == brandId.Value)
+                .ToList();
+
+            return Task.FromResult(new PagedResult<Product>
+            {
+                Data = products,
+                TotalCount = products.Count,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
+
+        public Task<PagedResult<Product>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default)
+        {
+            var products = _products.Values
+                .Where(product => product.Brand.WorkspaceId == workspaceId)
                 .Where(product => !brandId.HasValue || product.BrandId == brandId.Value)
                 .ToList();
 

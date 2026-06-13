@@ -31,18 +31,18 @@ public class ContentControllerTests
     }
 
     [Fact]
-    public async Task GetPaged_UsesValidatedActiveProfileFromHttpContext()
+    public async Task GetPaged_UsesValidatedActiveWorkspaceFromHttpContext()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = new FakeContentService
         {
             PagedResult = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>())
         };
-        var controller = CreateController(service, profileId, Guid.NewGuid());
+        var controller = CreateController(service, Guid.NewGuid(), workspaceId);
 
         await controller.GetPaged();
 
-        Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
     }
 
     [Fact]
@@ -84,13 +84,13 @@ public class ContentControllerTests
             return Task.FromResult(CreateResult);
         }
 
-        public Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
-            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(PagedResult);
         }
 
-        public Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

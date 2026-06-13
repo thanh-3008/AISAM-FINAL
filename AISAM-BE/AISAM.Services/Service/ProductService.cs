@@ -21,38 +21,34 @@ namespace AISAM.Services.Service
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
+            Guid workspaceId,
             PaginationRequest request,
-            Guid userId,
             Guid? brandId = null,
             bool includeDeleted = false,
             CancellationToken cancellationToken = default)
         {
             if (brandId.HasValue)
             {
-                var access = await EnsureBrandOwnerAsync(brandId.Value, userId, cancellationToken);
+                var access = await EnsureBrandAccessAsync(brandId.Value, workspaceId, cancellationToken);
                 if (!access.Success)
                 {
                     return GenericResponse<PagedResult<ProductResponseDto>>.CreateError(access.Message);
                 }
             }
 
-            var products = await _productRepository.GetPagedAsync(request, brandId, includeDeleted, cancellationToken);
-
-            var visibleProducts = products.Data
-                .Where(p => p.Brand.Profile.UserId == userId)
-                .Select(MapToDto)
-                .ToList();
+            var products = await _productRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, includeDeleted, cancellationToken);
+            var visibleProducts = products.Data.Select(MapToDto).ToList();
 
             return GenericResponse<PagedResult<ProductResponseDto>>.CreateSuccess(new PagedResult<ProductResponseDto>
             {
                 Data = visibleProducts,
-                TotalCount = brandId.HasValue ? products.TotalCount : visibleProducts.Count,
+                TotalCount = products.TotalCount,
                 Page = products.Page,
                 PageSize = products.PageSize
             }, "Products retrieved successfully");
         }
 
-        public async Task<GenericResponse<ProductResponseDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<ProductResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             var product = await _productRepository.GetByIdAsync(id, cancellationToken);
             if (product == null)
@@ -60,17 +56,17 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError("Product not found");
             }
 
-            if (product.Brand.Profile.UserId != userId)
+            if (product.Brand.WorkspaceId != workspaceId)
             {
-                return GenericResponse<ProductResponseDto>.CreateError("You are not allowed to access this product");
+                return GenericResponse<ProductResponseDto>.CreateError("Product not found");
             }
 
             return GenericResponse<ProductResponseDto>.CreateSuccess(MapToDto(product), "Product retrieved successfully");
         }
 
-        public async Task<GenericResponse<ProductResponseDto>> CreateAsync(Guid userId, ProductCreateRequest request, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<ProductResponseDto>> CreateAsync(Guid workspaceId, ProductCreateRequest request, CancellationToken cancellationToken = default)
         {
-            var access = await EnsureBrandOwnerAsync(request.BrandId, userId, cancellationToken);
+            var access = await EnsureBrandAccessAsync(request.BrandId, workspaceId, cancellationToken);
             if (!access.Success)
             {
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
@@ -96,7 +92,7 @@ namespace AISAM.Services.Service
             return GenericResponse<ProductResponseDto>.CreateSuccess(MapToDto(loaded), "Product created successfully");
         }
 
-        public async Task<GenericResponse<ProductResponseDto>> UpdateAsync(Guid id, Guid userId, ProductUpdateRequestDto request, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<ProductResponseDto>> UpdateAsync(Guid id, Guid workspaceId, ProductUpdateRequestDto request, CancellationToken cancellationToken = default)
         {
             var product = await _productRepository.GetByIdAsync(id, cancellationToken);
             if (product == null)
@@ -104,14 +100,14 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError("Product not found");
             }
 
-            if (product.Brand.Profile.UserId != userId)
+            if (product.Brand.WorkspaceId != workspaceId)
             {
-                return GenericResponse<ProductResponseDto>.CreateError("You are not allowed to update this product");
+                return GenericResponse<ProductResponseDto>.CreateError("Product not found");
             }
 
             if (request.BrandId.HasValue && request.BrandId.Value != product.BrandId)
             {
-                var access = await EnsureBrandOwnerAsync(request.BrandId.Value, userId, cancellationToken);
+                var access = await EnsureBrandAccessAsync(request.BrandId.Value, workspaceId, cancellationToken);
                 if (!access.Success)
                 {
                     return GenericResponse<ProductResponseDto>.CreateError(access.Message);
@@ -146,7 +142,7 @@ namespace AISAM.Services.Service
             return GenericResponse<ProductResponseDto>.CreateSuccess(MapToDto(loaded), "Product updated successfully");
         }
 
-        public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             var product = await _productRepository.GetByIdAsync(id, cancellationToken);
             if (product == null)
@@ -154,9 +150,9 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Product not found");
             }
 
-            if (product.Brand.Profile.UserId != userId)
+            if (product.Brand.WorkspaceId != workspaceId)
             {
-                return GenericResponse<bool>.CreateError("You are not allowed to delete this product");
+                return GenericResponse<bool>.CreateError("Product not found");
             }
 
             product.IsDeleted = true;
@@ -165,7 +161,7 @@ namespace AISAM.Services.Service
             return GenericResponse<bool>.CreateSuccess(true, "Product deleted successfully");
         }
 
-        public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             var product = await _productRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
             if (product == null)
@@ -173,9 +169,9 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Product not found");
             }
 
-            if (product.Brand.Profile.UserId != userId)
+            if (product.Brand.WorkspaceId != workspaceId)
             {
-                return GenericResponse<bool>.CreateError("You are not allowed to restore this product");
+                return GenericResponse<bool>.CreateError("Product not found");
             }
 
             if (!product.IsDeleted)
@@ -189,7 +185,7 @@ namespace AISAM.Services.Service
             return GenericResponse<bool>.CreateSuccess(true, "Product restored successfully");
         }
 
-        private async Task<(bool Success, string Message)> EnsureBrandOwnerAsync(Guid brandId, Guid userId, CancellationToken cancellationToken)
+        private async Task<(bool Success, string Message)> EnsureBrandAccessAsync(Guid brandId, Guid workspaceId, CancellationToken cancellationToken)
         {
             var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
             if (brand == null)
@@ -197,9 +193,9 @@ namespace AISAM.Services.Service
                 return (false, "Brand not found");
             }
 
-            if (brand.Profile.UserId != userId)
+            if (brand.WorkspaceId != workspaceId)
             {
-                return (false, "You are not allowed to access this brand");
+                return (false, "Brand not found");
             }
 
             return (true, string.Empty);

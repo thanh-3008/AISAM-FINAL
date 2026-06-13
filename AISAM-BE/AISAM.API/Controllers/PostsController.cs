@@ -30,7 +30,7 @@ public sealed class PostsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await _postService.GetPagedAsync(
-            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
             new PaginationRequest
             {
                 Page = page,
@@ -48,12 +48,7 @@ public sealed class PostsController : ControllerBase
         Guid postId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _postService.GetByIdAsync(GetProfileId(), postId, cancellationToken);
+        var result = await _postService.GetByIdAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), postId, cancellationToken);
         return StatusCode(result.StatusCode, result);
-    }
-
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
     }
 }

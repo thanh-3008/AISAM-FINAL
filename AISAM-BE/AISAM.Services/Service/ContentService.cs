@@ -63,7 +63,7 @@ public sealed class ContentService : IContentService
                 workspaceAccessError.Value.ErrorCode);
         }
 
-        var validation = await ValidateBrandAndProductAsync(profileId, request.BrandId, request.ProductId, cancellationToken);
+        var validation = await ValidateBrandAndProductAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
             return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
@@ -72,6 +72,7 @@ public sealed class ContentService : IContentService
         var content = new Content
         {
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = request.BrandId,
             ProductId = request.ProductId,
             AdType = request.AdType,
@@ -89,18 +90,18 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content created successfully.");
     }
 
-    public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         if (brandId.HasValue)
         {
-            var validation = await ValidateBrandAndProductAsync(profileId, brandId.Value, null, cancellationToken);
+            var validation = await ValidateBrandAndProductAsync(workspaceId, brandId.Value, null, cancellationToken);
             if (!validation.Success)
             {
                 return GenericResponse<PagedResult<ContentResponseDto>>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
             }
         }
 
-        var result = await _contentRepository.GetPagedByProfileIdAsync(profileId, request, brandId, adType, includeDeleted, status, cancellationToken);
+        var result = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
         return GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>
         {
             Data = result.Data.Select(MapToDto).ToList(),
@@ -110,10 +111,10 @@ public sealed class ContentService : IContentService
         }, "Contents retrieved successfully.");
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
-        if (content == null || content.ProfileId != profileId)
+        if (content == null || !BelongsToWorkspace(content, workspaceId))
         {
             return NotFound();
         }
@@ -133,12 +134,12 @@ public sealed class ContentService : IContentService
         }
 
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
-        if (content == null || content.ProfileId != profileId)
+        if (content == null || !BelongsToWorkspace(content, workspaceId))
         {
             return NotFound();
         }
 
-        var validation = await ValidateBrandAndProductAsync(profileId, content.BrandId, request.ProductId, cancellationToken);
+        var validation = await ValidateBrandAndProductAsync(workspaceId, content.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
             return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
@@ -170,14 +171,15 @@ public sealed class ContentService : IContentService
         }
 
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
-        if (existing == null || existing.ProfileId != profileId)
+        if (existing == null || !BelongsToWorkspace(existing, workspaceId))
         {
             return NotFound();
         }
 
         var clone = new Content
         {
-            ProfileId = existing.ProfileId,
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = existing.BrandId,
             Brand = existing.Brand,
             ProductId = existing.ProductId,
@@ -209,7 +211,7 @@ public sealed class ContentService : IContentService
         }
 
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
-        if (content == null || content.ProfileId != profileId)
+        if (content == null || !BelongsToWorkspace(content, workspaceId))
         {
             return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
@@ -231,7 +233,7 @@ public sealed class ContentService : IContentService
         }
 
         var content = await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
-        if (content == null || content.ProfileId != profileId)
+        if (content == null || !BelongsToWorkspace(content, workspaceId))
         {
             return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
@@ -270,7 +272,19 @@ public sealed class ContentService : IContentService
         CancellationToken cancellationToken)
     {
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
-        if (content == null || content.ProfileId != profileId || content.IsDeleted)
+        if (content == null || content.IsDeleted)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
+        }
+
+        if (workspaceId.HasValue)
+        {
+            if (!BelongsToWorkspace(content, workspaceId.Value))
+            {
+                return GenericResponse<PublishResultDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
+            }
+        }
+        else if (content.ProfileId != profileId)
         {
             return GenericResponse<PublishResultDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
@@ -363,10 +377,10 @@ public sealed class ContentService : IContentService
         return GenericResponse<PublishResultDto>.CreateSuccess(publishResult, "Content published successfully.");
     }
 
-    private async Task<GenericResponse<bool>> ValidateBrandAndProductAsync(Guid profileId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
+    private async Task<GenericResponse<bool>> ValidateBrandAndProductAsync(Guid workspaceId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
     {
         var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
-        if (brand == null || brand.ProfileId != profileId)
+        if (brand == null || brand.WorkspaceId != workspaceId)
         {
             return GenericResponse<bool>.CreateError("Brand not found.", HttpStatusCode.NotFound);
         }
@@ -375,6 +389,11 @@ public sealed class ContentService : IContentService
         {
             var product = await _productRepository.GetByIdAsync(productId.Value, cancellationToken);
             if (product == null)
+            {
+                return GenericResponse<bool>.CreateError("Product not found.", HttpStatusCode.NotFound);
+            }
+
+            if (product.Brand.WorkspaceId != workspaceId)
             {
                 return GenericResponse<bool>.CreateError("Product not found.", HttpStatusCode.NotFound);
             }
@@ -519,6 +538,7 @@ public sealed class ContentService : IContentService
         {
             Id = content.Id,
             ProfileId = content.ProfileId,
+            WorkspaceId = content.WorkspaceId ?? content.Brand?.WorkspaceId,
             BrandId = content.BrandId,
             BrandName = content.Brand?.Name,
             ProductId = content.ProductId,
@@ -534,5 +554,11 @@ public sealed class ContentService : IContentService
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt
         };
+    }
+
+    private static bool BelongsToWorkspace(Content content, Guid workspaceId)
+    {
+        return content.WorkspaceId == workspaceId ||
+               (content.WorkspaceId == null && content.Brand?.WorkspaceId == workspaceId);
     }
 }

@@ -1,3 +1,4 @@
+using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
@@ -5,7 +6,6 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace AISAM.API.Controllers
 {
@@ -36,17 +36,17 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _productService.GetPagedAsync(new PaginationRequest
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.GetPagedAsync(workspaceId, new PaginationRequest
                 {
                     Page = page,
                     PageSize = pageSize,
                     SearchTerm = searchTerm,
                     SortBy = sortBy,
                     SortDescending = sortDescending
-                }, userId, brandId, includeDeleted, cancellationToken);
+                }, brandId, includeDeleted, cancellationToken);
 
-                return result.Success ? Ok(result) : BadRequest(result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -64,9 +64,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _productService.GetByIdAsync(id, userId, cancellationToken);
-                return result.Success ? Ok(result) : NotFound(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.GetByIdAsync(id, workspaceId, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -85,14 +85,14 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _productService.CreateAsync(userId, request, cancellationToken);
-                if (!result.Success)
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.CreateAsync(workspaceId, request, cancellationToken);
+                if (result.Success)
                 {
-                    return BadRequest(result);
+                    return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
                 }
 
-                return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -111,9 +111,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _productService.UpdateAsync(id, userId, request, cancellationToken);
-                return result.Success ? Ok(result) : BadRequest(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.UpdateAsync(id, workspaceId, request, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -131,9 +131,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _productService.SoftDeleteAsync(id, userId, cancellationToken);
-                return result.Success ? Ok(result) : NotFound(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.SoftDeleteAsync(id, workspaceId, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -151,9 +151,9 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
-                var result = await _productService.RestoreAsync(id, userId, cancellationToken);
-                return result.Success ? Ok(result) : BadRequest(result);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.RestoreAsync(id, workspaceId, cancellationToken);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -164,17 +164,6 @@ namespace AISAM.API.Controllers
                 _logger.LogError(ex, "Error restoring product {ProductId}", id);
                 return StatusCode(500, GenericResponse<bool>.CreateError("System error"));
             }
-        }
-
-        private Guid GetUserIdOrThrow()
-        {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdValue, out var userId))
-            {
-                throw new UnauthorizedAccessException("Invalid token");
-            }
-
-            return userId;
         }
     }
 }
