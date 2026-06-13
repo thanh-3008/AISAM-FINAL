@@ -122,7 +122,7 @@ public class QuotaServiceTests
     }
 
     [Fact]
-    public async Task GetWorkspaceSummaryAsync_AggregatesUsageAcrossActiveWorkspaceMemberProfiles()
+    public async Task GetWorkspaceSummaryAsync_UsesOnlyActiveWorkspaceUsage()
     {
         var workspaceId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
@@ -141,16 +141,9 @@ public class QuotaServiceTests
                     EndDate = new DateTime(2026, 6, 30),
                     IsActive = true
                 },
-                promptUsageByProfileId: new Dictionary<Guid, int>
-                {
-                    [ownerProfileId] = 2,
-                    [memberProfileId] = 3
-                },
-                postUsageByProfileId: new Dictionary<Guid, int>
-                {
-                    [ownerProfileId] = 10,
-                    [memberProfileId] = 5
-                }),
+                workspacePromptUsage: 5,
+                workspacePostUsage: 15,
+                useWorkspaceUsage: true),
             new FakeWorkspaceRepository(new Workspace
             {
                 Id = workspaceId,
@@ -192,11 +185,9 @@ public class QuotaServiceTests
                     EndDate = new DateTime(2026, 6, 7),
                     IsActive = true
                 },
-                promptUsageByProfileId: new Dictionary<Guid, int>(),
-                postUsageByProfileId: new Dictionary<Guid, int>
-                {
-                    [profileId] = 20
-                }),
+                workspacePromptUsage: 0,
+                workspacePostUsage: 20,
+                useWorkspaceUsage: true),
             new FakeWorkspaceRepository(new Workspace
             {
                 Id = workspaceId,
@@ -220,6 +211,8 @@ public class QuotaServiceTests
         private readonly int _postUsage;
         private readonly IReadOnlyDictionary<Guid, int> _promptUsageByProfileId;
         private readonly IReadOnlyDictionary<Guid, int> _postUsageByProfileId;
+        private readonly int _workspacePromptUsage;
+        private readonly int _workspacePostUsage;
         public DateTime? LastPromptWindowStart { get; private set; }
         public DateTime? LastPromptWindowEnd { get; private set; }
 
@@ -230,18 +223,23 @@ public class QuotaServiceTests
             _postUsage = postUsage;
             _promptUsageByProfileId = new Dictionary<Guid, int>();
             _postUsageByProfileId = new Dictionary<Guid, int>();
+            _workspacePromptUsage = promptUsage;
+            _workspacePostUsage = postUsage;
         }
 
         public FakeSubscriptionRepository(
             Subscription? subscription,
-            IReadOnlyDictionary<Guid, int> promptUsageByProfileId,
-            IReadOnlyDictionary<Guid, int> postUsageByProfileId)
+            int workspacePromptUsage,
+            int workspacePostUsage,
+            bool useWorkspaceUsage)
         {
             _subscription = subscription;
             _promptUsage = 0;
             _postUsage = 0;
-            _promptUsageByProfileId = promptUsageByProfileId;
-            _postUsageByProfileId = postUsageByProfileId;
+            _promptUsageByProfileId = new Dictionary<Guid, int>();
+            _postUsageByProfileId = new Dictionary<Guid, int>();
+            _workspacePromptUsage = workspacePromptUsage;
+            _workspacePostUsage = workspacePostUsage;
         }
 
         public Task<Subscription?> GetCurrentActiveByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default)
@@ -280,6 +278,12 @@ public class QuotaServiceTests
         {
             return Task.FromResult(_postUsageByProfileId.TryGetValue(profileId, out var usage) ? usage : _postUsage);
         }
+
+        public Task<int> CountSuccessfulPromptUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
+            => Task.FromResult(_workspacePromptUsage);
+
+        public Task<int> CountSuccessfulPostUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
+            => Task.FromResult(_workspacePostUsage);
     }
 
     private sealed class FakeWorkspaceRepository : IWorkspaceRepository

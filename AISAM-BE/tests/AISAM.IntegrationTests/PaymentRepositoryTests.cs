@@ -101,6 +101,26 @@ public class PaymentRepositoryTests
     }
 
     [Fact]
+    public async Task WorkspaceUsageQueries_CountOnlyRequestedWorkspace()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedFixture(context);
+        var repository = new SubscriptionRepository(context);
+
+        var promptCount = await repository.CountSuccessfulPromptUsageByWorkspaceIdAsync(
+            fixture.OwnerWorkspace.Id,
+            fixture.ActiveSubscription.StartDate,
+            fixture.ActiveSubscription.EndDate);
+        var postCount = await repository.CountSuccessfulPostUsageByWorkspaceIdAsync(
+            fixture.OwnerWorkspace.Id,
+            fixture.ActiveSubscription.StartDate,
+            fixture.ActiveSubscription.EndDate);
+
+        Assert.Equal(1, promptCount);
+        Assert.Equal(1, postCount);
+    }
+
+    [Fact]
     public async Task UsageQueries_AcceptUnspecifiedSubscriptionDatesFromPostgreSqlDateColumns()
     {
         await using var context = CreateContext();
@@ -258,12 +278,14 @@ public class PaymentRepositoryTests
         {
             Id = Guid.NewGuid(),
             ProfileId = ownerProfile.Id,
+            WorkspaceId = ownerWorkspace.Id,
             Name = "Owner Brand"
         };
         var otherBrand = new Brand
         {
             Id = Guid.NewGuid(),
             ProfileId = otherProfile.Id,
+            WorkspaceId = otherWorkspace.Id,
             Name = "Other Brand"
         };
 
@@ -271,6 +293,7 @@ public class PaymentRepositoryTests
         {
             Id = Guid.NewGuid(),
             ProfileId = ownerProfile.Id,
+            WorkspaceId = ownerWorkspace.Id,
             BrandId = brand.Id,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Owner content",
@@ -280,6 +303,7 @@ public class PaymentRepositoryTests
         {
             Id = Guid.NewGuid(),
             ProfileId = otherProfile.Id,
+            WorkspaceId = otherWorkspace.Id,
             BrandId = otherBrand.Id,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Other content",

@@ -160,6 +160,7 @@ builder.Services.AddScoped<IQuotaService, QuotaService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 

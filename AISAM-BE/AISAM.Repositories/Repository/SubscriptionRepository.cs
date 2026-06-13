@@ -112,6 +112,48 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         return await query.CountAsync(cancellationToken);
     }
 
+    public async Task<int> CountSuccessfulPromptUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
+    {
+        var utcWindowStart = NormalizeUtc(windowStart);
+        var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
+
+        var query = _context.AiGenerations
+            .Include(generation => generation.Content)
+            .Where(generation =>
+                !generation.IsDeleted &&
+                generation.Status == AiStatusEnum.Completed &&
+                generation.Content.WorkspaceId == workspaceId &&
+                generation.CreatedAt >= utcWindowStart);
+
+        if (utcWindowEndExclusive.HasValue)
+        {
+            query = query.Where(generation => generation.CreatedAt < utcWindowEndExclusive.Value);
+        }
+
+        return await query.CountAsync(cancellationToken);
+    }
+
+    public async Task<int> CountSuccessfulPostUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
+    {
+        var utcWindowStart = NormalizeUtc(windowStart);
+        var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
+
+        var query = _context.Posts
+            .Include(post => post.Content)
+            .Where(post =>
+                !post.IsDeleted &&
+                post.Status == ContentStatusEnum.Published &&
+                post.Content.WorkspaceId == workspaceId &&
+                post.PublishedAt >= utcWindowStart);
+
+        if (utcWindowEndExclusive.HasValue)
+        {
+            query = query.Where(post => post.PublishedAt < utcWindowEndExclusive.Value);
+        }
+
+        return await query.CountAsync(cancellationToken);
+    }
+
     private static DateTime NormalizeUtc(DateTime value)
     {
         return value.Kind switch

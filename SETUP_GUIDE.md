@@ -11,7 +11,7 @@ X-Workspace-Id: Workspace membership, payment, subscription, credits, feature ga
 X-Profile-Id: metadata/audit compatibility; ownership bat buoc dung X-Workspace-Id
 ```
 
-Phase 9 da hoan thanh Task 9.1-9.17. Workspace ownership da backfill va khoa schema; `X-Profile-Id` chi con phuc vu metadata/audit trong cac luong hien co.
+Phase 9 da hoan thanh Task 9.1-9.18. Workspace ownership da backfill va khoa schema; Workspace Dashboard va regression cuoi Phase 9 da pass. `X-Profile-Id` chi con phuc vu metadata/audit trong cac luong hien co.
 
 Tài liệu này ghi lại các cấu hình thủ công để chạy backend AISAM `.NET 8`.
 
@@ -36,7 +36,7 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 
 ## 2. Tiến Độ Hiện Tại
 
-Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.17**:
+Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.18**:
 
 - API host, Swagger, Health.
 - PostgreSQL, EF Core và migrations.
@@ -51,6 +51,10 @@ Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.17**:
 - Workspace CRUD, invitation/member role, ownership transfer.
 - Workspace subscription/payment, Credit Wallet va member quota.
 - Workspace feature/permission gate, Post Quota va AI Credit charging.
+- Workspace Dashboard: Credits Remaining, Posts Remaining, Published Posts, Total AI Usage va Top Members By Usage.
+- Personal Workspace duoc tao cung Free subscription va 50 Credits; Free Credits reset theo chu ky 7 ngay khi duoc truy cap/su dung.
+- Migration `ProvisionMissingPersonalFreePlan` bo sung Free plan/50 Credits cho Personal Workspace cu con thieu.
+- Basic Dashboard, Post Quota va usage dashboard duoc isolation truc tiep theo `WorkspaceId`.
 
 Trong giai doan chuyen tiep, cac API `/api/content`, `/api/ai` va route Workspace-protected lien quan bat buoc co:
 

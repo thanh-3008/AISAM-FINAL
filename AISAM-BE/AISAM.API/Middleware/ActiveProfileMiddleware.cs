@@ -11,7 +11,6 @@ public sealed class ActiveProfileMiddleware
     {
         new("/api/content"),
         new("/api/content-schedules"),
-        new("/api/dashboard"),
         new("/api/dev/scheduler"),
         new("/api/ai"),
         new("/api/conversations"),

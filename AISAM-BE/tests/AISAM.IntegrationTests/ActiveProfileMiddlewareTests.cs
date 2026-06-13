@@ -85,6 +85,22 @@ public class ActiveProfileMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Fact]
+    public async Task InvokeAsync_DoesNotRequireProfileHeaderForWorkspaceDashboardSummary()
+    {
+        var nextCalled = false;
+        var context = CreateContext(Guid.NewGuid(), "/api/dashboard/summary");
+        var middleware = new ActiveProfileMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+
+        Assert.True(nextCalled);
+    }
+
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/content")
     {
         return new DefaultHttpContext

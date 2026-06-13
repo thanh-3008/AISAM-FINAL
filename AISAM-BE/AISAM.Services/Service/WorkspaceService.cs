@@ -13,16 +13,13 @@ public sealed class WorkspaceService : IWorkspaceService
 {
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IUserRepository _userRepository;
-    private readonly ICreditService _creditService;
 
     public WorkspaceService(
         IWorkspaceRepository workspaceRepository,
-        IUserRepository userRepository,
-        ICreditService creditService)
+        IUserRepository userRepository)
     {
         _workspaceRepository = workspaceRepository;
         _userRepository = userRepository;
-        _creditService = creditService;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceResponseDto>>> GetByUserIdAsync(
@@ -80,6 +77,7 @@ public sealed class WorkspaceService : IWorkspaceService
             Name = request.Name.Trim(),
             WorkspaceType = request.WorkspaceType,
             MemberLimit = request.WorkspaceType == WorkspaceTypeEnum.Business ? 10 : 1,
+            CreditWallet = new CreditWallet { Balance = request.WorkspaceType == WorkspaceTypeEnum.Personal ? 50 : 0 },
             Members =
             [
                 new WorkspaceMember
@@ -89,9 +87,27 @@ public sealed class WorkspaceService : IWorkspaceService
                 }
             ]
         };
+        if (request.WorkspaceType == WorkspaceTypeEnum.Personal)
+        {
+            workspace.Subscriptions.Add(new Subscription
+            {
+                WorkspaceId = workspace.Id,
+                Plan = SubscriptionPlanEnum.Free,
+                QuotaPostsPerMonth = 20,
+                StartDate = DateTime.UtcNow.Date,
+                IsActive = true
+            });
+            workspace.CreditUsageRecords.Add(new CreditUsageRecord
+            {
+                WorkspaceId = workspace.Id,
+                UserId = userId,
+                Action = CreditActionEnum.SubscriptionGrant,
+                Credits = 50,
+                Status = CreditUsageStatusEnum.Success
+            });
+        }
 
         var createdWorkspace = await _workspaceRepository.AddAsync(workspace, cancellationToken);
-        await _creditService.EnsureWalletAsync(createdWorkspace.Id, cancellationToken);
         return GenericResponse<WorkspaceResponseDto>.CreateSuccess(
             MapToDto(createdWorkspace, userId),
             "Workspace created successfully.");

@@ -63,4 +63,33 @@ public sealed class DashboardService : IDashboardService
             UnreadNotificationCount = unreadCount
         }, "Dashboard summary retrieved successfully.");
     }
+
+    public async Task<GenericResponse<DashboardSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var countRequest = new PaginationRequest { Page = 1, PageSize = 1 };
+        var draftCount = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, status: ContentStatusEnum.Draft, cancellationToken: cancellationToken);
+        var pendingApprovalCount = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, status: ContentStatusEnum.PendingApproval, cancellationToken: cancellationToken);
+        var publishedCount = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, status: ContentStatusEnum.Published, cancellationToken: cancellationToken);
+        var postsCount = await _postRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, cancellationToken: cancellationToken);
+        var unreadCount = await _notificationRepository.GetUnreadCountByWorkspaceIdAsync(workspaceId, cancellationToken);
+        var socialAccounts = await _socialAccountRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
+        var upcomingSchedulesCount = await _contentCalendarRepository.CountUpcomingByWorkspaceIdAsync(workspaceId, DateTime.UtcNow, cancellationToken);
+        var failedSchedulesCount = await _contentCalendarRepository.CountFailedByWorkspaceIdAsync(workspaceId, cancellationToken);
+        var activeIntegrationCount = socialAccounts
+            .Where(account => !account.IsDeleted)
+            .SelectMany(account => account.SocialIntegrations)
+            .Count(integration => !integration.IsDeleted && integration.IsActive);
+
+        return GenericResponse<DashboardSummaryDto>.CreateSuccess(new DashboardSummaryDto
+        {
+            DraftContentCount = draftCount.TotalCount,
+            PublishedContentCount = publishedCount.TotalCount,
+            PendingApprovalContentCount = pendingApprovalCount.TotalCount,
+            UpcomingScheduleCount = upcomingSchedulesCount,
+            FailedScheduleCount = failedSchedulesCount,
+            ActiveSocialIntegrationCount = activeIntegrationCount,
+            PublishedPostCount = postsCount.TotalCount,
+            UnreadNotificationCount = unreadCount
+        }, "Workspace dashboard summary retrieved successfully.");
+    }
 }

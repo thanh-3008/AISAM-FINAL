@@ -7,6 +7,8 @@ namespace AISAM.Services.IServices;
 public interface ICreditService
 {
     Task<CreditWallet> EnsureWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+    Task<CreditWallet> EnsureCurrentFreeCreditsAsync(Guid workspaceId, DateTime? now = null, CancellationToken cancellationToken = default)
+        => EnsureWalletAsync(workspaceId, cancellationToken);
     Task<GenericResponse<CreditWallet>> GrantSubscriptionCreditsAsync(
         Guid workspaceId,
         Guid userId,

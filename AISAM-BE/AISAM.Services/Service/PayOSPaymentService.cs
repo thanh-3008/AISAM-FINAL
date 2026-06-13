@@ -10,9 +10,12 @@ using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Repositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Data;
 
 namespace AISAM.Services.Service;
 
@@ -27,6 +30,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly ICreditService _creditService;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
+    private readonly AisamContext? _context;
 
     public PayOSPaymentService(
         IPaymentRepository paymentRepository,
@@ -35,7 +39,8 @@ public sealed class PayOSPaymentService : IPaymentService
         IWorkspaceRepository workspaceRepository,
         ICreditService creditService,
         IOptions<PayOSSettings> settings,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        AisamContext? context = null)
     {
         _paymentRepository = paymentRepository;
         _subscriptionRepository = subscriptionRepository;
@@ -44,6 +49,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _creditService = creditService;
         _settings = settings.Value;
         _httpClient = httpClient;
+        _context = context;
     }
 
     public async Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(
@@ -401,6 +407,34 @@ public sealed class PayOSPaymentService : IPaymentService
     }
 
     private async Task<GenericResponse<bool>> ApplyPaymentStatusAsync(
+        string reference,
+        string? status,
+        string? transactionId,
+        bool acknowledgeMissingPayment,
+        CancellationToken cancellationToken)
+    {
+        if (_context == null || !_context.Database.IsRelational() || _context.Database.CurrentTransaction != null)
+        {
+            return await ApplyPaymentStatusCoreAsync(reference, status, transactionId, acknowledgeMissingPayment, cancellationToken);
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            var result = await ApplyPaymentStatusCoreAsync(reference, status, transactionId, acknowledgeMissingPayment, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task<GenericResponse<bool>> ApplyPaymentStatusCoreAsync(
         string reference,
         string? status,
         string? transactionId,

@@ -6,10 +6,11 @@ Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
 Bao cao chi tiet ben duoi duoc lap tu snapshot cu ngay 2026-05-26. Trang thai Workspace hien tai da tien xa hon snapshot do:
 
-- Task 9.1-9.17 da hoan thanh va automated tests pass.
+- Task 9.1-9.18 da hoan thanh va automated tests pass.
 - Workspace/subscription/payment/credits/member quota/feature gate/Post Quota/AI Credit charging da co.
 - Tat ca domain trong Task 9.16 da migrate sang Workspace ownership; Task 9.17 da backfill du lieu cu va khoa `WorkspaceId` ownership bat buoc.
-- Lifecycle Limited/Archived/Admin Soft Delete da co; regression/dashboard va tai lieu cuoi Phase 9 Task 9.18 van chua hoan thanh.
+- Lifecycle Limited/Archived/Admin Soft Delete va Workspace Dashboard da co; regression va tai lieu cuoi Phase 9 da hoan thanh.
+- Audit cuoi Phase 9 da xac minh va sua Workspace quota/dashboard isolation, Free Credits reset 7 ngay, atomic credit/payment transaction va Team Management feature gate.
 
 Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Change Request. Tien do Change Request hien tai:
 
@@ -17,9 +18,9 @@ Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Cha
 |---|---|
 | Business decisions va impact analysis | DONE |
 | Tai lieu lien quan | IN PROGRESS |
-| Workspace entities/migration/API | IN PROGRESS - Task 9.1-9.17 DONE; con Task 9.18 |
+| Workspace entities/migration/API | DONE - Task 9.1-9.18 |
 | Subscription/Credits migration | DONE cho payment/subscription/wallet/AI text charging |
-| Ownership backfill va regression | NOT STARTED |
+| Ownership backfill va regression | DONE |
 
 Ngày đánh giá: 2026-05-26  
 Tài liệu yêu cầu: `D:\final\AISAM-FINAL\README.md`, `D:\final\AISAM-FINAL\SPECIFICATION_ANSWERS.md`  

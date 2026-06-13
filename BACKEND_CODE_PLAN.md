@@ -3195,8 +3195,8 @@ Mục tiêu phase:
 | 9.14 | Áp dụng Credits vào AI generation | DONE - 2026-06-12 | 9.10, 9.13 |
 | 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | DONE - 2026-06-12 | 9.9, 9.13 |
 | 9.16 | Chuyển ownership từng domain sang Workspace | DONE - 2026-06-13 | 9.6, 9.13 |
-| 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | TODO | 9.9-9.16 |
-| 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | TODO | 9.17 |
+| 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | DONE - 2026-06-13 | 9.9-9.16 |
+| 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | DONE - 2026-06-13 | 9.17 |
 
 ### Task 9.1 - Thêm Workspace domain foundation
 
@@ -4712,7 +4712,7 @@ Trạng thái:
 
 ```text
 DONE - 2026-06-13
-Task 9.17 đã hoàn thành; Task tiếp theo: 9.18 Workspace Dashboard, regression và tài liệu cuối Phase 9.
+Task 9.17 và Task 9.18 đã hoàn thành; Phase 9 đã chốt.
 ```
 
 Mục tiêu:
@@ -4754,7 +4754,7 @@ Trạng thái:
 
 ```text
 DONE - 2026-06-13
-Task tiếp theo: 9.18 Workspace Dashboard, regression và tài liệu cuối Phase 9.
+Task 9.18 đã hoàn thành; Phase 9 đã chốt.
 ```
 
 Mục tiêu:
@@ -4784,6 +4784,21 @@ migration(workspace): backfill legacy profile data
 ```
 
 ### Task 9.18 - Workspace Dashboard, regression và tài liệu cuối Phase 9
+
+Trạng thái: **DONE - 2026-06-13**
+
+Kết quả:
+
+- Đã thêm `GET /api/workspace-dashboard/summary`, dùng Active Workspace từ `X-Workspace-Id`.
+- Dashboard tổng hợp đúng Credits Remaining, Posts Remaining, Published Posts, Total AI Usage và Top Members By Usage.
+- Feature gate chỉ cho Business Plus/Premium sử dụng Workspace Dashboard; middleware tiếp tục xác minh membership.
+- Regression test khóa việc lọc dữ liệu theo Workspace, chỉ tính giao dịch thành công, bỏ qua credit grant và member inactive.
+- Audit cuối Phase 9 đã sửa Post Quota và Basic Dashboard bị trộn dữ liệu giữa các Workspace của cùng user/profile.
+- Personal Workspace mới được provision atomically với Free subscription, Credit Wallet 50 và Free Credits reset theo chu kỳ 7 ngày.
+- Migration `20260613130339_ProvisionMissingPersonalFreePlan` provision idempotent Free subscription/50 Credits cho Personal Workspace cũ còn thiếu; rollback và apply lại đã pass.
+- Tạo Workspace luôn lưu Owner + Credit Wallet trong cùng EF graph; credit consume/grant và PayOS status application dùng transaction trên relational database.
+- Invitation/accept yêu cầu active Business Plus hoặc Business Pro, không còn cho Business Workspace chưa có plan sử dụng Team Management.
+- `dotnet build`, 260 automated tests, EF pending-model check/database update, package vulnerability scan và Swagger runtime smoke-test đều pass.
 
 Mục tiêu:
 
@@ -5963,7 +5978,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.17 da hoan thanh; Task tiep theo la 9.18 dashboard/regression/tai lieu cuoi Phase 9. |
+| Phase 9 - Workspace Migration | DONE | Task 9.1-9.18 da hoan thanh; Workspace Dashboard va regression cuoi Phase 9 da pass. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

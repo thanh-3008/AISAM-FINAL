@@ -21,7 +21,6 @@ namespace AISAM.Services.Service
         private readonly IUserRepository _userRepository;
         private readonly ISessionRepository _sessionRepository;
         private readonly IEmailService _emailService;
-        private readonly ICreditService _creditService;
         private readonly JwtSettings _jwtSettings;
         private readonly GoogleSettings _googleSettings;
 
@@ -29,14 +28,12 @@ namespace AISAM.Services.Service
             IUserRepository userRepository,
             ISessionRepository sessionRepository,
             IEmailService emailService,
-            ICreditService creditService,
             IOptions<JwtSettings> jwtSettings,
             IOptions<GoogleSettings> googleSettings)
         {
             _userRepository = userRepository;
             _sessionRepository = sessionRepository;
             _emailService = emailService;
-            _creditService = creditService;
             _jwtSettings = jwtSettings.Value;
             _googleSettings = googleSettings.Value;
         }
@@ -76,8 +73,6 @@ namespace AISAM.Services.Service
             AddPersonalWorkspace(user);
 
             await _userRepository.CreateAsync(user);
-            var workspaceId = user.WorkspaceMembers.Single().WorkspaceId;
-            await _creditService.EnsureWalletAsync(workspaceId);
 
             // Send verification email
             await _emailService.SendEmailVerificationAsync(user.Email, user.FullName ?? "User", verificationToken);
@@ -361,8 +356,26 @@ namespace AISAM.Services.Service
                 Name = string.IsNullOrWhiteSpace(user.FullName)
                     ? "Personal Workspace"
                     : $"{user.FullName.Trim()}'s Workspace",
-                WorkspaceType = WorkspaceTypeEnum.Personal
+                WorkspaceType = WorkspaceTypeEnum.Personal,
+                CreditWallet = new CreditWallet { Balance = 50 }
             };
+            personalWorkspace.Subscriptions.Add(new Subscription
+            {
+                WorkspaceId = personalWorkspace.Id,
+                Plan = SubscriptionPlanEnum.Free,
+                QuotaPostsPerMonth = 20,
+                StartDate = DateTime.UtcNow.Date,
+                IsActive = true
+            });
+            personalWorkspace.CreditUsageRecords.Add(new CreditUsageRecord
+            {
+                WorkspaceId = personalWorkspace.Id,
+                UserId = user.Id,
+                User = user,
+                Action = CreditActionEnum.SubscriptionGrant,
+                Credits = 50,
+                Status = CreditUsageStatusEnum.Success
+            });
 
             user.WorkspaceMembers.Add(new WorkspaceMember
             {

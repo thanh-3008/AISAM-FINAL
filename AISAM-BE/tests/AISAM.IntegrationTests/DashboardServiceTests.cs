@@ -60,6 +60,28 @@ public class DashboardServiceTests
         Assert.Equal(1, result.Data.UnreadNotificationCount);
     }
 
+    [Fact]
+    public async Task GetWorkspaceSummaryAsync_ReturnsOnlyRequestedWorkspaceCounts()
+    {
+        var workspaceId = Guid.NewGuid();
+        var otherWorkspaceId = Guid.NewGuid();
+        var service = CreateService(
+            contentRepository: new FakeContentRepository(
+                new Content { WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), BrandId = Guid.NewGuid(), AdType = AdTypeEnum.TextOnly, TextContent = "own", Status = ContentStatusEnum.Draft },
+                new Content { WorkspaceId = otherWorkspaceId, ProfileId = Guid.NewGuid(), BrandId = Guid.NewGuid(), AdType = AdTypeEnum.TextOnly, TextContent = "other", Status = ContentStatusEnum.Draft }),
+            socialAccountRepository: new FakeSocialAccountRepository(),
+            postRepository: new FakePostRepository(workspaceId, 2, otherWorkspaceId, 9),
+            notificationRepository: new FakeNotificationRepository(workspaceId, 3, otherWorkspaceId, 8),
+            contentCalendarRepository: new FakeContentCalendarRepository(upcomingCount: 4, failedCount: 1));
+
+        var result = await service.GetWorkspaceSummaryAsync(workspaceId);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Data!.DraftContentCount);
+        Assert.Equal(2, result.Data.PublishedPostCount);
+        Assert.Equal(3, result.Data.UnreadNotificationCount);
+    }
+
     private static DashboardService CreateService(
         IContentRepository? contentRepository = null,
         ISocialAccountRepository? socialAccountRepository = null,
@@ -155,6 +177,15 @@ public class DashboardServiceTests
 
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        {
+            var query = _contents.Where(content => content.WorkspaceId == workspaceId);
+            if (!includeDeleted) query = query.Where(content => !content.IsDeleted);
+            if (status.HasValue) query = query.Where(content => content.Status == status.Value);
+            var data = query.ToList();
+            return Task.FromResult(new PagedResult<Content> { Data = data, TotalCount = data.Count, Page = request.Page, PageSize = request.PageSize });
+        }
     }
 
     private sealed class FakeSocialAccountRepository : ISocialAccountRepository
@@ -177,6 +208,12 @@ public class DashboardServiceTests
             IReadOnlyList<SocialAccount> data = _accounts
                 .Where(account => account.ProfileId == profileId && !account.IsDeleted)
                 .ToList();
+            return Task.FromResult(data);
+        }
+
+        public Task<IReadOnlyList<SocialAccount>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<SocialAccount> data = _accounts.Where(account => account.WorkspaceId == workspaceId && !account.IsDeleted).ToList();
             return Task.FromResult(data);
         }
     }
@@ -208,6 +245,9 @@ public class DashboardServiceTests
                 PageSize = request.PageSize
             });
         }
+
+        public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+            => GetPagedByProfileIdAsync(workspaceId, request, brandId, status, cancellationToken);
     }
 
     private sealed class FakeNotificationRepository : INotificationRepository
@@ -235,6 +275,9 @@ public class DashboardServiceTests
             _unreadCounts.TryGetValue(profileId, out var count);
             return Task.FromResult(count);
         }
+
+        public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => GetUnreadCountAsync(workspaceId, cancellationToken);
     }
 
     private sealed class FakeContentCalendarRepository : IContentCalendarRepository
@@ -259,6 +302,12 @@ public class DashboardServiceTests
             => Task.FromResult(_upcomingCount);
 
         public Task<int> CountFailedByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_failedCount);
+
+        public Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default)
+            => Task.FromResult(_upcomingCount);
+
+        public Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
             => Task.FromResult(_failedCount);
     }
 }

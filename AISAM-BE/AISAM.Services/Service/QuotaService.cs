@@ -70,17 +70,12 @@ public sealed class QuotaService : IQuotaService
             return GenericResponse<QuotaSummaryDto>.CreateError("Active workspace subscription not found.", HttpStatusCode.NotFound);
         }
 
-        var memberProfiles = await GetActiveWorkspaceProfilesAsync(workspace, cancellationToken);
         var (windowStart, windowEnd) = ResolvePostQuotaWindow(subscription, DateTime.UtcNow.Date);
         var promptDay = DateTime.UtcNow.Date;
-
-        var promptUsage = 0;
-        var postUsage = 0;
-        foreach (var profile in memberProfiles)
-        {
-            promptUsage += await _subscriptionRepository.CountSuccessfulPromptUsageAsync(profile.Id, promptDay, promptDay, cancellationToken);
-            postUsage += await _subscriptionRepository.CountSuccessfulPostUsageAsync(profile.Id, windowStart, windowEnd, cancellationToken);
-        }
+        var promptUsage = await _subscriptionRepository.CountSuccessfulPromptUsageByWorkspaceIdAsync(
+            workspaceId, promptDay, promptDay, cancellationToken);
+        var postUsage = await _subscriptionRepository.CountSuccessfulPostUsageByWorkspaceIdAsync(
+            workspaceId, windowStart, windowEnd, cancellationToken);
 
         var postLimit = ResolveWorkspacePostQuota(workspace.WorkspaceType, subscription.Plan);
         var promptLimit = subscription.QuotaAIContentPerDay;
@@ -155,21 +150,6 @@ public sealed class QuotaService : IQuotaService
         }
 
         return GenericResponse<bool>.CreateSuccess(true);
-    }
-
-    private async Task<IReadOnlyList<Profile>> GetActiveWorkspaceProfilesAsync(Workspace workspace, CancellationToken cancellationToken)
-    {
-        var profiles = new List<Profile>();
-        foreach (var userId in workspace.Members.Where(member => member.IsActive).Select(member => member.UserId).Distinct())
-        {
-            var userProfiles = await _profileRepository.GetByUserIdAsync(userId, cancellationToken);
-            profiles.AddRange(userProfiles);
-        }
-
-        return profiles
-            .GroupBy(profile => profile.Id)
-            .Select(group => group.First())
-            .ToList();
     }
 
     private static (DateTime WindowStart, DateTime? WindowEnd) ResolvePostQuotaWindow(Subscription subscription, DateTime utcToday)

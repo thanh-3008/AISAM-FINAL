@@ -93,6 +93,26 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
             .CountAsync(cancellationToken);
     }
 
+    public async Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .Where(schedule =>
+                schedule.WorkspaceId == workspaceId &&
+                !schedule.IsDeleted &&
+                (schedule.ScheduledAt ?? schedule.ScheduledDate) > utcNow)
+            .CountAsync(cancellationToken);
+    }
+
+    public async Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .Where(schedule =>
+                schedule.WorkspaceId == workspaceId &&
+                !schedule.IsDeleted &&
+                schedule.Status == ScheduleStatusEnum.Failed)
+            .CountAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default)
     {
         var take = Math.Clamp(limit, 1, 100);

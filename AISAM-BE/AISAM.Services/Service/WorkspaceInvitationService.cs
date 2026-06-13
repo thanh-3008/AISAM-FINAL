@@ -75,6 +75,14 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 HttpStatusCode.Forbidden);
         }
 
+        if (!await SupportsTeamManagementAsync(workspaceId, cancellationToken))
+        {
+            return GenericResponse<WorkspaceInvitationResponseDto>.CreateError(
+                "An active Business Plus or Business Pro subscription is required to invite members.",
+                HttpStatusCode.Forbidden,
+                "WORKSPACE_FEATURE_NOT_AVAILABLE");
+        }
+
         if (!Enum.IsDefined(request.Role) || request.Role == WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError("Invalid invitation role.");
@@ -173,6 +181,14 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 HttpStatusCode.Forbidden);
         }
 
+        if (!await SupportsTeamManagementAsync(invitation.WorkspaceId, cancellationToken))
+        {
+            return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError(
+                "An active Business Plus or Business Pro subscription is required to accept invitations.",
+                HttpStatusCode.Forbidden,
+                "WORKSPACE_FEATURE_NOT_AVAILABLE");
+        }
+
         if (!string.Equals(invitation.Email, user.Email, StringComparison.OrdinalIgnoreCase))
         {
             return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError(
@@ -233,6 +249,12 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         }
 
         return null;
+    }
+
+    private async Task<bool> SupportsTeamManagementAsync(Guid workspaceId, CancellationToken cancellationToken)
+    {
+        var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
+        return subscription?.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium;
     }
 
     private static WorkspaceInvitationResponseDto Map(WorkspaceInvitation invitation)

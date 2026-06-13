@@ -770,6 +770,16 @@ public class PaymentServiceTests
         {
             return Task.FromResult(0);
         }
+
+        public Task<int> CountSuccessfulPromptUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0);
+        }
+
+        public Task<int> CountSuccessfulPostUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0);
+        }
     }
 
     private sealed class FakeProfileRepository : IProfileRepository

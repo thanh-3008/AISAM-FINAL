@@ -1537,4 +1537,6 @@ public enum WorkspaceTypeEnum
 
 Change Request này có blast radius lớn vì thay đổi ownership boundary của hệ thống. Kế hoạch trên giữ phạm vi đúng yêu cầu, triển khai theo từng module nhỏ, có migration an toàn và không tự ý thay đổi provider, auth core, UI/UX hoặc chức năng nâng cao.
 
-**Cap nhat 2026-06-13: Phase 9 da hoan thanh Task 9.1-9.17. Brand/Product, Content/Post, Social, Calendar, Conversation, Notification va Campaign da migrate sang Workspace ownership; du lieu cu da backfill vao Personal Workspace va WorkspaceId ownership da khoa NOT NULL. ProfileId chi con la metadata/audit compatibility. Task tiep theo la 9.18 regression/dashboard va tai lieu cuoi Phase 9.**
+**Cap nhat 2026-06-13: Phase 9 da hoan thanh Task 9.1-9.18. Brand/Product, Content/Post, Social, Calendar, Conversation, Notification va Campaign da migrate sang Workspace ownership; du lieu cu da backfill vao Personal Workspace va WorkspaceId ownership da khoa NOT NULL. Workspace Dashboard va regression cuoi Phase 9 da pass. ProfileId chi con la metadata/audit compatibility. Phase tiep theo la Phase 10 Admin backend theo Workspace.**
+
+**Audit cuoi Phase 9 ngay 2026-06-13 da sua them: Workspace Post Quota/Basic Dashboard isolation, atomic Wallet/Credit/PayOS transaction, Free subscription + 50 Credits + reset 7 ngay cho Personal Workspace, va Team Management feature gate cho invitation/accept.**

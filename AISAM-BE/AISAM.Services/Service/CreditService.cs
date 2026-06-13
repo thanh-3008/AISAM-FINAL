@@ -3,7 +3,10 @@ using AISAM.Common;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Repositories;
 using AISAM.Services.IServices;
+using System.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Services.Service;
 
@@ -16,17 +19,20 @@ public sealed class CreditService : ICreditService
     private readonly ICreditUsageRecordRepository _creditUsageRecordRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly AisamContext _context;
 
     public CreditService(
         ICreditWalletRepository creditWalletRepository,
         ICreditUsageRecordRepository creditUsageRecordRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
-        IWorkspaceRepository workspaceRepository)
+        IWorkspaceRepository workspaceRepository,
+        AisamContext context)
     {
         _creditWalletRepository = creditWalletRepository;
         _creditUsageRecordRepository = creditUsageRecordRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceRepository = workspaceRepository;
+        _context = context;
     }
 
     public async Task<CreditWallet> EnsureWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default)
@@ -43,6 +49,14 @@ public sealed class CreditService : ICreditService
             Balance = 0
         }, cancellationToken);
     }
+
+    public async Task<CreditWallet> EnsureCurrentFreeCreditsAsync(
+        Guid workspaceId,
+        DateTime? now = null,
+        CancellationToken cancellationToken = default)
+        => await ExecuteInTransactionAsync(
+            () => EnsureCurrentFreeCreditsCoreAsync(workspaceId, now, cancellationToken),
+            cancellationToken);
 
     public async Task<GenericResponse<CreditWallet>> GrantSubscriptionCreditsAsync(
         Guid workspaceId,
@@ -138,6 +152,18 @@ public sealed class CreditService : ICreditService
         Guid? aiGenerationId = null,
         DateTime? now = null,
         CancellationToken cancellationToken = default)
+        => await ExecuteInTransactionAsync(
+            () => ConsumeCreditsCoreAsync(workspaceId, userId, action, credits, aiGenerationId, now, cancellationToken),
+            cancellationToken);
+
+    private async Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsCoreAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreditActionEnum action,
+        long credits,
+        Guid? aiGenerationId,
+        DateTime? now,
+        CancellationToken cancellationToken)
     {
         if (credits <= 0)
         {
@@ -162,7 +188,7 @@ public sealed class CreditService : ICreditService
                 "WORKSPACE_MEMBER_NOT_FOUND");
         }
 
-        var wallet = await EnsureWalletAsync(workspaceId, cancellationToken);
+        var wallet = await EnsureCurrentFreeCreditsCoreAsync(workspaceId, now, cancellationToken);
         var utcNow = (now ?? DateTime.UtcNow).Date;
 
         ResetMonthlyUsageIfNeeded(member, utcNow);
@@ -286,7 +312,7 @@ public sealed class CreditService : ICreditService
             }
         }
 
-        var wallet = await EnsureWalletAsync(workspaceId, cancellationToken);
+        var wallet = await EnsureCurrentFreeCreditsAsync(workspaceId, now, cancellationToken);
         return wallet.Balance < credits
             ? GenericResponse<bool>.CreateError(
                 "Workspace does not have enough credits.",
@@ -323,6 +349,18 @@ public sealed class CreditService : ICreditService
         CreditActionEnum action,
         string successMessage,
         CancellationToken cancellationToken)
+        => await ExecuteInTransactionAsync(
+            () => GrantCreditsCoreAsync(workspaceId, userId, workspaceType, credits, action, successMessage, cancellationToken),
+            cancellationToken);
+
+    private async Task<GenericResponse<CreditWallet>> GrantCreditsCoreAsync(
+        Guid workspaceId,
+        Guid userId,
+        WorkspaceTypeEnum workspaceType,
+        long credits,
+        CreditActionEnum action,
+        string successMessage,
+        CancellationToken cancellationToken)
     {
         var walletToUpdate = await EnsureWalletAsync(workspaceId, cancellationToken);
         var maximumBalance = ResolveMaximumBalance(workspaceType);
@@ -347,6 +385,85 @@ public sealed class CreditService : ICreditService
         }, cancellationToken);
 
         return GenericResponse<CreditWallet>.CreateSuccess(walletToUpdate, successMessage);
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        if (!_context.Database.IsRelational() || _context.Database.CurrentTransaction != null)
+        {
+            return await action();
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            var result = await action();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task<CreditWallet> EnsureCurrentFreeCreditsCoreAsync(
+        Guid workspaceId,
+        DateTime? now,
+        CancellationToken cancellationToken)
+    {
+        var wallet = await EnsureWalletAsync(workspaceId, cancellationToken);
+        var utcDate = (now ?? DateTime.UtcNow).Date;
+        var subscription = await _context.Subscriptions
+            .Where(item =>
+                item.WorkspaceId == workspaceId &&
+                item.Plan == SubscriptionPlanEnum.Free &&
+                item.IsActive &&
+                !item.IsDeleted &&
+                item.StartDate <= utcDate &&
+                (!item.EndDate.HasValue || item.EndDate.Value >= utcDate))
+            .OrderByDescending(item => item.StartDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (subscription == null)
+        {
+            return wallet;
+        }
+
+        var start = subscription.StartDate.Date;
+        var cycleStart = start.AddDays(((utcDate - start).Days / 7) * 7);
+        var latestGrant = await _context.CreditUsageRecords
+            .Where(record =>
+                record.WorkspaceId == workspaceId &&
+                record.Action == CreditActionEnum.SubscriptionGrant &&
+                record.Status == CreditUsageStatusEnum.Success)
+            .OrderByDescending(record => record.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latestGrant?.CreatedAt.Date >= cycleStart)
+        {
+            return wallet;
+        }
+
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken)
+            ?? throw new InvalidOperationException("Workspace not found while refreshing free credits.");
+        var owner = workspace.Members.FirstOrDefault(member =>
+            member.IsActive && member.Role == WorkspaceMemberRoleEnum.Owner)
+            ?? throw new InvalidOperationException("Active workspace owner not found while refreshing free credits.");
+
+        wallet.Balance = 50;
+        await _creditWalletRepository.UpdateAsync(wallet, cancellationToken);
+        await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+        {
+            WorkspaceId = workspaceId,
+            UserId = owner.UserId,
+            Action = CreditActionEnum.SubscriptionGrant,
+            Credits = 50,
+            Status = CreditUsageStatusEnum.Success,
+            CreatedAt = utcDate
+        }, cancellationToken);
+        return wallet;
     }
 
     private static void ResetMonthlyUsageIfNeeded(WorkspaceMember member, DateTime utcDate)

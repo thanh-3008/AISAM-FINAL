@@ -58,6 +58,74 @@ public class CreditServiceTests
     }
 
     [Fact]
+    public async Task EnsureCurrentFreeCreditsAsync_ResetsPersonalFreeWalletAtNewSevenDayCycle()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var workspace = AddWorkspace(context, WorkspaceTypeEnum.Personal);
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = user.Id,
+            Role = WorkspaceMemberRoleEnum.Owner
+        });
+        context.Subscriptions.Add(new Subscription
+        {
+            WorkspaceId = workspace.Id,
+            Plan = SubscriptionPlanEnum.Free,
+            QuotaPostsPerMonth = 20,
+            StartDate = DateTime.UtcNow.Date.AddDays(-8),
+            IsActive = true
+        });
+        context.CreditWallets.Add(new CreditWallet { WorkspaceId = workspace.Id, Balance = 7 });
+        context.CreditUsageRecords.Add(new CreditUsageRecord
+        {
+            WorkspaceId = workspace.Id,
+            UserId = user.Id,
+            Action = CreditActionEnum.SubscriptionGrant,
+            Credits = 50,
+            Status = CreditUsageStatusEnum.Success,
+            CreatedAt = DateTime.UtcNow.Date.AddDays(-8)
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var wallet = await service.EnsureCurrentFreeCreditsAsync(workspace.Id);
+
+        Assert.Equal(50, wallet.Balance);
+        Assert.Equal(2, await context.CreditUsageRecords.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureCurrentFreeCreditsAsync_DoesNotResetExpiredFreeSubscription()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var workspace = AddWorkspace(context, WorkspaceTypeEnum.Personal);
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = user.Id,
+            Role = WorkspaceMemberRoleEnum.Owner
+        });
+        context.Subscriptions.Add(new Subscription
+        {
+            WorkspaceId = workspace.Id,
+            Plan = SubscriptionPlanEnum.Free,
+            StartDate = DateTime.UtcNow.Date.AddDays(-15),
+            EndDate = DateTime.UtcNow.Date.AddDays(-1),
+            IsActive = true
+        });
+        context.CreditWallets.Add(new CreditWallet { WorkspaceId = workspace.Id, Balance = 7 });
+        await context.SaveChangesAsync();
+
+        var wallet = await CreateService(context).EnsureCurrentFreeCreditsAsync(workspace.Id);
+
+        Assert.Equal(7, wallet.Balance);
+        Assert.Empty(context.CreditUsageRecords);
+    }
+
+    [Fact]
     public async Task ConsumeCreditsAsync_UsesSharedPoolForSharedPoolMember()
     {
         await using var context = CreateContext();
@@ -168,7 +236,8 @@ public class CreditServiceTests
             new CreditWalletRepository(context),
             new CreditUsageRecordRepository(context),
             new WorkspaceMemberRepository(context),
-            new WorkspaceRepository(context));
+            new WorkspaceRepository(context),
+            context);
     }
 
     private static AisamContext CreateContext()

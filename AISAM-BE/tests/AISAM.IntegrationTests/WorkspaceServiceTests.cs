@@ -32,7 +32,9 @@ public class WorkspaceServiceTests
         Assert.Equal(1, workspace.MemberLimit);
         var wallet = await context.CreditWallets.SingleAsync();
         Assert.Equal(workspace.Id, wallet.WorkspaceId);
-        Assert.Equal(0, wallet.Balance);
+        Assert.Equal(50, wallet.Balance);
+        Assert.Single(context.Subscriptions);
+        Assert.Single(context.CreditUsageRecords);
     }
 
     [Fact]
@@ -216,12 +218,7 @@ public class WorkspaceServiceTests
     {
         return new WorkspaceService(
             new WorkspaceRepository(context),
-            new UserRepository(context),
-            new CreditService(
-                new CreditWalletRepository(context),
-                new CreditUsageRecordRepository(context),
-                new WorkspaceMemberRepository(context),
-                new WorkspaceRepository(context)));
+            new UserRepository(context));
     }
 
     private static AisamContext CreateContext()
