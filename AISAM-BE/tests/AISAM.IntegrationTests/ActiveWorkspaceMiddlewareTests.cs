@@ -477,7 +477,7 @@ public class ActiveWorkspaceMiddlewareTests
 
         public FakeSubscriptionRepository(params Subscription[] subscriptions)
         {
-            _subscriptions = subscriptions.ToDictionary(subscription => subscription.WorkspaceId ?? Guid.NewGuid());
+            _subscriptions = subscriptions.ToDictionary(subscription => subscription.WorkspaceId);
         }
 
         public Task<Subscription?> GetCurrentActiveByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

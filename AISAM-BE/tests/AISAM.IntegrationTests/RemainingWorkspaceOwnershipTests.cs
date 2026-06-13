@@ -10,6 +10,24 @@ namespace AISAM.IntegrationTests;
 public class RemainingWorkspaceOwnershipTests
 {
     [Fact]
+    public void WorkspaceOwnershipColumns_AreRequiredAfterBackfillLock()
+    {
+        using var context = CreateContext();
+        var ownershipTypes = new[]
+        {
+            typeof(Brand), typeof(Content), typeof(SocialAccount), typeof(SocialIntegration),
+            typeof(ContentCalendar), typeof(Conversation), typeof(Notification), typeof(AdCampaign),
+            typeof(Subscription), typeof(Payment)
+        };
+
+        foreach (var ownershipType in ownershipTypes)
+        {
+            var property = context.Model.FindEntityType(ownershipType)!.FindProperty("WorkspaceId")!;
+            Assert.False(property.IsNullable, $"{ownershipType.Name}.WorkspaceId must be required.");
+        }
+    }
+
+    [Fact]
     public async Task WorkspaceQueries_IsolateContentPostsCalendarConversationNotificationAndSocial()
     {
         await using var context = CreateContext();

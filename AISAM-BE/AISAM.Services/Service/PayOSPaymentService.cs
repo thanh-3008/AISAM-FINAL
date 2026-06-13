@@ -434,14 +434,7 @@ public sealed class PayOSPaymentService : IPaymentService
             payment.Status = PaymentStatusEnum.Success;
             if (payment.PaymentType == PaymentTypeEnum.CreditPack)
             {
-                if (!payment.WorkspaceId.HasValue)
-                {
-                    payment.Status = PaymentStatusEnum.Failed;
-                    await _paymentRepository.UpdateAsync(payment, cancellationToken);
-                    return GenericResponse<bool>.CreateError("Credit pack payment is missing workspace context.", HttpStatusCode.BadRequest, "CREDIT_PACK_WORKSPACE_REQUIRED");
-                }
-
-                var workspace = await _workspaceRepository.GetByIdAsync(payment.WorkspaceId.Value, cancellationToken);
+                var workspace = await _workspaceRepository.GetByIdAsync(payment.WorkspaceId, cancellationToken);
                 if (workspace == null)
                 {
                     payment.Status = PaymentStatusEnum.Failed;
@@ -477,33 +470,27 @@ public sealed class PayOSPaymentService : IPaymentService
                     }
 
                     var today = DateTime.UtcNow.Date;
-                    var currentSubscription = subscription.WorkspaceId.HasValue
-                        ? await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(subscription.WorkspaceId.Value, cancellationToken)
-                        : null;
+                    var currentSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
                     var renewalBaseDate = currentSubscription?.EndDate is { } currentEndDate && currentEndDate > today
                         ? currentEndDate
                         : today;
-                    Workspace? workspace = null;
-                    if (subscription.WorkspaceId.HasValue)
+                    var workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId, cancellationToken);
+                    if (workspace != null)
                     {
-                        workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId.Value, cancellationToken);
-                        if (workspace != null)
+                        var creditGrant = await _creditService.GrantSubscriptionCreditsAsync(
+                            workspace.Id,
+                            payment.UserId,
+                            workspace.WorkspaceType,
+                            subscription.Plan,
+                            cancellationToken);
+                        if (!creditGrant.Success)
                         {
-                            var creditGrant = await _creditService.GrantSubscriptionCreditsAsync(
-                                workspace.Id,
-                                payment.UserId,
-                                workspace.WorkspaceType,
-                                subscription.Plan,
-                                cancellationToken);
-                            if (!creditGrant.Success)
-                            {
-                                payment.Status = PaymentStatusEnum.Failed;
-                                await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                            payment.Status = PaymentStatusEnum.Failed;
+                            await _paymentRepository.UpdateAsync(payment, cancellationToken);
                                 return GenericResponse<bool>.CreateError(
                                     creditGrant.Message ?? "Unable to grant subscription credits.",
                                     (HttpStatusCode)creditGrant.StatusCode,
                                     creditGrant.Error?.ErrorCode);
-                            }
                         }
                     }
 

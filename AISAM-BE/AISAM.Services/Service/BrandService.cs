@@ -230,17 +230,12 @@ namespace AISAM.Services.Service
             Guid userId,
             CancellationToken cancellationToken)
         {
-            if (brand.WorkspaceId.HasValue)
+            if (brand.WorkspaceId != workspaceId)
             {
-                if (brand.WorkspaceId.Value != workspaceId)
-                {
-                    return (false, "Brand not found");
-                }
-
-                return await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+                return (false, "Brand not found");
             }
 
-            return await EnsureProfileOwnerAsync(brand.ProfileId, userId, cancellationToken);
+            return await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
         }
 
         private static BrandResponseDto MapToDto(Brand brand)

@@ -220,7 +220,7 @@ public class AIServiceTests
             new FakeGeminiTextClient("AI response"),
             conversations);
 
-        var result = await service.ChatAsync(profileId, new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.True(result.Success);
         Assert.Equal("AI response", result.Data!.Response);
@@ -249,7 +249,7 @@ public class AIServiceTests
             new FakeGeminiTextClient("AI response"),
             creditService: credits);
 
-        var result = await service.ChatAsync(Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.True(result.Success);
         Assert.Equal(0, credits.ConsumeCallCount);
@@ -266,7 +266,7 @@ public class AIServiceTests
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")),
             conversations);
 
-        var result = await service.ChatAsync(Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.StatusCode);
@@ -402,6 +402,13 @@ public class AIServiceTests
         public Task<Conversation?> GetActiveAsync(Guid profileId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default) =>
             Task.FromResult(_conversations.Values.FirstOrDefault(conversation =>
                 conversation.ProfileId == profileId &&
+                conversation.BrandId == brandId &&
+                conversation.ProductId == productId &&
+                conversation.AdType == adType &&
+                conversation.IsActive));
+        public Task<Conversation?> GetActiveByWorkspaceIdAsync(Guid workspaceId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_conversations.Values.FirstOrDefault(conversation =>
+                conversation.WorkspaceId == workspaceId &&
                 conversation.BrandId == brandId &&
                 conversation.ProductId == productId &&
                 conversation.AdType == adType &&

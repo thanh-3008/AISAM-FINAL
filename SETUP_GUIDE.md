@@ -8,10 +8,10 @@ Backend hien tai dang o trang thai chuyen tiep:
 
 ```text
 X-Workspace-Id: Workspace membership, payment, subscription, credits, feature gate, permission va Post Quota
-X-Profile-Id: metadata/legacy compatibility tam thoi cho den Task 9.17 backfill va schema lock
+X-Profile-Id: metadata/audit compatibility; ownership bat buoc dung X-Workspace-Id
 ```
 
-Phase 9 da hoan thanh Task 9.1-9.16. Khong bo `X-Profile-Id` khoi cac request compatibility cho den khi backfill Task 9.17 hoan thanh.
+Phase 9 da hoan thanh Task 9.1-9.17. Workspace ownership da backfill va khoa schema; `X-Profile-Id` chi con phuc vu metadata/audit trong cac luong hien co.
 
 Tài liệu này ghi lại các cấu hình thủ công để chạy backend AISAM `.NET 8`.
 
@@ -36,7 +36,7 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 
 ## 2. Tiến Độ Hiện Tại
 
-Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.16**:
+Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.17**:
 
 - API host, Swagger, Health.
 - PostgreSQL, EF Core và migrations.

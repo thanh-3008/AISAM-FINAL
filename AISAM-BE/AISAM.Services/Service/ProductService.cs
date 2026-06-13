@@ -204,9 +204,7 @@ namespace AISAM.Services.Service
 
         private static bool IsBrandVisibleInWorkspace(Brand brand, Guid workspaceId, Guid userId)
         {
-            return brand.WorkspaceId.HasValue
-                ? brand.WorkspaceId.Value == workspaceId
-                : brand.Profile.UserId == userId;
+            return brand.WorkspaceId == workspaceId;
         }
 
         private static ProductResponseDto MapToDto(Product product)

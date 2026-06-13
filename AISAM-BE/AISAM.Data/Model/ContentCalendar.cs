@@ -63,7 +63,7 @@ namespace AISAM.Data.Model
         public Guid ProfileId { get; set; } // Profile who created the schedule
 
         [Column("workspace_id")]
-        public Guid? WorkspaceId { get; set; }
+        public Guid WorkspaceId { get; set; }
 
         [Column("is_active")]
         public bool IsActive { get; set; } = true;
@@ -86,6 +86,6 @@ namespace AISAM.Data.Model
 
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
-        public virtual Workspace? Workspace { get; set; }
+        public virtual Workspace Workspace { get; set; } = null!;
     }
 }

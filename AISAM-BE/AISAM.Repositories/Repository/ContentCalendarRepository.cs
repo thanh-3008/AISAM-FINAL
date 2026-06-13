@@ -129,6 +129,7 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
             .Include(schedule => schedule.Content)
                 .ThenInclude(content => content.Brand)
             .Include(schedule => schedule.Profile)
-            .Include(schedule => schedule.Integration);
+            .Include(schedule => schedule.Integration)
+            .Include(schedule => schedule.Workspace);
     }
 }

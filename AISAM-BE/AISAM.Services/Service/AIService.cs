@@ -163,7 +163,7 @@ public sealed class AIService : IAIService
             conversation ??= await _conversationRepository.AddAsync(new Conversation
             {
                 ProfileId = profileId,
-                WorkspaceId = workspaceId,
+                WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
                 BrandId = request.BrandId,
                 ProductId = request.ProductId,
                 AdType = request.AdType,

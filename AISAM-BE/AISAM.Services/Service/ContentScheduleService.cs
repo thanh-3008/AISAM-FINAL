@@ -285,7 +285,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         await _notificationRepository.AddAsync(new Notification
         {
             ProfileId = profileId,
-            WorkspaceId = workspaceId,
+            WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
             Title = title,
             Message = message,
             Type = NotificationTypeEnum.PostScheduled,

@@ -70,7 +70,7 @@ public sealed class SocialService : ISocialService
 
         if (existing != null)
         {
-            if (workspaceId.HasValue && existing.WorkspaceId.HasValue && existing.WorkspaceId != workspaceId)
+            if (workspaceId.HasValue && existing.WorkspaceId != Guid.Empty && existing.WorkspaceId != workspaceId)
             {
                 throw new InvalidOperationException("Social account is already linked to another workspace.");
             }
@@ -87,7 +87,7 @@ public sealed class SocialService : ISocialService
         var account = new SocialAccount
         {
             ProfileId = profileId,
-            WorkspaceId = workspaceId,
+            WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
             Platform = SocialPlatformEnum.Facebook,
             AccountId = providerAccount.ProviderUserId,
             UserAccessToken = _tokenProtector.Protect(providerAccount.AccessToken),

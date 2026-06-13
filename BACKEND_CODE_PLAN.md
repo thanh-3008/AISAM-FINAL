@@ -4218,7 +4218,7 @@ Kết quả:
 - `Workspace.SubscriptionExpiredAt` được đồng bộ theo subscription mới.
 - Với enum plan hiện tại: Business `Plus` đặt Member Limit `10`, Business `Premium` đặt Member Limit `50`; Personal luôn là `1`.
 - Cộng Credits khi renewal chưa áp dụng vì Credit Wallet chưa tồn tại; thuộc Task 9.10.
-- Payment/subscription cũ chưa có `WorkspaceId` chưa xuất hiện trong Workspace history/current cho đến Task 9.17 backfill.
+- Payment/subscription cũ đã được backfill `WorkspaceId` trong Task 9.17.
 
 Kiểm tra hoàn tất Task 9.9:
 
@@ -4712,7 +4712,7 @@ Trạng thái:
 
 ```text
 DONE - 2026-06-13
-Task tiếp theo: 9.17 Backfill dữ liệu cũ và khóa schema Workspace.
+Task 9.17 đã hoàn thành; Task tiếp theo: 9.18 Workspace Dashboard, regression và tài liệu cuối Phase 9.
 ```
 
 Mục tiêu:
@@ -4731,14 +4731,14 @@ Cách test:
 Kết quả đã có:
 
 - Brand có nullable `WorkspaceId`; Brand mới thuộc Active Workspace và CRUD/list được isolation theo Workspace.
-- `ProfileId` của Brand tạm giữ làm metadata tương thích cho đến Task 9.17 backfill/schema lock.
+- `ProfileId` của Brand được giữ làm metadata/audit compatibility; ownership bắt buộc dùng `WorkspaceId`.
 - Product kế thừa ownership qua Brand; CRUD/list và pagination được lọc tại database theo `Brand.WorkspaceId`.
 - Migration `AddBrandWorkspaceOwnership` đã được áp dụng thành công.
 - Automated tests xác minh Brand/Product không đọc hoặc tạo dữ liệu xuyên Workspace.
 - Content/Post, Social Account/Integration, Calendar, Conversation, Notification và Campaign đã có Workspace ownership.
 - Các controller chuẩn đọc Active Workspace context và repository query isolation theo Workspace.
 - AI draft/chat, schedule và scheduled posting tạo dữ liệu mới có `WorkspaceId`.
-- `ProfileId` và nullable `WorkspaceId` được giữ trong schema để Task 9.17 backfill; Workspace API chỉ đọc/ghi bản ghi có `WorkspaceId` khớp chính xác.
+- Task 9.17 đã backfill dữ liệu cũ và khóa `WorkspaceId` ownership bắt buộc; `ProfileId` chỉ còn metadata/audit compatibility.
 - Migration `AddRemainingDomainWorkspaceOwnership` đã được áp dụng thành công.
 - Full automated tests xác minh isolation cho toàn bộ domain ownership.
 
@@ -4750,6 +4750,13 @@ refactor(<domain>): move ownership to workspace
 
 ### Task 9.17 - Backfill dữ liệu cũ và khóa schema Workspace
 
+Trạng thái:
+
+```text
+DONE - 2026-06-13
+Task tiếp theo: 9.18 Workspace Dashboard, regression và tài liệu cuối Phase 9.
+```
+
 Mục tiêu:
 
 - Mỗi Profile cũ tạo một Personal Workspace.
@@ -4760,6 +4767,15 @@ Cách test:
 - Chạy trên database test có dữ liệu cũ.
 - Không mất dữ liệu.
 - Migration rollback được trên database test.
+
+Kết quả đã có:
+
+- Migration `BackfillLegacyWorkspaceDataAndLockOwnership` tạo hoặc tái sử dụng Personal Workspace cho Profile cũ.
+- Owner membership và Credit Wallet được tạo cho Workspace backfill còn thiếu.
+- Subscription, Payment, Brand, Content, Social Account/Integration, Calendar, Conversation, Notification và Campaign được backfill sang Workspace.
+- `workspace_id` của 10 bảng ownership đã khóa `NOT NULL`; migration dừng an toàn nếu còn dòng không ánh xạ được.
+- Workspace runtime không còn suy luận ownership từ Profile trong scheduled posting hoặc billing.
+- Migration đã được apply, rollback và apply lại thành công trên database dev/test.
 
 Commit đề xuất:
 
@@ -5947,7 +5963,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.16 da hoan thanh; Task tiep theo la 9.17 backfill/schema lock. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.17 da hoan thanh; Task tiep theo la 9.18 dashboard/regression/tai lieu cuoi Phase 9. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

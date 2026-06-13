@@ -19,7 +19,7 @@ namespace AISAM.Data.Model
         public Guid? SubscriptionId { get; set; }
 
         [Column("workspace_id")]
-        public Guid? WorkspaceId { get; set; }
+        public Guid WorkspaceId { get; set; }
 
         [Required]
         [Column("amount", TypeName = "decimal(10,2)")]
@@ -69,6 +69,6 @@ namespace AISAM.Data.Model
         public virtual Subscription? Subscription { get; set; }
 
         [ForeignKey("WorkspaceId")]
-        public virtual Workspace? Workspace { get; set; }
+        public virtual Workspace Workspace { get; set; } = null!;
     }
 }

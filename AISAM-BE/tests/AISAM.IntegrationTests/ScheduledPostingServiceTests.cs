@@ -59,7 +59,7 @@ public class ScheduledPostingServiceTests
         Assert.Null(schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
         Assert.Equal("Scheduled publish succeeded", notificationRepository.Notifications.Values.Single().Title);
-        Assert.Equal(membershipRepository.Memberships.Values.Single().WorkspaceId, contentService.LastWorkspaceId);
+        Assert.Equal(schedule.WorkspaceId, contentService.LastWorkspaceId);
     }
 
     [Fact]
@@ -164,6 +164,8 @@ public class ScheduledPostingServiceTests
             Status = WorkspaceStatusEnum.Active,
             SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-1)
         };
+        schedule.WorkspaceId = workspace.Id;
+        schedule.Workspace = workspace;
         var membershipRepository = new FakeWorkspaceMemberRepository(new WorkspaceMember
         {
             WorkspaceId = workspace.Id,
@@ -190,10 +192,19 @@ public class ScheduledPostingServiceTests
 
     private static ContentCalendar CreateDueSchedule()
     {
+        var workspace = new Workspace
+        {
+            Id = Guid.NewGuid(),
+            Name = "Active workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active
+        };
         return new ContentCalendar
         {
             Id = Guid.NewGuid(),
             ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             ContentId = Guid.NewGuid(),
             IntegrationId = Guid.NewGuid(),
             ScheduledAt = DateTime.UtcNow.AddMinutes(-2),
