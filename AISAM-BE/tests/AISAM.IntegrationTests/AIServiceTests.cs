@@ -23,7 +23,7 @@ public class AIServiceTests
             new FakeBrandRepository(brand),
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")));
 
-        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -45,7 +45,7 @@ public class AIServiceTests
             new FakeBrandRepository(brand),
             new FakeGeminiTextClient("Generated ad copy"));
 
-        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -63,6 +63,7 @@ public class AIServiceTests
         var workspaceId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var brand = CreateBrand(profileId);
+        brand.WorkspaceId = workspaceId;
         var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
@@ -105,7 +106,7 @@ public class AIServiceTests
             new FakeGeminiTextClient("Generated ad copy"),
             creditService: credits);
 
-        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -125,6 +126,7 @@ public class AIServiceTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = profileId,
             BrandId = Guid.NewGuid(),
             TextContent = "Old text",
             Status = ContentStatusEnum.PendingApproval
@@ -180,6 +182,7 @@ public class AIServiceTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = profileId,
             BrandId = Guid.NewGuid(),
             TextContent = "Draft"
         };
@@ -197,7 +200,7 @@ public class AIServiceTests
                     "INSUFFICIENT_WORKSPACE_CREDITS")
             });
 
-        var result = await service.ImproveAsync(content.Id, profileId, Guid.NewGuid(), Guid.NewGuid(), new ImproveContentRequest { Prompt = "Improve" });
+        var result = await service.ImproveAsync(content.Id, profileId, profileId, Guid.NewGuid(), new ImproveContentRequest { Prompt = "Improve" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
@@ -315,7 +318,7 @@ public class AIServiceTests
 
     private static Brand CreateBrand(Guid profileId)
     {
-        return new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Test brand" };
+        return new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = profileId, Name = "Test brand" };
     }
 
     private sealed class FakeGeminiTextClient : IGeminiTextClient

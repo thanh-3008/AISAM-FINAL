@@ -29,8 +29,8 @@ public sealed class PostsController : ControllerBase
         [FromQuery] ContentStatusEnum? status = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _postService.GetPagedAsync(
-            GetProfileId(),
+        var result = await _postService.GetPagedByWorkspaceAsync(
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
             new PaginationRequest
             {
                 Page = page,
@@ -48,12 +48,8 @@ public sealed class PostsController : ControllerBase
         Guid postId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _postService.GetByIdAsync(GetProfileId(), postId, cancellationToken);
+        var result = await _postService.GetByIdInWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), postId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
 }

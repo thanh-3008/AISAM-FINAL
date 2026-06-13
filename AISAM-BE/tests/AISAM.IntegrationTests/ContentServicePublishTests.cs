@@ -175,6 +175,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
@@ -184,6 +185,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Platform = SocialPlatformEnum.Facebook,
             UserAccessToken = "protected:user-token"
         };
@@ -191,6 +193,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brandId,
             SocialAccountId = account.Id,
             SocialAccount = account,
@@ -244,6 +247,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
@@ -253,6 +257,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Platform = SocialPlatformEnum.Facebook,
             UserAccessToken = "protected:user-token"
         };
@@ -260,6 +265,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brandId,
             SocialAccountId = account.Id,
             SocialAccount = account,

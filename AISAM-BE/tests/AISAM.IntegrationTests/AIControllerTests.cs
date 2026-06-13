@@ -47,6 +47,7 @@ public class AIControllerTests
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = new AISAM.Data.Model.WorkspaceMember
         {
             WorkspaceId = workspaceId,

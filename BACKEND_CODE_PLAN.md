@@ -3194,7 +3194,7 @@ Mục tiêu phase:
 | 9.13 | Plan Entitlement, Permission Matrix và Post Quota | DONE | 9.9, 9.12 |
 | 9.14 | Áp dụng Credits vào AI generation | DONE - 2026-06-12 | 9.10, 9.13 |
 | 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | DONE - 2026-06-12 | 9.9, 9.13 |
-| 9.16 | Chuyển ownership từng domain sang Workspace | TODO | 9.6, 9.13 |
+| 9.16 | Chuyển ownership từng domain sang Workspace | DONE - 2026-06-13 | 9.6, 9.13 |
 | 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | TODO | 9.9-9.16 |
 | 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | TODO | 9.17 |
 
@@ -4711,9 +4711,8 @@ feat(workspace): add expiration lifecycle
 Trạng thái:
 
 ```text
-IN PROGRESS - 2026-06-12
-Đã migrate: Brand, Product.
-Còn lại: Content/Post, Social, Calendar, Conversation, Notification, Campaign.
+DONE - 2026-06-13
+Task tiếp theo: 9.17 Backfill dữ liệu cũ và khóa schema Workspace.
 ```
 
 Mục tiêu:
@@ -4729,13 +4728,19 @@ Cách test:
 - CRUD và isolation theo Workspace sau từng domain.
 - Không phá API/module đã migrate trước đó.
 
-Kết quả hiện tại:
+Kết quả đã có:
 
 - Brand có nullable `WorkspaceId`; Brand mới thuộc Active Workspace và CRUD/list được isolation theo Workspace.
 - `ProfileId` của Brand tạm giữ làm metadata tương thích cho đến Task 9.17 backfill/schema lock.
 - Product kế thừa ownership qua Brand; CRUD/list và pagination được lọc tại database theo `Brand.WorkspaceId`.
 - Migration `AddBrandWorkspaceOwnership` đã được áp dụng thành công.
 - Automated tests xác minh Brand/Product không đọc hoặc tạo dữ liệu xuyên Workspace.
+- Content/Post, Social Account/Integration, Calendar, Conversation, Notification và Campaign đã có Workspace ownership.
+- Các controller chuẩn đọc Active Workspace context và repository query isolation theo Workspace.
+- AI draft/chat, schedule và scheduled posting tạo dữ liệu mới có `WorkspaceId`.
+- `ProfileId` và nullable `WorkspaceId` được giữ trong schema để Task 9.17 backfill; Workspace API chỉ đọc/ghi bản ghi có `WorkspaceId` khớp chính xác.
+- Migration `AddRemainingDomainWorkspaceOwnership` đã được áp dụng thành công.
+- Full automated tests xác minh isolation cho toàn bộ domain ownership.
 
 Commit đề xuất:
 
@@ -5942,7 +5947,7 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.15 da hoan thanh; Task tiep theo la 9.16 ownership migration. |
+| Phase 9 - Workspace Migration | IN PROGRESS | Task 9.1-9.16 da hoan thanh; Task tiep theo la 9.17 backfill/schema lock. |
 | Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
 | Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
 | Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |

@@ -16,7 +16,7 @@ public class PhaseEQuotaIntegrationTests
     public async Task GenerateDraftAsync_ReturnsForbiddenWithPromptQuotaError_WhenPromptQuotaExceeded()
     {
         var profileId = Guid.NewGuid();
-        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Brand" };
+        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = profileId, Name = "Brand" };
         var creditService = new FakeCreditService
         {
             AvailabilityResult = GenericResponse<bool>.CreateError(
@@ -27,7 +27,7 @@ public class PhaseEQuotaIntegrationTests
         var contentRepository = new FakeContentRepository();
         var service = CreateAiService(contentRepository, creditService, new FakeGeminiTextClient("unused"), brand);
 
-        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -43,7 +43,7 @@ public class PhaseEQuotaIntegrationTests
     public async Task GenerateDraftAsync_DoesNotIncreaseUsage_WhenGeminiFails()
     {
         var profileId = Guid.NewGuid();
-        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Brand" };
+        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = profileId, Name = "Brand" };
         var creditService = new FakeCreditService();
         var generationRepository = new FakeAiGenerationRepository();
         var service = CreateAiService(
@@ -53,7 +53,7 @@ public class PhaseEQuotaIntegrationTests
             brand,
             generationRepository);
 
-        var result = await service.GenerateDraftAsync(profileId, Guid.NewGuid(), Guid.NewGuid(), new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"

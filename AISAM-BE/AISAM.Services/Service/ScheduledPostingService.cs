@@ -44,7 +44,9 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                 await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
 
                 var integrationId = schedule.IntegrationId ?? Guid.Empty;
-                var workspaceResolution = await ResolveWorkspaceAsync(schedule.ProfileId, cancellationToken);
+                var workspaceResolution = schedule.WorkspaceId.HasValue
+                    ? new WorkspaceResolution(schedule.WorkspaceId, true)
+                    : await ResolveWorkspaceAsync(schedule.ProfileId, cancellationToken);
                 var publishResult = workspaceResolution.WorkspaceId.HasValue
                     ? await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, workspaceResolution.WorkspaceId.Value, cancellationToken)
                     : workspaceResolution.HasMembership
@@ -64,7 +66,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                         "Scheduled publish succeeded",
                         $"Content {schedule.ContentId} was published successfully.",
                         schedule.Id,
-                        cancellationToken);
+                        cancellationToken,
+                        schedule.WorkspaceId);
 
                     result.SuccessCount++;
                     continue;
@@ -79,7 +82,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                     "Scheduled publish failed",
                     schedule.LastError,
                     schedule.Id,
-                    cancellationToken);
+                    cancellationToken,
+                    schedule.WorkspaceId);
 
                 result.FailedCount++;
             }
@@ -94,7 +98,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                     "Scheduled publish failed",
                     schedule.LastError,
                     schedule.Id,
-                    cancellationToken);
+                    cancellationToken,
+                    schedule.WorkspaceId);
 
                 result.FailedCount++;
             }
@@ -130,11 +135,13 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         string title,
         string? message,
         Guid scheduleId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? workspaceId = null)
     {
         await _notificationRepository.AddAsync(new Notification
         {
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Title = title,
             Message = message ?? "Publishing failed.",
             Type = NotificationTypeEnum.SystemUpdate,

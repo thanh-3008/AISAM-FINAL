@@ -27,7 +27,7 @@ public sealed class SocialIntegrationController : ControllerBase
     {
         try
         {
-            var deleted = await _socialService.UnlinkTargetAsync(GetProfileId(), socialIntegrationId, cancellationToken);
+            var deleted = await _socialService.UnlinkTargetInWorkspaceAsync(GetWorkspaceId(), socialIntegrationId, cancellationToken);
             if (!deleted)
             {
                 return NotFound(GenericResponse<bool>.CreateError("Social integration not found.", HttpStatusCode.NotFound));
@@ -48,7 +48,7 @@ public sealed class SocialIntegrationController : ControllerBase
     {
         try
         {
-            var result = await _socialService.GetIntegrationsByBrandAsync(GetProfileId(), brandId, cancellationToken);
+            var result = await _socialService.GetIntegrationsByBrandInWorkspaceAsync(GetWorkspaceId(), brandId, cancellationToken);
             return Ok(GenericResponse<IReadOnlyList<SocialIntegrationDto>>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -65,8 +65,5 @@ public sealed class SocialIntegrationController : ControllerBase
         }
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
+    private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 }

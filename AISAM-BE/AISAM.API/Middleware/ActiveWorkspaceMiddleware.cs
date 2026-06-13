@@ -23,7 +23,12 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/workspace-members"),
         new("/api/workspace-invitations"),
         new("/api/workspace-dashboard"),
-        new("/api/payment")
+        new("/api/payment"),
+        new("/api/posts"),
+        new("/api/social"),
+        new("/api/social-auth"),
+        new("/api/conversations"),
+        new("/api/notifications")
     };
 
     private readonly RequestDelegate _next;
@@ -145,6 +150,26 @@ public sealed class ActiveWorkspaceMiddleware
             }
 
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageProducts);
+        }
+
+        if (path.StartsWithSegments("/api/social") || path.StartsWithSegments("/api/social-auth"))
+        {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.PublishContent);
+        }
+
+        if (path.StartsWithSegments("/api/conversations"))
+        {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageContent);
         }
 
         if (path.StartsWithSegments("/api/content-schedules"))

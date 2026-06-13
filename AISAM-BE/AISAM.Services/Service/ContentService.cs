@@ -74,6 +74,81 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content created successfully.");
     }
 
+    public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
+    {
+        var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
+        if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        var content = new Content
+        {
+            WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
+            AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
+            ImageUrl = FormatImageUrlForJsonb(request.ImageUrl), VideoUrl = request.VideoUrl,
+            StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
+            RepresentativeCharacter = request.RepresentativeCharacter, Status = ContentStatusEnum.Draft
+        };
+        await _contentRepository.AddAsync(content, cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content created successfully.");
+    }
+
+    public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    {
+        if (brandId.HasValue)
+        {
+            var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, brandId.Value, null, cancellationToken);
+            if (!validation.Success) return GenericResponse<PagedResult<ContentResponseDto>>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        }
+        var result = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
+        return GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>
+        { Data = result.Data.Select(MapToDto).ToList(), TotalCount = result.TotalCount, Page = result.Page, PageSize = result.PageSize }, "Contents retrieved successfully.");
+    }
+
+    public async Task<GenericResponse<ContentResponseDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        return content == null || content.WorkspaceId != workspaceId ? NotFound() : GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content retrieved successfully.");
+    }
+
+    public async Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId) return NotFound();
+        var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, content.BrandId, request.ProductId, cancellationToken);
+        if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        if (request.ProductId.HasValue) content.ProductId = request.ProductId;
+        if (request.AdType.HasValue) content.AdType = request.AdType.Value;
+        if (request.Title != null) content.Title = request.Title;
+        if (request.TextContent != null) content.TextContent = request.TextContent;
+        if (request.ImageUrl != null) content.ImageUrl = FormatImageUrlForJsonb(request.ImageUrl);
+        if (request.VideoUrl != null) content.VideoUrl = request.VideoUrl;
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content updated successfully.");
+    }
+
+    public async Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
+        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Status = ContentStatusEnum.Draft };
+        await _contentRepository.AddAsync(clone, cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), "Content cloned successfully.");
+    }
+
+    public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+        => ChangeDeletedInWorkspaceAsync(id, workspaceId, true, cancellationToken);
+
+    public Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+        => ChangeDeletedInWorkspaceAsync(id, workspaceId, false, cancellationToken);
+
+    private async Task<GenericResponse<bool>> ChangeDeletedInWorkspaceAsync(Guid id, Guid workspaceId, bool deleted, CancellationToken cancellationToken)
+    {
+        var content = deleted ? await _contentRepository.GetByIdAsync(id, cancellationToken) : await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
+        content.IsDeleted = deleted;
+        if (!deleted) content.Status = ContentStatusEnum.Draft;
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, deleted ? "Content deleted successfully." : "Content restored successfully.");
+    }
+
     public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         if (brandId.HasValue)
@@ -145,6 +220,7 @@ public sealed class ContentService : IContentService
         var clone = new Content
         {
             ProfileId = existing.ProfileId,
+            WorkspaceId = existing.WorkspaceId,
             BrandId = existing.BrandId,
             Brand = existing.Brand,
             ProductId = existing.ProductId,
@@ -219,7 +295,8 @@ public sealed class ContentService : IContentService
         CancellationToken cancellationToken)
     {
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
-        if (content == null || content.ProfileId != profileId || content.IsDeleted)
+        if (content == null || content.IsDeleted ||
+            (workspaceId.HasValue ? content.WorkspaceId != workspaceId : content.ProfileId != profileId))
         {
             return GenericResponse<PublishResultDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
@@ -230,7 +307,8 @@ public sealed class ContentService : IContentService
         }
 
         var integration = await _socialIntegrationRepository.GetByIdAsync(integrationId, cancellationToken);
-        if (integration == null || integration.ProfileId != profileId || integration.IsDeleted || integration.BrandId != content.BrandId)
+        if (integration == null || integration.IsDeleted || integration.BrandId != content.BrandId ||
+            (workspaceId.HasValue ? integration.WorkspaceId != workspaceId : integration.ProfileId != profileId))
         {
             return GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
         }
@@ -253,7 +331,8 @@ public sealed class ContentService : IContentService
 
         var socialAccount = integration.SocialAccount
             ?? await _socialAccountRepository.GetByIdAsync(integration.SocialAccountId, cancellationToken);
-        if (socialAccount == null || socialAccount.ProfileId != profileId || socialAccount.IsDeleted)
+        if (socialAccount == null || socialAccount.IsDeleted ||
+            (workspaceId.HasValue ? socialAccount.WorkspaceId != workspaceId : socialAccount.ProfileId != profileId))
         {
             return GenericResponse<PublishResultDto>.CreateError("Social account not found.", HttpStatusCode.NotFound);
         }
@@ -316,6 +395,19 @@ public sealed class ContentService : IContentService
             }
         }
 
+        return GenericResponse<bool>.CreateSuccess(true);
+    }
+
+    private async Task<GenericResponse<bool>> ValidateBrandAndProductInWorkspaceAsync(Guid workspaceId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
+    {
+        var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
+        if (brand == null || brand.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError("Brand not found.", HttpStatusCode.NotFound);
+        if (productId.HasValue)
+        {
+            var product = await _productRepository.GetByIdAsync(productId.Value, cancellationToken);
+            if (product == null) return GenericResponse<bool>.CreateError("Product not found.", HttpStatusCode.NotFound);
+            if (product.BrandId != brandId) return GenericResponse<bool>.CreateError("Product does not belong to the selected brand.", HttpStatusCode.BadRequest);
+        }
         return GenericResponse<bool>.CreateSuccess(true);
     }
 

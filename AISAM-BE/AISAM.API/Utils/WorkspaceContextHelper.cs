@@ -28,4 +28,5 @@ public static class WorkspaceContextHelper
 
         throw new UnauthorizedAccessException("Invalid workspace membership context.");
     }
+
 }

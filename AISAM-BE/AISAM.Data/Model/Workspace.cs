@@ -50,5 +50,12 @@ namespace AISAM.Data.Model
         public virtual CreditWallet? CreditWallet { get; set; }
         public virtual ICollection<CreditUsageRecord> CreditUsageRecords { get; set; } = new List<CreditUsageRecord>();
         public virtual ICollection<Brand> Brands { get; set; } = new List<Brand>();
+        public virtual ICollection<Content> Contents { get; set; } = new List<Content>();
+        public virtual ICollection<SocialAccount> SocialAccounts { get; set; } = new List<SocialAccount>();
+        public virtual ICollection<SocialIntegration> SocialIntegrations { get; set; } = new List<SocialIntegration>();
+        public virtual ICollection<ContentCalendar> ContentCalendars { get; set; } = new List<ContentCalendar>();
+        public virtual ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
+        public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+        public virtual ICollection<AdCampaign> AdCampaigns { get; set; } = new List<AdCampaign>();
     }
 }

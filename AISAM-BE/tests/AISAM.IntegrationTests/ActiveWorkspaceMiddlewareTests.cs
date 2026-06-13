@@ -379,6 +379,36 @@ public class ActiveWorkspaceMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Fact]
+    public async Task InvokeAsync_BlocksViewerFromDeletingSocialAccount()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        var context = CreateContext(userId, "/api/social/accounts/" + Guid.NewGuid());
+        context.Request.Method = HttpMethods.Delete;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_BlocksViewerFromDeletingConversation()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        var context = CreateContext(userId, "/api/conversations/" + Guid.NewGuid());
+        context.Request.Method = HttpMethods.Delete;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")
     {
         return new DefaultHttpContext

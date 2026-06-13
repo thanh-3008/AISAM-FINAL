@@ -25,7 +25,7 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromBody] CreateContentScheduleRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.CreateAsync(GetProfileId(), request, cancellationToken);
+        var result = await _contentScheduleService.CreateInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -35,7 +35,7 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.GetPagedAsync(GetProfileId(), new PaginationRequest
+        var result = await _contentScheduleService.GetPagedByWorkspaceAsync(GetWorkspaceId(), new PaginationRequest
         {
             Page = page,
             PageSize = pageSize
@@ -49,7 +49,7 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromQuery] int limit = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.GetUpcomingAsync(GetProfileId(), limit, cancellationToken);
+        var result = await _contentScheduleService.GetUpcomingByWorkspaceAsync(GetWorkspaceId(), limit, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -58,7 +58,7 @@ public sealed class ContentSchedulesController : ControllerBase
         Guid scheduleId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.GetByIdAsync(GetProfileId(), scheduleId, cancellationToken);
+        var result = await _contentScheduleService.GetByIdInWorkspaceAsync(GetWorkspaceId(), scheduleId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -68,7 +68,7 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromBody] UpdateContentScheduleRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.UpdateAsync(GetProfileId(), scheduleId, request, cancellationToken);
+        var result = await _contentScheduleService.UpdateInWorkspaceAsync(GetWorkspaceId(), scheduleId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -77,7 +77,7 @@ public sealed class ContentSchedulesController : ControllerBase
         Guid scheduleId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.DeleteAsync(GetProfileId(), scheduleId, cancellationToken);
+        var result = await _contentScheduleService.DeleteInWorkspaceAsync(GetWorkspaceId(), scheduleId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -85,4 +85,5 @@ public sealed class ContentSchedulesController : ControllerBase
     {
         return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
     }
+    private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 }

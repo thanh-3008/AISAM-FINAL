@@ -50,6 +50,9 @@ public sealed class SocialService : ISocialService
     }
 
     public async Task<SocialAccountDto> LinkAccountAsync(string provider, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default)
+        => await LinkAccountInternalAsync(provider, profileId, null, request, cancellationToken);
+
+    private async Task<SocialAccountDto> LinkAccountInternalAsync(string provider, Guid profileId, Guid? workspaceId, SocialCallbackRequest request, CancellationToken cancellationToken)
     {
         var providerService = GetFacebookProvider(provider);
         var statePayload = await _oauthStateStore.ConsumeAsync(request.State, profileId, provider, cancellationToken);
@@ -67,6 +70,12 @@ public sealed class SocialService : ISocialService
 
         if (existing != null)
         {
+            if (workspaceId.HasValue && existing.WorkspaceId.HasValue && existing.WorkspaceId != workspaceId)
+            {
+                throw new InvalidOperationException("Social account is already linked to another workspace.");
+            }
+
+            existing.WorkspaceId = workspaceId ?? existing.WorkspaceId;
             existing.UserAccessToken = _tokenProtector.Protect(providerAccount.AccessToken);
             existing.ExpiresAt = providerAccount.ExpiresAt;
             existing.IsDeleted = false;
@@ -78,6 +87,7 @@ public sealed class SocialService : ISocialService
         var account = new SocialAccount
         {
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Platform = SocialPlatformEnum.Facebook,
             AccountId = providerAccount.ProviderUserId,
             UserAccessToken = _tokenProtector.Protect(providerAccount.AccessToken),
@@ -113,6 +123,16 @@ public sealed class SocialService : ISocialService
             throw new ArgumentException("Brand not found.");
         }
 
+        return await LinkSelectedTargetsInternalAsync(profileId, account, brand, request, cancellationToken);
+    }
+
+    private async Task<SocialAccountDto> LinkSelectedTargetsInternalAsync(
+        Guid profileId,
+        SocialAccount account,
+        Brand brand,
+        LinkSelectedTargetsRequest request,
+        CancellationToken cancellationToken)
+    {
         var provider = GetFacebookProvider(request.Provider);
         var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
         var availableTargets = (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
@@ -139,6 +159,7 @@ public sealed class SocialService : ISocialService
             if (existing != null)
             {
                 existing.BrandId = brand.Id;
+                existing.WorkspaceId = account.WorkspaceId;
                 existing.AccessToken = _tokenProtector.Protect(pageToken);
                 existing.IsDeleted = false;
                 existing.IsActive = true;
@@ -155,6 +176,7 @@ public sealed class SocialService : ISocialService
             var integration = new SocialIntegration
             {
                 ProfileId = profileId,
+                WorkspaceId = account.WorkspaceId,
                 BrandId = brand.Id,
                 SocialAccountId = account.Id,
                 Platform = SocialPlatformEnum.Facebook,
@@ -233,6 +255,58 @@ public sealed class SocialService : ISocialService
     {
         var account = await _socialAccountRepository.GetByIdWithIntegrationsAsync(socialAccountId, cancellationToken);
         return account == null || account.ProfileId != profileId ? null : MapAccount(account);
+    }
+
+    public async Task<SocialAccountDto> LinkAccountInWorkspaceAsync(string provider, Guid workspaceId, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default)
+        => await LinkAccountInternalAsync(provider, profileId, workspaceId, request, cancellationToken);
+
+    public async Task<IReadOnlyList<SocialAccountDto>> GetWorkspaceAccountsAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        => (await _socialAccountRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken)).Select(MapAccount).ToList();
+
+    public async Task<IReadOnlyList<AvailableTargetDto>> ListAvailableTargetsInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
+    {
+        var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);
+        return await ListAvailableTargetsForAccountAsync(account.ProfileId, socialAccountId, cancellationToken);
+    }
+
+    public async Task<SocialAccountDto> LinkSelectedTargetsInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid socialAccountId, LinkSelectedTargetsRequest request, CancellationToken cancellationToken = default)
+    {
+        var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);
+        var brand = await _brandRepository.GetByIdAsync(request.BrandId, cancellationToken);
+        if (brand == null || brand.WorkspaceId != workspaceId) throw new ArgumentException("Brand not found.");
+        return await LinkSelectedTargetsInternalAsync(profileId, account, brand, request, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SocialTargetDto>> GetLinkedTargetsInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
+    {
+        var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);
+        return await GetLinkedTargetsAsync(account.ProfileId, socialAccountId, cancellationToken);
+    }
+
+    public async Task<bool> UnlinkAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
+    {
+        var account = await _socialAccountRepository.GetByIdWithIntegrationsAsync(socialAccountId, cancellationToken);
+        return account != null && account.WorkspaceId == workspaceId && await UnlinkAccountAsync(account.ProfileId, socialAccountId, cancellationToken);
+    }
+
+    public async Task<bool> UnlinkTargetInWorkspaceAsync(Guid workspaceId, Guid socialIntegrationId, CancellationToken cancellationToken = default)
+    {
+        var integration = await _socialIntegrationRepository.GetByIdAsync(socialIntegrationId, cancellationToken);
+        return integration != null && integration.WorkspaceId == workspaceId && await UnlinkTargetAsync(integration.ProfileId, socialIntegrationId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SocialIntegrationDto>> GetIntegrationsByBrandInWorkspaceAsync(Guid workspaceId, Guid brandId, CancellationToken cancellationToken = default)
+    {
+        var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
+        if (brand == null || brand.WorkspaceId != workspaceId) throw new ArgumentException("Brand not found.");
+        return (await _socialIntegrationRepository.GetByBrandIdAsync(brandId, cancellationToken)).Where(i => i.WorkspaceId == workspaceId).Select(MapIntegration).ToList();
+    }
+
+    private async Task<SocialAccount> RequireWorkspaceAccountAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken)
+    {
+        var account = await _socialAccountRepository.GetByIdWithIntegrationsAsync(socialAccountId, cancellationToken);
+        if (account == null || account.WorkspaceId != workspaceId || account.IsDeleted) throw new ArgumentException("Social account not found.");
+        return account;
     }
 
     private async Task<SocialAccount> RequireOwnedAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken)

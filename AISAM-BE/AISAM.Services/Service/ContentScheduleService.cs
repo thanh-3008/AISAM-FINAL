@@ -184,6 +184,55 @@ public sealed class ContentScheduleService : IContentScheduleService
         return GenericResponse<IReadOnlyList<ContentScheduleDto>>.CreateSuccess(schedules.Select(Map).ToList(), "Upcoming schedules retrieved successfully.");
     }
 
+    public async Task<GenericResponse<ContentScheduleDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
+        var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId || content.IsDeleted)
+            return GenericResponse<ContentScheduleDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
+        if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != content.BrandId || integration.IsDeleted)
+            return GenericResponse<ContentScheduleDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
+        var scheduledAt = NormalizeScheduledAt(request.ScheduledAt);
+        if (scheduledAt == default) return GenericResponse<ContentScheduleDto>.CreateError("Scheduled time is invalid.", HttpStatusCode.BadRequest);
+        var schedule = new ContentCalendar { WorkspaceId = workspaceId, ProfileId = profileId, ContentId = content.Id, Content = content, IntegrationId = integration.Id, Integration = integration, ScheduledAt = scheduledAt, ScheduledDate = scheduledAt, ScheduledTime = scheduledAt.TimeOfDay, IntegrationIds = JsonSerializer.Serialize(new[] { integration.Id }), Status = ScheduleStatusEnum.Pending };
+        await _contentCalendarRepository.AddAsync(schedule, cancellationToken);
+        await CreateNotificationAsync(profileId, "Schedule created", $"Content {schedule.ContentId} was scheduled for {schedule.ScheduledAt:O}.", schedule.Id, cancellationToken, workspaceId);
+        return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule created successfully.");
+    }
+
+    public async Task<GenericResponse<PagedResult<ContentScheduleDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var schedules = await _contentCalendarRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, cancellationToken);
+        return GenericResponse<PagedResult<ContentScheduleDto>>.CreateSuccess(new PagedResult<ContentScheduleDto> { Data = schedules.Data.Select(Map).ToList(), TotalCount = schedules.TotalCount, Page = schedules.Page, PageSize = schedules.PageSize }, "Schedules retrieved successfully.");
+    }
+
+    public async Task<GenericResponse<ContentScheduleDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)
+    {
+        var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
+        return schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted ? GenericResponse<ContentScheduleDto>.CreateError("Schedule not found.", HttpStatusCode.NotFound) : GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule retrieved successfully.");
+    }
+
+    public async Task<GenericResponse<ContentScheduleDto>> UpdateInWorkspaceAsync(Guid workspaceId, Guid scheduleId, UpdateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    {
+        var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
+        if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<ContentScheduleDto>.CreateError("Schedule not found.", HttpStatusCode.NotFound);
+        if (request.ScheduledAt.HasValue) { var at = NormalizeScheduledAt(request.ScheduledAt.Value); if (at == default) return GenericResponse<ContentScheduleDto>.CreateError("Scheduled time is invalid.", HttpStatusCode.BadRequest); schedule.ScheduledAt = at; schedule.ScheduledDate = at; schedule.ScheduledTime = at.TimeOfDay; }
+        if (request.IntegrationId.HasValue) { var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId.Value, cancellationToken); if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != schedule.Content.BrandId) return GenericResponse<ContentScheduleDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound); schedule.IntegrationId = integration.Id; schedule.Integration = integration; }
+        await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
+        return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule updated successfully.");
+    }
+
+    public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)
+    {
+        var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
+        if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<bool>.CreateError("Schedule not found.", HttpStatusCode.NotFound);
+        schedule.IsDeleted = true; schedule.IsActive = false; await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "Schedule deleted successfully.");
+    }
+
+    public async Task<GenericResponse<IReadOnlyList<ContentScheduleDto>>> GetUpcomingByWorkspaceAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default)
+        => GenericResponse<IReadOnlyList<ContentScheduleDto>>.CreateSuccess((await _contentCalendarRepository.GetUpcomingByWorkspaceIdAsync(workspaceId, limit, cancellationToken)).Select(Map).ToList(), "Upcoming schedules retrieved successfully.");
+
     private async Task<(bool Success, Content? Content, SocialIntegration? Integration, GenericResponse<ContentScheduleDto>? Error)> ValidateContentAndIntegrationAsync(
         Guid profileId,
         Guid contentId,
@@ -230,11 +279,13 @@ public sealed class ContentScheduleService : IContentScheduleService
         string title,
         string message,
         Guid scheduleId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? workspaceId = null)
     {
         await _notificationRepository.AddAsync(new Notification
         {
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Title = title,
             Message = message,
             Type = NotificationTypeEnum.PostScheduled,
