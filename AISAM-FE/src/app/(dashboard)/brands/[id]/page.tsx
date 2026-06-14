@@ -7,6 +7,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { apiClient, apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { PlatformIcon } from "@/lib/contentConstants";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 
 interface Brand {
@@ -86,10 +87,10 @@ const MOCK_CAMPAIGNS: Record<string, Campaign[]> = {
     { id: "c-4", brandId: "mock-3", name: "Restoration Workshop Series", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Draft", budget: "$1,500", spent: "$0", createdAt: "2025-04-10T00:00:00Z" },
   ],
   "mock-4": [
-    { id: "c-5", brandId: "mock-4", name: "Farm to Table Awareness", platform: "LINKEDIN", platformColor: "text-blue-700", platformBg: "bg-blue-50", status: "Active", budget: "$1,800", spent: "$720", createdAt: "2025-05-01T00:00:00Z" },
+    { id: "c-5", brandId: "mock-4", name: "Farm to Table Awareness", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Active", budget: "$1,800", spent: "$720", createdAt: "2025-05-01T00:00:00Z" },
   ],
   "mock-5": [
-    { id: "c-6", brandId: "mock-5", name: "Q2 Financial Webinar", platform: "LINKEDIN", platformColor: "text-blue-700", platformBg: "bg-blue-50", status: "Active", budget: "$8,000", spent: "$4,200", createdAt: "2025-04-20T00:00:00Z" },
+    { id: "c-6", brandId: "mock-5", name: "Q2 Financial Webinar", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$8,000", spent: "$4,200", createdAt: "2025-04-20T00:00:00Z" },
     { id: "c-7", brandId: "mock-5", name: "Retirement Planning Guide", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$3,500", spent: "$1,850", createdAt: "2025-05-05T00:00:00Z" },
     { id: "c-8", brandId: "mock-5", name: "Investor Education Series", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Draft", budget: "$2,000", spent: "$0", createdAt: "2025-05-20T00:00:00Z" },
   ],
@@ -99,7 +100,7 @@ const BRAND_PLATFORMS: Record<string, { icon: string; label: string; color: stri
   "mock-1": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
     { icon: "ads_click", label: "Google Ads", color: "text-tertiary" },
-    { icon: "music_note", label: "TikTok Ads", color: "text-on-surface" },
+    { icon: "tiktok", label: "TikTok Ads", color: "text-on-surface" },
   ],
   "mock-2": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
@@ -110,12 +111,12 @@ const BRAND_PLATFORMS: Record<string, { icon: string; label: string; color: stri
   ],
   "mock-4": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
-    { icon: "music_note", label: "TikTok Ads", color: "text-on-surface" },
+    { icon: "tiktok", label: "TikTok Ads", color: "text-on-surface" },
   ],
   "mock-5": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
     { icon: "ads_click", label: "Google Ads", color: "text-tertiary" },
-    { icon: "music_note", label: "TikTok Ads", color: "text-on-surface" },
+    { icon: "tiktok", label: "TikTok Ads", color: "text-on-surface" },
   ],
   "mock-6": [],
 };
@@ -254,7 +255,7 @@ export default function BrandDetailPage() {
     await Promise.all([fetchProducts(), fetchCampaigns()]).finally(() => setLoading(false));
     };
     load();
-  }, [id]);
+  }, [id, activeWorkspace?.id]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Brand name is required"); return; }
@@ -428,7 +429,11 @@ export default function BrandDetailPage() {
                     <div className="flex -space-x-2 mb-3">
                       {platforms.map((p, i) => (
                         <div key={i} className="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-surface-container-lowest flex items-center justify-center" title={p.label}>
-                          <span className={`material-symbols-outlined text-[18px] ${p.color}`}>{p.icon}</span>
+                          {["facebook", "instagram", "tiktok"].includes(p.icon) ? (
+                            <PlatformIcon platform={p.icon} className="w-[18px] h-[18px]" />
+                          ) : (
+                            <span className={`material-symbols-outlined text-[18px] ${p.color}`}>{p.icon}</span>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
 import {
   fetchSocialAccounts,
@@ -21,6 +22,7 @@ import DisconnectConfirmModal from "@/components/social/DisconnectConfirmModal";
 import ManageTargetsModal from "@/components/social/ManageTargetsModal";
 
 export default function SocialAccountsPage() {
+  const { activeWorkspace } = useWorkspaces();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -58,7 +60,7 @@ export default function SocialAccountsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeWorkspace?.id]);
 
   // Toast auto-dismiss
   useEffect(() => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { PlatformIcon } from "@/lib/contentConstants";
 import { type Campaign } from "@/services/campaignService";
 import {
   OBJECTIVE_CONFIG,
@@ -15,9 +16,12 @@ import {
 interface CampaignDetailModalProps {
   campaign: Campaign | null;
   onClose: () => void;
+  onApply?: (campaign: Campaign) => void;
+  onRestart?: (campaign: Campaign) => void;
+  isLoading?: boolean;
 }
 
-export default function CampaignDetailModal({ campaign, onClose }: CampaignDetailModalProps) {
+export default function CampaignDetailModal({ campaign, onClose, onApply, onRestart, isLoading }: CampaignDetailModalProps) {
   if (!campaign) return null;
 
   const objectiveConfig = OBJECTIVE_CONFIG[campaign.objective];
@@ -160,7 +164,7 @@ export default function CampaignDetailModal({ campaign, onClose }: CampaignDetai
                 {campaign.facebookCampaignId && (
                   <div className="flex items-center justify-between px-4 py-3">
                     <span className="text-[11px] text-outline flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[14px]">facebook</span>
+                      <PlatformIcon platform="facebook" className="w-[14px] h-[14px]" />
                       Facebook Campaign ID
                     </span>
                     <span className="text-[11px] text-on-surface font-medium font-mono">{campaign.facebookCampaignId}</span>
@@ -228,7 +232,35 @@ export default function CampaignDetailModal({ campaign, onClose }: CampaignDetai
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end sticky bottom-0 bg-surface-container-lowest">
+          <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 sticky bottom-0 bg-surface-container-lowest">
+            {campaign.status === "DRAFT" && onApply && (
+              <button
+                onClick={() => onApply(campaign)}
+                disabled={isLoading}
+                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+              >
+                {isLoading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-[16px]">rocket_launch</span>
+                )}
+                Apply Campaign
+              </button>
+            )}
+            {campaign.status === "COMPLETED" && onRestart && (
+              <button
+                onClick={() => onRestart(campaign)}
+                disabled={isLoading}
+                className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+              >
+                {isLoading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-[16px]">replay</span>
+                )}
+                Restart Campaign
+              </button>
+            )}
             <button
               onClick={onClose}
               className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95"

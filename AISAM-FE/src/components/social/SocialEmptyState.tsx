@@ -1,5 +1,7 @@
 "use client";
 
+import { PlatformIcon } from "@/lib/contentConstants";
+
 interface SocialEmptyStateProps {
   hasFilters: boolean;
   onConnect: () => void;
@@ -15,13 +17,13 @@ export default function SocialEmptyState({ hasFilters, onConnect }: SocialEmptyS
           </div>
         </div>
         <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center animate-float" style={{ animationDelay: "0.2s" }}>
-          <span className="material-symbols-outlined text-blue-500 text-sm">facebook</span>
+          <PlatformIcon platform="facebook" className="w-4 h-4" />
         </div>
         <div className="absolute bottom-4 left-0 w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center animate-float" style={{ animationDelay: "0.4s" }}>
-          <span className="material-symbols-outlined text-pink-500 text-sm">instagram</span>
+          <PlatformIcon platform="instagram" className="w-4 h-4" />
         </div>
         <div className="absolute bottom-0 right-4 w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center animate-float" style={{ animationDelay: "0.6s" }}>
-          <span className="material-symbols-outlined text-gray-700 text-sm">tiktok</span>
+          <PlatformIcon platform="tiktok" className="w-4 h-4" />
         </div>
       </div>
 

@@ -9,6 +9,7 @@ import PostDetailModal from "@/components/posts/PostDetailModal";
 import { fetchPosts, createPost, updatePost, deletePost, retryPost, type PostItem, type PostStatus, type PostPlatform } from "@/services/postService";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchPostQuota } from "@/services/workspaceService";
+import { PlatformIcon } from "@/lib/contentConstants";
 
 const PAGE_SIZE = 10;
 
@@ -327,15 +328,15 @@ export default function PostsPage() {
                       <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block">Select Platform</label>
                       <div className="flex gap-3">
                         {[
-                          { key: "facebook", label: "Facebook", bg: "#1877F2", icon: <span className="text-white text-[11px] font-bold">f</span> },
-                          { key: "instagram", label: "Instagram", bg: "linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)", icon: <span className="material-symbols-outlined text-white text-[16px]">photo_camera</span> },
-                          { key: "tiktok", label: "TikTok", bg: "#111111", icon: <span className="material-symbols-outlined text-white text-[16px]">music_note</span> },
+                          { key: "facebook", label: "Facebook" },
+                          { key: "instagram", label: "Instagram" },
+                          { key: "tiktok", label: "TikTok" },
                         ].map((p) => (
                           <button key={p.key} onClick={() => setCreatePlatform(p.key as PostPlatform)}
                             className={`flex-1 p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
                               createPlatform === p.key ? "border-primary bg-primary/5" : "border-outline-variant/20 hover:border-primary/50"
                             }`}>
-                            <div className="w-8 h-8 rounded flex items-center justify-center" style={{ background: p.bg }}>{p.icon}</div>
+                            <PlatformIcon platform={p.key} className="w-8 h-8" />
                             <span className="text-label-xs font-semibold text-on-surface">{p.label}</span>
                           </button>
                         ))}

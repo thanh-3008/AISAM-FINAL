@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
 import {
   getNotifications,
@@ -92,6 +93,7 @@ function TimeAgo({ dateStr }: { dateStr: string }) {
 export default function NotificationsPage() {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
+  const { activeWorkspace } = useWorkspaces();
   
   const [notifications, setNotifications] = useState<NotificationListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +121,7 @@ export default function NotificationsPage() {
       setLoading(false);
     };
     fetchData();
-  }, [page]);
+  }, [page, activeWorkspace?.id]);
 
   const handleMarkRead = async (id: string) => {
     await markNotificationRead(id);

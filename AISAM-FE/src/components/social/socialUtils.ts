@@ -2,7 +2,7 @@ import { type SocialAccount, type AccountStatus, getAccountStatus } from "@/serv
 
 export const PLATFORM_INFO: Record<string, { label: string; color: string; bg: string; gradient: string; icon: string }> = {
   facebook: { label: "Facebook", color: "#1877F2", bg: "bg-blue-50", gradient: "from-blue-500 to-blue-600", icon: "facebook" },
-  instagram: { label: "Instagram", color: "#E4405F", bg: "bg-pink-50", gradient: "from-pink-500 via-purple-500 to-orange-400", icon: "instagram" },
+  instagram: { label: "Instagram", color: "#DD2A7B", bg: "bg-pink-50", gradient: "from-[#F58529] via-[#DD2A7B] to-[#8134AF]", icon: "instagram" },
   tiktok: { label: "TikTok", color: "#111111", bg: "bg-gray-100", gradient: "from-gray-900 to-gray-700", icon: "tiktok" },
 };
 

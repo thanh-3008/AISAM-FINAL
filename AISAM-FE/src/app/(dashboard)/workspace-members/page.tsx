@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { fetchWorkspaceMembers, type WorkspaceMember, type WorkspaceMemberRole, type MemberStatus } from "@/services/workspaceService";
 
 function getRoleBadge(role: WorkspaceMemberRole): { label: string; color: string; bg: string; icon: string } {
@@ -35,6 +37,7 @@ function getInitials(name: string): string {
 
 export default function WorkspaceMembersPage() {
   const { activeWorkspace } = useWorkspaces();
+  const featureGate = useFeatureGate();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "pending">("all");
@@ -66,6 +69,29 @@ export default function WorkspaceMembersPage() {
   const pendingCount = members.filter((m) => m.status === "Pending" || m.status === "Invited").length;
 
   const isOwner = members.some((m) => m.role === "Owner" && m.status === "Active");
+
+  if (!featureGate.canAccess("teamManagement")) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Team Members" }]} />
+        <main className="ml-0 p-6 h-[calc(100vh-64px)] overflow-y-auto">
+          <div className="max-w-5xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="w-16 h-16 mx-auto mb-6 bg-outline/10 rounded-2xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
+              </div>
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">Team Members</h2>
+              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Business plan</strong>. Upgrade to manage team members.</p>
+              <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
+                View Plans
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </Link>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

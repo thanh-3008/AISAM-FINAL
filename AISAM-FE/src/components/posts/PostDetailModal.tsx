@@ -2,7 +2,7 @@
 
 import { PostItem } from "@/services/postService";
 import { formatDate, formatTime, daysUntil, getStatusStyle } from "@/lib/postUtils";
-import { PLATFORM_CONFIG } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 
 interface PostDetailModalProps {
   post: PostItem;
@@ -13,25 +13,9 @@ function PlatformBadge({ platform }: { platform?: string }) {
   const cfg = PLATFORM_CONFIG[platform || ""];
   if (!cfg) return <span className="text-label-xs text-outline">—</span>;
   
-  if (platform === "facebook") return (
-    <div className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded flex items-center justify-center text-white text-[13px] font-bold" style={{ backgroundColor: cfg.color }}>f</div>
-      <span className="text-body-sm text-on-surface font-semibold">{cfg.label}</span>
-    </div>
-  );
-  
-  if (platform === "linkedin") return (
-    <div className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded flex items-center justify-center text-white text-[13px] font-bold" style={{ backgroundColor: "#0A66C2" }}>in</div>
-      <span className="text-body-sm text-on-surface font-semibold">{cfg.label}</span>
-    </div>
-  );
-  
   return (
     <div className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded flex items-center justify-center text-white" style={{ background: "linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)" }}>
-        <span className="material-symbols-outlined text-[14px]">photo_camera</span>
-      </div>
+      <PlatformIcon platform={platform || "facebook"} className="w-8 h-8" />
       <span className="text-body-sm text-on-surface font-semibold">{cfg.label}</span>
     </div>
   );

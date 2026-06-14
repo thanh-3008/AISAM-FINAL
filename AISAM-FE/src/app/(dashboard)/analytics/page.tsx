@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import {
   fetchAnalytics,
   exportReport,
@@ -16,6 +19,8 @@ import AnalyticsAiInsights from "@/components/analytics/AnalyticsAiInsights";
 import AnalyticsEfficiencyCard from "@/components/analytics/AnalyticsEfficiencyCard";
 
 export default function AnalyticsPage() {
+  const featureGate = useFeatureGate();
+  const { activeWorkspace } = useWorkspaces();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +44,7 @@ export default function AnalyticsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, [dateRange, campaignFilter, brandFilter, platformFilter]);
+  }, [dateRange, campaignFilter, brandFilter, platformFilter, activeWorkspace?.id]);
 
   const handleRefresh = () => {
     setData(null);
@@ -158,8 +163,24 @@ export default function AnalyticsPage() {
                 </div>
 
                 <aside className="col-span-12 lg:col-span-4 space-y-6">
-                  <AnalyticsAiInsights insights={data.aiInsights} />
-                  <AnalyticsEfficiencyCard metrics={data.efficiency} />
+                  {featureGate.canAccess("advancedAnalytics") ? (
+                    <>
+                      <AnalyticsAiInsights insights={data.aiInsights} />
+                      <AnalyticsEfficiencyCard metrics={data.efficiency} />
+                    </>
+                  ) : (
+                    <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-8 text-center">
+                      <div className="w-14 h-14 mx-auto mb-4 bg-outline/10 rounded-2xl flex items-center justify-center">
+                        <span className="material-symbols-outlined text-outline text-[28px]">auto_awesome</span>
+                      </div>
+                      <h3 className="text-body-md text-on-surface font-bold mb-2">AI Insights</h3>
+                      <p className="text-body-sm text-on-surface-variant mb-5">Advanced analytics with AI-powered insights and efficiency metrics are available on <strong>Personal Pro</strong> and above.</p>
+                      <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
+                        Upgrade Plan
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </Link>
+                    </div>
+                  )}
                 </aside>
               </div>
             </>

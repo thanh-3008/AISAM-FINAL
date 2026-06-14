@@ -367,7 +367,7 @@ export default function OverviewPage() {
           {hasWorkspaces ? (
             <p className="text-body-sm text-on-surface-variant">
               Need help managing permissions?{" "}
-              <a className="text-primary font-semibold hover:underline underline-offset-2" href="#">Contact support</a>
+              <a className="text-primary font-semibold hover:underline underline-offset-2" href="mailto:support@aisam.ai">Contact support</a>
             </p>
           ) : (
             <p className="text-body-sm text-on-surface-variant">

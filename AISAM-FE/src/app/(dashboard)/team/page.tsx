@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import {
   fetchTeams,
   fetchMembers,
@@ -28,6 +30,7 @@ import TeamDetailModal from "@/components/team/TeamDetailModal";
 import CreateTeamModal from "@/components/team/CreateTeamModal";
 import EditTeamModal from "@/components/team/EditTeamModal";
 import EditMemberModal from "@/components/team/EditMemberModal";
+import MemberDetailModal from "@/components/team/MemberDetailModal";
 import DeleteMemberConfirmModal from "@/components/team/DeleteMemberConfirmModal";
 import InviteMemberModal from "@/components/team/InviteMemberModal";
 import DeleteConfirmModal from "@/components/team/DeleteConfirmModal";
@@ -50,8 +53,8 @@ export default function TeamPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemberStatus | "">("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
-  const [teamView, setTeamView] = useState<"grid" | "list">("grid");
-  const [memberView, setMemberView] = useState<"grid" | "table">("grid");
+  const [teamView, setTeamView] = useState<"grid" | "list">("list");
+  const [memberView, setMemberView] = useState<"grid" | "table">("table");
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -60,11 +63,19 @@ export default function TeamPage() {
   const [detailTeam, setDetailTeam] = useState<Team | null>(null);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
   const [deletingTeams, setDeletingTeams] = useState<Team[]>([]);
   const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const featureGate = useFeatureGate();
+  const { activeWorkspace } = useWorkspaces();
+
+  const activeMemberCount = members.filter((m) => m.status === "Active").length;
+  const maxMembers = featureGate.isBusiness
+    ? featureGate.plan === 4 ? 50 : 10
+    : Infinity;
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +98,7 @@ export default function TeamPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeWorkspace?.id]);
 
   useEffect(() => {
     if (toast) {
@@ -250,6 +261,27 @@ export default function TeamPage() {
   }, [members, search, statusFilter, sortBy]);
 
   const hasFilters = !!(search || statusFilter);
+
+  if (!featureGate.canAccess("teamManagement")) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Team Management" }]} />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 mx-auto mb-6 bg-outline/10 rounded-2xl flex items-center justify-center">
+              <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
+            </div>
+            <h2 className="text-headline-md text-on-surface font-bold mb-2">Team Management</h2>
+            <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Business plan</strong>. Upgrade to manage teams and members.</p>
+            <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
+              View Plans
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -452,6 +484,7 @@ export default function TeamPage() {
                         member={member}
                         onEdit={setEditingMember}
                         onDelete={handleDeleteMember}
+                        onViewDetail={setDetailMember}
                       />
                     ))}
                   </div>
@@ -470,7 +503,7 @@ export default function TeamPage() {
                         </thead>
                         <tbody className="divide-y divide-outline-variant/10">
                           {filteredMembers.map((member) => (
-                            <tr key={member.id} className="hover:bg-primary-fixed/10 transition-colors group">
+                            <tr key={member.id} className="hover:bg-primary-fixed/10 transition-colors group cursor-pointer" onClick={() => setDetailMember(member)}>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   {member.avatar ? (
@@ -499,11 +532,11 @@ export default function TeamPage() {
                               <td className="px-6 py-4">
                                 <span className={`px-2.5 py-1 rounded-full text-label-2xs font-bold uppercase tracking-wider ${
                                   member.role === "Owner" ? "bg-primary-fixed text-primary" :
-                                  member.role === "Admin" ? "bg-secondary-fixed text-secondary" :
-                                  member.role === "Editor" ? "bg-tertiary-fixed text-tertiary" :
-                                  "bg-surface-container-high text-on-surface"
+                                  member.role === "Manager" ? "bg-secondary-fixed text-secondary" :
+                                  member.role === "ContentCreator" ? "bg-tertiary-fixed text-tertiary" :
+                                  "bg-surface-container text-outline"
                                 }`}>
-                                  {member.role}
+                                  {member.role === "ContentCreator" ? "Content Creator" : member.role}
                                 </span>
                               </td>
                               <td className="px-6 py-4">
@@ -518,14 +551,14 @@ export default function TeamPage() {
                               <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
-                                    onClick={() => setEditingMember(member)}
+                                    onClick={(e) => { e.stopPropagation(); setEditingMember(member); }}
                                     className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
                                     title="Edit member"
                                   >
                                     <span className="material-symbols-outlined text-[16px]">edit</span>
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteMember(member)}
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteMember(member); }}
                                     className="p-1.5 rounded-lg text-outline hover:text-danger-red hover:bg-danger-red/10 transition-all"
                                     title="Remove member"
                                   >
@@ -546,6 +579,14 @@ export default function TeamPage() {
         </div>
 
         {/* Modals */}
+        <MemberDetailModal
+          member={detailMember}
+          teams={teams}
+          onClose={() => setDetailMember(null)}
+          onEdit={setEditingMember}
+          onDelete={handleDeleteMember}
+        />
+
         <CreateTeamModal
           open={showCreateModal}
           onClose={() => setShowCreateModal(false)}
@@ -580,6 +621,8 @@ export default function TeamPage() {
           onInvite={handleInvite}
           isLoading={actionLoading === "invite"}
           teams={teams}
+          currentMemberCount={activeMemberCount}
+          maxMembers={maxMembers}
         />
 
         <TeamDetailModal

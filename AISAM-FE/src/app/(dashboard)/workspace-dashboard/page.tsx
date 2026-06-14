@@ -1,17 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { fetchWorkspaceDashboard, fetchCreditWallet, fetchPostQuota } from "@/services/workspaceService";
 import type { WorkspaceDashboard, CreditWallet } from "@/services/workspaceService";
+import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 export default function WorkspaceDashboardPage() {
   const { activeWorkspace } = useWorkspaces();
+  const featureGate = useFeatureGate();
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -38,6 +43,38 @@ export default function WorkspaceDashboardPage() {
   const creditsPct = creditWallet ? Math.round((creditsUsed / creditWallet.maxBalance) * 100) : 0;
   const postsPct = postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : 0;
 
+  if (!featureGate.canAccess("workspaceDashboard")) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Workspace Overview" }]} />
+        <main className="ml-0 p-6 h-[calc(100vh-64px)] overflow-y-auto">
+          <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="w-16 h-16 mx-auto mb-6 bg-outline/10 rounded-2xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
+              </div>
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">Workspace Dashboard</h2>
+              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Business plan</strong>. Upgrade to access workspace-level analytics and overview.</p>
+              <div className="flex items-center justify-center gap-3">
+                <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
+                  View Plans
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </Link>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-surface-container-high text-on-surface rounded-xl text-label-sm font-bold hover:scale-105 transition-all"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  Create Workspace
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Header breadcrumbs={[
@@ -47,16 +84,25 @@ export default function WorkspaceDashboardPage() {
       <main className="ml-0 p-6 h-[calc(100vh-64px)] overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <div className="flex items-center gap-4">
-            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-[22px]">dashboard</span>
-            </span>
-            <div>
-              <h1 className="text-headline-sm font-bold text-on-surface">Workspace Dashboard</h1>
-              <p className="text-body-sm text-on-surface-variant">
-                {activeWorkspace?.name || "Workspace"} - Overview & Analytics
-              </p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 text-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-[22px]">dashboard</span>
+              </span>
+              <div>
+                <h1 className="text-headline-sm font-bold text-on-surface">Workspace Dashboard</h1>
+                <p className="text-body-sm text-on-surface-variant">
+                  {activeWorkspace?.name || "Workspace"} - Overview & Analytics
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all shrink-0"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              Create Workspace
+            </button>
           </div>
 
           {loading ? (
@@ -273,6 +319,8 @@ export default function WorkspaceDashboardPage() {
           )}
         </div>
       </main>
+
+      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
 }

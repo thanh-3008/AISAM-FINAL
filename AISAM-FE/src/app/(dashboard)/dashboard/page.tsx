@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -7,6 +8,7 @@ import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type WorkspaceDashboard } from "@/services/workspaceService";
 import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
+import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -39,14 +41,12 @@ function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffi
 
 function AnimatedBar({ value, color, delay = 600 }: { value: number; color: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const delayRef = useRef(delay);
-  delayRef.current = delay;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const timer = setTimeout(() => { el.style.width = `${value}%`; }, delayRef.current);
+    const timer = setTimeout(() => { el.style.width = `${value}%`; }, delay);
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, delay]);
   return (
     <div className="w-full h-2 bg-surface-container/60 rounded-full overflow-hidden">
       <div ref={ref} className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`} style={{ width: "0%" }} />
@@ -82,7 +82,7 @@ const PLATFORM_DISPLAY: Record<string, { color: string; bg: string }> = {
 const campaignsData = [
   { name: "Winter Collection 2024", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$5,000", spent: "$3,240", status: "Active" },
   { name: "Coffee Morning Blast", platform: "INSTAGRAM", color: "text-pink-600", bg: "bg-pink-50", budget: "$2,500", spent: "$1,120", status: "Active" },
-  { name: "Enterprise Data Launch", platform: "LINKEDIN", color: "text-blue-700", bg: "bg-blue-50", budget: "$12,000", spent: "$8,450", status: "Active" },
+  { name: "Enterprise Data Launch", platform: "TIKTOK", color: "text-black", bg: "bg-gray-50", budget: "$12,000", spent: "$8,450", status: "Active" },
   { name: "Flash Sale Q4", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$1,500", spent: "$1,500", status: "Completed" },
   { name: "Brand Awareness 2024", platform: "INSTAGRAM", color: "text-pink-600", bg: "bg-pink-50", budget: "$8,000", spent: "$2,100", status: "Active" },
 ];
@@ -90,7 +90,7 @@ const campaignsData = [
 const aiSuggestions = [
   { icon: "trending_up", bg: "from-blue-500/10 to-blue-600/5", color: "text-blue-500", title: "Eco-Friendly Packaging", desc: "Trending in your niche. 85% predicted engagement for video content." },
   { icon: "schedule", bg: "from-purple-500/10 to-purple-600/5", color: "text-purple-500", title: "Morning Routine Series", desc: "High conversion potential for Instagram Stories between 7-9 AM." },
-  { icon: "psychology", bg: "from-orange-500/10 to-orange-600/5", color: "text-orange-500", title: "Behind the Scenes", desc: "Builds brand trust. Recommended for LinkedIn carousel posts." },
+  { icon: "psychology", bg: "from-orange-500/10 to-orange-600/5", color: "text-orange-500", title: "Behind the Scenes", desc: "Builds brand trust. Highly engaging across all platforms." },
   { icon: "celebration", bg: "from-emerald-500/10 to-emerald-600/5", color: "text-emerald-500", title: "Holiday Gift Guide", desc: "Early interest detected. Start teaser campaigns this week." },
 ];
 
@@ -102,6 +102,7 @@ export default function DashboardPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
@@ -120,7 +121,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
-    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
+    fetchPostQuota(activeWorkspace?.id).then(q => { if (q) setPostQuota(q); });
     fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
   }, [activeWorkspace?.id]);
 
@@ -220,13 +221,13 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-2.5">
                     <div className="flex -space-x-1.5">
                       <div className="w-8 h-8 rounded-full bg-[#1877F2] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0s" }}>
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        <PlatformIcon platform="facebook" className="w-4 h-4" />
                       </div>
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0.15s" }}>
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                        <PlatformIcon platform="instagram" className="w-4 h-4" />
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-[#0A66C2] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0.3s" }}>
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                      <div className="w-8 h-8 rounded-full bg-[#111111] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0.3s" }}>
+                        <PlatformIcon platform="tiktok" className="w-4 h-4" />
                       </div>
                     </div>
                     <span className="text-label-sm text-on-surface-variant">3 platforms connected</span>
@@ -249,7 +250,14 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-body-sm text-on-surface font-semibold">{workspaceName}</p>
-                  <p className="text-label-sm text-outline">{activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace"}</p>
+                  <p className="text-label-sm text-outline mb-2">{activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace"}</p>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-label-xs font-semibold hover:bg-primary/20 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    Create Workspace
+                  </button>
                 </div>
               </div>
             </div>
@@ -448,7 +456,14 @@ export default function DashboardPage() {
               <h4 className="text-headline-sm text-on-surface">Recent Campaigns</h4>
               <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">{campaignsData.length} active</span>
             </div>
-            <button className="flex items-center gap-1.5 text-label-sm text-primary font-semibold hover:text-primary-container transition-colors group">
+            <button onClick={() => {
+              const csv = ["Name,Platform,Budget,Spent,Status"];
+              campaignsData.forEach((c) => csv.push(`"${c.name}","${c.platform}","${c.budget}","${c.spent}","${c.status}"`));
+              const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "campaigns-export.csv"; a.click();
+              URL.revokeObjectURL(url);
+            }} className="flex items-center gap-1.5 text-label-sm text-primary font-semibold hover:text-primary-container transition-colors group">
               <span className="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">download</span>
               Export CSV
             </button>
@@ -597,7 +612,7 @@ export default function DashboardPage() {
             {[
               { label: "Facebook", height: "85%", color: "bg-gradient-to-t from-blue-500 to-blue-400", value: "45%" },
               { label: "Instagram", height: "65%", color: "bg-gradient-to-t from-purple-500 to-purple-400", value: "28%" },
-              { label: "LinkedIn", height: "40%", color: "bg-gradient-to-t from-amber-500 to-amber-400", value: "18%" },
+              { label: "TikTok", height: "40%", color: "bg-gradient-to-t from-amber-500 to-amber-400", value: "18%" },
               { label: "Others", height: "25%", color: "bg-gradient-to-t from-outline to-outline-variant", value: "9%" },
             ].map((item, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
@@ -631,6 +646,8 @@ export default function DashboardPage() {
           </div>
         </footer>
       </main>
+
+      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
 }

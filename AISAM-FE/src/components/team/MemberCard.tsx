@@ -8,9 +8,10 @@ interface MemberCardProps {
   member: TeamMember;
   onEdit: (member: TeamMember) => void;
   onDelete: (member: TeamMember) => void;
+  onViewDetail?: (member: TeamMember) => void;
 }
 
-export default function MemberCard({ member, onEdit, onDelete }: MemberCardProps) {
+export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: MemberCardProps) {
   const roleConfig = ROLE_CONFIG[member.role];
   const statusConfig = STATUS_CONFIG[member.status];
   const [now, setNow] = useState(() => Date.now());
@@ -21,7 +22,10 @@ export default function MemberCard({ member, onEdit, onDelete }: MemberCardProps
   }, []);
 
   return (
-    <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 p-5 card-hover group relative overflow-hidden">
+    <div
+      className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 p-5 card-hover group relative overflow-hidden cursor-pointer"
+      onClick={() => onViewDetail?.(member)}
+    >
       <div className={`absolute top-0 left-0 w-full h-1 ${member.status === "Active" ? "bg-gradient-to-r from-success-green to-emerald-400" : member.status === "Pending" ? "bg-gradient-to-r from-warning-amber to-amber-400" : "bg-gradient-to-r from-outline/30 to-outline/20"}`} />
 
       <div className="flex items-start justify-between mb-4 mt-1">
@@ -46,13 +50,13 @@ export default function MemberCard({ member, onEdit, onDelete }: MemberCardProps
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onEdit(member)}
+            onClick={(e) => { e.stopPropagation(); onEdit(member); }}
             className="p-1.5 rounded-lg hover:bg-surface-container text-outline hover:text-primary transition-all"
           >
             <span className="material-symbols-outlined text-[16px]">edit</span>
           </button>
           <button
-            onClick={() => onDelete(member)}
+            onClick={(e) => { e.stopPropagation(); onDelete(member); }}
             className="p-1.5 rounded-lg hover:bg-surface-container text-outline hover:text-danger-red transition-all"
           >
             <span className="material-symbols-outlined text-[16px]">delete</span>

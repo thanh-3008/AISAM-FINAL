@@ -9,24 +9,28 @@ interface InviteMemberModalProps {
   onInvite: (data: InviteMemberData) => void;
   isLoading: boolean;
   teams: Team[];
+  currentMemberCount?: number;
+  maxMembers?: number;
 }
 
-export default function InviteMemberModal({ open, onClose, onInvite, isLoading, teams }: InviteMemberModalProps) {
+export default function InviteMemberModal({ open, onClose, onInvite, isLoading, teams, currentMemberCount = 0, maxMembers = Infinity }: InviteMemberModalProps) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<MemberRole>("Member");
+  const [role, setRole] = useState<MemberRole>("Viewer");
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
 
   if (!open) return null;
 
+  const atLimit = currentMemberCount >= maxMembers;
+
   const handleSubmit = () => {
-    if (!email.trim()) return;
+    if (!email.trim() || atLimit) return;
     onInvite({
       email: email.trim(),
       role,
       teamIds: selectedTeams,
     });
     setEmail("");
-    setRole("Member");
+    setRole("Viewer");
     setSelectedTeams([]);
   };
 
@@ -56,6 +60,14 @@ export default function InviteMemberModal({ open, onClose, onInvite, isLoading, 
             </button>
           </div>
           <div className="p-6 space-y-5">
+            {atLimit && (
+              <div className="p-3 rounded-xl bg-error/10 border border-error/20 flex items-start gap-3">
+                <span className="material-symbols-outlined text-error text-[18px] shrink-0">error_outline</span>
+                <p className="text-label-sm text-error">
+                  Member limit reached ({currentMemberCount}/{maxMembers}). Upgrade your plan to add more members.
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Email Address</label>
               <input
@@ -73,10 +85,10 @@ export default function InviteMemberModal({ open, onClose, onInvite, isLoading, 
                 onChange={(e) => setRole(e.target.value as MemberRole)}
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
               >
-                <option value="Member">Member</option>
-                <option value="Admin">Admin</option>
-                <option value="Editor">Editor</option>
                 <option value="Viewer">Viewer</option>
+                <option value="Manager">Manager</option>
+                <option value="ContentCreator">Content Creator</option>
+                <option value="Owner">Owner</option>
               </select>
             </div>
             <div>
@@ -119,7 +131,7 @@ export default function InviteMemberModal({ open, onClose, onInvite, isLoading, 
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!isValid || isLoading}
+              disabled={!isValid || isLoading || atLimit}
               className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2"
             >
               {isLoading ? (

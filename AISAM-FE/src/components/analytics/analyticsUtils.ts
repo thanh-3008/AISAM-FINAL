@@ -75,6 +75,6 @@ export const BRAND_OPTIONS = [
 
 export const PLATFORM_OPTIONS = [
   { value: "facebook", label: "Facebook", color: "#1877F2" },
-  { value: "instagram", label: "Instagram", color: "#E4405F" },
+  { value: "instagram", label: "Instagram", color: "#DD2A7B" },
   { value: "tiktok", label: "TikTok", color: "#111111" },
 ] as const;

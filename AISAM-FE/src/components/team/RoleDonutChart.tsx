@@ -2,29 +2,40 @@
 
 import { type TeamMember } from "@/services/teamService";
 
+const ROLE_COLORS: Record<string, string> = {
+  Owner: "#004ccd",
+  Manager: "#731be5",
+  ContentCreator: "#9e3100",
+  Viewer: "#737687",
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  Owner: "Owner",
+  Manager: "Manager",
+  ContentCreator: "Content Creator",
+  Viewer: "Viewer",
+};
+
 interface RoleDonutChartProps {
   members: TeamMember[];
 }
 
 export default function RoleDonutChart({ members }: RoleDonutChartProps) {
-  const roleCounts = {
-    Owner: members.filter((m) => m.role === "Owner").length,
-    Admin: members.filter((m) => m.role === "Admin").length,
-    Editor: members.filter((m) => m.role === "Editor").length,
-    Member: members.filter((m) => m.role === "Member").length,
-    Viewer: members.filter((m) => m.role === "Viewer").length,
-  };
+  const roleCounts = members.reduce<Record<string, number>>((acc, m) => {
+    acc[m.role] = (acc[m.role] || 0) + 1;
+    return acc;
+  }, {});
 
   const total = members.length;
   if (total === 0) return null;
 
-  const roles = [
-    { name: "Owner", count: roleCounts.Owner, color: "#004ccd" },
-    { name: "Admin", count: roleCounts.Admin, color: "#731be5" },
-    { name: "Editor", count: roleCounts.Editor, color: "#9e3100" },
-    { name: "Member", count: roleCounts.Member, color: "#198038" },
-    { name: "Viewer", count: roleCounts.Viewer, color: "#737687" },
-  ].filter((r) => r.count > 0);
+  const roles = Object.entries(roleCounts)
+    .map(([role, count]) => ({
+      name: ROLE_LABELS[role] || role,
+      count,
+      color: ROLE_COLORS[role] || "#737687",
+    }))
+    .filter((r) => r.count > 0);
 
   let cumulativePercent = 0;
   const gradientStops = roles

@@ -89,6 +89,11 @@ export default function CreditPackPage() {
   }, []);
 
   const handleSelectPack = (pack: CreditPack) => {
+    if (creditWallet && creditWallet.balance + pack.credits > creditWallet.maxBalance) {
+      setPaymentError(`Cannot purchase: balance would exceed the maximum of ${creditWallet.maxBalance.toLocaleString()} credits.`);
+      setTimeout(() => setPaymentError(""), 4000);
+      return;
+    }
     setSelectedPack(pack);
     setShowConfirmDialog(true);
   };

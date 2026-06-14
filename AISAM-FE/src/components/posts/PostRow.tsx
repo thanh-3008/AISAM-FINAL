@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { PostItem } from "@/services/postService";
 import { formatDate, formatTime, daysUntil, getStatusStyle } from "@/lib/postUtils";
-import { PLATFORM_CONFIG } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 
 interface PostRowProps {
   post: PostItem;
@@ -20,25 +20,9 @@ function PlatformBadge({ platform }: { platform?: string }) {
   const cfg = PLATFORM_CONFIG[platform || ""];
   if (!cfg) return <span className="text-label-xs text-outline">—</span>;
   
-  if (platform === "facebook") return (
-    <div className="flex items-center gap-2">
-      <div className="w-6 h-6 rounded flex items-center justify-center text-white text-[11px] font-bold" style={{ backgroundColor: cfg.color }}>f</div>
-      <span className="text-label-md text-on-surface">{cfg.label}</span>
-    </div>
-  );
-  
-  if (platform === "linkedin") return (
-    <div className="flex items-center gap-2">
-      <div className="w-6 h-6 rounded flex items-center justify-center text-white text-[11px] font-bold" style={{ backgroundColor: "#0A66C2" }}>in</div>
-      <span className="text-label-md text-on-surface">{cfg.label}</span>
-    </div>
-  );
-  
   return (
     <div className="flex items-center gap-2">
-      <div className="w-6 h-6 rounded flex items-center justify-center text-white" style={{ background: "linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)" }}>
-        <span className="material-symbols-outlined text-[12px]">photo_camera</span>
-      </div>
+      <PlatformIcon platform={platform || "facebook"} className="w-6 h-6" />
       <span className="text-label-md text-on-surface">{cfg.label}</span>
     </div>
   );

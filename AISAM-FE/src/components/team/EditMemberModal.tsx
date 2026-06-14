@@ -11,7 +11,7 @@ interface EditMemberModalProps {
 }
 
 export default function EditMemberModal({ member, onClose, onUpdate, isLoading }: EditMemberModalProps) {
-  const [role, setRole] = useState<MemberRole>("Member");
+  const [role, setRole] = useState<MemberRole>("Viewer");
 
   useEffect(() => {
     if (member) {
@@ -61,7 +61,7 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading }
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Role</label>
               <div className="space-y-2">
-                {(["Owner", "Admin", "Editor", "Member", "Viewer"] as MemberRole[]).map((r) => (
+                {(["Owner", "Manager", "ContentCreator", "Viewer"] as MemberRole[]).map((r) => (
                   <button
                     key={r}
                     type="button"
@@ -75,15 +75,14 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading }
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold ${
                       role === r ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
                     }`}>
-                      {r === "Owner" ? "👑" : r === "Admin" ? "⚙️" : r === "Editor" ? "✏️" : r === "Member" ? "👤" : "👁️"}
+                      {r === "Owner" ? "👑" : r === "Manager" ? "⚙️" : r === "ContentCreator" ? "✏️" : "👁️"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-label-sm font-semibold text-on-surface">{r}</span>
+                      <span className="text-label-sm font-semibold text-on-surface">{r === "ContentCreator" ? "Content Creator" : r}</span>
                       <p className="text-label-xs text-outline">
                         {r === "Owner" && "Full access to everything"}
-                        {r === "Admin" && "Can manage teams and members"}
-                        {r === "Editor" && "Can edit content and campaigns"}
-                        {r === "Member" && "Standard access level"}
+                        {r === "Manager" && "Can manage teams and members"}
+                        {r === "ContentCreator" && "Can create and manage content"}
                         {r === "Viewer" && "Read-only access"}
                       </p>
                     </div>

@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import {
   fetchSchedules, createSchedule,
   updateSchedule, deleteSchedule, type ScheduleItem,
@@ -94,6 +97,8 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
 }
 
 export default function CalendarPage() {
+  const featureGate = useFeatureGate();
+  const { activeWorkspace } = useWorkspaces();
   const today = new Date();
   const [view, setView] = useState<ViewMode>("month");
   const [year, setYear] = useState(today.getFullYear());
@@ -156,7 +161,7 @@ export default function CalendarPage() {
       unsubscribe();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [pathname]);
+  }, [pathname, activeWorkspace?.id]);
 
   useEffect(() => { if (toast) setTimeout(() => setToast(null), 3000); }, [toast]);
 
@@ -247,6 +252,29 @@ export default function CalendarPage() {
     setEditingSchedule(null);
     setActionId(null);
   };
+
+  if (!featureGate.canAccess("schedulePost")) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Calendar" }]} />
+        <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto">
+          <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="w-16 h-16 mx-auto mb-6 bg-outline/10 rounded-2xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
+              </div>
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">Content Calendar</h2>
+              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Personal Plus</strong> plan or higher. Upgrade to schedule and manage your content calendar.</p>
+              <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
+                View Plans
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </Link>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

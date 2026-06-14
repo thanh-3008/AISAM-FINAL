@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
 import { fetchContents, approveContent, rejectContent } from "@/services/contentService";
 import {
@@ -65,6 +66,7 @@ function sortItems(list: ContentItem[], key: SortKey, dir: SortDir): ContentItem
 }
 
 export default function ApprovalsPage() {
+  const { activeWorkspace } = useWorkspaces();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export default function ApprovalsPage() {
     const result = await fetchContents({ pageSize: 100, status: statusMap[tab] });
     setItems(result.items);
     setLoading(false);
-  }, [tab]);
+  }, [tab, activeWorkspace?.id]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());

@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
 import {
   fetchCampaigns,
   createCampaign,
   updateCampaign,
   updateCampaignStatus,
+  applyCampaign,
+  restartCampaign,
   deleteCampaign,
   type Campaign,
   type CampaignStatus,
@@ -24,6 +27,7 @@ import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
 
 export default function CampaignsPage() {
+  const { activeWorkspace } = useWorkspaces();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +66,7 @@ export default function CampaignsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeWorkspace?.id]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -166,6 +170,36 @@ export default function CampaignsPage() {
       }
     } catch {
       showToast("Failed to update campaign status", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleApply = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      const updated = await applyCampaign(campaign.id);
+      if (updated) {
+        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
+        showToast(`Campaign "${updated.name}" applied and is now active`);
+      }
+    } catch {
+      showToast("Failed to apply campaign", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRestart = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      const updated = await restartCampaign(campaign.id);
+      if (updated) {
+        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
+        showToast(`Campaign "${updated.name}" restarted successfully`);
+      }
+    } catch {
+      showToast("Failed to restart campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -314,6 +348,8 @@ export default function CampaignsPage() {
                   onViewDetail={setDetailCampaign}
                   onEdit={setEditCampaign}
                   onToggleStatus={handleToggleStatus}
+                  onApply={handleApply}
+                  onRestart={handleRestart}
                   onDelete={handleDelete}
                 />
               ))}
@@ -340,6 +376,9 @@ export default function CampaignsPage() {
         <CampaignDetailModal
           campaign={detailCampaign}
           onClose={() => setDetailCampaign(null)}
+          onApply={handleApply}
+          onRestart={handleRestart}
+          isLoading={actionLoading === detailCampaign?.id}
         />
 
         <DeleteConfirmModal
