@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
       });
       setIsSuccess(true);
     } catch (err: any) {
-      setError(err.message || "Có lỗi xảy ra, vui lòng thử lại.");
+      setError(err.message || "An error occurred, please try again.");
     } finally {
       setIsLoading(false);
     }

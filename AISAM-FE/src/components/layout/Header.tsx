@@ -12,8 +12,6 @@ import {
   markAllNotificationsRead,
   type NotificationListItem,
 } from "@/services/notificationService";
-import CreateProfileModal from "@/components/profiles/CreateProfileModal";
-
 interface HeaderProps {
   title?: string;
   breadcrumbs?: { label: string; href?: string }[];
@@ -79,18 +77,15 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifs, setRecentNotifs] = useState<NotificationListItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
-  const [wsOpen, setWsOpen] = useState(false);
-  const { workspaces, activeWorkspace, selectWorkspace } = useWorkspaces();
+  const { activeWorkspace } = useWorkspaces();
   const { toggle } = useSidebar();
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("darkMode") === "true";
@@ -151,9 +146,6 @@ export default function Header({ breadcrumbs }: HeaderProps) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
-      if (wsRef.current && !wsRef.current.contains(e.target as Node)) {
-        setWsOpen(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -176,88 +168,6 @@ export default function Header({ breadcrumbs }: HeaderProps) {
         <button onClick={toggle} className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center transition-all shrink-0 active:scale-95" title="Toggle sidebar">
           <span className="material-symbols-outlined text-on-surface-variant text-[20px]">menu</span>
         </button>
-
-        {/* Workspace Selector */}
-        <div className="relative" ref={wsRef}>
-          <button
-            onClick={() => setWsOpen(!wsOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 transition-all group"
-          >
-            <span className="material-symbols-outlined text-[18px] text-primary">workspaces</span>
-            <span className="text-label-sm font-semibold text-on-surface truncate max-w-[120px]">
-              {activeWorkspace?.name || "Select Workspace"}
-            </span>
-            {activeWorkspace && (
-              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border ${
-                activeWorkspace.workspaceType === 2 
-                  ? "bg-purple-50 text-purple-700 border-purple-200/50" 
-                  : "bg-blue-50 text-blue-700 border-blue-200/50"
-              }`}>
-                <span className="material-symbols-outlined text-[10px]">
-                  {activeWorkspace.workspaceType === 2 ? "business" : "person"}
-                </span>
-                {activeWorkspace.workspaceType === 2 ? "Biz" : "Per"}
-              </span>
-            )}
-            <span className={`material-symbols-outlined text-[16px] text-outline transition-transform ${wsOpen ? "rotate-180" : ""}`}>unfold_more</span>
-          </button>
-          {wsOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setWsOpen(false)} />
-              <div className="absolute left-0 top-full mt-1.5 w-56 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-lg z-50 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
-                {workspaces.length === 0 ? (
-                  <div className="px-4 py-3 text-center">
-                    <p className="text-label-sm text-on-surface-variant mb-2">No workspaces yet</p>
-                    <button
-                      onClick={() => { setWsOpen(false); setShowCreateModal(true); }}
-                      className="text-label-sm text-primary font-semibold hover:text-primary/80"
-                    >
-                      Create workspace
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {workspaces.map((w) => {
-                      const active = activeWorkspace?.id === w.id;
-                      return (
-                        <button
-                          key={w.id}
-                          onClick={() => { selectWorkspace(w); setWsOpen(false); }}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-body-sm transition-colors text-left ${
-                            active ? "bg-primary/5 text-primary font-semibold" : "text-on-surface hover:bg-surface-container"
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[18px]">workspaces</span>
-                          <span className="flex-1 truncate">{w.name}</span>
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border ${
-                            w.workspaceType === 2 
-                              ? "bg-purple-50 text-purple-700 border-purple-200/50" 
-                              : "bg-blue-50 text-blue-700 border-blue-200/50"
-                          }`}>
-                            <span className="material-symbols-outlined text-[10px]">
-                              {w.workspaceType === 2 ? "business" : "person"}
-                            </span>
-                            {w.workspaceType === 2 ? "Biz" : "Per"}
-                          </span>
-                          {active && <span className="material-symbols-outlined text-[14px]">check</span>}
-                        </button>
-                      );
-                    })}
-                    <div className="border-t border-outline-variant/10 mt-1 pt-1 mx-3">
-                      <button
-                        onClick={() => { setWsOpen(false); setShowCreateModal(true); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-surface-container transition-all duration-150 text-primary text-body-sm font-medium"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                        Create New Workspace
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </div>
 
         {/* Breadcrumbs / Search */}
         {breadcrumbs && breadcrumbs.length > 0 ? (
@@ -440,7 +350,6 @@ export default function Header({ breadcrumbs }: HeaderProps) {
         </div>
       </div>
 
-      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </header>
   );
 }

@@ -9,6 +9,7 @@ import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 
 export default function RegisterPage() {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +28,7 @@ export default function RegisterPage() {
     
     try {
       if (form.password !== form.confirm_password) {
-        setError("Mật khẩu xác nhận không khớp.");
+        setError("Confirm password does not match.");
         setIsLoading(false);
         return;
       }
@@ -41,7 +42,6 @@ export default function RegisterPage() {
       });
 
       if (result.success) {
-        invalidateWorkspaceCache();
         if (result.data?.accessToken) {
           setToken(result.data.accessToken);
         }
@@ -51,12 +51,20 @@ export default function RegisterPage() {
         if (result.data?.user) {
           setStoredUser(result.data.user);
         }
+        try {
+          await apiClient("/profiles/user/" + (result.data?.user?.id || result.data?.userId || ""), {
+            data: { name: (result.data?.user?.fullName || "My") + "'s Workspace", workspaceType: 1 },
+          });
+        } catch {
+          // workspace creation is optional; user can create manually on /overview
+        }
+        invalidateWorkspaceCache();
         router.push("/overview");
       } else {
-        setError("Đăng ký thất bại, vui lòng thử lại.");
+        setError("Registration failed, please try again.");
       }
     } catch (err: any) {
-      setError(err.message || "Có lỗi xảy ra trong quá trình đăng ký.");
+      setError(err.message || "An error occurred during registration.");
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +110,43 @@ export default function RegisterPage() {
       {/* Google Sign Up */}
       <button
         type="button"
-        className="w-full h-12 flex items-center justify-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors duration-200 active:scale-[0.98] mb-stack-lg"
+        onClick={() => {
+          if (clientId) {
+            const script = document.createElement("script");
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.onload = () => {
+              window.google?.accounts.id.initialize({
+                client_id: clientId,
+                callback: (res) => {
+                  if (res?.credential) {
+                    setError(null);
+                    setIsLoading(true);
+                    apiClient("/auth/google", { data: { idToken: res.credential } }).then((result) => {
+                      if (result.success && result.data?.accessToken) {
+                        invalidateWorkspaceCache();
+                        setToken(result.data.accessToken);
+                        if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
+                        if (result.data.user) setStoredUser(result.data.user);
+                        router.push("/overview");
+                      } else {
+                        setError("Google sign-in failed.");
+                      }
+                    }).catch((err: any) => setError(err.message || "Google sign-in failed."))
+                    .finally(() => setIsLoading(false));
+                  }
+                },
+                cancel_on_tap_outside: false,
+              });
+              window.google?.accounts.id.prompt();
+            };
+            document.body.appendChild(script);
+          } else {
+            setError("Google sign-in is not configured.");
+          }
+        }}
+        disabled={isLoading}
+        className="w-full h-12 flex items-center justify-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors duration-200 active:scale-[0.98] mb-stack-lg disabled:opacity-50"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -219,7 +263,7 @@ export default function RegisterPage() {
             </button>
           </div>
           {form.confirm_password && form.password !== form.confirm_password && (
-            <p className="mt-1 font-label-sm text-label-sm text-error">Mật khẩu không khớp</p>
+            <p className="mt-1 font-label-sm text-label-sm text-error">Passwords do not match</p>
           )}
         </div>
 

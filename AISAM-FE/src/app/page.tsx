@@ -354,9 +354,9 @@ export default function LandingPage() {
                     <span className="material-symbols-outlined text-[20px] relative z-10 group-hover:translate-x-1 transition-transform">arrow_forward</span>
                     <div className="absolute inset-0 bg-gradient-to-r from-secondary to-primary-container opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   </Link>
-                  <Link href="#demo" className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-surface-container-lowest/80 backdrop-blur text-on-surface rounded-2xl text-headline-sm font-semibold border border-outline-variant/20 hover:border-primary/30 hover:bg-surface-container transition-all active:scale-[0.98]">
+                  <Link href="#features" className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-surface-container-lowest/80 backdrop-blur text-on-surface rounded-2xl text-headline-sm font-semibold border border-outline-variant/20 hover:border-primary/30 hover:bg-surface-container transition-all active:scale-[0.98]">
                     <span className="material-symbols-outlined text-[20px] text-primary group-hover:scale-110 transition-transform">play_circle</span>
-                    Watch Demo
+                    See Features
                   </Link>
                 </div>
               </Reveal>
@@ -463,9 +463,9 @@ export default function LandingPage() {
               </div>
             </Reveal>
 
-            <Stagger className="grid grid-cols-1 md:grid-cols-6 gap-6">
+            <Stagger className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Feature 1: AI Studio */}
-              <div className="md:col-span-3">
+              <div>
                 <TiltCard>
                   <div className="feature-card gradient-border bg-surface-container-lowest p-8 lg:p-10 rounded-3xl border border-outline-variant/15 shadow-sm overflow-hidden relative group h-full">
                     <div className="absolute top-0 right-0 w-72 h-72 bg-primary/5 rounded-full blur-[100px] -mr-36 -mt-36 group-hover:bg-primary/10 transition-colors duration-700" />
@@ -485,7 +485,7 @@ export default function LandingPage() {
               </div>
 
               {/* Feature 2: Smart Campaigns */}
-              <div className="md:col-span-3">
+              <div>
                 <TiltCard>
                   <div className="feature-card gradient-border bg-surface-container-lowest p-8 lg:p-10 rounded-3xl border border-outline-variant/15 shadow-sm overflow-hidden relative group h-full">
                     <div className="absolute top-0 right-0 w-72 h-72 bg-secondary/5 rounded-full blur-[100px] -mr-36 -mt-36 group-hover:bg-secondary/10 transition-colors duration-700" />
@@ -505,18 +505,36 @@ export default function LandingPage() {
               </div>
 
               {/* Feature 3: Content Library */}
-              <div className="md:col-span-2">
-                <div className="feature-card gradient-border bg-surface-container-lowest p-6 lg:p-8 rounded-3xl border border-outline-variant/15 shadow-sm group h-full">
-                  <div className="mb-5 w-12 h-12 bg-tertiary/10 flex items-center justify-center rounded-xl group-hover:scale-110 group-hover:bg-tertiary/20 transition-all duration-300">
-                    <span className="material-symbols-outlined text-tertiary text-[24px]">folder_special</span>
+              <div>
+                <TiltCard>
+                  <div className="feature-card gradient-border bg-surface-container-lowest p-8 lg:p-10 rounded-3xl border border-outline-variant/15 shadow-sm overflow-hidden relative group h-full">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-tertiary/5 rounded-full blur-[100px] -mr-36 -mt-36 group-hover:bg-tertiary/10 transition-colors duration-700" />
+                    <div className="relative z-10">
+                      <div className="mb-6 w-14 h-14 bg-gradient-to-br from-tertiary to-tertiary/70 flex items-center justify-center rounded-2xl shadow-lg shadow-tertiary/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                        <span className="material-symbols-outlined text-on-primary text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>folder_special</span>
+                      </div>
+                      <h3 className="text-headline-md text-on-surface font-bold mb-3">Content Library</h3>
+                      <p className="text-body-md text-on-surface-variant mb-8 max-w-sm">Centralized hub for all brand assets. Manage, tag, and deploy across campaigns.</p>
+                      <div className="grid grid-cols-3 gap-2 mb-6">
+                        {["#004ccd", "#731be5", "#0f62fe", "#f58529", "#dd2a7b", "#34a853"].map((color, i) => (
+                          <div key={i} className="aspect-video rounded-lg overflow-hidden relative group/thumb" style={{ animation: `fade-up 0.5s ease-out ${i * 0.08}s both` }}>
+                            <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }} />
+                            <div className="absolute inset-0 bg-white/0 group-hover/thumb:bg-white/10 transition-colors duration-300" />
+                            <span className="absolute bottom-1 right-1 material-symbols-outlined text-white/60 text-[10px]">check_circle</span>
+                          </div>
+                        ))}
+                      </div>
+                      <span className="inline-flex items-center gap-2 text-label-sm text-tertiary font-semibold cursor-default">
+                        Browse Library
+                        <span className="material-symbols-outlined text-[16px]">arrow_right_alt</span>
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="text-headline-sm text-on-surface font-bold mb-2">Content Library</h3>
-                  <p className="text-body-sm text-on-surface-variant">Centralized hub for all brand assets. Manage, tag, and deploy across campaigns.</p>
-                </div>
+                </TiltCard>
               </div>
 
               {/* Feature 4: Analytics - Dark */}
-              <div className="md:col-span-4">
+              <div>
                 <div className="feature-card bg-gradient-to-br from-enterprise-navy to-enterprise-navy/90 p-6 lg:p-8 rounded-3xl shadow-xl group relative overflow-hidden h-full">
                   <div className="absolute top-0 right-0 w-56 h-56 bg-primary/20 rounded-full blur-[80px] -mr-28 -mt-28 group-hover:bg-primary/30 transition-colors duration-700" />
                   <div className="absolute bottom-0 left-0 w-40 h-40 bg-secondary/15 rounded-full blur-[60px] -ml-20 -mb-20 group-hover:bg-secondary/25 transition-colors duration-700" />
@@ -527,10 +545,10 @@ export default function LandingPage() {
                       </div>
                       <h3 className="text-headline-sm text-white font-bold mb-2">Advanced Analytics</h3>
                       <p className="text-body-sm text-outline-variant mb-6">Real-time performance tracking with enterprise-grade reporting.</p>
-                      <Link href="#" className="inline-flex items-center gap-2 text-label-sm text-primary-fixed-dim font-semibold hover:gap-3 transition-all">
+                      <span className="inline-flex items-center gap-2 text-label-sm text-primary-fixed-dim font-semibold cursor-default">
                         Explore Analytics
                         <span className="material-symbols-outlined text-[16px]">arrow_right_alt</span>
-                      </Link>
+                      </span>
                     </div>
                     <div className="hidden sm:flex flex-col gap-3 w-32">
                       {[100, 75, 85, 65].map((w, i) => (
@@ -567,7 +585,7 @@ export default function LandingPage() {
 
             <div className="space-y-24 lg:space-y-32">
               {[
-                { step: "01", title: "Connect Your Accounts", desc: "Link your social media and ad platforms in one click. We support 20+ integrations including Facebook, Instagram, TikTok, Google Ads, and more.", icon: "link", color: "from-primary to-primary-container", features: ["One-click OAuth", "20+ platforms", "Secure encryption"] },
+                { step: "01", title: "Connect Your Accounts", desc: "Link your social media and ad platforms in one click. We support Facebook, Instagram, and TikTok — the platforms that matter most.", icon: "link", color: "from-primary to-primary-container", features: ["One-click OAuth", "Facebook, Instagram, TikTok", "Secure encryption"] },
                 { step: "02", title: "AI Analyzes & Plans", desc: "Our AI engine studies your audience demographics, competitor strategies, and trending content to craft the perfect content strategy tailored to your brand.", icon: "neurology", color: "from-secondary to-secondary-container", features: ["Audience insights", "Competitor analysis", "Trend detection"] },
                 { step: "03", title: "Launch & Optimize", desc: "Deploy campaigns automatically across all channels. Real-time AI optimization adjusts bids, targeting, and creative to ensure peak performance 24/7.", icon: "rocket_launch", color: "from-tertiary to-tertiary-container", features: ["Auto-deployment", "Real-time optimization", "Performance alerts"] },
               ].map((item, i) => (
@@ -801,7 +819,7 @@ export default function LandingPage() {
               <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Platform</h4>
               <ul className="space-y-4">
                 {["Features", "Pricing", "Case Studies", "Integrations"].map((item) => (
-                  <li key={item}><Link href="#" className="text-body-sm text-outline-variant hover:text-white transition-colors hover:pl-1 inline-block">{item}</Link></li>
+                  <li key={item}><span className="text-body-sm text-outline-variant cursor-default inline-block hover:pl-1 transition-all">{item}</span></li>
                 ))}
               </ul>
             </div>
@@ -810,7 +828,7 @@ export default function LandingPage() {
               <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Company</h4>
               <ul className="space-y-4">
                 {["About Us", "Careers", "Terms of Service", "Privacy Policy", "Contact Support"].map((item) => (
-                  <li key={item}><Link href="#" className="text-body-sm text-outline-variant hover:text-white transition-colors hover:pl-1 inline-block">{item}</Link></li>
+                  <li key={item}><span className="text-body-sm text-outline-variant cursor-default inline-block hover:pl-1 transition-all">{item}</span></li>
                 ))}
               </ul>
             </div>
@@ -828,13 +846,13 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="relative z-10 border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-label-sm text-outline-variant">&copy; 2024 AISAM Intelligence. All rights reserved.</p>
+          <div className="relative z-10 border-t border-white/10">
+            <div className="max-w-7xl mx-auto px-6 lg:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+              <p className="text-label-sm text-outline-variant">&copy; 2026 AISAM Intelligence. All rights reserved.</p>
             <div className="flex gap-6">
-              <Link href="#" className="text-label-sm text-outline-variant hover:text-white transition-colors">Privacy</Link>
-              <Link href="#" className="text-label-sm text-outline-variant hover:text-white transition-colors">Terms</Link>
-              <Link href="#" className="text-label-sm text-outline-variant hover:text-white transition-colors">Cookies</Link>
+              <span className="text-label-sm text-outline-variant cursor-default">Privacy</span>
+              <span className="text-label-sm text-outline-variant cursor-default">Terms</span>
+              <span className="text-label-sm text-outline-variant cursor-default">Cookies</span>
             </div>
           </div>
         </div>

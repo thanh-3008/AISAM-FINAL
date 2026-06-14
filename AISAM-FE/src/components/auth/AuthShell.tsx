@@ -150,21 +150,11 @@ export default function AuthShell({
         {/* Footer */}
         <footer className="absolute bottom-6 left-0 w-full px-margin-desktop hidden lg:flex justify-between items-center text-outline/60">
           <p className="font-label-sm text-label-sm">
-            © 2024 AISAM. All rights reserved.
+            © 2026 AISAM. All rights reserved.
           </p>
           <div className="flex gap-4">
-            <Link
-              href="#"
-              className="font-label-sm text-label-sm hover:text-primary transition-colors"
-            >
-              Terms
-            </Link>
-            <Link
-              href="#"
-              className="font-label-sm text-label-sm hover:text-primary transition-colors"
-            >
-              Privacy
-            </Link>
+            <span className="font-label-sm text-label-sm cursor-default">Terms</span>
+            <span className="font-label-sm text-label-sm cursor-default">Privacy</span>
           </div>
         </footer>
       </section>

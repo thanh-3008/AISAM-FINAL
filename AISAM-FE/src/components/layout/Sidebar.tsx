@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { getUserFromToken, logout } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
@@ -96,12 +97,8 @@ export default function Sidebar() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
-  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
+  const [user, setUser] = useState<{ name?: string; email?: string } | null>(() => getUserFromToken());
   const [hoveredWorkspace, setHoveredWorkspace] = useState<string | null>(null);
-
-  useEffect(() => {
-    setUser(getUserFromToken());
-  }, []);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
@@ -111,6 +108,17 @@ export default function Sidebar() {
   const initials = activeWorkspace ? getInitials(activeWorkspace.name) : "?";
 
   const { open, toggle } = useSidebar();
+  const featureGate = useFeatureGate();
+
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.label === "Team Management") return featureGate.canAccess("teamManagement");
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <aside
@@ -137,7 +145,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-4 pb-4 relative">
-        {navSections.map((section) => {
+        {visibleSections.map((section) => {
           const isContent = section.label === "Content Workspace";
           const isMarketing = section.label === "Marketing";
           return (
@@ -272,15 +280,6 @@ export default function Sidebar() {
                       </button>
                     );
                   })}
-                  <div className="border-t border-outline-variant/20 mt-1 pt-1 mx-3">
-                    <button
-                      onClick={() => { setWorkspaceOpen(false); setShowCreateModal(true); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-surface-container transition-all duration-150 text-primary text-body-sm font-medium"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                      Create New Workspace
-                    </button>
-                  </div>
                 </>
               )}
             </div>

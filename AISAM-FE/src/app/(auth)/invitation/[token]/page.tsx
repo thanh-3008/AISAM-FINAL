@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { getInvitationByToken, acceptInvitation, type InvitationDetail } from "@/services/workspaceInvitationService";
@@ -25,16 +25,17 @@ const quotaModeConfig: Record<string, { label: string; icon: string; desc: strin
 export default function AcceptInvitationPage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [status, setStatus] = useState<Status>("loading");
   const [invitation, setInvitation] = useState<InvitationDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
     if (!token) {
-      setStatus("invalid");
-      setErrorMessage("Invalid invitation link");
-      return;
+      const id = setTimeout(() => {
+        setStatus("invalid");
+        setErrorMessage("Invalid invitation link");
+      }, 0);
+      return () => clearTimeout(id);
     }
 
     const loadInvitation = async () => {

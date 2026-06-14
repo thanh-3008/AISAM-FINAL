@@ -51,10 +51,10 @@ export default function LoginPage() {
         setIsSuccess(true);
         router.push("/overview");
       } else {
-        setError("Google đăng nhập thất bại.");
+        setError("Google sign-in failed.");
       }
     } catch (err: any) {
-      setError(err.message || "Google đăng nhập thất bại.");
+      setError(err.message || "Google sign-in failed.");
     } finally {
       setIsLoading(false);
     }
@@ -123,10 +123,10 @@ export default function LoginPage() {
         setIsSuccess(true);
         router.push("/overview");
       } else {
-        setError("Đăng nhập thất bại, vui lòng thử lại.");
+        setError("Login failed, please try again.");
       }
     } catch (err: any) {
-      setError(err.message || "Email hoặc mật khẩu không chính xác.");
+      setError(err.message || "Invalid email or password.");
     } finally {
       setIsLoading(false);
     }

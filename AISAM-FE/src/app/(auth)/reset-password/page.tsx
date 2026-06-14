@@ -28,7 +28,7 @@ function ResetPasswordForm() {
     setError(null);
 
     if (form.newPassword !== form.confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp.");
+      setError("Confirm password does not match.");
       return;
     }
 
@@ -45,7 +45,7 @@ function ResetPasswordForm() {
       setIsSuccess(true);
       setTimeout(() => router.push("/login"), 3000);
     } catch (err: any) {
-      setError(err.message || "Token không hợp lệ hoặc đã hết hạn.");
+      setError(err.message || "Invalid or expired reset token.");
     } finally {
       setIsLoading(false);
     }
@@ -231,7 +231,7 @@ function ResetPasswordForm() {
             </button>
           </div>
           {form.confirmPassword && form.newPassword !== form.confirmPassword && (
-            <p className="mt-1 font-label-sm text-label-sm text-error">Mật khẩu không khớp</p>
+            <p className="mt-1 font-label-sm text-label-sm text-error">Passwords do not match</p>
           )}
         </div>
 
@@ -278,7 +278,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><span className="text-on-surface-variant">Loading...</span></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center gap-3"><div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /><span className="text-body-sm text-outline">Loading...</span></div>}>
       <ResetPasswordForm />
     </Suspense>
   );
