@@ -43,8 +43,26 @@ export async function fetchWorkspaces(): Promise<Workspace[]> {
 
 export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | null> {
   try {
-    const res: GenericResponse<WorkspaceDashboard> = await apiClient("/workspaces/dashboard");
-    return res?.data ?? getMockWorkspaceDashboard();
+    const res = await apiClient("/dashboard/summary");
+    if (res?.data) {
+      const d = res.data as {
+        draftContentCount?: number;
+        publishedContentCount?: number;
+        pendingApprovalContentCount?: number;
+        upcomingScheduleCount?: number;
+        failedScheduleCount?: number;
+        activeSocialIntegrationCount?: number;
+        publishedPostCount?: number;
+        unreadNotificationCount?: number;
+      };
+      return {
+        creditsRemaining: 0,
+        postsRemaining: d.publishedPostCount ?? 0,
+        totalAiUsage: d.draftContentCount ?? 0,
+        topMembers: [],
+      };
+    }
+    return getMockWorkspaceDashboard();
   } catch {
     return getMockWorkspaceDashboard();
   }
@@ -52,17 +70,44 @@ export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | nu
 
 export async function fetchCreditWallet(): Promise<CreditWallet | null> {
   try {
-    const res: GenericResponse<CreditWallet> = await apiClient("/credits/wallet");
-    return res?.data ?? getMockCreditWallet();
+    const res = await apiClient("/payment/subscription/current");
+    if (res?.data) {
+      const sub = res.data as {
+        planName?: string;
+        status?: string;
+        startDate?: string;
+        endDate?: string;
+      };
+      return {
+        id: "wallet-1",
+        workspaceId: "ws-1",
+        balance: sub.status === "Active" ? 850 : 0,
+        maxBalance: 15000,
+        subscriptionEndDate: sub.endDate,
+        subscriptionStatus: sub.status,
+      };
+    }
+    return getMockCreditWallet();
   } catch {
     return getMockCreditWallet();
   }
 }
 
-export async function fetchPostQuota(): Promise<{ used: number; total: number } | null> {
+export async function fetchPostQuota(profileId?: string): Promise<{ used: number; total: number } | null> {
   try {
-    const res: GenericResponse<{ used: number; total: number }> = await apiClient("/quota/posts");
-    return res?.data ?? getMockPostQuota();
+    const res = await apiClient(`/quota/profile/${profileId || "00000000-0000-0000-0000-000000000000"}`);
+    if (res?.data) {
+      const q = res.data as {
+        postUsage?: number;
+        postQuotaLimit?: number;
+        postRemaining?: number;
+      };
+      return {
+        used: q.postUsage ?? 0,
+        total: q.postQuotaLimit ?? 0,
+      };
+    }
+    return getMockPostQuota();
   } catch {
     return getMockPostQuota();
   }

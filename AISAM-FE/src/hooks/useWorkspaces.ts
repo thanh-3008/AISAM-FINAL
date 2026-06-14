@@ -34,9 +34,16 @@ export function getWorkspaceTypeLabel(type: number): string {
 let cachedWorkspaces: WorkspaceData[] | null = null;
 let cacheListeners: Array<() => void> = [];
 let fetchingWorkspaces = false;
+let workspaceSelectListeners: Array<() => void> = [];
+
+function notifyWorkspaceSelected() {
+  workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
+}
 
 function getPlanName(profileType: number): string {
-  return profileType === 2 ? "Business" : "Personal";
+  if (profileType === 0) return "Free";
+  if (profileType === 2) return "Business Plus";
+  return "Personal Pro";
 }
 
 function notifyCache() {
@@ -61,6 +68,16 @@ export function addWorkspaceToCache(workspace: WorkspaceData) {
 }
 
 export function useWorkspaces() {
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    const handler = () => forceRender((n) => n + 1);
+    workspaceSelectListeners.push(handler);
+    return () => {
+      workspaceSelectListeners = workspaceSelectListeners.filter((fn) => fn !== handler);
+    };
+  }, []);
+
   const [workspaces, setWorkspaces] = useState<WorkspaceData[]>(() => {
     if (!cachedWorkspaces) return [];
     const userId = getUserIdFromToken();
@@ -77,16 +94,21 @@ export function useWorkspaces() {
     if (cachedWorkspaces) {
       const belongsToUser = userId && cachedWorkspaces.some((p) => p.userId === userId);
       if (belongsToUser) {
-        setWorkspaces(cachedWorkspaces);
-        setLoading(false);
+        const data = cachedWorkspaces;
+        queueMicrotask(() => {
+          setWorkspaces(data);
+          setLoading(false);
+        });
         return;
       }
       cachedWorkspaces = null;
     }
 
     if (!userId) {
-      setLoading(false);
-      setWorkspaces([]);
+      queueMicrotask(() => {
+        setLoading(false);
+        setWorkspaces([]);
+      });
       return;
     }
 
@@ -175,6 +197,7 @@ export function useWorkspaces() {
       if (prev.some((p) => p.id === workspace.id)) return prev;
       return [...prev, workspace];
     });
+    notifyWorkspaceSelected();
   }, []);
 
   const clearSelectedWorkspace = useCallback(() => {

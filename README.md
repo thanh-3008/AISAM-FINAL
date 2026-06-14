@@ -482,3 +482,41 @@ Trong trung han, he thong co the mo rong dynamic subscription plan management, c
 
 ### 11.4. Long-term Roadmap
 Trong dai han, AISAM co the phat trien thanh enterprise marketing automation platform voi multi-model AI, AI strategy recommendation, AI video generation, sentiment analysis, trend prediction, realtime campaign optimization va multi-payment gateway. Tat ca cac capability nay can duoc trien khai co kiem soat, co audit trail, quota management, cost monitoring va user approval workflow de phu hop voi moi truong enterprise.
+
+---
+
+## 12. RECENT FRONTEND IMPROVEMENTS (2026-06-15)
+
+### 12.1. Workspace Selector — Removed "Create New Workspace" from Sidebar Dropdown
+- Nút "Create New Workspace" đã được gỡ khỏi dropdown workspace selector trong sidebar.
+- Giữ lại empty state fallback (khi chưa có workspace nào thì vẫn hiển thị "Create workspace").
+- Nút "Create Workspace" được thêm vào **Workspace Overview** (`/workspace-dashboard`) — góc phải header, và **Dashboard** (`/dashboard`) — hero card, góc phải dưới tên workspace.
+- Workspace Overview locked view cũng có "Create Workspace" button bên cạnh "View Plans" để user ở mọi plan đều có thể tạo workspace mới.
+
+### 12.2. Workspace Switch — Real-time Cross-component Sync
+- **Bug:** Khi chọn workspace trong sidebar, icon profile (avatar initials + display name) trong Header không cập nhật cho đến khi reload trang.
+- **Nguyên nhân:** `useWorkspaces()` tạo state riêng cho mỗi component. `selectWorkspace()` chỉ cập nhật state của Sidebar, Header không được notify.
+- **Fix:** Thêm module-level `workspaceSelectListeners` array + `notifyWorkspaceSelected()`. Khi `selectWorkspace()` được gọi, nó notify tất cả listener → mọi component dùng `useWorkspaces()` đều force re-render → đọc lại `getStoredActiveWorkspace()` từ localStorage → UI cập nhật ngay lập tức.
+
+### 12.3. Page Data Reload on Workspace Switch
+- **Bug:** Khi đổi workspace, các page Campaigns, Analytics, Social, Calendar, Team, Notifications, Approvals, Brands Detail không reload data — chỉ hiển thị data cũ.
+- **Fix:** Thêm `activeWorkspace?.id` vào dependency array của `useEffect` data-fetching ở 8 pages:
+  - `campaigns/page.tsx`: `[]` → `[activeWorkspace?.id]`
+  - `analytics/page.tsx`: `[dateRange, ...]` → `[..., activeWorkspace?.id]`
+  - `social/page.tsx`: `[]` → `[activeWorkspace?.id]`
+  - `calendar/page.tsx`: `[pathname]` → `[pathname, activeWorkspace?.id]`
+  - `team/page.tsx`: `[]` → `[activeWorkspace?.id]`
+  - `notifications/page.tsx`: `[page]` → `[page, activeWorkspace?.id]`
+  - `approvals/page.tsx`: `[tab]` → `[tab, activeWorkspace?.id]` (trong `useCallback`)
+  - `brands/[id]/page.tsx`: `[id]` → `[id, activeWorkspace?.id]`
+
+### 12.4. Other Fixes
+- **Export CSV Dashboard:** Nút Export CSV trên Dashboard giờ generate file CSV thật từ `campaignsData` thay vì chỉ alert.
+- **Error/404/Loading pages:** Thêm `error.tsx` (root + dashboard), `not-found.tsx`, `loading.tsx` (root + dashboard).
+- **Vietnamese → English strings:** Sửa 12 error message tiếng Việt sang tiếng Anh trên các trang auth.
+- **Google OAuth:** Thêm `onClick` + `clientId` fallback vào Register page.
+- **Sidebar Team Management gate:** Ẩn Team Management cho non-Business plans qua `useFeatureGate`.
+- **Credit Pack max balance:** Kiểm tra `balance + pack.credits > maxBalance` → error toast.
+- **Invite Member limit:** Warning banner + disabled button khi đạt member limit (BusinessPlus=10, BusinessPro=50).
+- **SubscriptionContext (Limited Mode):** Tạo Limited Mode / Archived Banner system-wide qua `SubscriptionProvider`.
+- **Styling & Responsive:** `overflow-x-hidden` trên body, `min-w-0 max-w-full` trên dashboard content; fix header workspace selector redundancy.

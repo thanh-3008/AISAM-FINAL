@@ -240,6 +240,28 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
   return campaign;
 }
 
+export async function restartCampaign(id: string): Promise<Campaign | null> {
+  const idx = MOCK_CAMPAIGNS.findIndex((c) => c.id === id);
+  if (idx < 0) return null;
+  MOCK_CAMPAIGNS[idx].status = "ACTIVE";
+  if (!MOCK_CAMPAIGNS[idx].facebookCampaignId) {
+    MOCK_CAMPAIGNS[idx].facebookCampaignId = `fb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+  MOCK_CAMPAIGNS[idx].updatedAt = new Date().toISOString();
+  saveCampaigns(MOCK_CAMPAIGNS);
+  return MOCK_CAMPAIGNS[idx];
+}
+
+export async function applyCampaign(id: string): Promise<Campaign | null> {
+  const idx = MOCK_CAMPAIGNS.findIndex((c) => c.id === id);
+  if (idx < 0) return null;
+  MOCK_CAMPAIGNS[idx].status = "ACTIVE";
+  MOCK_CAMPAIGNS[idx].facebookCampaignId = `fb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  MOCK_CAMPAIGNS[idx].updatedAt = new Date().toISOString();
+  saveCampaigns(MOCK_CAMPAIGNS);
+  return MOCK_CAMPAIGNS[idx];
+}
+
 export async function updateCampaignStatus(id: string, status: CampaignStatus): Promise<Campaign | null> {
   const idx = MOCK_CAMPAIGNS.findIndex((c) => c.id === id);
   if (idx < 0) return null;

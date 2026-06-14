@@ -70,16 +70,21 @@ export function useProfiles() {
     if (cachedProfiles) {
       const belongsToUser = userId && cachedProfiles.some((p) => p.userId === userId);
       if (belongsToUser) {
-        setProfiles(cachedProfiles);
-        setLoading(false);
+        const data = cachedProfiles;
+        queueMicrotask(() => {
+          setProfiles(data);
+          setLoading(false);
+        });
         return;
       }
       cachedProfiles = null;
     }
 
     if (!userId) {
-      setLoading(false);
-      setProfiles([]);
+      queueMicrotask(() => {
+        setLoading(false);
+        setProfiles([]);
+      });
       return;
     }
 

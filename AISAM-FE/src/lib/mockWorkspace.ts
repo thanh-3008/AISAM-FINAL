@@ -5,6 +5,8 @@ export interface CreditWallet {
   workspaceId: string;
   balance: number;
   maxBalance: number;
+  subscriptionEndDate?: string;
+  subscriptionStatus?: string;
 }
 
 export interface WorkspaceDashboard {
@@ -32,11 +34,15 @@ export function getMockWorkspaces(userId: string): WorkspaceData[] {
 }
 
 export function getMockCreditWallet(): CreditWallet {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 45);
   return {
     id: "wallet-1",
     workspaceId: "ws-1",
     balance: 850,
     maxBalance: 15000,
+    subscriptionEndDate: futureDate.toISOString(),
+    subscriptionStatus: "Active",
   };
 }
 

@@ -1,4 +1,4 @@
-export type MemberRole = "Owner" | "Admin" | "Editor" | "Member" | "Viewer";
+export type MemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
 export type MemberStatus = "Active" | "Pending" | "Inactive";
 
 export interface TeamMember {
@@ -90,7 +90,7 @@ const INITIAL_MOCK_MEMBERS: TeamMember[] = [
     name: "James Doe",
     email: "j.doe@marketing.com",
     avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuB6rV9C4ceJcTyc6u5Hhuaj7cCZPxONm8g2E3-UmRFDq90BzwX0tIT-5q5yrOq4SMFf4d0AkiSs90HlpvRBxvqDNfzQKrufRG2hiq5UCI6OVioHJN4vcIoWt00GTWaW9nr85AWKo3Wky5xxaOSewEY5SH6UsXzgquMIjU5qwJnli22AD2THtrxb_B7kmiDifKlR66xUSsvI7x-OU8g0-DPpQDsKv64Sj6Erqzhg2TNkN0qmNW3GXtkrNYSuTdSvKp_fevI2qvc2YYM",
-    role: "Admin",
+    role: "Manager",
     status: "Active",
     teamIds: ["cc"],
     lastActive: new Date(Date.now() - 5 * 60000).toISOString(),
@@ -101,7 +101,7 @@ const INITIAL_MOCK_MEMBERS: TeamMember[] = [
     name: "Maya Lin",
     email: "maya@design.co",
     avatar: null,
-    role: "Editor",
+    role: "ContentCreator",
     status: "Pending",
     teamIds: ["bm"],
     lastActive: new Date(Date.now() - 3600000).toISOString(),
@@ -112,7 +112,7 @@ const INITIAL_MOCK_MEMBERS: TeamMember[] = [
     name: `Member ${i + 1}`,
     email: `member${i + 1}@aisam.com`,
     avatar: null,
-    role: (["Member", "Editor", "Admin", "Viewer"] as MemberRole[])[i % 4],
+    role: (["Viewer", "ContentCreator", "Manager", "Viewer"] as MemberRole[])[i % 4],
     status: (i % 5 === 0 ? "Pending" : i % 7 === 0 ? "Inactive" : "Active") as MemberStatus,
     teamIds: [INITIAL_MOCK_TEAMS[i % 3].id],
     lastActive: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
@@ -141,13 +141,33 @@ function saveTeams(teams: Team[]): void {
   } catch { /* ignore */ }
 }
 
+const OLD_ROLE_MAP: Record<string, MemberRole> = {
+  Admin: "Manager",
+  Editor: "ContentCreator",
+  Member: "Viewer",
+};
+
 function loadMembers(): TeamMember[] {
   if (typeof window === "undefined") return [...INITIAL_MOCK_MEMBERS];
   try {
     const stored = localStorage.getItem(MEMBERS_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as TeamMember[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        let migrated = false;
+        const mapped = parsed.map((m) => {
+          const newRole = OLD_ROLE_MAP[m.role];
+          if (newRole) {
+            migrated = true;
+            return { ...m, role: newRole };
+          }
+          return m;
+        });
+        if (migrated) {
+          localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(mapped));
+        }
+        return mapped;
+      }
     }
   } catch { /* fallback */ }
   const initial = [...INITIAL_MOCK_MEMBERS];
