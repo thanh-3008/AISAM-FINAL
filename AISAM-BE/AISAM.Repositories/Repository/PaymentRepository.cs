@@ -24,7 +24,12 @@ public sealed class PaymentRepository : IPaymentRepository
     {
         return await Query()
             .FirstOrDefaultAsync(
-                payment => !payment.IsDeleted && payment.TransactionId == reference,
+                payment =>
+                    !payment.IsDeleted &&
+                    (payment.TransactionId == reference ||
+                     (payment.Subscription != null &&
+                      (payment.Subscription.PayOSOrderCode == reference ||
+                       payment.Subscription.PayOSPaymentLinkId == reference))),
                 cancellationToken);
     }
 
@@ -38,6 +43,34 @@ public sealed class PaymentRepository : IPaymentRepository
                 payment.Subscription != null &&
                 payment.Subscription.ProfileId == profileId &&
                 !payment.Subscription.IsDeleted)
+            .OrderByDescending(payment => payment.CreatedAt);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<Payment>
+        {
+            Data = data,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<PagedResult<Payment>> GetPagedByWorkspaceIdAsync(
+        Guid workspaceId,
+        PaginationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query()
+            .Where(payment =>
+                !payment.IsDeleted &&
+                payment.WorkspaceId == workspaceId)
             .OrderByDescending(payment => payment.CreatedAt);
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -73,6 +106,7 @@ public sealed class PaymentRepository : IPaymentRepository
     {
         return _context.Payments
             .Include(payment => payment.Subscription)
+            .Include(payment => payment.Workspace)
             .Include(payment => payment.User);
     }
 }

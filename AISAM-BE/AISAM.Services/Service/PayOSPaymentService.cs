@@ -1,83 +1,381 @@
+using System.Globalization;
 using System.Net;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Repositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Data;
 
 namespace AISAM.Services.Service;
 
 public sealed class PayOSPaymentService : IPaymentService
 {
+    private const string PaymentMethod = "PayOS";
+
     private readonly IPaymentRepository _paymentRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IProfileRepository _profileRepository;
+    private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly ICreditService _creditService;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
+    private readonly AisamContext? _context;
 
     public PayOSPaymentService(
         IPaymentRepository paymentRepository,
         ISubscriptionRepository subscriptionRepository,
+        IProfileRepository profileRepository,
+        IWorkspaceRepository workspaceRepository,
+        ICreditService creditService,
         IOptions<PayOSSettings> settings,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        AisamContext? context = null)
     {
         _paymentRepository = paymentRepository;
         _subscriptionRepository = subscriptionRepository;
+        _profileRepository = profileRepository;
+        _workspaceRepository = workspaceRepository;
+        _creditService = creditService;
         _settings = settings.Value;
         _httpClient = httpClient;
+        _context = context;
     }
 
-    public Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(Guid profileId, CreateCheckoutRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreateCheckoutRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!HasPayOsConfig())
         {
-            return Task.FromResult(GenericResponse<PayOSCheckoutResponse>.CreateError(
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
                 "PayOS is not configured.",
                 HttpStatusCode.ServiceUnavailable,
-                "PAYOS_NOT_CONFIGURED"));
+                "PAYOS_NOT_CONFIGURED");
         }
 
-        var response = new PayOSCheckoutResponse
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
         {
-            CheckoutUrl = _settings.ReturnUrl,
-            PaymentLinkId = null,
-            OrderCode = null
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        return request.PaymentType switch
+        {
+            PaymentTypeEnum.CreditPack => await CreateCreditPackCheckoutAsync(workspaceId, userId, request, cancellationToken),
+            _ => await CreateSubscriptionCheckoutAsync(workspaceId, userId, request, cancellationToken)
+        };
+    }
+
+    private async Task<GenericResponse<PayOSCheckoutResponse>> CreateSubscriptionCheckoutAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreateCheckoutRequest request,
+        CancellationToken cancellationToken)
+    {
+        var plan = ResolvePlan(request.PlanCode);
+        if (plan == null)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Invalid subscription plan.", HttpStatusCode.BadRequest, "INVALID_PLAN");
+        }
+
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+        if (workspace == null)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+        }
+
+        var planDefinition = GetPlanDefinition(workspace.WorkspaceType, plan.Value);
+        if (planDefinition.Amount <= 0)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Selected plan does not require PayOS checkout.", HttpStatusCode.BadRequest, "PLAN_DOES_NOT_REQUIRE_PAYMENT");
+        }
+
+        var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
+        var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
+        if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS return/cancel URL is not configured.", HttpStatusCode.ServiceUnavailable, "PAYOS_URL_NOT_CONFIGURED");
+        }
+
+        var orderCode = GenerateOrderCode();
+        var description = $"AISAM {plan.Value}";
+        var subscription = await _subscriptionRepository.AddAsync(new Subscription
+        {
+            WorkspaceId = workspaceId,
+            Plan = plan.Value,
+            QuotaPostsPerMonth = planDefinition.PostQuota,
+            QuotaAIContentPerDay = planDefinition.PromptQuota,
+            QuotaAIImagesPerDay = planDefinition.ImageQuota,
+            QuotaPlatforms = planDefinition.PlatformQuota,
+            QuotaAccounts = planDefinition.AccountQuota,
+            AnalysisLevel = planDefinition.AnalysisLevel,
+            QuotaAdBudgetMonthly = planDefinition.AdBudgetMonthly,
+            QuotaAdCampaigns = planDefinition.AdCampaignQuota,
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(30),
+            IsActive = false,
+            PayOSOrderCode = orderCode.ToString(CultureInfo.InvariantCulture)
+        }, cancellationToken);
+
+        var payment = await _paymentRepository.AddAsync(new Payment
+        {
+            UserId = userId,
+            SubscriptionId = subscription.Id,
+            WorkspaceId = workspaceId,
+            Amount = planDefinition.Amount,
+            Currency = "VND",
+            Status = PaymentStatusEnum.Pending,
+            PaymentType = PaymentTypeEnum.Subscription,
+            PaymentMethod = PaymentMethod,
+            TransactionId = orderCode.ToString(CultureInfo.InvariantCulture)
+        }, cancellationToken);
+
+        var checkoutPayload = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["amount"] = ((long)planDefinition.Amount).ToString(CultureInfo.InvariantCulture),
+            ["cancelUrl"] = cancelUrl,
+            ["description"] = description,
+            ["orderCode"] = orderCode.ToString(CultureInfo.InvariantCulture),
+            ["returnUrl"] = returnUrl
         };
 
-        return Task.FromResult(GenericResponse<PayOSCheckoutResponse>.CreateSuccess(response, "Checkout request created."));
+        var payOsRequest = new
+        {
+            orderCode,
+            amount = (long)planDefinition.Amount,
+            description,
+            returnUrl,
+            cancelUrl,
+            signature = CreateSignature(checkoutPayload)
+        };
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildPayOsUri("/v2/payment-requests"))
+        {
+            Content = JsonContent.Create(payOsRequest)
+        };
+        httpRequest.Headers.Add("x-client-id", _settings.ClientId);
+        httpRequest.Headers.Add("x-api-key", _settings.ApiKey);
+
+        using var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+        if (!httpResponse.IsSuccessStatusCode)
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                $"PayOS checkout creation failed with status {(int)httpResponse.StatusCode}.",
+                HttpStatusCode.BadGateway,
+                "PAYOS_CHECKOUT_FAILED");
+        }
+
+        var payOsResponse = ParseCreatePaymentResponse(responseBody);
+        if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS response did not contain a checkout URL.", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
+        }
+
+        subscription.PayOSPaymentLinkId = payOsResponse.PaymentLinkId;
+        payment.InvoiceUrl = payOsResponse.CheckoutUrl;
+        await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
+        await _paymentRepository.UpdateAsync(payment, cancellationToken);
+
+        return GenericResponse<PayOSCheckoutResponse>.CreateSuccess(payOsResponse, "Checkout request created.");
     }
 
-    public Task<GenericResponse<bool>> HandleCallbackAsync(IQueryCollection query, CancellationToken cancellationToken = default)
+    private async Task<GenericResponse<PayOSCheckoutResponse>> CreateCreditPackCheckoutAsync(
+        Guid workspaceId,
+        Guid userId,
+        CreateCheckoutRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!request.CreditPackCode.HasValue)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("Credit pack code is required.", HttpStatusCode.BadRequest, "CREDIT_PACK_REQUIRED");
+        }
+
+        var pack = GetCreditPackDefinition(request.CreditPackCode.Value);
+        var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
+        var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
+        if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS return/cancel URL is not configured.", HttpStatusCode.ServiceUnavailable, "PAYOS_URL_NOT_CONFIGURED");
+        }
+
+        var orderCode = GenerateOrderCode();
+        var description = $"AISAM Credit Pack {request.CreditPackCode.Value}";
+        var payment = await _paymentRepository.AddAsync(new Payment
+        {
+            UserId = userId,
+            WorkspaceId = workspaceId,
+            Amount = pack.Amount,
+            Currency = "VND",
+            Status = PaymentStatusEnum.Pending,
+            PaymentType = PaymentTypeEnum.CreditPack,
+            CreditPackCode = request.CreditPackCode.Value,
+            CreditAmount = pack.Credits,
+            PaymentMethod = PaymentMethod,
+            TransactionId = orderCode.ToString(CultureInfo.InvariantCulture)
+        }, cancellationToken);
+
+        var checkoutPayload = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["amount"] = ((long)pack.Amount).ToString(CultureInfo.InvariantCulture),
+            ["cancelUrl"] = cancelUrl,
+            ["description"] = description,
+            ["orderCode"] = orderCode.ToString(CultureInfo.InvariantCulture),
+            ["returnUrl"] = returnUrl
+        };
+
+        var payOsRequest = new
+        {
+            orderCode,
+            amount = (long)pack.Amount,
+            description,
+            returnUrl,
+            cancelUrl,
+            signature = CreateSignature(checkoutPayload)
+        };
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildPayOsUri("/v2/payment-requests"))
+        {
+            Content = JsonContent.Create(payOsRequest)
+        };
+        httpRequest.Headers.Add("x-client-id", _settings.ClientId);
+        httpRequest.Headers.Add("x-api-key", _settings.ApiKey);
+
+        using var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+        if (!httpResponse.IsSuccessStatusCode)
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                $"PayOS checkout creation failed with status {(int)httpResponse.StatusCode}.",
+                HttpStatusCode.BadGateway,
+                "PAYOS_CHECKOUT_FAILED");
+        }
+
+        var payOsResponse = ParseCreatePaymentResponse(responseBody);
+        if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS response did not contain a checkout URL.", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
+        }
+
+        payment.InvoiceUrl = payOsResponse.CheckoutUrl;
+        await _paymentRepository.UpdateAsync(payment, cancellationToken);
+
+        return GenericResponse<PayOSCheckoutResponse>.CreateSuccess(payOsResponse, "Checkout request created.");
+    }
+
+    public async Task<GenericResponse<bool>> HandleCallbackAsync(IQueryCollection query, CancellationToken cancellationToken = default)
     {
         if (!HasPayOsConfig())
         {
-            return Task.FromResult(GenericResponse<bool>.CreateError(
+            return GenericResponse<bool>.CreateError(
                 "PayOS is not configured.",
                 HttpStatusCode.ServiceUnavailable,
-                "PAYOS_NOT_CONFIGURED"));
+                "PAYOS_NOT_CONFIGURED");
         }
 
-        return Task.FromResult(GenericResponse<bool>.CreateSuccess(true, "PayOS callback accepted."));
+        var reference = FirstNonEmpty(query["orderCode"].FirstOrDefault(), query["id"].FirstOrDefault(), query["paymentLinkId"].FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return GenericResponse<bool>.CreateError("PayOS callback is missing payment reference.", HttpStatusCode.BadRequest, "PAYOS_REFERENCE_MISSING");
+        }
+
+        if (!query.TryGetValue("signature", out var signature) || string.IsNullOrWhiteSpace(signature.FirstOrDefault()))
+        {
+            return GenericResponse<bool>.CreateError(
+                "PayOS callback signature is required.",
+                HttpStatusCode.BadRequest,
+                "PAYOS_SIGNATURE_REQUIRED");
+        }
+
+        if (!string.IsNullOrWhiteSpace(signature.FirstOrDefault()))
+        {
+            var signedValues = query
+                .Where(item => !string.Equals(item.Key, "signature", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(item => item.Key, item => item.Value.FirstOrDefault() ?? string.Empty, StringComparer.Ordinal);
+
+            if (!VerifySignature(signedValues, signature.FirstOrDefault()!))
+            {
+                return GenericResponse<bool>.CreateError("Invalid PayOS callback signature.", HttpStatusCode.BadRequest, "PAYOS_SIGNATURE_INVALID");
+            }
+        }
+
+        var status = FirstNonEmpty(query["status"].FirstOrDefault(), query["code"].FirstOrDefault());
+        return await ApplyPaymentStatusAsync(reference, status, query["id"].FirstOrDefault(), acknowledgeMissingPayment: false, cancellationToken);
     }
 
-    public Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default)
     {
         if (!HasPayOsConfig())
         {
-            return Task.FromResult(GenericResponse<bool>.CreateError(
+            return GenericResponse<bool>.CreateError(
                 "PayOS is not configured.",
                 HttpStatusCode.ServiceUnavailable,
-                "PAYOS_NOT_CONFIGURED"));
+                "PAYOS_NOT_CONFIGURED");
         }
 
-        return Task.FromResult(GenericResponse<bool>.CreateSuccess(true, "PayOS webhook accepted."));
+        if (string.IsNullOrWhiteSpace(rawPayload))
+        {
+            return GenericResponse<bool>.CreateError("PayOS webhook body is empty.", HttpStatusCode.BadRequest, "PAYOS_WEBHOOK_EMPTY");
+        }
+
+        using var document = JsonDocument.Parse(rawPayload);
+        var root = document.RootElement;
+        var signature = TryGetString(root, "signature");
+        var data = root.TryGetProperty("data", out var dataElement) ? dataElement : root;
+
+        if (string.IsNullOrWhiteSpace(signature))
+        {
+            return GenericResponse<bool>.CreateError(
+                "PayOS webhook signature is required.",
+                HttpStatusCode.BadRequest,
+                "PAYOS_SIGNATURE_REQUIRED");
+        }
+
+        if (!VerifySignature(ExtractPrimitiveValues(data), signature))
+        {
+            return GenericResponse<bool>.CreateError("Invalid PayOS webhook signature.", HttpStatusCode.BadRequest, "PAYOS_SIGNATURE_INVALID");
+        }
+
+        var reference = FirstNonEmpty(
+            TryGetString(data, "orderCode"),
+            TryGetString(data, "paymentLinkId"),
+            TryGetString(root, "orderCode"),
+            TryGetString(root, "paymentLinkId"));
+
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return GenericResponse<bool>.CreateError("PayOS webhook is missing payment reference.", HttpStatusCode.BadRequest, "PAYOS_REFERENCE_MISSING");
+        }
+
+        var status = FirstNonEmpty(TryGetString(data, "status"), TryGetString(data, "code"), TryGetString(root, "status"), TryGetString(root, "code"));
+        var transactionId = FirstNonEmpty(TryGetString(data, "reference"), TryGetString(data, "id"), TryGetString(root, "id"));
+        return await ApplyPaymentStatusAsync(reference, status, transactionId, acknowledgeMissingPayment: true, cancellationToken);
     }
 
-    public async Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
     {
-        var payments = await _paymentRepository.GetPagedByProfileIdAsync(profileId, request, cancellationToken);
+        var payments = await _paymentRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, cancellationToken);
 
         var mapped = new PagedResult<PaymentHistoryItemDto>
         {
@@ -90,9 +388,9 @@ public sealed class PayOSPaymentService : IPaymentService
         return GenericResponse<PagedResult<PaymentHistoryItemDto>>.CreateSuccess(mapped);
     }
 
-    public async Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
-        var subscription = await _subscriptionRepository.GetCurrentActiveByProfileIdAsync(profileId, cancellationToken);
+        var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
         if (subscription == null)
         {
             return GenericResponse<CurrentSubscriptionDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
@@ -108,11 +406,324 @@ public sealed class PayOSPaymentService : IPaymentService
         });
     }
 
+    private async Task<GenericResponse<bool>> ApplyPaymentStatusAsync(
+        string reference,
+        string? status,
+        string? transactionId,
+        bool acknowledgeMissingPayment,
+        CancellationToken cancellationToken)
+    {
+        if (_context == null || !_context.Database.IsRelational() || _context.Database.CurrentTransaction != null)
+        {
+            return await ApplyPaymentStatusCoreAsync(reference, status, transactionId, acknowledgeMissingPayment, cancellationToken);
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            var result = await ApplyPaymentStatusCoreAsync(reference, status, transactionId, acknowledgeMissingPayment, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task<GenericResponse<bool>> ApplyPaymentStatusCoreAsync(
+        string reference,
+        string? status,
+        string? transactionId,
+        bool acknowledgeMissingPayment,
+        CancellationToken cancellationToken)
+    {
+        var payment = await _paymentRepository.GetByReferenceAsync(reference, cancellationToken);
+        if (payment == null)
+        {
+            if (acknowledgeMissingPayment)
+            {
+                return GenericResponse<bool>.CreateSuccess(true, "PayOS webhook acknowledged; no matching payment was found.");
+            }
+
+            return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
+        }
+
+        if (!string.IsNullOrWhiteSpace(transactionId))
+        {
+            payment.TransactionId = transactionId;
+        }
+
+        if (IsPaidStatus(status))
+        {
+            if (payment.Status == PaymentStatusEnum.Success)
+            {
+                await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
+            }
+
+            payment.Status = PaymentStatusEnum.Success;
+            if (payment.PaymentType == PaymentTypeEnum.CreditPack)
+            {
+                var workspace = await _workspaceRepository.GetByIdAsync(payment.WorkspaceId, cancellationToken);
+                if (workspace == null)
+                {
+                    payment.Status = PaymentStatusEnum.Failed;
+                    await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                    return GenericResponse<bool>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+                }
+
+                var creditGrant = await _creditService.GrantCreditPackCreditsAsync(
+                    workspace.Id,
+                    payment.UserId,
+                    workspace.WorkspaceType,
+                    payment.CreditAmount ?? 0,
+                    cancellationToken);
+                if (!creditGrant.Success)
+                {
+                    payment.Status = PaymentStatusEnum.Failed;
+                    await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                    return GenericResponse<bool>.CreateError(
+                        creditGrant.Message ?? "Unable to grant credit pack credits.",
+                        (HttpStatusCode)creditGrant.StatusCode,
+                        creditGrant.Error?.ErrorCode);
+                }
+            }
+            else if (payment.SubscriptionId.HasValue)
+            {
+                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value, cancellationToken);
+                if (subscription != null)
+                {
+                    if (subscription.IsActive)
+                    {
+                        await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                        return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
+                    }
+
+                    var today = DateTime.UtcNow.Date;
+                    var currentSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
+                    var renewalBaseDate = currentSubscription?.EndDate is { } currentEndDate && currentEndDate > today
+                        ? currentEndDate
+                        : today;
+                    var workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId, cancellationToken);
+                    if (workspace != null)
+                    {
+                        var creditGrant = await _creditService.GrantSubscriptionCreditsAsync(
+                            workspace.Id,
+                            payment.UserId,
+                            workspace.WorkspaceType,
+                            subscription.Plan,
+                            cancellationToken);
+                        if (!creditGrant.Success)
+                        {
+                            payment.Status = PaymentStatusEnum.Failed;
+                            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                                return GenericResponse<bool>.CreateError(
+                                    creditGrant.Message ?? "Unable to grant subscription credits.",
+                                    (HttpStatusCode)creditGrant.StatusCode,
+                                    creditGrant.Error?.ErrorCode);
+                        }
+                    }
+
+                    if (currentSubscription != null && currentSubscription.Id != subscription.Id)
+                    {
+                        currentSubscription.IsActive = false;
+                        await _subscriptionRepository.UpdateAsync(currentSubscription, cancellationToken);
+                    }
+
+                    subscription.IsActive = true;
+                    subscription.StartDate = today;
+                    subscription.EndDate = renewalBaseDate.AddDays(30);
+                    await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
+
+                    if (workspace != null)
+                    {
+                        workspace.SubscriptionExpiredAt = subscription.EndDate;
+                        workspace.Status = WorkspaceStatusEnum.Active;
+                        workspace.ArchivedAt = null;
+                        workspace.DeletedAt = null;
+                        workspace.MemberLimit = ResolveMemberLimit(workspace.WorkspaceType, subscription.Plan);
+                        await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+                    }
+
+                    var profile = subscription.ProfileId.HasValue
+                        ? await _profileRepository.GetByIdAsync(subscription.ProfileId.Value, cancellationToken)
+                        : null;
+                    if (profile != null)
+                    {
+                        profile.SubscriptionId = subscription.Id;
+                        await _profileRepository.UpdateAsync(profile, cancellationToken);
+                    }
+                }
+            }
+        }
+        else if (IsFailedStatus(status))
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+        }
+
+        await _paymentRepository.UpdateAsync(payment, cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
+    }
+
     private bool HasPayOsConfig()
     {
         return !string.IsNullOrWhiteSpace(_settings.ClientId)
             && !string.IsNullOrWhiteSpace(_settings.ApiKey)
             && !string.IsNullOrWhiteSpace(_settings.ChecksumKey);
+    }
+
+    private Uri BuildPayOsUri(string path)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_settings.BaseUrl)
+            ? "https://api-merchant.payos.vn"
+            : _settings.BaseUrl.TrimEnd('/');
+
+        return new Uri($"{baseUrl}{path}");
+    }
+
+    private string CreateSignature(IReadOnlyDictionary<string, string> values)
+    {
+        var data = string.Join("&", values.OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}"));
+        var key = Encoding.UTF8.GetBytes(_settings.ChecksumKey);
+        var bytes = Encoding.UTF8.GetBytes(data);
+        return Convert.ToHexString(HMACSHA256.HashData(key, bytes)).ToLowerInvariant();
+    }
+
+    private bool VerifySignature(IReadOnlyDictionary<string, string> values, string signature)
+    {
+        var expected = CreateSignature(values);
+        return string.Equals(expected, signature, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static PayOSCheckoutResponse ParseCreatePaymentResponse(string responseBody)
+    {
+        using var document = JsonDocument.Parse(responseBody);
+        var root = document.RootElement;
+        var data = root.TryGetProperty("data", out var dataElement) ? dataElement : root;
+
+        return new PayOSCheckoutResponse
+        {
+            CheckoutUrl = FirstNonEmpty(TryGetString(data, "checkoutUrl"), TryGetString(data, "checkoutUrl")),
+            PaymentLinkId = TryGetString(data, "paymentLinkId"),
+            OrderCode = TryGetString(data, "orderCode")
+        };
+    }
+
+    private static SubscriptionPlanEnum? ResolvePlan(string planCode)
+    {
+        return Enum.TryParse<SubscriptionPlanEnum>(planCode, ignoreCase: true, out var plan)
+            ? plan
+            : null;
+    }
+
+    private static PlanDefinition GetPlanDefinition(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
+    {
+        return (workspaceType, plan) switch
+        {
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 300, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
+        };
+    }
+
+    private static CreditPackDefinition GetCreditPackDefinition(CreditPackCodeEnum packCode)
+    {
+        return packCode switch
+        {
+            CreditPackCodeEnum.Starter => new CreditPackDefinition(29_000m, 100),
+            CreditPackCodeEnum.Standard => new CreditPackDefinition(99_000m, 500),
+            CreditPackCodeEnum.Growth => new CreditPackDefinition(249_000m, 1_500),
+            CreditPackCodeEnum.Business => new CreditPackDefinition(699_000m, 5_000),
+            _ => throw new InvalidOperationException("Unsupported credit pack.")
+        };
+    }
+
+    private static int ResolveMemberLimit(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
+    {
+        if (workspaceType == WorkspaceTypeEnum.Personal)
+        {
+            return 1;
+        }
+
+        return plan switch
+        {
+            SubscriptionPlanEnum.Premium => 50,
+            SubscriptionPlanEnum.Plus => 10,
+            _ => 1
+        };
+    }
+
+    private static long GenerateOrderCode()
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var random = RandomNumberGenerator.GetInt32(100, 999);
+        return long.Parse($"{timestamp % 1000000000000}{random}", CultureInfo.InvariantCulture);
+    }
+
+    private static Dictionary<string, string> ExtractPrimitiveValues(JsonElement element)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Undefined)
+            {
+                continue;
+            }
+
+            values[property.Name] = property.Value.ValueKind switch
+            {
+                JsonValueKind.String => property.Value.GetString() ?? string.Empty,
+                JsonValueKind.Null => string.Empty,
+                _ => property.Value.GetRawText()
+            };
+        }
+
+        return values;
+    }
+
+    private static bool IsPaidStatus(string? status)
+    {
+        return string.Equals(status, "PAID", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "00", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFailedStatus(string? status)
+    {
+        return string.Equals(status, "CANCELLED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "CANCELED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "FAILED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "EXPIRED", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+    }
+
+    private static string? TryGetString(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.String => property.GetString(),
+            JsonValueKind.Number => property.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => null
+        };
     }
 
     private static PaymentHistoryItemDto MapPaymentHistoryItem(Payment payment)
@@ -126,4 +737,19 @@ public sealed class PayOSPaymentService : IPaymentService
             CreatedAt = payment.CreatedAt
         };
     }
+
+    private sealed record PlanDefinition(
+        decimal Amount,
+        int PostQuota,
+        int PromptQuota,
+        int ImageQuota,
+        int PlatformQuota,
+        int AccountQuota,
+        int AnalysisLevel,
+        decimal AdBudgetMonthly,
+        int AdCampaignQuota);
+
+    private sealed record CreditPackDefinition(
+        decimal Amount,
+        long Credits);
 }

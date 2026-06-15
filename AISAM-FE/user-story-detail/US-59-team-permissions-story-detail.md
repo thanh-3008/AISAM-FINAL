@@ -1,5 +1,7 @@
 # US-59 - Team va phan quyen team
 
+> Superseding target: Workspace Membership thay cho Team governance cu. Role: Owner, Manager, Content Creator, Viewer; Business Plus toi da 10 members, Business Pro toi da 50; Owner transfer chi cho Manager.
+
 ## Mo ta
 
 La nguoi quan ly, toi muon tao team, gan thanh vien va phan quyen theo vai tro de to chuc cong viec theo nhom.

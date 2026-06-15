@@ -3,6 +3,8 @@ using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
+using AISAM.Data.Enumeration;
+using AISAM.Data.Model;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,33 +15,33 @@ namespace AISAM.IntegrationTests;
 public class PaymentControllerTests
 {
     [Fact]
-    public async Task GetCurrentSubscription_ReturnsOnlyActiveProfilesSubscription()
+    public async Task GetCurrentSubscription_ReturnsOnlyActiveWorkspacesSubscription()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = new FakePaymentService
         {
             CurrentSubscriptionResult = GenericResponse<CurrentSubscriptionDto>.CreateSuccess(new CurrentSubscriptionDto())
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, workspaceId);
 
         await controller.GetCurrentSubscription();
 
-        Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
     }
 
     [Fact]
-    public async Task GetPaymentHistory_ReturnsProfilesPayments()
+    public async Task GetPaymentHistory_ReturnsWorkspacesPayments()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = new FakePaymentService
         {
             PaymentHistoryResult = GenericResponse<PagedResult<PaymentHistoryItemDto>>.CreateSuccess(new PagedResult<PaymentHistoryItemDto>())
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, workspaceId);
 
         await controller.GetHistory(new PaginationRequest { Page = 1, PageSize = 10 });
 
-        Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
     }
 
     [Fact]
@@ -52,18 +54,45 @@ public class PaymentControllerTests
                 HttpStatusCode.ServiceUnavailable,
                 "PAYOS_NOT_CONFIGURED")
         };
-        var controller = CreateController(service, Guid.NewGuid());
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var controller = CreateController(service, workspaceId, userId);
 
         var result = await controller.CreateCheckout(new CreateCheckoutRequest { PlanCode = "Plus" });
 
         var objectResult = Assert.IsAssignableFrom<ObjectResult>(result.Result);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, objectResult.StatusCode);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
+        Assert.Equal(userId, service.LastUserId);
     }
 
-    private static PaymentController CreateController(IPaymentService service, Guid profileId)
+    [Fact]
+    public async Task CreateCheckout_ForCreditPack_ForwardsPaymentTypeAndPackCode()
+    {
+        var service = new FakePaymentService();
+        var workspaceId = Guid.NewGuid();
+        var controller = CreateController(service, workspaceId, Guid.NewGuid());
+
+        await controller.CreateCheckout(new CreateCheckoutRequest
+        {
+            PaymentType = PaymentTypeEnum.CreditPack,
+            CreditPackCode = CreditPackCodeEnum.Growth
+        });
+
+        Assert.Equal(PaymentTypeEnum.CreditPack, service.LastRequest!.PaymentType);
+        Assert.Equal(CreditPackCodeEnum.Growth, service.LastRequest.CreditPackCode);
+    }
+
+    private static PaymentController CreateController(IPaymentService service, Guid workspaceId, Guid? userId = null)
     {
         var context = new DefaultHttpContext();
-        context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = new WorkspaceMember
+        {
+            WorkspaceId = workspaceId,
+            UserId = userId ?? Guid.NewGuid(),
+            Role = WorkspaceMemberRoleEnum.Owner
+        };
 
         return new PaymentController(service)
         {
@@ -73,16 +102,20 @@ public class PaymentControllerTests
 
     private sealed class FakePaymentService : IPaymentService
     {
-        public Guid LastProfileId { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
+        public Guid LastUserId { get; private set; }
+        public CreateCheckoutRequest? LastRequest { get; private set; }
         public GenericResponse<PayOSCheckoutResponse> CheckoutResult { get; set; } = GenericResponse<PayOSCheckoutResponse>.CreateSuccess(new PayOSCheckoutResponse());
         public GenericResponse<bool> CallbackResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<bool> WebhookResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<PagedResult<PaymentHistoryItemDto>> PaymentHistoryResult { get; set; } = GenericResponse<PagedResult<PaymentHistoryItemDto>>.CreateSuccess(new PagedResult<PaymentHistoryItemDto>());
         public GenericResponse<CurrentSubscriptionDto> CurrentSubscriptionResult { get; set; } = GenericResponse<CurrentSubscriptionDto>.CreateSuccess(new CurrentSubscriptionDto());
 
-        public Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(Guid profileId, CreateCheckoutRequest request, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(Guid workspaceId, Guid userId, CreateCheckoutRequest request, CancellationToken cancellationToken = default)
         {
-            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
+            LastRequest = request;
             return Task.FromResult(CheckoutResult);
         }
 
@@ -96,15 +129,15 @@ public class PaymentControllerTests
             return Task.FromResult(WebhookResult);
         }
 
-        public Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
         {
-            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(PaymentHistoryResult);
         }
 
-        public Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid profileId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
-            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(CurrentSubscriptionResult);
         }
     }

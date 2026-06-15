@@ -29,7 +29,7 @@ public sealed class ConversationController : ControllerBase
         [FromQuery] bool sortDescending = true,
         CancellationToken cancellationToken = default)
     {
-        var result = await _conversationService.GetPagedAsync(GetProfileId(), new PaginationRequest
+        var result = await _conversationService.GetPagedByWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), new PaginationRequest
         {
             Page = page,
             PageSize = pageSize,
@@ -46,7 +46,7 @@ public sealed class ConversationController : ControllerBase
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var result = await _conversationService.GetByIdAsync(id, GetProfileId(), cancellationToken);
+        var result = await _conversationService.GetByIdInWorkspaceAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -55,12 +55,8 @@ public sealed class ConversationController : ControllerBase
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var result = await _conversationService.SoftDeleteAsync(id, GetProfileId(), cancellationToken);
+        var result = await _conversationService.SoftDeleteInWorkspaceAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
 }

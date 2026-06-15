@@ -100,6 +100,26 @@ public sealed class ContentRepository : IContentRepository
         return content;
     }
 
+    public async Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query().Where(c => c.WorkspaceId == workspaceId);
+        if (brandId.HasValue) query = query.Where(c => c.BrandId == brandId.Value);
+        if (!includeDeleted) query = query.Where(c => !c.IsDeleted);
+        if (adType.HasValue) query = query.Where(c => c.AdType == adType.Value);
+        if (status.HasValue) query = query.Where(c => c.Status == status.Value);
+        if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+        {
+            var pattern = $"%{request.SearchTerm}%";
+            query = query.Where(c => (c.Title != null && EF.Functions.ILike(c.Title, pattern)) || EF.Functions.ILike(c.TextContent, pattern));
+        }
+        query = query.OrderByDescending(c => c.CreatedAt);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Content> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
+    }
+
     public async Task UpdateAsync(Content content, CancellationToken cancellationToken = default)
     {
         content.UpdatedAt = DateTime.UtcNow;

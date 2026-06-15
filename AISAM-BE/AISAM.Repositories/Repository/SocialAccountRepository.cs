@@ -49,6 +49,12 @@ public sealed class SocialAccountRepository : ISocialAccountRepository
         return accounts.Select(FilterDeletedIntegrations).OfType<SocialAccount>().ToList();
     }
 
+    public async Task<IReadOnlyList<SocialAccount>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var accounts = await Query().Where(a => a.WorkspaceId == workspaceId && !a.IsDeleted).OrderByDescending(a => a.CreatedAt).ToListAsync(cancellationToken);
+        return accounts.Select(FilterDeletedIntegrations).OfType<SocialAccount>().ToList();
+    }
+
     public async Task<SocialAccount> AddAsync(SocialAccount account, CancellationToken cancellationToken = default)
     {
         account.CreatedAt = DateTime.UtcNow;

@@ -22,7 +22,7 @@ public class ContentControllerPublishTests
         {
             PublishResult = GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound)
         };
-        var controller = CreateController(service, Guid.NewGuid());
+        var controller = CreateController(service, Guid.NewGuid(), Guid.NewGuid());
 
         var result = await controller.Publish(Guid.NewGuid(), Guid.NewGuid());
 
@@ -42,7 +42,7 @@ public class ContentControllerPublishTests
                 ProviderPostId = "facebook-post-1"
             })
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, profileId, Guid.NewGuid());
         var contentId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
 
@@ -53,10 +53,11 @@ public class ContentControllerPublishTests
         Assert.Equal(integrationId, service.LastPublishedIntegrationId);
     }
 
-    private static ContentController CreateController(IContentService service, Guid profileId)
+    private static ContentController CreateController(IContentService service, Guid profileId, Guid workspaceId)
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
 
         return new ContentController(service)
         {
@@ -80,6 +81,14 @@ public class ContentControllerPublishTests
         public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default)
+        {
+            LastPublishedContentId = contentId;
+            LastPublishedIntegrationId = integrationId;
+            LastProfileId = profileId;
+            return Task.FromResult(PublishResult);
+        }
+
+        public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default)
         {
             LastPublishedContentId = contentId;
             LastPublishedIntegrationId = integrationId;

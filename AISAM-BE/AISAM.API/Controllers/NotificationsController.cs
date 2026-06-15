@@ -26,7 +26,7 @@ public sealed class NotificationsController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _notificationService.GetPagedAsync(GetProfileId(), new PaginationRequest
+        var result = await _notificationService.GetPagedByWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), new PaginationRequest
         {
             Page = page,
             PageSize = pageSize
@@ -40,7 +40,7 @@ public sealed class NotificationsController : ControllerBase
         Guid notificationId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _notificationService.GetByIdAsync(GetProfileId(), notificationId, cancellationToken);
+        var result = await _notificationService.GetByIdInWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), notificationId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -49,26 +49,22 @@ public sealed class NotificationsController : ControllerBase
         Guid notificationId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _notificationService.MarkReadAsync(GetProfileId(), notificationId, cancellationToken);
+        var result = await _notificationService.MarkReadInWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), notificationId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
     [HttpPost("mark-all-read")]
     public async Task<ActionResult<GenericResponse<bool>>> MarkAllRead(CancellationToken cancellationToken = default)
     {
-        var result = await _notificationService.MarkAllReadAsync(GetProfileId(), cancellationToken);
+        var result = await _notificationService.MarkAllReadInWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
     [HttpGet("unread-count")]
     public async Task<ActionResult<GenericResponse<UnreadNotificationCountDto>>> GetUnreadCount(CancellationToken cancellationToken = default)
     {
-        var result = await _notificationService.GetUnreadCountAsync(GetProfileId(), cancellationToken);
+        var result = await _notificationService.GetUnreadCountByWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
 }

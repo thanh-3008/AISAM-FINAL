@@ -14,10 +14,12 @@ public class ContentScheduleServiceTests
     public async Task CreateAsync_CreatesPendingSchedule_WhenContentAndIntegrationBelongToProfile()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Draft content",
@@ -27,6 +29,7 @@ public class ContentScheduleServiceTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = content.BrandId,
             SocialAccountId = Guid.NewGuid(),
             Platform = SocialPlatformEnum.Facebook,
@@ -41,7 +44,7 @@ public class ContentScheduleServiceTests
             notificationRepository: notificationRepository);
 
         var scheduledAt = DateTime.UtcNow.AddHours(2);
-        var result = await service.CreateAsync(profileId, new CreateContentScheduleRequest
+        var result = await service.CreateInWorkspaceAsync(workspaceId, profileId, new CreateContentScheduleRequest
         {
             ContentId = content.Id,
             IntegrationId = integration.Id,
@@ -52,6 +55,7 @@ public class ContentScheduleServiceTests
         var schedule = Assert.Single(scheduleRepository.Schedules.Values);
         Assert.Equal(ScheduleStatusEnum.Pending, schedule.Status);
         Assert.Equal(profileId, schedule.ProfileId);
+        Assert.Equal(workspaceId, schedule.WorkspaceId);
         Assert.Equal(content.Id, schedule.ContentId);
         Assert.Equal(integration.Id, schedule.IntegrationId);
         Assert.Equal(scheduledAt, schedule.ScheduledAt);

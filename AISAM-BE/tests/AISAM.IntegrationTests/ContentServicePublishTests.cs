@@ -169,11 +169,13 @@ public class ContentServicePublishTests
     public async Task PublishAsync_ReturnsForbiddenWithPostQuotaError_WhenPostQuotaExceeded()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brandId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
@@ -183,6 +185,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Platform = SocialPlatformEnum.Facebook,
             UserAccessToken = "protected:user-token"
         };
@@ -190,6 +193,7 @@ public class ContentServicePublishTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = brandId,
             SocialAccountId = account.Id,
             SocialAccount = account,
@@ -217,13 +221,13 @@ public class ContentServicePublishTests
             new FakeSocialTokenProtector(),
             new FakeQuotaService
             {
-                PostQuotaResult = GenericResponse<bool>.CreateError(
+                WorkspacePostQuotaResult = GenericResponse<bool>.CreateError(
                     "Post quota has been exceeded for the current subscription.",
                     HttpStatusCode.Forbidden,
                     "POST_QUOTA_EXCEEDED")
             });
 
-        var result = await service.PublishAsync(content.Id, integration.Id, profileId);
+        var result = await service.PublishAsync(content.Id, integration.Id, profileId, workspaceId);
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
@@ -231,6 +235,59 @@ public class ContentServicePublishTests
         Assert.Equal(ContentStatusEnum.Draft, content.Status);
         Assert.Empty(postRepository.Added);
         Assert.Null(provider.LastPublishedPost);
+    }
+
+    [Fact]
+    public async Task PublishAsync_UsesWorkspacePostQuota()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brandId = Guid.NewGuid();
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            BrandId = brandId,
+            AdType = AdTypeEnum.TextOnly,
+            TextContent = "Publish me",
+            Status = ContentStatusEnum.Draft
+        };
+        var account = new SocialAccount
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            Platform = SocialPlatformEnum.Facebook,
+            UserAccessToken = "protected:user-token"
+        };
+        var integration = new SocialIntegration
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            BrandId = brandId,
+            SocialAccountId = account.Id,
+            SocialAccount = account,
+            Platform = SocialPlatformEnum.Facebook,
+            ExternalId = "page-1",
+            AccessToken = "protected:page-token"
+        };
+        var quotaService = new FakeQuotaService();
+        var service = CreateService(
+            new FakeContentRepository(content),
+            new FakeBrandRepository(),
+            new FakeProductRepository(),
+            new FakeSocialIntegrationRepository(integration),
+            new FakeSocialAccountRepository(account),
+            new FakePostRepository(),
+            new FakeProviderService(),
+            new FakeSocialTokenProtector(),
+            quotaService);
+
+        await service.PublishAsync(content.Id, integration.Id, profileId, workspaceId);
+
+        Assert.Equal(workspaceId, quotaService.LastWorkspaceId);
     }
 
     [Fact]
@@ -482,6 +539,8 @@ public class ContentServicePublishTests
     {
         public GenericResponse<bool> PromptQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<bool> PostQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+        public GenericResponse<bool> WorkspacePostQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+        public Guid LastWorkspaceId { get; private set; }
 
         public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
             => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
@@ -491,5 +550,17 @@ public class ContentServicePublishTests
 
         public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
             => Task.FromResult(PostQuotaResult);
+
+        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            return Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+        }
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            return Task.FromResult(WorkspacePostQuotaResult);
+        }
     }
 }

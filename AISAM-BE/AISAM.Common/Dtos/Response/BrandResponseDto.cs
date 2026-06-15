@@ -11,6 +11,7 @@ namespace AISAM.Common.Dtos.Response
         public string? Usp { get; set; }
         public string? TargetAudience { get; set; }
         public Guid? ProfileId { get; set; }
+        public Guid? WorkspaceId { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }

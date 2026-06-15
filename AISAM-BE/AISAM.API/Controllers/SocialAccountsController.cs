@@ -26,7 +26,7 @@ public sealed class SocialAccountsController : ControllerBase
     {
         try
         {
-            var result = await _socialService.GetProfileAccountsAsync(GetProfileId(), cancellationToken);
+            var result = await _socialService.GetWorkspaceAccountsAsync(GetWorkspaceId(), cancellationToken);
             return Ok(GenericResponse<IReadOnlyList<SocialAccountDto>>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -42,7 +42,7 @@ public sealed class SocialAccountsController : ControllerBase
     {
         try
         {
-            var result = await _socialService.ListAvailableTargetsForAccountAsync(GetProfileId(), socialAccountId, cancellationToken);
+            var result = await _socialService.ListAvailableTargetsInWorkspaceAsync(GetWorkspaceId(), socialAccountId, cancellationToken);
             return Ok(GenericResponse<IReadOnlyList<AvailableTargetDto>>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -66,7 +66,7 @@ public sealed class SocialAccountsController : ControllerBase
     {
         try
         {
-            var result = await _socialService.GetLinkedTargetsAsync(GetProfileId(), socialAccountId, cancellationToken);
+            var result = await _socialService.GetLinkedTargetsInWorkspaceAsync(GetWorkspaceId(), socialAccountId, cancellationToken);
             return Ok(GenericResponse<IReadOnlyList<SocialTargetDto>>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -96,7 +96,7 @@ public sealed class SocialAccountsController : ControllerBase
 
         try
         {
-            var result = await _socialService.LinkSelectedTargetsForAccountAsync(GetProfileId(), socialAccountId, request, cancellationToken);
+            var result = await _socialService.LinkSelectedTargetsInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), socialAccountId, request, cancellationToken);
             return Ok(GenericResponse<SocialAccountDto>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -122,7 +122,7 @@ public sealed class SocialAccountsController : ControllerBase
     {
         try
         {
-            var deleted = await _socialService.UnlinkAccountAsync(GetProfileId(), socialAccountId, cancellationToken);
+            var deleted = await _socialService.UnlinkAccountInWorkspaceAsync(GetWorkspaceId(), socialAccountId, cancellationToken);
             if (!deleted)
             {
                 return NotFound(GenericResponse<bool>.CreateError("Social account not found.", HttpStatusCode.NotFound));
@@ -140,6 +140,7 @@ public sealed class SocialAccountsController : ControllerBase
     {
         return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
     }
+    private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 
     private static bool IsNotFoundMessage(string message)
     {

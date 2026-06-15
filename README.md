@@ -2,6 +2,22 @@
 ## AI-POWERED SOCIAL MEDIA ADVERTISING MANAGER (AISAM)
 ### BAN HOP NHAT GIUA SOURCE CODE HIEN TAI VA DINH HUONG PHAT TRIEN TUONG LAI
 
+## APPROVED CHANGE NOTICE - WORKSPACE SUBSCRIPTION AND CREDITS
+
+Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+- Workspace migration Phase 9 da hoan thanh Task 9.1-9.18.
+- Workspace, member/invitation, ownership transfer, subscription/payment, Credit Wallet, member quota, entitlement, Post Quota va AI Credit charging da co code va automated tests.
+- Brand/Product, Content/Post, Social, Calendar, Conversation, Notification va Campaign da migrate sang Workspace ownership; du lieu cu da backfill va `WorkspaceId` ownership da khoa bat buoc.
+- `WorkspaceTypeEnum`: Personal = 1, Business = 2.
+- Moi Workspace co dung mot Owner va mot Credit Wallet.
+- Credits chi dung cho AI; publish dung Post Quota rieng.
+- Business Plus cap 15.000 Credits va toi da 10 members.
+- Business Pro cap 50.000 Credits va toi da 50 members.
+- Expired lifecycle da co code: Limited Mode, Archived, sau 180 ngay Admin co quyen Soft Delete.
+
+Workspace Dashboard, regression va tai lieu cuoi Phase 9 da hoan thanh. Phase tiep theo la Phase 10 Admin backend theo Workspace.
+
 ## Document Control
 Tai lieu nay duoc xay dung theo nguyen tac source code hien tai la baseline trien khai. Cac chuc nang da co trong source duoc mo ta trong nhom Current Implemented Features. Cac chuc nang xuat hien trong tai lieu yeu cau goc nhung chua ton tai day du trong source duoc phan loai ro la Planned Features, Future Enhancement, Proposed Advanced AI Features hoac Optional Enterprise Features. Tai lieu khong mo ta cac chuc nang chua co nhu mot phan da hoan thanh.
 

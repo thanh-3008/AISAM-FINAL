@@ -1,5 +1,15 @@
 # 📋 SPECIFICATION ANSWERS - NHÓM 3 (19 YÊU CẦU CHI TIẾT)
 
+## Superseding Approved Decisions - Workspace Model
+
+`CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md` thay the cac de xuat cu lien quan den Profile subscription, Team Leader governance va AI quota.
+
+- Ownership/subscription/credits chuyen sang Workspace.
+- Role dung Owner, Manager, Content Creator, Viewer.
+- Moi Workspace co dung mot Owner va mot Credit Wallet.
+- Business Plus cap 15.000 Credits/toi da 10 members; Business Pro cap 50.000 Credits/toi da 50 members.
+- Cac code sample ProfileId, daily quota hoac Team Leader ben duoi la phan tich cu, khong con la target implementation.
+
 Dựa vào phân tích source code cũ **PRN232_Backend**, dưới đây là trả lời chi tiết cho tất cả 19 yêu cầu:
 
 ---

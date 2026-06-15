@@ -1,5 +1,27 @@
 # Báo cáo tiến độ backend AISAM so với SRS
 
+## Change Request Impact Notice - Dang Trien Khai
+
+Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+Bao cao chi tiet ben duoi duoc lap tu snapshot cu ngay 2026-05-26. Trang thai Workspace hien tai da tien xa hon snapshot do:
+
+- Task 9.1-9.18 da hoan thanh va automated tests pass.
+- Workspace/subscription/payment/credits/member quota/feature gate/Post Quota/AI Credit charging da co.
+- Tat ca domain trong Task 9.16 da migrate sang Workspace ownership; Task 9.17 da backfill du lieu cu va khoa `WorkspaceId` ownership bat buoc.
+- Lifecycle Limited/Archived/Admin Soft Delete va Workspace Dashboard da co; regression va tai lieu cuoi Phase 9 da hoan thanh.
+- Audit cuoi Phase 9 da xac minh va sua Workspace quota/dashboard isolation, Free Credits reset 7 ngay, atomic credit/payment transaction va Team Management feature gate.
+
+Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Change Request. Tien do Change Request hien tai:
+
+| Hang muc | Trang thai |
+|---|---|
+| Business decisions va impact analysis | DONE |
+| Tai lieu lien quan | IN PROGRESS |
+| Workspace entities/migration/API | DONE - Task 9.1-9.18 |
+| Subscription/Credits migration | DONE cho payment/subscription/wallet/AI text charging |
+| Ownership backfill va regression | DONE |
+
 Ngày đánh giá: 2026-05-26  
 Tài liệu yêu cầu: `D:\final\AISAM-FINAL\README.md`, `D:\final\AISAM-FINAL\SPECIFICATION_ANSWERS.md`  
 Source được rà: `D:\NEWCODE\PRN232_Backend`  
@@ -268,6 +290,17 @@ Tuy nhiên, nếu tính cả nhóm Planned/Future Features và 19 câu hỏi c�
 - Dashboard/analytics chưa phản ánh đầy đủ số liệu thật.
 
 ## Đề xuất thứ tự làm tiếp
+
+Thu tu phase chinh thuc da duoc cap nhat trong `BACKEND_CODE_PLAN.md`:
+
+```text
+Phase 9  - Workspace Migration
+Phase 10 - Admin Backend theo Workspace
+Phase 11 - Facebook Ads Campaign MVP
+Phase 12 - Test Hardening va Backend Release
+```
+
+Khong bat dau Facebook Ads truoc khi Workspace va Admin theo Workspace hoan thanh.
 
 1. Sprint 0: khóa security ngay
    - Thêm `[Authorize]` cho controller/action thiếu.

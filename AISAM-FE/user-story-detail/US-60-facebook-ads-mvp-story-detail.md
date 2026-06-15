@@ -9,8 +9,8 @@ La nguoi dung marketing, toi muon tao campaign, ad set, ad creative va ad tu con
 Tai lieu da doi chieu:
 
 - `requirement.md`: Facebook Ads, dynamic ads, optimization nang cao khong nam trong MVP hien tai; Facebook/Instagram/TikTok duoc dinh huong social, nhung Ads nang cao la pham vi mo rong.
-- `BACKEND_CODE_PLAN.md`: backend MVP chua om Facebook Ads nang cao; Facebook Ads end-to-end nam ngoai MVP backend dau tien.
-- `AISAM-BE/docs/superpowers/CODEBASE_UPDATE.md`: Phase H2 ghi ro Facebook Ads nang cao la post-MVP optional, can Facebook Marketing API permission.
+- `BACKEND_CODE_PLAN.md`: Facebook Ads Campaign MVP la Phase 11, chi bat dau sau Phase 9 Workspace Migration va Phase 10 Admin theo Workspace.
+- `AISAM-BE/docs/superpowers/CODEBASE_UPDATE.md`: tai lieu cu goi day la Phase H2; backend plan hien tai da chot ten chinh thuc la Phase 11.
 - Active backend `AISAM-BE`: da co entity/schema Ads, nhung chua co Ads controllers/services/repositories active.
 
 ## Trang thai backend hien tai
@@ -49,7 +49,7 @@ Backend chua co active:
 - API create campaign/ad set/ad creative/ad qua Facebook Marketing API.
 - API sync campaign/ad status tu Facebook.
 
-Ket luan: frontend co the chuan bi UI va type cho Facebook Ads MVP, nhung khong goi Ads API trong active production flow cho den khi backend Phase H2 active.
+Ket luan: frontend co the chuan bi UI va type cho Facebook Ads MVP, nhung khong goi Ads API trong active production flow cho den khi backend Phase 11 active.
 
 ## Muc tieu frontend
 
@@ -157,7 +157,7 @@ Post-MVP
 
 ## Backend API du kien
 
-Backend hien tai chua expose cac endpoint duoi day. Day la contract de frontend chuan bi cho Phase H2.
+Backend hien tai chua expose cac endpoint duoi day. Day la contract de frontend chuan bi cho Phase 11.
 
 ### List ad accounts
 
@@ -487,7 +487,7 @@ Facebook Ads chua active.
 Mo ta phu:
 
 ```text
-Backend can hoan thanh Phase H2 va co Facebook Marketing API permission truoc khi bat tao campaign, ad set, creative va ad.
+Backend can hoan thanh Phase 11 va co Facebook Marketing API permission truoc khi bat tao campaign, ad set, creative va ad.
 ```
 
 ## Acceptance criteria
@@ -597,7 +597,7 @@ export async function createAdSet(campaignId: string, payload: CreateAdSetReques
 
 ## Dependencies / blockers
 
-- Backend can hoan thanh Phase H2 Facebook Ads nang cao.
+- Backend can hoan thanh Phase 11 Facebook Ads Campaign MVP.
 - Can migrate `AdCampaignsController`, `AdSetsController`, `AdCreativesController`, `AdsController`.
 - Can migrate Ads services/repositories va `FacebookMarketingApiService`.
 - Can Facebook Marketing API permissions va ad account access.
