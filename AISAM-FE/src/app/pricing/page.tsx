@@ -7,7 +7,7 @@ import { useWorkspaces, addWorkspaceToCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, checkPaymentStatus } from "@/services/paymentService";
+import { createPayment, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { apiFetch } from "@/lib/apiClient";
@@ -37,9 +37,9 @@ function PricingContent() {
   const [wsCompany, setWsCompany] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // QR Payment state
+  // Payment state
   const [showQRModal, setShowQRModal] = useState(false);
-  const [qrData, setQrData] = useState<{ checkoutUrl: string; orderId: string; amount: number; description: string } | null>(null);
+  const [qrData, setQrData] = useState<{ checkoutUrl: string; amount: number; description: string } | null>(null);
   const [qrStatus, setQrStatus] = useState<"pending" | "completed" | "failed">("pending");
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
 
@@ -136,41 +136,16 @@ function PricingContent() {
     }
 
     try {
+      const planCode = PLAN_CODES[plan.planType] || "Plus";
       const payment = await createPayment({
-        planType: plan.planType,
-        amount: yearly ? plan.price * 10 : plan.price,
+        paymentType: 1,
+        planCode,
         returnUrl: window.location.origin + "/pricing?payment=success",
         cancelUrl: window.location.origin + "/pricing?payment=cancelled",
-        paymentType: "Subscription",
       });
 
-      if (payment) {
-        setQrData({
-          checkoutUrl: payment.checkoutUrl,
-          orderId: payment.orderId,
-          amount: yearly ? plan.price * 10 : plan.price,
-          description: `${plan.name} Plan (${yearly ? "Yearly" : "Monthly"})`,
-        });
-        setQrStatus("pending");
-        setShowQRModal(true);
-
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          const status = await checkPaymentStatus(payment.orderId);
-          if (status?.status === "completed") {
-            clearInterval(poll);
-            setQrStatus("completed");
-            showToast({ type: "success", title: "Upgrade successful", message: `You are now on the ${plan.name} plan!` });
-            setTimeout(() => {
-              setShowQRModal(false);
-              if (createMode) router.push("/dashboard");
-            }, 3000);
-          } else if (status?.status === "failed" || attempts > 20) {
-            clearInterval(poll);
-            setQrStatus("failed");
-          }
-        }, 3000);
+      if (payment?.checkoutUrl) {
+        window.location.href = payment.checkoutUrl;
       } else {
         showToast({ type: "info", title: "Upgrade", message: `PayOS checkout will redirect for ${plan.name} plan.` });
       }
@@ -186,42 +161,18 @@ function PricingContent() {
     setProcessing(-1);
 
     try {
+      const creditPackCode = CREDIT_PACK_CODES[pack.name] || 1;
       const payment = await createPayment({
-        packName: pack.name,
-        credits: pack.credits,
-        amount: pack.price,
+        paymentType: 2,
+        creditPackCode,
         returnUrl: window.location.origin + "/pricing?payment=success",
         cancelUrl: window.location.origin + "/pricing?payment=cancelled",
-        paymentType: "CreditPack",
       });
 
-      if (payment) {
-        setQrData({
-          checkoutUrl: payment.checkoutUrl,
-          orderId: payment.orderId,
-          amount: pack.price,
-          description: `Credit Pack: ${pack.name} - ${pack.credits} credits`,
-        });
-        setQrStatus("pending");
-        setShowQRModal(true);
-
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          const status = await checkPaymentStatus(payment.orderId);
-          if (status?.status === "completed") {
-            clearInterval(poll);
-            setQrStatus("completed");
-            if (creditWallet) {
-              setCreditWallet({ ...creditWallet, balance: creditWallet.balance + pack.credits });
-            }
-            showToast({ type: "success", title: "Purchase successful", message: `${pack.credits.toLocaleString()} credits added!` });
-            setTimeout(() => setShowQRModal(false), 3000);
-          } else if (status?.status === "failed" || attempts > 20) {
-            clearInterval(poll);
-            setQrStatus("failed");
-          }
-        }, 3000);
+      if (payment?.checkoutUrl) {
+        window.location.href = payment.checkoutUrl;
+      } else {
+        showToast({ type: "info", title: "Purchase", message: `PayOS checkout will redirect for ${pack.name} pack.` });
       }
     } catch {
       showToast({ type: "error", title: "Error", message: "Failed to process purchase." });

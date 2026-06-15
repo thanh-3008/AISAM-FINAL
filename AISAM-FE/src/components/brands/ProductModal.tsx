@@ -23,12 +23,6 @@ interface Props {
   product?: Product;
 }
 
-let _nextId = 100;
-
-function nextMockId() {
-  return `mock-p-${++_nextId}`;
-}
-
 export default function ProductModal({ open, mode, onClose, onSuccess, brandId, product }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,17 +65,6 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     return fd;
   };
 
-  const buildProduct = (overrides: Partial<Product> = {}): Product => ({
-    id: product?.id || nextMockId(),
-    brandId,
-    name: form.name.trim(),
-    description: form.description.trim(),
-    price: Number(form.price),
-    stock: product?.stock,
-    createdAt: product?.createdAt || new Date().toISOString(),
-    ...overrides,
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { setError("Product name is required"); return; }
@@ -98,14 +81,8 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       if (result?.success && result.data) {
         onSuccess(result.data);
         handleClose();
-      } else {
-        onSuccess(buildProduct(result?.data || {}));
-        handleClose();
       }
-    } catch {
-      onSuccess(buildProduct());
-      handleClose();
-    } finally {
+    } catch { /* ignore */ } finally {
       setLoading(false);
     }
   };

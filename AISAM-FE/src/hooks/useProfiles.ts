@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getToken, getUserIdFromToken } from "@/lib/auth";
+import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveProfile, storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+import { apiClient } from "@/lib/apiClient";
 
 export interface Profile {
   id: string;
@@ -70,21 +69,16 @@ export function useProfiles() {
     if (cachedProfiles) {
       const belongsToUser = userId && cachedProfiles.some((p) => p.userId === userId);
       if (belongsToUser) {
-        const data = cachedProfiles;
-        queueMicrotask(() => {
-          setProfiles(data);
-          setLoading(false);
-        });
+        setProfiles(cachedProfiles);
+        setLoading(false);
         return;
       }
       cachedProfiles = null;
     }
 
     if (!userId) {
-      queueMicrotask(() => {
-        setLoading(false);
-        setProfiles([]);
-      });
+      setLoading(false);
+      setProfiles([]);
       return;
     }
 
@@ -92,15 +86,12 @@ export function useProfiles() {
     fetchingProfiles = true;
 
     try {
-      const res = await fetch(`${API_URL}/profiles/user/${userId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const result = await res.json();
-      if (result.success && Array.isArray(result.data)) {
-        cachedProfiles = result.data;
-        setProfiles(result.data);
+      const res: any = await apiClient(`/profiles/user/${userId}`);
+      if (res?.success && Array.isArray(res.data)) {
+        cachedProfiles = res.data;
+        setProfiles(res.data);
       } else {
-        setError(result.message || "Failed to load profiles");
+        setError(res?.message || "Failed to load profiles");
       }
     } catch {
       setError("Network error loading profiles");

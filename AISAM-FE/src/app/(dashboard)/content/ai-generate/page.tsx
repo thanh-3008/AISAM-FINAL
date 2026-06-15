@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { createContent, generateAIDraft, chatWithAI, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
-import { PLATFORM_CONFIG, BRANDS, PRODUCTS, BRAND_COLORS, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
+import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, deductCredits } from "@/services/workspaceService";
 import { CREDIT_COST } from "@/lib/featureConfig";
@@ -73,8 +74,10 @@ export default function AIGeneratePage() {
     return cost;
   };
 
-  const [brandName, setBrandName] = useState(BRANDS[0]);
-  const [productName, setProductName] = useState("");
+  const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
+  const [productList, setProductList] = useState<{ id: string; name: string; brandId: string }[]>([]);
+  const [brandId, setBrandId] = useState("");
+  const [productId, setProductId] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [hashtags, setHashtags] = useState<string[]>([]);
@@ -91,7 +94,27 @@ export default function AIGeneratePage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const availableProducts = PRODUCTS[brandName] || [];
+  const availableProducts = brandList.length > 0 ? productList : [];
+
+  useEffect(() => {
+    fetchBrands().then(list => {
+      setBrandList(list);
+      if (list.length > 0) setBrandId(list[0].id);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (brandId) {
+      fetchProducts(brandId).then(setProductList);
+    } else {
+      setProductList([]);
+    }
+  }, [brandId]);
+
+  const selectedBrand = brandList.find(b => b.id === brandId);
+  const brandName = selectedBrand?.name || "";
+  const selectedProduct = productList.find(p => p.id === productId);
+  const productName = selectedProduct?.name || "";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -110,7 +133,7 @@ export default function AIGeneratePage() {
     setInsufficientCredits(false);
     setIsGenerating(true);
 
-    const aiReply = await chatWithAI(userPrompt, messages.map(m => ({ role: m.role, text: m.text })));
+    const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, undefined, messages.map(m => ({ role: m.role, text: m.text })));
     if (aiReply) {
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
       const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiReply };
@@ -202,22 +225,24 @@ export default function AIGeneratePage() {
     const platformKey = platform.split("-")[0];
 
     const payload: CreateContentPayload = {
-      brandId: brandName,
-      productId: productName || null,
+      brandId,
+      productId: productId || null,
       adType: 0,
       title: postTitle || `AI Generated — ${brandName}`,
       textContent: postContent || "",
     };
 
-    const result = await createContent(payload);
-    if (result) {
-      setTitle(result.title);
-      setContent(postContent);
-      setHashtags(postHashtags);
-      setGeneratedId(result.id);
-      setJustGenerated(true);
-      setSelectedVariation(varId);
-    }
+    try {
+      const result = await createContent(payload);
+      if (result) {
+        setTitle(result.title);
+        setContent(postContent);
+        setHashtags(postHashtags);
+        setGeneratedId(result.id);
+        setJustGenerated(true);
+        setSelectedVariation(varId);
+      }
+    } catch { /* ignore */ }
   };
 
   const handleSendChat = () => {
@@ -324,17 +349,17 @@ export default function AIGeneratePage() {
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-3 flex items-center gap-4 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">business</span>
-                <select value={brandName} onChange={(e) => { setBrandName(e.target.value); setProductName(""); }}
+                <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(""); }}
                   className="bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                  {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                  {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">inventory_2</span>
-                <select value={productName} onChange={(e) => setProductName(e.target.value)}
+                <select value={productId} onChange={(e) => setProductId(e.target.value)}
                   className="bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                   <option value="">Select product</option>
-                  {availableProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               {creditBalance !== null && (
@@ -387,7 +412,7 @@ export default function AIGeneratePage() {
                     <div className="font-sans">
                       <div className="p-3.5 flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0"
-                          style={{ background: BRAND_COLORS[brandName] || "#1877F2" }}>
+                          style={{ background: getBrandColor(brandName) || "#1877F2" }}>
                           {brandName.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -432,7 +457,7 @@ export default function AIGeneratePage() {
                       <div className="p-3 flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-[2px]">
                           <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                            <span className="text-label-2xs font-bold" style={{ color: BRAND_COLORS[brandName] || "#666" }}>{brandName.charAt(0)}</span>
+                            <span className="text-label-2xs font-bold" style={{ color: getBrandColor(brandName) || "#666" }}>{brandName.charAt(0)}</span>
                           </div>
                         </div>
                         <p className="text-[12px] font-semibold text-[#262626] flex-1">{brandName || "brand"}</p>
@@ -470,7 +495,7 @@ export default function AIGeneratePage() {
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-label-xs font-bold shrink-0 border border-white/30"
-                              style={{ background: `linear-gradient(135deg, ${BRAND_COLORS[brandName] || "#666"}, ${BRAND_COLORS[brandName] || "#999"}` }}>
+                              style={{ background: `linear-gradient(135deg, ${getBrandColor(brandName) || "#666"}, ${getBrandColor(brandName) || "#999"}` }}>
                               {brandName.charAt(0)}
                             </div>
                             <p className="text-[13px] font-semibold">@{brandName?.toLowerCase().replace(/\s+/g, "") || "brand"}</p>

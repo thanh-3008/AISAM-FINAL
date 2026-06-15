@@ -3,10 +3,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { MOCK_CONTENT, MOCK_DETAILS, ALL_TAGS, type ContentItem, type ContentType, type ContentStatus } from "@/lib/mockContent";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, STATUS_STYLES, BRANDS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContents, createContent, updateContent, deleteContent, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
-import { fetchBrands, fetchProducts } from "@/services/brandService";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { fetchContents, createContent, updateContent, deleteContent, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import { fetchBrands } from "@/services/brandService";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -28,17 +27,7 @@ const SORT_OPTIONS: { label: string; value: SortKey }[] = [
 ];
 
 
-const PRODUCTS = ["Smart Bulb", "LED Strip", "Desk Lamp", "Tent", "Backpack", "Jacket", "Engine Kit", "Tire Set", "Organic Tea", "Vitamin Pack", "Budget App", "Portfolio Tracker"];
-
 const PAGE_SIZE = 9;
-
-const QUOTA_USAGE = { used: 784, total: 1000, pct: 78.4 };
-const RECENT_ACTIVITY = [
-  { icon: "check_circle", color: "text-emerald-500", bg: "bg-emerald-50", text: '"Smart Bulb Showcase" published', time: "2 hours ago" },
-  { icon: "edit", color: "text-blue-500", bg: "bg-blue-50", text: '"LED Strip Guide" edited', time: "4 hours ago" },
-  { icon: "schedule", color: "text-amber-500", bg: "bg-amber-50", text: '"Desk Lamp Ad" scheduled', time: "1 day ago" },
-  { icon: "rate_review", color: "text-purple-500", bg: "bg-purple-50", text: '"Backpack Review" awaiting approval', time: "2 days ago" },
-];
 
 const AI_QUICK_ASSISTANT_ACTIONS = [
   { icon: "auto_awesome", label: "Generate Caption", desc: "AI writes engaging captions" },
@@ -74,7 +63,8 @@ export default function ContentPage() {
   const [deletingItem, setDeletingItem] = useState<ContentItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
-  const [statsVersion, setStatsVersion] = useState(0);
+  const [allContent, setAllContent] = useState<ContentItem[]>([]);
+  const [brandNameList, setBrandNameList] = useState<string[]>([]);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
 
@@ -97,14 +87,24 @@ export default function ContentPage() {
     try { localStorage.setItem("content-view-mode", viewMode); } catch {}
   }, [viewMode]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 80);
-    const loadTimer = setTimeout(() => setLoading(false), 600);
-    return () => { clearTimeout(timer); clearTimeout(loadTimer); };
+  const loadContent = useCallback(async () => {
+    setLoading(true);
+    const result = await fetchContents({ pageSize: 100 });
+    if (result) {
+      setAllContent(result.items);
+    }
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 80);
+    loadContent();
+    fetchBrands().then(list => setBrandNameList(list.map(b => b.name)));
+    return () => clearTimeout(timer);
+  }, [loadContent]);
+
   const filtered = useMemo(() => {
-    let list = MOCK_CONTENT;
+    let list = allContent;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((c) => c.title.toLowerCase().includes(q) || c.brandName.toLowerCase().includes(q));
@@ -133,23 +133,23 @@ export default function ContentPage() {
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return list;
-  }, [search, brandFilter, productFilter, typeFilter, statusFilter, platformFilter, dateFrom, dateTo, sortBy]);
+  }, [allContent, search, brandFilter, productFilter, typeFilter, statusFilter, platformFilter, dateFrom, dateTo, sortBy]);
 
   const paginated = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const hasMore = page < totalPages;
 
   const stats = useMemo(() => ({
-    total: MOCK_CONTENT.length,
-    published: MOCK_CONTENT.filter((c) => c.status === "Published").length,
-    scheduled: MOCK_CONTENT.filter((c) => c.status === "Scheduled").length,
-    draft: MOCK_CONTENT.filter((c) => c.status === "Draft" || c.status === "Awaiting Approval").length,
-  }), [statsVersion]);
+    total: allContent.length,
+    published: allContent.filter((c) => c.status === "Published").length,
+    scheduled: allContent.filter((c) => c.status === "Scheduled").length,
+    draft: allContent.filter((c) => c.status === "Draft" || c.status === "Awaiting Approval").length,
+  }), [allContent]);
 
   const availableProducts = useMemo(() => {
-    if (!brandFilter) return PRODUCTS;
-    return MOCK_CONTENT.filter((c) => c.brandName === brandFilter).map((c) => c.productName);
-  }, [brandFilter]);
+    if (!brandFilter) return [];
+    return [...new Set(allContent.filter((c) => c.brandName === brandFilter).map((c) => c.productName))];
+  }, [brandFilter, allContent]);
 
   const hasFilters = !!search || !!brandFilter || !!productFilter || !!typeFilter || !!statusFilter || platformFilter.length > 0 || !!tagFilter || !!dateFrom || !!dateTo || sortBy !== "newest";
 
@@ -178,20 +178,19 @@ export default function ContentPage() {
       await deleteContent(id);
     }
     setSelectedIds(new Set());
-    setStatsVersion((v) => v + 1);
+    loadContent();
     addToast(`Deleted ${ids.size} items`, "delete");
   };
 
-  const handleBatchStatusChange = () => {
+  const handleBatchStatusChange = async () => {
     if (!batchStatus) return;
-    selectedIds.forEach((id) => {
-      const item = MOCK_CONTENT.find((c) => c.id === id);
-      if (item) item.status = batchStatus;
-    });
+    const ids = Array.from(selectedIds);
+    const statusMap: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
+    await Promise.all(ids.map(id => updateContent(id, { status: statusMap[batchStatus] as any })));
     setSelectedIds(new Set());
     setBatchStatus("");
-    setStatsVersion((v) => v + 1);
-    addToast(`Updated ${selectedIds.size} items to ${batchStatus}`, "check_circle");
+    loadContent();
+    addToast(`Updated ${ids.length} items to ${batchStatus}`, "check_circle");
   };
 
   // Create action
@@ -225,16 +224,6 @@ export default function ContentPage() {
         setDeletingItem(item);
         break;
       case "Duplicate": {
-        const newItem: ContentItem = {
-          ...item,
-          id: `mock-${Date.now()}`,
-          title: `${item.title} (Copy)`,
-          status: "Draft",
-          createdAt: new Date().toISOString(),
-        };
-        MOCK_CONTENT.unshift(newItem);
-        MOCK_DETAILS[newItem.id] = { ...newItem, updatedAt: new Date().toISOString(), description: "" };
-        setStatsVersion((v) => v + 1);
         addToast(`"${item.title}" duplicated`, "content_copy");
         break;
       }
@@ -249,7 +238,7 @@ export default function ContentPage() {
       textContent: "",
     });
     setEditingItem(null);
-    setStatsVersion((v) => v + 1);
+    loadContent();
     addToast(`"${updated.title}" updated`, "check_circle");
   };
 
@@ -259,7 +248,7 @@ export default function ContentPage() {
     await deleteContent(deletingItem.id);
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(deletingItem.id); return n; });
     setDeletingItem(null);
-    setStatsVersion((v) => v + 1);
+    loadContent();
     addToast(`"${deletingItem.title}" deleted`, "delete");
   };
 
@@ -634,12 +623,12 @@ export default function ContentPage() {
                     </div>
                     <h3 className="text-label-md text-on-surface font-semibold">Content Quota</h3>
                   </div>
-                  <span className="text-label-sm text-primary font-semibold">{QUOTA_USAGE.used}/{QUOTA_USAGE.total}</span>
+                  <span className="text-label-sm text-primary font-semibold">--/--</span>
                 </div>
                 <div className="h-2 bg-outline-variant/10 rounded-full overflow-hidden mb-2">
-                  <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000" style={{ width: `${QUOTA_USAGE.pct}%` }} />
+                  <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000" style={{ width: `0%` }} />
                 </div>
-                <p className="text-label-xs text-on-surface-variant">{QUOTA_USAGE.pct}% used this month</p>
+                <p className="text-label-xs text-on-surface-variant">-- used this month</p>
                 <div className="mt-4 flex items-center justify-between text-label-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -706,7 +695,7 @@ export default function ContentPage() {
                   <h3 className="text-label-md text-on-surface font-semibold">Recent Activity</h3>
                 </div>
                 <div className="space-y-0">
-                  {RECENT_ACTIVITY.map((act, i) => (
+                  {[].map((act: any, i: number) => (
                     <div key={i} className="flex items-start gap-3 py-3 border-b border-outline-variant/10 last:border-0">
                       <div className={`w-8 h-8 rounded-lg ${act.bg} flex items-center justify-center ${act.color} shrink-0 mt-0.5`}>
                         <span className="material-symbols-outlined text-[16px]">{act.icon}</span>
@@ -980,9 +969,10 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
 /* ─── Content Form Modal (Create / Edit) ─── */
 function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClose: () => void; onSave: (data: ContentItem) => void }) {
   const isEdit = !!item;
+  const [brandNames, setBrandNames] = useState<string[]>([]);
   const [form, setForm] = useState({
     title: item?.title || "",
-    brandName: item?.brandName || BRANDS[0],
+    brandName: item?.brandName || "",
     productName: item?.productName || "",
     type: item?.type || "TEXT" as ContentType,
     status: item?.status || "Draft" as ContentStatus,
@@ -994,12 +984,14 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
   const [showTagPicker, setShowTagPicker] = useState(false);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  const availableProducts = useMemo(() => {
-    return MOCK_CONTENT.filter((c) => c.brandName === form.brandName).map((c) => c.productName)
-      .concat(PRODUCTS.filter((p) => p));
-  }, [form.brandName]);
+  useEffect(() => {
+    fetchBrands().then(list => setBrandNames(list.map(b => b.name)));
+  }, []);
 
-  const uniqueProducts = [...new Set(availableProducts.length > 0 ? availableProducts : PRODUCTS)];
+  const availableProducts = useMemo(() => {
+    if (!form.brandName) return [];
+    return [];
+  }, [form.brandName]);
   const isValid = form.title.trim().length > 0 && form.brandName && form.productName;
 
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1011,19 +1003,6 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
     if (!isValid) return;
     if (isEdit && item) {
       onSave({ ...item, ...form });
-    } else {
-      onSave({
-        id: `mock-${Date.now()}`,
-        title: form.title,
-        brandName: form.brandName,
-        productName: form.productName,
-        type: form.type,
-        status: form.status,
-        platforms: form.platforms,
-        tags: form.tags,
-        thumbnail: form.thumbnail,
-        createdAt: new Date().toISOString(),
-      });
     }
   };
 
@@ -1056,18 +1035,17 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Brand <span className="text-danger-red">*</span></label>
             <select value={form.brandName} onChange={(e) => setForm((p) => ({ ...p, brandName: e.target.value, productName: "" }))}
               className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-              {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+              <option value="">Select brand</option>
+              {brandNames.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
 
           {/* Product */}
           <div>
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Product <span className="text-danger-red">*</span></label>
-            <select value={form.productName} onChange={(e) => setForm((p) => ({ ...p, productName: e.target.value }))}
-              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-              <option value="">Select product</option>
-              {uniqueProducts.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <input value={form.productName} onChange={(e) => setForm((p) => ({ ...p, productName: e.target.value }))}
+              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all"
+              placeholder="Enter product name" />
           </div>
 
           {/* Type */}

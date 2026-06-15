@@ -46,7 +46,8 @@ export default function CreateBrandModal({ open, onClose, onSuccess, profileId }
     setError(null);
 
     try {
-      const body: Record<string, string> = { name: form.name.trim(), profileId };
+      const body: Record<string, string> = { name: form.name.trim() };
+      if (profileId) body.profileId = profileId;
       if (form.description.trim()) body.description = form.description.trim();
       if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
       if (form.slogan.trim()) body.slogan = form.slogan.trim();

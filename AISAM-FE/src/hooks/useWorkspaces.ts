@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getToken, getUserIdFromToken } from "@/lib/auth";
+import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { getMockWorkspaces } from "@/lib/mockWorkspace";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+import { apiClient } from "@/lib/apiClient";
 
 export interface WorkspaceData {
   id: string;
@@ -94,21 +92,16 @@ export function useWorkspaces() {
     if (cachedWorkspaces) {
       const belongsToUser = userId && cachedWorkspaces.some((p) => p.userId === userId);
       if (belongsToUser) {
-        const data = cachedWorkspaces;
-        queueMicrotask(() => {
-          setWorkspaces(data);
-          setLoading(false);
-        });
+        setWorkspaces(cachedWorkspaces);
+        setLoading(false);
         return;
       }
       cachedWorkspaces = null;
     }
 
     if (!userId) {
-      queueMicrotask(() => {
-        setLoading(false);
-        setWorkspaces([]);
-      });
+      setLoading(false);
+      setWorkspaces([]);
       return;
     }
 
@@ -117,12 +110,9 @@ export function useWorkspaces() {
 
     const fetchFromProfiles = async () => {
       try {
-        const res = await fetch(`${API_URL}/profiles/user/${userId}`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
-        const result = await res.json();
-        if (result.success && Array.isArray(result.data)) {
-          const mapped: WorkspaceData[] = result.data.map((p: any) => ({
+        const res: any = await apiClient(`/profiles/user/${userId}`);
+        if (res?.success && Array.isArray(res.data)) {
+          const mapped: WorkspaceData[] = res.data.map((p: any) => ({
             id: p.id,
             userId: p.userId,
             name: p.name,
@@ -136,37 +126,29 @@ export function useWorkspaces() {
           }));
           cachedWorkspaces = mapped;
           setWorkspaces(mapped);
-        } else {
-          // Fallback to mock data
-          const mockData = getMockWorkspaces(userId);
-          cachedWorkspaces = mockData;
-          setWorkspaces(mockData);
         }
-      } catch {
-        // Fallback to mock data
-        const mockData = getMockWorkspaces(userId);
-        cachedWorkspaces = mockData;
-        setWorkspaces(mockData);
-      }
+      } catch { /* ignore */ }
     };
 
+    let mapped: WorkspaceData[] = [];
     try {
-      const res = await fetch(`${API_URL}/workspaces/user/${userId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const result = await res.json();
-      if (result.success && Array.isArray(result.data)) {
-        cachedWorkspaces = result.data;
-        setWorkspaces(result.data);
-      } else {
-        await fetchFromProfiles();
+      const res: any = await apiClient("/workspaces");
+      if (res?.success && res.data && Array.isArray(res.data)) {
+        mapped = res.data.map((w: any) => ({
+          id: w.id, userId, name: w.name,
+          workspaceType: w.workspaceType ?? 1,
+          plan: w.workspaceType === 2 ? "Business" : "Personal",
+          status: w.status ?? 1, createdAt: w.createdAt, updatedAt: w.updatedAt,
+          isOwner: w.currentUserRole === 0,
+          memberRole: w.currentUserRole !== undefined ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
+        }));
       }
-    } catch {
-      await fetchFromProfiles();
-    } finally {
-      setLoading(false);
-      fetchingWorkspaces = false;
-    }
+    } catch { /* /workspaces fail */ }
+
+    cachedWorkspaces = mapped;
+    setWorkspaces(mapped);
+    setLoading(false);
+    fetchingWorkspaces = false;
   }, []);
 
   useEffect(() => {

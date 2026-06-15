@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
@@ -11,7 +10,6 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   getUnreadCount,
-  deleteNotification,
   type NotificationListItem,
   type NotificationDetail,
 } from "@/services/notificationService";
@@ -36,10 +34,6 @@ function getNotificationIcon(type: string): { icon: string; color: string; bg: s
       return { icon: "campaign", color: "text-primary", bg: "bg-primary/10" };
     case "APPROVAL":
       return { icon: "approval", color: "text-amber-600", bg: "bg-amber-50" };
-    case "TEAM":
-      return { icon: "group", color: "text-blue-600", bg: "bg-blue-50" };
-    case "BILLING":
-      return { icon: "receipt", color: "text-purple-600", bg: "bg-purple-50" };
     case "SYSTEM":
       return { icon: "info", color: "text-outline", bg: "bg-surface-container" };
     default:
@@ -91,7 +85,6 @@ function TimeAgo({ dateStr }: { dateStr: string }) {
 }
 
 export default function NotificationsPage() {
-  const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
   
@@ -104,8 +97,6 @@ export default function NotificationsPage() {
   const [markingAll, setMarkingAll] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detail, setDetail] = useState<NotificationDetail | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   const loadingDetail = detailId !== null && detail === null;
 
   useEffect(() => {
@@ -129,20 +120,6 @@ export default function NotificationsPage() {
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (deleting === id) return;
-    setDeleting(id);
-    const success = await deleteNotification(id);
-    if (success) {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    }
-    setToast("Notification deleted");
-    setTimeout(() => setToast(null), 2500);
-    setDeleting(null);
   };
 
   const handleOpenDetail = async (id: string) => {
@@ -331,15 +308,6 @@ export default function NotificationsPage() {
                               {!notification.isRead && (
                                 <span className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
                               )}
-                              <button
-                                onClick={(e) => handleDelete(notification.id, e)}
-                                className="p-1.5 rounded-lg hover:bg-danger-red/10 text-outline hover:text-danger-red opacity-0 group-hover:opacity-100 transition-all"
-                                title="Delete notification"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">
-                                  {deleting === notification.id ? "hourglass_top" : "delete"}
-                                </span>
-                              </button>
                             </div>
                           </div>
                           
@@ -348,12 +316,7 @@ export default function NotificationsPage() {
                               <span className="material-symbols-outlined text-[14px]">schedule</span>
                               <TimeAgo dateStr={notification.createdAt} />
                             </span>
-                            {notification.actionUrl && (
-                              <span className="text-label-sm text-primary font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                View details
-                                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                              </span>
-                            )}
+                            {/* actionUrl not available from BE */}
                           </div>
                         </div>
                       </div>
@@ -411,22 +374,6 @@ export default function NotificationsPage() {
         </div>
       </main>
 
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] as const }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-surface-container-lowest border border-outline-variant/30 rounded-2xl shadow-xl flex items-center gap-2.5"
-          >
-            <span className="material-symbols-outlined text-success-green text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-            <span className="text-body-sm font-semibold text-on-surface">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Detail Modal */}
       <AnimatePresence>
         {detailId && (
@@ -471,25 +418,7 @@ export default function NotificationsPage() {
                   </div>
                   <div className="p-6 space-y-4">
                     <p className="text-body-md text-on-surface-variant leading-relaxed">{detail.message}</p>
-                    {detail.metadata && Object.keys(detail.metadata).length > 0 && (
-                      <div className="bg-surface-container rounded-xl p-4 space-y-2">
-                        {Object.entries(detail.metadata).map(([key, val]) => (
-                          <div key={key} className="flex items-center justify-between text-label-sm">
-                            <span className="text-outline capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
-                            <span className="text-on-surface font-medium">{val}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     <div className="flex items-center gap-2 pt-2">
-                      {detail.actionUrl && (
-                        <button
-                          onClick={() => router.push(detail.actionUrl!)}
-                          className="px-4 py-2 bg-primary text-on-primary rounded-xl text-label-sm font-semibold hover:shadow-lg hover:shadow-primary/20 transition-all"
-                        >
-                          Go to {detail.type.toLowerCase().replace("_", " ")}
-                        </button>
-                      )}
                       <button
                         onClick={() => setDetailId(null)}
                         className="px-4 py-2 bg-surface-container border border-outline-variant/30 text-on-surface rounded-xl text-label-sm font-semibold hover:bg-surface-container-high transition-all"

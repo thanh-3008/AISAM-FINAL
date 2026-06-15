@@ -6,9 +6,9 @@ import Header from "@/components/layout/Header";
 import { fetchContents, approveContent, rejectContent } from "@/services/contentService";
 import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
-  BRAND_COLORS,
+  getBrandColor,
 } from "@/lib/contentConstants";
-import type { ContentItem } from "@/lib/mockContent";
+import type { ContentItem } from "@/services/contentService";
 
 type TabKey = "all" | "pending" | "approved" | "rejected";
 
@@ -90,7 +90,7 @@ export default function ApprovalsPage() {
     if (reset) { setLoading(true); setPage(1); }
     const statusMap: Record<string, number | undefined> = { all: undefined, pending: 1, approved: 4, rejected: 0 };
     const result = await fetchContents({ pageSize: 100, status: statusMap[tab] });
-    setItems(result.items);
+    setItems(result?.items ?? []);
     setLoading(false);
   }, [tab, activeWorkspace?.id]);
 
@@ -426,7 +426,7 @@ export default function ApprovalsPage() {
                     {paged.map((item) => {
                       const typeCfg = getTypeConfig(item.type);
                       const priority = getPriority(item);
-                      const brandColor = BRAND_COLORS[item.brandName] || "#6366f1";
+                      const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
                       return (
                         <tr key={item.id}
@@ -629,7 +629,7 @@ export default function ApprovalsPage() {
                       <h2 className="text-headline-sm font-bold text-on-surface leading-snug">{drawerItem.title}</h2>
                       <div className="flex items-center gap-3 mt-1.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND_COLORS[drawerItem.brandName] || "#6366f1" }} />
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getBrandColor(drawerItem.brandName) || "#6366f1" }} />
                           <span className="text-body-sm text-on-surface-variant">{drawerItem.brandName}</span>
                         </div>
                         <span className="text-outline/30">·</span>
@@ -656,7 +656,7 @@ export default function ApprovalsPage() {
                         { icon: "article", label: "Headline", value: drawerItem.title, full: true },
                         { icon: "calendar_today", label: "Created", value: new Date(drawerItem.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
                         { icon: "person", label: "Requester", value: "AISAM · AI Generated", badge: true },
-                        { icon: "business", label: "Brand", value: `${drawerItem.brandName} · ${drawerItem.productName}`, color: BRAND_COLORS[drawerItem.brandName] || "#6366f1" },
+                        { icon: "business", label: "Brand", value: `${drawerItem.brandName} · ${drawerItem.productName}`, color: getBrandColor(drawerItem.brandName) || "#6366f1" },
                         { icon: "flag", label: "Priority", value: getPriority(drawerItem).label, chip: getPriority(drawerItem).color },
                       ].map((f, i) => (
                         <div key={i} className={`${f.full ? "col-span-2" : ""} p-4 rounded-xl bg-surface-container-low border border-outline-variant/10`}>
@@ -818,7 +818,7 @@ export default function ApprovalsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-body-sm font-bold text-on-surface truncate">{revisionDrawer.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-label-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: (BRAND_COLORS[revisionDrawer.brandName] || "#6366f1") + "15", color: BRAND_COLORS[revisionDrawer.brandName] || "#6366f1" }}>
+                      <span className="text-label-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: (getBrandColor(revisionDrawer.brandName) || "#6366f1") + "15", color: getBrandColor(revisionDrawer.brandName) || "#6366f1" }}>
                         {revisionDrawer.brandName}
                       </span>
                       <span className="text-outline/20">·</span>

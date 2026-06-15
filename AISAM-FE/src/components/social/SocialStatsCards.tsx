@@ -2,7 +2,7 @@
 
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type SocialAccount, getAccountStatus } from "@/services/socialAccountService";
-import { PLATFORM_INFO, formatNumber } from "./socialUtils";
+import { PLATFORM_INFO } from "./socialUtils";
 
 interface SocialStatsCardsProps {
   allAccounts: SocialAccount[];
@@ -13,8 +13,6 @@ export default function SocialStatsCards({ allAccounts }: SocialStatsCardsProps)
   const expired = allAccounts.filter((a) => getAccountStatus(a) === "expired").length;
   const error = allAccounts.filter((a) => getAccountStatus(a) === "error").length;
   const totalTargets = allAccounts.reduce((sum, a) => sum + (a.targets?.length || 0), 0);
-  const totalFollowers = allAccounts.reduce((sum, a) => sum + (a.followers || 0), 0);
-
   const platformCounts = Object.keys(PLATFORM_INFO).map((platform) => ({
     platform,
     count: allAccounts.filter((a) => a.provider === platform).length,
@@ -28,7 +26,6 @@ export default function SocialStatsCards({ allAccounts }: SocialStatsCardsProps)
     { label: "Connected", value: connected, icon: "check_circle", color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Expired", value: expired, icon: "warning", color: "text-amber-600", bg: "bg-amber-50" },
     { label: "Error", value: error, icon: "error", color: "text-danger-red", bg: "bg-danger-red/10" },
-    { label: "Followers", value: formatNumber(totalFollowers), icon: "group", color: "text-sky-600", bg: "bg-sky-50" },
   ];
 
   return (

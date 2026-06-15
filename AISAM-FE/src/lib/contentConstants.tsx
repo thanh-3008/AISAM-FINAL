@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 export type ContentType = "IMAGE" | "TEXT" | "VIDEO";
-export type ContentStatus = "Published" | "Scheduled" | "Draft" | "Awaiting Approval";
+export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published";
 
 export const PLATFORM_CONFIG: Record<string, { color: string; icon: string; label: string }> = {
   facebook: { color: "#1877F2", icon: "facebook", label: "Facebook" },
@@ -11,23 +11,19 @@ export const PLATFORM_CONFIG: Record<string, { color: string; icon: string; labe
 
 export const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIG);
 
-export const BRANDS = ["Lumina Tech", "Summit Outdoor", "Heritage Motors", "GreenLeaf Organics", "Pulse Finance"];
+const BRAND_COLOR_PALETTE = [
+  "#6366f1", "#059669", "#dc2626", "#2563eb", "#d97706",
+  "#7c3aed", "#db2777", "#0891b2", "#65a30d", "#ca8a04",
+];
 
-export const PRODUCTS: Record<string, string[]> = {
-  "Lumina Tech": ["Smart Bulb", "LED Strip", "Desk Lamp"],
-  "Summit Outdoor": ["Tent", "Backpack", "Jacket"],
-  "Heritage Motors": ["Engine Kit", "Tire Set"],
-  "GreenLeaf Organics": ["Organic Tea", "Vitamin Pack"],
-  "Pulse Finance": ["Budget App", "Portfolio Tracker"],
-};
-
-export const BRAND_COLORS: Record<string, string> = {
-  "Lumina Tech": "#6366f1",
-  "Summit Outdoor": "#059669",
-  "Heritage Motors": "#dc2626",
-  "GreenLeaf Organics": "#16a34a",
-  "Pulse Finance": "#2563eb",
-};
+export function getBrandColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return BRAND_COLOR_PALETTE[Math.abs(hash) % BRAND_COLOR_PALETTE.length];
+}
 
 export const CONTENT_TYPES: { label: string; value: ContentType; icon: string; color: string }[] = [
   { label: "Image", value: "IMAGE", icon: "image", color: "from-blue-500/20 to-blue-600/10 text-blue-500" },
@@ -36,17 +32,19 @@ export const CONTENT_TYPES: { label: string; value: ContentType; icon: string; c
 ];
 
 export const STATUS_OPTIONS: { label: string; value: ContentStatus }[] = [
-  { label: "Published", value: "Published" },
-  { label: "Scheduled", value: "Scheduled" },
   { label: "Draft", value: "Draft" },
   { label: "Awaiting Approval", value: "Awaiting Approval" },
+  { label: "Approved", value: "Approved" },
+  { label: "Rejected", value: "Rejected" },
+  { label: "Published", value: "Published" },
 ];
 
 export const STATUS_STYLES: Record<ContentStatus, string> = {
-  "Published": "bg-emerald-50 text-emerald-600",
-  "Scheduled": "bg-blue-50 text-blue-600",
   "Draft": "bg-surface-container-high text-on-surface-variant",
   "Awaiting Approval": "bg-amber-50 text-amber-600",
+  "Approved": "bg-emerald-50 text-emerald-600",
+  "Rejected": "bg-danger-red/10 text-danger-red",
+  "Published": "bg-blue-50 text-blue-600",
 };
 
 export const ALL_TAGS = ["Product Launch", "Tutorial", "Seasonal", "Brand Story", "Behind the Scenes", "Testimonial", "Promotion", "Educational"];

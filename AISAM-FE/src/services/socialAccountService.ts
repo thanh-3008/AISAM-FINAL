@@ -63,255 +63,186 @@ interface GenericResponse<T> {
   timestamp?: string;
 }
 
-interface SocialIntegrationDto {
+// BE DTOs
+interface BESocialAccountDto {
   id: string;
-  socialAccountId: string;
-  targetId: string;
+  profileId: string;
   provider: string;
-  accountName: string;
-  targetName: string;
+  providerUserId: string;
+  isActive: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  targets: BESocialTargetDto[];
+}
+
+interface BESocialTargetDto {
+  id: string;
+  providerTargetId: string;
+  name: string;
+  type: string;
+  category: string | null;
+  profilePictureUrl: string | null;
   isActive: boolean;
 }
 
-const STORAGE_KEY = "aisam_social_accounts_v2";
-
-const INITIAL_MOCK_ACCOUNTS: SocialAccount[] = [
-  {
-    id: "11111111-1111-1111-1111-111111111111",
-    profileId: "00000000-0000-0000-0000-000000000001",
-    provider: "facebook",
-    providerUserId: "fb_user_1001",
-    accountName: "Lumina Tech Official",
-    accountHandle: "@luminattech",
-    isActive: true,
-    expiresAt: new Date(Date.now() + 60 * 86400000).toISOString(),
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-    targets: [
-      { id: "t1", providerTargetId: "fb_page_1001", name: "Lumina Tech Official", type: "page", category: "Technology", profilePictureUrl: null, isActive: true },
-      { id: "t2", providerTargetId: "fb_page_1002", name: "Lumina Tech Community", type: "group", category: "Technology", profilePictureUrl: null, isActive: true },
-    ],
-    followers: 24500,
-    following: 150,
-    postsCount: 342,
-  },
-  {
-    id: "22222222-2222-2222-2222-222222222222",
-    profileId: "00000000-0000-0000-0000-000000000001",
-    provider: "facebook",
-    providerUserId: "fb_user_1002",
-    accountName: "Summit Outdoor Gear",
-    accountHandle: "@summitoutdoor",
-    isActive: true,
-    expiresAt: new Date(Date.now() + 15 * 86400000).toISOString(),
-    createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 14400000).toISOString(),
-    targets: [
-      { id: "t3", providerTargetId: "fb_page_2001", name: "Summit Outdoor Gear", type: "page", category: "Sports", profilePictureUrl: null, isActive: true },
-    ],
-    followers: 8900,
-    following: 320,
-    postsCount: 210,
-  },
-  {
-    id: "33333333-3333-3333-3333-333333333333",
-    profileId: "00000000-0000-0000-0000-000000000001",
-    provider: "facebook",
-    providerUserId: "fb_user_1003",
-    accountName: "Heritage Motors",
-    accountHandle: "@heritagemotors",
-    isActive: false,
-    expiresAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    createdAt: new Date(Date.now() - 200 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    targets: [
-      { id: "t4", providerTargetId: "fb_page_3001", name: "Heritage Motors", type: "page", category: "Automotive", profilePictureUrl: null, isActive: false },
-    ],
-    followers: 15600,
-    following: 95,
-    postsCount: 428,
-  },
-  {
-    id: "44444444-4444-4444-4444-444444444444",
-    profileId: "00000000-0000-0000-0000-000000000001",
-    provider: "instagram",
-    providerUserId: "ig_user_2001",
-    accountName: "Lumina Tech",
-    accountHandle: "@luminattech",
-    isActive: true,
-    expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 7200000).toISOString(),
-    targets: [
-      { id: "t5", providerTargetId: "ig_biz_2001", name: "Lumina Tech", type: "business", category: "Technology", profilePictureUrl: null, isActive: true },
-    ],
-    followers: 18200,
-    following: 420,
-    postsCount: 189,
-  },
-  {
-    id: "55555555-5555-5555-5555-555555555555",
-    profileId: "00000000-0000-0000-0000-000000000001",
-    provider: "tiktok",
-    providerUserId: "tt_user_3001",
-    accountName: "Lumina Tech",
-    accountHandle: "@luminattech",
-    isActive: true,
-    expiresAt: new Date(Date.now() + 90 * 86400000).toISOString(),
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 1800000).toISOString(),
-    targets: [
-      { id: "t6", providerTargetId: "tt_biz_3001", name: "Lumina Tech", type: "business", category: "Technology", profilePictureUrl: null, isActive: true },
-    ],
-    followers: 45800,
-    following: 88,
-    postsCount: 67,
-  },
-];
-
-function loadAccounts(): SocialAccount[] {
-  if (typeof window === "undefined") return [...INITIAL_MOCK_ACCOUNTS];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as SocialAccount[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch { /* fallback */ }
-  const initial = [...INITIAL_MOCK_ACCOUNTS];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-  return initial;
+interface BEAvailableTargetDto {
+  providerTargetId: string;
+  name: string;
+  type: string;
+  category: string | null;
+  profilePictureUrl: string | null;
+  isActive: boolean;
 }
 
-function saveAccounts(accounts: SocialAccount[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-  } catch { /* ignore */ }
+interface BEAuthUrlResponse {
+  authUrl: string;
+  state: string;
 }
 
-const MOCK_ACCOUNTS: SocialAccount[] = loadAccounts();
-
-const MOCK_AVAILABLE_TARGETS: AvailableTarget[] = [
-  { providerTargetId: "fb_page_new_1", name: "Lumina Tech Support", type: "page", category: "Technology", profilePictureUrl: null, isActive: true },
-  { providerTargetId: "fb_page_new_2", name: "Lumina Tech Vietnam", type: "page", category: "Technology", profilePictureUrl: null, isActive: true },
-  { providerTargetId: "fb_group_new_1", name: "Smart Home Community", type: "group", category: "Technology", profilePictureUrl: null, isActive: true },
-  { providerTargetId: "fb_page_new_3", name: "Summit Outdoor Vietnam", type: "page", category: "Sports", profilePictureUrl: null, isActive: true },
-];
-
-export async function fetchSocialAccounts(): Promise<{ data: SocialAccount[]; total: number }> {
-  return { data: [...MOCK_ACCOUNTS], total: MOCK_ACCOUNTS.length };
+interface BESocialIntegrationDto {
+  id: string;
+  socialAccountId: string;
+  externalId: string;
+  name: string;
+  platform: string;
+  isActive: boolean;
 }
 
-export async function getFacebookAuthUrl(): Promise<AuthUrlResponse> {
+interface BECallbackRequest {
+  code: string;
+  state: string;
+}
+
+interface BELinkTargetsRequest {
+  provider: string;
+  providerTargetIds: string[];
+  brandId: string;
+}
+
+// Mappers
+function mapSocialAccount(dto: BESocialAccountDto): SocialAccount {
   return {
-    authUrl: `https://www.facebook.com/v18.0/dialog/oauth?client_id=mock_app_id&redirect_uri=${encodeURIComponent(window.location.origin + "/social/callback")}&scope=pages_show_list,pages_read_engagement,pages_manage_posts&state=mock_state_${Date.now()}`,
-    state: `mock_state_${Date.now()}`,
-  };
-}
-
-export async function handleFacebookCallback(): Promise<SocialAccount> {
-  const account: SocialAccount = {
-    id: crypto.randomUUID(),
-    profileId: "00000000-0000-0000-0000-000000000001",
-    provider: "facebook",
-    providerUserId: `fb_user_${Date.now()}`,
-    accountName: "New Facebook Page",
-    accountHandle: "@newpage",
-    isActive: true,
-    expiresAt: new Date(Date.now() + 90 * 86400000).toISOString(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    targets: [],
+    id: dto.id,
+    profileId: dto.profileId,
+    provider: dto.provider.toLowerCase() as SocialPlatform,
+    providerUserId: dto.providerUserId,
+    accountName: dto.providerUserId,
+    accountHandle: dto.providerUserId,
+    isActive: dto.isActive,
+    expiresAt: dto.expiresAt || null,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+    targets: (dto.targets || []).map(mapSocialTarget),
     followers: 0,
     following: 0,
     postsCount: 0,
   };
-  MOCK_ACCOUNTS.unshift(account);
-  saveAccounts(MOCK_ACCOUNTS);
-  return account;
+}
+
+function mapSocialTarget(dto: BESocialTargetDto): SocialTarget {
+  return {
+    id: dto.id,
+    providerTargetId: dto.providerTargetId,
+    name: dto.name,
+    type: dto.type,
+    category: dto.category || null,
+    profilePictureUrl: dto.profilePictureUrl || null,
+    isActive: dto.isActive,
+  };
+}
+
+function mapAvailableTarget(dto: BEAvailableTargetDto): AvailableTarget {
+  return {
+    providerTargetId: dto.providerTargetId,
+    name: dto.name,
+    type: dto.type,
+    category: dto.category || null,
+    profilePictureUrl: dto.profilePictureUrl || null,
+    isActive: dto.isActive,
+  };
+}
+
+export async function fetchSocialAccounts(): Promise<{ data: SocialAccount[]; total: number }> {
+  const res: GenericResponse<BESocialAccountDto[]> = await apiClient("/social/accounts/me");
+  if (res?.data) {
+    const accounts = res.data.map(mapSocialAccount);
+    return { data: accounts, total: accounts.length };
+  }
+  return { data: [], total: 0 };
+}
+
+export async function getFacebookAuthUrl(): Promise<AuthUrlResponse> {
+  const res: GenericResponse<BEAuthUrlResponse> = await apiClient("/social-auth/facebook");
+  if (res?.data) {
+    return { authUrl: res.data.authUrl, state: res.data.state };
+  }
+  throw new Error(res?.error?.errorMessage || "Failed to get Facebook auth URL");
+}
+
+export async function handleFacebookCallback(code: string, state: string): Promise<SocialAccount> {
+  const res: GenericResponse<BESocialAccountDto> = await apiClient("/social-auth/facebook/callback", {
+    method: "POST",
+    data: { code, state } as BECallbackRequest,
+  });
+  if (res?.data) {
+    return mapSocialAccount(res.data);
+  }
+  throw new Error(res?.error?.errorMessage || "Failed to link Facebook account");
 }
 
 export async function getAvailableTargets(accountId: string): Promise<AvailableTarget[]> {
-  const account = MOCK_ACCOUNTS.find((a) => a.id === accountId);
-  if (!account) return [];
-  const linkedIds = (account.targets || []).map((t) => t.providerTargetId);
-  return MOCK_AVAILABLE_TARGETS.filter((t) => !linkedIds.includes(t.providerTargetId));
+  const res: GenericResponse<BEAvailableTargetDto[]> = await apiClient(`/social/accounts/${accountId}/available-targets`);
+  if (res?.data) {
+    return res.data.map(mapAvailableTarget);
+  }
+  return [];
 }
 
 export async function getLinkedTargets(accountId: string): Promise<SocialTarget[]> {
-  const account = MOCK_ACCOUNTS.find((a) => a.id === accountId);
-  return account?.targets || [];
+  const res: GenericResponse<BESocialTargetDto[]> = await apiClient(`/social/accounts/${accountId}/linked-targets`);
+  if (res?.data) {
+    return res.data.map(mapSocialTarget);
+  }
+  return [];
 }
 
-export async function linkTargets(accountId: string, targetIds: string[]): Promise<SocialAccount> {
-  const idx = MOCK_ACCOUNTS.findIndex((a) => a.id === accountId);
-  if (idx < 0) throw new Error("Account not found");
-
-  const newTargets: SocialTarget[] = targetIds.map((id, i) => {
-    const available = MOCK_AVAILABLE_TARGETS.find((t) => t.providerTargetId === id);
-    return {
-      id: `t_${Date.now()}_${i}`,
-      providerTargetId: id,
-      name: available?.name || `Target ${id}`,
-      type: available?.type || "page",
-      category: available?.category || null,
-      profilePictureUrl: available?.profilePictureUrl || null,
-      isActive: true,
-    };
+export async function linkTargets(accountId: string, targetIds: string[], brandId: string): Promise<SocialAccount> {
+  const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
+    method: "POST",
+    data: { provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
   });
-
-  MOCK_ACCOUNTS[idx].targets = [...(MOCK_ACCOUNTS[idx].targets || []), ...newTargets];
-  MOCK_ACCOUNTS[idx].updatedAt = new Date().toISOString();
-  saveAccounts(MOCK_ACCOUNTS);
-  return MOCK_ACCOUNTS[idx];
+  if (res?.data) {
+    return mapSocialAccount(res.data);
+  }
+  throw new Error(res?.error?.errorMessage || "Failed to link targets");
 }
 
 export async function deleteSocialAccount(accountId: string): Promise<boolean> {
-  const idx = MOCK_ACCOUNTS.findIndex((a) => a.id === accountId);
-  if (idx >= 0) {
-    MOCK_ACCOUNTS.splice(idx, 1);
-    saveAccounts(MOCK_ACCOUNTS);
-  }
-  return idx >= 0;
+  const res: GenericResponse<boolean> = await apiClient(`/social/accounts/${accountId}`, {
+    method: "DELETE",
+  });
+  return res?.data === true;
 }
 
 export async function fetchSocialIntegrations(brandId?: string): Promise<SocialIntegration[]> {
   try {
     if (brandId) {
-      const res: GenericResponse<SocialIntegrationDto[]> = await apiClient(`/social/integrations/brand/${brandId}`);
+      const res: GenericResponse<BESocialIntegrationDto[]> = await apiClient(`/social/integrations/brand/${brandId}`);
       if (res?.data) {
         return res.data.map((dto) => ({
           id: dto.id,
           socialAccountId: dto.socialAccountId,
-          targetId: dto.targetId,
-          provider: dto.provider.toLowerCase() as SocialPlatform,
-          accountName: dto.accountName,
-          targetName: dto.targetName,
+          targetId: dto.externalId,
+          provider: dto.platform.toLowerCase() as SocialPlatform,
+          accountName: dto.name,
+          targetName: dto.name,
           isActive: dto.isActive,
         }));
       }
     }
   } catch { /* fallback */ }
-  
-  const accounts = loadAccounts();
-  const integrations: SocialIntegration[] = [];
-  for (const account of accounts) {
-    if (!account.isActive) continue;
-    for (const target of account.targets || []) {
-      if (!target.isActive) continue;
-      integrations.push({
-        id: `${account.id}-${target.id}`,
-        socialAccountId: account.id,
-        targetId: target.id,
-        provider: account.provider,
-        accountName: account.accountName,
-        targetName: target.name,
-        isActive: true,
-      });
-    }
-  }
-  return integrations;
+  return [];
 }
 
 export function getAccountStatus(account: SocialAccount): AccountStatus {

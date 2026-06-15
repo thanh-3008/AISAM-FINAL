@@ -121,7 +121,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
-    fetchPostQuota(activeWorkspace?.id).then(q => { if (q) setPostQuota(q); });
+    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
     fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
   }, [activeWorkspace?.id]);
 

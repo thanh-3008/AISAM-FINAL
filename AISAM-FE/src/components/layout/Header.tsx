@@ -31,10 +31,6 @@ function getNotificationIcon(type: string): { icon: string; color: string; bg: s
       return { icon: "campaign", color: "text-primary", bg: "bg-primary/10" };
     case "APPROVAL":
       return { icon: "approval", color: "text-amber-600", bg: "bg-amber-50" };
-    case "TEAM":
-      return { icon: "group", color: "text-blue-600", bg: "bg-blue-50" };
-    case "BILLING":
-      return { icon: "receipt", color: "text-purple-600", bg: "bg-purple-50" };
     default:
       return { icon: "notifications", color: "text-primary", bg: "bg-primary/10" };
   }
@@ -247,7 +243,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     return (
                       <Link 
                         key={n.id} 
-                        href={n.actionUrl || "/notifications"}
+                        href="/notifications"
                         onClick={() => setNotifOpen(false)}
                         className={`flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/60 transition-colors cursor-pointer ${n.isRead ? "" : "bg-primary/[0.03]"}`}
                       >

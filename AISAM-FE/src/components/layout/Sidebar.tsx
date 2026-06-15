@@ -99,16 +99,14 @@ export default function Sidebar() {
   const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
   const [user, setUser] = useState<{ name?: string; email?: string } | null>(() => getUserFromToken());
   const [hoveredWorkspace, setHoveredWorkspace] = useState<string | null>(null);
-
+  const { open, toggle } = useSidebar();
+  const featureGate = useFeatureGate();
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
   const displayName = activeWorkspace?.name || "No Workspace";
   const displayPlan = activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "—";
   const initials = activeWorkspace ? getInitials(activeWorkspace.name) : "?";
-
-  const { open, toggle } = useSidebar();
-  const featureGate = useFeatureGate();
 
   const visibleSections = navSections
     .map((section) => ({
