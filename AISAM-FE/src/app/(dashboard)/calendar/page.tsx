@@ -1,460 +1,925 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import {
+  fetchSchedules, createSchedule,
+  updateSchedule, deleteSchedule, type ScheduleItem,
+  onScheduleChange,
+} from "@/services/scheduleService";
+import { fetchContents } from "@/services/contentService";
+import { fetchSocialIntegrations, type SocialIntegration } from "@/services/socialAccountService";
+import { PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig, BRAND_COLORS } from "@/lib/contentConstants";
+import type { ContentItem } from "@/lib/mockContent";
 
-type CalendarEvent = {
-  day: number;
-  title: string;
-  time?: string;
-  platform?: "Facebook" | "Instagram" | "LinkedIn";
-  status: "scheduled" | "published" | "failed" | "draft";
-  type?: "text" | "image";
+type ViewMode = "month" | "week" | "list";
+
+function getWeekDays(offset: number) {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff + offset * 7);
+  const days: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+function formatWeekRange(offset: number) {
+  const days = getWeekDays(offset);
+  const start = days[0];
+  const end = days[6];
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  return `${start.toLocaleDateString("en-US", opts)} – ${end.toLocaleDateString("en-US", opts)}, ${start.getFullYear()}`;
+}
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+const STATUS_STYLE: Record<string, string> = {
+  Pending: "bg-warning-amber/10 text-warning-amber border-warning-amber/20",
+  Processing: "bg-sky-500/10 text-sky-500 border-sky-500/20",
+  Completed: "bg-emerald-50 text-emerald-600 border-emerald-500/20",
+  Failed: "bg-danger-red/10 text-danger-red border-danger-red/20",
+};
+const STATUS_DOT: Record<string, string> = {
+  Pending: "bg-warning-amber",
+  Processing: "bg-sky-500",
+  Completed: "bg-emerald-500",
+  Failed: "bg-danger-red",
 };
 
-const stats = [
-  { label: "Scheduled", value: "24", icon: "schedule", tone: "bg-primary/10 text-primary" },
-  { label: "Published", value: "158", icon: "check_circle", tone: "bg-success-green/10 text-success-green" },
-  { label: "Failed", value: "2", icon: "error", tone: "bg-danger-red/10 text-danger-red" },
-];
+function getDayGrid(year: number, month: number) {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const startPad = first.getDay();
+  const days: (number | null)[] = [];
+  for (let i = 0; i < startPad; i++) days.push(null);
+  for (let d = 1; d <= last.getDate(); d++) days.push(d);
+  return days;
+}
 
-const events: CalendarEvent[] = [
-  { day: 2, title: "Product Launch Visuals", platform: "Instagram", status: "scheduled", type: "text" },
-  { day: 6, title: "Q4 AI Strategy Post", time: "10:00 AM", platform: "Facebook", status: "published", type: "text" },
-  { day: 9, title: "Visualizing Intelligence", platform: "Instagram", status: "scheduled", type: "image" },
-  { day: 12, title: "Generated Campaign Draft", platform: "LinkedIn", status: "draft", type: "text" },
-  { day: 16, title: "Creator Partnership Teaser", time: "2:30 PM", platform: "Instagram", status: "scheduled", type: "text" },
-  { day: 19, title: "Audience Insight Carousel", platform: "Facebook", status: "scheduled", type: "image" },
-  { day: 23, title: "Retargeting Copy Review", platform: "Facebook", status: "failed", type: "text" },
-  { day: 26, title: "Weekend Growth Recap", time: "8:00 PM", platform: "LinkedIn", status: "scheduled", type: "text" },
-];
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
-const days = [
-  { label: "SUN", short: "S" },
-  { label: "MON", short: "M" },
-  { label: "TUE", short: "T" },
-  { label: "WED", short: "W" },
-  { label: "THU", short: "T" },
-  { label: "FRI", short: "F" },
-  { label: "SAT", short: "S" },
-];
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
 
-const calendarCells = [
-  { day: 31, muted: true },
-  ...Array.from({ length: 30 }, (_, index) => ({ day: index + 1, muted: false })),
-  ...Array.from({ length: 4 }, (_, index) => ({ day: index + 1, muted: true })),
-];
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
-const platformIcon: Record<NonNullable<CalendarEvent["platform"]>, string> = {
-  Facebook: "social_leaderboard",
-  Instagram: "photo_camera",
-  LinkedIn: "work",
-};
+type SortKey = "scheduledAt" | "title" | "status" | "brandName";
+type SortDir = "asc" | "desc";
 
-const statusStyles: Record<CalendarEvent["status"], string> = {
-  scheduled: "bg-primary/8 border-primary/20 text-primary",
-  published: "bg-success-green/10 border-success-green/20 text-success-green",
-  failed: "bg-danger-red/8 border-danger-red/20 text-danger-red",
-  draft: "bg-secondary/8 border-secondary/20 text-secondary",
-};
-
-const postPlatforms = [
-  { label: "Facebook", icon: "social_leaderboard" },
-  { label: "Instagram", icon: "photo_camera" },
-  { label: "TikTok", icon: "movie" },
-  { label: "LinkedIn", icon: "work" },
-];
-
-function EventChip({ event }: { event: CalendarEvent }) {
-  if (event.type === "image") {
-    return (
-      <button className="mt-2 w-full overflow-hidden rounded-lg border border-outline-variant/40 bg-surface-container-lowest text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-        <div className="h-12 w-full bg-[url('https://images.unsplash.com/photo-1558655146-9f40138edfeb?auto=format&fit=crop&w=600&q=80')] bg-cover bg-center" />
-        <div className="px-2 py-1.5">
-          <p className="truncate text-[11px] font-semibold text-on-surface">{event.title}</p>
-        </div>
-      </button>
-    );
+function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
+  if (activeKey !== key) {
+    return <span className="material-symbols-outlined text-[12px] text-outline/20 ml-0.5">unfold_more</span>;
   }
 
   return (
-    <button className={`mt-2 w-full rounded-lg border px-2 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${statusStyles[event.status]}`}>
-      <div className="mb-1 flex items-center gap-1.5">
-        <span className="material-symbols-outlined text-[14px]">
-          {event.status === "draft" ? "auto_awesome" : event.status === "failed" ? "error" : platformIcon[event.platform || "Facebook"]}
-        </span>
-        <span className="truncate text-[10px] font-bold uppercase tracking-wide">
-          {event.status === "draft" ? "AI Draft" : event.status === "failed" ? "Failed" : event.platform}
-        </span>
-      </div>
-      <p className="truncate text-[11px] font-medium text-on-surface">{event.time ? `${event.time} - ` : ""}{event.title}</p>
-    </button>
-  );
-}
-
-function NewPostModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [selectedPlatforms, setSelectedPlatforms] = useState(["Facebook"]);
-  const [scheduleMode, setScheduleMode] = useState<"now" | "schedule">("now");
-
-  if (!open) return null;
-
-  const togglePlatform = (label: string) => {
-    setSelectedPlatforms((current) => {
-      if (current.includes(label)) {
-        return current.length === 1 ? current : current.filter((item) => item !== label);
-      }
-      return [...current, label];
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6">
-      <button
-        aria-label="Close new post modal"
-        className="absolute inset-0 bg-inverse-surface/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      <section className="relative flex max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-surface-container-lowest shadow-2xl md:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col border-outline-variant/30 md:border-r">
-          <div className="flex items-center justify-between gap-4 border-b border-outline-variant/30 px-6 py-5">
-            <div>
-              <h2 className="text-headline-md text-on-surface">Create New Post</h2>
-              <p className="mt-1 text-body-sm text-on-surface-variant">Compose content and choose how it should be published.</p>
-            </div>
-            <button className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-surface-container" onClick={onClose} title="Close">
-              <span className="material-symbols-outlined text-[20px]">close</span>
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            <div className="space-y-6">
-              <section>
-                <label className="mb-3 block text-label-md uppercase tracking-wider text-outline">Select Platforms</label>
-                <div className="flex flex-wrap gap-2">
-                  {postPlatforms.map((platform) => (
-                    (() => {
-                      const selected = selectedPlatforms.includes(platform.label);
-                      return (
-                    <button
-                      key={platform.label}
-                      type="button"
-                      onClick={() => togglePlatform(platform.label)}
-                      className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-label-md transition-all active:scale-[0.97] ${
-                        selected
-                          ? "border-primary bg-primary/5 text-primary shadow-sm"
-                          : "border-outline-variant/60 text-on-surface hover:border-primary hover:bg-primary/5 hover:text-primary"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">{platform.icon}</span>
-                      {platform.label}
-                      {selected && <span className="material-symbols-outlined text-[16px]">check_circle</span>}
-                    </button>
-                      );
-                    })()
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <label className="mb-3 block text-label-md uppercase tracking-wider text-outline">Post Content</label>
-                <textarea
-                  className="min-h-32 w-full resize-none rounded-2xl border border-outline-variant/60 bg-surface-container-low p-4 text-body-md text-on-surface outline-none transition-all placeholder:text-outline/50 focus:border-primary focus:ring-2 focus:ring-primary/10"
-                  placeholder="What's on your mind?"
-                />
-                <button className="mt-3 flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-outline-variant/70 bg-surface-container-lowest p-8 text-center transition-colors hover:border-primary/50 hover:bg-surface-container">
-                  <span className="material-symbols-outlined text-[32px] text-primary">cloud_upload</span>
-                  <p className="text-label-md text-on-surface">
-                    Drag and drop media or <span className="text-primary">browse</span>
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wide text-outline">Supports JPG, PNG, MP4 (Max 50MB)</p>
-                </button>
-              </section>
-
-              <section>
-                <label className="mb-3 block text-label-md uppercase tracking-wider text-outline">Scheduling</label>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => setScheduleMode("now")}
-                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.98] ${
-                      scheduleMode === "now"
-                        ? "border-primary bg-primary/5"
-                        : "border-outline-variant/70 hover:border-primary hover:bg-primary/5"
-                    }`}
-                  >
-                    <span className={`material-symbols-outlined ${scheduleMode === "now" ? "text-primary" : "text-on-surface-variant"}`}>bolt</span>
-                    <span>
-                      <span className="block text-label-md text-on-surface">Post Now</span>
-                      <span className="block text-[10px] text-outline">Publish immediately</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleMode("schedule")}
-                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.98] ${
-                      scheduleMode === "schedule"
-                        ? "border-primary bg-primary/5"
-                        : "border-outline-variant/70 hover:border-primary hover:bg-primary/5"
-                    }`}
-                  >
-                    <span className={`material-symbols-outlined ${scheduleMode === "schedule" ? "text-primary" : "text-on-surface-variant"}`}>calendar_today</span>
-                    <span>
-                      <span className="block text-label-md text-on-surface">Schedule</span>
-                      <span className="block text-[10px] text-outline">Pick date and time</span>
-                    </span>
-                  </button>
-                </div>
-                {scheduleMode === "schedule" && (
-                  <div className="mt-4 grid grid-cols-1 gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-2 block text-label-md uppercase tracking-wider text-outline">Date</span>
-                      <input
-                        type="date"
-                        className="w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-3 text-body-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/10"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-2 block text-label-md uppercase tracking-wider text-outline">Time</span>
-                      <input
-                        type="time"
-                        className="w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-3 text-body-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/10"
-                      />
-                    </label>
-                  </div>
-                )}
-              </section>
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse gap-3 border-t border-outline-variant/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-end">
-            <button className="rounded-xl px-6 py-2.5 text-label-md text-on-surface-variant transition-colors hover:bg-surface-container">
-              Save as Draft
-            </button>
-            <button className="rounded-xl bg-primary px-8 py-2.5 text-label-md text-on-primary shadow-lg shadow-primary/20 transition-all hover:opacity-90 active:scale-[0.97]">
-              Schedule Post
-            </button>
-          </div>
-        </div>
-
-        <aside className="hidden w-[360px] shrink-0 flex-col items-center justify-center gap-6 bg-surface-container p-6 md:flex">
-          <p className="text-label-md uppercase tracking-widest text-outline">Live Preview</p>
-          <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] border-[8px] border-enterprise-navy bg-white shadow-2xl">
-            <div className="absolute left-0 top-0 flex h-6 w-full items-end justify-center bg-enterprise-navy pb-1">
-              <div className="h-1 w-16 rounded-full bg-white/20" />
-            </div>
-            <div className="p-4 pt-9">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-surface-dim" />
-                <div className="space-y-1">
-                  <div className="h-2 w-20 rounded bg-surface-dim" />
-                  <div className="h-1.5 w-12 rounded bg-surface-dim/50" />
-                </div>
-              </div>
-              <div className="mb-3 aspect-square w-full rounded-xl bg-gradient-to-br from-primary/20 via-secondary/10 to-surface-dim" />
-              <div className="space-y-2">
-                <div className="h-2 w-full rounded bg-surface-dim" />
-                <div className="h-2 w-3/4 rounded bg-surface-dim" />
-              </div>
-              <div className="mt-5 flex items-center gap-4 text-outline">
-                <span className="material-symbols-outlined text-[18px]">favorite</span>
-                <span className="material-symbols-outlined text-[18px]">chat_bubble</span>
-                <span className="material-symbols-outlined text-[18px]">send</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-4">
-            <span className="material-symbols-outlined text-outline">smartphone</span>
-            <span className="material-symbols-outlined text-outline/30">laptop</span>
-            <span className="material-symbols-outlined text-outline/30">tablet</span>
-          </div>
-        </aside>
-      </section>
-    </div>
+    <span className="material-symbols-outlined text-[12px] text-primary ml-0.5">
+      {direction === "asc" ? "expand_less" : "expand_more"}
+    </span>
   );
 }
 
 export default function CalendarPage() {
-  const [newPostOpen, setNewPostOpen] = useState(false);
+  const featureGate = useFeatureGate();
+  const { activeWorkspace } = useWorkspaces();
+  const today = new Date();
+  const [view, setView] = useState<ViewMode>("month");
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(today);
+  const [sortKey, setSortKey] = useState<SortKey>("scheduledAt");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [toast, setToast] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [contents, setContents] = useState<ContentItem[]>([]);
+  const [integrations, setIntegrations] = useState<SocialIntegration[]>([]);
+  const [form, setForm] = useState({ contentId: "", integrationId: "", date: "", time: "" });
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [deletedItem, setDeletedItem] = useState<ScheduleItem | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
+  const [editForm, setEditForm] = useState({ date: "", time: "", integrationId: "" });
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterPlatform, setFilterPlatform] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const brands = [...new Set(schedules.map((s) => s.brandName).filter(Boolean))] as string[];
+  const pendingCount = schedules.filter((s) => s.status === "Pending" || s.status === "Processing").length;
+  const completedCount = schedules.filter((s) => s.status === "Completed").length;
+  const failedCount = schedules.filter((s) => s.status === "Failed").length;
+
+  const filteredSchedules = schedules.filter((s) => {
+    if (filterBrand && s.brandName !== filterBrand) return false;
+    if (filterPlatform && s.platform !== filterPlatform) return false;
+    if (filterStatus && s.status !== filterStatus) return false;
+    return true;
+  });
+
+  const pathname = usePathname();
+  
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const [sched, cont, integ] = await Promise.all([
+        fetchSchedules({ pageSize: 100 }),
+        fetchContents({ pageSize: 100 }),
+        fetchSocialIntegrations(),
+      ]);
+      setSchedules(sched.data);
+      setContents(cont.items);
+      setIntegrations(integ);
+      setLoading(false);
+    };
+    load();
+    const unsubscribe = onScheduleChange(load);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        load();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [pathname, activeWorkspace?.id]);
+
+  useEffect(() => { if (toast) setTimeout(() => setToast(null), 3000); }, [toast]);
+
+  const handlePrev = () => {
+    if (month === 0) { setYear((y) => y - 1); setMonth(11); }
+    else setMonth((m) => m - 1);
+  };
+  const handleNext = () => {
+    if (month === 11) { setYear((y) => y + 1); setMonth(0); }
+    else setMonth((m) => m + 1);
+  };
+  const goToday = () => { const d = new Date(); setYear(d.getFullYear()); setMonth(d.getMonth()); setSelectedDay(d); setWeekOffset(0); };
+
+  const handleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("asc"); }
+  };
+
+  const daySchedules = filteredSchedules.filter((s) => selectedDay && sameDay(new Date(s.scheduledAt), selectedDay));
+  const sortedDay = [...daySchedules].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "scheduledAt") cmp = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+    else if (sortKey === "title") cmp = (a.title || "").localeCompare(b.title || "");
+    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
+    else if (sortKey === "brandName") cmp = (a.brandName || "").localeCompare(b.brandName || "");
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const days = getDayGrid(year, month);
+
+  const getSchedulesForDay = (d: number) => {
+    const date = new Date(year, month, d);
+    return filteredSchedules.filter((s) => sameDay(new Date(s.scheduledAt), date));
+  };
+
+  const handleCreate = async () => {
+    if (!form.contentId || !form.integrationId || !form.date || !form.time) return;
+    setActionId("create");
+    const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
+    const result = await createSchedule({ contentId: form.contentId, integrationId: form.integrationId, scheduledAt });
+    if (result) {
+      setSchedules((prev) => [result, ...prev]);
+      setToast("Schedule created");
+      setShowCreate(false);
+      setForm({ contentId: "", integrationId: "", date: "", time: "" });
+    }
+    setActionId(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    setActionId(id);
+    const item = schedules.find((s) => s.id === id);
+    await deleteSchedule(id);
+    setSchedules((prev) => prev.filter((s) => s.id !== id));
+    setDeletedItem(item || null);
+    setActionId(null);
+    setToast("Schedule deleted");
+  };
+
+  const handleUndoDelete = () => {
+    if (!deletedItem) return;
+    setSchedules((prev) => [deletedItem, ...prev]);
+    setDeletedItem(null);
+    setToast("Schedule restored");
+  };
+
+  const openEditModal = (s: ScheduleItem) => {
+    const d = new Date(s.scheduledAt);
+    setEditingSchedule(s);
+    setEditForm({
+      date: d.toISOString().slice(0, 10),
+      time: d.toTimeString().slice(0, 5),
+      integrationId: s.integrationId || "",
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editingSchedule || !editForm.date || !editForm.time || !editForm.integrationId) return;
+    setActionId("edit");
+    const scheduledAt = new Date(`${editForm.date}T${editForm.time}`).toISOString();
+    await updateSchedule(editingSchedule.id, { integrationId: editForm.integrationId, scheduledAt });
+    setSchedules((prev) => prev.map((s) =>
+      s.id === editingSchedule.id
+        ? { ...s, scheduledAt, integrationId: editForm.integrationId }
+        : s
+    ));
+    setToast("Schedule updated");
+    setEditingSchedule(null);
+    setActionId(null);
+  };
+
+  if (!featureGate.canAccess("schedulePost")) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Calendar" }]} />
+        <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto">
+          <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="w-16 h-16 mx-auto mb-6 bg-outline/10 rounded-2xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
+              </div>
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">Content Calendar</h2>
+              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Personal Plus</strong> plan or higher. Upgrade to schedule and manage your content calendar.</p>
+              <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
+                View Plans
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </Link>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
-      <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Publishing Calendar" }]} />
-      <main className="p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-8">
-        <section className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-label-md text-outline">
-              <span>Content Workspace</span>
-              <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-              <span className="font-bold text-primary">Publishing Calendar</span>
-            </div>
-            <h1 className="text-headline-lg text-on-surface tracking-tight">Publishing Calendar</h1>
-            <p className="mt-2 text-body-md text-on-surface-variant">Plan scheduled posts, monitor failures, and review AI-generated campaign drafts.</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex rounded-xl bg-surface-container-high p-1">
-              {["Month", "Week", "Day"].map((view) => (
-                <button
-                  key={view}
-                  className={`rounded-lg px-4 py-2 text-label-md transition-all ${
-                    view === "Month"
-                      ? "bg-surface-container-lowest text-primary shadow-sm"
-                      : "text-on-surface-variant hover:bg-surface-container-lowest/60"
-                  }`}
-                >
-                  {view}
-                </button>
-              ))}
-            </div>
-            <button className="inline-flex items-center gap-2 rounded-xl border border-outline-variant/60 px-4 py-2 text-label-md text-on-surface transition-colors hover:bg-surface-container">
-              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-              Today
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-label-md text-on-primary shadow-md shadow-primary/20 transition-all hover:opacity-90 active:scale-[0.97]"
-              onClick={() => setNewPostOpen(true)}
-            >
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Schedule New Post
-            </button>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-4">
-          {stats.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.tone}`}>
-                  <span className="material-symbols-outlined">{item.icon}</span>
-                </div>
-                <div>
-                  <p className="text-body-sm text-outline">{item.label}</p>
-                  <p className="text-headline-md text-on-surface">{item.value}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-          <div className="relative overflow-hidden rounded-2xl border border-secondary/20 bg-secondary/8 p-5 shadow-sm shadow-secondary/5">
-            <div className="absolute right-3 top-3 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Roadmap</div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
-                <span className="material-symbols-outlined">auto_awesome</span>
-              </div>
+      <Header breadcrumbs={[
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Calendar" },
+      ]} />
+      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* ── Header ── */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 text-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+              </span>
               <div>
-                <p className="text-label-md text-secondary">Advanced Recurring</p>
-                <p className="text-body-sm text-outline">Coming Soon</p>
+                <h1 className="text-headline-sm font-bold text-on-surface">Content Calendar</h1>
+                <p className="text-[11px] text-outline">{schedules.length} total · {pendingCount} pending</p>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section>
-          <div className="rounded-t-2xl border-x border-t border-outline-variant/40 bg-surface-container-lowest p-4">
-            <div className="flex flex-wrap items-center gap-5">
-              <label className="flex items-center gap-2">
-                <span className="text-label-md text-outline">Brand:</span>
-                <select className="rounded-xl border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-body-sm outline-none focus:border-primary">
-                  <option>AISAM Global</option>
-                  <option>TechVision Pro</option>
-                  <option>Lumina Beauty</option>
-                </select>
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="text-label-md text-outline">Platform:</span>
-                {["social_leaderboard", "photo_camera", "work"].map((icon, index) => (
-                  <button
-                    key={icon}
-                    className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-                      index === 1 ? "bg-primary/10 text-primary" : "bg-surface-container-high text-on-surface-variant hover:bg-primary/10 hover:text-primary"
-                    }`}
-                    title={index === 0 ? "Facebook" : index === 1 ? "Instagram" : "LinkedIn"}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">{icon}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center rounded-xl border border-outline-variant/20 p-0.5 bg-surface-container-low">
+                {(["month", "week", "list"] as ViewMode[]).map((v) => (
+                  <button key={v} onClick={() => setView(v)}
+                    className={`px-3 py-1.5 rounded-lg text-label-xs font-semibold transition-all ${
+                      view === v ? "bg-surface-container-lowest text-on-surface shadow-sm" : "text-outline hover:text-on-surface"
+                    }`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">{v === "month" ? "calendar_view_month" : v === "week" ? "view_week" : "list"}</span>
+                      {v === "month" ? "Month" : v === "week" ? "Week" : "List"}
+                    </span>
                   </button>
                 ))}
               </div>
-              <label className="flex items-center gap-2">
-                <span className="text-label-md text-outline">Status:</span>
-                <select className="rounded-xl border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-body-sm outline-none focus:border-primary">
-                  <option>All Statuses</option>
-                  <option>Scheduled</option>
-                  <option>Draft</option>
-                  <option>Published</option>
-                </select>
-              </label>
-              <button className="ml-auto inline-flex items-center gap-1 text-label-md text-primary hover:underline">
-                <span className="material-symbols-outlined text-[16px]">filter_list</span>
-                Clear All Filters
+              <button onClick={() => setShowCreate(true)}
+                className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center gap-1.5 hover:bg-primary/90 transition-all shadow-sm">
+                <span className="material-symbols-outlined text-[14px]">add</span>
+                Schedule
               </button>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-b-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-sm">
-            <div className="grid grid-cols-7 border-b border-outline-variant/40 bg-surface-container-low">
-              {days.map((day) => (
-                <div key={day.label} className="py-3 text-center text-label-md text-outline">
-                  <span className="hidden sm:inline">{day.label}</span>
-                  <span className="sm:hidden">{day.short}</span>
-                </div>
-              ))}
+          {/* ── Workflow Summary ── */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4 flex items-center gap-4 shadow-sm">
+              <div className="w-11 h-11 rounded-full bg-warning-amber/10 flex items-center justify-center text-warning-amber">
+                <span className="material-symbols-outlined">schedule</span>
+              </div>
+              <div>
+                <p className="text-[11px] text-outline font-medium">Pending</p>
+                <p className="text-headline-sm font-bold text-on-surface">{pendingCount}</p>
+              </div>
             </div>
-            <div className="grid grid-cols-7 auto-rows-[minmax(112px,auto)]">
-              {calendarCells.map((cell, index) => {
-                const dayEvents = cell.muted ? [] : events.filter((event) => event.day === cell.day);
-                const today = !cell.muted && cell.day === 6;
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4 flex items-center gap-4 shadow-sm">
+              <div className="w-11 h-11 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <span className="material-symbols-outlined">check_circle</span>
+              </div>
+              <div>
+                <p className="text-[11px] text-outline font-medium">Completed</p>
+                <p className="text-headline-sm font-bold text-on-surface">{completedCount}</p>
+              </div>
+            </div>
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4 flex items-center gap-4 shadow-sm">
+              <div className="w-11 h-11 rounded-full bg-danger-red/10 flex items-center justify-center text-danger-red">
+                <span className="material-symbols-outlined">error</span>
+              </div>
+              <div>
+                <p className="text-[11px] text-outline font-medium">Failed</p>
+                <p className="text-headline-sm font-bold text-on-surface">{failedCount}</p>
+              </div>
+            </div>
+            <div className="bg-surface-container-lowest rounded-xl border border-secondary/20 p-4 flex items-center gap-4 shadow-sm relative overflow-hidden" style={{ boxShadow: "0 0 15px rgba(115, 27, 229, 0.08)", borderColor: "rgba(115, 27, 229, 0.25)" }}>
+              <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-secondary text-on-secondary text-label-3xs font-bold rounded uppercase tracking-wider">Roadmap</span>
+              <div className="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                <span className="material-symbols-outlined">auto_awesome</span>
+              </div>
+              <div>
+                <p className="text-[11px] text-outline font-medium">Advanced Recurring</p>
+                <p className="text-label-sm font-semibold text-secondary">Coming Soon</p>
+              </div>
+            </div>
+          </div>
 
-                return (
-                  <div
-                    key={`${cell.muted ? "muted" : "current"}-${cell.day}-${index}`}
-                    className={`min-h-28 border-b border-r border-outline-variant/30 p-2 transition-colors last:border-r-0 hover:bg-surface-container-low ${
-                      cell.muted ? "bg-surface-gray/40 text-outline/40" : "text-on-surface"
-                    } ${today ? "relative z-10 bg-primary/5 ring-2 ring-inset ring-primary" : ""}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-label-md ${today ? "font-bold text-primary" : ""}`}>
-                        {cell.day}{today ? " Today" : ""}
-                      </span>
-                      {!cell.muted && dayEvents.length === 0 && (
-                        <button className="hidden h-6 w-6 items-center justify-center rounded-full text-outline opacity-0 transition-opacity hover:bg-surface-container-high group-hover:opacity-100 sm:flex">
-                          <span className="material-symbols-outlined text-[14px]">add</span>
+          {/* ── Filters ── */}
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 px-5 py-3 flex flex-wrap items-center gap-x-8 gap-y-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-label-sm text-outline font-semibold">Brand:</span>
+              <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}
+                className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-[11px] text-on-surface focus:ring-2 focus:ring-primary/10 outline-none transition-all">
+                <option value="">All Brands</option>
+                {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-label-sm text-outline font-semibold">Platform:</span>
+              <div className="flex gap-1">
+                {Object.entries(PLATFORM_CONFIG).map(([key, cfg]) => (
+                  <button key={key} onClick={() => setFilterPlatform(filterPlatform === key ? "" : key)}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      filterPlatform === key ? "bg-primary/10 text-primary" : "bg-surface-container-high text-outline hover:bg-surface-container"
+                    }`}>
+                    <PlatformIcon platform={cfg.icon} className="w-[14px] h-[14px]" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-label-sm text-outline font-semibold">Status:</span>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+                className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-[11px] text-on-surface focus:ring-2 focus:ring-primary/10 outline-none transition-all">
+                <option value="">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Processing">Processing</option>
+                <option value="Completed">Completed</option>
+                <option value="Failed">Failed</option>
+              </select>
+            </div>
+            {(filterBrand || filterPlatform || filterStatus) && (
+              <button onClick={() => { setFilterBrand(""); setFilterPlatform(""); setFilterStatus(""); }}
+                className="text-label-sm text-primary font-semibold hover:underline flex items-center gap-1 ml-auto">
+                <span className="material-symbols-outlined text-[14px]">filter_list</span>
+                Clear All Filters
+              </button>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-32">
+              <span className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            </div>
+          ) : view === "month" ? (
+            <>
+            <div className="flex gap-6">
+              {/* ── Calendar Grid ── */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <button onClick={handlePrev} className="p-1.5 hover:bg-surface-container rounded-lg transition-all">
+                      <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </button>
+                    <h2 className="text-headline-sm font-bold text-on-surface min-w-[180px] text-center">{MONTHS[month]} {year}</h2>
+                    <button onClick={handleNext} className="p-1.5 hover:bg-surface-container rounded-lg transition-all">
+                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </button>
+                  </div>
+                  <button onClick={goToday}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-label-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
+                    <span className="material-symbols-outlined text-[14px]">calendar_today</span>
+                    Today
+                  </button>
+                </div>
+                <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-7 bg-surface-container-low">
+                    {WEEKDAYS.map((d) => (
+                      <div key={d} className="px-3 py-2.5 text-label-xs font-bold text-outline uppercase tracking-wider text-center">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7" style={{ gridAutoRows: "minmax(120px, auto)" }}>
+                    {days.map((d, i) => {
+                      const date = d ? new Date(year, month, d) : null;
+                      const dayScheds = d ? getSchedulesForDay(d) : [];
+                      const isToday = date && sameDay(date, today);
+                      const isSelected = date && selectedDay && sameDay(date, selectedDay);
+                      return (
+                        <button key={i} onClick={() => d && setSelectedDay(new Date(year, month, d))}
+                          className={`min-h-[120px] p-2 border-b border-r border-outline-variant/10 text-left transition-all hover:bg-surface-container-low/50 ${
+                            isSelected ? "bg-primary/5 ring-2 ring-inset ring-primary/20" : ""
+                          } ${isToday && !isSelected ? "ring-2 ring-inset ring-primary/10" : ""} ${!d ? "bg-surface-container-low/30 opacity-50" : ""}`}>
+                          {d && (
+                            <>
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-semibold mb-1 ${
+                                isToday ? "bg-primary text-on-primary" : "text-on-surface"
+                              }`}>{d}</span>
+                              {dayScheds.length > 0 && (
+                                <div className="space-y-1 mt-1">
+                                  {dayScheds.slice(0, 3).map((s) => {
+                                    const cfg = PLATFORM_CONFIG[s.platform || ""];
+                                    return (
+                                      <div key={s.id}
+                                        className={`flex items-center gap-1 px-1.5 py-1 rounded text-label-2xs font-semibold truncate border ${
+                                          s.status === "Completed" ? "bg-emerald-50/60 border-emerald-200/40 text-emerald-700" :
+                                          s.status === "Failed" ? "bg-danger-red/5 border-danger-red/20 text-danger-red" :
+                                          "bg-white border-outline-variant/30 text-on-surface shadow-sm"
+                                        }`}>
+                                        {cfg && <PlatformIcon platform={cfg.icon} className="w-[10px] h-[10px] shrink-0" />}
+                                        <span className="truncate">{s.title}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {dayScheds.length > 3 && (
+                                    <span className="text-label-3xs text-outline font-medium px-1 flex items-center gap-1">
+                                      <span className="w-1 h-1 rounded-full bg-outline/40" />
+                                      +{dayScheds.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
                         </button>
-                      )}
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Day Detail Panel ── */}
+              <div className="w-80 shrink-0">
+                <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 sticky top-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-label-sm font-bold text-on-surface">
+                      {selectedDay ? selectedDay.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "Select a day"}
+                    </h3>
+                    <span className="text-label-xs text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-semibold">{daySchedules.length}</span>
+                  </div>
+                  {daySchedules.length === 0 ? (
+                    <div className="flex flex-col items-center py-12 text-center">
+                      <span className="material-symbols-outlined text-3xl text-outline/20 mb-2">event_busy</span>
+                      <p className="text-[11px] text-outline">No schedules for this day</p>
                     </div>
-
-                    {cell.day === 1 && !cell.muted && (
-                      <div className="mt-2 flex gap-1">
-                        <span className="h-2 w-2 rounded-full bg-primary" />
-                        <span className="h-2 w-2 rounded-full bg-secondary" />
+                  ) : (
+                    <div className="space-y-2">
+                      {sortedDay.map((s) => {
+                        const cfg = PLATFORM_CONFIG[s.platform || ""];
+                        return (
+                          <div key={s.id} className="group p-3 rounded-xl bg-surface-container-low border border-outline-variant/10 hover:border-outline-variant/30 hover:shadow-sm transition-all cursor-pointer"
+                            onClick={() => openEditModal(s)}>
+                            <div className="flex items-start gap-3">
+                              <div className="flex flex-col items-center min-w-[36px] pt-0.5">
+                                <span className="text-[13px] font-bold text-on-surface leading-none">{new Date(s.scheduledAt).getDate()}</span>
+                                <span className="text-label-3xs text-outline uppercase">{MONTHS[new Date(s.scheduledAt).getMonth()].slice(0, 3)}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  {s.type && (
+                                    <div className={`w-5 h-5 rounded bg-gradient-to-br ${getTypeStyle(s.type)} flex items-center justify-center text-white shrink-0`}>
+                                      <span className="material-symbols-outlined text-label-2xs">{getTypeConfig(s.type).icon}</span>
+                                    </div>
+                                  )}
+                                  <p className="text-[11px] font-semibold text-on-surface truncate">{s.title}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-label-3xs font-bold border ${STATUS_STYLE[s.status] || ""}`}>
+                                    <span className={`w-1 h-1 rounded-full ${STATUS_DOT[s.status] || "bg-outline"}`} />
+                                    {s.status}
+                                  </span>
+                                  {cfg && (
+                                    <span className="flex items-center gap-0.5 text-label-3xs font-semibold" style={{ color: cfg.color }}>
+                                      <PlatformIcon platform={cfg.icon} className="w-[8px] h-[8px]" />
+                                      {cfg.label}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-label-2xs text-outline">
+                                    <span className="material-symbols-outlined text-label-2xs align-text-bottom">schedule</span>
+                                    {formatTime(s.scheduledAt)}
+                                  </span>
+                                  {s.brandName && (
+                                    <>
+                                      <span className="text-outline/20">·</span>
+                                      <span className="text-label-2xs text-outline">{s.brandName}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} disabled={actionId === s.id}
+                                className="p-1 opacity-0 group-hover:opacity-100 text-outline/40 hover:text-danger-red transition-all disabled:opacity-20">
+                                {actionId === s.id ? (
+                                  <span className="w-3 h-3 border-2 border-danger-red/30 border-t-danger-red rounded-full animate-spin block" />
+                                ) : (
+                                  <span className="material-symbols-outlined text-[14px]">close</span>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* ── Legend ── */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {[
+                  { color: "bg-emerald-500", label: "Completed" },
+                  { color: "bg-warning-amber", label: "Pending" },
+                  { color: "bg-sky-500", label: "Processing" },
+                  { color: "bg-danger-red", label: "Failed" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-1.5">
+                    <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+                    <span className="text-label-xs text-outline font-medium">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-label-xs text-outline italic">API: /api/content-schedules</p>
+            </div>
+            </>
+          ) : view === "week" ? (
+            /* ── Week View ── */
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setWeekOffset((o) => o - 1)} className="p-1.5 hover:bg-surface-container rounded-lg transition-all">
+                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                  </button>
+                  <h2 className="text-headline-sm font-bold text-on-surface min-w-[240px] text-center">{formatWeekRange(weekOffset)}</h2>
+                  <button onClick={() => setWeekOffset((o) => o + 1)} className="p-1.5 hover:bg-surface-container rounded-lg transition-all">
+                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                  </button>
+                </div>
+                <button onClick={() => { const d = new Date(); setYear(d.getFullYear()); setMonth(d.getMonth()); setWeekOffset(0); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-label-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
+                  <span className="material-symbols-outlined text-[14px]">calendar_today</span>
+                  Today
+                </button>
+              </div>
+              <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden">
+                <div className="grid grid-cols-7 bg-surface-container-low border-b border-outline-variant/20">
+                  {WEEKDAYS.map((d, i) => {
+                    const weekDays = getWeekDays(weekOffset);
+                    const isToday = sameDay(weekDays[i], today);
+                    return (
+                      <div key={d} className={`px-3 py-2.5 text-center ${isToday ? "text-primary" : "text-outline"}`}>
+                        <div className="text-label-2xs font-bold uppercase tracking-wider">{d}</div>
+                        <div className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold mt-0.5 ${
+                          isToday ? "bg-primary text-on-primary" : "text-on-surface"
+                        }`}>{weekDays[i].getDate()}</div>
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-7 divide-x divide-outline-variant/10" style={{ gridAutoRows: "minmax(250px, auto)" }}>
+                  {getWeekDays(weekOffset).map((dayDate, i) => {
+                    const dayScheds = filteredSchedules.filter((s) => sameDay(new Date(s.scheduledAt), dayDate));
+                    const isToday = sameDay(dayDate, today);
+                    return (
+                      <div key={i} className={`p-2 ${isToday ? "bg-primary/5" : ""} ${!dayScheds.length ? "bg-surface-container-low/20" : ""}`}>
+                        {dayScheds.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full py-8 text-center">
+                            <span className="material-symbols-outlined text-lg text-outline/20">event_busy</span>
+                            <p className="text-label-2xs text-outline/40 mt-1">No schedules</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {dayScheds.map((s) => {
+                              const cfg = PLATFORM_CONFIG[s.platform || ""];
+                              return (
+                                <div key={s.id} onClick={() => openEditModal(s)}
+                                  className="group p-2 rounded-lg border bg-white hover:shadow-sm transition-all cursor-pointer"
+                                  style={{ borderColor: cfg?.color + "30" }}>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    {cfg && <PlatformIcon platform={cfg.icon} className="w-[10px] h-[10px]" />}
+                                    <span className="text-label-2xs font-semibold truncate flex-1">{s.title}</span>
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[s.status] || "bg-outline"}`} />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-label-3xs text-outline flex items-center gap-0.5">
+                                      <span className="material-symbols-outlined text-label-3xs">schedule</span>
+                                      {formatTime(s.scheduledAt)}
+                                    </span>
+                                    {s.brandName && (
+                                      <>
+                                        <span className="text-outline/20">·</span>
+                                        <span className="text-label-3xs text-outline truncate">{s.brandName}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ── List View ── */
+            <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+                <span className="text-label-sm text-outline font-semibold">
+                  {filteredSchedules.length} of {schedules.length} schedules
+                </span>
+                <div className="flex items-center gap-3">
+                  {[
+                    { color: "bg-emerald-500", label: "Completed" },
+                    { color: "bg-warning-amber", label: "Pending" },
+                    { color: "bg-sky-500", label: "Processing" },
+                    { color: "bg-danger-red", label: "Failed" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${item.color}`} />
+                      <span className="text-label-2xs text-outline">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {filteredSchedules.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <span className="material-symbols-outlined text-4xl text-outline/20 mb-3">calendar_month</span>
+                  <p className="text-body-sm text-outline font-medium">No schedules match your filters</p>
+                  <button onClick={() => { setFilterBrand(""); setFilterPlatform(""); setFilterStatus(""); }}
+                    className="mt-2 text-label-sm text-primary font-semibold hover:underline">Clear all filters</button>
+                </div>
+              ) : (
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-surface-container-low">
+                  <tr>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface"
+                      onClick={() => handleSort("scheduledAt")}><span className="flex items-center gap-0.5">Date{renderSortIcon(sortKey, sortDir, "scheduledAt")}</span></th>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface"
+                      onClick={() => handleSort("title")}><span className="flex items-center gap-0.5">Content{renderSortIcon(sortKey, sortDir, "title")}</span></th>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface"
+                      onClick={() => handleSort("brandName")}><span className="flex items-center gap-0.5">Brand{renderSortIcon(sortKey, sortDir, "brandName")}</span></th>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Platform</th>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface"
+                      onClick={() => handleSort("status")}><span className="flex items-center gap-0.5">Status{renderSortIcon(sortKey, sortDir, "status")}</span></th>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Attempts</th>
+                    <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/20">
+                  {[...filteredSchedules].sort((a, b) => {
+                    let cmp = 0;
+                    if (sortKey === "scheduledAt") cmp = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+                    else if (sortKey === "title") cmp = (a.title || "").localeCompare(b.title || "");
+                    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
+                    else if (sortKey === "brandName") cmp = (a.brandName || "").localeCompare(b.brandName || "");
+                    return sortDir === "asc" ? cmp : -cmp;
+                  }).map((s) => {
+                    const cfg = PLATFORM_CONFIG[s.platform || ""];
+                    return (
+                      <tr key={s.id} className="hover:bg-surface-container-low/60 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-body-sm font-semibold text-on-surface">{formatDate(s.scheduledAt)}</span>
+                            <span className="text-label-xs text-outline">{formatTime(s.scheduledAt)}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {s.type && (
+                              <div className={`w-10 h-8 rounded-lg bg-gradient-to-br ${getTypeStyle(s.type)} flex items-center justify-center text-white shrink-0`}>
+                                <span className="material-symbols-outlined text-[14px]">{getTypeConfig(s.type).icon}</span>
+                              </div>
+                            )}
+                            <p className="text-body-sm font-semibold text-on-surface">{s.title || "Untitled"}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: BRAND_COLORS[s.brandName || ""] || "#6366f1" }} />
+                            <span className="text-body-sm text-on-surface">{s.brandName || "—"}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {cfg ? (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-semibold"
+                              style={{ backgroundColor: cfg.color + "12", color: cfg.color }}>
+                              <PlatformIcon platform={cfg.icon} className="w-[10px] h-[10px]" />
+                              {cfg.label}
+                            </span>
+                          ) : <span className="text-label-xs text-outline">—</span>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-bold border ${STATUS_STYLE[s.status] || ""}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[s.status] || "bg-outline"}`} />
+                            {s.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-[11px] text-outline">{s.attemptCount}</span>
+                          {s.lastError && <span className="text-label-2xs text-danger-red block">{s.lastError}</span>}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => handleDelete(s.id)} disabled={actionId === s.id}
+                            className="p-2 text-outline/40 hover:text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40">
+                            {actionId === s.id ? (
+                              <span className="w-3.5 h-3.5 border-2 border-danger-red/30 border-t-danger-red rounded-full animate-spin block" />
+                            ) : (
+                              <span className="material-symbols-outlined text-[17px]">delete</span>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              )}
+            </div>
+          )}
+        </div>
 
-                    <div className="space-y-1">
-                      {dayEvents.slice(0, 2).map((event) => (
-                        <EventChip key={`${event.day}-${event.title}`} event={event} />
+        {/* ── Create Schedule Modal ── */}
+        {showCreate && (
+          <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setShowCreate(false)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
+              <div className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[20px]">post_add</span>
+                  </div>
+                  <div>
+                    <h3 className="text-label-sm font-bold text-on-surface">Schedule Content</h3>
+                    <p className="text-label-xs text-outline">Pick content, platform, and time</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Content</label>
+                    <select value={form.contentId} onChange={(e) => setForm((f) => ({ ...f, contentId: e.target.value }))}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
+                      <option value="">Select content...</option>
+                      {contents.filter((c) => c.status === "Published" || c.status === "Awaiting Approval").map((c) => (
+                        <option key={c.id} value={c.id}>{c.title} ({c.brandName})</option>
                       ))}
-                      {dayEvents.length > 2 && (
-                        <button className="mt-1 text-[10px] font-semibold text-outline hover:text-primary">+{dayEvents.length - 2} more</button>
-                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Account</label>
+                    <select value={form.integrationId} onChange={(e) => setForm((f) => ({ ...f, integrationId: e.target.value }))}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
+                      <option value="">Select social account...</option>
+                      {integrations.filter((i) => i.isActive).map((i) => (
+                        <option key={i.id} value={i.id}>{i.accountName} - {i.targetName} ({i.provider})</option>
+                      ))}
+                    </select>
+                    {integrations.length === 0 && (
+                      <p className="text-label-xs text-outline mt-2">No social accounts connected. Please connect accounts in Social page.</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Date</label>
+                      <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                        className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Time</label>
+                      <input type="time" value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                        className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
                     </div>
                   </div>
-                );
-              })}
+                </div>
+                <div className="flex items-center gap-3 mt-6">
+                  <button onClick={() => setShowCreate(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
+                  <button onClick={handleCreate} disabled={!form.contentId || !form.integrationId || !form.date || !form.time || actionId === "create"}
+                    className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
+                    {actionId === "create" ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[16px]">add</span>
+                    )}
+                    Create Schedule
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
+          </>
+        )}
 
-        <footer className="flex flex-col gap-3 text-body-sm text-outline md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-success-green" /> Published</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-primary" /> Scheduled</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-secondary" /> AI Draft</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-danger-red" /> Action Required</span>
+        {/* ── Edit Schedule Modal ── */}
+        {editingSchedule && (
+          <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setEditingSchedule(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEditingSchedule(null)}>
+              <div className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[20px]">edit</span>
+                  </div>
+                  <div>
+                    <h3 className="text-label-sm font-bold text-on-surface">Edit Schedule</h3>
+                    <p className="text-label-xs text-outline">{editingSchedule.title || "Untitled"}</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Account</label>
+                    <select value={editForm.integrationId} onChange={(e) => setEditForm((f) => ({ ...f, integrationId: e.target.value }))}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
+                      <option value="">Select social account...</option>
+                      {integrations.filter((i) => i.isActive).map((i) => (
+                        <option key={i.id} value={i.id}>{i.accountName} - {i.targetName} ({i.provider})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Date</label>
+                      <input type="date" value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))}
+                        className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Time</label>
+                      <input type="time" value={editForm.time} onChange={(e) => setEditForm((f) => ({ ...f, time: e.target.value }))}
+                        className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-6">
+                  <button onClick={() => setEditingSchedule(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
+                  <button onClick={handleEditSave} disabled={!editForm.integrationId || !editForm.date || !editForm.time || actionId === "edit"}
+                    className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
+                    {actionId === "edit" ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[16px]">save</span>
+                    )}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Toast ── */}
+        {toast && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-inverse-surface text-inverse-on-surface px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <span className="material-symbols-outlined text-[16px]">{toast.includes("deleted") ? "delete" : "check"}</span>
+            <span className="text-label-sm font-semibold">{toast}</span>
+            {toast === "Schedule deleted" && deletedItem ? (
+              <button onClick={handleUndoDelete}
+                className="ml-2 px-3 py-1 rounded-lg bg-white/10 text-label-sm font-bold hover:bg-white/20 transition-all">
+                Undo
+              </button>
+            ) : (
+              <button onClick={() => setToast(null)} className="p-0.5 hover:bg-white/10 rounded-full">
+                <span className="material-symbols-outlined text-[12px]">close</span>
+              </button>
+            )}
           </div>
-          <span className="font-mono text-[11px]">API Endpoint: /api/content-schedules</span>
-        </footer>
+        )}
       </main>
-      <NewPostModal open={newPostOpen} onClose={() => setNewPostOpen(false)} />
     </>
   );
 }

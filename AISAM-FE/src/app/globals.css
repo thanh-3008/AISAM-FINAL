@@ -113,6 +113,100 @@
   }
 }
 
+.dark body {
+  background-color: #191b24;
+  color: #eff0fd;
+}
+
+.dark .bg-background {
+  background-color: #191b24 !important;
+}
+
+.dark .bg-surface {
+  background-color: #191b24 !important;
+}
+
+.dark .bg-surface-container-lowest {
+  background-color: #2e303a !important;
+}
+
+.dark .bg-surface-container-lowest\/90 {
+  background-color: rgba(46, 48, 58, 0.9) !important;
+}
+
+.dark .bg-surface-container-lowest\/95 {
+  background-color: rgba(46, 48, 58, 0.95) !important;
+}
+
+.dark .bg-surface-container-low {
+  background-color: #23252e !important;
+}
+
+.dark .bg-surface-container {
+  background-color: #2e303a !important;
+}
+
+.dark .bg-surface-container-high {
+  background-color: #353741 !important;
+}
+
+.dark .bg-surface-container-highest {
+  background-color: #3d3f4a !important;
+}
+
+.dark .bg-surface-gray {
+  background-color: #23252e !important;
+}
+
+.dark .text-on-surface {
+  color: #eff0fd !important;
+}
+
+.dark .text-on-surface-variant {
+  color: #c3c6d8 !important;
+}
+
+.dark .text-on-background {
+  color: #eff0fd !important;
+}
+
+.dark .border-outline-variant {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .border-outline-variant\/30 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .border-outline-variant\/20 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .border-outline-variant\/10 {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.dark .glass-card, .dark .glass-panel {
+  background-color: rgba(46, 48, 58, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .shadow-lg {
+  --tw-shadow-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .shadow-xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .shadow-2xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .backdrop-blur-xl {
+  --tw-backdrop-blur: blur(24px);
+}
+
 @layer components {
   /* Typography Classes based on Design System */
   .text-display-lg {
@@ -163,6 +257,30 @@
     font-weight: 500;
     line-height: 14px;
     letter-spacing: 0.02em;
+  }
+  .text-label-xs {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 14px;
+    letter-spacing: 0.02em;
+  }
+  .text-label-2xs {
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 12px;
+    letter-spacing: 0.02em;
+  }
+  .text-label-3xs {
+    font-size: 8px;
+    font-weight: 500;
+    line-height: 10px;
+    letter-spacing: 0.02em;
+  }
+  .text-kpi-lg {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 36px;
+    letter-spacing: -0.02em;
   }
   .text-headline-lg-mobile {
     font-size: 28px;

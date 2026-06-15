@@ -8,12 +8,6 @@ interface SidebarContextType {
   setOpen: (v: boolean) => void;
 }
 
-function getInitialState(): boolean {
-  if (typeof window === "undefined") return true;
-  const saved = localStorage.getItem("aisam_sidebar_open");
-  return saved === null ? true : saved === "true";
-}
-
 const SidebarContext = createContext<SidebarContextType>({
   open: true,
   toggle: () => {},
@@ -21,7 +15,11 @@ const SidebarContext = createContext<SidebarContextType>({
 });
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(getInitialState);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const saved = localStorage.getItem("aisam_sidebar_open");
+    return saved !== null ? saved === "true" : true;
+  });
 
   const toggle = useCallback(() => {
     setOpen((prev) => {

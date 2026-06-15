@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getToken, getUserIdFromToken } from "@/lib/auth";
+import { getUserIdFromToken } from "@/lib/auth";
+import { apiClient } from "@/lib/apiClient";
+import type { ApiResponse } from "@/lib/apiTypes";
 import { getStoredActiveProfile, storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
 export interface Profile {
   id: string;
@@ -30,7 +30,6 @@ export function getProfileTypeLabel(type: number): string {
 
 let cachedProfiles: Profile[] | null = null;
 let cacheListeners: Array<() => void> = [];
-let fetchingProfiles = false;
 
 function notifyCache() {
   cacheListeners = cacheListeners.filter((fn) => {
@@ -70,27 +69,26 @@ export function useProfiles() {
     if (cachedProfiles) {
       const belongsToUser = userId && cachedProfiles.some((p) => p.userId === userId);
       if (belongsToUser) {
-        setProfiles(cachedProfiles);
-        setLoading(false);
+        const data = cachedProfiles;
+        queueMicrotask(() => {
+          setProfiles(data);
+          setLoading(false);
+        });
         return;
       }
       cachedProfiles = null;
     }
 
     if (!userId) {
-      setLoading(false);
-      setProfiles([]);
+      queueMicrotask(() => {
+        setLoading(false);
+        setProfiles([]);
+      });
       return;
     }
 
-    if (fetchingProfiles) return;
-    fetchingProfiles = true;
-
     try {
-      const res = await fetch(`${API_URL}/profiles/user/${userId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const result = await res.json();
+      const result = await apiClient<ApiResponse<Profile[]>>(`/profiles/user/${userId}`);
       if (result.success && Array.isArray(result.data)) {
         cachedProfiles = result.data;
         setProfiles(result.data);
@@ -101,13 +99,14 @@ export function useProfiles() {
       setError("Network error loading profiles");
     } finally {
       setLoading(false);
-      fetchingProfiles = false;
     }
   }, []);
 
   useEffect(() => {
     const isMounted = { current: true };
-    fetchProfiles();
+    queueMicrotask(() => {
+      if (isMounted.current) fetchProfiles();
+    });
     const listener = () => {
       if (isMounted.current) fetchProfiles();
     };

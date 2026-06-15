@@ -1,520 +1,945 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
+import { fetchContents, approveContent, rejectContent } from "@/services/contentService";
+import {
+  PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
+  BRAND_COLORS,
+} from "@/lib/contentConstants";
+import type { ContentItem } from "@/lib/mockContent";
 
-type ApprovalStatus = "Pending" | "Approved" | "Rejected" | "Revision Requested";
-type Urgency = "Urgent" | "Medium" | "Low";
+type TabKey = "all" | "pending" | "approved" | "rejected";
 
-type ApprovalItem = {
-  id: string;
-  title: string;
-  type: string;
-  brand: string;
-  campaign: string;
-  requester: string;
-  requesterInitials: string;
-  requesterTone: string;
-  urgency: Urgency;
-  status: ApprovalStatus;
-  locked?: boolean;
-  previewTone: string;
-  headline: string;
-  primaryText: string;
-};
-
-const approvals: ApprovalItem[] = [
-  {
-    id: "cloud-x-performance-hero",
-    title: "Cloud-X Performance Hero",
-    type: "Image + Copy Ad",
-    brand: "Lumina Tech",
-    campaign: "Q4 Tech Refresh Campaign",
-    requester: "AISAM Studio",
-    requesterInitials: "AI",
-    requesterTone: "bg-primary-container text-on-primary",
-    urgency: "Urgent",
-    status: "Pending",
-    previewTone: "from-blue-500 to-cyan-300",
-    headline: "Scale Faster with Cloud-X Intelligence",
-    primaryText: "Unlock the next era of infrastructure with AISAM-optimized targeting. Efficiency redefined for modern dev teams.",
-  },
-  {
-    id: "winter-elegance-promo",
-    title: "Winter Elegance Promo",
-    type: "Instagram Reel Content",
-    brand: "Velvet & Oak",
-    campaign: "Seasonal Trends 2024",
-    requester: "Sarah Adams",
-    requesterInitials: "SA",
-    requesterTone: "bg-secondary-fixed text-secondary",
-    urgency: "Medium",
-    status: "Pending",
-    locked: true,
-    previewTone: "from-violet-500 to-rose-300",
-    headline: "Winter Elegance Starts Here",
-    primaryText: "A quiet seasonal reel concept focused on texture, craft, and premium styling for the winter collection.",
-  },
-  {
-    id: "summit-retargeting-carousel",
-    title: "Summit Retargeting Carousel",
-    type: "Carousel Ad",
-    brand: "Summit Outdoor",
-    campaign: "Trail Ready Launch",
-    requester: "Marcus Lee",
-    requesterInitials: "ML",
-    requesterTone: "bg-tertiary-fixed text-tertiary",
-    urgency: "Low",
-    status: "Approved",
-    previewTone: "from-emerald-500 to-lime-300",
-    headline: "Built for the Long Route",
-    primaryText: "Retarget high-intent shoppers with rugged product proof, material details, and trail-tested positioning.",
-  },
-  {
-    id: "pulse-finance-static",
-    title: "Pulse Finance Static",
-    type: "LinkedIn Sponsored Post",
-    brand: "Pulse Finance",
-    campaign: "Portfolio Intelligence",
-    requester: "Nina Park",
-    requesterInitials: "NP",
-    requesterTone: "bg-surface-container-highest text-on-surface",
-    urgency: "Medium",
-    status: "Rejected",
-    previewTone: "from-slate-600 to-sky-300",
-    headline: "Sharper Allocation Decisions",
-    primaryText: "A financial services static asset that needs compliance review before returning to production.",
-  },
+const TEAM = [
+  { name: "Alex C.", color: "bg-blue-500" },
+  { name: "Jamie L.", color: "bg-emerald-500" },
+  { name: "Sam R.", color: "bg-amber-500" },
+  { name: "Taylor K.", color: "bg-purple-500" },
 ];
 
-const tabs: { label: string; value: "All" | ApprovalStatus; count: number }[] = [
-  { label: "All", value: "All", count: 102 },
-  { label: "Pending", value: "Pending", count: 12 },
-  { label: "Approved", value: "Approved", count: 84 },
-  { label: "Rejected", value: "Rejected", count: 6 },
-  { label: "Revision Requested", value: "Revision Requested", count: 0 },
-];
-
-const urgencyStyles = {
-  Urgent: "bg-error-container text-on-error-container",
-  Medium: "bg-surface-container-high text-on-surface-variant",
-  Low: "bg-primary-fixed text-primary",
+const DOT_COLORS: Record<TabKey, string> = {
+  all: "",
+  pending: "bg-warning-amber",
+  approved: "bg-emerald-500",
+  rejected: "bg-danger-red",
 };
 
-const statusStyles = {
-  Pending: "bg-warning-amber/20 text-on-surface",
-  Approved: "bg-success-green/10 text-success-green",
-  Rejected: "bg-error-container text-on-error-container",
-  "Revision Requested": "bg-secondary-fixed text-secondary",
-};
+type SortKey = "title" | "brandName" | "createdAt" | "type";
+type SortDir = "asc" | "desc";
 
-function ApprovalPreview({ item, large = false }: { item: ApprovalItem; large?: boolean }) {
+function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
+  if (activeKey !== key) {
+    return <span className="material-symbols-outlined text-[12px] text-outline/20 ml-0.5">unfold_more</span>;
+  }
+
   return (
-    <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${item.previewTone} ${large ? "aspect-[16/10]" : "h-12 w-16"} shadow-sm`}>
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,.35),transparent_45%,rgba(0,0,0,.16))]" />
-      <div className="absolute bottom-1.5 left-1.5 right-1.5 h-1 rounded-full bg-white/50" />
-      <div className={`${large ? "h-16 w-16" : "h-5 w-5"} absolute right-2 top-2 rounded-full bg-white/25`} />
-    </div>
+    <span className="material-symbols-outlined text-[12px] text-primary ml-0.5">
+      {direction === "asc" ? "expand_less" : "expand_more"}
+    </span>
   );
 }
 
-function Toast({ message, type }: { message: string; type: "success" | "error" }) {
-  if (!message) return null;
+function getPriority(item: ContentItem): { label: string; color: string } {
+  const tags = item.tags || [];
+  if (tags.some((t) => t === "Product Launch" || t === "Promotion"))
+    return { label: "Urgent", color: "text-danger-red bg-danger-red/10" };
+  if (tags.some((t) => t === "Seasonal"))
+    return { label: "Medium", color: "text-warning-amber bg-warning-amber/10" };
+  return { label: "Standard", color: "text-outline bg-surface-container-high" };
+}
 
-  return (
-    <div className="fixed bottom-8 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-4 rounded-2xl bg-inverse-surface px-5 py-4 text-inverse-on-surface shadow-2xl">
-      <div className={`flex h-8 w-8 items-center justify-center rounded-full ${type === "error" ? "bg-error" : "bg-success-green"}`}>
-        <span className="material-symbols-outlined text-[18px] text-white">{type === "error" ? "close" : "check"}</span>
-      </div>
-      <div>
-        <p className="text-body-sm font-bold">{message}</p>
-        <p className="text-label-sm opacity-70">The queue has been updated.</p>
-      </div>
-    </div>
-  );
+function getInitials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2);
+}
+
+function sortItems(list: ContentItem[], key: SortKey, dir: SortDir): ContentItem[] {
+  return [...list].sort((a, b) => {
+    let cmp = 0;
+    if (key === "title") cmp = a.title.localeCompare(b.title);
+    else if (key === "brandName") cmp = a.brandName.localeCompare(b.brandName);
+    else if (key === "createdAt") cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    else if (key === "type") cmp = a.type.localeCompare(b.type);
+    return dir === "asc" ? cmp : -cmp;
+  });
 }
 
 export default function ApprovalsPage() {
-  const [activeTab, setActiveTab] = useState<"All" | ApprovalStatus>("All");
-  const [brand, setBrand] = useState("All");
-  const [priority, setPriority] = useState("All");
-  const [layout, setLayout] = useState<"list" | "grid">("list");
-  const [selected, setSelected] = useState<ApprovalItem | null>(null);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" }>({ message: "", type: "success" });
+  const { activeWorkspace } = useWorkspaces();
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "undo"; id?: string; undo?: () => void } | null>(null);
+  const [tab, setTab] = useState<TabKey>("pending");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [confirmItem, setConfirmItem] = useState<ContentItem | null>(null);
+  const [drawerItem, setDrawerItem] = useState<ContentItem | null>(null);
+  const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
+  const [revisionNote, setRevisionNote] = useState("");
+  const revisionsRef = useRef<HTMLTextAreaElement>(null);
+  const pageSize = 15;
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    window.setTimeout(() => setToast({ message: "", type }), 2600);
+  const load = useCallback(async (reset = true) => {
+    if (reset) { setLoading(true); setPage(1); }
+    const statusMap: Record<string, number | undefined> = { all: undefined, pending: 1, approved: 4, rejected: 0 };
+    const result = await fetchContents({ pageSize: 100, status: statusMap[tab] });
+    setItems(result.items);
+    setLoading(false);
+  }, [tab, activeWorkspace?.id]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => load());
+  }, [load]);
+
+  const showToast = (message: string, type: "success" | "error" | "undo" = "success", undo?: () => void) => {
+    setToast({ message, type, undo });
+    setTimeout(() => setToast(null), type === "undo" ? 6000 : 3000);
   };
 
-  const filtered = useMemo(() => {
-    return approvals.filter((item) => {
-      const tabMatch = activeTab === "All" || item.status === activeTab;
-      const brandMatch = brand === "All" || item.brand === brand;
-      const priorityMatch = priority === "All" || item.urgency === priority;
-      return tabMatch && brandMatch && priorityMatch;
+  const handleApprove = async (id: string) => {
+    setActionId(id);
+    const item = items.find((i) => i.id === id);
+    await approveContent(id);
+    setItems((prev) => {
+      const removed = prev.find((i) => i.id === id);
+      return removed ? prev.filter((i) => i.id !== id) : prev;
     });
-  }, [activeTab, brand, priority]);
+    setActionId(null);
+    setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
+    if (drawerItem?.id === id) setDrawerItem(null);
+    if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
+    showToast(`"${item?.title || "Asset"}" approved`, "undo", () => { /* undo */ });
+  };
 
-  const selectedItem = selected ?? approvals[0];
+  const handleReject = async (id: string) => {
+    setConfirmItem(null);
+    setActionId(id);
+    const item = items.find((i) => i.id === id);
+    await rejectContent(id);
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setActionId(null);
+    setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
+    if (drawerItem?.id === id) setDrawerItem(null);
+    if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
+    showToast(`"${item?.title || "Asset"}" rejected`, "error");
+  };
+
+  const batchApprove = async () => {
+    for (const id of selected) {
+      setActionId(id);
+      await approveContent(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      setActionId(null);
+    }
+    showToast(`${selected.size} assets approved`, "success");
+    setSelected(new Set());
+  };
+
+  const batchReject = async () => {
+    for (const id of selected) {
+      setActionId(id);
+      await rejectContent(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      setActionId(null);
+    }
+    showToast(`${selected.size} assets rejected`, "error");
+    setSelected(new Set());
+  };
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const handleRequestChanges = (item: ContentItem) => {
+    setRevisionDrawer(item);
+    setRevisionNote("");
+    setTimeout(() => revisionsRef.current?.focus(), 100);
+  };
+
+  const submitRevision = async () => {
+    if (!revisionDrawer || !revisionNote.trim()) return;
+    setActionId(revisionDrawer.id);
+    await rejectContent(revisionDrawer.id);
+    setItems((prev) => prev.filter((i) => i.id !== revisionDrawer.id));
+    setActionId(null);
+    setRevisionDrawer(null);
+    setRevisionNote("");
+    showToast("Revision requested", "success");
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map((i) => i.id)));
+  };
+
+  const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
+    all: () => true,
+    pending: (i) => i.status === "Awaiting Approval",
+    approved: (i) => i.status === "Published",
+    rejected: (i) => i.status === "Draft",
+  };
+
+  const filtered = sortItems(
+    items
+      .filter(statusFilter[tab])
+      .filter((i) => !brandFilter || i.brandName === brandFilter)
+      .filter((i) => !priorityFilter || getPriority(i).label === priorityFilter)
+      .filter((i) => !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.brandName.toLowerCase().includes(search.toLowerCase())),
+    sortKey, sortDir,
+  );
+
+  const paged = filtered.slice(0, page * pageSize);
+
+  const tabCounts: Record<TabKey, number> = {
+    all: items.length,
+    pending: items.filter((i) => i.status === "Awaiting Approval").length,
+    approved: items.filter((i) => i.status === "Published").length,
+    rejected: items.filter((i) => i.status === "Draft").length,
+  };
+
+  const brands = [...new Set(items.map((i) => i.brandName))];
+
+  const SkeletonRow = () => (
+    <tr className="animate-pulse">
+      {[...Array(6)].map((_, i) => (
+        <td key={i} className="px-6 py-4"><div className="h-4 bg-surface-container-high rounded w-3/4" /></td>
+      ))}
+    </tr>
+  );
 
   return (
     <>
-      <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Approvals" }]} />
-      <main className="h-[calc(100vh-64px)] overflow-y-auto p-4 sm:p-6 lg:p-8">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-          <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <Header breadcrumbs={[
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Approvals" },
+      ]} />
+
+      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* ── Page Header ── */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <h1 className="text-headline-md font-bold text-on-surface sm:text-headline-lg">Content Approvals</h1>
-              <p className="mt-1 text-body-md text-on-surface-variant">Review and manage AI-generated marketing assets across your portfolio.</p>
+              <div className="flex items-center gap-3 mb-1">
+                <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">approval</span>
+                </span>
+                <h1 className="text-headline-sm text-on-surface font-bold">Content Approvals</h1>
+                <span className="text-label-xs text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-semibold">{filtered.length} items</span>
+              </div>
+              <p className="text-body-md text-on-surface-variant ml-11">Review and manage AI-generated marketing assets across your portfolio.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex -space-x-2">
-                {["JD", "AM", "+3"].map((initials, index) => (
-                  <span key={initials} className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold ${index === 0 ? "bg-blue-100 text-blue-700" : index === 1 ? "bg-purple-100 text-purple-700" : "bg-surface-container-high text-on-surface"}`}>
-                    {initials}
-                  </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center -space-x-2">
+                {TEAM.map((m, i) => (
+                  <span key={i}
+                    className={`w-8 h-8 rounded-full ${m.color} text-white text-label-xs font-bold flex items-center justify-center ring-2 ring-surface-container-lowest`}
+                    title={m.name}>{getInitials(m.name)}</span>
                 ))}
+                <span className="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant text-[14px] font-medium flex items-center justify-center ring-2 ring-surface-container-lowest cursor-pointer hover:bg-surface-container-high transition-all">
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                </span>
               </div>
-              <button className="text-label-md font-bold text-primary transition-colors hover:text-primary-container">Team Settings</button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => {
+                  const csv = ["Title,Brand,Type,Status,Platforms,Created"];
+                  filtered.forEach((i) => csv.push(`"${i.title}","${i.brandName}","${i.type}","${i.status}","${i.platforms.join(";")}","${i.createdAt}"`));
+                  const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "approvals.csv"; a.click();
+                  URL.revokeObjectURL(url);
+                  showToast("Exported to CSV", "success");
+                }}
+                  className="px-3 py-2 rounded-xl border border-outline-variant/20 text-label-sm text-on-surface-variant hover:bg-surface-container transition-all flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px]">file_download</span>
+                  Export
+                </button>
+                <button onClick={() => load()} disabled={loading}
+                  className="px-3 py-2 rounded-xl border border-outline-variant/20 text-label-sm text-on-surface-variant hover:bg-surface-container transition-all flex items-center gap-1.5">
+                  <span className={`material-symbols-outlined text-[14px] ${loading ? "animate-spin" : ""}`}>refresh</span>
+                  Refresh
+                </button>
+              </div>
             </div>
-          </section>
+          </div>
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            {[
-              { label: "Total Queue", value: "102", icon: "fact_check", color: "bg-primary-fixed text-primary" },
-              { label: "Pending Review", value: "12", icon: "pending_actions", color: "bg-warning-amber/20 text-on-surface" },
-              { label: "Approved", value: "84", icon: "verified", color: "bg-success-green/10 text-success-green" },
-              { label: "Rejected", value: "6", icon: "block", color: "bg-error-container text-on-error-container" },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-2xl border border-outline-variant/25 bg-surface-container-lowest p-5 shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.color}`}>
-                    <span className="material-symbols-outlined text-[22px]">{stat.icon}</span>
-                  </div>
-                  <div>
-                    <p className="text-label-md text-on-surface-variant">{stat.label}</p>
-                    <p className="text-headline-md font-bold text-on-surface">{stat.value}</p>
-                  </div>
-                </div>
-              </div>
+          {/* ── Status Tabs ── */}
+          <div className="border-b border-outline-variant flex gap-6">
+            {([
+              { key: "all", label: "All" },
+              { key: "pending", label: "Pending" },
+              { key: "approved", label: "Approved" },
+              { key: "rejected", label: "Rejected" },
+            ] as { key: TabKey; label: string }[]).map((t) => (
+              <button key={t.key} onClick={() => { setTab(t.key); setSelected(new Set()); }}
+                className={`pb-3 text-label-sm font-semibold transition-all border-b-2 ${
+                  tab === t.key
+                    ? "border-primary text-primary"
+                    : "border-transparent text-outline hover:text-on-surface"
+                }`}>
+                <span className="flex items-center gap-2">
+                  {DOT_COLORS[t.key] && <span className={`w-2 h-2 rounded-full ${DOT_COLORS[t.key]}`} />}
+                  {t.label}
+                  <span className="text-label-xs text-outline/60">({tabCounts[t.key]})</span>
+                </span>
+              </button>
             ))}
-          </section>
+          </div>
 
-          <section className="overflow-x-auto border-b border-outline-variant/40">
-            <div className="flex min-w-max gap-7">
-              {tabs.map((tab) => {
-                const active = activeTab === tab.value;
-                return (
-                  <button
-                    key={tab.label}
-                    className={`flex items-center gap-2 border-b-2 pb-4 text-body-sm font-bold transition-all ${active ? "border-primary text-primary" : "border-transparent text-outline hover:text-on-surface"}`}
-                    onClick={() => setActiveTab(tab.value)}
-                  >
-                    {tab.label} ({tab.count})
-                    {tab.value === "Pending" && <span className="h-2 w-2 rounded-full bg-warning-amber" />}
-                  </button>
-                );
-              })}
+          {/* ── Search + Filters ── */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline/40 text-[16px]">search</span>
+              <input value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by title or brand..."
+                className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-9 pr-9 py-2 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline/40 hover:text-outline">
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              )}
             </div>
-          </section>
+            <div className="relative">
+              <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}
+                className="appearance-none bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-4 pr-10 py-2 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all min-w-[140px]">
+                <option value="">Brand: All</option>
+                {brands.map((b) => (
+                  <option key={b} value={b}>Brand: {b}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[14px]">expand_more</span>
+            </div>
+            <div className="relative">
+              <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}
+                className="appearance-none bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-4 pr-10 py-2 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all min-w-[140px]">
+                <option value="">Priority: All</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Medium">Medium</option>
+                <option value="Standard">Standard</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[14px]">expand_more</span>
+            </div>
+          </div>
 
-          <section className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="relative">
-                <select className="appearance-none rounded-xl border border-outline-variant/40 bg-surface-container-lowest py-2 pl-4 pr-10 text-body-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10" onChange={(event) => setBrand(event.target.value)} value={brand}>
-                  <option value="All">Brand: All</option>
-                  <option value="Lumina Tech">Brand: Lumina Tech</option>
-                  <option value="Velvet & Oak">Brand: Velvet & Oak</option>
-                  <option value="Summit Outdoor">Brand: Summit Outdoor</option>
-                  <option value="Pulse Finance">Brand: Pulse Finance</option>
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-outline">expand_more</span>
-              </label>
-              <label className="relative">
-                <select className="appearance-none rounded-xl border border-outline-variant/40 bg-surface-container-lowest py-2 pl-4 pr-10 text-body-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10" onChange={(event) => setPriority(event.target.value)} value={priority}>
-                  <option value="All">Priority: All</option>
-                  <option value="Urgent">Urgent</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-outline">expand_more</span>
-              </label>
+          {/* ── Batch Actions Bar ── */}
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary/5 border border-primary/20 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <span className="text-label-sm font-semibold text-primary">{selected.size} selected</span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={batchApprove}
+                  className="px-4 py-1.5 bg-emerald-500 text-white text-label-xs font-bold rounded-lg hover:bg-emerald-600 transition-all flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                  Approve All
+                </button>
+                <button onClick={batchReject}
+                  className="px-4 py-1.5 bg-danger-red/10 text-danger-red text-label-xs font-bold rounded-lg hover:bg-danger-red/20 transition-all flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[12px]">block</span>
+                  Reject All
+                </button>
+                <button onClick={() => setSelected(new Set())}
+                  className="px-3 py-1.5 text-label-xs font-semibold text-outline hover:text-on-surface transition-all">Clear</button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-label-md text-outline">View:</span>
-              <button className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${layout === "grid" ? "bg-surface-container-high text-primary" : "text-outline hover:bg-surface-container"}`} onClick={() => setLayout("grid")} title="Grid view">
-                <span className="material-symbols-outlined text-[18px]">grid_view</span>
-              </button>
-              <button className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${layout === "list" ? "bg-surface-container-high text-primary" : "text-outline hover:bg-surface-container"}`} onClick={() => setLayout("list")} title="List view">
-                <span className="material-symbols-outlined text-[18px]">view_list</span>
-              </button>
-            </div>
-          </section>
+          )}
 
-          {layout === "list" ? (
-            <section className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-surface-container-lowest shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left">
-                  <thead className="bg-surface-container-low text-label-md uppercase tracking-wider text-outline">
+          {/* ── Content ── */}
+          {loading ? (
+            <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-surface-container-low">
+                  <tr>{["Content", "Brand", "Requester", "Platform", "Urgency", "Actions"].map((h) => (
+                    <th key={h} className="px-6 py-4"><div className="h-3 bg-surface-container-high rounded w-16" /></th>
+                  ))}</tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/20">
+                  {[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}
+                </tbody>
+              </table>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="w-24 h-24 bg-gradient-to-br from-surface-container to-surface-container-high rounded-full flex items-center justify-center mb-5 shadow-inner">
+                <span className="material-symbols-outlined text-5xl text-outline/30">done_all</span>
+              </div>
+              <h3 className="text-headline-sm text-on-surface font-semibold">
+                {search || brandFilter || priorityFilter ? "No matching results" : "Zero Pending Approvals"}
+              </h3>
+              <p className="text-body-sm text-outline mt-1 mb-6">
+                {search || brandFilter || priorityFilter ? "Try adjusting your search or filters." : "Your queue is empty. High five your team!"}
+              </p>
+              {(search || brandFilter || priorityFilter) && (
+                <button onClick={() => { setSearch(""); setBrandFilter(""); setPriorityFilter(""); }}
+                  className="text-label-sm text-primary font-semibold hover:underline">Clear all filters</button>
+              )}
+              {tab !== "all" && !search && !brandFilter && (
+                <button onClick={() => setTab("all")}
+                  className="text-label-sm text-primary font-semibold hover:underline">View all assets</button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-surface-container-low">
                     <tr>
-                      <th className="px-6 py-4 font-bold">Content Preview</th>
-                      <th className="px-6 py-4 font-bold">Brand & Context</th>
-                      <th className="px-6 py-4 font-bold">Requester</th>
-                      <th className="px-6 py-4 font-bold">Urgency</th>
-                      <th className="px-6 py-4 font-bold">Status</th>
-                      <th className="px-6 py-4 text-right font-bold">Actions</th>
+                      <th className="px-4 py-4 w-10">
+                        <div className="flex items-center justify-center">
+                          <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
+                            onChange={toggleSelectAll}
+                            className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface transition-colors"
+                        onClick={() => handleSort("title")}>
+                        <span className="flex items-center gap-0.5">Content{renderSortIcon(sortKey, sortDir, "title")}</span>
+                      </th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface transition-colors"
+                        onClick={() => handleSort("brandName")}>
+                        <span className="flex items-center gap-0.5">Brand{renderSortIcon(sortKey, sortDir, "brandName")}</span>
+                      </th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Requester</th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Platform</th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface transition-colors"
+                        onClick={() => handleSort("createdAt")}>
+                        <span className="flex items-center gap-0.5">Date{renderSortIcon(sortKey, sortDir, "createdAt")}</span>
+                      </th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Urgency</th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-outline-variant/30">
-                    {filtered.map((item) => (
-                      <tr key={item.id} className="group cursor-pointer transition-colors hover:bg-surface-container-low/50" onClick={() => { setRejectOpen(false); setSelected(item); }}>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-4">
-                            <ApprovalPreview item={item} />
-                            <div>
-                              <p className="text-body-sm font-bold text-on-surface">{item.title}</p>
-                              <p className="text-label-sm text-outline">{item.type}</p>
+                  <tbody className="divide-y divide-outline-variant/20">
+                    {paged.map((item) => {
+                      const typeCfg = getTypeConfig(item.type);
+                      const priority = getPriority(item);
+                      const brandColor = BRAND_COLORS[item.brandName] || "#6366f1";
+                      const isSelected = selected.has(item.id);
+                      return (
+                        <tr key={item.id}
+                          className={`transition-colors cursor-pointer group ${
+                            isSelected ? "bg-primary/5" : "hover:bg-surface-container-low/60"
+                          }`}
+                          onClick={() => setDrawerItem(item)}>
+                          <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center">
+                              <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)}
+                                className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer" />
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-body-sm font-bold text-primary">{item.brand}</p>
-                          <p className="text-label-sm text-outline">{item.campaign}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${item.requesterTone}`}>{item.requesterInitials}</span>
-                            <span className="text-body-sm text-on-surface">{item.requester}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold uppercase ${urgencyStyles[item.urgency]}`}>
-                            {item.urgency === "Urgent" && <span className="material-symbols-outlined text-[13px]">priority_high</span>}
-                            {item.urgency}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase ${statusStyles[item.status]}`}>{item.status}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {item.locked ? (
-                            <span className="inline-flex cursor-not-allowed items-center justify-end gap-1 text-label-sm font-semibold text-outline opacity-60">
-                              <span className="material-symbols-outlined text-[16px]">lock</span>
-                              Leader Only
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-14 h-11 rounded-lg bg-gradient-to-br ${getTypeStyle(item.type)} flex items-center justify-center text-white shrink-0 relative overflow-hidden`}>
+                                <span className="material-symbols-outlined text-[18px] relative z-10">{typeCfg.icon}</span>
+                                <div className="absolute inset-0 bg-white/10" />
+                              </div>
+                              <div>
+                                <p className="text-body-sm font-semibold text-on-surface leading-tight">{item.title}</p>
+                                <p className="text-[11px] text-outline mt-0.5">{item.type}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: brandColor }} />
+                              <div>
+                                <p className="text-body-sm font-semibold text-on-surface">{item.brandName}</p>
+                                <p className="text-[11px] text-outline">{item.productName}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white text-label-3xs font-bold shrink-0">
+                                <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                              </div>
+                              <span className="text-[11px] font-semibold text-on-surface bg-primary/5 px-1.5 py-0.5 rounded">AI</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1">
+                              {item.platforms.slice(0, 2).map((p) => {
+                                const cfg = PLATFORM_CONFIG[p];
+                                return cfg ? (
+                                  <span key={p} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-label-xs font-semibold"
+                                    style={{ backgroundColor: cfg.color + "15", color: cfg.color }}>
+                                    <PlatformIcon platform={cfg.icon} className="w-[12px] h-[12px]" />
+                                  </span>
+                                ) : null;
+                              })}
+                              {item.platforms.length > 2 && (
+                                <span className="text-label-xs text-outline font-medium px-1">+{item.platforms.length - 2}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-[11px] text-outline font-medium">{new Date(item.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-bold ${priority.color}`}>
+                              {priority.label === "Urgent" && <span className="material-symbols-outlined text-label-xs">priority_high</span>}
+                              {priority.label}
                             </span>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                              <button className="flex h-9 w-9 items-center justify-center rounded-lg text-success-green transition-all hover:bg-success-green/10" onClick={(event) => { event.stopPropagation(); showToast("Asset Approved"); }} title="Quick approve">
-                                <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                          </td>
+                          <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleApprove(item.id)} disabled={actionId === item.id}
+                                className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Approve (A)">
+                                {actionId === item.id ? (
+                                  <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin block" />
+                                ) : (
+                                  <span className="material-symbols-outlined text-[17px]">check_circle</span>
+                                )}
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
                               </button>
-                              <button className="flex h-9 w-9 items-center justify-center rounded-lg text-secondary transition-all hover:bg-secondary/10" onClick={(event) => { event.stopPropagation(); setSelected(item); }} title="Request changes">
-                                <span className="material-symbols-outlined text-[20px]">edit_note</span>
+                              <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id}
+                                className="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Request Changes">
+                                <span className="material-symbols-outlined text-[17px]">rate_review</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
                               </button>
-                              <button className="flex h-9 w-9 items-center justify-center rounded-lg text-danger-red transition-all hover:bg-danger-red/10" onClick={(event) => { event.stopPropagation(); showToast("Asset Rejected", "error"); }} title="Reject">
-                                <span className="material-symbols-outlined text-[20px]">cancel</span>
+                              <button onClick={() => setDrawerItem(item)}
+                                className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Review">
+                                <span className="material-symbols-outlined text-[17px]">visibility</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
+                              </button>
+                              <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />
+                              <button onClick={() => setConfirmItem(item)} disabled={actionId === item.id}
+                                className="p-2 text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Reject (R)">
+                                <span className="material-symbols-outlined text-[17px]">block</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Reject</span>
+                              </button>
+                              <button onClick={(e) => e.stopPropagation()}
+                                className="p-2 text-outline/40 hover:text-outline hover:bg-surface-container rounded-lg transition-all relative group/btn cursor-not-allowed" title="Leader Only">
+                                <span className="material-symbols-outlined text-[15px]">lock</span>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Leader only</span>
                               </button>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              {filtered.length === 0 && (
-                <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-                  <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-surface-container">
-                    <span className="material-symbols-outlined text-[40px] text-outline">done_all</span>
-                  </div>
-                  <h2 className="text-headline-sm font-bold text-on-surface">Zero Pending Approvals</h2>
-                  <p className="mt-2 text-body-sm text-outline">Your queue is empty.</p>
+
+              {/* Load More */}
+              {filtered.length > paged.length && (
+                <div className="flex justify-center pt-2">
+                  <button onClick={() => setPage((p) => p + 1)}
+                    className="px-6 py-3 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[14px]">expand_more</span>
+                    Load More ({filtered.length - paged.length} remaining)
+                  </button>
                 </div>
               )}
-            </section>
-          ) : (
-            <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((item) => (
-                <button key={item.id} className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-surface-container-lowest text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg" onClick={() => { setRejectOpen(false); setSelected(item); }}>
-                  <ApprovalPreview item={item} large />
-                  <div className="p-5">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-headline-sm font-bold text-on-surface">{item.title}</h2>
-                        <p className="text-body-sm text-on-surface-variant">{item.type}</p>
-                      </div>
-                      <span className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold uppercase ${urgencyStyles[item.urgency]}`}>{item.urgency}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-outline-variant/20 pt-4">
-                      <div>
-                        <p className="text-body-sm font-bold text-primary">{item.brand}</p>
-                        <p className="text-label-sm text-outline">{item.requester}</p>
-                      </div>
-                      <span className={`rounded-lg px-2 py-1 text-[10px] font-bold uppercase ${statusStyles[item.status]}`}>{item.status}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </section>
+            </>
           )}
-
-          <div className="flex justify-center">
-            <button className="rounded-full border border-outline-variant/40 px-6 py-2.5 text-label-md font-bold text-on-surface transition-all hover:bg-surface-container-low">
-              Load More History
-            </button>
-          </div>
         </div>
-      </main>
 
-      {selected && (
-        <>
-          <button aria-label="Close approval drawer" className="fixed inset-0 z-[60] bg-on-background/30 backdrop-blur-sm" onClick={() => setSelected(null)} />
-          <aside aria-labelledby="approval-drawer-title" aria-modal="true" className="fixed right-0 top-0 z-[70] flex h-screen w-full lg:w-[66.666vw] flex-col border-l border-outline-variant bg-surface-container-lowest shadow-2xl" role="dialog">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant bg-surface-container-lowest px-6 py-4">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-[26px] text-primary">fact_check</span>
-                <div>
-                  <h2 className="text-headline-sm font-bold text-on-surface" id="approval-drawer-title">Asset Approval Required</h2>
-                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">Campaign: {selectedItem.campaign}</p>
+        {/* ── Confirm Reject Modal ── */}
+        {confirmItem && (
+          <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setConfirmItem(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmItem(null)}>
+              <div className="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="w-12 h-12 rounded-full bg-danger-red/10 text-danger-red flex items-center justify-center mx-auto mb-4">
+                  <span className="material-symbols-outlined text-[24px]">block</span>
                 </div>
-              </div>
-              <button className="flex h-9 w-9 items-center justify-center rounded-full text-outline transition-all hover:bg-surface-container hover:text-on-surface" onClick={() => setSelected(null)} title="Close">
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            <div className="flex flex-1 flex-col gap-6 overflow-y-auto bg-surface-bright p-6 lg:flex-row">
-              <div className="flex w-full flex-col gap-6 lg:w-3/5">
-                <section className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-sm">
-                  <div className="relative">
-                    <ApprovalPreview item={selectedItem} large />
-                    <div className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest/90 px-3 py-1.5 text-label-sm font-bold text-on-surface shadow-sm backdrop-blur-md">
-                      <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                      AI Generated
-                    </div>
-                  </div>
-                  <div className="border-t border-outline-variant bg-surface-container-lowest p-5">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-label-md font-bold text-outline">Primary Text</span>
-                      <button className="flex h-8 w-8 items-center justify-center rounded-lg text-outline transition-all hover:bg-surface-container hover:text-primary" title="Copy text">
-                        <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                      </button>
-                    </div>
-                    <p className="text-body-md text-on-surface">{selectedItem.primaryText}</p>
-                  </div>
-                </section>
-
-                <section className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-sm">
-                  <div className="flex items-center gap-2 border-b border-outline-variant bg-surface-container-low p-4">
-                    <span className="material-symbols-outlined text-[20px] text-secondary">psychology</span>
-                    <h3 className="text-headline-sm text-[16px] font-bold text-on-surface">Generation Context</h3>
-                  </div>
-                  <div className="space-y-5 p-5">
-                    <div>
-                      <h4 className="mb-2 text-label-md font-bold text-on-surface-variant">Brand Context Applied</h4>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-primary-fixed px-2.5 py-1 text-label-sm font-bold text-primary">
-                          <span className="material-symbols-outlined text-[14px]">palette</span>
-                          Tone: Professional
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-secondary-fixed px-2.5 py-1 text-label-sm font-bold text-secondary">
-                          <span className="material-symbols-outlined text-[14px]">sell</span>
-                          Audience: B2B Executive
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="mb-2 text-label-md font-bold text-on-surface-variant">Product Rules Enforced</h4>
-                      <ul className="space-y-2">
-                        {[
-                          `Included exact brand name "${selectedItem.brand}"`,
-                          "Maintained clean product-first visual composition",
-                        ].map((rule) => (
-                          <li key={rule} className="flex items-start gap-2">
-                            <span className="material-symbols-outlined mt-0.5 text-[18px] text-success-green">check_circle</span>
-                            <span className="text-body-sm text-on-surface">{rule}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              <div className="flex w-full flex-col gap-6 border-t border-outline-variant pt-6 lg:w-2/5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-                <div className="flex gap-3 rounded-xl border border-primary-fixed bg-surface-container-low p-4">
-                  <span className="material-symbols-outlined text-primary">info</span>
-                  <p className="text-body-sm text-on-surface">Approval is required before this asset can be scheduled in a Campaign.</p>
-                </div>
-
-                <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-                  <h3 className="mb-4 text-label-md font-bold uppercase tracking-wide text-on-surface-variant">Review Actions</h3>
-                  <button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-label-md text-on-primary shadow-sm transition-all hover:bg-surface-tint" onClick={() => { showToast("Approved for Publishing"); setSelected(null); }}>
-                    <span className="material-symbols-outlined text-[18px]">thumb_up</span>
-                    Approve for Publishing
+                <h3 className="text-headline-sm font-bold text-on-surface text-center mb-2">Reject Asset?</h3>
+                <p className="text-body-sm text-outline text-center mb-6">This will reject &quot;{confirmItem.title}&quot; and move it to drafts.</p>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setConfirmItem(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all">Cancel</button>
+                  <button onClick={() => handleReject(confirmItem.id)} disabled={actionId === confirmItem.id}
+                    className="flex-1 py-2.5 rounded-xl bg-danger-red text-white text-label-sm font-bold hover:bg-danger-red/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    {actionId === confirmItem.id ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[16px]">block</span>
+                    )}
+                    Reject
                   </button>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-outline px-3 py-2.5 text-label-md text-on-surface transition-all hover:bg-surface-container">
-                      <span className="material-symbols-outlined text-[18px]">edit_note</span>
-                      Request Changes
-                    </button>
-                    <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-error/50 px-3 py-2.5 text-label-md text-error transition-all hover:bg-error-container" onClick={() => setRejectOpen(true)}>
-                      <span className="material-symbols-outlined text-[18px]">thumb_down</span>
-                      Reject
-                    </button>
-                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
-                  {rejectOpen && (
-                    <div className="mt-4 flex flex-col gap-2 border-t border-outline-variant pt-4">
-                      <label className="flex items-center gap-1 text-label-sm font-bold text-error" htmlFor="approval-feedback">
-                        <span className="material-symbols-outlined text-[14px]">warning</span>
-                        Required: Feedback for AI revision
-                      </label>
-                      <textarea
-                        className="min-h-24 resize-none rounded-xl border border-outline-variant bg-surface px-3 py-2 text-body-sm text-on-surface outline-none placeholder:text-outline focus:border-error focus:ring-2 focus:ring-error/10"
-                        id="approval-feedback"
-                        placeholder="Explain why this asset was rejected..."
-                      />
-                      <div className="mt-1 flex justify-end gap-2">
-                        <button className="rounded-lg px-3 py-1.5 text-label-sm text-on-surface-variant transition-all hover:bg-surface-container" onClick={() => setRejectOpen(false)}>
-                          Cancel
-                        </button>
-                        <button className="rounded-lg bg-error px-3 py-1.5 text-label-sm text-on-error shadow-sm transition-all hover:bg-danger-red" onClick={() => { showToast("Rejection Submitted", "error"); setSelected(null); }}>
-                          Submit Rejection
-                        </button>
+        {/* ── Details Modal ── */}
+        {drawerItem && (
+          <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setDrawerItem(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDrawerItem(null)}>
+            <div className="w-full max-w-2xl max-h-[90vh] bg-surface-container-lowest rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between shrink-0 bg-surface-container-low/30">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-sm`}>
+                    <span className="material-symbols-outlined text-[18px]">{getTypeConfig(drawerItem.type).icon}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-label-sm font-bold text-on-surface">Asset Review</h3>
+                    <p className="text-label-xs text-outline">{drawerItem.type} · ID: {drawerItem.id.toUpperCase()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setDrawerItem(null)} className="p-2 hover:bg-surface-container rounded-lg transition-all">
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <div className="relative w-full aspect-[2/1] bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${getTypeStyle(drawerItem.type)} opacity-15`} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent" />
+                  <div className="relative z-10 flex flex-col items-center gap-3">
+                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-lg`}>
+                      <span className="material-symbols-outlined text-4xl">{getTypeConfig(drawerItem.type).icon}</span>
+                    </div>
+                    <span className="text-label-sm font-semibold text-on-surface-variant bg-surface-container-lowest/80 backdrop-blur-sm px-4 py-1.5 rounded-full">
+                      {drawerItem.type} Asset Preview
+                    </span>
+                  </div>
+                  <div className="absolute top-3 right-3 flex gap-1.5">
+                    <span className="text-label-xs font-bold px-2 py-1 rounded-md bg-surface-container-lowest/70 backdrop-blur-sm text-on-surface-variant">
+                      {getTypeConfig(drawerItem.type).label}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-label-xs font-bold ${getPriority(drawerItem).color}`}>
+                      {getPriority(drawerItem).label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-7">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-headline-sm font-bold text-on-surface leading-snug">{drawerItem.title}</h2>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND_COLORS[drawerItem.brandName] || "#6366f1" }} />
+                          <span className="text-body-sm text-on-surface-variant">{drawerItem.brandName}</span>
+                        </div>
+                        <span className="text-outline/30">·</span>
+                        <span className="text-body-sm text-on-surface-variant">{drawerItem.productName}</span>
                       </div>
                     </div>
-                  )}
-                </section>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
+                      drawerItem.status === "Awaiting Approval" ? "bg-warning-amber/10 text-warning-amber ring-1 ring-warning-amber/20" :
+                      drawerItem.status === "Published" ? "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/20" :
+                      "bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant/20"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        drawerItem.status === "Awaiting Approval" ? "bg-warning-amber animate-pulse" :
+                        drawerItem.status === "Published" ? "bg-emerald-500" :
+                        "bg-outline"
+                      }`} />
+                      {drawerItem.status}
+                    </span>
+                  </div>
 
-                <section className="flex-1">
-                  <h3 className="mb-4 text-label-md font-bold uppercase tracking-wide text-on-surface-variant">Audit Trail</h3>
-                  <div className="relative ml-2 space-y-6 border-l-2 border-outline-variant pl-4">
-                    {[
-                      { dot: "bg-primary", title: "Pending Review", meta: "Assigned to: Jane Doe (Manager)", time: "Just now", icon: "schedule" },
-                      { dot: "bg-surface-container-highest", title: "Asset Generated", meta: "By: AISAM Studio Model v4.2", time: "Oct 24, 2023 - 10:15 AM", icon: "history" },
-                      { dot: "bg-surface-container-highest", title: "Prompt Submitted", meta: `By: ${selectedItem.requester}`, time: "Oct 24, 2023 - 10:12 AM", icon: "history" },
-                    ].map((entry) => (
-                      <div key={entry.title} className="relative">
-                        <span className={`absolute -left-[23px] top-1 h-3 w-3 rounded-full border-2 border-surface-container-lowest ${entry.dot}`} />
-                        <p className="text-label-md font-bold text-on-surface">{entry.title}</p>
-                        <p className="mt-0.5 text-body-sm text-outline">{entry.meta}</p>
-                        <p className="mt-1 flex items-center gap-1 text-label-sm text-outline">
-                          <span className="material-symbols-outlined text-[14px]">{entry.icon}</span>
-                          {entry.time}
-                        </p>
+                  <section>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { icon: "article", label: "Headline", value: drawerItem.title, full: true },
+                        { icon: "calendar_today", label: "Created", value: new Date(drawerItem.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
+                        { icon: "person", label: "Requester", value: "AISAM · AI Generated", badge: true },
+                        { icon: "business", label: "Brand", value: `${drawerItem.brandName} · ${drawerItem.productName}`, color: BRAND_COLORS[drawerItem.brandName] || "#6366f1" },
+                        { icon: "flag", label: "Priority", value: getPriority(drawerItem).label, chip: getPriority(drawerItem).color },
+                      ].map((f, i) => (
+                        <div key={i} className={`${f.full ? "col-span-2" : ""} p-4 rounded-xl bg-surface-container-low border border-outline-variant/10`}>
+                          <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest mb-2">
+                            <span className="material-symbols-outlined text-[11px]">{f.icon}</span>
+                            {f.label}
+                          </label>
+                          {f.badge ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white shrink-0">
+                                <span className="material-symbols-outlined text-label-xs">auto_awesome</span>
+                              </div>
+                              <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
+                            </div>
+                          ) : f.chip ? (
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-bold ${f.chip}`}>{f.value}</span>
+                          ) : f.color ? (
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
+                              <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
+                            </div>
+                          ) : (
+                            <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {drawerItem.tags && drawerItem.tags.length > 0 && (
+                    <section>
+                      <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
+                        <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest mb-2.5">
+                          <span className="material-symbols-outlined text-[11px]">label</span>
+                          Campaign Tags
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {drawerItem.tags.map((tag) => (
+                            <span key={tag}
+                              className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-label-xs font-medium border border-outline-variant/10">{tag}</span>
+                          ))}
+                        </div>
                       </div>
+                    </section>
+                  )}
+
+                  <hr className="border-outline-variant/20" />
+
+                  <section>
+                    <h4 className="text-label-xs text-outline uppercase font-bold tracking-widest mb-4 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[14px]">share</span>
+                      Distribution
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {drawerItem.platforms.map((p) => {
+                        const cfg = PLATFORM_CONFIG[p];
+                        return cfg ? (
+                          <div key={p} className="flex items-center gap-3 px-4 py-3 rounded-xl border"
+                            style={{ backgroundColor: cfg.color + "06", color: cfg.color, borderColor: cfg.color + "15" }}>
+                            <PlatformIcon platform={cfg.icon} className="w-[18px] h-[18px]" />
+                            <div>
+                              <p className="text-[11px] font-bold">{cfg.label}</p>
+                              <p className="text-label-2xs opacity-60">Post scheduled</p>
+                            </div>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  </section>
+
+                  <hr className="border-outline-variant/20" />
+
+                  <section>
+                    <h4 className="text-label-xs text-outline uppercase font-bold tracking-widest mb-5 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[14px]">timeline</span>
+                      Audit Trail
+                    </h4>
+                    <div className="space-y-0">
+                      {[
+                        { icon: "auto_awesome", color: "bg-primary/10 text-primary", label: "AISAM generated content", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: "AI-generated marketing asset created" },
+                        { icon: "assignment", color: "bg-sky-500/10 text-sky-500", label: "Content review assigned", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: `Assigned to ${TEAM.map((t) => t.name).join(", ")}` },
+                        { icon: "flag", color: "bg-warning-amber/15 text-warning-amber", label: "Submitted for approval", time: "Pending", desc: "Awaiting review decision" },
+                      ].map((step, i) => (
+                        <div key={i} className="flex gap-4 relative pb-6 last:pb-0">
+                          {i < 2 && <div className="absolute left-3 top-6 bottom-0 w-px bg-outline-variant/30" />}
+                          <div className={`w-6 h-6 rounded-full ${step.color} flex items-center justify-center z-10 shrink-0 ring-2 ring-surface-container-lowest`}>
+                            <span className="material-symbols-outlined text-[11px]">{step.icon}</span>
+                          </div>
+                          <div className="pt-0.5 flex-1 min-w-0">
+                            <p className="text-body-sm font-semibold text-on-surface">{step.label}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-label-xs text-outline">{step.time}</span>
+                              {step.desc && (
+                                <>
+                                  <span className="text-outline/20">·</span>
+                                  <span className="text-label-xs text-outline">{step.desc}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
+                <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
+                  className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
+                  {actionId === drawerItem.id ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[17px]">verified</span>
+                  )}
+                  Approve
+                </button>
+                <button onClick={() => { handleRequestChanges(drawerItem); setDrawerItem(null); }}
+                  className="flex-1 bg-secondary/5 text-secondary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary/10 active:scale-[0.98] transition-all border border-secondary/20">
+                  <span className="material-symbols-outlined text-[17px]">rate_review</span>
+                  Revise
+                </button>
+                <button onClick={() => setConfirmItem(drawerItem)} disabled={actionId === drawerItem.id}
+                  className="px-4 py-3 bg-danger-red/5 text-danger-red rounded-xl text-label-sm font-bold hover:bg-danger-red/10 active:scale-[0.98] transition-all disabled:opacity-50 border border-danger-red/20">
+                  <span className="material-symbols-outlined text-[17px]">block</span>
+                </button>
+              </div>
+            </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Revision Request Modal ── */}
+        {revisionDrawer && (
+          <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }}>
+            <div className="w-full max-w-lg max-h-[85vh] bg-surface-container-lowest rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between shrink-0 bg-surface-container-low/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-warning-amber/10 text-warning-amber flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[18px]">rate_review</span>
+                  </div>
+                  <div>
+                    <h3 className="text-label-sm font-bold text-on-surface">Request Changes</h3>
+                    <p className="text-label-xs text-outline">Send feedback for AI revision</p>
+                  </div>
+                </div>
+                <button onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }} className="p-2 hover:bg-surface-container rounded-lg transition-all">
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getTypeStyle(revisionDrawer.type)} flex items-center justify-center text-white shrink-0 shadow-sm`}>
+                    <span className="material-symbols-outlined text-[22px]">{getTypeConfig(revisionDrawer.type).icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body-sm font-bold text-on-surface truncate">{revisionDrawer.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-label-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: (BRAND_COLORS[revisionDrawer.brandName] || "#6366f1") + "15", color: BRAND_COLORS[revisionDrawer.brandName] || "#6366f1" }}>
+                        {revisionDrawer.brandName}
+                      </span>
+                      <span className="text-outline/20">·</span>
+                      <span className="text-label-xs text-outline">{revisionDrawer.type}</span>
+                      <span className="text-outline/20">·</span>
+                      <span className="text-label-xs text-outline">{revisionDrawer.productName}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/10">
+                    <label className="text-label-3xs text-outline uppercase font-bold tracking-widest block mb-1">Platforms</label>
+                    <div className="flex flex-wrap gap-1">
+                      {revisionDrawer.platforms.map((p) => {
+                        const cfg = PLATFORM_CONFIG[p];
+                        return cfg ? (
+                          <span key={p} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-label-2xs font-semibold"
+                            style={{ backgroundColor: cfg.color + "12", color: cfg.color }}>
+                            <PlatformIcon platform={cfg.icon} className="w-[9px] h-[9px]" />
+                            {cfg.label}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/10">
+                    <label className="text-label-3xs text-outline uppercase font-bold tracking-widest block mb-1">Priority</label>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold ${getPriority(revisionDrawer).color}`}>
+                      {getPriority(revisionDrawer).label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-warning-amber/5 to-transparent border border-warning-amber/20">
+                  <span className="material-symbols-outlined text-warning-amber text-[16px] shrink-0 mt-0.5">info</span>
+                  <p className="text-label-xs text-outline leading-relaxed">Your feedback will be sent to AISAM for regeneration. The current version will be rejected and replaced with a new AI-generated version addressing your notes.</p>
+                </div>
+
+                <div>
+                  <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Quick suggestions</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Adjust copy", "Change image", "Fix CTA", "Branding issue", "Tone of voice", "Formatting", "Other"].map((s) => (
+                      <button key={s} onClick={() => {
+                        const current = revisionNote;
+                        const prefix = current ? (current.endsWith(".") || current.endsWith("\n") ? " " : ". ") : "";
+                        setRevisionNote(current + prefix + s + ".");
+                        revisionsRef.current?.focus();
+                      }}
+                        className="px-2.5 py-1.5 rounded-lg border border-outline-variant/20 text-label-2xs font-semibold text-on-surface-variant hover:bg-surface-container hover:border-outline-variant/40 transition-all active:scale-95">
+                        {s}
+                      </button>
                     ))}
                   </div>
-                </section>
+                </div>
+
+                <div>
+                  <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">
+                    Revision Notes <span className="text-danger-red">*</span>
+                  </label>
+                  <div className="relative">
+                    <textarea ref={revisionsRef} value={revisionNote} onChange={(e) => setRevisionNote(e.target.value.slice(0, 500))}
+                      placeholder="Describe what needs to be changed — be specific about copy, visuals, tone, or CTA..."
+                      className="w-full h-36 bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all resize-none" />
+                    <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+                      <div className="h-1 w-20 rounded-full overflow-hidden bg-outline-variant/30">
+                        <div className={`h-full rounded-full transition-all duration-300 ${
+                          revisionNote.length > 450 ? "bg-danger-red" :
+                          revisionNote.length > 400 ? "bg-warning-amber" :
+                          "bg-primary/40"
+                        }`} style={{ width: `${Math.min(100, (revisionNote.length / 500) * 100)}%` }} />
+                      </div>
+                      <span className={`text-label-2xs font-semibold ${
+                        revisionNote.length >= 500 ? "text-danger-red" :
+                        revisionNote.length > 400 ? "text-warning-amber" :
+                        "text-outline"
+                      }`}>{revisionNote.length}/500</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
+                <button onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }}
+                  className="px-5 py-2.5 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container rounded-xl transition-all">Cancel</button>
+                <button onClick={submitRevision} disabled={!revisionNote.trim() || actionId === revisionDrawer.id}
+                  className="flex-1 bg-gradient-to-r from-warning-amber to-amber-500 text-white py-2.5 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:from-warning-amber/90 hover:to-amber-500/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
+                  {actionId === revisionDrawer.id ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[16px]">send</span>
+                  )}
+                  Submit Revision Request
+                </button>
               </div>
             </div>
-          </aside>
-        </>
-      )}
+            </div>
+          </>
+        )}
 
-      <Toast message={toast.message} type={toast.type} />
+        {/* ── Toast ── */}
+        {toast && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-4 bg-inverse-surface text-inverse-on-surface px-6 py-4 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className={`w-9 h-9 rounded-full ${toast.type === "success" ? "bg-emerald-500" : toast.type === "undo" ? "bg-primary" : "bg-danger-red"} flex items-center justify-center shrink-0 shadow-lg`}>
+              <span className="material-symbols-outlined text-white text-[16px]">
+                {toast.type === "success" ? "check" : toast.type === "undo" ? "undo" : "close"}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-label-sm font-bold">{toast.message}</p>
+            </div>
+            {toast.type === "undo" && (
+              <button onClick={() => { setToast(null); }}
+                className="text-label-sm font-bold text-primary hover:text-primary/80 transition-all">Undo</button>
+            )}
+            <button onClick={() => setToast(null)} className="p-1 hover:bg-white/10 rounded-full transition-all">
+              <span className="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+        )}
+      </main>
     </>
   );
 }

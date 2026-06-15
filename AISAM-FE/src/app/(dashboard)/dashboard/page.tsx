@@ -1,9 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type WorkspaceDashboard } from "@/services/workspaceService";
+import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
+import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
+import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -36,14 +41,12 @@ function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffi
 
 function AnimatedBar({ value, color, delay = 600 }: { value: number; color: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const delayRef = useRef(delay);
-  delayRef.current = delay;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const timer = setTimeout(() => { el.style.width = `${value}%`; }, delayRef.current);
+    const timer = setTimeout(() => { el.style.width = `${value}%`; }, delay);
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, delay]);
   return (
     <div className="w-full h-2 bg-surface-container/60 rounded-full overflow-hidden">
       <div ref={ref} className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`} style={{ width: "0%" }} />
@@ -59,26 +62,27 @@ function parseCurrency(str: string) {
   return parseFloat(str.replace(/[^0-9.]/g, ""));
 }
 
-const kpiData = [
-  { icon: "insights", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "Total Reach", value: "1.2M", delta: "+12%", deltaUp: true, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
-  { icon: "bolt", iconBg: "from-purple-500/20 to-purple-600/10", iconColor: "text-purple-500", label: "Engagement Rate", value: "4.8%", delta: "+0.5%", deltaUp: true, gradient: "from-purple-500/5 to-transparent", accent: "#a855f7" },
-  { icon: "layers", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Active Campaigns", value: "12", delta: "Steady", deltaUp: null, gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
-  { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: "850", max: "1000", pct: 85, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
-];
+function formatScheduleDate(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return `Today, ${timeStr}`;
+  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow, ${timeStr}`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + `, ${timeStr}`;
+}
 
-const scheduleData = [
-  { title: "Winter Collection 2024", platform: "FB", time: "Today, 2:30 PM", platformColor: "text-blue-600", platformBg: "bg-blue-100" },
-  { title: "Coffee Morning Blast", platform: "IG", time: "Tomorrow, 9:00 AM", platformColor: "text-pink-600", platformBg: "bg-pink-100" },
-  { title: "Enterprise Data Launch", platform: "LI", time: "Nov 3, 11:15 AM", platformColor: "text-blue-700", platformBg: "bg-blue-100" },
-  { title: "Spring Launch Teaser", platform: "IG", time: "Nov 5, 10:00 AM", platformColor: "text-pink-600", platformBg: "bg-pink-100" },
-  { title: "Customer Success Story", platform: "LI", time: "Nov 7, 2:00 PM", platformColor: "text-blue-700", platformBg: "bg-blue-100" },
-  { title: "Weekend Flash Sale", platform: "FB", time: "Nov 9, 9:00 AM", platformColor: "text-blue-600", platformBg: "bg-blue-100" },
-];
+const PLATFORM_DISPLAY: Record<string, { color: string; bg: string }> = {
+  facebook: { color: "text-blue-600", bg: "bg-blue-100" },
+  instagram: { color: "text-pink-600", bg: "bg-pink-100" },
+  tiktok: { color: "text-white", bg: "bg-neutral-900" },
+};
 
 const campaignsData = [
   { name: "Winter Collection 2024", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$5,000", spent: "$3,240", status: "Active" },
   { name: "Coffee Morning Blast", platform: "INSTAGRAM", color: "text-pink-600", bg: "bg-pink-50", budget: "$2,500", spent: "$1,120", status: "Active" },
-  { name: "Enterprise Data Launch", platform: "LINKEDIN", color: "text-blue-700", bg: "bg-blue-50", budget: "$12,000", spent: "$8,450", status: "Active" },
+  { name: "Enterprise Data Launch", platform: "TIKTOK", color: "text-black", bg: "bg-gray-50", budget: "$12,000", spent: "$8,450", status: "Active" },
   { name: "Flash Sale Q4", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$1,500", spent: "$1,500", status: "Completed" },
   { name: "Brand Awareness 2024", platform: "INSTAGRAM", color: "text-pink-600", bg: "bg-pink-50", budget: "$8,000", spent: "$2,100", status: "Active" },
 ];
@@ -86,19 +90,40 @@ const campaignsData = [
 const aiSuggestions = [
   { icon: "trending_up", bg: "from-blue-500/10 to-blue-600/5", color: "text-blue-500", title: "Eco-Friendly Packaging", desc: "Trending in your niche. 85% predicted engagement for video content." },
   { icon: "schedule", bg: "from-purple-500/10 to-purple-600/5", color: "text-purple-500", title: "Morning Routine Series", desc: "High conversion potential for Instagram Stories between 7-9 AM." },
-  { icon: "psychology", bg: "from-orange-500/10 to-orange-600/5", color: "text-orange-500", title: "Behind the Scenes", desc: "Builds brand trust. Recommended for LinkedIn carousel posts." },
+  { icon: "psychology", bg: "from-orange-500/10 to-orange-600/5", color: "text-orange-500", title: "Behind the Scenes", desc: "Builds brand trust. Highly engaging across all platforms." },
   { icon: "celebration", bg: "from-emerald-500/10 to-emerald-600/5", color: "text-emerald-500", title: "Holiday Gift Guide", desc: "Early interest detected. Start teaser campaigns this week." },
 ];
 
 export default function DashboardPage() {
-  const { activeProfile } = useProfiles();
-  const profileName = activeProfile?.name || "User";
+  const { activeWorkspace } = useWorkspaces();
+  const workspaceName = activeWorkspace?.name || "User";
   const [visible, setVisible] = useState(false);
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
+  const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
+
+  const loadSchedules = () => {
+    fetchUpcomingSchedules(6).then(setScheduleItems);
+  };
+
+  useEffect(() => {
+    loadSchedules();
+    const unsubscribe = onScheduleChange(loadSchedules);
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
+    fetchPostQuota(activeWorkspace?.id).then(q => { if (q) setPostQuota(q); });
+    fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
+  }, [activeWorkspace?.id]);
 
   return (
     <>
@@ -188,7 +213,7 @@ export default function DashboardPage() {
                     if (h < 12) return "Good morning";
                     if (h < 18) return "Good afternoon";
                     return "Good evening";
-                  })()}, <span className="text-primary">{profileName}</span>!
+                  })()}, <span className="text-primary">{workspaceName}</span>!
                 </h2>
                 <p className="text-body-lg text-on-surface-variant max-w-xl mb-6">Here&apos;s your brand performance snapshot. Everything you need is right here.</p>
 
@@ -196,13 +221,13 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-2.5">
                     <div className="flex -space-x-1.5">
                       <div className="w-8 h-8 rounded-full bg-[#1877F2] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0s" }}>
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        <PlatformIcon platform="facebook" className="w-4 h-4" />
                       </div>
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0.15s" }}>
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                        <PlatformIcon platform="instagram" className="w-4 h-4" />
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-[#0A66C2] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0.3s" }}>
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                      <div className="w-8 h-8 rounded-full bg-[#111111] flex items-center justify-center hover:scale-110 transition-transform shadow-sm" style={{ animation: "float-y 2s ease-in-out infinite", animationDelay: "0.3s" }}>
+                        <PlatformIcon platform="tiktok" className="w-4 h-4" />
                       </div>
                     </div>
                     <span className="text-label-sm text-on-surface-variant">3 platforms connected</span>
@@ -220,12 +245,19 @@ export default function DashboardPage() {
               <div className="hidden lg:flex flex-col items-center gap-3 shrink-0">
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-outline-variant/30 flex items-center justify-center shadow-sm">
                   <span className="text-[28px] font-bold text-primary">
-                    {profileName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                    {workspaceName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                   </span>
                 </div>
                 <div className="text-center">
-                  <p className="text-body-sm text-on-surface font-semibold">{profileName}</p>
-                  <p className="text-label-sm text-outline">Active Profile</p>
+                  <p className="text-body-sm text-on-surface font-semibold">{workspaceName}</p>
+                  <p className="text-label-sm text-outline mb-2">{activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace"}</p>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-label-xs font-semibold hover:bg-primary/20 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    Create Workspace
+                  </button>
                 </div>
               </div>
             </div>
@@ -234,7 +266,12 @@ export default function DashboardPage() {
 
         {/* ===== KPI GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
-          {kpiData.map((kpi, i) => (
+          {[
+            { icon: "insights", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "Total Reach", value: "1.2M", delta: "+12%", deltaUp: true, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
+            { icon: "bolt", iconBg: "from-purple-500/20 to-purple-600/10", iconColor: "text-purple-500", label: "Engagement Rate", value: "4.8%", delta: "+0.5%", deltaUp: true, gradient: "from-purple-500/5 to-transparent", accent: "#a855f7" },
+            { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 850), max: "15000", pct: Math.min(100, Math.round(((creditBalance ?? 850) / 15000) * 100)), gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
+            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? 0), max: String(postQuota?.total ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
+          ].map((kpi, i) => (
             <div
               key={kpi.label}
               className={`relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden group ${visible ? "animate-fade-up" : ""} card-hover`}
@@ -261,12 +298,12 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-label-sm text-on-surface-variant mb-1.5 font-medium">{kpi.label}</p>
                 <div className="flex items-baseline gap-2">
-                  <h3 className="text-[32px] font-bold text-on-surface leading-none tracking-tight">
+                  <h3 className="text-kpi-lg text-on-surface">
                     <CountUp value={kpi.value} />
                   </h3>
                   {kpi.max && <span className="text-label-md text-outline">/ {kpi.max}</span>}
                 </div>
-                {kpi.pct && (
+                {kpi.pct !== undefined && (
                   <div className="mt-3">
                     <AnimatedBar value={kpi.pct} color="bg-gradient-to-r from-emerald-400 to-emerald-500" delay={800 + i * 100} />
                   </div>
@@ -284,7 +321,7 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="text-headline-sm text-on-surface">Performance Overview</h4>
-                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-semibold inline-flex items-center gap-1">
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold inline-flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                     LIVE
                   </span>
@@ -327,21 +364,21 @@ export default function DashboardPage() {
               <div className="absolute top-4 right-4 flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-[#0f62fe] rounded animate-glow-pulse" />
-                  <span className="text-[10px] text-outline">Engagement</span>
+                  <span className="text-label-xs text-outline">Engagement</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-[#731be5]" style={{ borderTop: "1px dashed" }} />
-                  <span className="text-[10px] text-outline">Predicted</span>
+                  <span className="text-label-xs text-outline">Predicted</span>
                 </div>
               </div>
               <div className="absolute right-0 top-0 bottom-0 w-1/4 bg-gradient-to-r from-transparent to-primary/[0.02] border-l border-dashed border-primary/20 flex items-center justify-center backdrop-blur-[1px]">
-                <div className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1.5 rounded-full text-[10px] font-semibold flex items-center gap-1.5 shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
+                <div className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1.5 rounded-full text-label-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
                   <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
                   AI PREDICTION
                 </div>
               </div>
             </div>
-            <div className="flex justify-between mt-4 px-1 text-[10px] text-outline font-medium">
+            <div className="flex justify-between mt-4 px-1 text-label-xs text-outline font-medium">
               <span className="hover:text-on-surface transition-colors cursor-pointer">Oct 01</span>
               <span className="relative hover:text-on-surface transition-colors cursor-pointer">Oct 15 <span className="absolute -top-1 -right-2 w-1.5 h-1.5 bg-primary rounded-full animate-ping" style={{ animationDuration: "2s" }} /></span>
               <span className="text-primary font-bold cursor-pointer">Today</span>
@@ -354,32 +391,49 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <h4 className="text-headline-sm text-on-surface">Schedule</h4>
-                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px] font-semibold">{scheduleData.length}</span>
+                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-label-xs font-semibold">{scheduleItems.length}</span>
               </div>
-              <button className="text-label-sm text-primary font-semibold hover:text-primary-container transition-colors flex items-center gap-1 group">
+              <Link href="/calendar" className="text-label-sm text-primary font-semibold hover:text-primary-container transition-colors flex items-center gap-1 group">
                 View All
                 <span className="material-symbols-outlined text-[14px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-              </button>
+              </Link>
             </div>
             <div className="space-y-2 flex-1">
-              {scheduleData.map((post, i) => (
-                <div
-                  key={i}
-                  className="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-container hover:shadow-sm transition-all duration-200 cursor-pointer"
-                  style={{ animation: `slide-up-row 0.4s ease-out ${0.42 + i * 0.06}s forwards`, opacity: 0 }}
-                >
-                  <div className={`w-10 h-10 rounded-xl ${post.platformBg} flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
-                    <span className={`text-[11px] font-bold ${post.platformColor}`}>{post.platform}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title}</p>
-                    <p className="text-[11px] text-outline">{post.time}</p>
-                  </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
-                    <span className="material-symbols-outlined text-outline text-[18px]">more_vert</span>
-                  </div>
+              {scheduleItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <span className="material-symbols-outlined text-outline/40 text-[32px] mb-2">calendar_month</span>
+                  <p className="text-body-sm text-outline">No upcoming schedules</p>
                 </div>
-              ))}
+              ) : scheduleItems.map((post, i) => {
+                const pConfig = PLATFORM_CONFIG[post.platform || "facebook"];
+                const pDisplay = PLATFORM_DISPLAY[post.platform || "facebook"] || { color: "text-outline", bg: "bg-surface-container-high" };
+                return (
+                  <div
+                    key={post.id}
+                    className="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-container hover:shadow-sm transition-all duration-200 cursor-pointer"
+                    style={{ animation: `slide-up-row 0.4s ease-out ${0.42 + i * 0.06}s forwards`, opacity: 0 }}
+                  >
+                    <div className={`w-10 h-10 rounded-xl ${pDisplay.bg} flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
+                      {pConfig ? (
+                        <PlatformIcon platform={post.platform || "facebook"} className="w-[18px] h-[18px]" />
+                      ) : (
+                        <span className={`text-label-sm font-bold ${pDisplay.color}`}>{(post.platform || "?").slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title || "Untitled"}</p>
+                      <p className="text-label-sm text-outline">{formatScheduleDate(post.scheduledAt)}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-label-2xs font-semibold tracking-wide ${
+                      post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
+                      post.status === "Failed" ? "bg-red-50 text-red-500" :
+                      "bg-amber-50 text-amber-600"
+                    }`}>
+                      {post.status}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-4 pt-4 border-t border-outline-variant/20">
               <div className="p-3.5 bg-gradient-to-r from-purple-500/[0.06] to-purple-500/[0.02] rounded-xl border border-purple-500/10 hover:border-purple-500/20 transition-colors">
@@ -387,7 +441,7 @@ export default function DashboardPage() {
                   <span className="material-symbols-outlined text-purple-500 text-[16px] animate-float">auto_awesome</span>
                   <span className="text-label-sm text-purple-600 font-semibold">AI Insight</span>
                 </div>
-                <p className="text-[11px] leading-relaxed text-on-surface-variant">
+                <p className="text-label-sm leading-relaxed text-on-surface-variant">
                   Your audience is <span className="text-on-surface font-semibold">24% more active</span> at 8:00 PM on Sundays. Consider rescheduling.
                 </p>
               </div>
@@ -400,9 +454,16 @@ export default function DashboardPage() {
           <div className="px-6 py-5 border-b border-outline-variant/20 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h4 className="text-headline-sm text-on-surface">Recent Campaigns</h4>
-              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-semibold">{campaignsData.length} active</span>
+              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">{campaignsData.length} active</span>
             </div>
-            <button className="flex items-center gap-1.5 text-label-sm text-primary font-semibold hover:text-primary-container transition-colors group">
+            <button onClick={() => {
+              const csv = ["Name,Platform,Budget,Spent,Status"];
+              campaignsData.forEach((c) => csv.push(`"${c.name}","${c.platform}","${c.budget}","${c.spent}","${c.status}"`));
+              const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "campaigns-export.csv"; a.click();
+              URL.revokeObjectURL(url);
+            }} className="flex items-center gap-1.5 text-label-sm text-primary font-semibold hover:text-primary-container transition-colors group">
               <span className="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">download</span>
               Export CSV
             </button>
@@ -434,7 +495,7 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 ${row.bg} ${row.color} rounded-lg text-[10px] font-bold tracking-wide inline-block hover:scale-105 transition-transform`}>{row.platform}</span>
+                      <span className={`px-2.5 py-1 ${row.bg} ${row.color} rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform`}>{row.platform}</span>
                     </td>
                     <td className="px-6 py-4 text-body-sm text-on-surface font-medium">{row.budget}</td>
                     <td className="px-6 py-4">
@@ -532,7 +593,7 @@ export default function DashboardPage() {
                 </div>
                 <h6 className="text-label-md text-on-surface font-semibold mb-2 group-hover:text-primary transition-colors">{item.title}</h6>
                 <p className="text-[12px] text-on-surface-variant leading-relaxed">{item.desc}</p>
-                <div className="mt-3 flex items-center gap-1 text-[10px] text-primary font-semibold opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0">
+                <div className="mt-3 flex items-center gap-1 text-label-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0">
                   View insights <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
                 </div>
                 <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary/[0.03] to-transparent rounded-bl-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -545,17 +606,17 @@ export default function DashboardPage() {
         <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.96s" }}>
           <div className="flex items-center gap-2 mb-6">
             <h4 className="text-headline-sm text-on-surface">Platform Distribution</h4>
-            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-semibold">TOTAL 4</span>
+            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">TOTAL 4</span>
           </div>
           <div className="h-56 flex items-end gap-6 px-4 pb-2 border-b border-outline-variant/20">
             {[
               { label: "Facebook", height: "85%", color: "bg-gradient-to-t from-blue-500 to-blue-400", value: "45%" },
               { label: "Instagram", height: "65%", color: "bg-gradient-to-t from-purple-500 to-purple-400", value: "28%" },
-              { label: "LinkedIn", height: "40%", color: "bg-gradient-to-t from-amber-500 to-amber-400", value: "18%" },
+              { label: "TikTok", height: "40%", color: "bg-gradient-to-t from-amber-500 to-amber-400", value: "18%" },
               { label: "Others", height: "25%", color: "bg-gradient-to-t from-outline to-outline-variant", value: "9%" },
             ].map((item, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                <span className="text-[10px] text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</span>
+                <span className="text-label-xs text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</span>
                 <div
                   className={`w-full ${item.color} rounded-t-lg transition-all duration-700 group-hover:rounded-t-xl`}
                   style={{
@@ -585,6 +646,8 @@ export default function DashboardPage() {
           </div>
         </footer>
       </main>
+
+      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
 }

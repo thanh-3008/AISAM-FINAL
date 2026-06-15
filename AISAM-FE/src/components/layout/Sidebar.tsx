@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { useProfiles, getProfileTypeLabel } from "@/hooks/useProfiles";
-import { logout } from "@/lib/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { getUserFromToken, logout } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
+import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 type NavItemConfig = {
   label: string;
@@ -18,26 +20,31 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
   {
     label: "Dashboard",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
+      { label: "Dashboard", href: "/dashboard", icon: "space_dashboard" },
     ],
   },
   {
     label: "Content Workspace",
     items: [
-      { label: "Brand Kit", href: "/brands", icon: "inventory_2" },
-      { label: "Content", href: "/content", icon: "photo_library", disabled: true },
-      { label: "Approvals", href: "/approvals", icon: "fact_check" },
-      { label: "Posts", href: "/posts", icon: "send", disabled: true },
-      { label: "Calendar", href: "/calendar", icon: "event" },
+      { label: "Brand Kit", href: "/brands", icon: "palette" },
+      { label: "Content", href: "/content", icon: "description" },
+      { label: "Approvals", href: "/approvals", icon: "task_alt" },
+      { label: "Posts", href: "/posts", icon: "send" },
+      { label: "Calendar", href: "/calendar", icon: "calendar_month" },
     ],
   },
   {
     label: "Marketing",
     items: [
-      { label: "Social Accounts", href: "/social", icon: "share" },
-      { label: "Teams", href: "/teams", icon: "group" },
-      { label: "Campaigns", href: "/campaigns", icon: "campaign", disabled: true },
-      { label: "Analysis", href: "/analytics", icon: "bar_chart", disabled: true },
+      { label: "Social Accounts", href: "/social", icon: "public" },
+      { label: "Campaigns", href: "/campaigns", icon: "campaign" },
+      { label: "Analysis", href: "/analytics", icon: "bar_chart" },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
+      { label: "Team Management", href: "/team", icon: "group" },
     ],
   },
 ];
@@ -65,7 +72,7 @@ function NavItem({ href, icon, label, active, disabled }: NavItemConfig & { acti
     return (
       <div className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-on-surface-variant/40 cursor-not-allowed" title="Coming soon">
         {content}
-        <span className="ml-auto text-[9px] text-outline/30 font-semibold tracking-wider">SOON</span>
+        <span className="ml-auto text-label-2xs text-outline/30 font-semibold tracking-wider">SOON</span>
       </div>
     );
   }
@@ -86,29 +93,44 @@ function NavItem({ href, icon, label, active, disabled }: NavItemConfig & { acti
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [profileOpen, setProfileOpen] = useState(false);
-  const { profiles, loading, activeProfile } = useProfiles();
-  const [hoveredProfile, setHoveredProfile] = useState<string | null>(null);
+  const router = useRouter();
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
+  const [user, setUser] = useState<{ name?: string; email?: string } | null>(() => getUserFromToken());
+  const [hoveredWorkspace, setHoveredWorkspace] = useState<string | null>(null);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
-  const displayName = activeProfile?.name || "No Profile";
-  const displayPlan = activeProfile ? getProfileTypeLabel(activeProfile.profileType) : "—";
-  const initials = activeProfile ? getInitials(activeProfile.name) : "?";
+  const displayName = activeWorkspace?.name || "No Workspace";
+  const displayPlan = activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "—";
+  const initials = activeWorkspace ? getInitials(activeWorkspace.name) : "?";
 
   const { open, toggle } = useSidebar();
+  const featureGate = useFeatureGate();
+
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.label === "Team Management") return featureGate.canAccess("teamManagement");
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-full w-sidebar-width bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 flex flex-col z-50 transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      className={`fixed left-0 top-0 h-full bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 flex flex-col z-50 transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      style={{ width: "var(--spacing-sidebar-width)" }}
     >
       {/* Logo + Toggle */}
       <div className="flex items-center justify-between px-5 pt-6 pb-5 border-b border-outline-variant/20 mx-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
             <span className="material-symbols-outlined text-on-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
-              auto_awesome
+              psychology
             </span>
           </div>
           <div className={open ? "" : "hidden"}>
@@ -117,89 +139,13 @@ export default function Sidebar() {
           </div>
         </div>
         <button onClick={toggle} className={`w-8 h-8 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all ${open ? "" : "hidden"}`} title="Collapse sidebar">
-          <span className="material-symbols-outlined text-outline text-[18px]">menu_open</span>
+          <span className="material-symbols-outlined text-outline text-[18px]">chevron_left</span>
         </button>
-      </div>
-
-      {/* Profile Selector */}
-      <div className="relative px-4 mt-4 mb-3">
-        <button
-          onClick={() => setProfileOpen(!profileOpen)}
-          className="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-surface-container to-surface-container-low border border-outline-variant/20 flex items-center gap-2.5 hover:from-surface-container-high hover:to-surface-container transition-all duration-200 text-left group"
-        >
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center shrink-0 text-on-primary text-label-sm font-bold shadow-sm">
-            {loading ? "?" : initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-label-md text-on-surface truncate font-medium">
-              {loading ? (
-                <span className="inline-block w-16 h-3 bg-surface-container-high rounded animate-pulse" />
-              ) : displayName}
-            </p>
-            <p className="text-[10px] text-label-sm text-on-surface-variant truncate">
-              {loading ? "" : displayPlan}
-            </p>
-          </div>
-          <span className={`material-symbols-outlined text-on-surface-variant text-[18px] shrink-0 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}>
-            unfold_more
-          </span>
-        </button>
-
-        {profileOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-            <div className="absolute left-4 right-4 top-full mt-1.5 bg-surface-container-lowest/95 backdrop-blur-xl border border-outline-variant/20 rounded-xl shadow-2xl z-20 py-1.5 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
-              {profiles.map((p) => {
-                const active = activeProfile?.id === p.id;
-                return (
-                  <Link
-                    key={p.id}
-                    href={`/profiles/${p.id}`}
-                    onClick={() => setProfileOpen(false)}
-                    onMouseEnter={() => setHoveredProfile(p.id)}
-                    onMouseLeave={() => setHoveredProfile(null)}
-                    className={`flex items-center gap-3 px-4 py-2.5 transition-all duration-150 ${
-                      active
-                        ? "bg-gradient-to-r from-primary/8 to-transparent"
-                        : hoveredProfile === p.id ? "bg-surface-container" : ""
-                    }`}
-                  >
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-label-sm font-bold transition-all ${
-                      active
-                        ? "bg-primary text-on-primary shadow-sm"
-                        : "bg-surface-container-high text-on-surface-variant"
-                    }`}>
-                      {getInitials(p.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-body-sm text-on-surface truncate font-medium">{p.name}</p>
-                      <p className="text-[10px] text-label-sm text-on-surface-variant truncate">{getProfileTypeLabel(p.profileType)}</p>
-                    </div>
-                    {active && (
-                      <span className="material-symbols-outlined text-primary text-[16px] shrink-0">check</span>
-                    )}
-                  </Link>
-                );
-              })}
-              <div className="border-t border-outline-variant/20 mt-1 pt-1 mx-3">
-                <Link
-                  href="/profiles/new"
-                  onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-surface-container transition-all duration-150 text-primary text-body-sm font-medium"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  Create New Profile
-                </Link>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto space-y-1 px-4 pb-4 scrollbar-thin relative">
-        <div className="sticky top-0 h-4 bg-gradient-to-b from-surface-container-lowest/90 to-transparent pointer-events-none -mx-4 -mt-4 mb-0 z-10" />
-        {navSections.map((section) => {
+      <nav className="flex-1 space-y-1 px-4 pb-4 relative">
+        {visibleSections.map((section) => {
           const isContent = section.label === "Content Workspace";
           const isMarketing = section.label === "Marketing";
           return (
@@ -226,27 +172,122 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Scroll fade */}
-      <div className="h-3 bg-gradient-to-t from-surface-container-lowest/90 to-transparent -mt-3 pointer-events-none relative z-10" />
-
-      {/* System Section */}
+      {/* Logout */}
       <div className="border-t border-outline-variant/20 px-4 pt-3 pb-4">
-        <p className="text-label-sm text-outline/50 mb-2 px-2 tracking-wider">System</p>
-        <div className="space-y-0.5">
-          <div className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-on-surface-variant/40 cursor-not-allowed" title="Coming soon">
-            <span className="material-symbols-outlined text-[20px]">settings</span>
-            <span className="text-body-sm font-semibold">Settings</span>
-            <span className="ml-auto text-[9px] text-outline/30 font-semibold tracking-wider">SOON</span>
-          </div>
-          <button
+        <button
             onClick={async () => { await logout(); window.location.href = "/login"; }}
             className="w-full group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-on-surface-variant hover:bg-surface-container hover:text-danger-red text-left"
           >
             <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform duration-200">logout</span>
             <span className="text-body-sm font-semibold">Logout</span>
           </button>
-        </div>
       </div>
+
+      {/* Workspace Selector - Bottom */}
+      <div className="relative px-4 pb-4 mt-auto">
+        <button
+          onClick={() => setWorkspaceOpen(!workspaceOpen)}
+          className="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-surface-container to-surface-container-low border border-outline-variant/20 flex items-center gap-2.5 hover:from-surface-container-high hover:to-surface-container transition-all duration-200 text-left group"
+        >
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center shrink-0 text-on-primary text-label-sm font-bold shadow-sm">
+            {loading ? "?" : initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-label-md text-on-surface truncate font-medium">
+                {loading ? (
+                  <span className="inline-block w-16 h-3 bg-surface-container-high rounded animate-pulse" />
+                ) : displayName}
+              </p>
+              {!loading && activeWorkspace && (
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border ${
+                  activeWorkspace.workspaceType === 2 
+                    ? "bg-purple-50 text-purple-700 border-purple-200/50" 
+                    : "bg-blue-50 text-blue-700 border-blue-200/50"
+                }`}>
+                  <span className="material-symbols-outlined text-[10px]">
+                    {activeWorkspace.workspaceType === 2 ? "business" : "person"}
+                  </span>
+                  {activeWorkspace.workspaceType === 2 ? "Business" : "Personal"}
+                </span>
+              )}
+            </div>
+            <p className="text-label-xs text-label-sm text-on-surface-variant truncate">
+              {loading ? "" : displayPlan}
+            </p>
+          </div>
+          <span className={`material-symbols-outlined text-on-surface-variant text-[18px] shrink-0 transition-transform duration-200 ${workspaceOpen ? "rotate-180" : ""}`}>
+            unfold_more
+          </span>
+        </button>
+
+        {workspaceOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setWorkspaceOpen(false)} />
+            <div className="absolute left-4 right-4 bottom-full mb-2 bg-surface-container-lowest/95 backdrop-blur-xl border border-outline-variant/20 rounded-xl shadow-2xl z-20 py-1.5 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
+              {workspaces.length === 0 ? (
+                <div className="px-4 py-3 text-center">
+                  <p className="text-label-sm text-on-surface-variant mb-2">No workspaces yet</p>
+                  <button
+                    onClick={() => { setWorkspaceOpen(false); setShowCreateModal(true); }}
+                    className="text-label-sm text-primary font-semibold hover:text-primary/80"
+                  >
+                    Create workspace
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {workspaces.map((w) => {
+                    const active = activeWorkspace?.id === w.id;
+                    return (
+                      <button
+                        key={w.id}
+                        onClick={() => { selectWorkspace(w); setWorkspaceOpen(false); }}
+                        onMouseEnter={() => setHoveredWorkspace(w.id)}
+                        onMouseLeave={() => setHoveredWorkspace(null)}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 transition-all duration-150 text-left ${
+                          active
+                            ? "bg-gradient-to-r from-primary/8 to-transparent"
+                            : hoveredWorkspace === w.id ? "bg-surface-container" : ""
+                        }`}
+                      >
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-label-sm font-bold transition-all ${
+                          active
+                            ? "bg-primary text-on-primary shadow-sm"
+                            : "bg-surface-container-high text-on-surface-variant"
+                        }`}>
+                          {getInitials(w.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-body-sm text-on-surface truncate font-medium">{w.name}</p>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-label-2xs font-semibold border shrink-0 ${
+                              w.workspaceType === 2 
+                                ? "bg-purple-50 text-purple-700 border-purple-200/50" 
+                                : "bg-blue-50 text-blue-700 border-blue-200/50"
+                            }`}>
+                              <span className="material-symbols-outlined text-[10px]">
+                                {w.workspaceType === 2 ? "business" : "person"}
+                              </span>
+                              {w.workspaceType === 2 ? "Business" : "Personal"}
+                            </span>
+                          </div>
+                          <p className="text-label-xs text-label-sm text-on-surface-variant truncate">{getWorkspaceTypeLabel(w.workspaceType)}</p>
+                        </div>
+                        {active && (
+                          <span className="material-symbols-outlined text-primary text-[16px] shrink-0">check</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </aside>
   );
 }

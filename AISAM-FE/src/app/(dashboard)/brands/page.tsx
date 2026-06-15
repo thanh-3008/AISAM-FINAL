@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import Link from "next/link";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/apiClient";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
 import EditBrandModal from "@/components/brands/EditBrandModal";
 
@@ -26,12 +26,12 @@ interface Brand {
 }
 
 const BRAND_COLORS = [
-  { gradient: "from-blue-600 to-blue-400", light: "bg-blue-50", text: "text-blue-600", ring: "ring-blue-200" },
-  { gradient: "from-emerald-600 to-emerald-400", light: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-200" },
-  { gradient: "from-violet-600 to-violet-400", light: "bg-violet-50", text: "text-violet-600", ring: "ring-violet-200" },
-  { gradient: "from-rose-600 to-rose-400", light: "bg-rose-50", text: "text-rose-600", ring: "ring-rose-200" },
-  { gradient: "from-amber-600 to-amber-400", light: "bg-amber-50", text: "text-amber-600", ring: "ring-amber-200" },
-  { gradient: "from-cyan-600 to-cyan-400", light: "bg-cyan-50", text: "text-cyan-600", ring: "ring-cyan-200" },
+  { gradient: "from-primary/85 to-primary/35", light: "bg-primary/10" },
+  { gradient: "from-primary/60 to-primary/25", light: "bg-primary/7" },
+  { gradient: "from-primary/75 to-primary/30", light: "bg-primary/8" },
+  { gradient: "from-primary/50 to-primary/20", light: "bg-primary/6" },
+  { gradient: "from-primary/80 to-primary/40", light: "bg-primary/9" },
+  { gradient: "from-primary/55 to-primary/25", light: "bg-primary/7" },
 ];
 
 const MOCK_BRANDS: Brand[] = [
@@ -47,31 +47,48 @@ function getInitials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }
 
+const easeOut = [0.16, 1, 0.3, 1] as const;
+const easeIn = [0.4, 0, 1, 1] as const;
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.5, delay: i * 0.06, ease: easeOut },
+  }),
+  exit: { opacity: 0, y: -10, scale: 0.96, transition: { duration: 0.25, ease: easeIn } },
+};
+
+function pickColor(id: string) {
+  const idx = id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % BRAND_COLORS.length;
+  return BRAND_COLORS[idx];
+}
+
 export default function BrandsPage() {
   const router = useRouter();
-  const { activeProfile } = useProfiles();
+  const prefersReducedMotion = useReducedMotion();
+  const { activeWorkspace } = useWorkspaces();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null);
-  const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 80);
-    return () => clearTimeout(timer);
-  }, []);
+  const fadeUp = prefersReducedMotion ? { initial: {}, animate: {} } : {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+  };
 
   const fetchBrands = useCallback(async () => {
-    if (!activeProfile) { setLoading(false); setBrands(MOCK_BRANDS); return; }
+    if (!activeWorkspace) { setLoading(false); setBrands(MOCK_BRANDS); return; }
     try {
-      const result = await apiFetch(`/brands?profileId=${activeProfile.id}&pageSize=100`);
+      const result = await apiFetch(`/brands?workspaceId=${activeWorkspace.id}&pageSize=100`);
       if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
       else setBrands(MOCK_BRANDS);
     } catch { setBrands(MOCK_BRANDS); }
     finally { setLoading(false); }
-  }, [activeProfile]);
+  }, [activeWorkspace]);
 
   useEffect(() => { fetchBrands(); }, [fetchBrands]);
 
@@ -118,130 +135,122 @@ export default function BrandsPage() {
 
   return (
     <>
-      <style>{`
-        @keyframes fade-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        @keyframes bar-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-        .animate-fade-up { animation: fade-up 0.5s ease-out forwards; opacity: 0; }
-        .animate-float { animation: float 4s ease-in-out infinite; }
-        .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 40px -12px rgba(0,0,0,0.15); }
-        @supports (animation-timeline: scroll()) {
-          .shimmer-bg { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); background-size: 200% 100%; animation: shimmer 3s ease-in-out infinite; }
-        }
-        .shimmer-bg {
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
-          background-size: 200% 100%;
-          animation: shimmer 3s ease-in-out infinite;
-        }
-      `}</style>
-
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Brands" }]} />
-      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-8">
+      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-10">
 
         {/* ─── Hero ─── */}
-        <div className={`flex items-center justify-between ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0s" }}>
-          <div className="flex items-center gap-3">
+        <motion.div {...fadeUp} transition={{ duration: 0.6, ease: easeOut }} className="flex items-end justify-between">
+          <div className="flex items-center gap-4">
             <div className="relative w-10 h-10 shrink-0">
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 animate-float shadow-md shadow-primary/20" />
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 animate-float shadow-lg shadow-primary/20" />
               <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/15 to-transparent" />
               <div className="relative w-full h-full flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-primary text-[20px]">workspace_premium</span>
+                <span className="material-symbols-outlined text-on-primary text-[20px]">style</span>
               </div>
             </div>
             <div>
-              <h1 className="text-headline-sm font-bold text-on-surface">Brand Management</h1>
-              <p className="text-body-sm text-on-surface-variant">Manage your brand portfolios and product catalogs</p>
+              <h1 className="text-headline-sm font-bold text-on-surface">Brands</h1>
+              <p className="text-body-sm text-on-surface-variant mt-1 max-w-lg">
+                Manage your brand portfolios and products.
+              </p>
             </div>
           </div>
           <button onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-label-sm hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97] transition-all shrink-0">
-            <span className="material-symbols-outlined text-[16px]">add</span>
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all shrink-0">
+            <span className="material-symbols-outlined text-[18px]">add</span>
             New Brand
           </button>
-        </div>
+        </motion.div>
 
         {/* ─── Stats ─── */}
         {!loading && brands.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
             {[
-              { label: "Total Brands", value: stats.total, icon: "inventory_2", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", bar: "bg-blue-500", accent: "#3b82f6" },
-              { label: "With Products", value: stats.active, icon: "check_circle", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", bar: "bg-emerald-500", accent: "#10b981" },
-              { label: "No Products", value: stats.draft, icon: "edit_note", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", bar: "bg-amber-500", accent: "#f59e0b" },
+              { label: "Total Brands", value: stats.total, icon: "style", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6", bar: "from-blue-400 to-blue-500" },
+              { label: "With Products", value: stats.active, icon: "check_circle", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", gradient: "from-emerald-500/5 to-transparent", accent: "#10b981", bar: "from-emerald-400 to-emerald-500" },
+              { label: "No Products", value: stats.draft, icon: "edit_note", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b", bar: "from-amber-400 to-amber-500" },
             ].map((s, i) => (
-              <div key={s.label}
-                className={`relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden group ${visible ? "animate-fade-up" : ""} card-hover`}
-                style={{ animationDelay: `${0.08 + 0.08 * i}s` }}>
-                <div className="p-5 flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${s.iconBg} flex items-center justify-center ${s.iconColor} shrink-0`}>
-                    <span className="material-symbols-outlined text-[24px]">{s.icon}</span>
+              <motion.div key={s.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: i * 0.1, ease: easeOut }}
+                className="relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden group card-hover"
+                style={{ animationDelay: `${0.08 * i}s` }}>
+                <div className={`absolute inset-0 bg-gradient-to-br ${s.gradient} pointer-events-none`} />
+                <div className="absolute inset-x-0 top-0 h-0.5 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" style={{ background: `linear-gradient(90deg, transparent, ${s.accent}, transparent)` }} />
+                <div className="relative p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${s.iconBg} flex items-center justify-center ${s.iconColor} group-hover:scale-110 transition-transform duration-300`}>
+                      <span className="material-symbols-outlined text-[18px]">{s.icon}</span>
+                    </div>
+                    <span className="flex items-center gap-1 text-label-2xs px-2 py-0.5 rounded-full font-semibold bg-outline/5 text-on-surface-variant">
+                      {stats.total > 0 ? Math.round((s.value / stats.total) * 100) : 0}%
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-[9px] text-outline/50 uppercase tracking-widest font-semibold">{s.label}</p>
-                    <p className="text-3xl font-extrabold text-on-surface tabular-nums tracking-tight">{s.value}</p>
+                  <p className="text-label-xs text-outline mb-0.5 font-medium">{s.label}</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-extrabold text-on-surface tabular-nums tracking-tight">{s.value}</span>
+                    {s.label === "Total Brands" && (
+                      <span className="text-label-2xs text-outline">total</span>
+                    )}
+                  </div>
+                  <div className="mt-2.5 h-1 bg-outline/5 rounded-full overflow-hidden">
+                    <motion.div
+                      className={`h-full rounded-full bg-gradient-to-r ${s.bar}`}
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${Math.min(100, (s.value / (stats.total || 1)) * 100)}%` }}
+                      transition={{ duration: 1, delay: 0.5 + i * 0.12, ease: easeOut }} />
                   </div>
                 </div>
-                <div className="h-1 bg-outline-variant/10 mx-5 mb-4 overflow-hidden rounded-full">
-                  <div className={`h-full ${s.bar} rounded-full`} style={{ width: `${Math.min(100, (s.value / (stats.total || 1)) * 100)}%`, animation: `${visible ? "bar-rise 0.8s ease-out 0.5s forwards" : "none"}`, transformOrigin: "bottom", transform: "scaleY(0)" }} />
-                </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
 
         {/* ─── Search ─── */}
-        <div className={`flex flex-col sm:flex-row gap-2 items-stretch sm:items-center ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.32s" }}>
-          <div className="flex-1 relative max-w-sm">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-outline/40 pointer-events-none">
+        <motion.div {...fadeUp} transition={{ duration: 0.5, delay: 0.2, ease: easeOut }}>
+          <div className="flex-1 relative max-w-md">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-outline/35 pointer-events-none transition-colors group-focus-within:text-primary/50">
               <span className="material-symbols-outlined text-[18px]">search</span>
             </span>
-            <input className="w-full bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 pl-10 pr-9 text-body-sm placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm"
+            <input className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl py-2.5 pl-10 pr-9 text-body-sm placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/8 outline-none transition-all shadow-sm"
               placeholder="Search brands..." value={search} onChange={(e) => setSearch(e.target.value)} />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline/40 hover:text-on-surface active:scale-[0.97]">
+              <button onClick={() => setSearch("")} className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline/40 hover:text-on-surface active:scale-[0.97] focus-visible:outline-none">
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             )}
           </div>
-        </div>
-        {hasFilters && (
-          <div className={`flex flex-wrap items-center gap-1.5 -mt-5 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.4s" }}>
-            {search && (
-              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/8 text-primary text-[10px] font-semibold">
+          {hasFilters && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="inline-flex items-center gap-0.5 px-2.5 py-0.5 rounded-full bg-primary/8 text-primary text-label-xs font-semibold">
                 &ldquo;{search}&rdquo;
-                <button onClick={() => setSearch("")} className="hover:text-primary/60 active:scale-[0.97]"><span className="material-symbols-outlined text-[10px]">close</span></button>
+                <button onClick={() => setSearch("")} className="hover:text-primary/60 active:scale-[0.97] focus-visible:outline-none">
+                  <span className="material-symbols-outlined text-label-xs">close</span>
+                </button>
               </span>
-            )}
-            <button onClick={clearFilters} className="text-[10px] text-outline/40 hover:text-on-surface underline underline-offset-2 decoration-dotted ml-0.5">Clear</button>
-          </div>
-        )}
+              <button onClick={clearFilters} className="text-label-xs text-outline/40 hover:text-on-surface underline underline-offset-2 decoration-dotted ml-0.5 focus-visible:outline-none">Clear</button>
+            </div>
+          )}
+        </motion.div>
 
-        {/* ─── Content ─── */}
+        {/* ─── Cards ─── */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl overflow-hidden animate-pulse">
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-surface-container" />
-                    <div className="space-y-2 flex-1">
-                      <div className="h-5 w-40 bg-surface-container rounded" />
-                      <div className="h-3 w-24 bg-surface-container rounded" />
-                    </div>
-                  </div>
-                  <div className="h-3 w-full bg-surface-container rounded" />
-                  <div className="h-3 w-3/4 bg-surface-container rounded" />
-                  <div className="flex gap-4 pt-2">
-                    <div className="h-4 w-16 bg-surface-container rounded" />
-                    <div className="h-4 w-16 bg-surface-container rounded" />
-                  </div>
+              <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl overflow-hidden">
+                <div className="h-32 bg-surface-container animate-pulse" />
+                <div className="p-5 space-y-3">
+                  <div className="h-5 w-2/3 bg-surface-container animate-pulse rounded" />
+                  <div className="h-3 w-full bg-surface-container animate-pulse rounded" />
+                  <div className="h-3 w-1/2 bg-surface-container animate-pulse rounded" />
                 </div>
               </div>
             ))}
           </div>
         ) : brands.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-6">
+          <motion.div {...fadeUp} transition={{ duration: 0.5, ease: easeOut }}
+            className="flex flex-col items-center justify-center py-24 text-center gap-6">
             <div className="w-20 h-20 rounded-3xl bg-surface-container-high flex items-center justify-center">
               <span className="material-symbols-outlined text-outline/40 text-4xl">inventory_2</span>
             </div>
@@ -249,76 +258,83 @@ export default function BrandsPage() {
               <h2 className="text-headline-md text-on-surface font-bold mb-2">No brands yet</h2>
               <p className="text-body-md text-on-surface-variant">Create your first brand to start managing products and campaigns</p>
             </div>
-            <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97] transition-all">
+            <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
               <span className="material-symbols-outlined text-[16px]">add</span>
               Create Your First Brand
             </button>
-          </div>
+          </motion.div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">
-              {filtered.map((brand, i) => {
-                const colorIdx = brand.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % BRAND_COLORS.length;
-                const c = BRAND_COLORS[colorIdx];
+          <AnimatePresence mode="popLayout">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-min">
+              {/* Sort: most content-rich first for visual hierarchy */}
+              {[...filtered].sort((a, b) => b.contentsCount - a.contentsCount).map((brand, i) => {
+                const c = pickColor(brand.id);
                 const initials = getInitials(brand.name);
+
                 return (
-                  <div key={brand.id}
-                    className={`group bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden card-hover ${visible ? "animate-fade-up" : ""}`}
-                    style={{ animationDelay: `${0.16 + i * 0.06}s` }}>
-                    <div className={`h-2 w-full bg-gradient-to-r ${c.gradient} opacity-60`} />
-                    <div className="p-6">
-                      {/* Header */}
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white font-extrabold text-xl shadow-sm shrink-0 group-hover:scale-105 transition-transform duration-300`}>
-                          {brand.logoUrl ? (
-                            <img src={brand.logoUrl} alt={brand.name} className="w-full h-full object-cover rounded-2xl" />
-                          ) : initials}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-headline-sm font-bold text-on-surface truncate">{brand.name}</h3>
-                          <div className="flex items-center gap-2 text-label-sm text-on-surface-variant/60">
-                            <span>{brand.productsCount} products</span>
-                            <span className="w-1 h-1 rounded-full bg-outline/30" />
-                            <span>{brand.contentsCount} contents</span>
+                  <motion.div
+                    key={brand.id}
+                    layout
+                    variants={prefersReducedMotion ? undefined : cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    custom={i}>
+                    <motion.div
+                      whileHover={prefersReducedMotion ? {} : { y: -4 }}
+                      className="group bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] hover:border-outline-variant/30 h-full flex flex-col">
+                      <div className={`h-1 w-full bg-gradient-to-r ${c.gradient}`} />
+                      <div className="p-6 flex flex-col flex-1">
+                        <div className="flex items-start gap-4 min-w-0">
+                          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0`}>
+                            {initials}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-headline-sm font-bold text-on-surface truncate leading-tight">{brand.name}</h3>
+                            {brand.slogan && (
+                              <p className="text-label-sm text-on-surface-variant/50 italic truncate mt-0.5">&ldquo;{brand.slogan}&rdquo;</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); setEditingBrand(brand); }}
+                              className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-primary transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                              title="Edit">
+                              <span className="material-symbols-outlined text-[15px]">edit</span>
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setDeletingBrand(brand); }}
+                              className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-danger-red transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30"
+                              title="Delete">
+                              <span className="material-symbols-outlined text-[15px]">delete</span>
+                            </button>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Description */}
-                      {brand.description && (
-                        <p className="text-body-sm text-on-surface-variant/70 line-clamp-2 mb-4 leading-relaxed">{brand.description}</p>
-                      )}
+                        {brand.description ? (
+                          <p className="text-body-sm text-on-surface-variant/70 line-clamp-2 leading-relaxed mt-3 mb-4">{brand.description}</p>
+                        ) : (
+                          <p className="text-body-sm text-outline/30 italic mt-3 mb-4">No description</p>
+                        )}
 
-                      {/* Slogan / USP */}
-                      {brand.slogan && (
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <span className="material-symbols-outlined text-[14px] text-outline/40">format_quote</span>
-                          <span className="text-[11px] text-outline/60 italic">&ldquo;{brand.slogan}&rdquo;</span>
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
-                        <button onClick={() => router.push(`/brands/${brand.id}`)}
-                          className="px-3 py-1.5 bg-primary text-on-primary rounded-xl text-[10px] font-semibold hover:bg-primary/90 hover:shadow-md active:scale-[0.97] transition-all relative overflow-hidden group/btn">
-                          <span className="relative z-10">Details</span>
-                          <span className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-300" />
-                        </button>
-                        <div className="flex gap-1">
-                          <button onClick={() => setEditingBrand(brand)} className="w-8 h-8 flex items-center justify-center rounded-full border border-outline-variant/30 text-outline/40 hover:bg-surface-container hover:text-on-surface hover:border-primary/30 transition-all hover:scale-110 active:scale-95" title="Edit">
-                            <span className="material-symbols-outlined text-[16px]">edit</span>
-                          </button>
-                          <button onClick={() => setDeletingBrand(brand)} className="w-8 h-8 flex items-center justify-center rounded-full border border-outline-variant/30 text-outline/40 hover:bg-error-container/10 hover:text-danger-red hover:border-danger-red/30 transition-all hover:scale-110 active:scale-95" title="Delete">
-                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                        <div className="flex items-center justify-between mt-auto">
+                          <div className="flex items-center gap-4 text-label-sm text-on-surface-variant/50">
+                            <span className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                              {brand.productsCount} product{brand.productsCount !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <button onClick={() => router.push(`/brands/${brand.id}`)}
+                            className="inline-flex items-center gap-1 px-4 py-1.5 rounded-lg border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container hover:border-outline-variant/40 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 transition-all">
+                            Details
+                            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
                           </button>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    </motion.div>
+                  </motion.div>
                 );
               })}
             </div>
-          </>
+          </AnimatePresence>
         )}
       </main>
 
@@ -330,7 +346,7 @@ export default function BrandsPage() {
           MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
           return next;
         })}
-        profileId={activeProfile?.id || ""}
+        profileId={activeWorkspace?.id || ""}
       />
 
       {editingBrand && (
@@ -343,8 +359,18 @@ export default function BrandsPage() {
       )}
 
       {deletingBrand && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4 animate-in fade-in zoom-in-95 duration-200">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.2, ease: easeOut }}
+            className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-danger-red/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-danger-red text-[22px]">delete</span>
@@ -358,11 +384,11 @@ export default function BrandsPage() {
               Are you sure you want to delete <span className="font-semibold text-on-surface">{deletingBrand.name}</span>? All associated products and campaigns will be permanently removed.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeletingBrand(null)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97]">Cancel</button>
-              <button onClick={handleDeleteBrand} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2">Delete</button>
+              <button onClick={() => setDeletingBrand(null)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Cancel</button>
+              <button onClick={handleDeleteBrand} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
     </>
   );

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { apiClient, apiFetch } from "@/lib/apiClient";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { PlatformIcon } from "@/lib/contentConstants";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 
 interface Brand {
@@ -85,10 +87,10 @@ const MOCK_CAMPAIGNS: Record<string, Campaign[]> = {
     { id: "c-4", brandId: "mock-3", name: "Restoration Workshop Series", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Draft", budget: "$1,500", spent: "$0", createdAt: "2025-04-10T00:00:00Z" },
   ],
   "mock-4": [
-    { id: "c-5", brandId: "mock-4", name: "Farm to Table Awareness", platform: "LINKEDIN", platformColor: "text-blue-700", platformBg: "bg-blue-50", status: "Active", budget: "$1,800", spent: "$720", createdAt: "2025-05-01T00:00:00Z" },
+    { id: "c-5", brandId: "mock-4", name: "Farm to Table Awareness", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Active", budget: "$1,800", spent: "$720", createdAt: "2025-05-01T00:00:00Z" },
   ],
   "mock-5": [
-    { id: "c-6", brandId: "mock-5", name: "Q2 Financial Webinar", platform: "LINKEDIN", platformColor: "text-blue-700", platformBg: "bg-blue-50", status: "Active", budget: "$8,000", spent: "$4,200", createdAt: "2025-04-20T00:00:00Z" },
+    { id: "c-6", brandId: "mock-5", name: "Q2 Financial Webinar", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$8,000", spent: "$4,200", createdAt: "2025-04-20T00:00:00Z" },
     { id: "c-7", brandId: "mock-5", name: "Retirement Planning Guide", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$3,500", spent: "$1,850", createdAt: "2025-05-05T00:00:00Z" },
     { id: "c-8", brandId: "mock-5", name: "Investor Education Series", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Draft", budget: "$2,000", spent: "$0", createdAt: "2025-05-20T00:00:00Z" },
   ],
@@ -98,7 +100,7 @@ const BRAND_PLATFORMS: Record<string, { icon: string; label: string; color: stri
   "mock-1": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
     { icon: "ads_click", label: "Google Ads", color: "text-tertiary" },
-    { icon: "music_note", label: "TikTok Ads", color: "text-on-surface" },
+    { icon: "tiktok", label: "TikTok Ads", color: "text-on-surface" },
   ],
   "mock-2": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
@@ -109,23 +111,23 @@ const BRAND_PLATFORMS: Record<string, { icon: string; label: string; color: stri
   ],
   "mock-4": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
-    { icon: "music_note", label: "TikTok Ads", color: "text-on-surface" },
+    { icon: "tiktok", label: "TikTok Ads", color: "text-on-surface" },
   ],
   "mock-5": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
     { icon: "ads_click", label: "Google Ads", color: "text-tertiary" },
-    { icon: "music_note", label: "TikTok Ads", color: "text-on-surface" },
+    { icon: "tiktok", label: "TikTok Ads", color: "text-on-surface" },
   ],
   "mock-6": [],
 };
 
 const BRAND_COLORS: Record<string, string> = {
-  "mock-1": "from-blue-600 to-blue-400",
-  "mock-2": "from-emerald-600 to-emerald-400",
-  "mock-3": "from-violet-600 to-violet-400",
-  "mock-4": "from-amber-600 to-amber-400",
-  "mock-5": "from-rose-600 to-rose-400",
-  "mock-6": "from-cyan-600 to-cyan-400",
+  "mock-1": "from-primary/80 to-primary/40",
+  "mock-2": "from-primary/60 to-primary/30",
+  "mock-3": "from-primary/70 to-primary/35",
+  "mock-4": "from-primary/55 to-primary/25",
+  "mock-5": "from-primary/75 to-primary/40",
+  "mock-6": "from-primary/50 to-primary/25",
 };
 
 const PRODUCT_ADS: Record<string, number> = {
@@ -150,14 +152,17 @@ function getInitials(name: string) {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-outline-variant bg-surface-container-low px-4 py-2 text-body-sm placeholder:text-outline/40 focus:ring-2 focus:ring-primary/20 outline-none transition-all";
+  "w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 outline-none transition-all";
 
-const labelClass = "font-label-md text-label-md text-on-surface-variant";
+const labelClass = "text-label-2xs text-outline uppercase font-bold tracking-widest block";
+
+const easeOut = [0.16, 1, 0.3, 1] as const;
 
 export default function BrandDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { activeProfile } = useProfiles();
+  const prefersReducedMotion = useReducedMotion();
+  const { activeWorkspace } = useWorkspaces();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -171,8 +176,6 @@ export default function BrandDetailPage() {
   const [productSearch, setProductSearch] = useState("");
   const [products, setProducts] = useState<Product[]>(() => MOCK_PRODUCTS[id] || []);
   const [campaigns, setCampaigns] = useState<Campaign[]>(() => MOCK_CAMPAIGNS[id] || []);
-  const [visible, setVisible] = useState(false);
-
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -182,10 +185,10 @@ export default function BrandDetailPage() {
     targetAudience: "",
   });
 
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 80);
-    return () => clearTimeout(timer);
-  }, []);
+  const fadeUp = prefersReducedMotion ? { initial: {}, animate: {} } : {
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0 },
+  };
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
@@ -252,7 +255,7 @@ export default function BrandDetailPage() {
     await Promise.all([fetchProducts(), fetchCampaigns()]).finally(() => setLoading(false));
     };
     load();
-  }, [id]);
+  }, [id, activeWorkspace?.id]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Brand name is required"); return; }
@@ -366,8 +369,8 @@ export default function BrandDetailPage() {
             <div className="w-14 h-14 mx-auto rounded-2xl bg-error-container/30 flex items-center justify-center">
               <span className="material-symbols-outlined text-danger-red text-3xl">error_outline</span>
             </div>
-            <p className="text-body-md text-danger-red font-semibold">{error}</p>
-            <Link href="/brands" className="inline-block px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:opacity-90 transition-all shadow-sm">
+            <p className="text-body-sm text-danger-red font-semibold">{error}</p>
+            <Link href="/brands" className="inline-block px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:opacity-90 transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
               Back to Brands
             </Link>
           </div>
@@ -379,7 +382,7 @@ export default function BrandDetailPage() {
   const safeBrand = brand!;
   const initials = getInitials(safeBrand.name);
   const platforms = BRAND_PLATFORMS[id] || [];
-  const gradient = BRAND_COLORS[id] || "from-primary to-primary/70";
+  const gradient = BRAND_COLORS[id] || "from-primary/80 to-primary/40";
 
   const filteredProducts = productSearch.trim()
     ? products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
@@ -387,29 +390,23 @@ export default function BrandDetailPage() {
 
   return (
     <>
-      <style>{`
-        @keyframes fade-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slide-up-row { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-up { animation: fade-up 0.5s ease-out forwards; opacity: 0; }
-        .ai-glow { box-shadow: 0 0 15px rgba(15, 98, 254, 0.15); }
-      `}</style>
-
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Brands", href: "/brands" }, { label: safeBrand.name }]} />
       <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto bg-surface-gray space-y-8">
 
         {error && (
-          <div className="flex items-center gap-3 rounded-xl border border-danger-red/20 bg-error-container/50 px-5 py-4 text-body-sm text-on-error-container animate-fade-up">
+          <motion.div {...fadeUp} transition={{ duration: 0.4, ease: easeOut }}
+            className="flex items-center gap-3 rounded-xl border border-danger-red/20 bg-error-container/50 px-5 py-4 text-body-sm text-on-error-container">
             <span className="material-symbols-outlined text-error text-[20px]">error</span>
             <span className="flex-1">{error}</span>
-            <button onClick={() => setError(null)} className="text-on-error-container/50 hover:text-on-error-container">
+            <button onClick={() => setError(null)} className="text-on-error-container/50 hover:text-on-error-container focus-visible:outline-none">
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
-          </div>
+          </motion.div>
         )}
 
         {/* ─── Brand Header ─── */}
-        <section className={`relative overflow-hidden rounded-2xl ${visible ? "animate-fade-up" : ""}`}
-          style={{ animationDelay: "0s" }}>
+        <motion.section {...fadeUp} transition={{ duration: 0.6, ease: easeOut }}
+          className="relative overflow-hidden rounded-2xl">
           <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${gradient}`} />
           <div className="bg-gradient-to-br from-surface-container to-surface-container-lowest p-8">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -424,7 +421,7 @@ export default function BrandDetailPage() {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-headline-lg text-on-surface mb-3">{safeBrand.name}</h2>
+                  <h2 className="text-headline-sm font-bold text-on-surface mb-3">{safeBrand.name}</h2>
                   {safeBrand.slogan && (
                     <p className="text-label-md text-primary italic mb-2">&ldquo;{safeBrand.slogan}&rdquo;</p>
                   )}
@@ -432,7 +429,11 @@ export default function BrandDetailPage() {
                     <div className="flex -space-x-2 mb-3">
                       {platforms.map((p, i) => (
                         <div key={i} className="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-surface-container-lowest flex items-center justify-center" title={p.label}>
-                          <span className={`material-symbols-outlined text-[18px] ${p.color}`}>{p.icon}</span>
+                          {["facebook", "instagram", "tiktok"].includes(p.icon) ? (
+                            <PlatformIcon platform={p.icon} className="w-[18px] h-[18px]" />
+                          ) : (
+                            <span className={`material-symbols-outlined text-[18px] ${p.color}`}>{p.icon}</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -441,63 +442,81 @@ export default function BrandDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button className="px-4 py-2 rounded-xl border border-outline-variant text-label-md hover:bg-surface-container transition-all active:scale-[0.97] flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px]">link</span>
+                <button className="px-4 py-2 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px]">link</span>
                   Manage Connections
                 </button>
-                <button onClick={() => setActiveTab("settings")} className="px-4 py-2 rounded-xl border border-outline-variant text-label-md hover:bg-surface-container transition-all active:scale-[0.97] flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                <button onClick={() => setActiveTab("settings")} className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
                   Edit Brand
                 </button>
-                <button className="p-2 rounded-xl border border-outline-variant hover:bg-surface-container transition-all active:scale-[0.97]">
-                  <span className="material-symbols-outlined">more_vert</span>
+                <button className="p-2 rounded-xl border border-outline-variant/20 text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+                  <span className="material-symbols-outlined text-[20px]">more_vert</span>
                 </button>
               </div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         {/* ─── Analytics Overview ─── */}
-        <section className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter ${visible ? "animate-fade-up" : ""}`}
-          style={{ animationDelay: "0.08s" }}>
+        <motion.section {...fadeUp} transition={{ duration: 0.5, delay: 0.08, ease: easeOut }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
           {[
-            { icon: "inventory_2", iconBg: "bg-primary-fixed", iconColor: "text-primary", label: "Total Products", value: products.length },
-            { icon: "auto_awesome_motion", iconBg: "bg-secondary-fixed", iconColor: "text-secondary", label: "Generated Content", value: Object.values(PRODUCT_ADS).reduce((a, b) => a + b, 0) },
-            { icon: "trending_up", iconBg: "bg-tertiary-fixed", iconColor: "text-tertiary", label: "Total Reach", value: `${(Math.floor(Math.random() * 500) + 300)}K` },
-            { icon: "favorite", iconBg: "bg-surface-container-high", iconColor: "text-on-surface", label: "Engagement Rate", value: `${(Math.random() * 5 + 1.5).toFixed(1)}%` },
+            { icon: "inventory_2", iconBg: "bg-gradient-to-br from-primary/20 to-primary/5", iconColor: "text-primary", label: "Total Products", value: products.length },
+            { icon: "auto_awesome_motion", iconBg: "bg-gradient-to-br from-secondary/20 to-secondary/5", iconColor: "text-secondary", label: "Generated Content", value: Object.values(PRODUCT_ADS).reduce((a, b) => a + b, 0) },
+            { icon: "trending_up", iconBg: "bg-gradient-to-br from-tertiary/20 to-tertiary/5", iconColor: "text-tertiary", label: "Total Reach", value: `${(Math.floor(Math.random() * 500) + 300)}K` },
+            { icon: "favorite", iconBg: "bg-gradient-to-br from-surface/20 to-surface/5", iconColor: "text-on-surface", label: "Engagement Rate", value: `${(Math.random() * 5 + 1.5).toFixed(1)}%` },
           ].map((s, i) => (
-            <div key={s.label} className="bg-surface-container p-5 rounded-xl border border-outline-variant/30 flex items-center gap-4"
-              style={{ animation: visible ? `slide-up-row 0.4s ease-out ${0.12 + i * 0.06}s forwards` : "none", opacity: 0 }}>
-              <div className={`w-12 h-12 rounded-xl ${s.iconBg} flex items-center justify-center ${s.iconColor}`}>
-                <span className="material-symbols-outlined">{s.icon}</span>
+            <motion.div key={s.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.12 + i * 0.06, ease: easeOut }}
+              whileHover={{ y: -4, boxShadow: "0 16px 48px rgba(0,0,0,0.08)" }}
+              className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 flex items-center gap-4 transition-all duration-300">
+              <div className={`w-11 h-11 rounded-xl ${s.iconBg} flex items-center justify-center ${s.iconColor} shrink-0`}>
+                <span className="material-symbols-outlined text-[22px]">{s.icon}</span>
               </div>
               <div>
-                <p className="text-on-surface-variant text-label-sm">{s.label}</p>
-                <h4 className="text-headline-sm font-bold">{s.value}</h4>
+                <p className="text-label-sm text-on-surface-variant font-medium">{s.label}</p>
+                <h4 className="text-kpi-lg text-on-surface leading-tight">{s.value}</h4>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </section>
+        </motion.section>
 
         {/* ─── Tabbed Content ─── */}
-        <section className={visible ? "animate-fade-up" : ""} style={{ animationDelay: "0.16s" }}>
-          <div className="border-b border-outline-variant">
+        <motion.section {...fadeUp} transition={{ duration: 0.5, delay: 0.16, ease: easeOut }}>
+          <div className="border-b border-outline-variant/20">
             <div className="flex items-center gap-1">
               {tabs.map((tab) => (
                 <button key={tab.key}
                   onClick={() => setActiveTab(tab.key as TabKey)}
-                  className={`px-5 py-3 text-label-md transition-all rounded-t-xl border-b-2 ${
+                  className={`relative px-5 py-3 text-label-sm font-semibold transition-all rounded-t-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset active:scale-[0.97] ${
                     activeTab === tab.key
-                      ? "border-primary text-primary"
-                      : "border-transparent text-on-surface-variant hover:text-on-surface"
+                      ? "text-primary"
+                      : "text-outline hover:text-on-surface hover:bg-surface-container/50"
                   }`}>
                   {tab.label}
+                  {activeTab === tab.key && (
+                    <motion.div
+                      layoutId="tab-underline"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="mt-6 bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-6" key={activeTab}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: easeOut }}
+              className="mt-6 bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-6">
 
             {/* ═══ PRODUCTS ═══ */}
             {activeTab === "products" && (
@@ -507,15 +526,15 @@ export default function BrandDetailPage() {
                     <div className="flex items-center gap-3 w-full max-w-lg">
                       <div className="relative flex-1">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-                        <input className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-10 pr-4 py-2 text-body-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        <input className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-10 pr-4 py-2 text-body-sm focus:border-primary/50 focus:ring-2 focus:ring-primary/10 outline-none transition-all"
                           placeholder="Filter products..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
                         </div>
-                        <button className="p-2 border border-outline-variant rounded-xl hover:bg-surface-container transition-all active:scale-[0.97]">
+                        <button className="p-2 border border-outline-variant rounded-xl hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
                           <span className="material-symbols-outlined">filter_list</span>
                         </button>
                     </div>
                     <button onClick={() => setShowAddModal(true)}
-                      className="bg-primary text-on-primary px-5 py-2 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all flex items-center gap-2 shadow-md ai-glow shrink-0">
+                      className="bg-primary text-on-primary px-5 py-2 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all flex items-center gap-2 shadow-md shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       <span className="material-symbols-outlined text-[20px]">add</span>
                       Add New Product
                     </button>
@@ -526,16 +545,21 @@ export default function BrandDetailPage() {
                       const adsCount = PRODUCT_ADS[product.id] || 0;
                       const inStock = (product.stock ?? 0) > 0;
                       return (
-                        <div key={product.id} className="group border border-outline-variant rounded-xl overflow-hidden hover:border-primary/40 hover:shadow-md transition-all"
-                          style={{ animation: visible ? `fade-up 0.5s ease-out ${0.2 + i * 0.06}s forwards` : "none", opacity: 0 }}>
+                        <motion.div key={product.id}
+                          initial={{ opacity: 0, y: 16 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true, amount: 0.3 }}
+                          transition={{ duration: 0.5, delay: i * 0.06, ease: easeOut }}
+                          whileHover={{ y: -3, boxShadow: "0 10px 25px -12px rgba(0,0,0,0.15)" }}
+                          className="group border border-outline-variant/20 bg-surface-container-lowest rounded-2xl overflow-hidden hover:border-primary/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col">
                           <div className="aspect-video relative overflow-hidden bg-surface-container-low">
                             <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
                           </div>
-                          <div className="p-4">
+                          <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
-                            <p className="text-on-surface-variant text-body-sm mb-2 line-clamp-2">{product.description}</p>
+                            <p className="text-on-surface-variant text-body-sm mb-2 line-clamp-2 flex-1">{product.description}</p>
                             <p className="text-label-lg font-bold text-primary mb-3">${product.price.toFixed(2)}</p>
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between mt-auto">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-1.5 text-on-surface-variant">
                                   <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
@@ -547,25 +571,26 @@ export default function BrandDetailPage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-1">
-                                <button onClick={() => setViewingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all" title="View details">
+                                <button onClick={() => setViewingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" title="View details">
                                   <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-primary">visibility</span>
                                 </button>
-                                <button onClick={() => setEditingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all" title="Edit product">
+                                <button onClick={() => setEditingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" title="Edit product">
                                   <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-primary">edit</span>
                                 </button>
-                                <button onClick={() => setDeletingProduct(product)} className="p-1.5 rounded-full hover:bg-error-container/10 transition-all" title="Delete product">
+                                <button onClick={() => setDeletingProduct(product)} className="p-1.5 rounded-full hover:bg-error-container/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30" title="Delete product">
                                   <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-danger-red">delete</span>
                                 </button>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <motion.div {...fadeUp} transition={{ duration: 0.4, ease: easeOut }}
+                  className="flex flex-col items-center justify-center py-20 text-center gap-4">
                   <div className="w-16 h-16 rounded-2xl bg-surface-container-high flex items-center justify-center">
                     <span className="material-symbols-outlined text-outline/50 text-3xl">inventory</span>
                   </div>
@@ -577,12 +602,12 @@ export default function BrandDetailPage() {
                   </div>
                   {!productSearch && (
                     <button onClick={() => setShowAddModal(true)}
-                      className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-md ai-glow flex items-center gap-2">
+                      className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-md flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       <span className="material-symbols-outlined text-[18px]">add</span>
                       Add Product
                     </button>
                   )}
-                </div>
+                </motion.div>
               )
             )}
 
@@ -590,7 +615,7 @@ export default function BrandDetailPage() {
             {activeTab === "campaigns" && (
               campaigns.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                  <table className="w-full text-left min-w-[600px]">
                     <thead>
                       <tr className="text-label-sm text-outline border-b border-outline-variant">
                         <th className="px-5 py-3.5 font-semibold">Campaign</th>
@@ -602,8 +627,12 @@ export default function BrandDetailPage() {
                     </thead>
                     <tbody className="divide-y divide-outline-variant">
                       {campaigns.map((camp, i) => (
-                        <tr key={camp.id} className="group hover:bg-surface-container/40 transition-colors duration-150"
-                          style={{ animation: visible ? `slide-up-row 0.4s ease-out ${0.15 + i * 0.08}s forwards` : "none", opacity: 0 }}>
+                        <motion.tr key={camp.id}
+                          initial={{ opacity: 0, y: 12 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true, amount: 0.3 }}
+                          transition={{ duration: 0.5, delay: i * 0.08, ease: easeOut }}
+                          className="group hover:bg-surface-container/40 transition-colors duration-150">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center group-hover:scale-110 group-hover:bg-primary/10 transition-all duration-300">
@@ -613,7 +642,7 @@ export default function BrandDetailPage() {
                             </div>
                           </td>
                           <td className="px-5 py-4">
-                            <span className={`px-2.5 py-1 ${camp.platformBg} ${camp.platformColor} rounded-lg text-[10px] font-bold tracking-wide inline-block`}>{camp.platform}</span>
+                            <span className={`px-2.5 py-1 ${camp.platformBg} ${camp.platformColor} rounded-lg text-label-xs font-bold tracking-wide inline-block`}>{camp.platform}</span>
                           </td>
                           <td className="px-5 py-4 text-body-sm text-on-surface font-medium">{camp.budget}</td>
                           <td className="px-5 py-4">
@@ -624,19 +653,20 @@ export default function BrandDetailPage() {
                           </td>
                           <td className="px-5 py-4">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                              camp.status === "Active" ? "bg-emerald-50 text-emerald-600" : "bg-surface-container-high text-on-surface-variant"
+                              camp.status === "Active" ? "bg-success-green/10 text-success-green" : "bg-surface-container-high text-on-surface-variant"
                             }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${camp.status === "Active" ? "bg-emerald-500 animate-pulse" : "bg-outline"}`} />
+                              <span className={`w-1.5 h-1.5 rounded-full ${camp.status === "Active" ? "bg-success-green animate-pulse" : "bg-outline"}`} />
                               {camp.status}
                             </span>
                           </td>
-                        </tr>
+                        </motion.tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <motion.div {...fadeUp} transition={{ duration: 0.4, ease: easeOut }}
+                  className="flex flex-col items-center justify-center py-20 text-center gap-4">
                   <div className="w-16 h-16 rounded-2xl bg-surface-container-high flex items-center justify-center">
                     <span className="material-symbols-outlined text-outline/50 text-3xl">campaign</span>
                   </div>
@@ -644,14 +674,14 @@ export default function BrandDetailPage() {
                     <h3 className="text-headline-sm text-on-surface font-semibold">No campaigns yet</h3>
                     <p className="text-body-sm text-on-surface-variant mt-1 max-w-sm">Launch your first campaign to start tracking performance</p>
                   </div>
-                </div>
+                </motion.div>
               )
             )}
 
             {/* ═══ SETTINGS ═══ */}
             {activeTab === "settings" && (
               <div className="space-y-6 max-w-2xl">
-                <div className="bg-surface-container-low rounded-xl border border-outline-variant p-6 space-y-6">
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 shadow-sm space-y-6">
                   <div>
                     <h3 className="text-headline-sm font-semibold text-on-surface">Edit Brand</h3>
                     <p className="text-body-sm text-on-surface-variant mt-1">Update your brand&apos;s information below</p>
@@ -684,9 +714,9 @@ export default function BrandDetailPage() {
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
                     <button onClick={() => { if (brand) { setForm({ name: brand.name, description: brand.description || "", logoUrl: brand.logoUrl || "", slogan: brand.slogan || "", usp: brand.usp || "", targetAudience: brand.targetAudience || "" }); } setError(null); }}
-                      className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97]">Reset</button>
+                      className="px-5 py-2 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Reset</button>
                     <button onClick={handleSave} disabled={saving}
-                      className="px-5 py-2 rounded-xl bg-primary text-on-primary text-label-md hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md">
+                      className="px-5 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2 shadow-lg shadow-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       {saving ? (
                         <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> Saving...</>
                       ) : "Save Changes"}
@@ -694,10 +724,10 @@ export default function BrandDetailPage() {
                   </div>
                 </div>
 
-                <div className="bg-surface-container-low rounded-xl border border-danger-red/30 p-6">
+                <div className="bg-surface-container-lowest rounded-2xl border border-danger-red/20 p-6 shadow-sm">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-9 h-9 rounded-xl bg-danger-red/10 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-danger-red text-[18px]">warning</span>
+                    <div className="w-10 h-10 rounded-xl bg-danger-red/10 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-danger-red text-[20px]">warning</span>
                     </div>
                     <div>
                       <h3 className="text-headline-sm font-semibold text-on-surface">Danger Zone</h3>
@@ -705,16 +735,16 @@ export default function BrandDetailPage() {
                     </div>
                   </div>
                   <button onClick={() => setShowDeleteDialog(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 border border-danger-red/30 text-danger-red rounded-xl text-body-sm font-medium hover:bg-danger-red/5 hover:border-danger-red/50 active:scale-[0.97] transition-colors">
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-danger-red/10 text-danger-red rounded-xl text-label-sm font-semibold hover:bg-danger-red/20 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30 transition-all">
                     <span className="material-symbols-outlined text-[16px]">delete</span>
                     Delete Brand
                   </button>
                 </div>
               </div>
             )}
-
-          </div>
-        </section>
+            </motion.div>
+          </AnimatePresence>
+        </motion.section>
       </main>
 
       <ProductModal
@@ -738,11 +768,21 @@ export default function BrandDetailPage() {
       )}
 
       {viewingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-surface rounded-2xl border border-outline-variant/20 shadow-xl w-full max-w-lg mx-4 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.2, ease: easeOut }}
+            className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-outline-variant/20 shrink-0">
               <h3 className="text-headline-sm text-on-surface font-bold">{viewingProduct.name}</h3>
-              <button onClick={() => setViewingProduct(null)} className="text-outline hover:text-primary transition-colors active:scale-[0.97]">
+              <button onClick={() => setViewingProduct(null)} className="text-outline hover:text-primary transition-colors active:scale-[0.97] focus-visible:outline-none">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
@@ -750,45 +790,55 @@ export default function BrandDetailPage() {
               <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
                 <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
               </div>
-              <p className="text-body-md text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
+              <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Price</span>
-                  <p className="text-body-md font-semibold text-on-surface">${viewingProduct.price.toFixed(2)}</p>
+                  <p className="text-body-sm font-semibold text-on-surface">${viewingProduct.price.toFixed(2)}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Stock</span>
-                  <p className={`text-body-md font-semibold flex items-center gap-1.5 ${(viewingProduct.stock ?? 0) > 0 ? "text-success-green" : "text-danger-red"}`}>
+                  <p className={`text-body-sm font-semibold flex items-center gap-1.5 ${(viewingProduct.stock ?? 0) > 0 ? "text-success-green" : "text-danger-red"}`}>
                     <span className="material-symbols-outlined text-[16px]">{((viewingProduct.stock ?? 0) > 0) ? "inventory" : "inventory_2"}</span>
                     {(viewingProduct.stock ?? 0) > 0 ? `${viewingProduct.stock} in stock` : "Out of stock"}
                   </p>
                 </div>
                 <div className="col-span-2 space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Created</span>
-                  <p className="text-body-md text-on-surface">{new Date(viewingProduct.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+                  <p className="text-body-sm text-on-surface">{new Date(viewingProduct.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
                 </div>
                 <div className="col-span-2 space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Ads Generated</span>
-                  <p className="text-body-md font-semibold text-on-surface">{PRODUCT_ADS[viewingProduct.id] || 0}</p>
+                  <p className="text-body-sm font-semibold text-on-surface">{PRODUCT_ADS[viewingProduct.id] || 0}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-surface-container-low px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl shrink-0">
-              <button onClick={() => { setViewingProduct(null); setEditingProduct(viewingProduct); }} className="px-6 py-2 text-label-md font-bold text-on-surface-variant hover:bg-surface-container transition-colors rounded-xl active:scale-[0.97] flex items-center gap-1.5">
+            <div className="bg-surface-container-lowest px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl shrink-0 border-t border-outline-variant/20">
+              <button onClick={() => { setViewingProduct(null); setEditingProduct(viewingProduct); }} className="px-6 py-2 text-label-md font-bold text-on-surface-variant hover:bg-surface-container transition-colors rounded-xl active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[16px]">edit</span>
                 Edit
               </button>
-              <button onClick={() => setViewingProduct(null)} className="px-6 py-2 bg-primary text-on-primary text-label-md font-bold rounded-xl shadow-md hover:opacity-90 transition-all active:scale-[0.97]">
+              <button onClick={() => setViewingProduct(null)} className="px-6 py-2 bg-primary text-on-primary text-label-md font-bold rounded-xl shadow-md hover:opacity-90 transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
 
       {deletingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4 animate-in fade-in zoom-in-95 duration-200">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.2, ease: easeOut }}
+            className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-danger-red/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-danger-red text-[22px]">delete</span>
@@ -802,16 +852,26 @@ export default function BrandDetailPage() {
               Are you sure you want to delete <span className="font-semibold text-on-surface">{deletingProduct.name}</span>?
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeletingProduct(null)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97]">Cancel</button>
-              <button onClick={handleDeleteProduct} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2">Delete</button>
+              <button onClick={() => setDeletingProduct(null)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Cancel</button>
+              <button onClick={handleDeleteProduct} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</button>
             </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
 
       {showDeleteDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4 animate-in fade-in zoom-in-95 duration-200">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.2, ease: easeOut }}
+            className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-danger-red/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-danger-red text-[22px]">delete</span>
@@ -825,12 +885,12 @@ export default function BrandDetailPage() {
               Are you sure you want to delete <span className="font-semibold text-on-surface">{safeBrand.name}</span>? All associated products and campaigns will be permanently removed.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDeleteDialog(false)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97]">Cancel</button>
-              <button onClick={handleDelete} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2">Delete</button>
+              <button onClick={() => setShowDeleteDialog(false)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Cancel</button>
+              <button onClick={handleDelete} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</button>
             </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
     </>
   );
 }

@@ -347,17 +347,192 @@ Ung dung web can tuong thich voi cac trinh duyet pho bien nhu Chrome, Edge, Fire
 
 ---
 
-## 9. LIMITATIONS & FUTURE ROADMAP
-### 9.1. Current Limitations
+## 9. FRONTEND PAGES STATUS
+### 9.1. Completed Frontend Pages (UI + Mock Data)
+Cac trang frontend da hoan thanh UI/UX day du, dang su dung mock data voi localStorage. Chua map voi Backend API that.
+
+| # | Page | Route | Chuc Nang | Trang Thai API |
+|---|------|-------|-----------|----------------|
+| 1 | Dashboard | `/dashboard` | Thong ke tong quan, bieu do, hoat dong gan day | Mock data |
+| 2 | Brand Kit | `/brands` | CRUD brands, xem chi tiet brand | Mock data |
+| 3 | Brand Detail | `/brands/[id]` | Chi tiet brand, san pham, content lien ket | Mock data |
+| 4 | Content Library | `/content` | CRUD content, filter, search, grid/list view | Mock data |
+| 5 | Content Detail | `/content/[id]` | Chi tiet content, AI generation history | Mock data |
+| 6 | AI Generate | `/content/ai-generate` | Giao dien sinh content bang AI | Mock data |
+| 7 | Create Content | `/content/create` | Form tao content moi | Mock data |
+| 8 | Approvals | `/approvals` | Danh sach cho duyet, approve/reject | Mock data |
+| 9 | Posts | `/posts` | Danh sach posts, filter, bulk actions, export CSV | Mock data |
+| 10 | Calendar | `/calendar` | Lich dang bai, month/week/list view | Mock data (localStorage) |
+| 11 | Social Accounts | `/social` | Quan ly social accounts, connect/disconnect, manage targets | Mock data (localStorage) |
+| 12 | Campaigns | `/campaigns` | CRUD ad campaigns, filter, stats, bulk actions | Mock data (localStorage) |
+| 13 | AI Studio | `/ai-studio` | Giao dien AI chat, generation | Mock data |
+| 14 | Pricing | `/pricing` | Subscription plans + Credit packs, Personal/Business tabs, QR payment | Mock + PayOS (mock) |
+| 15 | Credit Packs | `/credit-pack` | Mua credit packs voi QR payment modal | Mock + PayOS (mock) |
+| 16 | Credit History | `/credit-history` | Lich su giao dich credit, phan trang | Mock data |
+| 17 | Workspace Dashboard | `/workspace-dashboard` | Dashboard cho Business workspace, thong ke team | Mock data |
+| 18 | Workspace Members | `/workspace-members` | Quan ly thanh vien workspace, role, status | Mock data |
+
+### 9.2. Frontend Pages Chua Map API
+**Luu y quan trong:** Tat ca cac trang tren dang o trang thai **UI Complete + Mock Data**. Chua co ket noi that voi Backend API.
+
+**De map API that, can:**
+1. Thay the mock data trong cac service file (`src/services/*.ts`) bang goi API that
+2. Xu ly error handling, loading states
+3. Them authentication headers (JWT token) vao API calls
+4. Test voi Backend API that
+5. Xu ly cac truong hop edge (network error, timeout, invalid data)
+
+**Cac service files can update:**
+- `src/services/brandService.ts` - Brand API
+- `src/services/contentService.ts` - Content API
+- `src/services/postService.ts` - Posts API
+- `src/services/scheduleService.ts` - Calendar/Schedule API
+- `src/services/socialAccountService.ts` - Social Accounts API
+- `src/services/campaignService.ts` - Campaigns API
+- `src/services/paymentService.ts` - Payment/PayOS API
+- `src/services/workspaceService.ts` - Workspace, Credit, Quota API
+- `src/services/profileSettingsService.ts` - Subscription management API
+
+### 9.3. Admin Frontend Pages
+Admin frontend da co cac trang quan ly user, payment, subscription va admin tools. Chi tiet xem trong thu muc `AISAM-ADMIN-FE/`.
+
+---
+
+## 10. WORKSPACE-BASED SUBSCRIPTION & PRICING (Mới nhất)
+
+### 10.1. Feature Gating System
+- **File:** `src/lib/featureConfig.ts`
+- PlanType enum: Free (0), PersonalPlus (1), PersonalPro (2), BusinessPlus (3), BusinessPro (4)
+- `FEATURE_MATRIX`: map Feature → allowed PlanType[]
+- `PERMISSION_MATRIX`: map Permission → allowed WorkspaceRole[]
+- `PLAN_HIERARCHY`: numeric comparison for plan upgrades/downgrades
+- `CREDIT_COST`: chi phí credit cho mỗi AI action
+- `getPlanType()`, `canAccessFeature()`, `hasPermission()` helpers
+
+### 10.2. useFeatureGate Hook
+- **File:** `src/hooks/useFeatureGate.ts`
+- Trả về `plan` (PlanType), `role` (WorkspaceRole), `canAccess(feature)`, `can(permission)` methods
+- Dùng trong Header (conditional Upgrade CTA), AI Generate, Posts, Subscription UI
+
+### 10.3. Credit Wallet & Deduction
+- **File:** `src/services/workspaceService.ts`
+- `fetchCreditWallet()` — lấy số dư credit
+- `deductCredits({ feature, credits })` — trừ credit khi dùng AI
+- `fetchPostQuota()` — kiểm tra quota bài đăng
+- `fetchCreditUsageHistory()` — lịch sử sử dụng credit (phân trang, mock data)
+
+### 10.4. Pricing Page (Standalone Route `/pricing`)
+- **File:** `src/app/pricing/page.tsx`
+- **Tab "Subscription Plans" + "Credit Packs"**
+- **Personal / Business tabs** (giống ChatGPT Individual/Team)
+  - Personal: Free, Personal Plus ($29), Personal Pro ($79)
+  - Business: Business Plus ($149), Business Pro ($299)
+  - Feature comparison table theo category
+- **Billing toggle:** Monthly / Yearly (save ~17%)
+- **Credit Packs:** Starter (100), Standard (500), Growth (1500), Business (5000) credits
+- **Current plan badge** — hiển thị plan hiện tại + số dư credit
+- **Card hover elevation** (`hover:-translate-y-1 hover:shadow-xl`)
+- **Flat styling** (không gradient badges/buttons) theo design-taste-frontend skill
+
+### 10.5. QR Payment Modal (Mock PayOS)
+- **File:** `src/services/paymentService.ts`
+- `createPayment()` — tạo QR code + polling 3s
+- `checkPaymentStatus()` — kiểm tra trạng thái thanh toán
+- QR modal có:
+  - QR placeholder + thông tin đơn hàng
+  - Nút "Simulate Payment (Demo)" cho test
+  - Success/Failed states
+- Credit pack purchase cập nhật wallet balance ngay khi success
+
+### 10.6. Create Business Workspace Flow
+- **Overview → Business card:** redirect `/pricing?create=business`
+- **Pricing page trong create mode:**
+  - Step indicator (1. Overview → 2. Workspace & Plan → 3. Payment)
+  - Ẩn Subscription/Credits tabs (chỉ show subscription)
+  - Personal tab bị locked với label `· locked`
+  - Form inline: Workspace Name + Company Name (optional)
+  - Chọn plan → tạo workspace → QR payment → redirect dashboard
+
+### 10.7. Credit Deduction trên AI Generate
+- **File:** `src/app/(dashboard)/content/ai-generate/page.tsx`
+- Sau khi AI generate thành công → gọi `deductCredits()` tương ứng feature
+- Feature cost map: generateText=1, generateImage=5, generateVideo=20, trendContent=2, campaignRecommendation=2
+
+### 10.8. Post Quota Enforcement
+- **File:** `src/app/(dashboard)/posts/page.tsx`
+- Khi tạo post mới → kiểm tra `fetchPostQuota()`
+- Nếu đạt limit → hiển thị toast + redirect lên pricing
+
+### 10.9. Subscription Cancel + Auto Limited/Archived Mode
+- **File:** `src/services/profileSettingsService.ts` — `cancelSubscription()`
+- **File:** `src/app/profiles/[id]/page.tsx` — `handleCancelPlan` dùng ConfirmationModal
+- `handleLoadSubscription` tự động phát hiện expired/ltd/arch plans
+
+### 10.10. Header Updates
+- **File:** `src/components/layout/Header.tsx`
+- **Removed:** Upgrade CTA gradient button (khỏi header)
+- **User dropdown:** "Pricing & Plans" → **"Upgrade Plan"** với icon `workspace_premium`
+- Link `/pricing` trong dropdown dẫn đến pricing page standalone
+
+### 10.11. Key Design Decisions
+- Pricing là standalone route (không dashboard sidebar), giống `/overview`
+- Personal/Business tabs thay vì show tất cả plan cùng lúc
+- QR payment dùng mock placeholder + polling + Simulate button cho đến khi PayOS BE thật connected
+- Flat styling (no gradient) theo design-taste-frontend skill anti-AI-tell
+- Card centered với `flex flex-wrap justify-center` (không grid fixed columns)
+- Không lưu pricing link trong Sidebar navigation (chỉ Header dropdown)
+
+---
+
+## 11. LIMITATIONS & FUTURE ROADMAP
+### 11.1. Current Limitations
 He thong hien tai tap trung vao Facebook cho publishing va ads; Instagram Business chua nen duoc mo ta la hoan thien. AI hien tai tap trung vao Gemini text/chat va Vertex Imagen image generation; GPT-4o, DALL-E va AI video generation chua duoc trien khai. Analytics hien tai la dashboard/report co ban va Facebook insights; sentiment analysis, trend prediction va realtime optimization chua co backend service chuyen trach.
 
 Admin hien tai co xem user/payment/subscription va admin tools de cap nhat du lieu quan trong, nhung chua co dynamic subscription plan management dang CRUD plan day du. Team Leader single-owner governance la yeu cau nghiep vu hop ly nhung can enforce ro bang code neu muon dua thanh rule bat buoc.
 
-### 9.2. Short-term Roadmap
+### 11.2. Short-term Roadmap
 Trong ngan han, he thong nen hoan thien tai lieu API flow, kiem thu cac luong PayOS, Facebook OAuth, scheduled posting va Facebook Marketing API. Nen bo sung test coverage cho service quan trong nhu payment, content publishing, approval, AI generation va ad creation. Nen chuan hoa permission policy cho team/approval de tranh mau thuan giua UI va backend.
 
-### 9.3. Mid-term Roadmap
+### 11.3. Mid-term Roadmap
 Trong trung han, he thong co the mo rong dynamic subscription plan management, cai thien analytics, bo sung export report hoan chinh, tang monitoring cho AI/payment/social provider va chuan hoa provider abstraction cho social/AI/payment. Instagram expansion co the duoc trien khai theo tung buoc sau khi hoan tat provider, permission va media validation.
 
-### 9.4. Long-term Roadmap
+### 11.4. Long-term Roadmap
 Trong dai han, AISAM co the phat trien thanh enterprise marketing automation platform voi multi-model AI, AI strategy recommendation, AI video generation, sentiment analysis, trend prediction, realtime campaign optimization va multi-payment gateway. Tat ca cac capability nay can duoc trien khai co kiem soat, co audit trail, quota management, cost monitoring va user approval workflow de phu hop voi moi truong enterprise.
+
+---
+
+## 12. RECENT FRONTEND IMPROVEMENTS (2026-06-15)
+
+### 12.1. Workspace Selector — Removed "Create New Workspace" from Sidebar Dropdown
+- Nút "Create New Workspace" đã được gỡ khỏi dropdown workspace selector trong sidebar.
+- Giữ lại empty state fallback (khi chưa có workspace nào thì vẫn hiển thị "Create workspace").
+- Nút "Create Workspace" được thêm vào **Workspace Overview** (`/workspace-dashboard`) — góc phải header, và **Dashboard** (`/dashboard`) — hero card, góc phải dưới tên workspace.
+- Workspace Overview locked view cũng có "Create Workspace" button bên cạnh "View Plans" để user ở mọi plan đều có thể tạo workspace mới.
+
+### 12.2. Workspace Switch — Real-time Cross-component Sync
+- **Bug:** Khi chọn workspace trong sidebar, icon profile (avatar initials + display name) trong Header không cập nhật cho đến khi reload trang.
+- **Nguyên nhân:** `useWorkspaces()` tạo state riêng cho mỗi component. `selectWorkspace()` chỉ cập nhật state của Sidebar, Header không được notify.
+- **Fix:** Thêm module-level `workspaceSelectListeners` array + `notifyWorkspaceSelected()`. Khi `selectWorkspace()` được gọi, nó notify tất cả listener → mọi component dùng `useWorkspaces()` đều force re-render → đọc lại `getStoredActiveWorkspace()` từ localStorage → UI cập nhật ngay lập tức.
+
+### 12.3. Page Data Reload on Workspace Switch
+- **Bug:** Khi đổi workspace, các page Campaigns, Analytics, Social, Calendar, Team, Notifications, Approvals, Brands Detail không reload data — chỉ hiển thị data cũ.
+- **Fix:** Thêm `activeWorkspace?.id` vào dependency array của `useEffect` data-fetching ở 8 pages:
+  - `campaigns/page.tsx`: `[]` → `[activeWorkspace?.id]`
+  - `analytics/page.tsx`: `[dateRange, ...]` → `[..., activeWorkspace?.id]`
+  - `social/page.tsx`: `[]` → `[activeWorkspace?.id]`
+  - `calendar/page.tsx`: `[pathname]` → `[pathname, activeWorkspace?.id]`
+  - `team/page.tsx`: `[]` → `[activeWorkspace?.id]`
+  - `notifications/page.tsx`: `[page]` → `[page, activeWorkspace?.id]`
+  - `approvals/page.tsx`: `[tab]` → `[tab, activeWorkspace?.id]` (trong `useCallback`)
+  - `brands/[id]/page.tsx`: `[id]` → `[id, activeWorkspace?.id]`
+
+### 12.4. Other Fixes
+- **Export CSV Dashboard:** Nút Export CSV trên Dashboard giờ generate file CSV thật từ `campaignsData` thay vì chỉ alert.
+- **Error/404/Loading pages:** Thêm `error.tsx` (root + dashboard), `not-found.tsx`, `loading.tsx` (root + dashboard).
+- **Vietnamese → English strings:** Sửa 12 error message tiếng Việt sang tiếng Anh trên các trang auth.
+- **Google OAuth:** Thêm `onClick` + `clientId` fallback vào Register page.
+- **Sidebar Team Management gate:** Ẩn Team Management cho non-Business plans qua `useFeatureGate`.
+- **Credit Pack max balance:** Kiểm tra `balance + pack.credits > maxBalance` → error toast.
+- **Invite Member limit:** Warning banner + disabled button khi đạt member limit (BusinessPlus=10, BusinessPro=50).
+- **SubscriptionContext (Limited Mode):** Tạo Limited Mode / Archived Banner system-wide qua `SubscriptionProvider`.
+- **Styling & Responsive:** `overflow-x-hidden` trên body, `min-w-0 max-w-full` trên dashboard content; fix header workspace selector redundancy.
