@@ -47,6 +47,21 @@ public sealed class PostService : IPostService
         return GenericResponse<PostListItemDto>.CreateSuccess(MapToDto(post), "Post retrieved successfully.");
     }
 
+    public async Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    {
+        var posts = await _postRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, status, cancellationToken);
+        return GenericResponse<PagedResult<PostListItemDto>>.CreateSuccess(new PagedResult<PostListItemDto>
+        { Data = posts.Data.Select(MapToDto).ToList(), TotalCount = posts.TotalCount, Page = posts.Page, PageSize = posts.PageSize }, "Posts retrieved successfully.");
+    }
+
+    public async Task<GenericResponse<PostListItemDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid postId, CancellationToken cancellationToken = default)
+    {
+        var post = await _postRepository.GetByIdAsync(postId, cancellationToken);
+        return post == null || post.IsDeleted || post.Content.WorkspaceId != workspaceId
+            ? GenericResponse<PostListItemDto>.CreateError("Post not found.", HttpStatusCode.NotFound)
+            : GenericResponse<PostListItemDto>.CreateSuccess(MapToDto(post), "Post retrieved successfully.");
+    }
+
     private static PostListItemDto MapToDto(Post post)
     {
         return new PostListItemDto

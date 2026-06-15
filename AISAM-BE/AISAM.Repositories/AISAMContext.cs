@@ -20,6 +20,11 @@ namespace AISAM.Repositories
         public DbSet<Brand> Brands { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Profile> Profiles { get; set; }
+        public DbSet<Workspace> Workspaces { get; set; }
+        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
+        public DbSet<WorkspaceInvitation> WorkspaceInvitations { get; set; }
+        public DbSet<CreditWallet> CreditWallets { get; set; }
+        public DbSet<CreditUsageRecord> CreditUsageRecords { get; set; }
         public DbSet<Team> Teams { get; set; }
         public DbSet<TeamMember> TeamMembers { get; set; }
         public DbSet<TeamBrand> TeamBrands { get; set; }
@@ -73,11 +78,16 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(b => b.Id);
                 entity.HasIndex(b => b.ProfileId);
+                entity.HasIndex(b => b.WorkspaceId);
                 entity.HasIndex(b => b.Name);
                 entity.HasOne(b => b.Profile)
                       .WithMany(p => p.Brands)
                       .HasForeignKey(b => b.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(b => b.Workspace)
+                      .WithMany(w => w.Brands)
+                      .HasForeignKey(b => b.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Content entity configuration
@@ -87,6 +97,7 @@ namespace AISAM.Repositories
                 entity.Property(c => c.AdType).HasConversion<int>();
                 entity.Property(c => c.Status).HasConversion<int>().HasDefaultValue(ContentStatusEnum.Draft);
                 entity.HasIndex(c => c.BrandId);
+                entity.HasIndex(c => c.WorkspaceId);
                 entity.HasIndex(c => c.ProductId);
                 entity.HasIndex(c => c.Status);
                 entity.HasIndex(c => c.CreatedAt);
@@ -98,6 +109,7 @@ namespace AISAM.Repositories
                       .WithMany(p => p.Contents)
                       .HasForeignKey(c => c.ProductId)
                       .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(c => c.Workspace).WithMany(w => w.Contents).HasForeignKey(c => c.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Product entity configuration
@@ -118,6 +130,7 @@ namespace AISAM.Repositories
                 entity.HasKey(sa => sa.Id);
                 entity.Property(sa => sa.Platform).HasConversion<int>();
                 entity.HasIndex(sa => sa.ProfileId);
+                entity.HasIndex(sa => sa.WorkspaceId);
                 entity.HasIndex(sa => sa.Platform);
                 entity.HasIndex(sa => sa.AccountId);
                 entity.HasIndex(sa => sa.IsActive);
@@ -125,6 +138,7 @@ namespace AISAM.Repositories
                       .WithMany(p => p.SocialAccounts)
                       .HasForeignKey(sa => sa.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(sa => sa.Workspace).WithMany(w => w.SocialAccounts).HasForeignKey(sa => sa.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // SocialIntegration entity configuration
@@ -132,12 +146,14 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(si => si.Id);
                 entity.HasIndex(si => si.ProfileId);
+                entity.HasIndex(si => si.WorkspaceId);
                 entity.HasIndex(si => si.BrandId);
                 entity.HasIndex(si => si.SocialAccountId);
                 entity.HasOne(si => si.Profile)
                       .WithMany(p => p.SocialIntegrations)
                       .HasForeignKey(si => si.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(si => si.Workspace).WithMany(w => w.SocialIntegrations).HasForeignKey(si => si.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(si => si.Brand)
                       .WithMany(b => b.SocialIntegrations)
                       .HasForeignKey(si => si.BrandId)
@@ -152,7 +168,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<Post>(entity =>
             {
                 entity.HasKey(p => p.Id);
-                entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(ContentStatusEnum.Published);
+                entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(ContentStatusEnum.Published).HasSentinel(ContentStatusEnum.Draft);
                 entity.HasIndex(p => p.ContentId);
                 entity.HasIndex(p => p.IntegrationId);
                 entity.HasIndex(p => p.PublishedAt);
@@ -194,6 +210,97 @@ namespace AISAM.Repositories
                 entity.HasOne(p => p.Subscription)
                       .WithMany()
                       .HasForeignKey(p => p.SubscriptionId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // Workspace foundation configuration
+            modelBuilder.Entity<Workspace>(entity =>
+            {
+                entity.HasKey(w => w.Id);
+                entity.Property(w => w.Name).HasMaxLength(255).IsRequired();
+                entity.Property(w => w.WorkspaceType).HasConversion<int>();
+                entity.Property(w => w.Status).HasConversion<int>().HasDefaultValue(WorkspaceStatusEnum.Active).HasSentinel((WorkspaceStatusEnum)0);
+                entity.Property(w => w.MemberLimit).HasDefaultValue(1);
+                entity.HasIndex(w => w.WorkspaceType);
+                entity.HasIndex(w => w.Status);
+                entity.HasIndex(w => w.SubscriptionExpiredAt);
+                entity.HasIndex(w => w.ArchivedAt);
+                entity.HasIndex(w => w.DeletedAt);
+            });
+
+            modelBuilder.Entity<WorkspaceMember>(entity =>
+            {
+                entity.HasKey(wm => wm.Id);
+                entity.Property(wm => wm.Role).HasConversion<int>();
+                entity.Property(wm => wm.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool).HasSentinel((MemberQuotaModeEnum)0);
+                entity.HasIndex(wm => wm.WorkspaceId);
+                entity.HasIndex(wm => wm.UserId);
+                entity.HasIndex(wm => new { wm.WorkspaceId, wm.UserId }).IsUnique();
+                entity.HasIndex(wm => new { wm.WorkspaceId, wm.Role });
+                entity.HasIndex(wm => wm.WorkspaceId)
+                      .IsUnique()
+                      .HasFilter("\"role\" = 1 AND \"is_active\" = TRUE");
+                entity.HasIndex(wm => wm.IsActive);
+                entity.HasOne(wm => wm.Workspace)
+                      .WithMany(w => w.Members)
+                      .HasForeignKey(wm => wm.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(wm => wm.User)
+                      .WithMany(u => u.WorkspaceMembers)
+                      .HasForeignKey(wm => wm.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<WorkspaceInvitation>(entity =>
+            {
+                entity.HasKey(invitation => invitation.Id);
+                entity.Property(invitation => invitation.Email).HasMaxLength(255).IsRequired();
+                entity.Property(invitation => invitation.Token).HasMaxLength(500).IsRequired();
+                entity.Property(invitation => invitation.Role).HasConversion<int>();
+                entity.Property(invitation => invitation.QuotaMode).HasConversion<int>().HasDefaultValue(MemberQuotaModeEnum.SharedPool).HasSentinel((MemberQuotaModeEnum)0);
+                entity.HasIndex(invitation => invitation.Token).IsUnique();
+                entity.HasIndex(invitation => new { invitation.WorkspaceId, invitation.Email });
+                entity.HasIndex(invitation => invitation.ExpiresAt);
+                entity.HasOne(invitation => invitation.Workspace)
+                      .WithMany(workspace => workspace.Invitations)
+                      .HasForeignKey(invitation => invitation.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(invitation => invitation.InvitedByUser)
+                      .WithMany(user => user.SentWorkspaceInvitations)
+                      .HasForeignKey(invitation => invitation.InvitedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CreditWallet>(entity =>
+            {
+                entity.HasKey(wallet => wallet.Id);
+                entity.HasIndex(wallet => wallet.WorkspaceId).IsUnique();
+                entity.HasOne(wallet => wallet.Workspace)
+                      .WithOne(workspace => workspace.CreditWallet)
+                      .HasForeignKey<CreditWallet>(wallet => wallet.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CreditUsageRecord>(entity =>
+            {
+                entity.HasKey(record => record.Id);
+                entity.Property(record => record.Action).HasConversion<int>();
+                entity.Property(record => record.Status).HasConversion<int>();
+                entity.HasIndex(record => record.WorkspaceId);
+                entity.HasIndex(record => record.UserId);
+                entity.HasIndex(record => record.AiGenerationId);
+                entity.HasIndex(record => record.CreatedAt);
+                entity.HasOne(record => record.Workspace)
+                      .WithMany(workspace => workspace.CreditUsageRecords)
+                      .HasForeignKey(record => record.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(record => record.User)
+                      .WithMany()
+                      .HasForeignKey(record => record.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(record => record.AiGeneration)
+                      .WithMany()
+                      .HasForeignKey(record => record.AiGenerationId)
                       .OnDelete(DeleteBehavior.SetNull);
             });
 
@@ -250,11 +357,16 @@ namespace AISAM.Repositories
                 entity.HasKey(s => s.Id);
                 entity.Property(s => s.Plan).HasConversion<int>();
                 entity.HasIndex(s => s.ProfileId);
+                entity.HasIndex(s => s.WorkspaceId);
                 entity.HasIndex(s => s.IsActive);
                 entity.HasOne(s => s.Profile)
                       .WithMany()
                       .HasForeignKey(s => s.ProfileId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                      .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(s => s.Workspace)
+                      .WithMany(w => w.Subscriptions)
+                      .HasForeignKey(s => s.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Approval entity configuration
@@ -279,12 +391,14 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(ac => ac.Id);
                 entity.HasIndex(ac => ac.ProfileId);
+                entity.HasIndex(ac => ac.WorkspaceId);
                 entity.HasIndex(ac => ac.BrandId);
                 entity.HasIndex(ac => ac.Name);
                 entity.HasOne(ac => ac.Profile)
                       .WithMany(p => p.AdCampaigns)
                       .HasForeignKey(ac => ac.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(ac => ac.Workspace).WithMany(w => w.AdCampaigns).HasForeignKey(ac => ac.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(ac => ac.Brand)
                       .WithMany(b => b.AdCampaigns)
                       .HasForeignKey(ac => ac.BrandId)
@@ -347,6 +461,7 @@ namespace AISAM.Repositories
                 entity.HasKey(cc => cc.Id);
                 entity.HasIndex(cc => cc.ContentId);
                 entity.HasIndex(cc => cc.ProfileId);
+                entity.HasIndex(cc => cc.WorkspaceId);
                 entity.HasIndex(cc => cc.ScheduledDate);
                 entity.HasIndex(cc => cc.IntegrationId);
                 entity.HasIndex(cc => cc.ScheduledAt);
@@ -364,6 +479,7 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(cc => cc.IntegrationId)
                       .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(cc => cc.Workspace).WithMany(w => w.ContentCalendars).HasForeignKey(cc => cc.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // AiGeneration entity configuration
@@ -385,6 +501,7 @@ namespace AISAM.Repositories
                 entity.HasKey(n => n.Id);
                 entity.Property(n => n.Type).HasConversion<int>();
                 entity.HasIndex(n => n.ProfileId);
+                entity.HasIndex(n => n.WorkspaceId);
                 entity.HasIndex(n => n.Type);
                 entity.HasIndex(n => n.IsRead);
                 entity.HasIndex(n => n.CreatedAt);
@@ -392,6 +509,7 @@ namespace AISAM.Repositories
                       .WithMany(p => p.Notifications)
                       .HasForeignKey(n => n.ProfileId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(n => n.Workspace).WithMany(w => w.Notifications).HasForeignKey(n => n.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Payment entity configuration
@@ -399,9 +517,13 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(PaymentStatusEnum.Pending);
+                entity.Property(p => p.PaymentType).HasConversion<int>().HasDefaultValue(PaymentTypeEnum.Subscription).HasSentinel((PaymentTypeEnum)0);
+                entity.Property(p => p.CreditPackCode).HasConversion<int>();
                 entity.Property(p => p.Amount).HasPrecision(10, 2);
                 entity.HasIndex(p => p.UserId);
+                entity.HasIndex(p => p.WorkspaceId);
                 entity.HasIndex(p => p.Status);
+                entity.HasIndex(p => p.PaymentType);
                 entity.HasOne(p => p.User)
                       .WithMany()
                       .HasForeignKey(p => p.UserId)
@@ -410,6 +532,10 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(p => p.SubscriptionId)
                       .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(p => p.Workspace)
+                      .WithMany(w => w.Payments)
+                      .HasForeignKey(p => p.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // ContentTemplate entity configuration
@@ -444,6 +570,7 @@ namespace AISAM.Repositories
                 entity.HasKey(c => c.Id);
                 entity.Property(c => c.AdType).HasConversion<int>();
                 entity.HasIndex(c => c.ProfileId);
+                entity.HasIndex(c => c.WorkspaceId);
                 entity.HasIndex(c => c.BrandId);
                 entity.HasIndex(c => c.ProductId);
                 entity.HasIndex(c => c.IsActive);
@@ -460,6 +587,7 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(c => c.ProductId)
                       .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(c => c.Workspace).WithMany(w => w.Conversations).HasForeignKey(c => c.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // ChatMessage entity configuration

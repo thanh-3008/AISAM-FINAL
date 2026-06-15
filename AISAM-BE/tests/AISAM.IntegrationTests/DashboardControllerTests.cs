@@ -11,24 +11,24 @@ namespace AISAM.IntegrationTests;
 public class DashboardControllerTests
 {
     [Fact]
-    public async Task GetSummary_UsesValidatedActiveProfileFromHttpContext()
+    public async Task GetSummary_UsesValidatedActiveWorkspaceFromHttpContext()
     {
-        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var service = new FakeDashboardService
         {
             Result = GenericResponse<DashboardSummaryDto>.CreateSuccess(new DashboardSummaryDto())
         };
-        var controller = CreateController(service, profileId);
+        var controller = CreateController(service, workspaceId);
 
         await controller.GetSummary();
 
-        Assert.Equal(profileId, service.LastProfileId);
+        Assert.Equal(workspaceId, service.LastWorkspaceId);
     }
 
-    private static DashboardController CreateController(IDashboardService service, Guid profileId)
+    private static DashboardController CreateController(IDashboardService service, Guid workspaceId)
     {
         var context = new DefaultHttpContext();
-        context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
 
         return new DashboardController(service)
         {
@@ -39,11 +39,18 @@ public class DashboardControllerTests
     private sealed class FakeDashboardService : IDashboardService
     {
         public Guid LastProfileId { get; private set; }
+        public Guid LastWorkspaceId { get; private set; }
         public GenericResponse<DashboardSummaryDto> Result { get; set; } = GenericResponse<DashboardSummaryDto>.CreateSuccess(new DashboardSummaryDto());
 
         public Task<GenericResponse<DashboardSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
         {
             LastProfileId = profileId;
+            return Task.FromResult(Result);
+        }
+
+        public Task<GenericResponse<DashboardSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
             return Task.FromResult(Result);
         }
     }

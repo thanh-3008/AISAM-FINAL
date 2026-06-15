@@ -2,7 +2,7 @@
 
 ## Workspace-Based Subscription, Credit và Business Workspace MVP
 
-> Trạng thái: **CÁC QUYẾT ĐỊNH KIẾN TRÚC ĐÃ ĐƯỢC XÁC NHẬN - CHƯA BẮT ĐẦU CODE**
+> Trạng thái: **ĐANG TRIỂN KHAI - TASK 9.6 ACTIVE WORKSPACE CONTEXT ĐÃ HOÀN THÀNH**
 >
 > Tài liệu này chỉ phân tích ảnh hưởng và lập kế hoạch triển khai. Không tự ý refactor, đổi tên hoặc cải tiến ngoài Change Request.
 >
@@ -693,6 +693,8 @@ Business Workspace hỗ trợ member, invitation, shared credits, lifetime/month
 - [x] `AISAM-FE/user-story-detail/US-56-ownership-boundary-testing-story-detail.md`
 - [x] `AISAM-FE/user-story-detail/US-59-team-permissions-story-detail.md`
 - [x] `AISAM-FE/src/features/payment/README.md`
+- [x] `BACKEND_CODE_PLAN.md`: da chot thu tu Phase 9 Workspace -> Phase 10 Admin theo Workspace -> Phase 11 Facebook Ads -> Phase 12 Release.
+- [x] `AISAM-FE/user-story-detail/US-60-facebook-ads-mvp-story-detail.md`
 
 Các tài liệu tren da duoc cap nhat theo dang approved/planned change. Source code hien tai van duoc mo ta rieng la Profile-based baseline cho den khi migration hoan tat.
 
@@ -1535,4 +1537,6 @@ public enum WorkspaceTypeEnum
 
 Change Request này có blast radius lớn vì thay đổi ownership boundary của hệ thống. Kế hoạch trên giữ phạm vi đúng yêu cầu, triển khai theo từng module nhỏ, có migration an toàn và không tự ý thay đổi provider, auth core, UI/UX hoặc chức năng nâng cao.
 
-**25 quyết định, WorkspaceTypeEnum, Credits, Post Quota, Member Limit, Feature Matrix và Permission Matrix đã được lưu. Hiện tại chưa code; chỉ bắt đầu triển khai khi người dùng yêu cầu.**
+**Cap nhat 2026-06-13: Phase 9 da hoan thanh Task 9.1-9.18. Brand/Product, Content/Post, Social, Calendar, Conversation, Notification va Campaign da migrate sang Workspace ownership; du lieu cu da backfill vao Personal Workspace va WorkspaceId ownership da khoa NOT NULL. Workspace Dashboard va regression cuoi Phase 9 da pass. ProfileId chi con la metadata/audit compatibility. Phase tiep theo la Phase 10 Admin backend theo Workspace.**
+
+**Audit cuoi Phase 9 ngay 2026-06-13 da sua them: Workspace Post Quota/Basic Dashboard isolation, atomic Wallet/Credit/PayOS transaction, Free subscription + 50 Credits + reset 7 ngay cho Personal Workspace, va Team Management feature gate cho invitation/accept.**

@@ -49,6 +49,7 @@ public class ContentControllerTests
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
 
         return new ContentController(service)
         {
@@ -78,6 +79,7 @@ public class ContentControllerTests
         public Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }

@@ -1,24 +1,17 @@
 # AISAM Backend Setup Guide
 
-## Planned Workspace Migration Notice
+## Workspace Migration Status
 
 Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
-Backend hien tai van dung:
+Backend hien tai dang o trang thai chuyen tiep:
 
 ```text
-X-Profile-Id
-Profile-based subscription/payment/quota
+X-Workspace-Id: Workspace membership, payment, subscription, credits, feature gate, permission va Post Quota
+X-Profile-Id: metadata/audit compatibility; ownership bat buoc dung X-Workspace-Id
 ```
 
-Sau khi Workspace migration duoc code va test thanh cong, backend se dung:
-
-```text
-X-Workspace-Id
-Workspace-based subscription/payment/credits/post quota
-```
-
-Hien tai developer **khong can them config/secret moi** cho Change Request nay. Migration Workspace se dung PostgreSQL hien co. Khi task migration bat dau, developer phai chay migration tren database test/backup truoc, khong chay truc tiep tren du lieu quan trong.
+Phase 9 da hoan thanh Task 9.1-9.18. Workspace ownership da backfill va khoa schema; Workspace Dashboard va regression cuoi Phase 9 da pass. `X-Profile-Id` chi con phuc vu metadata/audit trong cac luong hien co.
 
 Tài liệu này ghi lại các cấu hình thủ công để chạy backend AISAM `.NET 8`.
 
@@ -43,7 +36,7 @@ D:\AISAM\PRN232-AISAM\PRN232_Backend
 
 ## 2. Tiến Độ Hiện Tại
 
-Backend đã hoàn thành đến hết **Phase 5 - AI và Content MVP**:
+Backend da hoan thanh Phase 0-8 va **Phase 9 Task 9.1-9.18**:
 
 - API host, Swagger, Health.
 - PostgreSQL, EF Core và migrations.
@@ -55,15 +48,23 @@ Backend đã hoàn thành đến hết **Phase 5 - AI và Content MVP**:
 - Gemini text generation: generate draft, improve, approve, history, chat.
 - Conversation history.
 - Active profile context middleware.
+- Workspace CRUD, invitation/member role, ownership transfer.
+- Workspace subscription/payment, Credit Wallet va member quota.
+- Workspace feature/permission gate, Post Quota va AI Credit charging.
+- Workspace Dashboard: Credits Remaining, Posts Remaining, Published Posts, Total AI Usage va Top Members By Usage.
+- Personal Workspace duoc tao cung Free subscription va 50 Credits; Free Credits reset theo chu ky 7 ngay khi duoc truy cap/su dung.
+- Migration `ProvisionMissingPersonalFreePlan` bo sung Free plan/50 Credits cho Personal Workspace cu con thieu.
+- Basic Dashboard, Post Quota va usage dashboard duoc isolation truc tiep theo `WorkspaceId`.
 
-Các API `/api/content`, `/api/ai`, `/api/conversations` bắt buộc có:
+Trong giai doan chuyen tiep, cac API `/api/content`, `/api/ai` va route Workspace-protected lien quan bat buoc co:
 
 ```text
 Authorization: Bearer {accessToken}
 X-Profile-Id: {profileId}
+X-Workspace-Id: {workspaceId}
 ```
 
-`X-Profile-Id` phải là profile thuộc user trong JWT.
+`X-Profile-Id` phai la profile thuoc user trong JWT va `X-Workspace-Id` phai la Workspace ma user dang la active member.
 
 ## 3. Không Commit Secrets Lên Git
 
@@ -118,14 +119,14 @@ dotnet build
 dotnet test
 ```
 
-Kết quả gần nhất ngày `2026-05-31`:
+Ket qua gan nhat ngay `2026-06-12`:
 
 ```text
 dotnet build --no-restore
-Build succeeded. 0 warnings, 0 errors.
+Build succeeded. 2 legacy migration naming warnings, 0 errors.
 
 dotnet test --no-build
-Passed. 36/36 tests passed.
+Passed. 226/226 tests passed.
 ```
 
 ## 5. PostgreSQL Database
@@ -494,6 +495,14 @@ GET  /api/payment/subscription/current
 GET  /api/quota/profile/{profileId}
 ```
 
+### Bao mat callback/webhook
+
+```text
+Callback va webhook PayOS bat buoc phai co signature hop le.
+Request thieu signature se bi tu choi voi PAYOS_SIGNATURE_REQUIRED.
+Khong tu tao request PAID thu cong neu khong tao dung HMAC bang PAYOS_CHECKSUM_KEY.
+```
+
 ### Loi thuong gap neu thieu config
 
 ```text
@@ -513,6 +522,44 @@ Nghia la thieu `PAYOS_RETURN_URL` hoac `PAYOS_CANCEL_URL`.
 ```
 
 Nghia la backend da goi PayOS nhung PayOS tra loi loi. Kiem tra key, amount, return/cancel URL va merchant status tren PayOS.
+
+```text
+400 PAYOS_SIGNATURE_REQUIRED
+```
+
+Nghia la callback/webhook khong co signature. Kiem tra Webhook URL tren PayOS dashboard va khong dung payload PAID tu tao thu cong.
+
+## Active Workspace Header
+
+### Muc dich
+
+Xac dinh Workspace dang hoat dong cho cac API Workspace-scoped va kiem tra user la active member.
+
+### Trang thai
+
+<span style="color:red"><strong>REQUIRED FOR WORKSPACE-SCOPED APIs</strong></span>
+
+### Header can them
+
+```http
+Authorization: Bearer your-access-token
+X-Workspace-Id: your-workspace-guid
+```
+
+Lay Workspace ID bang:
+
+```text
+GET /api/workspaces
+```
+
+### Loi thuong gap
+
+```text
+401 Missing or invalid X-Workspace-Id header.
+403 You are not a member of this workspace.
+404 Workspace not found.
+```
+
 ## 14. Ví Dụ `.env`
 
 Tạo file local:

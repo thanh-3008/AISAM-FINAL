@@ -4,18 +4,23 @@
 
 Nguon ke hoach chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
-Trang thai: **approved/planned, chua bat dau code**. Phase 8 hien tai van la Profile-based va van duoc giu lam baseline cho den khi migration Workspace hoan tat.
+Trang thai: **implementation in progress**. Phase 9 dang chuyen tung ownership boundary tu Profile sang Workspace; cac module chua migrate van giu Profile-based lam baseline.
 
 Thu tu code tiep theo:
 
-1. Workspace, WorkspaceMember va `WorkspaceTypeEnum`.
-2. Tao Personal Workspace mac dinh khi register.
-3. Active Workspace context voi `X-Workspace-Id`.
-4. Invitation, role, member limit va atomic Ownership Transfer.
-5. Chuyen Subscription/Payment sang Workspace.
-6. Credit Wallet, Credit Usage, Credit Pack va member quota modes.
-7. Plan entitlement, Post Quota va Permission Matrix.
-8. Chuyen ownership tung domain, backfill va khoa schema.
+1. Phase 9 - Workspace Migration.
+2. Phase 10 - Admin Backend theo Workspace.
+3. Phase 11 - Facebook Ads Campaign MVP.
+4. Phase 12 - Test Hardening va Backend Release.
+
+Khong duoc bo qua dependency:
+
+```text
+Phase 9 Workspace
+  -> Phase 10 Admin theo Workspace
+  -> Phase 11 Facebook Ads Campaign
+  -> Phase 12 Regression/Release
+```
 
 Nguyen tac bat buoc:
 
@@ -2740,14 +2745,19 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-## Phase 9 - Admin backend MVP
+## Phase 10 - Admin backend theo Workspace
 
 Mục tiêu phase:
 
-- Admin có API quản lý user/payment/subscription.
+- Admin có API quản lý user/workspace/payment/subscription.
+- Admin operations phải dùng Workspace model sau Phase 9 migration.
 - Không làm frontend admin ở tài liệu này.
 
-### Task 9.1 - Migrate UserController admin/user list APIs
+Dependency bắt buộc:
+
+- Phase 9 Workspace Migration hoàn thành.
+
+### Task 10.1 - Migrate UserController admin/user/workspace list APIs
 
 Mục tiêu:
 
@@ -2871,7 +2881,7 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-### Task 9.2 - Migrate AdminToolsController ở mức an toàn
+### Task 10.2 - Migrate AdminToolsController ở mức an toàn
 
 Mục tiêu:
 
@@ -2973,15 +2983,19 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-## Phase 10 - Test hardening và backend release MVP
+## Phase 12 - Test hardening và backend release
 
 Mục tiêu phase:
 
-- Backend MVP đủ ổn để frontend bắt đầu dùng.
+- Regression toàn hệ thống sau Workspace, Admin và Facebook Ads.
 - Có test tối thiểu.
 - Có tài liệu API/env.
 
-### Task 10.1 - Thêm integration tests cho API host và auth
+Dependency bắt buộc:
+
+- Phase 9, Phase 10 và Phase 11 hoàn thành.
+
+### Task 12.1 - Thêm integration tests cho API host và auth
 
 Mục tiêu:
 
@@ -3058,7 +3072,7 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
-### Task 10.2 - Viết backend environment và API testing guide
+### Task 12.2 - Viết backend environment và API testing guide
 
 Mục tiêu:
 
@@ -3152,6 +3166,1931 @@ Checklist hoàn thành:
 - [ ] Không phá module đã hoàn thành.
 - [ ] Commit riêng task này.
 
+## Phase 9 - Workspace Migration
+
+Mục tiêu phase:
+
+- Hoàn thành Workspace-based ownership trước khi triển khai Admin theo Workspace và Facebook Ads Campaign.
+- Thực hiện theo `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+### Tổng quan đầy đủ Task Phase 9
+
+> Đây là danh sách chính thức của toàn bộ Phase 9. Không chuyển sang task tiếp theo nếu task hiện tại chưa build/test được.
+
+| Task | Nội dung | Trạng thái | Dependency chính |
+|---|---|---|---|
+| 9.1 | Workspace domain foundation | DONE | Không |
+| 9.2 | DbContext và migration Workspace foundation | DONE | 9.1 |
+| 9.3 | Workspace và WorkspaceMember repositories | DONE | 9.2 |
+| 9.4 | Workspace service và CRUD API | DONE | 9.3 |
+| 9.5 | Tạo Personal Workspace khi register | DONE | 9.4 |
+| 9.6 | Active Workspace context và `X-Workspace-Id` | DONE | 9.3 |
+| 9.7 | Invitation, role management và Member Limit | DONE | 9.4, 9.6 |
+| 9.8 | Atomic Ownership Transfer | DONE | 9.7 |
+| 9.9 | Chuyển Subscription và Payment sang Workspace | DONE | 9.4, 9.6 |
+| 9.10 | Credit Wallet, Credit Usage và Maximum Balance | DONE | 9.9 |
+| 9.11 | Credit Pack và `PaymentType` | DONE | 9.10 |
+| 9.12 | Shared Pool, Lifetime và Monthly Assigned Limit | DONE | 9.7, 9.10 |
+| 9.13 | Plan Entitlement, Permission Matrix và Post Quota | DONE | 9.9, 9.12 |
+| 9.14 | Áp dụng Credits vào AI generation | DONE - 2026-06-12 | 9.10, 9.13 |
+| 9.15 | Limited Mode, Archived và Admin Soft Delete lifecycle | DONE - 2026-06-12 | 9.9, 9.13 |
+| 9.16 | Chuyển ownership từng domain sang Workspace | DONE - 2026-06-13 | 9.6, 9.13 |
+| 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | DONE - 2026-06-13 | 9.9-9.16 |
+| 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | DONE - 2026-06-13 | 9.17 |
+
+### Task 9.1 - Thêm Workspace domain foundation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm domain contract tối thiểu cho Workspace và WorkspaceMember.
+- Hỗ trợ một User tham gia nhiều Workspace thông qua nhiều WorkspaceMember.
+- Chưa cấu hình DbContext, migration, repository, service hoặc API.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Data/Model/WorkspaceMember.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceTypeEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceStatusEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceMemberRoleEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/MemberQuotaModeEnum.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceDomainFoundationTests.cs
+```
+
+Quyết định đã áp dụng:
+
+- `WorkspaceTypeEnum`: Personal = 1, Business = 2.
+- Role: Owner, Manager, Content Creator, Viewer.
+- Quota mode: Shared Pool, Lifetime Assigned Limit, Monthly Assigned Limit.
+- Workspace lifecycle status foundation.
+- Owner được biểu diễn bằng WorkspaceMember role; không tạo `OwnerUserId` riêng.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 127/127.
+```
+
+Migration/API test:
+
+```text
+N/A - task này chưa nối DbContext và chưa expose API.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace domain foundation
+```
+
+Task tiếp theo:
+
+```text
+Task 9.2 - Cấu hình Workspace/WorkspaceMember trong DbContext và tạo migration foundation.
+```
+
+### Task 9.2 - DbContext và migration Workspace foundation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm DbSet/configuration cho Workspace và WorkspaceMember.
+- Tạo migration chỉ thêm foundation; chưa chuyển ownership cũ.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/User.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/Migrations/AisamContextModelSnapshot.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceDomainFoundationTests.cs
+```
+
+File migration đã tạo:
+
+```text
+AISAM-BE/AISAM.Repositories/Migrations/20260610064359_AddWorkspaceFoundation.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260610064359_AddWorkspaceFoundation.Designer.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm `DbSet<Workspace>` và `DbSet<WorkspaceMember>`.
+- Cấu hình enum, index, default value và quan hệ cascade.
+- Thêm unique index `WorkspaceId + UserId` để một User không bị lặp membership trong cùng Workspace.
+- Giữ khả năng một User tham gia nhiều Workspace.
+- Migration chỉ tạo `workspaces`, `workspace_members`, index và foreign key liên quan; không sửa migration cũ hoặc ownership cũ.
+- Quy tắc đúng một Owner chưa được enforce ở database foundation; sẽ xử lý atomic trong Task 9.8.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 129/129.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API --no-build
+Applied migration: 20260610064359_AddWorkspaceFoundation.
+
+dotnet ef migrations list --project AISAM.Repositories --startup-project AISAM.API --no-build
+Migration AddWorkspaceFoundation xuất hiện và không có trạng thái Pending.
+```
+
+API test:
+
+```text
+N/A - task này chỉ tạo database foundation, chưa expose Workspace API.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace database foundation
+```
+
+Task tiếp theo:
+
+```text
+Task 9.3 - Thêm Workspace và WorkspaceMember repositories.
+```
+
+### Task 9.3 - Workspace và WorkspaceMember repositories
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm repository đọc/ghi Workspace và membership.
+- Hỗ trợ truy vấn tất cả Workspace một User tham gia.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceRepository.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceMemberRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceMemberRepository.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceRepositoryTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm Workspace repository để đọc theo ID/User, thêm, cập nhật và kiểm tra tồn tại.
+- Thêm WorkspaceMember repository để đọc theo Workspace/User, thêm, cập nhật, deactivate và kiểm tra membership.
+- Chỉ trả về active membership trong các truy vấn membership thông thường.
+- Chặn tạo trùng `WorkspaceId + UserId` tại repository; database unique index vẫn bảo vệ ở tầng schema.
+- Đăng ký hai repository với scoped lifetime trong dependency injection.
+- Chưa thêm service, controller, API hoặc business rule Owner/role/member limit.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 133/133.
+
+Repository tests:
+- Một User truy vấn được nhiều Workspace đang tham gia.
+- Workspace add/update được lưu.
+- Membership trùng trong cùng Workspace bị từ chối.
+- Remove membership chuyển IsActive thành false.
+```
+
+Migration/API test:
+
+```text
+N/A - task này không thay đổi schema và chưa expose Workspace API.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace repositories
+```
+
+Task tiếp theo:
+
+```text
+Task 9.4 - Workspace service và CRUD API.
+```
+
+### Task 9.4 - Workspace service và CRUD API
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm Workspace service/controller/DTO.
+- Tạo Personal/Business Workspace theo rule được phép.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceControllerTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm API list/get/create/update Workspace của user đang đăng nhập.
+- Tạo được Personal Workspace hoặc Business Workspace.
+- Workspace mới được lưu cùng đúng một Owner membership trong cùng một lần repository save.
+- Active member được list/get Workspace đang tham gia.
+- Non-member nhận Not Found để không lộ Workspace.
+- Chỉ Owner được đổi tên Workspace trong phạm vi CRUD foundation.
+- Đăng ký `IWorkspaceService` trong dependency injection.
+- Chưa thêm delete, invitation, member role management, member limit hoặc ownership transfer.
+- Personal Workspace chưa có API nhận member; rule không nhận member sẽ tiếp tục được giữ khi Task 9.7 thêm invitation.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test --no-build
+Passed: 140/140.
+```
+
+API runtime smoke test:
+
+```text
+API chạy tại http://localhost:5054 trong thời gian smoke test.
+Swagger nhận diện:
+- /api/workspaces
+- /api/workspaces/{id}
+
+Endpoints:
+- GET  /api/workspaces
+- GET  /api/workspaces/{id}
+- POST /api/workspaces
+- PUT  /api/workspaces/{id}
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới trong task này.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add workspace management api
+```
+
+Task tiếp theo:
+
+```text
+Task 9.5 - Tạo Personal Workspace khi register.
+```
+
+### Task 9.5 - Tạo Personal Workspace khi register
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Tạo một Personal Workspace và Owner membership khi đăng ký tài khoản.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Services/Service/AuthService.cs
+```
+
+File đã tạo:
+
+```text
+AISAM-BE/tests/AISAM.IntegrationTests/AuthRegistrationWorkspaceTests.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Luồng register email/password tạo Personal Workspace mặc định.
+- Tên mặc định dùng `{FullName}'s Workspace`; nếu không có FullName dùng `Personal Workspace`.
+- User mới là Owner duy nhất của Personal Workspace.
+- User, Workspace và Owner membership được gắn thành một EF graph và lưu bằng cùng một `SaveChanges`.
+- Duplicate email bị từ chối trước khi tạo thêm Workspace/membership.
+- Không thay đổi Google login, email delivery hoặc session semantics hiện tại ngoài phạm vi task.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 143/143.
+
+Registration workspace tests:
+- Register tạo đúng một Personal Workspace.
+- Personal Workspace có đúng một Owner là User vừa đăng ký.
+- Duplicate register không tạo thêm User, Workspace hoặc membership.
+```
+
+Migration/config/API:
+
+```text
+Không có migration hoặc config thủ công mới.
+Endpoint hiện tại tiếp tục dùng: POST /api/Auth/register.
+```
+
+Commit đề xuất:
+
+```text
+feat(auth): create personal workspace on registration
+```
+
+Task tiếp theo:
+
+```text
+Task 9.6 - Active Workspace context và X-Workspace-Id.
+```
+
+### Regression fixes trước Task 9.6 - Security, quota và account consistency
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Lý do:
+
+- Rà soát Phase 0-8 và Task 9.1-9.5 phát hiện các blocker cần sửa trước khi chuyển active context sang Workspace.
+
+Nội dung đã sửa:
+
+- PayOS callback/webhook bắt buộc có signature hợp lệ trước khi đồng bộ payment/subscription.
+- Subscription có `EndDate` đã hết hạn hoặc chưa đến `StartDate` không còn được xem là active.
+- Prompt quota theo ngày chỉ đếm AI generation thành công trong ngày UTC hiện tại.
+- AI Improve/Regenerate kiểm tra prompt quota trước khi gọi provider.
+- Google user mới được tạo Personal Workspace và Owner membership giống register email/password.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Repositories/Repository/SubscriptionRepository.cs
+AISAM-BE/AISAM.Services/Service/QuotaService.cs
+AISAM-BE/AISAM.Services/Service/AIService.cs
+AISAM-BE/AISAM.Services/Service/AuthService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/SubscriptionRepositoryTests.cs
+```
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 148/148.
+
+dotnet ef migrations has-pending-model-changes
+No changes have been made to the model since the last migration.
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới.
+PayOS callback/webhook thiếu signature hiện trả PAYOS_SIGNATURE_REQUIRED.
+```
+
+Commit đề xuất:
+
+```text
+fix(regression): secure payment and workspace account flows
+```
+
+### Task 9.6 - Active Workspace context và X-Workspace-Id
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Thêm middleware/helper đọc `X-Workspace-Id` và kiểm tra membership.
+- Chưa xóa Active Profile middleware trong task này.
+
+Rà soát trước khi code:
+
+- Xác nhận Workspace repository/membership foundation và registration flow đã pass regression.
+- Phát hiện active membership vẫn có thể trỏ tới Workspace đã Soft Delete.
+- Fix trong middleware: Workspace có status `Deleted` trả `404`; các lifecycle status khác được giữ context để Task 9.15 áp quyền.
+- Không áp `X-Workspace-Id` lên route Profile-based hiện tại vì ownership chưa được migrate.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.API/Utils/WorkspaceContextHelper.cs
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Middleware đọc và validate `X-Workspace-Id` cho các route Workspace-scoped.
+- Kiểm tra authentication và active membership theo JWT user.
+- Lưu Active Workspace ID và WorkspaceMember vào `HttpContext.Items`.
+- Helper cung cấp Active Workspace ID và membership/role cho controller/service sau.
+- Non-member nhận `403`; Workspace đã Deleted nhận `404`.
+- Active Profile middleware tiếp tục hoạt động độc lập cho module cũ.
+- Các prefix foundation hiện được bảo vệ: `/api/workspace-context`, `/api/workspace-members`, `/api/workspace-invitations`, `/api/workspace-dashboard`.
+
+Kết quả kiểm tra:
+
+```text
+dotnet build
+Build succeeded. 0 errors, 2 warnings từ migration cũ verifytoken.
+
+dotnet test --no-build
+Passed: 154/154.
+```
+
+Runtime smoke test:
+
+```text
+GET /api/workspace-members không có authentication
+Result: 401 Authentication is required.
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới.
+Client phải gửi X-Workspace-Id khi gọi API Workspace-scoped.
+```
+
+Test đã xác nhận:
+
+- Thiếu/sai header.
+- Non-member và Workspace A không dùng được context Workspace B.
+- Member hợp lệ nhận đúng Workspace ID và membership.
+- Workspace Deleted bị chặn.
+- Route Profile-based không bị middleware mới yêu cầu Workspace header.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add active workspace context
+```
+
+Task tiếp theo:
+
+```text
+Task 9.7 - Invitation, role management và Member Limit.
+```
+
+### Regression fixes trước Task 9.7 - Workspace membership và Owner safety
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Vấn đề phát hiện:
+
+- Membership đã inactive không thể tham gia lại vì unique index `(WorkspaceId, UserId)`.
+- Generic repository cho phép remove Owner, làm Workspace không còn Owner.
+- Generic repository cho phép thêm/nâng member khác thành Owner hoặc hạ Owner, có thể phá rule mỗi Workspace đúng một Owner.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceMemberRepository.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceRepositoryTests.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Tái kích hoạt membership inactive thay vì tạo record trùng.
+- Vẫn từ chối thêm membership đang active lần thứ hai.
+- Chặn thêm membership Owner ngoài workspace creation/ownership transfer.
+- Chặn remove Owner nếu chưa ownership transfer.
+- Chặn đổi role Owner và chặn nâng member thành Owner qua generic update.
+- Giữ atomic ownership transfer cho Task 9.8.
+
+Kết quả kiểm tra:
+
+```text
+WorkspaceRepositoryTests: Passed 9/9.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 159/159.
+git diff --check: không có whitespace error.
+```
+
+Migration/config:
+
+```text
+Không có migration hoặc config thủ công mới.
+```
+
+Commit đề xuất:
+
+```text
+fix(workspace): protect owner membership invariants
+```
+
+### Task 9.7 - Invitation, role management và Member Limit
+
+Mục tiêu:
+
+- Invite/accept/list/remove/update role member.
+- Business Plus tối đa 10 members; Business Pro tối đa 50 members.
+
+Chia task nhỏ:
+
+| Task | Nội dung | Trạng thái |
+|---|---|---|
+| 9.7.1 | Workspace Invitation entity, repository, migration và tests | DONE - 2026-06-10 |
+| 9.7.2 | Invite/accept invitation service và API | DONE - 2026-06-10 |
+| 9.7.3 | List/remove/update role member và permission tests | DONE - 2026-06-11 |
+| 9.7.4 | Member limit integration và hoàn tất Task 9.7 | DONE - 2026-06-11 |
+
+### Task 9.7.1 - Workspace Invitation foundation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Tạo nền tảng lưu invitation độc lập trước khi expose API.
+- Lưu email chuẩn hóa, role được mời, token, người mời, thời hạn, trạng thái accepted/revoked.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Data/Model/WorkspaceInvitation.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260610160919_AddWorkspaceInvitationFoundation.cs
+AISAM-BE/AISAM.Repositories/Migrations/20260610160919_AddWorkspaceInvitationFoundation.Designer.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationRepositoryTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/User.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/Migrations/AisamContextModelSnapshot.cs
+AISAM-BE/AISAM.API/Program.cs
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm bảng `workspace_invitations` và navigation tới Workspace/người mời.
+- Token invitation có unique index.
+- Repository hỗ trợ lấy invitation theo token và lấy/đếm pending invitation.
+- Pending invitation tự loại accepted, revoked và expired.
+- Email được chuẩn hóa lowercase khi lưu và tìm kiếm.
+
+Kết quả kiểm tra:
+
+```text
+WorkspaceInvitationRepositoryTests: Passed 4/4.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 errors, 2 warnings migration cũ verifytoken.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 163/163.
+dotnet ef database update: Applied 20260610160919_AddWorkspaceInvitationFoundation.
+dotnet ef migrations has-pending-model-changes: No changes have been made to the model since the last migration.
+```
+
+Giới hạn đã xác nhận:
+
+- Task này chưa expose invitation API và chưa gửi email.
+- Task 9.7.4 lưu và enforce `MemberLimit` ngay trên Workspace; Task 9.9 sẽ tự động gán limit `10/50` khi Subscription Business Plus/Business Pro được chuyển sang Workspace.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add invitation persistence foundation
+```
+
+### Task 9.7.2 - Invite/Accept Invitation service và API
+
+Trạng thái:
+
+```text
+DONE - 2026-06-10
+```
+
+Mục tiêu:
+
+- Owner tạo invitation cho Business Workspace.
+- User đã đăng nhập accept invitation bằng token và email đúng tài khoản.
+- Người nhận chưa phải member vẫn gọi được endpoint accept.
+
+File đã tạo:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceInvitationRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceInvitationResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceInvitationService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceInvitationService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceInvitationController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationControllerTests.cs
+```
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/UserRepository.cs
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/AISAM.API/Program.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationRepositoryTests.cs
+```
+
+Nội dung đã hoàn thành:
+
+- `POST /api/workspace-invitations` yêu cầu JWT và `X-Workspace-Id`.
+- Chỉ Owner của Business Workspace đang Active được invite.
+- Chặn Personal Workspace, non-owner, role Owner, member đã tồn tại và pending invitation trùng.
+- User lookup theo email không phân biệt chữ hoa/thường để tránh mời trùng member cũ.
+- Token invitation được sinh bằng random bytes và hết hạn sau 7 ngày.
+- Gửi invitation link bằng EmailService hiện có; thiếu SMTP không làm hỏng API local.
+- `POST /api/workspace-invitations/accept` yêu cầu JWT nhưng không yêu cầu `X-Workspace-Id`.
+- Accept chỉ thành công khi email invitation khớp email tài khoản đăng nhập.
+- Tạo hoặc reactivate membership và đánh dấu invitation accepted trong cùng `SaveChanges`.
+
+API test:
+
+```text
+POST /api/workspace-invitations
+Headers: Authorization: Bearer <owner-token>, X-Workspace-Id: <business-workspace-id>
+Body: { "email": "member@example.com", "role": 3 }
+
+POST /api/workspace-invitations/accept
+Headers: Authorization: Bearer <invited-user-token>
+Body: { "token": "<token-from-invitation-email>" }
+```
+
+Kết quả kiểm tra:
+
+```text
+Focused Workspace Invitation + middleware tests: Passed 22/22.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 175/175.
+dotnet ef migrations has-pending-model-changes: No changes have been made to the model since the last migration.
+Runtime Swagger smoke test: invite path = true, accept path = true.
+Runtime unauthenticated accept: 401.
+```
+
+Config:
+
+```text
+Không có config bắt buộc mới.
+SMTP chỉ cần khi muốn gửi invitation email thật.
+FRONTEND_BASE_URL được dùng để tạo link accept invitation.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add invite and accept invitation APIs
+```
+
+### Task 9.7.3 - List/Remove/Update Role Member
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Nội dung đã hoàn thành:
+
+- `GET /api/workspace-members`: mọi active member được xem danh sách team.
+- `PUT /api/workspace-members/{memberId}/role`: chỉ Owner được đổi role non-owner.
+- `DELETE /api/workspace-members/{memberId}`: chỉ Owner được remove non-owner.
+- Không cho gán role Owner hoặc sửa/remove Owner; ownership transfer giữ cho Task 9.8.
+- Limited/Archived Workspace vẫn xem team nhưng bị chặn role management/remove.
+
+File chính:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceMemberRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceMemberResponseDto.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceMemberController.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberControllerTests.cs
+```
+
+### Task 9.7.4 - Member Limit integration và hoàn tất Task 9.7
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Nội dung đã hoàn thành:
+
+- Thêm `Workspace.MemberLimit`.
+- Personal Workspace mặc định `1`; Business Workspace mặc định `10`.
+- Hỗ trợ Workspace limit `50` để dùng cho Business Pro.
+- Invite kiểm tra tổng active members + pending invitations.
+- Accept kiểm tra lại active member count để tránh vượt limit sau khi invitation đã tạo.
+- Invitation không thể accept sau khi Workspace rời trạng thái Active.
+- Migration cập nhật Business Workspace cũ thành limit `10`; Personal giữ `1`.
+
+Migration:
+
+```text
+AISAM-BE/AISAM.Repositories/Migrations/20260610172441_AddWorkspaceMemberLimit.cs
+Applied successfully to PostgreSQL local.
+No pending model changes.
+```
+
+Kết quả hoàn tất Task 9.7:
+
+```text
+Focused Workspace/member/invitation tests: Passed 41/41.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 186/186.
+Runtime Swagger smoke: invite, accept, member list, role update và remove routes đều tồn tại.
+Runtime thiếu JWT: member list và invitation accept đều trả 401.
+```
+
+Lưu ý dependency:
+
+- Task 9.7 đã enforce đúng giá trị `MemberLimit` của Workspace.
+- Task 9.9 sẽ tự động đặt `MemberLimit = 10` cho Business Plus và `MemberLimit = 50` cho Business Pro khi chuyển Subscription sang Workspace.
+
+Commit đề xuất:
+
+```text
+feat(workspace): complete member roles and limits
+```
+
+Cách test:
+
+- Chặn member thứ 11/51.
+- Personal Workspace không invite member.
+- Enforce Owner/Manager/Content Creator/Viewer permissions.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add invitations roles and member limits
+```
+
+### Task 9.8 - Atomic Ownership Transfer
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Transfer ownership từ Owner sang Manager trong cùng transaction.
+
+Nội dung đã hoàn thành:
+
+- Thêm `POST /api/workspace-members/ownership-transfer`.
+- Chỉ active Owner của Active Workspace được transfer ownership.
+- Target bắt buộc là active Manager trong cùng Workspace.
+- Repository tái kiểm tra Workspace có đúng một current Owner trước khi đổi role.
+- PostgreSQL dùng transaction isolation `Serializable`.
+- Owner cũ được hạ thành Manager và Manager được nâng thành Owner trong cùng transaction.
+- Validation failure xảy ra trước mutation; transaction rollback toàn bộ khi lỗi trong quá trình lưu.
+- Generic update/add/remove tiếp tục chặn mọi đường tạo zero/multiple Owner ngoài ownership transfer.
+- Database partial unique index chặn nhiều active Owner trong cùng Workspace.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceMemberRequests.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IWorkspaceMemberRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceMemberRepository.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/AISAM.API/Controllers/WorkspaceMemberController.cs
+```
+
+Migration:
+
+```text
+AISAM-BE/AISAM.Repositories/Migrations/20260611085418_EnforceSingleActiveWorkspaceOwner.cs
+Applied successfully to PostgreSQL local.
+No pending model changes.
+```
+
+API test:
+
+```text
+POST /api/workspace-members/ownership-transfer
+Headers:
+Authorization: Bearer <owner-token>
+X-Workspace-Id: <workspace-id>
+
+Body:
+{
+  "targetMemberId": "<active-manager-member-id>"
+}
+```
+
+Kết quả kiểm tra:
+
+```text
+Focused Workspace ownership/member tests: Passed 24/24.
+dotnet build AISAM-BE/AISAM.sln --no-restore: Build succeeded. 0 warnings, 0 errors.
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore: Passed 190/190.
+dotnet ef database update: Applied EnforceSingleActiveWorkspaceOwner.
+dotnet ef migrations has-pending-model-changes: No changes have been made to the model since the last migration.
+Runtime Swagger smoke: ownership-transfer path = true.
+Runtime thiếu JWT: 401.
+```
+
+Cách test:
+
+- Manager mới thành Owner, Owner cũ thành Manager.
+- Rollback toàn bộ khi lỗi.
+- Owner không thể tự remove trước khi transfer.
+- Workspace luôn có đúng một Owner.
+
+Commit đề xuất:
+
+```text
+feat(workspace): add atomic ownership transfer
+```
+
+### Task 9.9 - Chuyển Subscription và Payment sang Workspace
+
+Mục tiêu:
+
+- Checkout, webhook, current subscription và history dùng Workspace.
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.10 Credit Wallet, Credit Usage và Maximum Balance.
+```
+
+#### Task 9.9.1 - Schema và repository tương thích Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Thêm ownership Workspace nullable cho `Subscription` và `Payment`.
+- Giữ tương thích tạm thời với dữ liệu và API Profile cũ.
+- Thêm repository query subscription/payment cô lập theo Workspace.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Data/Model/Payment.cs
+AISAM-BE/AISAM.Data/Model/Subscription.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/IRepositories/IPaymentRepository.cs
+AISAM-BE/AISAM.Repositories/IRepositories/ISubscriptionRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/PaymentRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/SubscriptionRepository.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentRepositoryTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/SubscriptionRepositoryTests.cs
+```
+
+Migration:
+
+```text
+20260611092549_AddWorkspacePaymentSubscriptionOwnership
+```
+
+Kết quả:
+
+- `subscriptions.profile_id` chuyển nullable để hỗ trợ giai đoạn chuyển tiếp.
+- Thêm `subscriptions.workspace_id` và `payments.workspace_id` nullable, có index và foreign key.
+- Không backfill dữ liệu cũ trong task này vì chưa có quan hệ Profile -> Workspace đủ tin cậy; backfill thuộc Task 9.17.
+- Payment API, PayOS flow và quota usage hiện vẫn Profile-based; chuyển sang Workspace thuộc Task 9.9.2 và các task ownership sau.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore
+Passed. 193/193 tests passed.
+
+Focused repository/payment/quota tests
+Passed. 21/21 tests passed.
+
+dotnet ef database update --project AISAM.Repositories --startup-project AISAM.API
+Database is already up to date; migration exists in migration history.
+
+dotnet ef migrations has-pending-model-changes --project AISAM.Repositories --startup-project AISAM.API
+No changes have been made to the model since the last migration.
+```
+
+Commit đề xuất:
+
+```text
+feat(payment): prepare workspace subscription payment ownership
+```
+
+#### Task 9.9.2 - Chuyển payment API và PayOS flow sang Active Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Checkout, callback, webhook, current subscription và history dùng Active Workspace.
+- Giữ validation để payment không thể kích hoạt nhầm Workspace.
+
+Kết quả:
+
+- `POST /api/payment/checkout`, `GET /api/payment/history` và `GET /api/payment/subscription/current` bắt buộc Active Workspace hợp lệ.
+- Checkout tạo `Subscription.WorkspaceId` và `Payment.WorkspaceId`; `Payment.UserId` lưu người thực hiện checkout.
+- Payment history và current subscription được cô lập theo Workspace.
+- `POST /api/payment/callback` và `POST /api/payment/webhook` vẫn anonymous cho PayOS, nhưng bỏ qua Workspace middleware đúng hai route provider này.
+- Các payment route Workspace khác yêu cầu JWT và header `X-Workspace-Id`.
+
+#### Task 9.9.3 - Renewal, Member Limit và regression
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+```
+
+Mục tiêu:
+
+- Áp dụng renewal và Member Limit theo plan Workspace.
+- Chạy regression và cập nhật tài liệu hoàn tất Task 9.9.
+
+Kết quả:
+
+- Thanh toán thành công kích hoạt đúng Workspace Subscription.
+- Renewal dùng ngày hết hạn hiện tại làm mốc nếu gói cũ vẫn còn hạn, sau đó cộng thêm 30 ngày.
+- Subscription Workspace cũ được deactivate khi renewal thành công.
+- Webhook lặp lại không cộng thêm thời hạn lần thứ hai.
+- `Workspace.SubscriptionExpiredAt` được đồng bộ theo subscription mới.
+- Với enum plan hiện tại: Business `Plus` đặt Member Limit `10`, Business `Premium` đặt Member Limit `50`; Personal luôn là `1`.
+- Cộng Credits khi renewal chưa áp dụng vì Credit Wallet chưa tồn tại; thuộc Task 9.10.
+- Payment/subscription cũ đã được backfill `WorkspaceId` trong Task 9.17.
+
+Kiểm tra hoàn tất Task 9.9:
+
+```text
+Focused payment/workspace tests
+Passed. 32/32 tests passed.
+
+dotnet build AISAM-BE/AISAM.sln --no-restore
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/AISAM.sln --no-build --no-restore
+Passed. 198/198 tests passed.
+
+dotnet ef migrations has-pending-model-changes --project AISAM.Repositories --startup-project AISAM.API
+No changes have been made to the model since the last migration.
+
+Runtime smoke:
+GET /swagger/index.html -> 200
+GET /api/payment/history without authentication -> 401
+POST /api/payment/webhook with empty anonymous payload -> 400
+```
+
+Cách test:
+
+- PayOS payment kích hoạt đúng Workspace Subscription.
+- Gia hạn cộng thời gian; Credits được bổ sung sau khi Task 9.10 tạo Credit Wallet.
+- Payment history cô lập theo Workspace.
+
+Commit đề xuất:
+
+```text
+feat(payment): move subscriptions and payments to workspace
+```
+
+### Task 9.10 - Credit Wallet, Credit Usage và Maximum Balance
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.11 Credit Pack và PaymentType.
+```
+
+Mục tiêu:
+
+- Mỗi Workspace có đúng một Credit Wallet.
+- Lưu Credit Usage metadata, không lưu full prompt.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Program.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditActionEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditUsageStatusEnum.cs
+AISAM-BE/AISAM.Data/Model/CreditUsageRecord.cs
+AISAM-BE/AISAM.Data/Model/CreditWallet.cs
+AISAM-BE/AISAM.Data/Model/Workspace.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/IRepositories/ICreditUsageRecordRepository.cs
+AISAM-BE/AISAM.Repositories/IRepositories/ICreditWalletRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/CreditUsageRecordRepository.cs
+AISAM-BE/AISAM.Repositories/Repository/CreditWalletRepository.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/Service/AuthService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+AISAM-BE/tests/AISAM.IntegrationTests/AuthRegistrationWorkspaceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/CreditServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/CreditWalletRepositoryTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceServiceTests.cs
+```
+
+Migration:
+
+```text
+20260611115818_AddCreditWalletAndUsageTracking
+```
+
+Kết quả:
+
+- Thêm `CreditWallet` one-to-one với `Workspace` và unique index trên `WorkspaceId`.
+- Thêm `CreditUsageRecord` để lưu metadata usage gồm `WorkspaceId`, `UserId`, `Action`, `Credits`, `Status`, `AiGenerationId`; không lưu full prompt.
+- Thêm `ICreditService` và `CreditService` để:
+  - tạo wallet mặc định cho Workspace,
+  - grant credits theo `WorkspaceTypeEnum` + `SubscriptionPlanEnum`,
+  - chặn toàn bộ giao dịch nếu số dư mới vượt maximum balance.
+- `AuthService.RegisterAsync` và `WorkspaceService.CreateAsync` tự tạo wallet cho Personal/Business Workspace mới.
+- `PayOSPaymentService` cộng credits khi payment subscription thành công và fail toàn bộ nếu vượt maximum balance.
+- Mapping credits hiện dùng enum/plan đang có:
+  - Personal `Free` -> `50`
+  - Personal `Plus` -> `500`
+  - Personal `Premium` -> `2_000`
+  - Business `Plus` -> `15_000`
+  - Business `Premium` -> `50_000`
+- Maximum balance đã enforce:
+  - Personal -> `15_000`
+  - Business -> `500_000`
+- Task này chỉ hoàn thiện wallet/usage/max-balance foundation cho Workspace.
+- Chưa triển khai `PaymentType`/Credit Pack, shared-lifetime-monthly member quota, AI debit flow hay post quota theo Workspace; các phần đó vẫn thuộc Task 9.11-9.14.
+
+Cách test:
+
+- Personal không vượt 15.000; Business không vượt 500.000.
+- Giao dịch vượt maximum bị từ chối toàn bộ.
+- Unique Wallet constraint hoạt động.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 203/203 tests passed.
+
+Focused Task 9.10 tests
+Passed. 22/22 tests passed.
+```
+
+Commit đề xuất:
+
+```text
+feat(credits): add workspace wallet and usage tracking
+```
+
+### Task 9.11 - Credit Pack và PaymentType
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.12 Shared Pool, Lifetime và Monthly Assigned Limit.
+```
+
+Mục tiêu:
+
+- Mua Credit Pack qua PayOS và phân biệt `Subscription`/`CreditPack`.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.Common/Models/PaymentDtos.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditActionEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/CreditPackCodeEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/PaymentTypeEnum.cs
+AISAM-BE/AISAM.Data/Model/Payment.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PaymentServiceTests.cs
+```
+
+Migration:
+
+```text
+20260611123701_AddCreditPackPaymentType
+```
+
+Kết quả:
+
+- Thêm `PaymentTypeEnum` để phân biệt `Subscription` và `CreditPack`.
+- Thêm `CreditPackCodeEnum` theo catalog đã chốt:
+  - `Starter` -> `100` credits / `29.000`
+  - `Standard` -> `500` credits / `99.000`
+  - `Growth` -> `1.500` credits / `249.000`
+  - `Business` -> `5.000` credits / `699.000`
+- Mở rộng `CreateCheckoutRequest` để checkout được cả subscription và credit pack qua cùng payment API.
+- `payments` lưu thêm `payment_type`, `credit_pack_code`, `credit_amount` và index theo `payment_type`.
+- `PayOSPaymentService`:
+  - tạo payment `Subscription` như cũ,
+  - tạo payment `CreditPack` không cần `SubscriptionId`,
+  - webhook/callback xử lý riêng credit pack để cộng credits vào wallet,
+  - không đổi `Subscription.EndDate`, `Workspace.SubscriptionExpiredAt` hay feature/plan khi credit pack thành công.
+- `CreditService` có thêm `GrantCreditPackCreditsAsync` và dùng lại maximum balance rule của Task 9.10.
+- Credit Pack bị từ chối toàn bộ nếu cộng vào làm vượt maximum balance của Workspace.
+- Task này chỉ hoàn thiện `PaymentType` và Credit Pack purchase flow.
+- Chưa triển khai shared pool, lifetime/monthly assigned quota, AI debit flow hay post quota theo Workspace; các phần đó vẫn thuộc Task 9.12-9.14.
+
+Cách test:
+
+- Credit Pack cộng Credits, không đổi subscription expiry/feature.
+- Credit Pack không hết hạn.
+- Vượt maximum balance bị từ chối.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 207/207 tests passed.
+
+Focused Task 9.11 payment tests
+Passed. 17/17 tests passed.
+```
+
+Commit đề xuất:
+
+```text
+feat(credits): add workspace credit pack payments
+```
+
+### Task 9.12 - Shared Pool, Lifetime và Monthly Assigned Limit
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.13 Plan Entitlement, Permission Matrix và Post Quota.
+```
+
+Mục tiêu:
+
+- Business Plus dùng Shared Pool.
+- Business Pro hỗ trợ Shared Pool, Lifetime và Monthly Assigned Limit.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Controllers/WorkspaceMemberController.cs
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceInvitationRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Request/WorkspaceMemberRequests.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceInvitationResponseDto.cs
+AISAM-BE/AISAM.Common/Dtos/Response/WorkspaceMemberResponseDto.cs
+AISAM-BE/AISAM.Data/Model/WorkspaceInvitation.cs
+AISAM-BE/AISAM.Repositories/AISAMContext.cs
+AISAM-BE/AISAM.Repositories/Repository/WorkspaceInvitationRepository.cs
+AISAM-BE/AISAM.Services/IServices/ICreditService.cs
+AISAM-BE/AISAM.Services/IServices/IWorkspaceMemberService.cs
+AISAM-BE/AISAM.Services/Service/CreditService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceInvitationService.cs
+AISAM-BE/AISAM.Services/Service/WorkspaceMemberService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/CreditServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceInvitationServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/WorkspaceMemberServiceTests.cs
+```
+
+Migration:
+
+```text
+20260611131708_AddWorkspaceInvitationQuotaModes
+```
+
+Kết quả:
+
+- Mở rộng `WorkspaceInvitation` và invitation DTO để owner có thể cấu hình `QuotaMode` và `CreditLimit` ngay từ lúc invite member.
+- `WorkspaceInvitationService` validate plan/quota rule:
+  - `Business Plus` chỉ được `SharedPool`.
+  - `Business Pro` mới được dùng `LifetimeAssignedLimit` và `MonthlyAssignedLimit`.
+  - Assigned quota bắt buộc `CreditLimit > 0`.
+- `WorkspaceInvitationRepository.AcceptAsync` copy quota config từ invitation sang `WorkspaceMember`.
+- Thêm endpoint `PUT /api/workspace-members/{memberId}/quota` để owner cập nhật quota mode cho member sau khi join.
+- `WorkspaceMemberService` hỗ trợ chuyển mode giữa `SharedPool`, `LifetimeAssignedLimit` và `MonthlyAssignedLimit`, đồng thời reset usage phù hợp khi đổi mode.
+- `WorkspaceMemberResponseDto` trả thêm `QuotaMode`, `CreditLimit`, `CreditUsed`, `CreditPeriodStart` để frontend/admin theo dõi quota member.
+- `CreditService` có thêm `ConsumeCreditsAsync`:
+  - Shared Pool chỉ trừ `CreditWallet` của Workspace.
+  - Assigned member phải đồng thời còn workspace credits và chưa vượt member limit.
+  - `MonthlyAssignedLimit` reset `CreditUsed` theo calendar month, vào ngày 01 của tháng mới khi phát sinh usage tiếp theo.
+  - Khi member quota bị vượt, wallet không bị trừ dù workspace vẫn còn credits.
+- Task này chỉ hoàn thiện quota mode foundation, invitation/member management flow và credit consume enforcement primitive.
+- Chưa nối AI generation endpoints sang `ConsumeCreditsAsync`; phần cắm AI flow vẫn thuộc Task 9.14.
+
+Cách test:
+
+- Assigned member hết quota bị chặn dù Workspace còn Credits.
+- Monthly usage reset ngày 01.
+- Workspace Credit balance không bị reset.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 214/214 tests passed.
+
+Focused Task 9.12 tests
+Passed. 30/30 tests passed.
+```
+
+Commit đề xuất:
+
+```text
+feat(credits): add workspace member quota modes
+```
+
+### Task 9.13 - Plan Entitlement, Permission Matrix và Post Quota
+
+Trạng thái:
+
+```text
+DONE - 2026-06-11
+Task tiếp theo: 9.14 Áp dụng Credits vào AI generation.
+```
+
+Mục tiêu:
+
+- Áp dụng feature inheritance, role permissions và Post Quota đã chốt.
+
+File đã sửa:
+
+```text
+AISAM-BE/AISAM.API/Controllers/ContentController.cs
+AISAM-BE/AISAM.API/Controllers/QuotaController.cs
+AISAM-BE/AISAM.API/Middleware/ActiveProfileMiddleware.cs
+AISAM-BE/AISAM.API/Middleware/ActiveWorkspaceMiddleware.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspaceFeatureEnum.cs
+AISAM-BE/AISAM.Data/Enumeration/WorkspacePermissionEnum.cs
+AISAM-BE/AISAM.Services/IServices/IContentService.cs
+AISAM-BE/AISAM.Services/IServices/IQuotaService.cs
+AISAM-BE/AISAM.Services/Service/ContentService.cs
+AISAM-BE/AISAM.Services/Service/PayOSPaymentService.cs
+AISAM-BE/AISAM.Services/Service/QuotaService.cs
+AISAM-BE/tests/AISAM.IntegrationTests/AIServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ActiveWorkspaceMiddlewareTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentControllerPublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServicePublishTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ContentServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/PhaseEQuotaIntegrationTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaControllerTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/QuotaServiceTests.cs
+AISAM-BE/tests/AISAM.IntegrationTests/ScheduledPostingServiceTests.cs
+```
+
+Kết quả đã có:
+
+- Thêm `WorkspaceFeatureEnum` và `WorkspacePermissionEnum` để gom entitlement/permission theo Workspace.
+- `QuotaService` có `GetWorkspaceSummaryAsync` và `EnsureWorkspacePostQuotaAsync`; Post Quota theo plan đã map đúng:
+  - Free -> `20/tuần`
+  - Personal Plus -> `300/tháng`
+  - Personal Pro -> `1.000/tháng`
+  - Business Plus -> `5.000/tháng`
+  - Business Pro -> `20.000/tháng`
+- `QuotaController` chuyển sang `GET /api/quota/workspace/current` để trả quota summary theo Active Workspace.
+- `ContentController` publish truyền `workspaceId`; `ContentService` có overload publish theo Workspace và publish chỉ kiểm tra Post Quota, không trừ Credits.
+- `ActiveWorkspaceMiddleware` bảo vệ thêm `/api/ai`, `/api/brands`, `/api/content`, `/api/content-schedules`, `/api/dashboard`, `/api/products`, `/api/quota`, đồng thời áp dụng permission gate cơ bản cho billing/content/brand/product/AI/schedule.
+- `ActiveWorkspaceMiddleware` đã gate feature cho `SchedulePost` và `MultiPlatformPublish`.
+- `ActiveWorkspaceMiddleware` tiếp tục được mở rộng để gate entitlement theo route/feature cho:
+  - `GenerateText`
+  - `AI Image`
+  - `AI Video`
+  - `Trend Analysis`
+  - `Holiday Suggestion`
+  - `Campaign Recommendation`
+  - `Basic Analytics`
+  - `Workspace Dashboard`
+- `PayOSPaymentService` đồng bộ lại plan definition để Post Quota trong subscription data khớp matrix đã chốt.
+- `ScheduledPostingService` đã resolve `workspaceId` từ `Profile -> User -> WorkspaceMember` và gọi overload publish theo Workspace, nên scheduled publish cũng đi qua `EnsureWorkspacePostQuotaAsync`; khoảng hở bypass Post Quota theo Workspace đã được đóng.
+- Thêm regression tests để khóa 2 behavior quan trọng:
+  - scheduled publish phải dùng workspace-aware publish path
+  - feature gate phải chặn đúng plan cho `AI Image` và `Workspace Dashboard`
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 0 warnings, 0 errors.
+
+dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+Passed. 222/222 tests passed.
+
+Focused Task 9.13 tests
+Passed. 20/20 tests passed.
+```
+
+Cách test:
+
+- Feature/permission đúng theo matrix.
+- Publish không trừ Credits.
+- Post Quota đúng theo từng plan.
+
+Commit đề xuất:
+
+```text
+feat(subscription): enforce workspace plan entitlements
+```
+
+### Task 9.14 - Áp dụng Credits vào AI generation
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16 Chuyển ownership từng domain sang Workspace.
+```
+
+Mục tiêu:
+
+- Trừ Credits chỉ sau AI generate/regenerate/refine thành công.
+
+Cách test:
+
+- AI thành công trừ đúng Credits.
+- AI/provider thất bại không trừ Credits.
+- AI Chat không trừ Credits trong MVP.
+
+Kết quả đã có:
+
+- `GeminiController` truyền Active Workspace membership vào generate/refine.
+- Generate text và refine kiểm tra Workspace/member Credits trước khi gọi provider.
+- Chỉ generation thành công mới trừ `1` Credit và lưu `CreditUsageRecord`.
+- Provider thất bại và AI Chat không trừ Credits.
+- Generate Text/Basic Analytics là feature Free/basic, không bắt buộc active subscription nếu Workspace vẫn còn Credits.
+- Loại bỏ dependency AutoMapper không sử dụng có cảnh báo lỗ hổng mức High.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded. 2 legacy migration naming warnings, 0 errors.
+
+dotnet test AISAM-BE/AISAM.sln
+Passed. 226/226 tests passed.
+
+dotnet ef migrations has-pending-model-changes
+No changes have been made to the model since the last migration.
+
+dotnet ef database update
+Applied pending Workspace credit migrations and `20260612020911_FixEfModelConfigurationWarnings` successfully.
+
+Runtime smoke
+GET /api/health -> 200
+GET /swagger/index.html -> 200
+
+dotnet list AISAM.sln package --vulnerable --include-transitive
+No vulnerable packages found.
+```
+
+Commit đề xuất:
+
+```text
+feat(ai): enforce workspace credit usage
+```
+
+### Task 9.15 - Limited Mode, Archived và Admin Soft Delete lifecycle
+
+Trạng thái:
+
+```text
+DONE - 2026-06-12
+Task tiếp theo: 9.16 Chuyển ownership từng domain sang Workspace.
+```
+
+Mục tiêu:
+
+- Áp dụng lifecycle Workspace hết hạn.
+
+Cách test:
+
+- Dưới 90 ngày Limited Mode.
+- 90-180 ngày Archived: Owner View/Export/Renew, Member View Only.
+- Trên 180 ngày chỉ Admin được Soft Delete.
+
+Kết quả đã có:
+
+- Business Workspace tự đồng bộ `Limited`, `Archived`, `EligibleForDeletion` theo `SubscriptionExpiredAt`.
+- Limited/Archived/EligibleForDeletion chặn thao tác ghi; member vẫn được View; Owner vẫn được Billing/Renew và Export.
+- `DELETE /api/workspaces/{id}` chỉ cho Admin và chỉ Soft Delete Workspace đã quá 180 ngày.
+- PayOS renewal khôi phục Workspace về `Active`.
+- Scheduled posting không chạy qua Workspace đã hết hạn.
+- Automated tests xác minh mốc 90/180 ngày, read-only, renew và Admin Soft Delete.
+
+Kiểm tra đã chạy:
+
+```text
+dotnet build AISAM-BE/AISAM.sln
+Build succeeded.
+
+dotnet test AISAM-BE/AISAM.sln
+Passed. 242/242 tests passed.
+```
+
+Commit đề xuất:
+
+```text
+feat(workspace): add expiration lifecycle
+```
+
+### Task 9.16 - Chuyển ownership từng domain sang Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-13
+Task 9.17 và Task 9.18 đã hoàn thành; Phase 9 đã chốt.
+```
+
+Mục tiêu:
+
+- Chuyển ownership Brand, Product, Content/Post, Social, Calendar, Conversation, Notification và Campaign.
+
+Quy tắc commit:
+
+- Mỗi domain là một commit riêng; không gom toàn bộ domain vào một commit.
+
+Cách test:
+
+- CRUD và isolation theo Workspace sau từng domain.
+- Không phá API/module đã migrate trước đó.
+
+Kết quả đã có:
+
+- Brand có nullable `WorkspaceId`; Brand mới thuộc Active Workspace và CRUD/list được isolation theo Workspace.
+- `ProfileId` của Brand được giữ làm metadata/audit compatibility; ownership bắt buộc dùng `WorkspaceId`.
+- Product kế thừa ownership qua Brand; CRUD/list và pagination được lọc tại database theo `Brand.WorkspaceId`.
+- Migration `AddBrandWorkspaceOwnership` đã được áp dụng thành công.
+- Automated tests xác minh Brand/Product không đọc hoặc tạo dữ liệu xuyên Workspace.
+- Content/Post, Social Account/Integration, Calendar, Conversation, Notification và Campaign đã có Workspace ownership.
+- Các controller chuẩn đọc Active Workspace context và repository query isolation theo Workspace.
+- AI draft/chat, schedule và scheduled posting tạo dữ liệu mới có `WorkspaceId`.
+- Task 9.17 đã backfill dữ liệu cũ và khóa `WorkspaceId` ownership bắt buộc; `ProfileId` chỉ còn metadata/audit compatibility.
+- Migration `AddRemainingDomainWorkspaceOwnership` đã được áp dụng thành công.
+- Full automated tests xác minh isolation cho toàn bộ domain ownership.
+
+Commit đề xuất:
+
+```text
+refactor(<domain>): move ownership to workspace
+```
+
+### Task 9.17 - Backfill dữ liệu cũ và khóa schema Workspace
+
+Trạng thái:
+
+```text
+DONE - 2026-06-13
+Task 9.18 đã hoàn thành; Phase 9 đã chốt.
+```
+
+Mục tiêu:
+
+- Mỗi Profile cũ tạo một Personal Workspace.
+- Backfill Subscription/resources/Credits rồi mới khóa schema mới.
+
+Cách test:
+
+- Chạy trên database test có dữ liệu cũ.
+- Không mất dữ liệu.
+- Migration rollback được trên database test.
+
+Kết quả đã có:
+
+- Migration `BackfillLegacyWorkspaceDataAndLockOwnership` tạo hoặc tái sử dụng Personal Workspace cho Profile cũ.
+- Owner membership và Credit Wallet được tạo cho Workspace backfill còn thiếu.
+- Subscription, Payment, Brand, Content, Social Account/Integration, Calendar, Conversation, Notification và Campaign được backfill sang Workspace.
+- `workspace_id` của 10 bảng ownership đã khóa `NOT NULL`; migration dừng an toàn nếu còn dòng không ánh xạ được.
+- Workspace runtime không còn suy luận ownership từ Profile trong scheduled posting hoặc billing.
+- Migration đã được apply, rollback và apply lại thành công trên database dev/test.
+
+Commit đề xuất:
+
+```text
+migration(workspace): backfill legacy profile data
+```
+
+### Task 9.18 - Workspace Dashboard, regression và tài liệu cuối Phase 9
+
+Trạng thái: **DONE - 2026-06-13**
+
+Kết quả:
+
+- Đã thêm `GET /api/workspace-dashboard/summary`, dùng Active Workspace từ `X-Workspace-Id`.
+- Dashboard tổng hợp đúng Credits Remaining, Posts Remaining, Published Posts, Total AI Usage và Top Members By Usage.
+- Feature gate chỉ cho Business Plus/Premium sử dụng Workspace Dashboard; middleware tiếp tục xác minh membership.
+- Regression test khóa việc lọc dữ liệu theo Workspace, chỉ tính giao dịch thành công, bỏ qua credit grant và member inactive.
+- Audit cuối Phase 9 đã sửa Post Quota và Basic Dashboard bị trộn dữ liệu giữa các Workspace của cùng user/profile.
+- Personal Workspace mới được provision atomically với Free subscription, Credit Wallet 50 và Free Credits reset theo chu kỳ 7 ngày.
+- Migration `20260613130339_ProvisionMissingPersonalFreePlan` provision idempotent Free subscription/50 Credits cho Personal Workspace cũ còn thiếu; rollback và apply lại đã pass.
+- Tạo Workspace luôn lưu Owner + Credit Wallet trong cùng EF graph; credit consume/grant và PayOS status application dùng transaction trên relational database.
+- Invitation/accept yêu cầu active Business Plus hoặc Business Pro, không còn cho Business Workspace chưa có plan sử dụng Team Management.
+- `dotnet build`, 268 automated tests, EF pending-model check/database update, package vulnerability scan và Swagger runtime smoke-test đều pass.
+
+Mục tiêu:
+
+- Hoàn thiện Workspace Dashboard và xác minh toàn bộ Phase 9.
+
+Cách test:
+
+- Credits/Posts/AI Usage/Top Members đúng.
+- `dotnet build`, `dotnet test`, migration và Swagger/Postman regression pass.
+- Cập nhật `BACKEND_CODE_PLAN.md`, `SETUP_GUIDE.md` và Change Request.
+
+Commit đề xuất:
+
+```text
+test(workspace): complete workspace migration regression
+```
+
+Điều kiện hoàn thành:
+
+- `X-Workspace-Id` hoạt động và kiểm tra membership.
+- Brand, Content và Social Integration dùng Workspace ownership.
+- Mỗi Workspace có đúng một Owner và một Credit Wallet.
+- Subscription, Credits, Post Quota, Feature Gate và Permission Matrix hoạt động theo Workspace.
+- Business Plus/Business Pro member limit hoạt động.
+- Build, test, migration và API regression pass.
+
+Không bắt đầu Phase 10 hoặc Phase 11 nếu Phase 9 chưa hoàn thành.
+
+## Phase 11 - Facebook Ads Campaign MVP
+
+Mục tiêu phase:
+
+- Cung cấp luồng Campaign -> Ad Set -> Ad Creative -> Ad theo Active Workspace.
+- Ưu tiên tái sử dụng Ads entities/schema hiện có.
+- Chỉ triển khai Facebook Marketing API; chưa làm multi-platform Ads hoặc tự động tối ưu ngân sách.
+
+Dependency bắt buộc:
+
+- Phase 9 Workspace Migration hoàn thành.
+- Phase 10 Admin Backend theo Workspace hoàn thành.
+- Facebook App có Marketing API permissions phù hợp.
+- Workspace đã liên kết Facebook Ad Account hợp lệ.
+- Brand và Content dùng Workspace ownership.
+
+### Task 11.1 - Kích hoạt Campaign repository và CRUD API local
+
+Mục tiêu:
+
+- Người dùng có quyền có thể tạo, xem, cập nhật và soft delete Campaign trong Workspace.
+
+Loại task:
+
+Copy từ source cũ / Cải tiến bắt buộc
+
+Source cũ liên quan:
+
+```text
+PRN232_Backend/AISAM.Data/Model/AdCampaign.cs
+PRN232_Backend/AISAM.Repositories/
+PRN232_Backend/AISAM.Services/
+PRN232_Backend/AISAM.API/Controllers/
+```
+
+File/thư mục repo mới:
+
+```text
+AISAM-BE/AISAM.Repositories/
+AISAM-BE/AISAM.Services/
+AISAM-BE/AISAM.API/Controllers/AdCampaignController.cs
+AISAM-BE/tests/
+```
+
+Việc cần làm:
+
+- Giữ entity/schema Ads hiện có nếu phù hợp.
+- Chuyển Campaign ownership từ Profile sang Workspace.
+- Thêm repository/service/controller CRUD.
+- Kiểm tra Brand thuộc Active Workspace.
+- Chưa gọi Facebook Marketing API trong task này.
+
+Cải tiến so với source cũ nếu có:
+
+Có: bắt buộc dùng Workspace ownership và Permission Matrix mới.
+
+Commit đề xuất:
+
+```text
+feat(ads): add workspace campaign crud
+```
+
+Lệnh kiểm tra sau task:
+
+```text
+dotnet build
+dotnet test
+dotnet ef database update
+dotnet run --project AISAM.API
+```
+
+API cần test bằng Swagger/Postman:
+
+```text
+POST   /api/ad-campaigns
+GET    /api/ad-campaigns
+GET    /api/ad-campaigns/{id}
+PUT    /api/ad-campaigns/{id}
+DELETE /api/ad-campaigns/{id}
+```
+
+Expected result:
+
+- Workspace A không truy cập được Campaign của Workspace B.
+- Viewer không tạo/sửa/xóa Campaign.
+- Manager và Owner quản lý Campaign theo Permission Matrix.
+
+### Task 11.2 - Kích hoạt Ad Set CRUD local
+
+Mục tiêu:
+
+- Quản lý Ad Set thuộc Campaign trong Active Workspace.
+
+Việc cần làm:
+
+- Thêm repository/service/controller cho Ad Set.
+- Kiểm tra Campaign thuộc Active Workspace.
+- Validate budget, schedule và targeting cơ bản.
+- Chưa gọi Facebook Marketing API.
+
+Commit đề xuất:
+
+```text
+feat(ads): add workspace ad set crud
+```
+
+API cần test:
+
+```text
+POST   /api/ad-sets
+GET    /api/ad-sets/campaign/{campaignId}
+GET    /api/ad-sets/{id}
+PUT    /api/ad-sets/{id}
+DELETE /api/ad-sets/{id}
+```
+
+Sau task phải chạy `dotnet build`, `dotnet test` và API test.
+
+### Task 11.3 - Kích hoạt Ad Creative CRUD từ Content
+
+Mục tiêu:
+
+- Tạo Ad Creative local từ Content đã có trong cùng Workspace.
+
+Việc cần làm:
+
+- Thêm repository/service/controller cho Ad Creative.
+- Kiểm tra Content, Brand và Campaign cùng Workspace.
+- Validate text/media URL cần thiết.
+- Chưa gọi Facebook Marketing API.
+
+Commit đề xuất:
+
+```text
+feat(ads): add ad creative from workspace content
+```
+
+Sau task phải build/test/API test riêng.
+
+### Task 11.4 - Kích hoạt Ad CRUD local
+
+Mục tiêu:
+
+- Tạo Ad liên kết Ad Set và Ad Creative trong cùng Workspace.
+
+Việc cần làm:
+
+- Thêm repository/service/controller cho Ad.
+- Kiểm tra Ad Set và Ad Creative cùng Workspace.
+- Quản lý trạng thái local Draft/Ready/Paused theo enum hiện có nếu phù hợp.
+
+Commit đề xuất:
+
+```text
+feat(ads): add workspace ad crud
+```
+
+Sau task phải build/test/API test riêng.
+
+### Task 11.5 - Liên kết Facebook Ad Account và Marketing API client
+
+Mục tiêu:
+
+- Xác minh Ad Account đã liên kết và cung cấp client gọi Facebook Marketing API.
+
+Loại task:
+
+Security hardening / Viết mới
+
+Việc cần làm:
+
+- Dùng Facebook config/provider hiện có.
+- Không log access token.
+- Kiểm tra Ad Account thuộc Social Integration của Active Workspace.
+- Trả lỗi rõ khi thiếu permission/token/config.
+
+Commit đề xuất:
+
+```text
+feat(ads): add facebook marketing api client
+```
+
+API test:
+
+- List/validate linked Ad Accounts.
+- Invalid token/permission trả lỗi rõ.
+
+### Task 11.6 - Publish Campaign structure lên Facebook
+
+Mục tiêu:
+
+- Tạo Campaign, Ad Set, Ad Creative và Ad trên Facebook theo thứ tự an toàn.
+
+Việc cần làm:
+
+- Sync từng resource và lưu Facebook ID.
+- Không tạo resource con nếu parent chưa sync thành công.
+- Lưu trạng thái lỗi để retry thủ công.
+- Không tự động bật chạy Ads nếu chưa được người dùng xác nhận.
+
+Commit đề xuất:
+
+```text
+feat(ads): publish campaign structure to facebook
+```
+
+API cần test:
+
+```text
+POST /api/ad-campaigns/{id}/sync
+POST /api/ad-sets/{id}/sync
+POST /api/ad-creatives/{id}/sync
+POST /api/ads/{id}/sync
+```
+
+### Task 11.7 - Sync status và basic insights
+
+Mục tiêu:
+
+- Đồng bộ trạng thái và chỉ số cơ bản của Ads đã publish.
+
+Việc cần làm:
+
+- Sync status Campaign/Ad Set/Ad/Creative.
+- Đọc basic insights từ Facebook khi permission cho phép.
+- Không triển khai auto-optimization.
+
+Commit đề xuất:
+
+```text
+feat(ads): sync facebook ad status and basic insights
+```
+
+### Task 11.8 - Facebook Ads regression, security và documentation
+
+Mục tiêu:
+
+- Xác minh luồng Campaign end-to-end không phá module đã hoàn thành.
+
+Việc cần làm:
+
+- Unit/integration tests cho ownership, permission và validation.
+- Swagger/Postman test local CRUD.
+- Test Marketing API bằng Facebook test account/ad account.
+- Cập nhật `SETUP_GUIDE.md`, API docs và progress log.
+
+Commit đề xuất:
+
+```text
+test(ads): harden facebook campaign workflow
+```
+
+Phase 11 chỉ hoàn thành khi:
+
+- [ ] Campaign/Ad Set/Ad Creative/Ad CRUD local pass.
+- [ ] Workspace isolation và Permission Matrix pass.
+- [ ] Facebook Ad Account validation pass.
+- [ ] Sync Facebook IDs/status pass hoặc trả lỗi provider rõ ràng.
+- [ ] Không tự động bật Ads ngoài xác nhận người dùng.
+- [ ] `dotnet build` pass.
+- [ ] `dotnet test` pass.
+- [ ] Migration pass.
+- [ ] Swagger/Postman test được ghi lại.
+
 ## Backend MVP Definition of Done
 
 Backend MVP chỉ được xem là xong khi:
@@ -3179,7 +5118,7 @@ Không làm trong MVP backend đầu tiên:
 
 - TikTok integration thật.
 - Instagram Business integration đầy đủ.
-- Facebook Ads end-to-end.
+- Facebook Ads end-to-end chưa thuộc baseline hiện tại; đã được đưa vào Phase 11 sau Workspace và Admin.
 - Video AI generation.
 - Mobile app APIs riêng.
 - AI cost tracking chi tiết.
@@ -4024,9 +5963,9 @@ Checklist:
 - [x] Khong pha module Auth/Profile/Brand/Health da hoan thanh.
 - [ ] Commit rieng task nay.
 
-## Current Backend Status - Updated 2026-06-04
+## Current Backend Status - Updated 2026-06-11
 
-Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP hoan thien hon: checkout goi PayOS Merchant API, callback/webhook dong bo payment/subscription, history/current subscription va quota display da co. Phase 9 Admin chua thay ro la da hoan thanh.
+Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. Code thuc te da co den **Phase 8 - Payment, subscription, quota display** o muc MVP hoan thien hon. Thu tu tiep theo da duoc chot: Phase 9 Workspace -> Phase 10 Admin theo Workspace -> Phase 11 Facebook Ads -> Phase 12 Release.
 
 | Phase | Trang thai hien tai | Ghi chu |
 | --- | --- | --- |
@@ -4039,23 +5978,19 @@ Backend source hien tai tren nhanh `Thanhk3` da vuot moc ghi chu cu trong plan. 
 | Phase 6 - Social integration va Facebook Page publishing | DONE/BASIC | Facebook OAuth, social account, linked targets, publish content, post history da co. |
 | Phase 7 - Scheduling, notification, basic dashboard | DONE/BASIC | Content schedules, scheduler service/dev endpoint, notifications, dashboard summary da co. |
 | Phase 8 - Payment, subscription, quota display | DONE/MVP | Payment checkout goi PayOS Merchant API, callback/webhook sync payment/subscription, history/current subscription va quota display da co. |
-| Phase 9 - Admin backend MVP | TODO/UNCLEAR | Chua thay controller admin/user management rieng trong source hien tai. |
-| Phase 10 - Test hardening va backend release MVP | IN PROGRESS | 119 automated tests pass; docs/setup can tiep tuc dong bo. |
+| Phase 9 - Workspace Migration | DONE | Task 9.1-9.18 da hoan thanh; Workspace Dashboard va regression cuoi Phase 9 da pass. |
+| Phase 10 - Admin backend theo Workspace | TODO | Chi bat dau sau Phase 9. |
+| Phase 11 - Facebook Ads Campaign MVP | TODO | Chi bat dau sau Phase 9 va Phase 10. |
+| Phase 12 - Test hardening va backend release | IN PROGRESS/PARTIAL | Automated tests hien co pass, nhung regression cuoi chi hoan thanh sau Phase 9-11. |
 
-Ket qua kiem tra gan nhat ngay 2026-06-04:
+Ket qua kiem tra gan nhat ngay 2026-06-11:
 
 ```text
 dotnet build --no-restore
 Build succeeded. 0 warnings, 0 errors.
 
-dotnet test --no-build --filter "Payment|Quota"
-Passed. 23/23 tests passed.
-
-dotnet test --no-build
-Passed. 121/121 tests passed.
-
-Warnings:
-CS8981 in migration 20260124133308_verifytoken.cs and .Designer.cs.
+dotnet test --no-build --no-restore
+Passed. 198/198 tests passed.
 ```
 
 Test files hien tai:
@@ -4134,7 +6069,10 @@ Luu y thu cong:
 Next recommended tasks:
 
 1. Cap nhat chi tiet Progress Detail cho Phase 6 va Phase 7 theo source code hien tai.
-2. Ra soat Phase 9 Admin: xac dinh can viet moi hay reuse module admin cu.
+2. Hoan thanh Phase 9 Workspace Migration.
+3. Cap nhat va hoan thanh Phase 10 Admin theo Workspace.
+4. Trien khai Phase 11 Facebook Ads Campaign MVP.
+5. Chay Phase 12 regression/release cuoi.
 3. Hardening Phase 6-8: Facebook error handling, scheduler retry/failed-state, PayOS idempotency/retry, quota edge cases.
 4. Dong bo `SETUP_GUIDE.md` voi config thuc te cua Phase 6-8.
 
@@ -4171,14 +6109,14 @@ POST /api/payment/checkout
 POST /api/payment/callback
 - AllowAnonymous
 - Nhan query params tu PayOS
-- Neu co signature thi verify HMAC SHA256
+- Bat buoc co signature HMAC SHA256 hop le; thieu signature tra PAYOS_SIGNATURE_REQUIRED
 - Status paid/success/00 => payment Success, subscription active
 - Status cancelled/failed/expired => payment Failed
 
 POST /api/payment/webhook
 - AllowAnonymous
 - Nhan JSON payload tu PayOS
-- Neu co signature thi verify HMAC SHA256 theo data primitives
+- Bat buoc co signature HMAC SHA256 hop le theo data primitives
 - Dong bo payment/subscription nhu callback
 
 GET /api/payment/history

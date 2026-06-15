@@ -62,6 +62,19 @@ public sealed class PostRepository : IPostRepository
         };
     }
 
+    public async Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query().Where(p => !p.IsDeleted && p.Content.WorkspaceId == workspaceId);
+        if (brandId.HasValue) query = query.Where(p => p.Content.BrandId == brandId.Value);
+        if (status.HasValue) query = query.Where(p => p.Status == status.Value);
+        query = query.OrderByDescending(p => p.PublishedAt);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Post> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
+    }
+
     private IQueryable<Post> Query()
     {
         return _context.Posts

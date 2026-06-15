@@ -43,6 +43,7 @@ public class ConversationControllerTests
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
 
         return new ConversationController(service)
         {

@@ -62,16 +62,25 @@ public class ContentCalendarRepositoryTests
             ProfileType = ProfileTypeEnum.Basic,
             Status = ProfileStatusEnum.Active
         };
+        var workspace = new Workspace
+        {
+            Id = Guid.NewGuid(),
+            Name = "Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Personal
+        };
         var brand = new Brand
         {
             Id = Guid.NewGuid(),
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             Name = "Brand"
         };
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
             BrandId = brand.Id,
             Brand = brand,
             AdType = AdTypeEnum.TextOnly,
@@ -83,6 +92,8 @@ public class ContentCalendarRepositoryTests
             ContentId = content.Id,
             Content = content,
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             ScheduledAt = DateTime.UtcNow.AddMinutes(-5),
             IntegrationId = Guid.NewGuid(),
             Status = ScheduleStatusEnum.Pending
@@ -93,6 +104,8 @@ public class ContentCalendarRepositoryTests
             ContentId = content.Id,
             Content = content,
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             ScheduledAt = DateTime.UtcNow.AddMinutes(10),
             IntegrationId = Guid.NewGuid(),
             Status = ScheduleStatusEnum.Pending
@@ -103,6 +116,8 @@ public class ContentCalendarRepositoryTests
             ContentId = content.Id,
             Content = content,
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             ScheduledAt = DateTime.UtcNow.AddHours(1),
             IntegrationId = Guid.NewGuid(),
             Status = ScheduleStatusEnum.Pending
@@ -113,6 +128,8 @@ public class ContentCalendarRepositoryTests
             ContentId = content.Id,
             Content = content,
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             ScheduledAt = DateTime.UtcNow.AddMinutes(-15),
             IntegrationId = Guid.NewGuid(),
             Status = ScheduleStatusEnum.Completed
@@ -123,6 +140,8 @@ public class ContentCalendarRepositoryTests
             ContentId = content.Id,
             Content = content,
             ProfileId = profile.Id,
+            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             ScheduledAt = DateTime.UtcNow.AddMinutes(20),
             IntegrationId = Guid.NewGuid(),
             Status = ScheduleStatusEnum.Pending,
@@ -131,6 +150,7 @@ public class ContentCalendarRepositoryTests
 
         context.Users.Add(owner);
         context.Profiles.Add(profile);
+        context.Workspaces.Add(workspace);
         context.Brands.Add(brand);
         context.Contents.Add(content);
         context.ContentCalendars.AddRange(due, upcomingSoon, upcomingLater, completed, deleted);

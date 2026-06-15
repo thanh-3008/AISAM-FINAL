@@ -16,26 +16,26 @@ public class PhaseEQuotaIntegrationTests
     public async Task GenerateDraftAsync_ReturnsForbiddenWithPromptQuotaError_WhenPromptQuotaExceeded()
     {
         var profileId = Guid.NewGuid();
-        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Brand" };
-        var quotaService = new FakeQuotaService
+        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = profileId, Name = "Brand" };
+        var creditService = new FakeCreditService
         {
-            PromptResult = GenericResponse<bool>.CreateError(
-                "Prompt quota has been exceeded for the current subscription.",
-                HttpStatusCode.Forbidden,
-                "PROMPT_QUOTA_EXCEEDED")
+            AvailabilityResult = GenericResponse<bool>.CreateError(
+                "Workspace does not have enough credits.",
+                HttpStatusCode.BadRequest,
+                "INSUFFICIENT_WORKSPACE_CREDITS")
         };
         var contentRepository = new FakeContentRepository();
-        var service = CreateAiService(contentRepository, quotaService, new FakeGeminiTextClient("unused"), brand);
+        var service = CreateAiService(contentRepository, creditService, new FakeGeminiTextClient("unused"), brand);
 
-        var result = await service.GenerateDraftAsync(profileId, new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
         });
 
         Assert.False(result.Success);
-        Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
-        Assert.Equal("PROMPT_QUOTA_EXCEEDED", result.Error?.ErrorCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("INSUFFICIENT_WORKSPACE_CREDITS", result.Error?.ErrorCode);
         Assert.Empty(contentRepository.StoredContents);
     }
 
@@ -43,20 +43,17 @@ public class PhaseEQuotaIntegrationTests
     public async Task GenerateDraftAsync_DoesNotIncreaseUsage_WhenGeminiFails()
     {
         var profileId = Guid.NewGuid();
-        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Brand" };
-        var quotaService = new FakeQuotaService
-        {
-            PromptResult = GenericResponse<bool>.CreateSuccess(true)
-        };
+        var brand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = profileId, Name = "Brand" };
+        var creditService = new FakeCreditService();
         var generationRepository = new FakeAiGenerationRepository();
         var service = CreateAiService(
             new FakeContentRepository(),
-            quotaService,
+            creditService,
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")),
             brand,
             generationRepository);
 
-        var result = await service.GenerateDraftAsync(profileId, new CreateDraftRequest
+        var result = await service.GenerateDraftAsync(profileId, profileId, Guid.NewGuid(), new CreateDraftRequest
         {
             BrandId = brand.Id,
             Prompt = "Create an ad"
@@ -64,14 +61,15 @@ public class PhaseEQuotaIntegrationTests
 
         Assert.True(result.Success);
         Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
-        Assert.Equal(1, quotaService.PromptEnsureCallCount);
+        Assert.Equal(1, creditService.AvailabilityCallCount);
+        Assert.Equal(0, creditService.ConsumeCallCount);
         Assert.Contains(generationRepository.StoredGenerations.Values, generation => generation.Status == AiStatusEnum.Failed);
         Assert.DoesNotContain(generationRepository.StoredGenerations.Values, generation => generation.Status == AiStatusEnum.Completed);
     }
 
     private static AIService CreateAiService(
         FakeContentRepository contentRepository,
-        FakeQuotaService quotaService,
+        FakeCreditService creditService,
         FakeGeminiTextClient geminiTextClient,
         Brand brand,
         FakeAiGenerationRepository? generationRepository = null)
@@ -83,31 +81,28 @@ public class PhaseEQuotaIntegrationTests
             new FakeProductRepository(),
             geminiTextClient,
             new FakeConversationRepository(),
-            quotaService);
+            creditService);
     }
 
-    private sealed class FakeQuotaService : IQuotaService
+    private sealed class FakeCreditService : ICreditService
     {
-        public int PromptEnsureCallCount { get; private set; }
-        public GenericResponse<QuotaSummaryDto> SummaryResult { get; set; } = GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto());
-        public GenericResponse<bool> PromptResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
-        public GenericResponse<bool> PostResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
-
-        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+        public int AvailabilityCallCount { get; private set; }
+        public int ConsumeCallCount { get; private set; }
+        public GenericResponse<bool> AvailabilityResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+        public Task<CreditWallet> EnsureWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<CreditWallet>> GrantSubscriptionCreditsAsync(Guid workspaceId, Guid userId, WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<CreditWallet>> GrantCreditPackCreditsAsync(Guid workspaceId, Guid userId, WorkspaceTypeEnum workspaceType, long credits, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<bool>> EnsureCreditsAvailableAsync(Guid workspaceId, Guid userId, long credits, DateTime? now = null, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(SummaryResult);
+            AvailabilityCallCount++;
+            return Task.FromResult(AvailabilityResult);
         }
-
-        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsAsync(Guid workspaceId, Guid userId, CreditActionEnum action, long credits, Guid? aiGenerationId = null, DateTime? now = null, CancellationToken cancellationToken = default)
         {
-            PromptEnsureCallCount++;
-            return Task.FromResult(PromptResult);
+            ConsumeCallCount++;
+            return Task.FromResult(GenericResponse<CreditUsageRecord>.CreateSuccess(new CreditUsageRecord()));
         }
-
-        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(PostResult);
-        }
+        public Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(Guid workspaceId, Guid userId, CreditActionEnum action, long credits, CreditUsageStatusEnum status, Guid? aiGenerationId = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeGeminiTextClient : IGeminiTextClient

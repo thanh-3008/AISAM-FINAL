@@ -25,7 +25,8 @@ public sealed class PaymentController : ControllerBase
         [FromBody] CreateCheckoutRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _paymentService.CreateCheckoutAsync(GetProfileId(), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _paymentService.CreateCheckoutAsync(membership.WorkspaceId, membership.UserId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -51,7 +52,7 @@ public sealed class PaymentController : ControllerBase
         [FromQuery] PaginationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _paymentService.GetPaymentHistoryAsync(GetProfileId(), request, cancellationToken);
+        var result = await _paymentService.GetPaymentHistoryAsync(GetWorkspaceId(), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -59,12 +60,12 @@ public sealed class PaymentController : ControllerBase
     [Authorize]
     public async Task<ActionResult<GenericResponse<CurrentSubscriptionDto>>> GetCurrentSubscription(CancellationToken cancellationToken = default)
     {
-        var result = await _paymentService.GetCurrentSubscriptionAsync(GetProfileId(), cancellationToken);
+        var result = await _paymentService.GetCurrentSubscriptionAsync(GetWorkspaceId(), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
+    private Guid GetWorkspaceId()
     {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
+        return WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
     }
 }

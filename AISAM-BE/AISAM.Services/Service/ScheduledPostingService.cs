@@ -11,15 +11,21 @@ public sealed class ScheduledPostingService : IScheduledPostingService
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly IContentService _contentService;
     private readonly INotificationRepository _notificationRepository;
+    private readonly IProfileRepository _profileRepository;
+    private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
 
     public ScheduledPostingService(
         IContentCalendarRepository contentCalendarRepository,
         IContentService contentService,
-        INotificationRepository notificationRepository)
+        INotificationRepository notificationRepository,
+        IProfileRepository profileRepository,
+        IWorkspaceMemberRepository workspaceMemberRepository)
     {
         _contentCalendarRepository = contentCalendarRepository;
         _contentService = contentService;
         _notificationRepository = notificationRepository;
+        _profileRepository = profileRepository;
+        _workspaceMemberRepository = workspaceMemberRepository;
     }
 
     public async Task<SchedulerRunResultDto> RunDueSchedulesAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -37,8 +43,22 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                 schedule.Status = ScheduleStatusEnum.Processing;
                 await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
 
+                if (schedule.Workspace != null)
+                {
+                    WorkspaceLifecyclePolicy.SynchronizeStatus(schedule.Workspace, DateTime.UtcNow);
+                    if (WorkspaceLifecyclePolicy.IsReadOnly(schedule.Workspace.Status))
+                    {
+                        throw new InvalidOperationException("Scheduled publishing is blocked because the workspace is expired or inactive.");
+                    }
+                }
+
                 var integrationId = schedule.IntegrationId ?? Guid.Empty;
-                var publishResult = await _contentService.PublishAsync(schedule.ContentId, integrationId, schedule.ProfileId, cancellationToken);
+                var publishResult = await _contentService.PublishAsync(
+                    schedule.ContentId,
+                    integrationId,
+                    schedule.ProfileId,
+                    schedule.WorkspaceId,
+                    cancellationToken);
                 if (publishResult.Success)
                 {
                     schedule.Status = ScheduleStatusEnum.Completed;
@@ -50,7 +70,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                         "Scheduled publish succeeded",
                         $"Content {schedule.ContentId} was published successfully.",
                         schedule.Id,
-                        cancellationToken);
+                        cancellationToken,
+                        schedule.WorkspaceId);
 
                     result.SuccessCount++;
                     continue;
@@ -65,7 +86,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                     "Scheduled publish failed",
                     schedule.LastError,
                     schedule.Id,
-                    cancellationToken);
+                    cancellationToken,
+                    schedule.WorkspaceId);
 
                 result.FailedCount++;
             }
@@ -80,7 +102,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                     "Scheduled publish failed",
                     schedule.LastError,
                     schedule.Id,
-                    cancellationToken);
+                    cancellationToken,
+                    schedule.WorkspaceId);
 
                 result.FailedCount++;
             }
@@ -94,11 +117,13 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         string title,
         string? message,
         Guid scheduleId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid workspaceId)
     {
         await _notificationRepository.AddAsync(new Notification
         {
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             Title = title,
             Message = message ?? "Publishing failed.",
             Type = NotificationTypeEnum.SystemUpdate,

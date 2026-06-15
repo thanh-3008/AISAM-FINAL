@@ -70,6 +70,8 @@ namespace AISAM.Services.Service
             user.EmailVerificationToken = verificationToken;
             user.EmailVerificationTokenExpiresAt = verificationTokenExpiration;
 
+            AddPersonalWorkspace(user);
+
             await _userRepository.CreateAsync(user);
 
             // Send verification email
@@ -135,6 +137,7 @@ namespace AISAM.Services.Service
                         PasswordHash = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
                     };
 
+                    AddPersonalWorkspace(user);
                     await _userRepository.CreateAsync(user);
                 }
                 else
@@ -345,6 +348,44 @@ namespace AISAM.Services.Service
         }
 
         #region Private Helper Methods
+
+        private static void AddPersonalWorkspace(User user)
+        {
+            var personalWorkspace = new Workspace
+            {
+                Name = string.IsNullOrWhiteSpace(user.FullName)
+                    ? "Personal Workspace"
+                    : $"{user.FullName.Trim()}'s Workspace",
+                WorkspaceType = WorkspaceTypeEnum.Personal,
+                CreditWallet = new CreditWallet { Balance = 50 }
+            };
+            personalWorkspace.Subscriptions.Add(new Subscription
+            {
+                WorkspaceId = personalWorkspace.Id,
+                Plan = SubscriptionPlanEnum.Free,
+                QuotaPostsPerMonth = 20,
+                StartDate = DateTime.UtcNow.Date,
+                IsActive = true
+            });
+            personalWorkspace.CreditUsageRecords.Add(new CreditUsageRecord
+            {
+                WorkspaceId = personalWorkspace.Id,
+                UserId = user.Id,
+                User = user,
+                Action = CreditActionEnum.SubscriptionGrant,
+                Credits = 50,
+                Status = CreditUsageStatusEnum.Success
+            });
+
+            user.WorkspaceMembers.Add(new WorkspaceMember
+            {
+                UserId = user.Id,
+                User = user,
+                WorkspaceId = personalWorkspace.Id,
+                Workspace = personalWorkspace,
+                Role = WorkspaceMemberRoleEnum.Owner
+            });
+        }
 
         private async Task<TokenResponse> GenerateTokensAsync(User user, string? userAgent, string? ipAddress)
         {

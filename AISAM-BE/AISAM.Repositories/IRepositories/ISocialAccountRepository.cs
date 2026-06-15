@@ -9,6 +9,7 @@ public interface ISocialAccountRepository
     Task<SocialAccount?> GetByIdWithIntegrationsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<SocialAccount?> GetByProfileIdPlatformAndAccountIdAsync(Guid profileId, SocialPlatformEnum platform, string accountId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SocialAccount>> GetByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SocialAccount>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<SocialAccount> AddAsync(SocialAccount account, CancellationToken cancellationToken = default);
     Task UpdateAsync(SocialAccount account, CancellationToken cancellationToken = default);
 }
