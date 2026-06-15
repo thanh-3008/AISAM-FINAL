@@ -74,6 +74,78 @@ public class SocialServiceTests
     }
 
     [Fact]
+    public async Task LinkAccountInWorkspaceAsync_DoesNotMoveExistingAccountToAnotherWorkspace()
+    {
+        var profileId = Guid.NewGuid();
+        var originalWorkspaceId = Guid.NewGuid();
+        var existing = new SocialAccount
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = originalWorkspaceId,
+            Platform = SocialPlatformEnum.Facebook,
+            AccountId = "fb-user",
+            UserAccessToken = "old-token"
+        };
+        var service = CreateService(
+            accountRepository: new FakeSocialAccountRepository(existing),
+            providerService: new FakeProviderService(),
+            oauthStateStore: new FakeOAuthStateStore("valid-state", profileId, "facebook"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.LinkAccountInWorkspaceAsync("facebook", Guid.NewGuid(), profileId, new SocialCallbackRequest
+            {
+                Code = "oauth-code",
+                State = "valid-state"
+            }));
+
+        Assert.Equal("Social account is already linked to another workspace.", exception.Message);
+        Assert.Equal(originalWorkspaceId, existing.WorkspaceId);
+        Assert.Equal("old-token", existing.UserAccessToken);
+    }
+
+    [Fact]
+    public async Task LinkSelectedTargetsInWorkspaceAsync_AllowsMemberWhoseProfileDoesNotOwnBrand()
+    {
+        var workspaceId = Guid.NewGuid();
+        var memberProfileId = Guid.NewGuid();
+        var account = CreateAccount(memberProfileId);
+        account.WorkspaceId = workspaceId;
+        var brand = new Brand
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Name = "Shared brand"
+        };
+        var provider = new FakeProviderService
+        {
+            Targets = new[] { new AvailableTargetDto { ProviderTargetId = "page-1", Name = "Page One", Type = "page" } },
+            TargetAccessTokens = new Dictionary<string, string> { ["page-1"] = "page-token" }
+        };
+        var integrations = new FakeSocialIntegrationRepository();
+        var service = CreateService(
+            accountRepository: new FakeSocialAccountRepository(account),
+            integrationRepository: integrations,
+            brandRepository: new FakeBrandRepository(brand),
+            providerService: provider);
+
+        var result = await service.LinkSelectedTargetsInWorkspaceAsync(
+            workspaceId,
+            memberProfileId,
+            account.Id,
+            new LinkSelectedTargetsRequest
+            {
+                BrandId = brand.Id,
+                Provider = "facebook",
+                ProviderTargetIds = new List<string> { "page-1" }
+            });
+
+        Assert.Single(result.Targets);
+        Assert.Equal(workspaceId, Assert.Single(integrations.Integrations.Values).WorkspaceId);
+    }
+
+    [Fact]
     public async Task LinkSelectedTargetsForAccountAsync_ReturnsBrandError_WhenBrandBelongsToAnotherProfile()
     {
         var profileId = Guid.NewGuid();

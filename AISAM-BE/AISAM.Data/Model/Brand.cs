@@ -14,6 +14,9 @@ namespace AISAM.Data.Model
         [Column("profile_id")]
         public Guid ProfileId { get; set; }
 
+        [Column("workspace_id")]
+        public Guid WorkspaceId { get; set; }
+
         [Required]
         [MaxLength(255)]
         [Column("name")]
@@ -48,6 +51,9 @@ namespace AISAM.Data.Model
         // Navigation properties
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
+
+        [ForeignKey("WorkspaceId")]
+        public virtual Workspace Workspace { get; set; } = null!;
 
         public virtual ICollection<Product> Products { get; set; } = new List<Product>();
         public virtual ICollection<Content> Contents { get; set; } = new List<Content>();

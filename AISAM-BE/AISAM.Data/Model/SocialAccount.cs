@@ -15,6 +15,9 @@ namespace AISAM.Data.Model
         [Column("profile_id")]
         public Guid ProfileId { get; set; }
 
+        [Column("workspace_id")]
+        public Guid WorkspaceId { get; set; }
+
         [Required]
         [Column("platform")]
         public SocialPlatformEnum Platform { get; set; }
@@ -48,6 +51,7 @@ namespace AISAM.Data.Model
         // Navigation properties
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
+        public virtual Workspace Workspace { get; set; } = null!;
 
         public virtual ICollection<SocialIntegration> SocialIntegrations { get; set; } = new List<SocialIntegration>();
     }

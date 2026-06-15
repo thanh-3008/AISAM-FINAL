@@ -22,12 +22,9 @@ public sealed class DashboardController : ControllerBase
     [HttpGet("summary")]
     public async Task<ActionResult<GenericResponse<DashboardSummaryDto>>> GetSummary(CancellationToken cancellationToken = default)
     {
-        var result = await _dashboardService.GetSummaryAsync(GetProfileId(), cancellationToken);
+        var result = await _dashboardService.GetWorkspaceSummaryAsync(
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
-    }
-
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
     }
 }

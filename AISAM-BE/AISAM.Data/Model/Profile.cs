@@ -54,7 +54,6 @@ namespace AISAM.Data.Model
         [ForeignKey("UserId")]
         public virtual User User { get; set; } = null!;
 
-        [ForeignKey("SubscriptionId")]
         public virtual Subscription? Subscription { get; set; }
 
         public virtual ICollection<Brand> Brands { get; set; } = new List<Brand>();

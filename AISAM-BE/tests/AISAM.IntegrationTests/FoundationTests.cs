@@ -190,8 +190,10 @@ public class FoundationTests
     public async Task ProductService_ReturnsError_WhenImageFilesAreProvided()
     {
         var userId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var brandId = Guid.NewGuid();
         var brand = CreateOwnedBrand(brandId, userId);
+        brand.WorkspaceId = workspaceId;
         var product = new Product
         {
             Id = Guid.NewGuid(),
@@ -205,7 +207,7 @@ public class FoundationTests
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 
-        var createResult = await service.CreateAsync(userId, new ProductCreateRequest
+        var createResult = await service.CreateAsync(workspaceId, userId, new ProductCreateRequest
         {
             BrandId = brandId,
             Name = "New product",
@@ -214,7 +216,7 @@ public class FoundationTests
                 new FormFile(createStream, 0, createStream.Length, "image", "product.png")
             }
         });
-        var updateResult = await service.UpdateAsync(product.Id, userId, new ProductUpdateRequestDto
+        var updateResult = await service.UpdateAsync(product.Id, workspaceId, userId, new ProductUpdateRequestDto
         {
             ImageFiles = new List<IFormFile>
             {

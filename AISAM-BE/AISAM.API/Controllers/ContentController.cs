@@ -28,7 +28,7 @@ public sealed class ContentController : ControllerBase
         [FromBody] CreateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CreateAsync(GetProfileId(), request, cancellationToken);
+        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -45,7 +45,7 @@ public sealed class ContentController : ControllerBase
         [FromQuery] ContentStatusEnum? status = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.GetPagedAsync(GetProfileId(), new PaginationRequest
+        var result = await _contentService.GetPagedByWorkspaceAsync(GetWorkspaceId(), new PaginationRequest
         {
             Page = page,
             PageSize = pageSize,
@@ -62,7 +62,7 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.GetByIdAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.GetByIdInWorkspaceAsync(contentId, GetWorkspaceId(), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -72,7 +72,7 @@ public sealed class ContentController : ControllerBase
         [FromBody] UpdateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.UpdateAsync(contentId, GetProfileId(), request, cancellationToken);
+        var result = await _contentService.UpdateInWorkspaceAsync(contentId, GetWorkspaceId(), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -81,7 +81,7 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CloneAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.CloneInWorkspaceAsync(contentId, GetWorkspaceId(), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -91,7 +91,12 @@ public sealed class ContentController : ControllerBase
         Guid integrationId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.PublishAsync(contentId, integrationId, GetProfileId(), cancellationToken);
+        var result = await _contentService.PublishAsync(
+            contentId,
+            integrationId,
+            GetProfileId(),
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -100,7 +105,7 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.SoftDeleteAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.SoftDeleteInWorkspaceAsync(contentId, GetWorkspaceId(), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -109,7 +114,7 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.RestoreAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _contentService.RestoreInWorkspaceAsync(contentId, GetWorkspaceId(), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -117,4 +122,6 @@ public sealed class ContentController : ControllerBase
     {
         return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
     }
+
+    private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 }

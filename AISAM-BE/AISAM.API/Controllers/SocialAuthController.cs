@@ -58,7 +58,7 @@ public sealed class SocialAuthController : ControllerBase
         try
         {
             var profileId = ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-            var result = await _socialService.LinkAccountAsync("facebook", profileId, request, cancellationToken);
+            var result = await _socialService.LinkAccountInWorkspaceAsync("facebook", WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), profileId, request, cancellationToken);
             return Ok(GenericResponse<SocialAccountDto>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)

@@ -53,6 +53,26 @@ public sealed class NotificationRepository : INotificationRepository
                 cancellationToken);
     }
 
+    public async Task<PagedResult<Notification>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query().Where(n => n.WorkspaceId == workspaceId && !n.IsDeleted).OrderByDescending(n => n.CreatedAt);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Notification> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
+    }
+
+    public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        => Query().CountAsync(n => n.WorkspaceId == workspaceId && !n.IsDeleted && !n.IsRead, cancellationToken);
+
+    public async Task MarkAllAsReadByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var notifications = await Query().Where(n => n.WorkspaceId == workspaceId && !n.IsDeleted && !n.IsRead).ToListAsync(cancellationToken);
+        foreach (var notification in notifications) notification.IsRead = true;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<Notification> AddAsync(Notification notification, CancellationToken cancellationToken = default)
     {
         notification.CreatedAt = DateTime.UtcNow;

@@ -56,6 +56,22 @@ public sealed class ConversationRepository : IConversationRepository
         };
     }
 
+    public async Task<PagedResult<Conversation>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var query = Query().Where(conversation => conversation.WorkspaceId == workspaceId && !conversation.IsDeleted);
+        if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+        {
+            var searchPattern = $"%{request.SearchTerm}%";
+            query = query.Where(conversation => conversation.Title != null && EF.Functions.ILike(conversation.Title, searchPattern));
+        }
+        query = query.OrderByDescending(conversation => conversation.UpdatedAt);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Conversation> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
+    }
+
     public async Task<Conversation?> GetActiveAsync(Guid profileId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default)
     {
         return await Query().FirstOrDefaultAsync(conversation =>
@@ -67,6 +83,9 @@ public sealed class ConversationRepository : IConversationRepository
             !conversation.IsDeleted,
             cancellationToken);
     }
+
+    public Task<Conversation?> GetActiveByWorkspaceIdAsync(Guid workspaceId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default)
+        => Query().FirstOrDefaultAsync(c => c.WorkspaceId == workspaceId && c.BrandId == brandId && c.ProductId == productId && c.AdType == adType && c.IsActive && !c.IsDeleted, cancellationToken);
 
     public async Task<Conversation> AddAsync(Conversation conversation, CancellationToken cancellationToken = default)
     {

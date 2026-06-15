@@ -1,8 +1,12 @@
+using AISAM.Data.Enumeration;
+
 namespace AISAM.Common.Models;
 
 public sealed class CreateCheckoutRequest
 {
+    public PaymentTypeEnum PaymentType { get; set; } = PaymentTypeEnum.Subscription;
     public string PlanCode { get; set; } = string.Empty;
+    public CreditPackCodeEnum? CreditPackCode { get; set; }
     public string? ReturnUrl { get; set; }
     public string? CancelUrl { get; set; }
 }

@@ -15,6 +15,9 @@ namespace AISAM.Data.Model
         [Column("profile_id")]
         public Guid ProfileId { get; set; }
 
+        [Column("workspace_id")]
+        public Guid WorkspaceId { get; set; }
+
         [Column("brand_id")]
         public Guid? BrandId { get; set; }
 
@@ -44,6 +47,7 @@ namespace AISAM.Data.Model
         // Navigation properties
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
+        public virtual Workspace Workspace { get; set; } = null!;
 
         [ForeignKey("BrandId")]
         public virtual Brand? Brand { get; set; }

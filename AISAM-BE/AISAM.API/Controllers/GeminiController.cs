@@ -25,7 +25,13 @@ public sealed class GeminiController : ControllerBase
         [FromBody] CreateDraftRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.GenerateDraftAsync(GetProfileId(), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.GenerateDraftAsync(
+            GetProfileId(),
+            membership.WorkspaceId,
+            membership.UserId,
+            request,
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -35,7 +41,14 @@ public sealed class GeminiController : ControllerBase
         [FromBody] ImproveContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.ImproveAsync(contentId, GetProfileId(), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.ImproveAsync(
+            contentId,
+            GetProfileId(),
+            membership.WorkspaceId,
+            membership.UserId,
+            request,
+            cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -44,7 +57,7 @@ public sealed class GeminiController : ControllerBase
         Guid aiGenerationId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.ApproveAsync(aiGenerationId, GetProfileId(), cancellationToken);
+        var result = await _aiService.ApproveInWorkspaceAsync(aiGenerationId, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -53,7 +66,7 @@ public sealed class GeminiController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.GetGenerationsAsync(contentId, GetProfileId(), cancellationToken);
+        var result = await _aiService.GetGenerationsInWorkspaceAsync(contentId, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -62,7 +75,7 @@ public sealed class GeminiController : ControllerBase
         [FromBody] ChatRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.ChatAsync(GetProfileId(), request, cancellationToken);
+        var result = await _aiService.ChatInWorkspaceAsync(GetProfileId(), WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

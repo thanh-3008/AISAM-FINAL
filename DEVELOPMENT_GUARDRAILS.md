@@ -1,5 +1,17 @@
 # AISAM Development Guardrails
 
+## Guardrail Cho Workspace Change Request
+
+Nguon bat buoc: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+
+- Khong code Workspace migration ngoai thu tu task da phe duyet.
+- Khong xoa Profile flow/migration cu truoc khi backfill va regression test thanh cong.
+- Moi Workspace phai co dung mot Owner va mot Credit Wallet.
+- Ownership Transfer phai nguyen tu; Owner khong duoc tu remove.
+- Khong cho invite/accept vuot Member Limit.
+- Khong cho cong Credits vuot Maximum Credit Balance; tu choi toan bo giao dich.
+- Moi task phai build/test/API test rieng va cap nhat tien do.
+
 Tài liệu này là bộ nguyên tắc bắt buộc khi phát triển repo mới của AISAM.
 
 Source code cũ tại:
