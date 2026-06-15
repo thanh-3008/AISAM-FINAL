@@ -17,8 +17,7 @@ public sealed class ActiveProfileMiddleware
         new("/api/social-auth"),
         new("/api/social"),
         new("/api/posts"),
-        new("/api/notifications"),
-        new("/api/payment")
+        new("/api/notifications")
     };
 
     private readonly RequestDelegate _next;
@@ -31,13 +30,6 @@ public sealed class ActiveProfileMiddleware
     public async Task InvokeAsync(HttpContext context, IProfileRepository profileRepository, IWebHostEnvironment environment)
     {
         if (context.Request.Path.StartsWithSegments("/api/dev/scheduler") && !environment.IsDevelopment())
-        {
-            await _next(context);
-            return;
-        }
-
-        if (context.Request.Path.StartsWithSegments("/api/payment/callback") ||
-            context.Request.Path.StartsWithSegments("/api/payment/webhook"))
         {
             await _next(context);
             return;

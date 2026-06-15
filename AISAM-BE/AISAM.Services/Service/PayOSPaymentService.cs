@@ -673,14 +673,17 @@ public sealed class PayOSPaymentService : IPaymentService
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var property in element.EnumerateObject())
         {
-            if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Null or JsonValueKind.Undefined)
+            if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Undefined)
             {
                 continue;
             }
 
-            values[property.Name] = property.Value.ValueKind == JsonValueKind.String
-                ? property.Value.GetString() ?? string.Empty
-                : property.Value.GetRawText();
+            values[property.Name] = property.Value.ValueKind switch
+            {
+                JsonValueKind.String => property.Value.GetString() ?? string.Empty,
+                JsonValueKind.Null => string.Empty,
+                _ => property.Value.GetRawText()
+            };
         }
 
         return values;

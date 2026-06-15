@@ -4798,7 +4798,7 @@ Kết quả:
 - Migration `20260613130339_ProvisionMissingPersonalFreePlan` provision idempotent Free subscription/50 Credits cho Personal Workspace cũ còn thiếu; rollback và apply lại đã pass.
 - Tạo Workspace luôn lưu Owner + Credit Wallet trong cùng EF graph; credit consume/grant và PayOS status application dùng transaction trên relational database.
 - Invitation/accept yêu cầu active Business Plus hoặc Business Pro, không còn cho Business Workspace chưa có plan sử dụng Team Management.
-- `dotnet build`, 260 automated tests, EF pending-model check/database update, package vulnerability scan và Swagger runtime smoke-test đều pass.
+- `dotnet build`, 268 automated tests, EF pending-model check/database update, package vulnerability scan và Swagger runtime smoke-test đều pass.
 
 Mục tiêu:
 

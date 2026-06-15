@@ -596,6 +596,38 @@ public class PaymentServiceTests
     }
 
     [Fact]
+    public async Task HandleWebhookAsync_AcceptsPayOsSignature_WhenSignedDataContainsNullValue()
+    {
+        var signature = CreateSignature(new Dictionary<string, string>
+        {
+            ["code"] = "00",
+            ["counterAccountName"] = string.Empty,
+            ["orderCode"] = "987654",
+            ["paymentLinkId"] = "plink_987",
+            ["reference"] = "txn_987"
+        });
+        var service = CreateService(settings: CreateConfiguredSettings());
+
+        var result = await service.HandleWebhookAsync($$"""
+        {
+          "code": "00",
+          "desc": "success",
+          "success": true,
+          "data": {
+            "code": "00",
+            "counterAccountName": null,
+            "orderCode": 987654,
+            "paymentLinkId": "plink_987",
+            "reference": "txn_987"
+          },
+          "signature": "{{signature}}"
+        }
+        """);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
     public async Task HandleCallbackAsync_RejectsQueryWithoutSignature()
     {
         var service = CreateService(settings: CreateConfiguredSettings());

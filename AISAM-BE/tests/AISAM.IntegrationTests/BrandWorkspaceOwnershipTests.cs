@@ -36,6 +36,45 @@ public class BrandWorkspaceOwnershipTests
     }
 
     [Fact]
+    public async Task CreateAsync_UsesCreatorsProfile_WhenWorkspaceRequestOmitsProfileId()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var profile = AddProfile(context, user);
+        var workspace = AddWorkspace(context, user);
+        var service = CreateService(context);
+
+        var result = await service.CreateAsync(workspace.Id, user.Id, new CreateBrandRequest
+        {
+            Name = "Workspace brand"
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(workspace.Id, result.Data!.WorkspaceId);
+        Assert.Equal(profile.Id, result.Data.ProfileId);
+    }
+
+    [Fact]
+    public async Task CreateAsync_CreatesCompatibilityProfile_WhenWorkspaceMemberHasNoProfile()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var workspace = AddWorkspace(context, user);
+        var service = CreateService(context);
+
+        var result = await service.CreateAsync(workspace.Id, user.Id, new CreateBrandRequest
+        {
+            Name = "Workspace brand"
+        });
+
+        Assert.True(result.Success);
+        var profile = Assert.Single(context.Profiles);
+        Assert.Equal(user.Id, profile.UserId);
+        Assert.Equal(profile.Id, result.Data!.ProfileId);
+        Assert.Equal(workspace.Id, result.Data.WorkspaceId);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_ReturnsNotFoundAcrossWorkspaceBoundary()
     {
         await using var context = CreateContext();

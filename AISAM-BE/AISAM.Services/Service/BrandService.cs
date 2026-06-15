@@ -2,6 +2,7 @@ using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
@@ -73,22 +74,35 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError(workspaceAccess.Message);
             }
 
-            if (!request.ProfileId.HasValue)
+            var profile = request.ProfileId.HasValue
+                ? await _profileRepository.GetByIdAsync(request.ProfileId.Value, cancellationToken)
+                : (await _profileRepository.GetByUserIdAsync(userId, cancellationToken)).FirstOrDefault();
+
+            if (profile == null)
             {
-                return GenericResponse<BrandResponseDto>.CreateError("ProfileId is required");
+                if (request.ProfileId.HasValue)
+                {
+                    return GenericResponse<BrandResponseDto>.CreateError("Profile not found");
+                }
+
+                profile = await _profileRepository.CreateAsync(new Profile
+                {
+                    UserId = userId,
+                    Name = "Workspace Profile",
+                    ProfileType = ProfileTypeEnum.Free,
+                    Status = ProfileStatusEnum.Pending
+                }, cancellationToken);
             }
 
-            var access = await EnsureProfileOwnerAsync(request.ProfileId.Value, userId, cancellationToken);
-            if (!access.Success)
+            if (profile.UserId != userId)
             {
-                return GenericResponse<BrandResponseDto>.CreateError(access.Message);
+                return GenericResponse<BrandResponseDto>.CreateError("You are not allowed to access this profile");
             }
 
-            var profile = await _profileRepository.GetByIdAsync(request.ProfileId.Value, cancellationToken);
             var brand = new Brand
             {
-                ProfileId = request.ProfileId.Value,
-                Profile = profile!,
+                ProfileId = profile.Id,
+                Profile = profile,
                 WorkspaceId = workspaceId,
                 Name = request.Name,
                 Description = request.Description,
