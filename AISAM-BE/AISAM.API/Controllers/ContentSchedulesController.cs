@@ -2,6 +2,7 @@ using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,10 +15,14 @@ namespace AISAM.API.Controllers;
 public sealed class ContentSchedulesController : ControllerBase
 {
     private readonly IContentScheduleService _contentScheduleService;
+    private readonly IProfileRepository _profileRepository;
 
-    public ContentSchedulesController(IContentScheduleService contentScheduleService)
+    public ContentSchedulesController(
+        IContentScheduleService contentScheduleService,
+        IProfileRepository profileRepository)
     {
         _contentScheduleService = contentScheduleService;
+        _profileRepository = profileRepository;
     }
 
     [HttpPost]
@@ -25,7 +30,7 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromBody] CreateContentScheduleRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.CreateInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), request, cancellationToken);
+        var result = await _contentScheduleService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -81,9 +86,8 @@ public sealed class ContentSchedulesController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
+    private Task<Guid> GetProfileIdAsync(CancellationToken cancellationToken)
+        => WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
+
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 }

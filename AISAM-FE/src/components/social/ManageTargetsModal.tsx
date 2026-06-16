@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type SocialAccount, type AvailableTarget, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
 import { PLATFORM_INFO, getAccountDisplayName } from "./socialUtils";
+import { fetchBrands } from "@/services/brandService";
 
 interface ManageTargetsModalProps {
   account: SocialAccount | null;
@@ -14,6 +15,9 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [brandId, setBrandId] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!account) return;
@@ -21,10 +25,12 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
     const load = async () => {
       setLoading(true);
       try {
-        const targets = await getAvailableTargets(account.id);
+        const [targets, brandData] = await Promise.all([getAvailableTargets(account.id), fetchBrands()]);
         if (!cancelled) {
           const linkedIds = (account.targets || []).map((t) => t.providerTargetId);
           setAvailableTargets(targets.filter((t) => !linkedIds.includes(t.providerTargetId)));
+          setBrands(brandData);
+          setBrandId(brandData[0]?.id ?? "");
         }
       } catch {
         if (!cancelled) setAvailableTargets([]);
@@ -51,14 +57,15 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
   };
 
   const handleLink = async () => {
-    if (!account || selectedTargetIds.length === 0) return;
+    if (!account || selectedTargetIds.length === 0 || !brandId) return;
     setLinking(true);
+    setError("");
     try {
-      await linkTargets(account.id, selectedTargetIds);
+      await linkTargets(account.id, { targetIds: selectedTargetIds, brandId, provider: account.provider });
       onSuccess();
       onClose();
-    } catch {
-      // Handle error
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to link targets");
     } finally {
       setLinking(false);
     }
@@ -90,6 +97,15 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
           </div>
 
           <div className="p-6 overflow-y-auto flex-1">
+            {error && <p className="mb-4 rounded-lg bg-danger-red/10 px-3 py-2 text-label-sm text-danger-red">{error}</p>}
+            <label className="mb-4 block text-label-sm font-semibold text-on-surface-variant">
+              Brand
+              <select value={brandId} onChange={(event) => setBrandId(event.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-body-sm">
+                {brands.length === 0 && <option value="">No brands available</option>}
+                {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+              </select>
+            </label>
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <span className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />

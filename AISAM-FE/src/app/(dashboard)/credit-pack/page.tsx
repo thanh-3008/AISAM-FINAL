@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, checkPaymentStatus, type PayOSPaymentResponse } from "@/services/paymentService";
+import { createPayment, type PayOSPaymentResponse } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -113,36 +113,7 @@ export default function CreditPackPage() {
       });
 
       if (payment) {
-        setPaymentData(payment);
-        setShowPaymentQR(true);
-        setShowConfirmDialog(false);
-        setPaymentStatus("pending");
-
-        // Poll for payment status every 3 seconds (mock)
-        let attempts = 0;
-        pollRef.current = setInterval(async () => {
-          attempts++;
-          const status = await checkPaymentStatus(payment.orderId);
-          if (status?.status === "completed") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setPaymentStatus("completed");
-            if (creditWallet) {
-              setCreditWallet({
-                ...creditWallet,
-                balance: creditWallet.balance + selectedPack.credits,
-              });
-            }
-            setPurchaseSuccess(true);
-            setTimeout(() => {
-              setShowPaymentQR(false);
-              setPurchaseSuccess(false);
-            }, 3000);
-          } else if (status?.status === "failed" || attempts > 20) {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setPaymentStatus("failed");
-            setPaymentError("Payment was not completed. Please try again.");
-          }
-        }, 3000);
+        window.location.assign(payment.checkoutUrl);
       } else {
         setPaymentError("Failed to create payment. Please try again.");
       }
@@ -159,23 +130,6 @@ export default function CreditPackPage() {
     setPaymentData(null);
     setPaymentStatus("pending");
     setPaymentError("");
-  };
-
-  const handleMockPayment = async () => {
-    if (!paymentData) return;
-    setPaymentStatus("completed");
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (creditWallet && selectedPack) {
-      setCreditWallet({
-        ...creditWallet,
-        balance: creditWallet.balance + selectedPack.credits,
-      });
-    }
-    setPurchaseSuccess(true);
-    setTimeout(() => {
-      setShowPaymentQR(false);
-      setPurchaseSuccess(false);
-    }, 3000);
   };
 
   const getPricePerCredit = (pack: CreditPack) => {
@@ -495,14 +449,6 @@ export default function CreditPackPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Mock: Simulate payment button (for demo) */}
-                  <button
-                    onClick={handleMockPayment}
-                    className="w-full py-3 rounded-xl text-body-sm font-semibold bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all mb-2"
-                  >
-                    Simulate Payment (Demo)
-                  </button>
 
                   <button
                     onClick={handleCloseQR}

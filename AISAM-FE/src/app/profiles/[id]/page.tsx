@@ -24,6 +24,10 @@ import {
   fetchCreditWallet,
   fetchWorkspaceDashboard,
   fetchPostQuota,
+  updateWorkspaceMemberRole,
+  removeWorkspaceMember,
+  transferWorkspaceOwnership,
+  updateWorkspaceMemberQuota,
   type WorkspaceMember,
   type WorkspaceMemberRole,
   type MemberStatus,
@@ -347,7 +351,7 @@ export default function ProfileDetailPage() {
           setShowExpiredBanner(true);
 
           const now = Date.now();
-          const endDate = new Date(data.endDate).getTime();
+          const endDate = data.endDate ? new Date(data.endDate).getTime() : now;
           const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
 
           if (daysSinceExpiry < 90) {
@@ -479,11 +483,8 @@ export default function ProfileDetailPage() {
     if (!selectedMember) return;
     setChangingRole(true);
     try {
-      // TODO: Call API to change role when BE is ready
-      // await updateMemberRole(selectedMember.id, newRole);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
-      
-      // Update local state
+      const success = await updateWorkspaceMemberRole(selectedMember.id, newRole);
+      if (!success) throw new Error("Role update failed");
       setMembers(prev => prev.map(m => 
         m.id === selectedMember.id ? { ...m, role: newRole } : m
       ));
@@ -505,11 +506,18 @@ export default function ProfileDetailPage() {
       message: `Are you sure you want to remove ${member.name} from the workspace? This action cannot be undone.`,
       type: "danger",
       confirmText: "Remove",
-      onConfirm: () => {
-        setMembers(prev => prev.filter(m => m.id !== member.id));
-        setMemberActionMenu(null);
-        showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      onConfirm: async () => {
+        try {
+          const success = await removeWorkspaceMember(member.id);
+          if (!success) throw new Error("Remove failed");
+          setMembers(prev => prev.filter(m => m.id !== member.id));
+          setMemberActionMenu(null);
+          showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+        } catch {
+          showToast({ type: "error", title: "Remove failed", message: "Failed to remove workspace member." });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
       },
     });
   };
@@ -524,7 +532,8 @@ export default function ProfileDetailPage() {
     if (!selectedNewOwner) return;
     setTransferring(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const success = await transferWorkspaceOwnership(selectedNewOwner.id);
+      if (!success) throw new Error("Ownership transfer failed");
       setMembers(prev => prev.map(m => {
         if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
         if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
@@ -553,7 +562,12 @@ export default function ProfileDetailPage() {
     if (!quotaMember) return;
     setSavingQuota(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const success = await updateWorkspaceMemberQuota(
+        quotaMember.id,
+        quotaMode,
+        quotaMode === "SharedPool" ? undefined : quotaLimit
+      );
+      if (!success) throw new Error("Quota update failed");
       showToast({ 
         type: "success", 
         title: "Quota updated", 
@@ -604,13 +618,7 @@ export default function ProfileDetailPage() {
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setPurchaseSuccess(true);
-        if (creditWallet) {
-          setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
-        }
-        showToast({ type: "success", title: "Purchase successful", message: `${selectedCreditPack.credits.toLocaleString()} credits added to your workspace.` });
-        setTimeout(() => setPurchaseSuccess(false), 3000);
+        showToast({ type: "error", title: "Payment failed", message: "Backend did not create a PayOS checkout." });
       }
     } catch {
       showToast({ type: "error", title: "Payment failed", message: "Failed to process credit pack purchase." });
@@ -2561,9 +2569,7 @@ export default function ProfileDetailPage() {
                                   <p className="text-label-sm text-on-surface-variant">Billing Cycle</p>
                                 </div>
                                 <p className="text-body-md text-on-surface font-semibold">Monthly</p>
-                                <p className="text-label-xs text-outline mt-1">
-                                  {subscription?.autoRenew ? "Renews automatically" : "Manual renewal"}
-                                </p>
+                                <p className="text-label-xs text-outline mt-1">Managed through PayOS</p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
                                 <div className="flex items-center gap-2 mb-2">
@@ -2575,11 +2581,7 @@ export default function ProfileDetailPage() {
                                     ? new Date(subscription.endDate).toLocaleDateString()
                                     : nextPaymentDate}
                                 </p>
-                                <p className="text-label-xs text-outline mt-1">
-                                  {subscription?.amount 
-                                    ? `${subscription.currency} ${subscription.amount.toFixed(2)}`
-                                    : planLabel === "Free" ? "Free" : "$29.00 USD"}
-                                </p>
+                                <p className="text-label-xs text-outline mt-1">{planLabel === "Free" ? "Free" : "See payment history"}</p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
                                 <div className="flex items-center gap-2 mb-2">

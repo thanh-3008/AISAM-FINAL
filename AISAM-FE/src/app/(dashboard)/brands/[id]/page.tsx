@@ -39,63 +39,6 @@ interface Campaign {
   createdAt: string;
 }
 
-const MOCK_BRANDS: Brand[] = [
-  { id: "mock-1", userId: "", name: "Lumina Tech", description: "Next-gen lighting solutions for smart homes and offices.", logoUrl: "", slogan: "Innovate Your Light", usp: "Smart lighting that adapts to your lifestyle", targetAudience: "Tech-savvy homeowners", profileId: null, productsCount: 3, contentsCount: 2, createdAt: "2025-01-15T00:00:00Z", updatedAt: "2025-06-04T00:00:00Z" },
-  { id: "mock-2", userId: "", name: "Summit Outdoor", description: "Premium outdoor gear for adventure enthusiasts.", logoUrl: "", slogan: "Conquer Every Peak", usp: null, targetAudience: null, profileId: null, productsCount: 2, contentsCount: 0, createdAt: "2025-03-20T00:00:00Z", updatedAt: "2025-05-28T00:00:00Z" },
-  { id: "mock-3", userId: "", name: "Heritage Motors", description: "Luxury automotive restoration and customization.", logoUrl: "", slogan: "Timeless Craftsmanship", usp: null, targetAudience: null, profileId: null, productsCount: 3, contentsCount: 2, createdAt: "2024-11-01T00:00:00Z", updatedAt: "2025-04-10T00:00:00Z" },
-  { id: "mock-4", userId: "", name: "GreenLeaf Organics", description: "Organic farm-to-table produce and sustainable goods.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 3, contentsCount: 1, createdAt: "2025-02-10T00:00:00Z", updatedAt: "2025-06-01T00:00:00Z" },
-  { id: "mock-5", userId: "", name: "Pulse Finance", description: "Real-time financial analytics and portfolio management.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 2, contentsCount: 3, createdAt: "2025-04-05T00:00:00Z", updatedAt: "2025-05-30T00:00:00Z" },
-  { id: "mock-6", userId: "", name: "Apex Fitness", description: "AI-powered fitness tracking and workout planning.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 1, contentsCount: 0, createdAt: "2025-05-01T00:00:00Z", updatedAt: "2025-05-25T00:00:00Z" },
-];
-
-const MOCK_PRODUCTS: Record<string, Product[]> = {
-  "mock-1": [
-    { id: "p-1", brandId: "mock-1", name: "Smart LED Bulb Pro", description: "WiFi-enabled RGB smart bulb with voice control support and energy monitoring.", price: 49.99, stock: 142, createdAt: "2025-02-01T00:00:00Z" },
-    { id: "p-2", brandId: "mock-1", name: "Home Hub Controller", description: "Central smart home hub with Matter protocol support for seamless integration.", price: 129.99, stock: 87, createdAt: "2025-03-15T00:00:00Z" },
-    { id: "p-3", brandId: "mock-1", name: "Motion Sensor Switch", description: "Wireless motion-activated light switch with ambient light sensing.", price: 24.99, stock: 0, createdAt: "2025-05-01T00:00:00Z" },
-  ],
-  "mock-2": [
-    { id: "p-4", brandId: "mock-2", name: "TrailBlazer Backpack 45L", description: "Lightweight waterproof hiking backpack with ergonomic support system.", price: 89.99, stock: 0, createdAt: "2025-04-10T00:00:00Z" },
-    { id: "p-5", brandId: "mock-2", name: "Summit Tent 4P", description: "Four-season expedition tent for 4 people with quick-setup frame.", price: 349.99, stock: 23, createdAt: "2025-04-20T00:00:00Z" },
-  ],
-  "mock-3": [
-    { id: "p-6", brandId: "mock-3", name: "Classic Coupe Restoration Kit", description: "Complete restoration package for 1960s coupes with authentic parts.", price: 2499.99, stock: 12, createdAt: "2024-12-01T00:00:00Z" },
-    { id: "p-7", brandId: "mock-3", name: "Vintage Interior Set - Leather", description: "Hand-stitched premium leather interior replacement set.", price: 899.99, stock: 8, createdAt: "2025-01-15T00:00:00Z" },
-    { id: "p-8", brandId: "mock-3", name: "Chrome Trim Package", description: "Show-quality chrome trim for classic and vintage models.", price: 449.99, stock: 0, createdAt: "2025-02-20T00:00:00Z" },
-  ],
-  "mock-4": [
-    { id: "p-9", brandId: "mock-4", name: "Organic Produce Box - Weekly", description: "Farm-fresh organic vegetables and fruits delivered weekly.", price: 39.99, stock: 320, createdAt: "2025-02-15T00:00:00Z" },
-    { id: "p-10", brandId: "mock-4", name: "Compostable Cutlery Set", description: "50-piece bamboo cutlery set, biodegradable and reusable.", price: 12.99, stock: 550, createdAt: "2025-03-01T00:00:00Z" },
-    { id: "p-11", brandId: "mock-4", name: "Reusable Produce Bags - 5pk", description: "Organic cotton mesh produce bags with tare weight printed.", price: 9.99, stock: 0, createdAt: "2025-04-10T00:00:00Z" },
-  ],
-  "mock-5": [
-    { id: "p-12", brandId: "mock-5", name: "Portfolio Tracker - Monthly", description: "Real-time portfolio performance tracking with AI insights.", price: 19.99, stock: 999, createdAt: "2025-04-10T00:00:00Z" },
-    { id: "p-13", brandId: "mock-5", name: "Market Analytics Dashboard", description: "Advanced market analytics with AI-driven predictions and trends.", price: 49.99, stock: 999, createdAt: "2025-04-15T00:00:00Z" },
-  ],
-  "mock-6": [
-    { id: "p-14", brandId: "mock-6", name: "Apex Workout Planner", description: "AI-generated personalized workout plans based on your fitness level.", price: 14.99, stock: 0, createdAt: "2025-05-10T00:00:00Z" },
-  ],
-};
-
-const MOCK_CAMPAIGNS: Record<string, Campaign[]> = {
-  "mock-1": [
-    { id: "c-1", brandId: "mock-1", name: "Winter Smart Home Campaign", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$5,000", spent: "$3,240", createdAt: "2025-05-01T00:00:00Z" },
-    { id: "c-2", brandId: "mock-1", name: "Energy Savings Promotion", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Active", budget: "$2,500", spent: "$1,100", createdAt: "2025-05-15T00:00:00Z" },
-  ],
-  "mock-3": [
-    { id: "c-3", brandId: "mock-3", name: "Classic Car Show Event", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Active", budget: "$3,000", spent: "$2,800", createdAt: "2025-03-01T00:00:00Z" },
-    { id: "c-4", brandId: "mock-3", name: "Restoration Workshop Series", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Draft", budget: "$1,500", spent: "$0", createdAt: "2025-04-10T00:00:00Z" },
-  ],
-  "mock-4": [
-    { id: "c-5", brandId: "mock-4", name: "Farm to Table Awareness", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Active", budget: "$1,800", spent: "$720", createdAt: "2025-05-01T00:00:00Z" },
-  ],
-  "mock-5": [
-    { id: "c-6", brandId: "mock-5", name: "Q2 Financial Webinar", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$8,000", spent: "$4,200", createdAt: "2025-04-20T00:00:00Z" },
-    { id: "c-7", brandId: "mock-5", name: "Retirement Planning Guide", platform: "FACEBOOK", platformColor: "text-blue-600", platformBg: "bg-blue-50", status: "Active", budget: "$3,500", spent: "$1,850", createdAt: "2025-05-05T00:00:00Z" },
-    { id: "c-8", brandId: "mock-5", name: "Investor Education Series", platform: "INSTAGRAM", platformColor: "text-pink-600", platformBg: "bg-pink-50", status: "Draft", budget: "$2,000", spent: "$0", createdAt: "2025-05-20T00:00:00Z" },
-  ],
-};
-
 const BRAND_PLATFORMS: Record<string, { icon: string; label: string; color: string }[]> = {
   "mock-1": [
     { icon: "hub", label: "Meta Ads", color: "text-primary" },
@@ -163,6 +106,7 @@ export default function BrandDetailPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
+  const workspaceId = activeWorkspace?.id;
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -174,8 +118,8 @@ export default function BrandDetailPage() {
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
-  const [products, setProducts] = useState<Product[]>(() => MOCK_PRODUCTS[id] || []);
-  const [campaigns, setCampaigns] = useState<Campaign[]>(() => MOCK_CAMPAIGNS[id] || []);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -192,73 +136,53 @@ export default function BrandDetailPage() {
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
-    let usedMock = false;
+    if (!workspaceId) {
+      setLoading(true);
+      return;
+    }
+    setError(null);
     const load = async () => {
     const fetchBrand = async () => {
       try {
-        const result = await apiFetch(`/brands/${id}`);
+        const result = await apiClient(`/brands/${id}`, {
+          headers: { "X-Workspace-Id": workspaceId },
+        });
         if (result?.success && result.data) {
           const b = result.data as Brand;
           setBrand(b);
           setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
           return;
         }
-      } catch {
-        // fallback to mock
-      }
-      const mockBrand = MOCK_BRANDS.find((b) => b.id === id);
-      if (mockBrand) {
-        setBrand(mockBrand);
-        setForm({ name: mockBrand.name, description: mockBrand.description || "", logoUrl: mockBrand.logoUrl || "", slogan: mockBrand.slogan || "", usp: mockBrand.usp || "", targetAudience: mockBrand.targetAudience || "" });
-        usedMock = true;
-      } else {
-        setError("Brand not found");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Brand not found");
       }
     };
     const fetchProducts = async () => {
-      if (usedMock) {
-        const mock = MOCK_PRODUCTS[id];
-        if (mock) setProducts(mock);
-        return;
-      }
       try {
-        const result = await apiFetch(`/products?brandId=${id}`);
+        const result = await apiClient(`/products?brandId=${id}`, {
+          headers: { "X-Workspace-Id": workspaceId },
+        });
         if (result?.success && Array.isArray(result.data?.data)) {
           setProducts(result.data.data as Product[]);
           return;
         }
-      } catch {
-        // fallback to mock
+      } catch (err) {
+        setProducts([]);
+        setError(err instanceof Error ? err.message : "Failed to load products");
       }
-      const mock = MOCK_PRODUCTS[id];
-      if (mock) setProducts(mock);
     };
     const fetchCampaigns = async () => {
-      if (usedMock) {
-        const mock = MOCK_CAMPAIGNS[id];
-        if (mock) setCampaigns(mock);
-        return;
-      }
-      try {
-        const result = await apiFetch(`/campaigns?brandId=${id}`);
-        if (result?.success && Array.isArray(result.data)) {
-          setCampaigns(result.data as Campaign[]);
-          return;
-        }
-      } catch {
-        // fallback to mock
-      }
-      const mock = MOCK_CAMPAIGNS[id];
-      if (mock) setCampaigns(mock);
+      setCampaigns([]);
     };
     await fetchBrand();
     await Promise.all([fetchProducts(), fetchCampaigns()]).finally(() => setLoading(false));
     };
     load();
-  }, [id, activeWorkspace?.id]);
+  }, [id, workspaceId]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Brand name is required"); return; }
+    if (!workspaceId) { setError("Please select a workspace before updating brand."); return; }
     setSaving(true);
     setError(null);
     const updatedBrand: Brand = {
@@ -278,59 +202,64 @@ export default function BrandDetailPage() {
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
 
-      const result = await apiClient(`/brands/${id}`, { method: "PUT", data: body });
+      const result = await apiClient(`/brands/${id}`, {
+        method: "PUT",
+        data: body,
+        headers: { "X-Workspace-Id": workspaceId },
+      });
       if (result?.success && result.data) {
         setBrand(result.data);
       } else {
         setBrand(updatedBrand);
       }
-    } catch {
-      setBrand(updatedBrand);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update brand");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!workspaceId) { setError("Please select a workspace before deleting brand."); return; }
     setShowDeleteDialog(false);
     try {
-      await apiFetch(`/brands/${id}`, { method: "DELETE" });
-    } catch {
+      await apiClient(`/brands/${id}`, {
+        method: "DELETE",
+        headers: { "X-Workspace-Id": workspaceId },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete brand");
+      return;
       // mock fallback — navigate away regardless
     }
     router.push("/brands");
   };
 
   const handleAddProduct = (product: Product) => {
-    setProducts((prev) => {
-      const next = [product, ...prev];
-      MOCK_PRODUCTS[id] = next;
-      return next;
-    });
+    setProducts((prev) => [product, ...prev]);
   };
 
   const handleEditProduct = (updated: Product) => {
-    setProducts((prev) => {
-      const next = prev.map((p) => (p.id === updated.id ? updated : p));
-      MOCK_PRODUCTS[id] = next;
-      return next;
-    });
+    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   };
 
   const handleDeleteProduct = async () => {
     if (!deletingProduct) return;
+    if (!workspaceId) { setError("Please select a workspace before deleting product."); return; }
     const target = deletingProduct;
     setDeletingProduct(null);
     try {
-      await apiFetch(`/products/${target.id}`, { method: "DELETE" });
-    } catch {
+      const result = await apiClient(`/products/${target.id}`, {
+        method: "DELETE",
+        headers: { "X-Workspace-Id": workspaceId },
+      });
+      if (!result?.success) throw new Error(result?.message || "Failed to delete product");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete product");
+      return;
       // mock fallback — remove from local state
     }
-    setProducts((prev) => {
-      const next = prev.filter((p) => p.id !== target.id);
-      MOCK_PRODUCTS[id] = next;
-      return next;
-    });
+    setProducts((prev) => prev.filter((p) => p.id !== target.id));
   };
 
   if (loading) {
@@ -553,12 +482,20 @@ export default function BrandDetailPage() {
                           whileHover={{ y: -3, boxShadow: "0 10px 25px -12px rgba(0,0,0,0.15)" }}
                           className="group border border-outline-variant/20 bg-surface-container-lowest rounded-2xl overflow-hidden hover:border-primary/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col">
                           <div className="aspect-video relative overflow-hidden bg-surface-container-low">
-                            <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            {product.images?.[0] ? (
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+                            ) : (
+                              <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            )}
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
                             <p className="text-on-surface-variant text-body-sm mb-2 line-clamp-2 flex-1">{product.description}</p>
-                            <p className="text-label-lg font-bold text-primary mb-3">${product.price.toFixed(2)}</p>
+                            <p className="text-label-lg font-bold text-primary mb-3">${(product.price ?? 0).toFixed(2)}</p>
                             <div className="flex items-center justify-between mt-auto">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-1.5 text-on-surface-variant">
@@ -754,6 +691,7 @@ export default function BrandDetailPage() {
         onClose={() => setShowAddModal(false)}
         onSuccess={handleAddProduct}
         brandId={id}
+        workspaceId={activeWorkspace?.id ?? ""}
       />
 
       {editingProduct && (
@@ -763,6 +701,7 @@ export default function BrandDetailPage() {
           onClose={() => setEditingProduct(null)}
           onSuccess={handleEditProduct}
           brandId={id}
+          workspaceId={activeWorkspace?.id ?? ""}
           product={editingProduct}
         />
       )}
@@ -787,14 +726,40 @@ export default function BrandDetailPage() {
               </button>
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
-              <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
-                <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+              <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden relative">
+                <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-20`} />
+                {viewingProduct.images?.[0] && (
+                  <img
+                    src={viewingProduct.images[0]}
+                    alt={viewingProduct.name}
+                    className="relative w-full h-full object-contain"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
               </div>
+              {(viewingProduct.images?.length ?? 0) > 1 && (
+                <div className="grid grid-cols-4 gap-2">
+                  {viewingProduct.images?.slice(1).map((image, index) => (
+                    <div key={image} className="aspect-square rounded-lg bg-surface-container-low overflow-hidden">
+                      <img
+                        src={image}
+                        alt={`${viewingProduct.name} image ${index + 2}`}
+                        className="w-full h-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Price</span>
-                  <p className="text-body-sm font-semibold text-on-surface">${viewingProduct.price.toFixed(2)}</p>
+                  <p className="text-body-sm font-semibold text-on-surface">${(viewingProduct.price ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Stock</span>

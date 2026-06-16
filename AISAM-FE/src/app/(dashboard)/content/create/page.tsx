@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { MOCK_CONTENT, MOCK_DETAILS, ALL_TAGS } from "@/lib/mockContent";
-import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, BRANDS, PRODUCTS, BRAND_COLORS, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
+import { ALL_TAGS } from "@/lib/mockContent";
+import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, BRAND_COLORS, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
+import { fetchBrands, fetchProducts } from "@/services/brandService";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -15,12 +17,19 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
+  const { activeWorkspace } = useWorkspaces();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; brandId: string }[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
 
   const [form, setForm] = useState({
     title: "",
-    brandName: BRANDS[0],
+    brandId: "",
+    brandName: "",
+    productId: "",
     productName: "",
     type: "TEXT" as ContentType,
     status: "Draft" as ContentStatus,
@@ -101,16 +110,74 @@ export default function CreateContentPage() {
 
   const update = (partial: Partial<typeof form>) => setForm((p) => ({ ...p, ...partial }));
 
-  const availableProducts = PRODUCTS[form.brandName] || [];
-  const isValid = form.title.trim().length > 0 && form.productName;
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCatalog = async () => {
+      setLoadingCatalog(true);
+      setCatalogError("");
+      try {
+        const brandData = await fetchBrands();
+        if (cancelled) return;
+
+        setBrands(brandData);
+        const selectedBrand = brandData.find((brand) => brand.id === form.brandId) ?? brandData[0];
+        if (!selectedBrand) {
+          setProducts([]);
+          update({ brandId: "", brandName: "", productId: "", productName: "" });
+          return;
+        }
+
+        const productData = await fetchProducts(selectedBrand.id);
+        if (cancelled) return;
+        setProducts(productData);
+        update({
+          brandId: selectedBrand.id,
+          brandName: selectedBrand.name,
+          productId: "",
+          productName: "",
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setBrands([]);
+          setProducts([]);
+          setCatalogError(error instanceof Error ? error.message : "Failed to load brands and products.");
+        }
+      } finally {
+        if (!cancelled) setLoadingCatalog(false);
+      }
+    };
+
+    void loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.id]);
+
+  const handleBrandChange = async (brandId: string) => {
+    const brand = brands.find((item) => item.id === brandId);
+    update({ brandId, brandName: brand?.name ?? "", productId: "", productName: "" });
+    setLoadingCatalog(true);
+    setCatalogError("");
+    try {
+      setProducts(await fetchProducts(brandId));
+    } catch (error) {
+      setProducts([]);
+      setCatalogError(error instanceof Error ? error.message : "Failed to load products.");
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
+  const isValid = form.title.trim().length > 0 && form.brandId && form.productId;
 
   const handleSave = async () => {
     if (!isValid) return;
     setSaving(true);
 
     const payload: CreateContentPayload = {
-      brandId: form.brandName,
-      productId: form.productName || null,
+      brandId: form.brandId,
+      productId: form.productId || null,
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
       textContent: form.textContent || form.caption || form.description || "",
@@ -192,20 +259,25 @@ export default function CreateContentPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Brand <span className="text-danger-red">*</span></label>
-                    <select value={form.brandName} onChange={(e) => update({ brandName: e.target.value, productName: "" })}
+                    <select value={form.brandId} onChange={(e) => void handleBrandChange(e.target.value)} disabled={loadingCatalog || brands.length === 0}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                      {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                      {brands.length === 0 && <option value="">{loadingCatalog ? "Loading brands..." : "No brands available"}</option>}
+                      {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Product <span className="text-danger-red">*</span></label>
-                    <select value={form.productName} onChange={(e) => update({ productName: e.target.value })}
+                    <select value={form.productId} onChange={(e) => {
+                      const product = products.find((item) => item.id === e.target.value);
+                      update({ productId: e.target.value, productName: product?.name ?? "" });
+                    }} disabled={loadingCatalog || !form.brandId}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                      <option value="">Select product</option>
-                      {availableProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+                      <option value="">{loadingCatalog ? "Loading products..." : "Select product"}</option>
+                      {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
                     </select>
                   </div>
                 </div>
+                {catalogError && <p className="text-label-sm text-danger-red">{catalogError}</p>}
 
                 {/* Content Type */}
                 <div>

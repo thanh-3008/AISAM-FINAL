@@ -2,6 +2,7 @@ using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,10 +15,14 @@ namespace AISAM.API.Controllers;
 public sealed class GeminiController : ControllerBase
 {
     private readonly IAIService _aiService;
+    private readonly IProfileRepository _profileRepository;
 
-    public GeminiController(IAIService aiService)
+    public GeminiController(
+        IAIService aiService,
+        IProfileRepository profileRepository)
     {
         _aiService = aiService;
+        _profileRepository = profileRepository;
     }
 
     [HttpPost("generate-draft")]
@@ -27,7 +32,7 @@ public sealed class GeminiController : ControllerBase
     {
         var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
         var result = await _aiService.GenerateDraftAsync(
-            GetProfileId(),
+            await GetProfileIdAsync(cancellationToken),
             membership.WorkspaceId,
             membership.UserId,
             request,
@@ -44,7 +49,7 @@ public sealed class GeminiController : ControllerBase
         var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
         var result = await _aiService.ImproveAsync(
             contentId,
-            GetProfileId(),
+            await GetProfileIdAsync(cancellationToken),
             membership.WorkspaceId,
             membership.UserId,
             request,
@@ -75,12 +80,10 @@ public sealed class GeminiController : ControllerBase
         [FromBody] ChatRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.ChatInWorkspaceAsync(GetProfileId(), WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), request, cancellationToken);
+        var result = await _aiService.ChatInWorkspaceAsync(await GetProfileIdAsync(cancellationToken), WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
+    private Task<Guid> GetProfileIdAsync(CancellationToken cancellationToken)
+        => WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
 }

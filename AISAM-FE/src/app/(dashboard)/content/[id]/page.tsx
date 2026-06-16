@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { MOCK_CONTENT, MOCK_DETAILS, type ContentDetail, type ContentType, type ContentStatus } from "@/lib/mockContent";
+import { type ContentDetail, type ContentType, type ContentStatus } from "@/lib/mockContent";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE } from "@/services/contentService";
 
@@ -60,13 +60,6 @@ export default function ContentDetailPage() {
       item.scheduledAt = form.scheduledAt || undefined;
       item.internalNotes = form.internalNotes || undefined;
       item.hashtags = form.hashtags;
-      const listItem = MOCK_CONTENT.find((c) => c.id === item.id);
-      if (listItem) {
-        listItem.title = form.title;
-        listItem.status = form.status;
-        listItem.platforms = form.platforms;
-        listItem.hashtags = form.hashtags;
-      }
     }
     setSaving(false);
     setEditing(false);
@@ -74,11 +67,6 @@ export default function ContentDetailPage() {
 
   const handleDelete = async () => {
     await deleteContent(params.id as string);
-    if (item) {
-      const idx = MOCK_CONTENT.findIndex((c) => c.id === item.id);
-      if (idx !== -1) MOCK_CONTENT.splice(idx, 1);
-      delete MOCK_DETAILS[item.id];
-    }
     router.push("/content");
   };
 

@@ -1,6 +1,5 @@
 import { getToken, refreshAccessToken } from "./auth";
 import { ApiError } from "./apiTypes";
-import { getStoredActiveProfile } from "@/stores/profile-store";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
@@ -38,11 +37,9 @@ function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
 
 function buildHeaders(customHeaders?: HeadersInit) {
   const token = getToken();
-  const profile = getStoredActiveProfile();
   const workspace = getStoredActiveWorkspace();
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(profile?.id ? { "X-Profile-Id": profile.id } : {}),
     ...(workspace?.id ? { "X-Workspace-Id": workspace.id } : {}),
     ...normalizeHeaders(customHeaders),
   };

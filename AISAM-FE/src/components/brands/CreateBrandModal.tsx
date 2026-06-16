@@ -5,12 +5,12 @@ import { apiClient } from "../../lib/apiClient";
 
 interface Props {
   open: boolean;
+  workspaceId: string;
   onClose: () => void;
   onSuccess: (brand: any) => void;
-  profileId: string;
 }
 
-export default function CreateBrandModal({ open, onClose, onSuccess, profileId }: Props) {
+export default function CreateBrandModal({ open, workspaceId, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,19 +41,24 @@ export default function CreateBrandModal({ open, onClose, onSuccess, profileId }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { setError("Brand name is required"); return; }
+    if (!workspaceId) { setError("Please select a workspace before creating a brand."); return; }
 
     setLoading(true);
     setError(null);
 
     try {
-      const body: Record<string, string> = { name: form.name.trim(), profileId };
+      const body: Record<string, string> = { name: form.name.trim() };
       if (form.description.trim()) body.description = form.description.trim();
       if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
       if (form.slogan.trim()) body.slogan = form.slogan.trim();
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
 
-      const result = await apiClient("/brands", { method: "POST", data: body });
+      const result = await apiClient("/brands", {
+        method: "POST",
+        data: body,
+        headers: { "X-Workspace-Id": workspaceId },
+      });
 
       if (result?.success && result.data) {
         onSuccess(result.data);

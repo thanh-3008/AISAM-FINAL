@@ -3,10 +3,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { MOCK_CONTENT, MOCK_DETAILS, ALL_TAGS, type ContentItem, type ContentType, type ContentStatus } from "@/lib/mockContent";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, STATUS_STYLES, BRANDS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContents, createContent, updateContent, deleteContent, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
-import { fetchBrands, fetchProducts } from "@/services/brandService";
+import { ALL_TAGS, type ContentItem, type ContentType, type ContentStatus } from "@/lib/mockContent";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { fetchContents, cloneContent, updateContent, deleteContent } from "@/services/contentService";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -27,8 +26,6 @@ const SORT_OPTIONS: { label: string; value: SortKey }[] = [
   { label: "By Status", value: "status" },
 ];
 
-
-const PRODUCTS = ["Smart Bulb", "LED Strip", "Desk Lamp", "Tent", "Backpack", "Jacket", "Engine Kit", "Tire Set", "Organic Tea", "Vitamin Pack", "Budget App", "Portfolio Tracker"];
 
 const PAGE_SIZE = 9;
 
@@ -75,6 +72,7 @@ export default function ContentPage() {
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
   const [statsVersion, setStatsVersion] = useState(0);
+  const [contents, setContents] = useState<ContentItem[]>([]);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
 
@@ -99,12 +97,21 @@ export default function ContentPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 80);
-    const loadTimer = setTimeout(() => setLoading(false), 600);
-    return () => { clearTimeout(timer); clearTimeout(loadTimer); };
+    const load = async () => {
+      setLoading(true);
+      try {
+        const result = await fetchContents({ pageSize: 100 });
+        setContents(result.items);
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+    return () => clearTimeout(timer);
   }, []);
 
   const filtered = useMemo(() => {
-    let list = MOCK_CONTENT;
+    let list = [...contents];
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((c) => c.title.toLowerCase().includes(q) || c.brandName.toLowerCase().includes(q));
@@ -133,23 +140,23 @@ export default function ContentPage() {
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return list;
-  }, [search, brandFilter, productFilter, typeFilter, statusFilter, platformFilter, dateFrom, dateTo, sortBy]);
+  }, [contents, search, brandFilter, productFilter, typeFilter, statusFilter, platformFilter, dateFrom, dateTo, sortBy]);
 
   const paginated = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const hasMore = page < totalPages;
 
   const stats = useMemo(() => ({
-    total: MOCK_CONTENT.length,
-    published: MOCK_CONTENT.filter((c) => c.status === "Published").length,
-    scheduled: MOCK_CONTENT.filter((c) => c.status === "Scheduled").length,
-    draft: MOCK_CONTENT.filter((c) => c.status === "Draft" || c.status === "Awaiting Approval").length,
-  }), [statsVersion]);
+    total: contents.length,
+    published: contents.filter((c) => c.status === "Published").length,
+    scheduled: contents.filter((c) => c.status === "Scheduled").length,
+    draft: contents.filter((c) => c.status === "Draft" || c.status === "Awaiting Approval").length,
+  }), [contents, statsVersion]);
 
   const availableProducts = useMemo(() => {
-    if (!brandFilter) return PRODUCTS;
-    return MOCK_CONTENT.filter((c) => c.brandName === brandFilter).map((c) => c.productName);
-  }, [brandFilter]);
+    const source = brandFilter ? contents.filter((c) => c.brandName === brandFilter) : contents;
+    return [...new Set(source.map((c) => c.productName).filter(Boolean))];
+  }, [contents, brandFilter]);
 
   const hasFilters = !!search || !!brandFilter || !!productFilter || !!typeFilter || !!statusFilter || platformFilter.length > 0 || !!tagFilter || !!dateFrom || !!dateTo || sortBy !== "newest";
 
@@ -177,17 +184,17 @@ export default function ContentPage() {
     for (const id of ids) {
       await deleteContent(id);
     }
+    setContents((prev) => prev.filter((item) => !ids.has(item.id)));
     setSelectedIds(new Set());
     setStatsVersion((v) => v + 1);
     addToast(`Deleted ${ids.size} items`, "delete");
   };
 
-  const handleBatchStatusChange = () => {
+  const handleBatchStatusChange = async () => {
     if (!batchStatus) return;
-    selectedIds.forEach((id) => {
-      const item = MOCK_CONTENT.find((c) => c.id === id);
-      if (item) item.status = batchStatus;
-    });
+    const statusMap: Record<ContentStatus, 0 | 1 | 2 | 4> = { Draft: 0, "Awaiting Approval": 1, Scheduled: 2, Published: 4 };
+    await Promise.all([...selectedIds].map((id) => updateContent(id, { status: statusMap[batchStatus] })));
+    setContents((prev) => prev.map((item) => selectedIds.has(item.id) ? { ...item, status: batchStatus } : item));
     setSelectedIds(new Set());
     setBatchStatus("");
     setStatsVersion((v) => v + 1);
@@ -209,7 +216,7 @@ export default function ContentPage() {
   };
 
   // Card actions
-  const handleCardAction = (action: string, item: ContentItem) => {
+  const handleCardAction = async (action: string, item: ContentItem) => {
     setOpenMenuId(null);
     switch (action) {
       case "Preview":
@@ -225,17 +232,11 @@ export default function ContentPage() {
         setDeletingItem(item);
         break;
       case "Duplicate": {
-        const newItem: ContentItem = {
-          ...item,
-          id: `mock-${Date.now()}`,
-          title: `${item.title} (Copy)`,
-          status: "Draft",
-          createdAt: new Date().toISOString(),
-        };
-        MOCK_CONTENT.unshift(newItem);
-        MOCK_DETAILS[newItem.id] = { ...newItem, updatedAt: new Date().toISOString(), description: "" };
-        setStatsVersion((v) => v + 1);
-        addToast(`"${item.title}" duplicated`, "content_copy");
+        const cloned = await cloneContent(item.id);
+        if (cloned) {
+          setContents((prev) => [cloned, ...prev]);
+          addToast(`"${item.title}" duplicated`, "content_copy");
+        }
         break;
       }
     }
@@ -248,6 +249,7 @@ export default function ContentPage() {
       adType: updated.type === "TEXT" ? 0 : updated.type === "IMAGE" ? 1 : 2,
       textContent: "",
     });
+    setContents((prev) => prev.map((item) => item.id === updated.id ? updated : item));
     setEditingItem(null);
     setStatsVersion((v) => v + 1);
     addToast(`"${updated.title}" updated`, "check_circle");
@@ -257,6 +259,7 @@ export default function ContentPage() {
   const handleDeleteConfirm = async () => {
     if (!deletingItem) return;
     await deleteContent(deletingItem.id);
+    setContents((prev) => prev.filter((item) => item.id !== deletingItem.id));
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(deletingItem.id); return n; });
     setDeletingItem(null);
     setStatsVersion((v) => v + 1);
@@ -982,7 +985,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
   const isEdit = !!item;
   const [form, setForm] = useState({
     title: item?.title || "",
-    brandName: item?.brandName || BRANDS[0],
+    brandName: item?.brandName || "",
     productName: item?.productName || "",
     type: item?.type || "TEXT" as ContentType,
     status: item?.status || "Draft" as ContentStatus,
@@ -994,13 +997,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
   const [showTagPicker, setShowTagPicker] = useState(false);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  const availableProducts = useMemo(() => {
-    return MOCK_CONTENT.filter((c) => c.brandName === form.brandName).map((c) => c.productName)
-      .concat(PRODUCTS.filter((p) => p));
-  }, [form.brandName]);
-
-  const uniqueProducts = [...new Set(availableProducts.length > 0 ? availableProducts : PRODUCTS)];
-  const isValid = form.title.trim().length > 0 && form.brandName && form.productName;
+  const isValid = form.title.trim().length > 0;
 
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1054,20 +1051,15 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
           {/* Brand */}
           <div>
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Brand <span className="text-danger-red">*</span></label>
-            <select value={form.brandName} onChange={(e) => setForm((p) => ({ ...p, brandName: e.target.value, productName: "" }))}
-              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-              {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <input value={form.brandName} disabled
+              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface/70 outline-none transition-all" />
           </div>
 
           {/* Product */}
           <div>
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Product <span className="text-danger-red">*</span></label>
-            <select value={form.productName} onChange={(e) => setForm((p) => ({ ...p, productName: e.target.value }))}
-              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-              <option value="">Select product</option>
-              {uniqueProducts.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <input value={form.productName} disabled
+              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface/70 outline-none transition-all" />
           </div>
 
           {/* Type */}

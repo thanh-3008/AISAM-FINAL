@@ -112,6 +112,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();
@@ -143,6 +144,7 @@ builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProductImageStorageService, LocalProductImageStorageService>();
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
@@ -238,9 +240,11 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+Directory.CreateDirectory(Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
 var app = builder.Build();
 
 app.UseCors("CorsPolicy");
+app.UseStaticFiles();
 
 app.UseSwagger();
 app.UseSwaggerUI();

@@ -187,7 +187,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProductService_ReturnsError_WhenImageFilesAreProvided()
+    public async Task ProductService_PersistsUploadedImageUrls()
     {
         var userId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
@@ -203,7 +203,7 @@ public class FoundationTests
         };
 
         var productRepository = new FakeProductRepository(product);
-        var service = new ProductService(productRepository, new FakeBrandRepository(brand));
+        var service = new ProductService(productRepository, new FakeBrandRepository(brand), new FakeProductImageStorageService());
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 
@@ -224,12 +224,12 @@ public class FoundationTests
             }
         });
 
-        Assert.False(createResult.Success);
-        Assert.Contains("upload is not enabled", createResult.Message);
-        Assert.False(productRepository.AddCalled);
-        Assert.False(updateResult.Success);
-        Assert.Contains("upload is not enabled", updateResult.Message);
-        Assert.False(productRepository.UpdateCalled);
+        Assert.True(createResult.Success);
+        Assert.Equal("/uploads/products/product.png", Assert.Single(createResult.Data!.Images!));
+        Assert.True(productRepository.AddCalled);
+        Assert.True(updateResult.Success);
+        Assert.Equal("/uploads/products/product.png", Assert.Single(updateResult.Data!.Images!));
+        Assert.True(productRepository.UpdateCalled);
     }
 
     [Fact]

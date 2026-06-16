@@ -21,6 +21,9 @@ appsettings.Production.json
 # Local runtime logs
 *.log
 
+# Local product image uploads
+AISAM-BE/AISAM.API/wwwroot/uploads/
+
 # ASP.NET local data protection keys
 .keys/
 

@@ -34,15 +34,6 @@ const BRAND_COLORS = [
   { gradient: "from-primary/55 to-primary/25", light: "bg-primary/7" },
 ];
 
-const MOCK_BRANDS: Brand[] = [
-  { id: "mock-1", userId: "", name: "Lumina Tech", description: "Next-gen lighting solutions for smart homes and offices.", logoUrl: "", slogan: "Innovate Your Light", usp: "Smart lighting that adapts to your lifestyle", targetAudience: "Tech-savvy homeowners", profileId: null, productsCount: 3, contentsCount: 34, createdAt: "2025-01-15T00:00:00Z", updatedAt: "2025-06-04T00:00:00Z" },
-  { id: "mock-2", userId: "", name: "Summit Outdoor", description: "Premium outdoor gear for adventure enthusiasts.", logoUrl: "", slogan: "Conquer Every Peak", usp: null, targetAudience: null, profileId: null, productsCount: 2, contentsCount: 0, createdAt: "2025-03-20T00:00:00Z", updatedAt: "2025-05-28T00:00:00Z" },
-  { id: "mock-3", userId: "", name: "Heritage Motors", description: "Luxury automotive restoration and customization.", logoUrl: "", slogan: "Timeless Craftsmanship", usp: null, targetAudience: null, profileId: null, productsCount: 3, contentsCount: 8, createdAt: "2024-11-01T00:00:00Z", updatedAt: "2025-04-10T00:00:00Z" },
-  { id: "mock-4", userId: "", name: "GreenLeaf Organics", description: "Organic farm-to-table produce and sustainable goods.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 3, contentsCount: 15, createdAt: "2025-02-10T00:00:00Z", updatedAt: "2025-06-01T00:00:00Z" },
-  { id: "mock-5", userId: "", name: "Pulse Finance", description: "Real-time financial analytics and portfolio management.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 2, contentsCount: 21, createdAt: "2025-04-05T00:00:00Z", updatedAt: "2025-05-30T00:00:00Z" },
-  { id: "mock-6", userId: "", name: "Apex Fitness", description: "", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 1, contentsCount: 0, createdAt: "2025-05-01T00:00:00Z", updatedAt: "2025-05-25T00:00:00Z" },
-];
-
 function getInitials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }
@@ -74,6 +65,7 @@ export default function BrandsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null);
+  const [error, setError] = useState("");
 
   const fadeUp = prefersReducedMotion ? { initial: {}, animate: {} } : {
     initial: { opacity: 0, y: 20 },
@@ -81,12 +73,17 @@ export default function BrandsPage() {
   };
 
   const fetchBrands = useCallback(async () => {
-    if (!activeWorkspace) { setLoading(false); setBrands(MOCK_BRANDS); return; }
+    if (!activeWorkspace) { setLoading(false); setBrands([]); return; }
+    setLoading(true);
+    setError("");
     try {
       const result = await apiFetch(`/brands?workspaceId=${activeWorkspace.id}&pageSize=100`);
       if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
-      else setBrands(MOCK_BRANDS);
-    } catch { setBrands(MOCK_BRANDS); }
+      else setBrands([]);
+    } catch (err) {
+      setBrands([]);
+      setError(err instanceof Error ? err.message : "Failed to load brands");
+    }
     finally { setLoading(false); }
   }, [activeWorkspace]);
 
@@ -109,11 +106,7 @@ export default function BrandsPage() {
   const clearFilters = () => setSearch("");
 
   const handleEditSuccess = (updated: Brand) => {
-    setBrands((prev) => {
-      const next = prev.map((b) => (b.id === updated.id ? updated : b));
-      MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
-      return next;
-    });
+    setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setEditingBrand(null);
   };
 
@@ -123,20 +116,19 @@ export default function BrandsPage() {
     setDeletingBrand(null);
     try {
       await apiFetch(`/brands/${brandToDelete.id}`, { method: "DELETE" });
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete brand");
+      return;
       // mock fallback — remove from local state
     }
-    setBrands((prev) => {
-      const next = prev.filter((b) => b.id !== brandToDelete.id);
-      MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
-      return next;
-    });
+    setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
   };
 
   return (
     <>
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Brands" }]} />
       <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-10">
+        {error && <div className="rounded-xl bg-danger-red/10 px-4 py-3 text-body-sm text-danger-red">{error}</div>}
 
         {/* ─── Hero ─── */}
         <motion.div {...fadeUp} transition={{ duration: 0.6, ease: easeOut }} className="flex items-end justify-between">
@@ -340,13 +332,9 @@ export default function BrandsPage() {
 
       <CreateBrandModal
         open={showCreateModal}
+        workspaceId={activeWorkspace?.id ?? ""}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={(brand) => setBrands((prev) => {
-          const next = [brand, ...prev];
-          MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
-          return next;
-        })}
-        profileId={activeWorkspace?.id || ""}
+        onSuccess={(brand) => setBrands((prev) => [brand, ...prev])}
       />
 
       {editingBrand && (

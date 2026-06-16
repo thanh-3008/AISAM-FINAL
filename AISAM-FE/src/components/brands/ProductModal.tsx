@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { apiFetch } from "@/lib/apiClient";
+import { apiClient } from "@/lib/apiClient";
 
 export interface Product {
   id: string;
@@ -20,16 +20,11 @@ interface Props {
   onClose: () => void;
   onSuccess: (product: Product) => void;
   brandId: string;
+  workspaceId: string;
   product?: Product;
 }
 
-let _nextId = 100;
-
-function nextMockId() {
-  return `mock-p-${++_nextId}`;
-}
-
-export default function ProductModal({ open, mode, onClose, onSuccess, brandId, product }: Props) {
+export default function ProductModal({ open, mode, onClose, onSuccess, brandId, workspaceId, product }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +43,19 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
+    const existingCount = product?.images?.length ?? 0;
+    if (existingCount + files.length + selected.length > 5) {
+      setError("A product can have at most 5 images.");
+      return;
+    }
+    if (selected.some((file) => !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type))) {
+      setError("Images must be JPEG, PNG, WebP, or GIF files.");
+      return;
+    }
+    if (selected.some((file) => file.size > 5 * 1024 * 1024)) {
+      setError("Each image must be 5 MB or smaller.");
+      return;
+    }
     setFiles((prev) => [...prev, ...selected]);
     if (error) setError(null);
   };
@@ -71,21 +79,11 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     return fd;
   };
 
-  const buildProduct = (overrides: Partial<Product> = {}): Product => ({
-    id: product?.id || nextMockId(),
-    brandId,
-    name: form.name.trim(),
-    description: form.description.trim(),
-    price: Number(form.price),
-    stock: product?.stock,
-    createdAt: product?.createdAt || new Date().toISOString(),
-    ...overrides,
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { setError("Product name is required"); return; }
     if (!form.price.trim() || isNaN(Number(form.price))) { setError("Valid price is required"); return; }
+    if (!workspaceId) { setError("Please select a workspace before creating a product."); return; }
 
     setLoading(true);
     setError(null);
@@ -94,17 +92,19 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     const method = mode === "edit" ? "PUT" : "POST";
 
     try {
-      const result = await apiFetch(endpoint, { method, body: buildApiBody() });
+      const result = await apiClient(endpoint, {
+        method,
+        data: buildApiBody(),
+        headers: { "X-Workspace-Id": workspaceId },
+      });
       if (result?.success && result.data) {
         onSuccess(result.data);
         handleClose();
       } else {
-        onSuccess(buildProduct(result?.data || {}));
-        handleClose();
+        setError(result?.message || "Failed to save product");
       }
-    } catch {
-      onSuccess(buildProduct());
-      handleClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save product");
     } finally {
       setLoading(false);
     }
@@ -174,7 +174,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                   ) : (
                     <>
                       <span className="material-symbols-outlined text-outline text-2xl">upload_file</span>
-                      <span className="text-label-sm text-outline">Click to upload images</span>
+                      <span className="text-label-sm text-outline">Click to upload up to 5 images</span>
                     </>
                   )}
                 </div>

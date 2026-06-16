@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/apiClient";
 import type { ApiResponse } from "@/lib/apiTypes";
-import { getMockCreditWallet, getMockWorkspaceDashboard, getMockPostQuota, type CreditWallet, type WorkspaceDashboard } from "@/lib/mockWorkspace";
+import type { CreditWallet, WorkspaceDashboard } from "@/lib/mockWorkspace";
 
 type GenericResponse<T> = ApiResponse<T>;
 
@@ -16,74 +16,90 @@ export interface Workspace {
   memberCount: number;
 }
 
-const MOCK_WS: Workspace = {
-  id: "ws-1",
-  name: "My Workspace",
-  workspaceType: 1,
-  plan: "Personal Pro",
-  status: "Active",
-  creditBalance: 850,
-  memberCount: 1,
-};
+export interface WorkspaceCreateRequest {
+  name: string;
+  workspaceType: number;
+}
+
+export interface WorkspaceCreateResponse {
+  id: string;
+  name: string;
+  workspaceType: number;
+  status: number;
+  currentUserRole: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export async function fetchWorkspaces(): Promise<Workspace[]> {
-  try {
-    const res: GenericResponse<Workspace[]> = await apiClient("/workspaces");
-    return res?.data ?? [MOCK_WS];
-  } catch {
-    return [MOCK_WS];
+  const res: GenericResponse<Workspace[]> = await apiClient("/workspaces");
+  return res?.data ?? [];
+}
+
+export async function createWorkspace(data: WorkspaceCreateRequest): Promise<WorkspaceCreateResponse> {
+  const res: GenericResponse<WorkspaceCreateResponse> = await apiClient("/workspaces", {
+    method: "POST",
+    data: {
+      name: data.name.trim(),
+      workspaceType: data.workspaceType,
+    },
+  });
+
+  if (!res.success || !res.data) {
+    throw new Error(res.message || "Failed to create workspace.");
   }
+
+  return res.data;
 }
 
 export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | null> {
   try {
     const res = await apiClient<GenericResponse<{
-      draftContentCount?: number;
-      publishedContentCount?: number;
-      pendingApprovalContentCount?: number;
-      upcomingScheduleCount?: number;
-      failedScheduleCount?: number;
-      activeSocialIntegrationCount?: number;
-      publishedPostCount?: number;
-      unreadNotificationCount?: number;
-    }>>("/dashboard/summary");
+      workspaceId: string;
+      creditBalance: number;
+      creditsUsed: number;
+      postsRemaining: number;
+      aiUsageCount: number;
+      topMembers: Array<{ userId: string; name: string; creditsUsed: number; aiUsageCount: number }>;
+    }>>("/workspace-dashboard/summary");
     if (res?.data) {
       const d = res.data;
       return {
-        creditsRemaining: 0,
-        postsRemaining: d.publishedPostCount ?? 0,
-        totalAiUsage: d.draftContentCount ?? 0,
-        topMembers: [],
+        creditsRemaining: d.creditBalance,
+        postsRemaining: d.postsRemaining,
+        totalAiUsage: d.aiUsageCount,
+        topMembers: d.topMembers.map((member) => ({
+          userId: member.userId,
+          name: member.name,
+          usage: member.creditsUsed,
+        })),
       };
     }
-    return getMockWorkspaceDashboard();
+    return null;
   } catch {
-    return getMockWorkspaceDashboard();
+    return null;
   }
 }
 
 export async function fetchCreditWallet(): Promise<CreditWallet | null> {
   try {
-    const res = await apiClient<GenericResponse<{
-      planName?: string;
-      status?: string;
-      startDate?: string;
-      endDate?: string;
-    }>>("/payment/subscription/current");
-    if (res?.data) {
-      const sub = res.data;
+    const [dashboard, subscription] = await Promise.all([
+      apiClient<GenericResponse<{ workspaceId: string; creditBalance: number; creditsUsed: number }>>("/workspace-dashboard/summary"),
+      apiClient<GenericResponse<{ status: string; endDate?: string | null }>>("/payment/subscription/current").catch(() => null),
+    ]);
+    if (dashboard?.data) {
       return {
-        id: "wallet-1",
-        workspaceId: "ws-1",
-        balance: sub.status === "Active" ? 850 : 0,
-        maxBalance: 15000,
-        subscriptionEndDate: sub.endDate,
-        subscriptionStatus: sub.status,
+        id: dashboard.data.workspaceId,
+        workspaceId: dashboard.data.workspaceId,
+        balance: dashboard.data.creditBalance,
+        maxBalance: dashboard.data.creditBalance + dashboard.data.creditsUsed,
+        subscriptionEndDate: subscription?.data?.endDate ?? undefined,
+        subscriptionStatus: subscription?.data?.status,
       };
     }
-    return getMockCreditWallet();
+    return null;
   } catch {
-    return getMockCreditWallet();
+    return null;
   }
 }
 
@@ -102,9 +118,9 @@ export async function fetchPostQuota(_profileId?: string): Promise<{ used: numbe
         total: q.postQuotaLimit ?? 0,
       };
     }
-    return getMockPostQuota();
+    return null;
   } catch {
-    return getMockPostQuota();
+    return null;
   }
 }
 
@@ -217,10 +233,9 @@ export interface DeductCreditsRequest {
 }
 
 export async function deductCredits(data: DeductCreditsRequest): Promise<{ balance: number } | null> {
-  // BE currently charges AI credits inside AI endpoints; there is no /credits/deduct endpoint.
-  const wallet = getMockCreditWallet();
-  const newBalance = Math.max(0, wallet.balance - data.credits);
-  return { balance: newBalance };
+  void data;
+  // BE charges credits inside AI endpoints and has no standalone deduct endpoint.
+  return null;
 }
 
 export async function fetchCreditUsageHistory(
@@ -262,67 +277,60 @@ export interface WorkspaceMembersResponse {
   totalCount: number;
 }
 
-const MOCK_WORKSPACE_MEMBERS: WorkspaceMember[] = [
-  {
-    id: "member-1",
-    userId: "user-1",
-    name: "Nguyen Van A",
-    email: "nguyenvana@example.com",
-    role: "Owner",
-    status: "Active",
-    joinedAt: "2026-01-15T10:00:00.000Z",
-    lastActiveAt: "2026-06-11T08:30:00.000Z",
-  },
-  {
-    id: "member-2",
-    userId: "user-2",
-    name: "Tran Thi B",
-    email: "tranthib@example.com",
-    role: "Manager",
-    status: "Active",
-    joinedAt: "2026-02-20T14:00:00.000Z",
-    lastActiveAt: "2026-06-10T16:45:00.000Z",
-  },
-  {
-    id: "member-3",
-    userId: "user-3",
-    name: "Le Van C",
-    email: "levanc@example.com",
-    role: "ContentCreator",
-    status: "Active",
-    joinedAt: "2026-03-10T09:00:00.000Z",
-    lastActiveAt: "2026-06-11T07:15:00.000Z",
-  },
-  {
-    id: "member-4",
-    userId: "user-4",
-    name: "Pham Thi D",
-    email: "phamthid@example.com",
-    role: "Viewer",
-    status: "Active",
-    joinedAt: "2026-04-05T11:00:00.000Z",
-    lastActiveAt: "2026-06-09T14:20:00.000Z",
-  },
-  {
-    id: "member-5",
-    userId: "user-5",
-    name: "Hoang Van E",
-    email: "hoangvane@example.com",
-    role: "ContentCreator",
-    status: "Pending",
-    joinedAt: "2026-06-10T15:00:00.000Z",
-  },
-];
-
 export async function fetchWorkspaceMembers(): Promise<WorkspaceMembersResponse | null> {
-  try {
-    const res: GenericResponse<WorkspaceMembersResponse> = await apiClient("/workspace-members");
-    return res?.data ?? null;
-  } catch {
-    // Fallback to mock data
-    return {
-      data: MOCK_WORKSPACE_MEMBERS,
-      totalCount: MOCK_WORKSPACE_MEMBERS.length,
-    };
-  }
+  const roles: Record<number, WorkspaceMemberRole> = { 1: "Owner", 2: "Manager", 3: "ContentCreator", 4: "Viewer" };
+  const res: GenericResponse<Array<{
+    id: string;
+    userId: string;
+    email: string;
+    fullName?: string | null;
+    role: number;
+    joinedAt: string;
+  }>> = await apiClient("/workspace-members");
+  const members = (res.data ?? []).map((member) => ({
+    id: member.id,
+    userId: member.userId,
+    name: member.fullName || member.email,
+    email: member.email,
+    role: roles[member.role] ?? "Viewer",
+    status: "Active" as const,
+    joinedAt: member.joinedAt,
+  }));
+  return { data: members, totalCount: members.length };
+}
+
+const memberRoles: Record<WorkspaceMemberRole, number> = { Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 };
+const quotaModes = { SharedPool: 1, LifetimeAssigned: 2, MonthlyAssigned: 3 } as const;
+
+export async function updateWorkspaceMemberRole(memberId: string, role: WorkspaceMemberRole): Promise<boolean> {
+  const res = await apiClient<GenericResponse<unknown>>(`/workspace-members/${memberId}/role`, {
+    method: "PUT",
+    data: { role: memberRoles[role] },
+  });
+  return res.success;
+}
+
+export async function removeWorkspaceMember(memberId: string): Promise<boolean> {
+  const res = await apiClient<GenericResponse<boolean>>(`/workspace-members/${memberId}`, { method: "DELETE" });
+  return res.success;
+}
+
+export async function transferWorkspaceOwnership(targetMemberId: string): Promise<boolean> {
+  const res = await apiClient<GenericResponse<unknown>>("/workspace-members/ownership-transfer", {
+    method: "POST",
+    data: { targetMemberId },
+  });
+  return res.success;
+}
+
+export async function updateWorkspaceMemberQuota(
+  memberId: string,
+  quotaMode: keyof typeof quotaModes,
+  creditLimit?: number
+): Promise<boolean> {
+  const res = await apiClient<GenericResponse<unknown>>(`/workspace-members/${memberId}/quota`, {
+    method: "PUT",
+    data: { quotaMode: quotaModes[quotaMode], creditLimit: quotaMode === "SharedPool" ? null : creditLimit },
+  });
+  return res.success;
 }

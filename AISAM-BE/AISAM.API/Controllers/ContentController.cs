@@ -5,6 +5,7 @@ using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,10 +18,14 @@ namespace AISAM.API.Controllers;
 public sealed class ContentController : ControllerBase
 {
     private readonly IContentService _contentService;
+    private readonly IProfileRepository _profileRepository;
 
-    public ContentController(IContentService contentService)
+    public ContentController(
+        IContentService contentService,
+        IProfileRepository profileRepository)
     {
         _contentService = contentService;
+        _profileRepository = profileRepository;
     }
 
     [HttpPost]
@@ -28,7 +33,7 @@ public sealed class ContentController : ControllerBase
         [FromBody] CreateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), request, cancellationToken);
+        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -94,7 +99,7 @@ public sealed class ContentController : ControllerBase
         var result = await _contentService.PublishAsync(
             contentId,
             integrationId,
-            GetProfileId(),
+            await GetProfileIdAsync(cancellationToken),
             WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
             cancellationToken);
         return StatusCode(result.StatusCode, result);
@@ -118,10 +123,8 @@ public sealed class ContentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
-    {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
-    }
+    private Task<Guid> GetProfileIdAsync(CancellationToken cancellationToken)
+        => WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
 
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 }

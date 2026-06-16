@@ -2,6 +2,7 @@ using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Models;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,14 @@ namespace AISAM.API.Controllers;
 public sealed class SocialAuthController : ControllerBase
 {
     private readonly ISocialService _socialService;
+    private readonly IProfileRepository _profileRepository;
 
-    public SocialAuthController(ISocialService socialService)
+    public SocialAuthController(
+        ISocialService socialService,
+        IProfileRepository profileRepository)
     {
         _socialService = socialService;
+        _profileRepository = profileRepository;
     }
 
     [HttpGet("facebook")]
@@ -26,7 +31,7 @@ public sealed class SocialAuthController : ControllerBase
     {
         try
         {
-            var profileId = ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
+            var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
             var result = await _socialService.GetAuthUrlAsync("facebook", profileId, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
@@ -57,7 +62,7 @@ public sealed class SocialAuthController : ControllerBase
     {
         try
         {
-            var profileId = ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
+            var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
             var result = await _socialService.LinkAccountInWorkspaceAsync("facebook", WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), profileId, request, cancellationToken);
             return Ok(GenericResponse<SocialAccountDto>.CreateSuccess(result));
         }

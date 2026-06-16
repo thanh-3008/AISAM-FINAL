@@ -6,11 +6,10 @@ import { motion, useReducedMotion } from "motion/react";
 import { useWorkspaces, addWorkspaceToCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
-import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, checkPaymentStatus } from "@/services/paymentService";
+import { createWorkspace, fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
+import { createPayment } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
-import { apiFetch } from "@/lib/apiClient";
 import { getUserIdFromToken } from "@/lib/auth";
 
 type TabType = "subscription" | "credits";
@@ -63,60 +62,33 @@ function PricingContent() {
     if (!userId) return false;
 
     try {
-      const formBody = new FormData();
-      formBody.append("name", wsName.trim());
-      formBody.append("profileType", "2");
-      if (wsCompany.trim()) formBody.append("companyName", wsCompany.trim());
-
-      const result = await apiFetch(`/profiles/user/${userId}`, {
-        method: "POST",
-        body: formBody,
-      });
-
-      const wsData = result?.success && result.data
-        ? {
-            id: result.data.id,
-            userId: result.data.userId,
-            name: result.data.name,
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: result.data.status,
-            createdAt: result.data.createdAt,
-            updatedAt: result.data.updatedAt,
-            isOwner: true,
-            memberRole: "Owner",
-          }
-        : {
-            id: `ws-${Date.now()}`,
-            userId: userId!,
-            name: wsName.trim(),
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: 1,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isOwner: true,
-            memberRole: "Owner",
-          };
-      addWorkspaceToCache(wsData);
-      selectWorkspace(wsData);
-      return true;
-    } catch {
-      const wsData = {
-        id: `ws-${Date.now()}`,
-        userId: userId!,
+      const workspace = await createWorkspace({
         name: wsName.trim(),
         workspaceType: 2,
+      });
+
+      const wsData = {
+        id: workspace.id,
+        userId,
+        name: workspace.name,
+        workspaceType: workspace.workspaceType,
         plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-        status: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isOwner: true,
-        memberRole: "Owner",
+        status: workspace.status,
+        createdAt: workspace.createdAt,
+        updatedAt: workspace.updatedAt,
+        isOwner: workspace.currentUserRole === 1,
+        memberRole: workspace.currentUserRole === 1 ? "Owner" : null,
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
       return true;
+    } catch (error) {
+      showToast({
+        type: "error",
+        title: "Create workspace failed",
+        message: error instanceof Error ? error.message : "Backend did not create the workspace.",
+      });
+      return false;
     } finally {
       setCreating(false);
     }
@@ -145,34 +117,9 @@ function PricingContent() {
       });
 
       if (payment) {
-        setQrData({
-          checkoutUrl: payment.checkoutUrl,
-          orderId: payment.orderId,
-          amount: yearly ? plan.price * 10 : plan.price,
-          description: `${plan.name} Plan (${yearly ? "Yearly" : "Monthly"})`,
-        });
-        setQrStatus("pending");
-        setShowQRModal(true);
-
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          const status = await checkPaymentStatus(payment.orderId);
-          if (status?.status === "completed") {
-            clearInterval(poll);
-            setQrStatus("completed");
-            showToast({ type: "success", title: "Upgrade successful", message: `You are now on the ${plan.name} plan!` });
-            setTimeout(() => {
-              setShowQRModal(false);
-              if (createMode) router.push("/dashboard");
-            }, 3000);
-          } else if (status?.status === "failed" || attempts > 20) {
-            clearInterval(poll);
-            setQrStatus("failed");
-          }
-        }, 3000);
+        window.location.assign(payment.checkoutUrl);
       } else {
-        showToast({ type: "info", title: "Upgrade", message: `PayOS checkout will redirect for ${plan.name} plan.` });
+        showToast({ type: "error", title: "Upgrade failed", message: "Backend did not create a PayOS checkout." });
       }
     } catch {
       showToast({ type: "error", title: "Error", message: "Failed to process upgrade." });
@@ -196,47 +143,15 @@ function PricingContent() {
       });
 
       if (payment) {
-        setQrData({
-          checkoutUrl: payment.checkoutUrl,
-          orderId: payment.orderId,
-          amount: pack.price,
-          description: `Credit Pack: ${pack.name} - ${pack.credits} credits`,
-        });
-        setQrStatus("pending");
-        setShowQRModal(true);
-
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          const status = await checkPaymentStatus(payment.orderId);
-          if (status?.status === "completed") {
-            clearInterval(poll);
-            setQrStatus("completed");
-            if (creditWallet) {
-              setCreditWallet({ ...creditWallet, balance: creditWallet.balance + pack.credits });
-            }
-            showToast({ type: "success", title: "Purchase successful", message: `${pack.credits.toLocaleString()} credits added!` });
-            setTimeout(() => setShowQRModal(false), 3000);
-          } else if (status?.status === "failed" || attempts > 20) {
-            clearInterval(poll);
-            setQrStatus("failed");
-          }
-        }, 3000);
+        window.location.assign(payment.checkoutUrl);
+      } else {
+        showToast({ type: "error", title: "Purchase failed", message: "Backend did not create a PayOS checkout." });
       }
     } catch {
       showToast({ type: "error", title: "Error", message: "Failed to process purchase." });
     } finally {
       setProcessing(null);
     }
-  };
-
-  const handleMockPayment = () => {
-    setQrStatus("completed");
-    if (selectedPack && creditWallet) {
-      setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedPack.credits });
-    }
-    showToast({ type: "success", title: "Payment successful", message: "Transaction completed." });
-    setTimeout(() => setShowQRModal(false), 3000);
   };
 
   const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -737,10 +652,6 @@ function PricingContent() {
                   </div>
                 </div>
 
-                <button onClick={handleMockPayment}
-                  className="w-full py-3 rounded-xl text-label-sm font-semibold bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all mb-2">
-                  Simulate Payment (Demo)
-                </button>
                 <button onClick={() => setShowQRModal(false)}
                   className="w-full py-3 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container/50 transition-all">
                   Cancel

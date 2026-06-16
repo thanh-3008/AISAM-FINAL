@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { apiFetch } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
+import { createWorkspace } from "@/services/workspaceService";
 
 interface PendingWorkspace {
   id: string;
@@ -45,73 +45,43 @@ export default function OverviewPage() {
   const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState<{ name: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const reduceMotion = useReducedMotion();
 
   const createAndSelectWorkspace = async (name: string, workspaceType: number, companyName?: string) => {
     setCreating(true);
+    setError(null);
     const userId = getUserIdFromToken();
-    if (!userId) return;
+    if (!userId) {
+      setError("Authentication required.");
+      setCreating(false);
+      return;
+    }
 
     try {
-      const formBody = new FormData();
-      formBody.append("name", name);
-      formBody.append("profileType", workspaceType.toString());
-      if (companyName) formBody.append("companyName", companyName);
-
-      const result = await apiFetch(`/profiles/user/${userId}`, {
-        method: "POST",
-        body: formBody,
-      });
-
-      if (result?.success && result.data) {
-        const wsData: WorkspaceData = {
-          id: result.data.id,
-          userId: result.data.userId,
-          name: result.data.name,
-          workspaceType: result.data.profileType ?? workspaceType,
-          plan: workspaceType === 2 ? "Business" : "Personal",
-          status: result.data.status,
-          createdAt: result.data.createdAt,
-          updatedAt: result.data.updatedAt,
-          isOwner: true,
-          memberRole: "Owner",
-        };
-        addWorkspaceToCache(wsData);
-        selectWorkspace(wsData);
-      } else {
-        // Mock create workspace when BE API not available
-        const mockWs: WorkspaceData = {
-          id: `ws-${Date.now()}`,
-          userId,
-          name,
-          workspaceType,
-          plan: workspaceType === 2 ? "Business" : "Personal",
-          status: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          isOwner: true,
-          memberRole: "Owner",
-        };
-        addWorkspaceToCache(mockWs);
-        selectWorkspace(mockWs);
-      }
-    } catch {
-      // Mock create workspace when BE API not available
-      const mockWs: WorkspaceData = {
-        id: `ws-${Date.now()}`,
-        userId: userId!,
+      const created = await createWorkspace({
         name,
         workspaceType,
-        plan: workspaceType === 2 ? "Business" : "Personal",
-        status: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isOwner: true,
-        memberRole: "Owner",
+      });
+
+      const wsData: WorkspaceData = {
+        id: created.id,
+        userId,
+        name: created.name,
+        workspaceType: created.workspaceType,
+        plan: created.workspaceType === 2 ? "Business" : "Personal",
+        status: created.status,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+        isOwner: created.currentUserRole === 1,
+        memberRole: created.currentUserRole === 1 ? "Owner" : null,
       };
-      addWorkspaceToCache(mockWs);
-      selectWorkspace(mockWs);
+      addWorkspaceToCache(wsData);
+      selectWorkspace(wsData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create workspace.";
+      setError(message);
     } finally {
       setCreating(false);
     }
@@ -205,6 +175,12 @@ export default function OverviewPage() {
       </div>
 
       <div className="flex-1 px-6 md:px-8 lg:px-12 max-w-5xl mx-auto w-full flex flex-col justify-center items-center py-12 md:py-16 relative z-10">
+        {error && (
+          <div className="mb-6 w-full max-w-xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-body-sm text-red-800">
+            {error}
+          </div>
+        )}
+
         {/* Header - Centered */}
         <MotionDiv
           initial={reduceMotion ? false : { opacity: 0, y: -20 }}

@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { createContent, generateAIDraft, chatWithAI, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
-import { PLATFORM_CONFIG, BRANDS, PRODUCTS, BRAND_COLORS, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, BRAND_COLORS, PlatformIcon } from "@/lib/contentConstants";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, deductCredits } from "@/services/workspaceService";
 import { CREDIT_COST } from "@/lib/featureConfig";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { fetchBrands, fetchProducts } from "@/services/brandService";
 
 interface ChatMessage {
   id: string;
@@ -53,6 +54,10 @@ export default function AIGeneratePage() {
   const featureGate = useFeatureGate();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; brandId: string }[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
 
   const getCreditCostForPrompt = (prompt: string): number => {
     const lower = prompt.toLowerCase();
@@ -73,7 +78,9 @@ export default function AIGeneratePage() {
     return cost;
   };
 
-  const [brandName, setBrandName] = useState(BRANDS[0]);
+  const [brandId, setBrandId] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [productId, setProductId] = useState("");
   const [productName, setProductName] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -91,8 +98,6 @@ export default function AIGeneratePage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const availableProducts = PRODUCTS[brandName] || [];
-
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -101,7 +106,63 @@ export default function AIGeneratePage() {
     fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
   }, [activeWorkspace?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCatalog = async () => {
+      setLoadingCatalog(true);
+      setCatalogError("");
+      try {
+        const brandData = await fetchBrands();
+        if (cancelled) return;
+        setBrands(brandData);
+
+        const selectedBrand = brandData[0];
+        setBrandId(selectedBrand?.id ?? "");
+        setBrandName(selectedBrand?.name ?? "");
+        setProductId("");
+        setProductName("");
+        setProducts(selectedBrand ? await fetchProducts(selectedBrand.id) : []);
+      } catch (error) {
+        if (!cancelled) {
+          setBrands([]);
+          setProducts([]);
+          setCatalogError(error instanceof Error ? error.message : "Failed to load brands and products.");
+        }
+      } finally {
+        if (!cancelled) setLoadingCatalog(false);
+      }
+    };
+
+    void loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.id]);
+
+  const handleBrandChange = async (nextBrandId: string) => {
+    const brand = brands.find((item) => item.id === nextBrandId);
+    setBrandId(nextBrandId);
+    setBrandName(brand?.name ?? "");
+    setProductId("");
+    setProductName("");
+    setLoadingCatalog(true);
+    setCatalogError("");
+    try {
+      setProducts(await fetchProducts(nextBrandId));
+    } catch (error) {
+      setProducts([]);
+      setCatalogError(error instanceof Error ? error.message : "Failed to load products.");
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
   const simulateAIResponse = async (userPrompt: string) => {
+    if (!brandId || !productId) {
+      addToast("Please select a brand and product before generating content.");
+      return;
+    }
     if (creditBalance !== null && creditBalance <= 0) {
       setInsufficientCredits(true);
       addToast("Insufficient AI Credits. Please purchase more credits.");
@@ -202,8 +263,8 @@ export default function AIGeneratePage() {
     const platformKey = platform.split("-")[0];
 
     const payload: CreateContentPayload = {
-      brandId: brandName,
-      productId: productName || null,
+      brandId,
+      productId: productId || null,
       adType: 0,
       title: postTitle || `AI Generated — ${brandName}`,
       textContent: postContent || "",
@@ -324,19 +385,25 @@ export default function AIGeneratePage() {
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-3 flex items-center gap-4 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">business</span>
-                <select value={brandName} onChange={(e) => { setBrandName(e.target.value); setProductName(""); }}
+                <select value={brandId} onChange={(e) => void handleBrandChange(e.target.value)} disabled={loadingCatalog || brands.length === 0}
                   className="bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                  {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                  {brands.length === 0 && <option value="">{loadingCatalog ? "Loading brands..." : "No brands available"}</option>}
+                  {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">inventory_2</span>
-                <select value={productName} onChange={(e) => setProductName(e.target.value)}
+                <select value={productId} onChange={(e) => {
+                  const product = products.find((item) => item.id === e.target.value);
+                  setProductId(e.target.value);
+                  setProductName(product?.name ?? "");
+                }} disabled={loadingCatalog || !brandId}
                   className="bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                  <option value="">Select product</option>
-                  {availableProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+                  <option value="">{loadingCatalog ? "Loading products..." : "Select product"}</option>
+                  {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
                 </select>
               </div>
+              {catalogError && <span className="text-label-xs text-danger-red">{catalogError}</span>}
               {creditBalance !== null && (
                 <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${
                   creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"

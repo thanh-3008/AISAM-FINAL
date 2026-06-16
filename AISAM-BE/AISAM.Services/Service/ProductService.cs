@@ -13,11 +13,16 @@ namespace AISAM.Services.Service
     {
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
+        private readonly IProductImageStorageService _imageStorageService;
 
-        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository)
+        public ProductService(
+            IProductRepository productRepository,
+            IBrandRepository brandRepository,
+            IProductImageStorageService imageStorageService)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
+            _imageStorageService = imageStorageService;
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -73,9 +78,14 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
             }
 
-            if (request.ImageFiles != null && request.ImageFiles.Any())
+            IReadOnlyList<string> imageUrls;
+            try
             {
-                return GenericResponse<ProductResponseDto>.CreateError("Product image upload is not enabled in the current MVP backend.");
+                imageUrls = await UploadImagesAsync(request.ImageFiles, cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return GenericResponse<ProductResponseDto>.CreateError(ex.Message);
             }
 
             var product = new Product
@@ -84,7 +94,7 @@ namespace AISAM.Services.Service
                 Name = request.Name,
                 Description = request.Description,
                 Price = request.Price,
-                Images = JsonSerializer.Serialize(new List<string>())
+                Images = JsonSerializer.Serialize(imageUrls)
             };
 
             var created = await _productRepository.AddAsync(product, cancellationToken);
@@ -134,7 +144,22 @@ namespace AISAM.Services.Service
 
             if (request.ImageFiles != null && request.ImageFiles.Any())
             {
-                return GenericResponse<ProductResponseDto>.CreateError("Product image upload is not enabled in the current MVP backend.");
+                var existingImages = DeserializeImages(product.Images);
+                if (existingImages.Count + request.ImageFiles.Count > 5)
+                {
+                    return GenericResponse<ProductResponseDto>.CreateError("A product can have at most 5 images.");
+                }
+
+                IReadOnlyList<string> uploadedImages;
+                try
+                {
+                    uploadedImages = await UploadImagesAsync(request.ImageFiles, cancellationToken);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return GenericResponse<ProductResponseDto>.CreateError(ex.Message);
+                }
+                product.Images = JsonSerializer.Serialize(existingImages.Concat(uploadedImages).ToList());
             }
 
             await _productRepository.UpdateAsync(product, cancellationToken);
@@ -207,6 +232,25 @@ namespace AISAM.Services.Service
             return brand.WorkspaceId == workspaceId;
         }
 
+        private async Task<IReadOnlyList<string>> UploadImagesAsync(
+            IReadOnlyCollection<Microsoft.AspNetCore.Http.IFormFile>? files,
+            CancellationToken cancellationToken)
+        {
+            if (files == null || files.Count == 0)
+            {
+                return [];
+            }
+
+            return await _imageStorageService.UploadAsync(files, cancellationToken);
+        }
+
+        private static List<string> DeserializeImages(string? images)
+        {
+            return !string.IsNullOrWhiteSpace(images)
+                ? JsonSerializer.Deserialize<List<string>>(images) ?? []
+                : [];
+        }
+
         private static ProductResponseDto MapToDto(Product product)
         {
             return new ProductResponseDto
@@ -216,9 +260,7 @@ namespace AISAM.Services.Service
                 Name = product.Name,
                 Description = product.Description,
                 Price = product.Price,
-                Images = !string.IsNullOrWhiteSpace(product.Images)
-                    ? JsonSerializer.Deserialize<List<string>>(product.Images) ?? new List<string>()
-                    : new List<string>(),
+                Images = DeserializeImages(product.Images),
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };

@@ -82,12 +82,14 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const [recentNotifs, setRecentNotifs] = useState<NotificationListItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { activeWorkspace } = useWorkspaces();
   const { toggle } = useSidebar();
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMounted(true);
     const stored = localStorage.getItem("darkMode") === "true";
     setDarkMode(stored);
     setUser(getUserFromToken());
@@ -157,9 +159,10 @@ export default function Header({ breadcrumbs }: HeaderProps) {
     window.location.href = "/login";
   };
 
-  const displayName = user?.name || activeWorkspace?.name || "User";
+  const displayName = mounted ? (user?.name || activeWorkspace?.name || "User") : "User";
   const initials = getInitials(displayName);
-  const displayPlan = activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace";
+  const displayPlan = mounted && activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace";
+  const workspaceSettingsHref = mounted && activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles";
 
   return (
     <header className="h-16 bg-surface-gray border-b border-outline-variant/30 flex justify-between items-center px-gutter z-40 sticky top-0">
@@ -276,7 +279,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
 
         {/* Settings */}
         <button 
-          onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles")}
+          onClick={() => router.push(workspaceSettingsHref)}
           className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
         >
           <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:rotate-90 transition-transform duration-300" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
@@ -320,7 +323,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     Upgrade Plan
                   </Link>
                   <Link
-                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles"}
+                    href={workspaceSettingsHref}
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
                   >

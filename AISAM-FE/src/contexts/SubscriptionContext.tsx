@@ -28,6 +28,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SubscriptionStatus>("none");
   const [subscriptionEndDate, setSubscriptionEndDate] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   const checkSubscription = useCallback(async () => {
     try {
@@ -51,16 +52,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         setStatus("active");
       }
     } catch {
-      setStatus("active");
+      setStatus("none");
     }
   }, []);
 
   useEffect(() => {
-    checkSubscription();
+    queueMicrotask(() => checkSubscription());
   }, [checkSubscription]);
 
   const daysUntilExpiry = subscriptionEndDate
-    ? Math.max(0, Math.floor((new Date(subscriptionEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    ? Math.max(0, Math.floor((new Date(subscriptionEndDate).getTime() - now) / (1000 * 60 * 60 * 24)))
     : 0;
 
   const isLimited = status === "limited";

@@ -5,7 +5,6 @@ import { getUserIdFromToken } from "@/lib/auth";
 import { apiClient } from "@/lib/apiClient";
 import type { ApiResponse } from "@/lib/apiTypes";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { getMockWorkspaces } from "@/lib/mockWorkspace";
 
 export interface WorkspaceData {
   id: string;
@@ -39,10 +38,17 @@ function notifyWorkspaceSelected() {
   workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
 }
 
-function getPlanName(profileType: number): string {
-  if (profileType === 0) return "Free";
-  if (profileType === 2) return "Business Plus";
-  return "Personal Pro";
+const roleNames: Record<number, string> = {
+  1: "Owner",
+  2: "Manager",
+  3: "ContentCreator",
+  4: "Viewer",
+};
+
+function mapWorkspacePlan(workspaceType: number, planName?: string): string {
+  if (planName === "Premium") return workspaceType === 2 ? "Business Pro" : "Personal Pro";
+  if (planName === "Plus" || planName === "PlusTrial") return workspaceType === 2 ? "Business Plus" : "Personal Plus";
+  return "Free";
 }
 
 function notifyCache() {
@@ -50,6 +56,22 @@ function notifyCache() {
     try { fn(); } catch { /* skip */ }
     return true;
   });
+}
+
+function persistActiveWorkspace(workspaces: WorkspaceData[]) {
+  const stored = getStoredActiveWorkspace();
+  const selected = workspaces.find((workspace) => workspace.id === stored?.id)
+    ?? workspaces.find((workspace) => workspace.status === 1)
+    ?? workspaces[0];
+
+  if (selected && selected.id !== stored?.id) {
+    storeActiveWorkspace({
+      id: selected.id,
+      name: selected.name,
+      workspaceType: selected.workspaceType,
+    });
+    notifyWorkspaceSelected();
+  }
 }
 
 export function invalidateWorkspaceCache() {
@@ -64,6 +86,7 @@ export function addWorkspaceToCache(workspace: WorkspaceData) {
   } else {
     cachedWorkspaces = [workspace];
   }
+  notifyCache();
 }
 
 export function useWorkspaces() {
@@ -94,6 +117,7 @@ export function useWorkspaces() {
       const belongsToUser = userId && cachedWorkspaces.some((p) => p.userId === userId);
       if (belongsToUser) {
         const data = cachedWorkspaces;
+        persistActiveWorkspace(data);
         queueMicrotask(() => {
           setWorkspaces(data);
           setLoading(false);
@@ -111,60 +135,48 @@ export function useWorkspaces() {
       return;
     }
 
-    const fetchFromProfiles = async () => {
-      try {
+    try {
         setError(null);
         const result = await apiClient<ApiResponse<Array<{
           id: string;
-          userId: string;
           name: string;
-          profileType?: number;
+          workspaceType: number;
           status: number;
+          currentUserRole: number;
           createdAt: string;
           updatedAt: string;
-          isOwner?: boolean;
-          memberRole?: string | null;
-        }>>>(`/profiles/user/${userId}`);
-        if (result.success && Array.isArray(result.data)) {
-          const mapped: WorkspaceData[] = result.data.map((p) => ({
-            id: p.id,
-            userId: p.userId,
-            name: p.name,
-            workspaceType: p.profileType ?? 1,
-            plan: getPlanName(p.profileType ?? 0),
-            status: p.status,
-            createdAt: p.createdAt,
-            updatedAt: p.updatedAt,
-            isOwner: p.isOwner ?? true,
-            memberRole: p.memberRole ?? "Owner",
-          }));
-          cachedWorkspaces = mapped;
-          setWorkspaces(mapped);
-        } else {
-          // Fallback to mock data
-          const mockData = getMockWorkspaces(userId);
-          cachedWorkspaces = mockData;
-          setWorkspaces(mockData);
-        }
-      } catch {
-        // Fallback to mock data
-        const mockData = getMockWorkspaces(userId);
-        cachedWorkspaces = mockData;
-        setWorkspaces(mockData);
-      }
-    };
-
-      try {
-        setError(null);
-        const result = await apiClient<ApiResponse<WorkspaceData[]>>("/workspaces");
+        }>>>("/workspaces");
       if (result.success && Array.isArray(result.data)) {
-        cachedWorkspaces = result.data;
-        setWorkspaces(result.data);
+        const mapped = await Promise.all(result.data.map(async (workspace): Promise<WorkspaceData> => {
+          const quota = await apiClient<ApiResponse<{ planName: string }>>("/quota/workspace/current", {
+            headers: { "X-Workspace-Id": workspace.id },
+          }).catch(() => null);
+          return {
+            id: workspace.id,
+            userId,
+            name: workspace.name,
+            workspaceType: workspace.workspaceType,
+            plan: mapWorkspacePlan(workspace.workspaceType, quota?.data?.planName),
+            status: workspace.status,
+            createdAt: workspace.createdAt,
+            updatedAt: workspace.updatedAt,
+            isOwner: workspace.currentUserRole === 1,
+            memberRole: roleNames[workspace.currentUserRole] ?? null,
+          };
+        }));
+        cachedWorkspaces = mapped;
+        persistActiveWorkspace(mapped);
+        setWorkspaces(mapped);
       } else {
-        await fetchFromProfiles();
+        cachedWorkspaces = [];
+        clearActiveWorkspace();
+        setWorkspaces([]);
       }
-    } catch {
-      await fetchFromProfiles();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to load workspaces");
+      cachedWorkspaces = [];
+      clearActiveWorkspace();
+      setWorkspaces([]);
     } finally {
       setLoading(false);
     }

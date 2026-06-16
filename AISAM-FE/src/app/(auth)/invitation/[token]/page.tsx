@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { getInvitationByToken, acceptInvitation, type InvitationDetail } from "@/services/workspaceInvitationService";
+import { acceptInvitation, type InvitationDetail } from "@/services/workspaceInvitationService";
 import { getToken } from "@/lib/auth";
 
 type Status = "loading" | "invalid" | "expired" | "ready" | "accepting" | "success" | "error";
@@ -26,7 +26,7 @@ export default function AcceptInvitationPage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
   const [status, setStatus] = useState<Status>("loading");
-  const [invitation, setInvitation] = useState<InvitationDetail | null>(null);
+  const [invitation] = useState<InvitationDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
@@ -38,36 +38,8 @@ export default function AcceptInvitationPage() {
       return () => clearTimeout(id);
     }
 
-    const loadInvitation = async () => {
-      const data = await getInvitationByToken(token);
-      if (!data) {
-        setStatus("invalid");
-        setErrorMessage("This invitation link is invalid or has expired");
-        return;
-      }
-
-      if (data.status === "Expired") {
-        setStatus("expired");
-        return;
-      }
-
-      if (data.status === "Accepted") {
-        setInvitation(data);
-        setStatus("success");
-        return;
-      }
-
-      if (data.status === "Cancelled") {
-        setStatus("invalid");
-        setErrorMessage("This invitation has been cancelled");
-        return;
-      }
-
-      setInvitation(data);
-      setStatus("ready");
-    };
-
-    loadInvitation();
+    // BE validates invitation tokens only when accepting; no public detail endpoint exists.
+    queueMicrotask(() => setStatus("ready"));
   }, [token]);
 
   const handleAccept = async () => {
@@ -164,6 +136,25 @@ export default function AcceptInvitationPage() {
             )}
 
             {/* Ready to accept */}
+            {status === "ready" && !invitation && (
+              <div className="space-y-5 text-center">
+                <div>
+                  <h2 className="text-body-lg font-bold text-on-surface">Join workspace</h2>
+                  <p className="text-body-sm text-on-surface-variant mt-2">
+                    Sign in and accept this invitation. The server will validate the invitation link.
+                  </p>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Link href="/dashboard" className="flex-1 px-4 py-3 border border-outline-variant/30 text-on-surface rounded-xl text-body-sm font-semibold text-center">
+                    Cancel
+                  </Link>
+                  <button onClick={handleAccept} className="flex-1 px-4 py-3 bg-primary text-on-primary rounded-xl text-body-sm font-semibold">
+                    Accept &amp; Join
+                  </button>
+                </div>
+              </div>
+            )}
+
             {status === "ready" && invitation && role && (
               <div className="space-y-5">
                 {/* Workspace Info */}
