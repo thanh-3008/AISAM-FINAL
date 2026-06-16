@@ -13,8 +13,8 @@ import {
 } from "@/services/scheduleService";
 import { fetchContents } from "@/services/contentService";
 import { fetchSocialIntegrations, type SocialIntegration } from "@/services/socialAccountService";
-import { PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig, BRAND_COLORS } from "@/lib/contentConstants";
-import type { ContentItem } from "@/lib/mockContent";
+import { PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig, getBrandColor, type ContentType } from "@/lib/contentConstants";
+import type { ContentItem } from "@/services/contentService";
 
 type ViewMode = "month" | "week" | "list";
 
@@ -139,14 +139,16 @@ export default function CalendarPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [sched, cont, integ] = await Promise.all([
-        fetchSchedules({ pageSize: 100 }),
-        fetchContents({ pageSize: 100 }),
-        fetchSocialIntegrations(),
-      ]);
-      setSchedules(sched.data);
-      setContents(cont.items);
-      setIntegrations(integ);
+      try {
+        const [sched, cont, integ] = await Promise.all([
+          fetchSchedules({ pageSize: 100 }),
+          fetchContents({ pageSize: 100 }),
+          fetchSocialIntegrations(),
+        ]);
+        setSchedules(sched.data);
+        setContents(cont?.items ?? []);
+        setIntegrations(integ);
+      } catch { /* ignore */ }
       setLoading(false);
     };
     load();
@@ -510,8 +512,8 @@ export default function CalendarPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 mb-1">
                                   {s.type && (
-                                    <div className={`w-5 h-5 rounded bg-gradient-to-br ${getTypeStyle(s.type)} flex items-center justify-center text-white shrink-0`}>
-                                      <span className="material-symbols-outlined text-label-2xs">{getTypeConfig(s.type).icon}</span>
+                                    <div className={`w-5 h-5 rounded bg-gradient-to-br ${getTypeStyle(s.type as ContentType)} flex items-center justify-center text-white shrink-0`}>
+                                      <span className="material-symbols-outlined text-label-2xs">{getTypeConfig(s.type as ContentType).icon}</span>
                                     </div>
                                   )}
                                   <p className="text-[11px] font-semibold text-on-surface truncate">{s.title}</p>
@@ -723,8 +725,8 @@ export default function CalendarPage() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             {s.type && (
-                              <div className={`w-10 h-8 rounded-lg bg-gradient-to-br ${getTypeStyle(s.type)} flex items-center justify-center text-white shrink-0`}>
-                                <span className="material-symbols-outlined text-[14px]">{getTypeConfig(s.type).icon}</span>
+                              <div className={`w-10 h-8 rounded-lg bg-gradient-to-br ${getTypeStyle(s.type as ContentType)} flex items-center justify-center text-white shrink-0`}>
+                                <span className="material-symbols-outlined text-[14px]">{getTypeConfig(s.type as ContentType).icon}</span>
                               </div>
                             )}
                             <p className="text-body-sm font-semibold text-on-surface">{s.title || "Untitled"}</p>
@@ -732,7 +734,7 @@ export default function CalendarPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: BRAND_COLORS[s.brandName || ""] || "#6366f1" }} />
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getBrandColor(s.brandName || "") }} />
                             <span className="text-body-sm text-on-surface">{s.brandName || "—"}</span>
                           </div>
                         </td>
@@ -796,7 +798,7 @@ export default function CalendarPage() {
                     <select value={form.contentId} onChange={(e) => setForm((f) => ({ ...f, contentId: e.target.value }))}
                       className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
                       <option value="">Select content...</option>
-                      {contents.filter((c) => c.status === "Published" || c.status === "Awaiting Approval").map((c) => (
+                      {contents.filter((c) => c.status !== "Published").map((c) => (
                         <option key={c.id} value={c.id}>{c.title} ({c.brandName})</option>
                       ))}
                     </select>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { MOCK_CONTENT, MOCK_DETAILS, type ContentDetail, type ContentType, type ContentStatus } from "@/lib/mockContent";
+import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE } from "@/services/contentService";
 
@@ -33,7 +33,7 @@ export default function ContentDetailPage() {
     const load = async () => {
       setLoading(true);
       const result = await fetchContentById(params.id as string);
-      setItem(result);
+      setItem(result as any);
       setLoading(false);
     };
     load();
@@ -45,41 +45,32 @@ export default function ContentDetailPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    await updateContent(params.id as string, {
+    const ok = await updateContent(params.id as string, {
       title: form.title,
       adType: item ? CONTENTTYPE_TO_ADTYPE[item.type] : undefined,
       textContent: form.caption,
     });
-    if (item) {
-      item.title = form.title;
-      item.status = form.status;
-      item.description = form.description || undefined;
-      item.platforms = form.platforms;
-      item.caption = form.caption || undefined;
-      item.ctaLink = form.ctaLink || undefined;
-      item.scheduledAt = form.scheduledAt || undefined;
-      item.internalNotes = form.internalNotes || undefined;
-      item.hashtags = form.hashtags;
-      const listItem = MOCK_CONTENT.find((c) => c.id === item.id);
-      if (listItem) {
-        listItem.title = form.title;
-        listItem.status = form.status;
-        listItem.platforms = form.platforms;
-        listItem.hashtags = form.hashtags;
-      }
+    if (ok && item) {
+      setItem({
+        ...item,
+        title: form.title,
+        status: form.status,
+        description: form.description || undefined,
+        platforms: form.platforms,
+        caption: form.caption || undefined,
+        ctaLink: form.ctaLink || undefined,
+        scheduledAt: form.scheduledAt || undefined,
+        internalNotes: form.internalNotes || undefined,
+        hashtags: form.hashtags,
+      });
+      setEditing(false);
     }
     setSaving(false);
-    setEditing(false);
   };
 
   const handleDelete = async () => {
-    await deleteContent(params.id as string);
-    if (item) {
-      const idx = MOCK_CONTENT.findIndex((c) => c.id === item.id);
-      if (idx !== -1) MOCK_CONTENT.splice(idx, 1);
-      delete MOCK_DETAILS[item.id];
-    }
-    router.push("/content");
+    const ok = await deleteContent(params.id as string);
+    if (ok) router.push("/content");
   };
 
   if (loading) {

@@ -121,6 +121,7 @@ export async function ensureValidToken(): Promise<string | null> {
 export async function logout(): Promise<void> {
   try {
     const token = getToken();
+    const refreshToken = getRefreshToken();
     if (token) {
       await fetch(`${API_URL}/auth/logout`, {
         method: "POST",
@@ -128,6 +129,7 @@ export async function logout(): Promise<void> {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ refreshToken: refreshToken || undefined }),
       });
     }
   } catch {

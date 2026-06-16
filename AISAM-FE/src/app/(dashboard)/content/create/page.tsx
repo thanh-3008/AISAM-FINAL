@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { MOCK_CONTENT, MOCK_DETAILS, ALL_TAGS } from "@/lib/mockContent";
-import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, BRANDS, PRODUCTS, BRAND_COLORS, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
+
+import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
+import { fetchBrands, fetchProducts } from "@/services/brandService";
+import { getStoredActiveWorkspace } from "@/stores/workspace-store";
+import { getStoredActiveProfile, storeActiveProfile } from "@/stores/profile-store";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -17,11 +20,15 @@ export default function CreateContentPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
+  const [productList, setProductList] = useState<{ id: string; name: string; brandId: string }[]>([]);
 
   const [form, setForm] = useState({
     title: "",
-    brandName: BRANDS[0],
-    productName: "",
+    brandId: "",
+    productId: "",
     type: "TEXT" as ContentType,
     status: "Draft" as ContentStatus,
     platforms: [] as string[],
@@ -38,6 +45,24 @@ export default function CreateContentPage() {
     scheduledAt: "",
     internalNotes: "",
   });
+
+  useEffect(() => {
+    fetchBrands().then(setBrandList);
+  }, []);
+
+  useEffect(() => {
+    if (form.brandId) {
+      fetchProducts(form.brandId).then(setProductList);
+    } else {
+      setProductList([]);
+    }
+  }, [form.brandId]);
+
+  useEffect(() => {
+    if (brandList.length > 0 && !form.brandId) {
+      update({ brandId: brandList[0].id });
+    }
+  }, [brandList]);
 
   const [hashtagInput, setHashtagInput] = useState("");
 
@@ -101,16 +126,33 @@ export default function CreateContentPage() {
 
   const update = (partial: Partial<typeof form>) => setForm((p) => ({ ...p, ...partial }));
 
-  const availableProducts = PRODUCTS[form.brandName] || [];
-  const isValid = form.title.trim().length > 0 && form.productName;
+  const availableProducts = brandList.length > 0 ? productList : [];
+  const selectedBrand = brandList.find(b => b.id === form.brandId);
+  const selectedProduct = productList.find(p => p.id === form.productId);
+  const selectedBrandName = selectedBrand?.name || "";
+  const selectedProductName = selectedProduct?.name || "";
+  const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0;
 
   const handleSave = async () => {
     if (!isValid) return;
     setSaving(true);
+    setSaveError(null);
+
+    let storedWs = getStoredActiveWorkspace();
+    let storedProfile = getStoredActiveProfile();
+    if (!storedWs) {
+      setSaving(false);
+      setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
+      return;
+    }
+    if (!storedProfile) {
+      storeActiveProfile({ id: storedWs.id, name: storedWs.name, profileType: storedWs.workspaceType });
+      storedProfile = getStoredActiveProfile();
+    }
 
     const payload: CreateContentPayload = {
-      brandId: form.brandName,
-      productId: form.productName || null,
+      brandId: form.brandId,
+      productId: form.productId || null,
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
       textContent: form.textContent || form.caption || form.description || "",
@@ -120,11 +162,24 @@ export default function CreateContentPage() {
       contextDescription: form.caption || undefined,
     };
 
-    const result = await createContent(payload);
-    setSaving(false);
-    if (result) {
-      setSaved(true);
-      setTimeout(() => router.push("/content"), 1000);
+    try {
+      const result = await createContent(payload);
+      if (result) {
+        setSaved(true);
+        setTimeout(() => router.push("/content"), 1000);
+      } else {
+        setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
+      }
+    } catch (e: any) {
+      const msg = e?.message || "";
+      if (msg.includes("Profile not found")) {
+        setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
+        setTimeout(() => router.push("/overview"), 2000);
+      } else {
+        setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -155,6 +210,12 @@ export default function CreateContentPage() {
                 <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 text-label-sm font-semibold animate-in fade-in slide-in-from-right-2 duration-200">
                   <span className="material-symbols-outlined text-[14px]">check_circle</span>
                   Saved! Redirecting...
+                </span>
+              )}
+              {saveError && (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-danger-red/10 text-danger-red text-label-sm font-semibold animate-in fade-in slide-in-from-right-2 duration-200">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  {saveError}
                 </span>
               )}
               <button onClick={() => router.push("/content")}
@@ -192,17 +253,17 @@ export default function CreateContentPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Brand <span className="text-danger-red">*</span></label>
-                    <select value={form.brandName} onChange={(e) => update({ brandName: e.target.value, productName: "" })}
+                    <select value={form.brandId} onChange={(e) => update({ brandId: e.target.value, productId: "" })}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                      {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                      {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Product <span className="text-danger-red">*</span></label>
-                    <select value={form.productName} onChange={(e) => update({ productName: e.target.value })}
+                    <select value={form.productId} onChange={(e) => update({ productId: e.target.value })}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                       <option value="">Select product</option>
-                      {availableProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+                      {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                 </div>
@@ -584,11 +645,11 @@ export default function CreateContentPage() {
                     <div className="font-sans">
                       <div className="p-3.5 flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-[12px] font-bold shrink-0">
-                          {form.brandName.charAt(0)}
+                          {selectedBrandName.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{form.brandName || "Brand Name"}</p>
-                          <p className="text-[11px] text-[#65676b]">{form.productName ? `Promoting ${form.productName} · ` : ""}Just now · <span className="material-symbols-outlined text-label-xs align-middle">public</span></p>
+                          <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{selectedBrandName || "Brand Name"}</p>
+                          <p className="text-[11px] text-[#65676b]">{selectedProductName ? `Promoting ${selectedProductName} · ` : ""}Just now · <span className="material-symbols-outlined text-label-xs align-middle">public</span></p>
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
                       </div>
@@ -655,10 +716,10 @@ export default function CreateContentPage() {
                       <div className="p-3 flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-[2px]">
                           <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                            <span className="text-label-2xs font-bold" style={{ color: BRAND_COLORS[form.brandName] || "#666" }}>{form.brandName.charAt(0)}</span>
+                            <span className="text-label-2xs font-bold" style={{ color: getBrandColor(selectedBrandName) || "#666" }}>{selectedBrandName.charAt(0)}</span>
                           </div>
                         </div>
-                        <p className="text-[12px] font-semibold text-[#262626] flex-1">{form.brandName || "brand"}</p>
+                        <p className="text-[12px] font-semibold text-[#262626] flex-1">{selectedBrandName || "brand"}</p>
                         <span className="material-symbols-outlined text-[18px] text-[#262626]">more_horiz</span>
                       </div>
                       <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef]">
@@ -678,7 +739,7 @@ export default function CreateContentPage() {
                           <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M2 2v20l5-5h13V2H2zm18 13H6.5l-2.5 2.5V4h16v11z"/></svg>
                           <svg viewBox="0 0 24 24" className="w-[22px] h-[22px] ml-auto" fill="#262626"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l5-3 5 3V5c0-1.1-.9-2-2-2z"/></svg>
                         </div>
-                        <p className="text-[12px] font-semibold text-[#262626]">{form.brandName ? `${form.brandName.toLowerCase().replace(/\s+/g, "")} ` : ""}<span className="font-normal whitespace-pre-line">{form.caption || form.description || form.title || "Write a caption..."}</span></p>
+                        <p className="text-[12px] font-semibold text-[#262626]">{selectedBrandName ? `${selectedBrandName.toLowerCase().replace(/\s+/g, "")} ` : ""}<span className="font-normal whitespace-pre-line">{form.caption || form.description || form.title || "Write a caption..."}</span></p>
                         {form.hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
                         )}
@@ -705,10 +766,10 @@ export default function CreateContentPage() {
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-label-xs font-bold shrink-0 border border-white/30"
-                              style={{ background: `linear-gradient(135deg, ${BRAND_COLORS[form.brandName] || "#666"}, ${BRAND_COLORS[form.brandName] || "#999"}` }}>
-                              {form.brandName.charAt(0)}
+                              style={{ background: `linear-gradient(135deg, ${getBrandColor(selectedBrandName) || "#666"}, ${getBrandColor(selectedBrandName) || "#999"}` }}>
+                          {selectedBrandName.charAt(0)}
                             </div>
-                            <p className="text-[13px] font-semibold">@{form.brandName?.toLowerCase().replace(/\s+/g, "") || "brand"}</p>
+                            <p className="text-[13px] font-semibold">@{selectedBrandName?.toLowerCase().replace(/\s+/g, "") || "brand"}</p>
                           </div>
                           <p className="text-[12px] leading-relaxed whitespace-pre-line">{form.caption || form.description || form.title || "Add a caption..."}</p>
                           {form.hashtags.length > 0 && (
@@ -716,7 +777,7 @@ export default function CreateContentPage() {
                           )}
                           <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-white/60">
                             <svg viewBox="0 0 24 24" className="w-[14px] h-[14px]" fill="rgba(255,255,255,0.6)"><path d="M9 3v10.5a4.5 4.5 0 1 0 2-3.8V7h7V3H9z"/></svg>
-                            <span>original sound - {form.brandName || "Creator"}</span>
+                            <span>original sound - {selectedBrandName || "Creator"}</span>
                           </div>
                         </div>
                         <div className="absolute bottom-4 right-3 flex flex-col items-center gap-3">

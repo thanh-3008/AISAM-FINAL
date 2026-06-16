@@ -63,9 +63,6 @@ export function getInitials(name: string): string {
 }
 
 export function getAccountDisplayName(account: SocialAccount): string {
-  if (account.targets && account.targets.length > 0) {
-    return account.targets.map((t) => t.name).join(", ");
-  }
   return account.accountName || `${account.provider} Account`;
 }
 

@@ -1,5 +1,4 @@
 import { apiClient } from "@/lib/apiClient";
-import { BRANDS, PRODUCTS } from "@/lib/contentConstants";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -22,39 +21,29 @@ let productList: { id: string; name: string; brandId: string }[] = [];
 
 export async function fetchBrands(): Promise<{ id: string; name: string }[]> {
   try {
-    const res: GenericResponse<BrandApiItem[]> = await apiClient("/brands");
-    if (res?.success && res.data && res.data.length > 0) {
-      brandList = res.data;
-      return res.data;
+    const res: GenericResponse<{ data: BrandApiItem[] }> = await apiClient("/brands?pageSize=100");
+    if (res?.success && res.data?.data) {
+      brandList = res.data.data;
+      return res.data.data;
     }
   } catch {
-    // fallback
+    // ignore
   }
-  return BRANDS.map((name, i) => ({ id: `mock-brand-${i}`, name }));
+  return [];
 }
 
 export async function fetchProducts(brandId?: string): Promise<{ id: string; name: string; brandId: string }[]> {
   try {
-    const query = brandId ? `?brandId=${brandId}` : "";
-    const res: GenericResponse<ProductApiItem[]> = await apiClient(`/products${query}`);
-    if (res?.success && res.data && res.data.length > 0) {
-      productList = res.data;
-      return res.data;
+    const query = brandId ? `?brandId=${brandId}&pageSize=100` : "?pageSize=100";
+    const res: GenericResponse<{ data: ProductApiItem[] }> = await apiClient(`/products${query}`);
+    if (res?.success && res.data?.data) {
+      productList = res.data.data;
+      return res.data.data;
     }
   } catch {
-    // fallback
+    // ignore
   }
-  return fallbackProducts(brandId);
-}
-
-function fallbackProducts(brandId?: string): { id: string; name: string; brandId: string }[] {
-  const all: { id: string; name: string; brandId: string }[] = [];
-  for (const [brand, prods] of Object.entries(PRODUCTS)) {
-    for (const p of prods) {
-      all.push({ id: `mock-prod-${all.length}`, name: p, brandId: `mock-brand-${all.length}` });
-    }
-  }
-  return all;
+  return [];
 }
 
 export function getCachedBrands() {

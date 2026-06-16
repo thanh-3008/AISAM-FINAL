@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
-import { apiClient } from "@/lib/apiClient";
-import type { ApiResponse } from "@/lib/apiTypes";
 import { getStoredActiveProfile, storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
+import { apiClient } from "@/lib/apiClient";
 
 export interface Profile {
   id: string;
@@ -30,6 +29,7 @@ export function getProfileTypeLabel(type: number): string {
 
 let cachedProfiles: Profile[] | null = null;
 let cacheListeners: Array<() => void> = [];
+let fetchingProfiles = false;
 
 function notifyCache() {
   cacheListeners = cacheListeners.filter((fn) => {
@@ -69,44 +69,41 @@ export function useProfiles() {
     if (cachedProfiles) {
       const belongsToUser = userId && cachedProfiles.some((p) => p.userId === userId);
       if (belongsToUser) {
-        const data = cachedProfiles;
-        queueMicrotask(() => {
-          setProfiles(data);
-          setLoading(false);
-        });
+        setProfiles(cachedProfiles);
+        setLoading(false);
         return;
       }
       cachedProfiles = null;
     }
 
     if (!userId) {
-      queueMicrotask(() => {
-        setLoading(false);
-        setProfiles([]);
-      });
+      setLoading(false);
+      setProfiles([]);
       return;
     }
 
+    if (fetchingProfiles) return;
+    fetchingProfiles = true;
+
     try {
-      const result = await apiClient<ApiResponse<Profile[]>>(`/profiles/user/${userId}`);
-      if (result.success && Array.isArray(result.data)) {
-        cachedProfiles = result.data;
-        setProfiles(result.data);
+      const res: any = await apiClient(`/profiles/user/${userId}`);
+      if (res?.success && Array.isArray(res.data)) {
+        cachedProfiles = res.data;
+        setProfiles(res.data);
       } else {
-        setError(result.message || "Failed to load profiles");
+        setError(res?.message || "Failed to load profiles");
       }
     } catch {
       setError("Network error loading profiles");
     } finally {
       setLoading(false);
+      fetchingProfiles = false;
     }
   }, []);
 
   useEffect(() => {
     const isMounted = { current: true };
-    queueMicrotask(() => {
-      if (isMounted.current) fetchProfiles();
-    });
+    fetchProfiles();
     const listener = () => {
       if (isMounted.current) fetchProfiles();
     };

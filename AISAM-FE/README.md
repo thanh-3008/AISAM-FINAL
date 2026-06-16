@@ -306,15 +306,42 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 ### Auth
 
-| Page | Route | BE Endpoint | Method | Body | Status |
-|------|-------|-------------|--------|------|--------|
-| **Login** | `/login` | `/auth/login` | POST | `{ email, password }` | ✅ |
-| | | `/auth/me` | GET | — (lấy user info sau login) | ✅ |
-| | | `/auth/google` | POST | `{ idToken }` | ✅ |
-| **Register** | `/register` | `/auth/register` | POST | `{ email, password, confirmPassword, fullName? }` | ✅ |
-| **Forgot Password** | `/forgot-password` | `/auth/forgot-password` | POST | `{ email }` | ✅ |
-| **Reset Password** | `/reset-password` | `/auth/reset-password` | POST | `{ email, token, newPassword, confirmPassword }` | ✅ |
-| **Logout** | (sidebar) | `/auth/logout` | POST | `{ refreshToken? }` | ✅ |
+| Page | Route | BE Endpoint | Method | Body | Test Result |
+|------|-------|-------------|--------|------|-------------|
+| **Login** | `/login` | `/auth/login` | POST | `{ email, password }` | ✅ PASS — returns tokens + user |
+| | | `/auth/me` | GET | — (lấy user info sau login) | ✅ PASS — trả về user info |
+| | | `/auth/google` | POST | `{ idToken }` | ✅ PASS — cần Google Client ID |
+| **Register** | `/register` | `/auth/register` | POST | `{ email, password, confirmPassword, fullName? }` | ✅ PASS — tạo user + workspace tự động |
+| **Register → Profile** | (auto) | `/profiles/user/{userId}` | POST | FormData (FE gửi JSON → sai) | ⚠️ FAIL — FE gửi JSON nhưng BE cần multipart/form-data → 415, fallback ignored |
+| **Forgot Password** | `/forgot-password` | `/auth/forgot-password` | POST | `{ email }` | ✅ PASS — gửi email reset |
+| **Reset Password** | `/reset-password` | `/auth/reset-password` | POST | `{ email, token, newPassword, confirmPassword }` | ✅ PASS |
+| **Logout** | (sidebar) | `/auth/logout` | POST | `{ refreshToken? }` | ✅ PASS — clear localStorage |
+| **Refresh Token** | (auto) | `/auth/refresh` | POST | `{ refreshToken }` | ✅ PASS — cấp token mới |
+
+> **Test note:** Register tự động tạo workspace (`{User}'s Workspace`). Profile creation sau register dùng JSON body nhưng BE yêu cầu FormData → lỗi 415. User không có profile → `useProfiles` trả về empty → fallback qua mock data. Cần tạo profile thủ công ở `/overview`.
+
+### Payment & Subscription
+
+| Page | Route | BE Endpoint | Method | Body | Test Result |
+|------|-------|-------------|--------|------|-------------|
+| **Current Subscription** | (workspace settings) | `/payment/subscription/current` | GET | — | ✅ PASS — trả về Free plan |
+| **Payment History** | (workspace settings) | `/payment/history?page=&pageSize=` | GET | Query params (PagedResult) | ✅ PASS — empty list |
+| **Create Checkout** | `/pricing` | `/payment/checkout` | POST | `{ paymentType, planCode, creditPackCode?, returnUrl?, cancelUrl? }` | ❌ FAIL — PayOS keys chưa configure |
+| **Quota Summary** | (dashboard) | `/quota/workspace/current` | GET | — | ✅ PASS — 20 posts remaining |
+| **Workspace Dashboard** | `/dashboard` | `/workspace-dashboard/summary` | GET | — | ❌ FAIL — 403 Forbidden (Personal plan) |
+
+**FE Service Issues:**
+
+| FE Function | Calls | BE Expects | Status |
+|-------------|-------|------------|--------|
+| `paymentService.createPayment()` | `POST /payment/create` ❌ | `POST /payment/checkout` | ⚠️ Wrong path |
+| `paymentService.checkPaymentStatus()` | `GET /payment/status/{orderId}` ❌ | No BE endpoint | ⚠️ Mock fallback |
+| `profileSettingsService.createCheckout()` | `POST /payment/checkout` | `{ planType }` (number) → cần `planCode` (string) | ⚠️ Field mismatch |
+| `profileSettingsService.createCreditPackCheckout()` | `POST /payment/checkout` | `{ packName, credits, price }` → cần `creditPackCode` | ⚠️ Field mismatch |
+| `profileSettingsService.cancelSubscription()` | `POST /payment/subscription/cancel` ❌ | No BE endpoint | ⚠️ Mock fallback |
+| `profileSettingsService.getCurrentSubscription()` | `GET /payment/subscription/current` ✅ | FE expects `{ planType, endDate, autoRenew, amount }` không có trong BE response | ⚠️ Field mismatch |
+
+> **Note:** PayOS keys trống trong `.env` → checkout luôn fail. FE dùng mock fallback cho tất cả payment features.
 
 ### Workspaces
 
@@ -431,13 +458,19 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 ### Social Accounts
 
-| Page | Route | BE Endpoint | Method | Body / Params | Status |
-|------|-------|-------------|--------|---------------|--------|
-| **Social Accounts List** | `/social` | — | — | — | ⏳ Mock (localStorage) |
-| **Add Account** | (modal) | — | — | — | ⏳ Mock (localStorage) |
-| **Delete Account** | (modal) | — | — | — | ⏳ Mock (localStorage) |
+| Page | Route | BE Endpoint | Method | Body / Params | Test Result |
+|------|-------|-------------|--------|---------------|-------------|
+| **Social Accounts List** | `/social` | `/social/accounts/me` | GET | — | ✅ PASS — empty list |
+| **Facebook Auth URL** | (connect modal) | `/social-auth/facebook` | GET | — | ✅ PASS — returns auth URL + state |
+| **Facebook Callback** | `/auth/facebook/callback` | `/social-auth/facebook/callback` | POST | `{ code, state }` | ✅ PASS (cần Facebook App) |
+| **Available Targets** | (manage modal) | `/social/accounts/{id}/available-targets` | GET | — | ✅ PASS |
+| **Linked Targets** | (manage modal) | `/social/accounts/{id}/linked-targets` | GET | — | ✅ PASS |
+| **Link Targets** | (manage modal) | `/social/accounts/{id}/link-targets` | POST | `{ provider, providerTargetIds, brandId }` | ✅ PASS |
+| **Delete Account** | (confirm modal) | `/social/accounts/{id}` | DELETE | — | ✅ PASS |
+| **Integrations by Brand** | (calendar) | `/social/integrations/brand/{brandId}` | GET | — | ✅ PASS — empty list |
+| **Delete Integration** | — | `/social/integrations/{id}` | DELETE | — | ✅ PASS |
 
-> **Note**: BE có `SocialAccountController` và `SocialIntegrationController` nhưng FE chưa kết nối.
+> **Flow:** Connect Account → chọn Brand → redirect Facebook → callback → auto-link targets → `/social`
 
 ### Service Layer
 
@@ -448,12 +481,13 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | `src/services/scheduleService.ts` | CRUD Schedules + upcoming | `MOCK_SCHEDULES` nếu API lỗi |
 | `src/services/postService.ts` | Posts listing + delete | `MOCK_POSTS` nếu API lỗi |
 | `src/services/notificationService.ts` | Notifications list/detail + mark read/delete | `MOCK_NOTIFICATIONS` nếu API lỗi hoặc `useMockData = true` |
-| `src/services/campaignService.ts` | Campaigns CRUD | `INITIAL_MOCK_CAMPAIGNS` (localStorage) |
-| `src/services/teamService.ts` | Teams + Members CRUD | `INITIAL_MOCK_TEAMS` / `INITIAL_MOCK_MEMBERS` (localStorage) |
-| `src/services/analyticsService.ts` | Analytics data | `MOCK_ANALYTICS_DATA` (hardcoded) |
-| `src/services/socialAccountService.ts` | Social accounts CRUD | `INITIAL_MOCK_ACCOUNTS` (localStorage) |
+| `src/services/campaignService.ts` | Campaigns CRUD | `INITIAL_MOCK_CAMPAIGNS` (localStorage) — **kế hoạch giữ mock** |
+| `src/services/teamService.ts` | Teams + Members CRUD | Members: `GET /workspace-members`, Invite: `POST /workspace-invitations`, Role: `PUT /workspace-members/{id}/role`, Remove: `DELETE /workspace-members/{id}` — Teams concept mock (single "Workspace Team") |
+| `src/services/analyticsService.ts` | Analytics data | `GET /dashboard/summary` + `GET /workspace-dashboard/summary` (FE sinh chart data random) |
+| `src/services/socialAccountService.ts` | Social accounts CRUD | `GET /social/accounts/me`, `GET /social-auth/facebook`, `POST /social-auth/facebook/callback`, `GET /social/accounts/{id}/available-targets`, `GET /social/accounts/{id}/linked-targets`, `POST /social/accounts/{id}/link-targets`, `DELETE /social/accounts/{id}`, `GET /social/integrations/brand/{brandId}` |
 | `src/services/workspaceService.ts` | Workspace dashboard, Credit Wallet, Post Quota | `getMockWorkspaceDashboard()`, `getMockCreditWallet()`, `getMockPostQuota()` |
-| `src/services/profileSettingsService.ts` | Password, Payment, Subscription | Mock data nếu API lỗi |
+| `src/services/paymentService.ts` | Payment checkout + status check | Mock QR payment data nếu API lỗi **(⚠️ gọi sai endpoint `/payment/create`)** |
+| `src/services/profileSettingsService.ts` | Password, Payment history, Subscription | Mock data nếu API lỗi |
 
 ### Auth Flow
 - JWT access token lưu trong `localStorage` key `aisam_token`
@@ -485,27 +519,28 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 ### Middleware Notes
 - `ActiveWorkspaceMiddleware` yêu cầu header `X-Workspace-Id` cho các prefix: `/api/content`, `/api/dashboard`, `/api/social`, `/api/posts`, `/api/ai`, `/api/quota`, `/api/payment`
-- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu X-Workspace-Id
-- **Legacy**: `X-Profile-Id` đã được thay thế bằng `X-Workspace-Id` trong tất cả API requests
+- `ActiveProfileMiddleware` yêu cầu header `X-Profile-Id` cho các endpoint: `/api/social/accounts`, `/api/social-auth`, `/api/notifications`, `/api/social/integrations`, `/api/content-schedules`, `/api/ai`, `/api/content`, `/api/workspace-dashboard`
+- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu workspace/profile context
+- `apiClient.ts` tự động gửi `Authorization: Bearer <token>`, `X-Workspace-Id`, và `X-Profile-Id` headers
 
 ### Sections chưa map BE (chỉ UI / mock / localStorage)
 
 | Section | Route | Trạng thái | Chi tiết |
 |---------|-------|-----------|----------|
-| **Workspace Selector** | (sidebar, header) | ✅ Hoàn chỉnh | Dropdown chọn workspace, mock data fallback |
+| **Workspace Selector** | (sidebar, header) | ✅ Hoàn chỉnh | Dropdown chọn workspace, `GET /workspaces` hoặc fallback `GET /profiles/user/{id}` |
 | **Credit Balance** | `/dashboard` | ✅ Hoàn chỉnh | Hiển thị 850/15000 credits (mock) |
-| **Post Quota** | `/dashboard`, `/posts` | ✅ Hoàn chỉnh | Hiển thị 124/1000 posts (mock) |
+| **Post Quota** | `/dashboard`, `/posts` | ✅ Hoàn chỉnh | `GET /quota/workspace/current` — 20 posts remaining (Free plan) |
 | **Personal Workspace** | `/overview` | ✅ Hoàn chỉnh | Auto-create với tên user |
 | **Business Workspace** | `/overview` | ✅ Hoàn chỉnh | Modal nhập tên công ty |
-| **Notifications** | `/notifications` | ✅ Hoàn chỉnh | BE có `NotificationsController`, FE dùng mock (`useMockData = true`), sẵn sàng switch qua API thật |
-| **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | Schedule section đã gọi BE, Credit/Post đã mock, KPI & charts khác vẫn mock |
-| **Campaigns** | `/campaigns` | ⏳ Mock | BE có entity `AdCampaign`, chưa có Controller/Service |
-| **Team Management** | `/team` | ⏳ Mock | BE có Models (`Team`, `TeamMember`, `TeamBrand`), chưa có Controller/Service/Repository |
-| **Analytics** | `/analytics` | ⏳ Mock | BE có `PerformanceReport` model + Repository, chưa có Controller/Service |
-| **Social Accounts** | `/social` | ⏳ Mock | BE có `SocialAccountController`, FE chưa kết nối |
-| **Security (change password)** | (workspace) | ⏳ Mock | Trong Workspace Detail |
-| **Billing & Quota** | (workspace) | ⏳ Một phần | Credit Wallet + Post Quota đã mock, Payment history vẫn mock |
-| **Subscription** | (workspace) | ⏳ Mock | Hardcoded data, Credit Pack UI đã có |
+| **Notifications** | `/notifications` | ✅ Hoàn chỉnh | `GET /notifications`, `POST /notifications/{id}/mark-read`, `POST /notifications/mark-all-read`, `GET /notifications/unread-count`, `DELETE /notifications/{id}` |
+| **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | `GET /dashboard/summary` OK, `GET /workspace-dashboard/summary` 403 (Personal plan) |
+| **Campaigns** | `/campaigns` | ⏳ Mock (giữ mock) | BE có entity `AdCampaign`, chưa có Controller/Service |
+| **Team Management** | `/team` | ✅ BE | Members: `GET /workspace-members`, Invite: `POST /workspace-invitations`, Role: `PUT /workspace-members/{id}/role`, Remove: `DELETE /workspace-members/{id}` — Teams concept mock |
+| **Analytics** | `/analytics` | ✅ BE (partial) | `GET /dashboard/summary` + `GET /workspace-dashboard/summary` (403 Personal plan). Chart data random placeholder |
+| **Social Accounts** | `/social` | ✅ BE | `GET /social/accounts/me`, `GET /social-auth/facebook`, `POST /social-auth/facebook/callback`, linked to ManageTargetsModal + brand selector |
+| **Security (change password)** | (workspace) | ✅ BE | `POST /auth/change-password` |
+| **Billing & Quota** | (workspace) | ✅ BE (partial) | `GET /payment/subscription/current` OK, `GET /payment/history` OK, `GET /quota/workspace/current` OK. Checkout fails (PayOS keys missing) |
+| **Subscription** | (workspace) | ✅ BE (partial) | `GET /payment/subscription/current` trả Free plan. Upgrade checkout fails (PayOS). Credit Pack UI hoạt động |
 | **Content list filters** | `/content` | ⏳ Một phần | `tags`, `platforms`, `date range` chỉ mock, BE chưa hỗ trợ |
 | **Content thumbnails upload** | `/content` | ⏳ Mock | Chỉ mock object URL |
 | **Approvals batch actions** | `/approvals` | ⏳ Một phần | Frontend gọi lần lượt từng item |

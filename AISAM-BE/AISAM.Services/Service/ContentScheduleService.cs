@@ -310,6 +310,16 @@ public sealed class ContentScheduleService : IContentScheduleService
         };
     }
 
+    private static string MapAdType(AdTypeEnum adType) => adType switch
+    {
+        AdTypeEnum.TextOnly => "TEXT",
+        AdTypeEnum.ImageText => "IMAGE",
+        AdTypeEnum.VideoText => "VIDEO",
+        _ => adType.ToString()
+    };
+
+    private static string? MapPlatform(SocialPlatformEnum? platform) => platform?.ToString().ToLowerInvariant();
+
     private static ContentScheduleDto Map(ContentCalendar schedule)
     {
         return new ContentScheduleDto
@@ -322,7 +332,11 @@ public sealed class ContentScheduleService : IContentScheduleService
             ExecutedAt = schedule.ExecutedAt,
             Status = schedule.Status.ToString(),
             AttemptCount = schedule.AttemptCount,
-            LastError = schedule.LastError
+            LastError = schedule.LastError,
+            Title = schedule.Content?.Title,
+            BrandName = schedule.Content?.Brand?.Name,
+            Type = schedule.Content != null ? MapAdType(schedule.Content.AdType) : null,
+            Platform = MapPlatform(schedule.Integration?.Platform)
         };
     }
 }

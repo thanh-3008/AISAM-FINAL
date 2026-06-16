@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, checkPaymentStatus, type PayOSPaymentResponse } from "@/services/paymentService";
+import { createPayment, CREDIT_PACK_CODES } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -59,7 +58,6 @@ const CREDIT_PACKS: CreditPack[] = [
 ];
 
 export default function CreditPackPage() {
-  const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [selectedPack, setSelectedPack] = useState<CreditPack | null>(null);
@@ -67,12 +65,7 @@ export default function CreditPackPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
-  // Payment QR flow
-  const [showPaymentQR, setShowPaymentQR] = useState(false);
-  const [paymentData, setPaymentData] = useState<PayOSPaymentResponse | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<"pending" | "completed" | "failed">("pending");
   const [paymentError, setPaymentError] = useState("");
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const loadWallet = async () => {
@@ -81,12 +74,6 @@ export default function CreditPackPage() {
     };
     loadWallet();
   }, [activeWorkspace?.id]);
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
 
   const handleSelectPack = (pack: CreditPack) => {
     if (creditWallet && creditWallet.balance + pack.credits > creditWallet.maxBalance) {
@@ -103,46 +90,16 @@ export default function CreditPackPage() {
     setPurchasing(true);
 
     try {
+      const creditPackCode = CREDIT_PACK_CODES[selectedPack.name] || 1;
       const payment = await createPayment({
-        packName: selectedPack.name,
-        credits: selectedPack.credits,
-        amount: selectedPack.price,
+        paymentType: 2,
+        creditPackCode,
         returnUrl: window.location.origin + "/credit-pack?payment=success",
         cancelUrl: window.location.origin + "/credit-pack?payment=cancelled",
-        paymentType: "CreditPack",
       });
 
-      if (payment) {
-        setPaymentData(payment);
-        setShowPaymentQR(true);
-        setShowConfirmDialog(false);
-        setPaymentStatus("pending");
-
-        // Poll for payment status every 3 seconds (mock)
-        let attempts = 0;
-        pollRef.current = setInterval(async () => {
-          attempts++;
-          const status = await checkPaymentStatus(payment.orderId);
-          if (status?.status === "completed") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setPaymentStatus("completed");
-            if (creditWallet) {
-              setCreditWallet({
-                ...creditWallet,
-                balance: creditWallet.balance + selectedPack.credits,
-              });
-            }
-            setPurchaseSuccess(true);
-            setTimeout(() => {
-              setShowPaymentQR(false);
-              setPurchaseSuccess(false);
-            }, 3000);
-          } else if (status?.status === "failed" || attempts > 20) {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setPaymentStatus("failed");
-            setPaymentError("Payment was not completed. Please try again.");
-          }
-        }, 3000);
+      if (payment?.checkoutUrl) {
+        window.location.href = payment.checkoutUrl;
       } else {
         setPaymentError("Failed to create payment. Please try again.");
       }
@@ -151,31 +108,6 @@ export default function CreditPackPage() {
     } finally {
       setPurchasing(false);
     }
-  };
-
-  const handleCloseQR = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    setShowPaymentQR(false);
-    setPaymentData(null);
-    setPaymentStatus("pending");
-    setPaymentError("");
-  };
-
-  const handleMockPayment = async () => {
-    if (!paymentData) return;
-    setPaymentStatus("completed");
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (creditWallet && selectedPack) {
-      setCreditWallet({
-        ...creditWallet,
-        balance: creditWallet.balance + selectedPack.credits,
-      });
-    }
-    setPurchaseSuccess(true);
-    setTimeout(() => {
-      setShowPaymentQR(false);
-      setPurchaseSuccess(false);
-    }, 3000);
   };
 
   const getPricePerCredit = (pack: CreditPack) => {
@@ -412,143 +344,10 @@ export default function CreditPackPage() {
           </div>
         )}
 
-        {/* QR Payment Modal */}
-        {showPaymentQR && paymentData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6">
-              {paymentStatus === "pending" && (
-                <>
-                  <div className="text-center mb-6">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                      <span className="material-symbols-outlined text-primary text-[32px]">qr_code_scanner</span>
-                    </div>
-                    <h3 className="text-body-lg font-bold text-on-surface">Scan to Pay</h3>
-                    <p className="text-label-sm text-on-surface-variant mt-1">
-                      Use your banking app to scan the QR code
-                    </p>
-                  </div>
-
-                  {/* QR Code Display */}
-                  <div className="flex justify-center mb-6">
-                    <div className="w-64 h-64 rounded-2xl bg-white border-2 border-outline-variant/20 p-4 shadow-inner flex items-center justify-center">
-                      <div className="w-full h-full rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center relative">
-                        {/* Mock QR Code pattern */}
-                        <div className="absolute inset-4 flex flex-wrap gap-[3px] opacity-30">
-                          {Array.from({ length: 35 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={`w-[calc(14.28%-3px)] aspect-square rounded-sm ${
-                                [1, 2, 4, 7, 9, 12, 15, 18, 22, 25, 28, 31, 34].includes(i % 35)
-                                  ? "bg-gray-800" : "bg-transparent"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        {/* PayOS Logo placeholder */}
-                        <div className="relative z-10 bg-white rounded-xl px-4 py-2 shadow-sm border border-gray-200">
-                          <span className="text-label-sm font-bold text-primary">PayOS</span>
-                        </div>
-                        {/* Corner squares for QR feel */}
-                        <div className="absolute top-3 left-3 w-12 h-12 border-2 border-gray-800 rounded-lg" />
-                        <div className="absolute top-3 right-3 w-12 h-12 border-2 border-gray-800 rounded-lg" />
-                        <div className="absolute bottom-3 left-3 w-12 h-12 border-2 border-gray-800 rounded-lg" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Order Info */}
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
-                      <span className="text-label-sm text-on-surface-variant">Order ID</span>
-                      <span className="text-label-sm font-mono font-semibold text-on-surface">{paymentData.orderId}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
-                      <span className="text-label-sm text-on-surface-variant">Amount</span>
-                      <span className="text-label-sm font-bold text-primary">
-                        {(paymentData.amount || 0).toLocaleString()}₫
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-200/30">
-                      <span className="flex items-center gap-1.5 text-label-sm text-amber-700">
-                        <span className="material-symbols-outlined text-[14px]">hourglass_empty</span>
-                        Waiting for payment...
-                      </span>
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    </div>
-                  </div>
-
-                  {/* Payment Methods Info */}
-                  <div className="text-center mb-6">
-                    <p className="text-label-xs text-outline mb-3">Supported payment methods</p>
-                    <div className="flex items-center justify-center gap-4">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container">
-                        <span className="material-symbols-outlined text-[14px] text-blue-600">account_balance</span>
-                        <span className="text-label-xs font-semibold">Bank Transfer</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container">
-                        <span className="material-symbols-outlined text-[14px] text-green-600">credit_card</span>
-                        <span className="text-label-xs font-semibold">Credit Card</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container">
-                        <span className="material-symbols-outlined text-[14px] text-purple-600">smartphone</span>
-                        <span className="text-label-xs font-semibold">Mobile Banking</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Mock: Simulate payment button (for demo) */}
-                  <button
-                    onClick={handleMockPayment}
-                    className="w-full py-3 rounded-xl text-body-sm font-semibold bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all mb-2"
-                  >
-                    Simulate Payment (Demo)
-                  </button>
-
-                  <button
-                    onClick={handleCloseQR}
-                    className="w-full py-3 rounded-xl text-body-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container/50 transition-all"
-                  >
-                    Cancel Payment
-                  </button>
-                </>
-              )}
-
-              {paymentStatus === "completed" && (
-                <div className="text-center py-8">
-                  <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                    <span className="material-symbols-outlined text-emerald-500 text-[40px]">check_circle</span>
-                  </div>
-                  <h3 className="text-headline-sm font-bold text-on-surface mb-2">Payment Successful!</h3>
-                  <p className="text-body-sm text-on-surface-variant mb-6">
-                    Credits have been added to your workspace.
-                  </p>
-                  <button
-                    onClick={handleCloseQR}
-                    className="px-8 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-                  >
-                    Done
-                  </button>
-                </div>
-              )}
-
-              {paymentStatus === "failed" && (
-                <div className="text-center py-8">
-                  <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-                    <span className="material-symbols-outlined text-red-500 text-[40px]">error</span>
-                  </div>
-                  <h3 className="text-headline-sm font-bold text-on-surface mb-2">Payment Failed</h3>
-                  <p className="text-body-sm text-on-surface-variant mb-6">
-                    {paymentError || "Payment was not completed. Please try again."}
-                  </p>
-                  <button
-                    onClick={handleCloseQR}
-                    className="px-8 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              )}
-            </div>
+        {/* Error display */}
+        {paymentError && (
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-body-sm">
+            {paymentError}
           </div>
         )}
       </main>

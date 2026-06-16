@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type SocialPlatform } from "@/services/socialAccountService";
+import { fetchBrands } from "@/services/brandService";
 import { PLATFORM_INFO } from "./socialUtils";
 
 interface ConnectAccountModalProps {
@@ -12,10 +13,22 @@ interface ConnectAccountModalProps {
 
 export default function ConnectAccountModal({ open, onClose, onConnect, isLoading }: ConnectAccountModalProps) {
   const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>("facebook");
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      fetchBrands().then(setBrands);
+      setSelectedBrandId("");
+    }
+  }, [open]);
 
   if (!open) return null;
 
   const handleConnect = () => {
+    if (selectedBrandId) {
+      sessionStorage.setItem("facebook_connect_brand_id", selectedBrandId);
+    }
     onConnect(selectedPlatform);
   };
 
@@ -62,6 +75,20 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
               </div>
             </div>
 
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Select Brand</label>
+              <select
+                value={selectedBrandId}
+                onChange={(e) => setSelectedBrandId(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl text-label-sm text-on-surface focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all appearance-none"
+              >
+                <option value="">{brands.length === 0 ? "No brands available" : "-- Choose a brand --"}</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
               <p className="text-[11px] text-primary font-semibold flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px]">security</span>
@@ -75,7 +102,7 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
             <div className="p-3 bg-surface-container-low rounded-xl">
               <p className="text-label-xs text-outline flex items-start gap-2">
                 <span className="material-symbols-outlined text-[14px] shrink-0">info</span>
-                After authorization, you can link pages/profiles from your {PLATFORM_INFO[selectedPlatform].label} account to publish content.
+                After authorization, targets will be auto-linked to the selected brand.
               </p>
             </div>
           </div>
@@ -85,7 +112,7 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
               className="px-5 py-2.5 border border-outline-variant/20 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all">
               Cancel
             </button>
-            <button onClick={handleConnect} disabled={isLoading}
+            <button onClick={handleConnect} disabled={isLoading || !selectedBrandId}
               className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2">
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

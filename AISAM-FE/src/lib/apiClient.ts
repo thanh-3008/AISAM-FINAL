@@ -1,118 +1,93 @@
-import { getToken, refreshAccessToken } from "./auth";
-import { ApiError } from "./apiTypes";
-import { getStoredActiveProfile } from "@/stores/profile-store";
-import { getStoredActiveWorkspace } from "@/stores/workspace-store";
+import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
+import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { getStoredActiveProfile, clearActiveProfile } from "@/stores/profile-store";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
 type ApiOptions = RequestInit & {
-  data?: unknown;
-  rawBody?: boolean;
-};
-
-type LooseApiResponse = {
-  success?: boolean;
-  message?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any;
 };
 
-let refreshPromise: Promise<string | null> | null = null;
-
-async function safeRefreshToken(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = refreshAccessToken().finally(() => {
-    refreshPromise = null;
-  });
-
-  return refreshPromise;
+function isValidGuid(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
-function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
-  if (!headers) return {};
-  if (headers instanceof Headers) return Object.fromEntries(headers.entries());
-  if (Array.isArray(headers)) return Object.fromEntries(headers);
-  return headers;
-}
-
-function buildHeaders(customHeaders?: HeadersInit) {
-  const token = getToken();
-  const profile = getStoredActiveProfile();
-  const workspace = getStoredActiveWorkspace();
+async function buildHeaders(customHeaders?: Record<string, string>) {
+  let token = getToken();
+  let workspace = getStoredActiveWorkspace();
+  let profile = getStoredActiveProfile();
+  if (workspace && !isValidGuid(workspace.id)) {
+    clearActiveWorkspace();
+    workspace = null;
+  }
+  if (profile && !isValidGuid(profile.id)) {
+    clearActiveProfile();
+    profile = null;
+  }
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(profile?.id ? { "X-Profile-Id": profile.id } : {}),
-    ...(workspace?.id ? { "X-Workspace-Id": workspace.id } : {}),
-    ...normalizeHeaders(customHeaders),
+    ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
+    ...(profile ? { "X-Profile-Id": profile.id } : {}),
+    ...(customHeaders || {}),
   };
   return { headers, token };
 }
 
-async function handleResponse<T>(response: Response): Promise<T> {
-  const text = await response.text();
-  let result: unknown = null;
+const ERROR_MAP: Record<string, string> = {
+  "Missing or invalid X-Workspace-Id header.": "Chưa chọn Workspace. Vào Overview để chọn workspace.",
+  "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile. Vào Overview để chọn workspace.",
+  "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
+  "Workspace not found.": "Workspace không tồn tại.",
+  "Profile not found.": "Profile không tồn tại. Đang chuyển hướng...",
+};
 
-  try {
-    result = text ? JSON.parse(text) : null;
-  } catch {
-    if (!response.ok) {
-      throw new ApiError(
-        `Server returned ${response.status}: ${text.slice(0, 200)}`,
-        response.status
-      );
-    }
-    return null as T;
-  }
-
+async function handleResponse(response: Response) {
+  const result = await response.json().catch(() => null);
   if (!response.ok) {
-    const payload = result as {
-      message?: string;
-      error?: {
-        errorCode?: string;
-        errorMessage?: string;
-        validationErrors?: Record<string, string[]>;
-      };
-    } | null;
-
-    throw new ApiError(
-      payload?.message ||
-        payload?.error?.errorMessage ||
-        response.statusText ||
-        "Request failed",
-      response.status,
-      payload?.error?.errorCode,
-      payload?.error?.validationErrors
-    );
+    const errorMessage = result?.message || response.statusText || "Đã có lỗi xảy ra";
+    if (errorMessage === "Authentication is required.") {
+      removeToken();
+      removeRefreshToken();
+      clearActiveWorkspace();
+      clearActiveProfile();
+    }
+    if (response.status === 404 && errorMessage === "Profile not found.") {
+      clearActiveProfile();
+      clearActiveWorkspace();
+    }
+    throw new Error(ERROR_MAP[errorMessage] || errorMessage);
   }
-
-  return result as T;
+  return result;
 }
 
-async function retryWithRefresh<T>(endpoint: string, config: RequestInit): Promise<T> {
-  const newToken = await safeRefreshToken();
-  if (!newToken) throw new ApiError("Session expired", 401);
-
-  const newHeaders = {
-    ...normalizeHeaders(config.headers),
+async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<any> {
+  const newToken = await refreshAccessToken();
+  if (!newToken) {
+    throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+  }
+  const workspace = getStoredActiveWorkspace();
+  const profile = getStoredActiveProfile();
+  const newHeaders: Record<string, string> = {
+    ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
+    ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
+    ...(profile ? { "X-Profile-Id": profile.id } : {}),
   };
-
   const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
-  return handleResponse<T>(retryResponse);
+  return handleResponse(retryResponse);
 }
 
-export async function apiClient<T = LooseApiResponse>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { data, headers: customHeaders, rawBody, ...customConfig } = options;
-  const { headers, token } = buildHeaders(customHeaders);
-  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
-  const shouldStringify = data !== undefined && !rawBody && !isFormData;
+export async function apiClient(endpoint: string, options: ApiOptions = {}) {
+  await ensureValidToken();
+  const { data, headers: customHeaders, ...customConfig } = options;
+  const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
 
   const config: RequestInit = {
-    method: customConfig.method || (data !== undefined ? "POST" : "GET"),
-    body: rawBody || isFormData ? (data as BodyInit) : shouldStringify ? JSON.stringify(data) : undefined,
+    method: data ? "POST" : "GET",
+    body: data ? JSON.stringify(data) : undefined,
     headers: {
-      ...(shouldStringify ? { "Content-Type": "application/json" } : {}),
+      "Content-Type": "application/json",
       ...headers,
     },
     cache: "no-store",
@@ -122,12 +97,23 @@ export async function apiClient<T = LooseApiResponse>(endpoint: string, options:
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
   if (response.status === 401 && token) {
-    return retryWithRefresh<T>(endpoint, config);
+    return retryWithRefresh(endpoint, config);
   }
 
-  return handleResponse<T>(response);
+  return handleResponse(response);
 }
 
-export async function apiFetch<T = LooseApiResponse>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  return apiClient<T>(endpoint, options);
+export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+  await ensureValidToken();
+  const { headers, token } = await buildHeaders(options.headers as Record<string, string> | undefined);
+
+  const config: RequestInit = { ...options, headers };
+
+  const response = await fetch(`${API_URL}${endpoint}`, config);
+
+  if (response.status === 401 && token) {
+    return retryWithRefresh(endpoint, config);
+  }
+
+  return handleResponse(response);
 }

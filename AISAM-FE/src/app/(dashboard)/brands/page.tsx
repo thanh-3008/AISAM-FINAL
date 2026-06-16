@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useProfiles } from "@/hooks/useProfiles";
+import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { clearActiveProfile } from "@/stores/profile-store";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
 import EditBrandModal from "@/components/brands/EditBrandModal";
 
@@ -34,14 +37,7 @@ const BRAND_COLORS = [
   { gradient: "from-primary/55 to-primary/25", light: "bg-primary/7" },
 ];
 
-const MOCK_BRANDS: Brand[] = [
-  { id: "mock-1", userId: "", name: "Lumina Tech", description: "Next-gen lighting solutions for smart homes and offices.", logoUrl: "", slogan: "Innovate Your Light", usp: "Smart lighting that adapts to your lifestyle", targetAudience: "Tech-savvy homeowners", profileId: null, productsCount: 3, contentsCount: 34, createdAt: "2025-01-15T00:00:00Z", updatedAt: "2025-06-04T00:00:00Z" },
-  { id: "mock-2", userId: "", name: "Summit Outdoor", description: "Premium outdoor gear for adventure enthusiasts.", logoUrl: "", slogan: "Conquer Every Peak", usp: null, targetAudience: null, profileId: null, productsCount: 2, contentsCount: 0, createdAt: "2025-03-20T00:00:00Z", updatedAt: "2025-05-28T00:00:00Z" },
-  { id: "mock-3", userId: "", name: "Heritage Motors", description: "Luxury automotive restoration and customization.", logoUrl: "", slogan: "Timeless Craftsmanship", usp: null, targetAudience: null, profileId: null, productsCount: 3, contentsCount: 8, createdAt: "2024-11-01T00:00:00Z", updatedAt: "2025-04-10T00:00:00Z" },
-  { id: "mock-4", userId: "", name: "GreenLeaf Organics", description: "Organic farm-to-table produce and sustainable goods.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 3, contentsCount: 15, createdAt: "2025-02-10T00:00:00Z", updatedAt: "2025-06-01T00:00:00Z" },
-  { id: "mock-5", userId: "", name: "Pulse Finance", description: "Real-time financial analytics and portfolio management.", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 2, contentsCount: 21, createdAt: "2025-04-05T00:00:00Z", updatedAt: "2025-05-30T00:00:00Z" },
-  { id: "mock-6", userId: "", name: "Apex Fitness", description: "", logoUrl: "", slogan: null, usp: null, targetAudience: null, profileId: null, productsCount: 1, contentsCount: 0, createdAt: "2025-05-01T00:00:00Z", updatedAt: "2025-05-25T00:00:00Z" },
-];
+
 
 function getInitials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
@@ -68,12 +64,24 @@ export default function BrandsPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
+  const { activeProfile } = useProfiles();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null);
+
+  // Nếu workspace ID không phải GUID → clear + redirect overview
+  useEffect(() => {
+    const ws = getStoredActiveWorkspace();
+    if (ws && !/^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(ws.id)) {
+      clearActiveWorkspace();
+      clearActiveProfile();
+      router.push("/overview");
+    }
+  }, [router]);
 
   const fadeUp = prefersReducedMotion ? { initial: {}, animate: {} } : {
     initial: { opacity: 0, y: 20 },
@@ -81,12 +89,11 @@ export default function BrandsPage() {
   };
 
   const fetchBrands = useCallback(async () => {
-    if (!activeWorkspace) { setLoading(false); setBrands(MOCK_BRANDS); return; }
+    if (!activeWorkspace) { setLoading(false); return; }
     try {
-      const result = await apiFetch(`/brands?workspaceId=${activeWorkspace.id}&pageSize=100`);
+      const result = await apiFetch(`/brands?pageSize=100`);
       if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
-      else setBrands(MOCK_BRANDS);
-    } catch { setBrands(MOCK_BRANDS); }
+    } catch { /* ignore */ }
     finally { setLoading(false); }
   }, [activeWorkspace]);
 
@@ -109,11 +116,7 @@ export default function BrandsPage() {
   const clearFilters = () => setSearch("");
 
   const handleEditSuccess = (updated: Brand) => {
-    setBrands((prev) => {
-      const next = prev.map((b) => (b.id === updated.id ? updated : b));
-      MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
-      return next;
-    });
+    setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setEditingBrand(null);
   };
 
@@ -126,11 +129,7 @@ export default function BrandsPage() {
     } catch {
       // mock fallback — remove from local state
     }
-    setBrands((prev) => {
-      const next = prev.filter((b) => b.id !== brandToDelete.id);
-      MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
-      return next;
-    });
+    setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
   };
 
   return (
@@ -155,12 +154,30 @@ export default function BrandsPage() {
               </p>
             </div>
           </div>
-          <button onClick={() => setShowCreateModal(true)}
+          <button onClick={() => {
+            if (!activeWorkspace) {
+              setError("Vui lòng chọn Workspace trước (vào Overview).");
+              return;
+            }
+            setShowCreateModal(true);
+          }}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all shrink-0">
             <span className="material-symbols-outlined text-[18px]">add</span>
             New Brand
           </button>
         </motion.div>
+
+        {/* ─── Error ─── */}
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 rounded-xl border border-danger-red/20 bg-error-container/50 px-5 py-4 text-body-sm text-on-error-container">
+            <span className="material-symbols-outlined text-error text-[20px]">error</span>
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="text-on-error-container/50 hover:text-on-error-container">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </motion.div>
+        )}
 
         {/* ─── Stats ─── */}
         {!loading && brands.length > 0 && (
@@ -258,7 +275,13 @@ export default function BrandsPage() {
               <h2 className="text-headline-md text-on-surface font-bold mb-2">No brands yet</h2>
               <p className="text-body-md text-on-surface-variant">Create your first brand to start managing products and campaigns</p>
             </div>
-            <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
+            <button onClick={() => {
+              if (!activeWorkspace) {
+                setError("Vui lòng chọn Workspace trước (vào Overview).");
+                return;
+              }
+              setShowCreateModal(true);
+            }} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
               <span className="material-symbols-outlined text-[16px]">add</span>
               Create Your First Brand
             </button>
@@ -341,12 +364,8 @@ export default function BrandsPage() {
       <CreateBrandModal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={(brand) => setBrands((prev) => {
-          const next = [brand, ...prev];
-          MOCK_BRANDS.splice(0, MOCK_BRANDS.length, ...next);
-          return next;
-        })}
-        profileId={activeWorkspace?.id || ""}
+        onSuccess={(brand) => setBrands((prev) => [brand, ...prev])}
+        profileId={activeProfile?.id || ""}
       />
 
       {editingBrand && (

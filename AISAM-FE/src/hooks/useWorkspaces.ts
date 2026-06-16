@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
-import { apiClient } from "@/lib/apiClient";
-import type { ApiResponse } from "@/lib/apiTypes";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { getMockWorkspaces } from "@/lib/mockWorkspace";
+import { apiClient } from "@/lib/apiClient";
 
 export interface WorkspaceData {
   id: string;
@@ -33,6 +31,7 @@ export function getWorkspaceTypeLabel(type: number): string {
 
 let cachedWorkspaces: WorkspaceData[] | null = null;
 let cacheListeners: Array<() => void> = [];
+let fetchingWorkspaces = false;
 let workspaceSelectListeners: Array<() => void> = [];
 
 function notifyWorkspaceSelected() {
@@ -93,40 +92,27 @@ export function useWorkspaces() {
     if (cachedWorkspaces) {
       const belongsToUser = userId && cachedWorkspaces.some((p) => p.userId === userId);
       if (belongsToUser) {
-        const data = cachedWorkspaces;
-        queueMicrotask(() => {
-          setWorkspaces(data);
-          setLoading(false);
-        });
+        setWorkspaces(cachedWorkspaces);
+        setLoading(false);
         return;
       }
       cachedWorkspaces = null;
     }
 
     if (!userId) {
-      queueMicrotask(() => {
-        setLoading(false);
-        setWorkspaces([]);
-      });
+      setLoading(false);
+      setWorkspaces([]);
       return;
     }
 
+    if (fetchingWorkspaces) return;
+    fetchingWorkspaces = true;
+
     const fetchFromProfiles = async () => {
       try {
-        setError(null);
-        const result = await apiClient<ApiResponse<Array<{
-          id: string;
-          userId: string;
-          name: string;
-          profileType?: number;
-          status: number;
-          createdAt: string;
-          updatedAt: string;
-          isOwner?: boolean;
-          memberRole?: string | null;
-        }>>>(`/profiles/user/${userId}`);
-        if (result.success && Array.isArray(result.data)) {
-          const mapped: WorkspaceData[] = result.data.map((p) => ({
+        const res: any = await apiClient(`/profiles/user/${userId}`);
+        if (res?.success && Array.isArray(res.data)) {
+          const mapped: WorkspaceData[] = res.data.map((p: any) => ({
             id: p.id,
             userId: p.userId,
             name: p.name,
@@ -140,41 +126,34 @@ export function useWorkspaces() {
           }));
           cachedWorkspaces = mapped;
           setWorkspaces(mapped);
-        } else {
-          // Fallback to mock data
-          const mockData = getMockWorkspaces(userId);
-          cachedWorkspaces = mockData;
-          setWorkspaces(mockData);
         }
-      } catch {
-        // Fallback to mock data
-        const mockData = getMockWorkspaces(userId);
-        cachedWorkspaces = mockData;
-        setWorkspaces(mockData);
-      }
+      } catch { /* ignore */ }
     };
 
-      try {
-        setError(null);
-        const result = await apiClient<ApiResponse<WorkspaceData[]>>("/workspaces");
-      if (result.success && Array.isArray(result.data)) {
-        cachedWorkspaces = result.data;
-        setWorkspaces(result.data);
-      } else {
-        await fetchFromProfiles();
+    let mapped: WorkspaceData[] = [];
+    try {
+      const res: any = await apiClient("/workspaces");
+      if (res?.success && res.data && Array.isArray(res.data)) {
+        mapped = res.data.map((w: any) => ({
+          id: w.id, userId, name: w.name,
+          workspaceType: w.workspaceType ?? 1,
+          plan: w.workspaceType === 2 ? "Business" : "Personal",
+          status: w.status ?? 1, createdAt: w.createdAt, updatedAt: w.updatedAt,
+          isOwner: w.currentUserRole === 0,
+          memberRole: w.currentUserRole !== undefined ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
+        }));
       }
-    } catch {
-      await fetchFromProfiles();
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* /workspaces fail */ }
+
+    cachedWorkspaces = mapped;
+    setWorkspaces(mapped);
+    setLoading(false);
+    fetchingWorkspaces = false;
   }, []);
 
   useEffect(() => {
     const isMounted = { current: true };
-    queueMicrotask(() => {
-      if (isMounted.current) fetchWorkspaces();
-    });
+    fetchWorkspaces();
     const listener = () => {
       if (isMounted.current) fetchWorkspaces();
     };

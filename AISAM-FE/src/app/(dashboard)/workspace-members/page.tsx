@@ -5,7 +5,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
-import { fetchWorkspaceMembers, type WorkspaceMember, type WorkspaceMemberRole, type MemberStatus } from "@/services/workspaceService";
+import { fetchWorkspaceMembers, type WorkspaceMember, type WorkspaceMemberRole } from "@/services/workspaceService";
 
 function getRoleBadge(role: WorkspaceMemberRole): { label: string; color: string; bg: string; icon: string } {
   switch (role) {
@@ -20,15 +20,8 @@ function getRoleBadge(role: WorkspaceMemberRole): { label: string; color: string
   }
 }
 
-function getStatusBadge(status: MemberStatus): { label: string; color: string; bg: string; dot: string } {
-  switch (status) {
-    case "Active":
-      return { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" };
-    case "Pending":
-      return { label: "Pending", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", dot: "bg-amber-500" };
-    case "Invited":
-      return { label: "Invited", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", dot: "bg-blue-500" };
-  }
+function getStatusBadge(_status: string): { label: string; color: string; bg: string; dot: string } {
+  return { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" };
 }
 
 function getInitials(name: string): string {
@@ -62,13 +55,13 @@ export default function WorkspaceMembersPage() {
 
   const filteredMembers = members.filter((member) => {
     if (filter === "all") return true;
-    return member.status.toLowerCase() === filter;
+    return "active" === filter;
   });
 
-  const activeCount = members.filter((m) => m.status === "Active").length;
-  const pendingCount = members.filter((m) => m.status === "Pending" || m.status === "Invited").length;
+  const activeCount = members.length;
+  const pendingCount = 0;
 
-  const isOwner = members.some((m) => m.role === "Owner" && m.status === "Active");
+  const isOwner = members.some((m) => m.role === "Owner");
 
   if (!featureGate.canAccess("teamManagement")) {
     return (
@@ -215,7 +208,7 @@ export default function WorkspaceMembersPage() {
               <div className="divide-y divide-outline-variant/10">
                 {filteredMembers.map((member) => {
                   const roleBadge = getRoleBadge(member.role);
-                  const statusBadge = getStatusBadge(member.status);
+                  const statusBadge = getStatusBadge("Active");
                   return (
                     <div
                       key={member.id}
@@ -235,9 +228,9 @@ export default function WorkspaceMembersPage() {
                           )}
                         </div>
                         <p className="text-label-sm text-on-surface-variant truncate">{member.email}</p>
-                        {member.lastActiveAt && (
+                        {member.joinedAt && (
                           <p className="text-label-xs text-outline mt-0.5">
-                            Last active: {new Date(member.lastActiveAt).toLocaleDateString("en-US", {
+                            Joined: {new Date(member.joinedAt).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               hour: "2-digit",
@@ -255,7 +248,7 @@ export default function WorkspaceMembersPage() {
 
                       {/* Status Badge */}
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${statusBadge.bg} ${statusBadge.color}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot} ${member.status === "Active" ? "animate-pulse" : ""}`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot} ${"Active" === "Active" ? "animate-pulse" : ""}`} />
                         {statusBadge.label}
                       </span>
 

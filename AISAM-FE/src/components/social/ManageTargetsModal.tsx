@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type SocialAccount, type AvailableTarget, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
+import { fetchBrands } from "@/services/brandService";
 import { PLATFORM_INFO, getAccountDisplayName } from "./socialUtils";
 
 interface ManageTargetsModalProps {
@@ -14,6 +15,8 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState("");
 
   useEffect(() => {
     if (!account) return;
@@ -21,10 +24,15 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
     const load = async () => {
       setLoading(true);
       try {
-        const targets = await getAvailableTargets(account.id);
+        const [targets, brandList] = await Promise.all([
+          getAvailableTargets(account.id),
+          fetchBrands(),
+        ]);
         if (!cancelled) {
           const linkedIds = (account.targets || []).map((t) => t.providerTargetId);
           setAvailableTargets(targets.filter((t) => !linkedIds.includes(t.providerTargetId)));
+          setBrands(brandList);
+          if (brandList.length > 0) setSelectedBrandId(brandList[0].id);
         }
       } catch {
         if (!cancelled) setAvailableTargets([]);
@@ -51,10 +59,10 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
   };
 
   const handleLink = async () => {
-    if (!account || selectedTargetIds.length === 0) return;
+    if (!account || selectedTargetIds.length === 0 || !selectedBrandId) return;
     setLinking(true);
     try {
-      await linkTargets(account.id, selectedTargetIds);
+      await linkTargets(account.id, selectedTargetIds, selectedBrandId);
       onSuccess();
       onClose();
     } catch {
@@ -102,6 +110,18 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
               </div>
             ) : (
               <div className="space-y-4">
+                <div>
+                  <label className="text-[11px] text-outline font-semibold uppercase block mb-1.5">Brand</label>
+                  <select
+                    value={selectedBrandId}
+                    onChange={(e) => setSelectedBrandId(e.target.value)}
+                    className="w-full p-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] text-outline font-semibold uppercase">Available Targets ({availableTargets.length})</p>
                   <button onClick={handleSelectAll} className="text-[11px] text-primary font-semibold hover:underline">
@@ -152,7 +172,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                   className="px-5 py-2.5 border border-outline-variant/20 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all">
                   Cancel
                 </button>
-                <button onClick={handleLink} disabled={selectedTargetIds.length === 0 || linking}
+                <button onClick={handleLink} disabled={selectedTargetIds.length === 0 || !selectedBrandId || linking}
                   className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2">
                   {linking ? (
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

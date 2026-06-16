@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { apiFetch } from "@/lib/apiClient";
+import { storeActiveProfile } from "@/stores/profile-store";
+import { apiClient, apiFetch } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
 
 interface PendingWorkspace {
@@ -45,73 +46,64 @@ export default function OverviewPage() {
   const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState<{ name: string } | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const reduceMotion = useReducedMotion();
 
   const createAndSelectWorkspace = async (name: string, workspaceType: number, companyName?: string) => {
     setCreating(true);
+    setCreateError(null);
     const userId = getUserIdFromToken();
     if (!userId) return;
 
     try {
+      // 1. Tạo Workspace thật trong DB
+      const wsResult = await apiClient("/workspaces", {
+        method: "POST",
+        data: { name, workspaceType },
+      });
+
+      if (!wsResult?.success || !wsResult.data) {
+        setCreateError(wsResult?.message || "Tạo workspace thất bại.");
+        return;
+      }
+
+      // 2. Tạo Profile (để có X-Profile-Id)
       const formBody = new FormData();
       formBody.append("name", name);
       formBody.append("profileType", workspaceType.toString());
       if (companyName) formBody.append("companyName", companyName);
 
-      const result = await apiFetch(`/profiles/user/${userId}`, {
+      const pfResult = await apiFetch(`/profiles/user/${userId}`, {
         method: "POST",
         body: formBody,
       });
 
-      if (result?.success && result.data) {
-        const wsData: WorkspaceData = {
-          id: result.data.id,
-          userId: result.data.userId,
-          name: result.data.name,
-          workspaceType: result.data.profileType ?? workspaceType,
-          plan: workspaceType === 2 ? "Business" : "Personal",
-          status: result.data.status,
-          createdAt: result.data.createdAt,
-          updatedAt: result.data.updatedAt,
-          isOwner: true,
-          memberRole: "Owner",
-        };
-        addWorkspaceToCache(wsData);
-        selectWorkspace(wsData);
-      } else {
-        // Mock create workspace when BE API not available
-        const mockWs: WorkspaceData = {
-          id: `ws-${Date.now()}`,
-          userId,
-          name,
-          workspaceType,
-          plan: workspaceType === 2 ? "Business" : "Personal",
-          status: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          isOwner: true,
-          memberRole: "Owner",
-        };
-        addWorkspaceToCache(mockWs);
-        selectWorkspace(mockWs);
-      }
-    } catch {
-      // Mock create workspace when BE API not available
-      const mockWs: WorkspaceData = {
-        id: `ws-${Date.now()}`,
-        userId: userId!,
-        name,
-        workspaceType,
+      const wsId = wsResult.data.id;
+      const pfId = pfResult?.success && pfResult.data ? pfResult.data.id : wsId;
+
+      const wsData: WorkspaceData = {
+        id: wsId,
+        userId,
+        name: wsResult.data.name || name,
+        workspaceType: wsResult.data.workspaceType ?? workspaceType,
         plan: workspaceType === 2 ? "Business" : "Personal",
-        status: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        status: wsResult.data.status ?? 1,
+        createdAt: wsResult.data.createdAt || new Date().toISOString(),
+        updatedAt: wsResult.data.updatedAt || new Date().toISOString(),
         isOwner: true,
         memberRole: "Owner",
       };
-      addWorkspaceToCache(mockWs);
-      selectWorkspace(mockWs);
+      addWorkspaceToCache(wsData);
+      selectWorkspace(wsData);
+      storeActiveProfile({
+        id: pfId,
+        name: wsData.name,
+        profileType: workspaceType,
+      });
+    } catch (e: any) {
+      setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
+      return;
     } finally {
       setCreating(false);
     }
@@ -132,7 +124,9 @@ export default function OverviewPage() {
         router.push("/pricing?create=business");
       }
     } else {
-      selectWorkspace(workspace as WorkspaceData);
+      const w = workspace as WorkspaceData;
+      selectWorkspace(w);
+      storeActiveProfile({ id: w.id, name: w.name, profileType: w.workspaceType });
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }
@@ -242,6 +236,18 @@ export default function OverviewPage() {
             </motion.button>
           )}
         </MotionDiv>
+
+        {/* Error */}
+        {createError && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-body-sm text-red-800 mb-6 w-full">
+            <span className="material-symbols-outlined text-red-500 text-[20px]">error</span>
+            <span className="flex-1">{createError}</span>
+            <button onClick={() => setCreateError(null)} className="text-red-400 hover:text-red-600">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </motion.div>
+        )}
 
         {/* Profile Grid */}
         <MotionDiv

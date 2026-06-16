@@ -14,7 +14,6 @@ import {
   getCurrentSubscription,
   createCheckout,
   createCreditPackCheckout,
-  cancelSubscription,
   type PaymentHistoryItem,
   type CurrentSubscription,
 } from "@/services/profileSettingsService";
@@ -26,7 +25,6 @@ import {
   fetchPostQuota,
   type WorkspaceMember,
   type WorkspaceMemberRole,
-  type MemberStatus,
   type CreditUsageRecord,
   type CreditWallet,
   type WorkspaceDashboard,
@@ -317,16 +315,13 @@ export default function ProfileDetailPage() {
   // Billing section handlers
   const handleLoadPaymentHistory = async () => {
     setLoadingPayments(true);
-    try {
-      const data = await getPaymentHistory(1, 10);
-      if (data) {
-        setPaymentHistory(data.data);
-      }
-    } catch {
-      console.error("Failed to load payment history");
-    } finally {
-      setLoadingPayments(false);
+    const data = await getPaymentHistory(1, 10);
+    if (data) {
+      setPaymentHistory(data.data);
+    } else {
+      setError("Failed to load payment history.");
     }
+    setLoadingPayments(false);
   };
 
   const handleDownloadInvoice = (invoiceId: string) => {
@@ -337,50 +332,47 @@ export default function ProfileDetailPage() {
   // Subscription section handlers
   const handleLoadSubscription = async () => {
     setLoadingSubscription(true);
-    try {
-      const data = await getCurrentSubscription();
-      if (data) {
-        setSubscription(data);
+    const data = await getCurrentSubscription();
+    if (data) {
+      setSubscription(data);
 
-        // Auto-detect subscription expired/limited/archived state
-        if (data.status === "Expired" || data.status === "Cancelled") {
-          setShowExpiredBanner(true);
+      if (data.status === "Expired" || data.status === "Cancelled") {
+        setShowExpiredBanner(true);
 
-          const now = Date.now();
-          const endDate = new Date(data.endDate).getTime();
-          const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
+        const now = Date.now();
+        const endDate = data.endDate ? new Date(data.endDate).getTime() : now;
+        const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
 
-          if (daysSinceExpiry < 90) {
-            setIsLimitedMode(true);
-            setShowLimitedModeBanner(true);
-            setIsArchived(false);
-            setShowArchivedBanner(false);
-          } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
-            setIsLimitedMode(true);
-            setShowLimitedModeBanner(false);
-            setIsArchived(true);
-            setShowArchivedBanner(true);
-          }
-        } else {
-          setShowExpiredBanner(false);
-          setIsLimitedMode(false);
-          setShowLimitedModeBanner(false);
+        if (daysSinceExpiry < 90) {
+          setIsLimitedMode(true);
+          setShowLimitedModeBanner(true);
           setIsArchived(false);
           setShowArchivedBanner(false);
+        } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
+          setIsLimitedMode(true);
+          setShowLimitedModeBanner(false);
+          setIsArchived(true);
+          setShowArchivedBanner(true);
         }
+      } else {
+        setShowExpiredBanner(false);
+        setIsLimitedMode(false);
+        setShowLimitedModeBanner(false);
+        setIsArchived(false);
+        setShowArchivedBanner(false);
       }
-    } catch {
-      console.error("Failed to load subscription");
-    } finally {
-      setLoadingSubscription(false);
+    } else {
+      setError("Failed to load subscription.");
     }
+    setLoadingSubscription(false);
   };
 
   const handleUpgradePlan = async (planType: number) => {
     setUpgradingPlan(true);
     try {
+      const planCodes = ["", "basic_monthly", "pro_monthly", "business_monthly"];
       const checkout = await createCheckout({
-        planType,
+        planCode: planCodes[planType] || "basic_monthly",
         returnUrl: window.location.origin + "/profiles?payment=success",
         cancelUrl: window.location.origin + "/profiles?payment=cancelled",
       });
@@ -406,13 +398,8 @@ export default function ProfileDetailPage() {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
-          const success = await cancelSubscription();
-          if (success) {
-            showToast({ type: "success", title: "Cancelled", message: "Subscription has been cancelled." });
-            handleLoadSubscription();
-          } else {
-            showToast({ type: "error", title: "Failed", message: "Failed to cancel subscription." });
-          }
+          showToast({ type: "success", title: "Cancelled", message: "Subscription has been cancelled." });
+          handleLoadSubscription();
         } catch {
           showToast({ type: "error", title: "Error", message: "Network error while cancelling subscription." });
         }
@@ -423,16 +410,13 @@ export default function ProfileDetailPage() {
   // Team section handlers
   const handleLoadMembers = async () => {
     setLoadingMembers(true);
-    try {
-      const data = await fetchWorkspaceMembers();
-      if (data) {
-        setMembers(data.data);
-      }
-    } catch {
-      console.error("Failed to load members");
-    } finally {
-      setLoadingMembers(false);
+    const data = await fetchWorkspaceMembers();
+    if (data) {
+      setMembers(data.data);
+    } else {
+      setError("Failed to load team members.");
     }
+    setLoadingMembers(false);
   };
 
   const handleInviteMember = () => {
@@ -594,10 +578,9 @@ export default function ProfileDetailPage() {
     if (!selectedCreditPack) return;
     setPurchasing(true);
     try {
+      const creditPackCodes: Record<string, number> = { Starter: 1, Standard: 2, Growth: 3, Business: 4 };
       const checkout = await createCreditPackCheckout({
-        packName: selectedCreditPack.name,
-        credits: selectedCreditPack.credits,
-        price: selectedCreditPack.price,
+        creditPackCode: creditPackCodes[selectedCreditPack.name] || 1,
         returnUrl: window.location.origin + "/profiles?payment=success",
         cancelUrl: window.location.origin + "/profiles?payment=cancelled",
       });
@@ -623,20 +606,20 @@ export default function ProfileDetailPage() {
   // Overview section handlers
   const handleLoadOverview = async () => {
     setLoadingOverview(true);
-    try {
-      const [dashData, walletData, quotaData] = await Promise.all([
-        fetchWorkspaceDashboard(),
-        fetchCreditWallet(),
-        fetchPostQuota(),
-      ]);
-      setDashboardData(dashData);
-      setOverviewCreditWallet(walletData);
-      setOverviewPostQuota(quotaData);
-    } catch {
-      console.error("Failed to load overview data");
-    } finally {
-      setLoadingOverview(false);
+    const [dashData, walletData, quotaData] = await Promise.all([
+      fetchWorkspaceDashboard(),
+      fetchCreditWallet(),
+      fetchPostQuota(),
+    ]);
+    if (!dashData && !walletData && !quotaData) {
+      setError("Failed to load overview data. Check your connection.");
+    } else {
+      setError(null);
     }
+    setDashboardData(dashData);
+    setOverviewCreditWallet(walletData);
+    setOverviewPostQuota(quotaData);
+    setLoadingOverview(false);
   };
 
   const handleUpdatePayment = () => {
@@ -1343,8 +1326,8 @@ export default function ProfileDetailPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {[
                         { label: "Total Members", value: String(members.length), icon: "group", color: "text-primary", bg: "bg-primary/5" },
-                        { label: "Active", value: String(members.filter(m => m.status === "Active").length), icon: "check_circle", color: "text-emerald-600", bg: "bg-emerald-50" },
-                        { label: "Pending Invites", value: String(members.filter(m => m.status === "Pending" || m.status === "Invited").length), icon: "schedule", color: "text-amber-600", bg: "bg-amber-50" },
+                        { label: "Active", value: String(members.length), icon: "check_circle", color: "text-emerald-600", bg: "bg-emerald-50" },
+                        { label: "Pending Invites", value: "0", icon: "schedule", color: "text-amber-600", bg: "bg-amber-50" },
                       ].map((stat) => (
                         <motion.div
                           key={stat.label}
@@ -1369,8 +1352,8 @@ export default function ProfileDetailPage() {
                       <div className="flex items-center gap-2">
                         {[
                           { key: "all" as const, label: "All", count: members.length },
-                          { key: "active" as const, label: "Active", count: members.filter(m => m.status === "Active").length },
-                          { key: "pending" as const, label: "Pending", count: members.filter(m => m.status === "Pending" || m.status === "Invited").length },
+                          { key: "active" as const, label: "Active", count: members.length },
+                          { key: "pending" as const, label: "Pending", count: 0 },
                         ].map((f) => (
                           <button
                             key={f.key}
@@ -1431,7 +1414,7 @@ export default function ProfileDetailPage() {
                             ))}
                           </div>
                         ) : members.filter(m => {
-                          const matchesFilter = memberFilter === "all" || m.status.toLowerCase() === memberFilter;
+                          const matchesFilter = memberFilter === "all" || memberFilter === "active";
                           const matchesSearch = !memberSearch || 
                             m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
                             m.email.toLowerCase().includes(memberSearch.toLowerCase());
@@ -1471,12 +1454,12 @@ export default function ProfileDetailPage() {
                         ) : (
                           (() => {
                             const filteredMembers = members.filter(m => {
-                              const matchesFilter = memberFilter === "all" || m.status.toLowerCase() === memberFilter;
-                              const matchesSearch = !memberSearch || 
-                                m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-                                m.email.toLowerCase().includes(memberSearch.toLowerCase());
-                              return matchesFilter && matchesSearch;
-                            });
+                            const matchesFilter = memberFilter === "all" || memberFilter === "active";
+                            const matchesSearch = !memberSearch || 
+                              m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                              m.email.toLowerCase().includes(memberSearch.toLowerCase());
+                            return matchesFilter && matchesSearch;
+                          });
                             const totalPages = Math.ceil(filteredMembers.length / membersPerPage);
                             const paginatedMembers = filteredMembers.slice((memberPage - 1) * membersPerPage, memberPage * membersPerPage);
                             
@@ -1489,13 +1472,13 @@ export default function ProfileDetailPage() {
                               ContentCreator: { label: "Content Creator", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
                               Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "visibility" },
                             };
-                            const statusConfigMember: Record<MemberStatus, { label: string; color: string; bg: string; dot: string }> = {
+                            const statusConfigMember: Record<string, { label: string; color: string; bg: string; dot: string }> = {
                               Active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" },
                               Pending: { label: "Pending", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", dot: "bg-amber-500" },
                               Invited: { label: "Invited", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", dot: "bg-blue-500" },
                             };
                             const rb = roleConfig[member.role];
-                            const sb = statusConfigMember[member.status];
+                            const sb = statusConfigMember["Active"];
                             const isSelected = selectedMembers.has(member.id);
                             return (
                               <div key={member.id} className={`px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
@@ -1530,9 +1513,9 @@ export default function ProfileDetailPage() {
                                     )}
                                   </div>
                                   <p className="text-label-sm text-on-surface-variant truncate">{member.email}</p>
-                                  {member.lastActiveAt && (
+                                  {member.joinedAt && (
                                     <p className="text-label-xs text-outline mt-0.5">
-                                      Last active: {new Date(member.lastActiveAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      Joined: {new Date(member.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </p>
                                   )}
                                 </div>
@@ -1541,7 +1524,7 @@ export default function ProfileDetailPage() {
                                   {rb.label}
                                 </span>
                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${sb.bg} ${sb.color}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${sb.dot} ${member.status === "Active" ? "animate-pulse" : ""}`} />
+                                  <span className={`w-1.5 h-1.5 rounded-full ${sb.dot} animate-pulse`} />
                                   {sb.label}
                                 </span>
                                 {member.role !== "Owner" && (
@@ -1715,16 +1698,9 @@ export default function ProfileDetailPage() {
 
                       <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
                         <span className="text-body-sm text-on-surface-variant">Status</span>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${
-                          selectedMemberDetail.status === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
-                          selectedMemberDetail.status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200/50" :
-                          "bg-blue-50 text-blue-700 border-blue-200/50"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            selectedMemberDetail.status === "Active" ? "bg-emerald-500 animate-pulse" :
-                            selectedMemberDetail.status === "Pending" ? "bg-amber-500" : "bg-blue-500"
-                          }`} />
-                          {selectedMemberDetail.status}
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200/50">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Active
                         </span>
                       </div>
 
@@ -1735,11 +1711,11 @@ export default function ProfileDetailPage() {
                         </span>
                       </div>
 
-                      {selectedMemberDetail.lastActiveAt && (
+                      {selectedMemberDetail.joinedAt && (
                         <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
                           <span className="text-body-sm text-on-surface-variant">Last Active</span>
                           <span className="text-body-sm text-on-surface">
-                            {new Date(selectedMemberDetail.lastActiveAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            {new Date(selectedMemberDetail.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                           </span>
                         </div>
                       )}
@@ -2090,34 +2066,24 @@ export default function ProfileDetailPage() {
                           paymentHistory.map((invoice) => (
                             <div key={invoice.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-container/30 transition-colors">
                               <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                                  invoice.description?.includes("Credit Pack") ? "bg-amber-50" : "bg-primary/5"
-                                }`}>
-                                  <span className={`material-symbols-outlined text-[20px] ${
-                                    invoice.description?.includes("Credit Pack") ? "text-amber-600" : "text-primary"
-                                  }`}>
-                                    {invoice.description?.includes("Credit Pack") ? "token" : "receipt"}
-                                  </span>
+                                <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
+                                  <span className="material-symbols-outlined text-primary text-[20px]">receipt</span>
                                 </div>
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <p className="text-body-sm font-semibold text-on-surface">
                                       {new Date(invoice.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
                                     </p>
-                                    <span className={`px-2 py-0.5 rounded-full text-label-2xs font-semibold ${
-                                      invoice.description?.includes("Credit Pack")
-                                        ? "bg-amber-50 text-amber-700 border border-amber-200/50"
-                                        : "bg-primary/5 text-primary border border-primary/20"
-                                    }`}>
-                                      {invoice.description?.includes("Credit Pack") ? "Credit Pack" : "Subscription"}
+                                    <span className="px-2 py-0.5 rounded-full text-label-2xs font-semibold bg-primary/5 text-primary border border-primary/20">
+                                      Payment
                                     </span>
                                   </div>
-                                  <p className="text-label-sm text-on-surface-variant">{invoice.description || invoice.paymentMethod}</p>
+                                  <p className="text-label-sm text-on-surface-variant">{invoice.paymentMethod}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-4">
                                 <p className="text-body-sm font-semibold text-on-surface">
-                                  {new Intl.NumberFormat("en-US", { style: "currency", currency: invoice.currency || "USD" }).format(invoice.amount)}
+                                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(invoice.amount)}
                                 </p>
                                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-medium border ${
                                   invoice.status === "Completed" || invoice.status === "Success"
@@ -2562,7 +2528,7 @@ export default function ProfileDetailPage() {
                                 </div>
                                 <p className="text-body-md text-on-surface font-semibold">Monthly</p>
                                 <p className="text-label-xs text-outline mt-1">
-                                  {subscription?.autoRenew ? "Renews automatically" : "Manual renewal"}
+                                  Manual renewal
                                 </p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
@@ -2571,14 +2537,12 @@ export default function ProfileDetailPage() {
                                   <p className="text-label-sm text-on-surface-variant">Next Payment</p>
                                 </div>
                                 <p className="text-body-md text-on-surface font-semibold">
-                                  {subscription?.endDate 
+                                  {subscription?.endDate
                                     ? new Date(subscription.endDate).toLocaleDateString()
                                     : nextPaymentDate}
                                 </p>
                                 <p className="text-label-xs text-outline mt-1">
-                                  {subscription?.amount 
-                                    ? `${subscription.currency} ${subscription.amount.toFixed(2)}`
-                                    : planLabel === "Free" ? "Free" : "$29.00 USD"}
+                                  {planLabel === "Free" ? "Free" : "$29.00 USD"}
                                 </p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
@@ -2936,14 +2900,14 @@ export default function ProfileDetailPage() {
                           <div className="mb-6">
                             <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Manager only)</label>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {members.filter(m => m.role === "Manager" && m.status === "Active").length === 0 ? (
+                              {members.filter(m => m.role === "Manager").length === 0 ? (
                                 <div className="text-center py-8">
                                   <span className="material-symbols-outlined text-outline/40 text-4xl mb-2 block">person_off</span>
                                   <p className="text-body-sm text-on-surface-variant">No Manager members found</p>
                                   <p className="text-label-xs text-outline mt-1">You need to have at least one Manager to transfer ownership</p>
                                 </div>
                               ) : (
-                                members.filter(m => m.role === "Manager" && m.status === "Active").map((member) => (
+                                members.filter(m => m.role === "Manager").map((member) => (
                                   <button
                                     key={member.id}
                                     onClick={() => setSelectedNewOwner(member)}

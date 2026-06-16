@@ -121,23 +121,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
         handleClose();
         router.push("/dashboard");
       } else {
-        // Mock create workspace when BE API not available
-        const mockWs: WorkspaceData = {
-          id: `ws-${Date.now()}`,
-          userId,
-          name: form.name.trim(),
-          workspaceType: Number(form.profileType) || 1,
-          plan: Number(form.profileType) === 2 ? "Business" : "Personal",
-          status: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          isOwner: true,
-          memberRole: "Owner",
-        };
-        addWorkspaceToCache(mockWs);
-        selectWorkspace(mockWs);
-        handleClose();
-        router.push("/dashboard");
+        setError(result?.message || "Failed to create workspace");
       }
     } catch (err: any) {
       setError(err.message || "Network error");

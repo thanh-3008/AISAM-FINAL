@@ -62,6 +62,16 @@ public sealed class PostService : IPostService
             : GenericResponse<PostListItemDto>.CreateSuccess(MapToDto(post), "Post retrieved successfully.");
     }
 
+    private static string MapAdType(AdTypeEnum adType) => adType switch
+    {
+        AdTypeEnum.TextOnly => "TEXT",
+        AdTypeEnum.ImageText => "IMAGE",
+        AdTypeEnum.VideoText => "VIDEO",
+        _ => adType.ToString()
+    };
+
+    private static string? MapPlatform(SocialPlatformEnum? platform) => platform?.ToString().ToLowerInvariant();
+
     private static PostListItemDto MapToDto(Post post)
     {
         return new PostListItemDto
@@ -73,7 +83,10 @@ public sealed class PostService : IPostService
             PublishedAt = post.PublishedAt,
             Status = post.Status.ToString(),
             ContentTitle = post.Content.Title,
-            BrandName = post.Content.Brand?.Name
+            BrandName = post.Content.Brand?.Name,
+            Platform = MapPlatform(post.Integration?.Platform),
+            Type = MapAdType(post.Content.AdType),
+            Caption = post.Content.TextContent
         };
     }
 }

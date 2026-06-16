@@ -51,13 +51,6 @@ export default function RegisterPage() {
         if (result.data?.user) {
           setStoredUser(result.data.user);
         }
-        try {
-          await apiClient("/profiles/user/" + (result.data?.user?.id || result.data?.userId || ""), {
-            data: { name: (result.data?.user?.fullName || "My") + "'s Workspace", workspaceType: 1 },
-          });
-        } catch {
-          // workspace creation is optional; user can create manually on /overview
-        }
         invalidateWorkspaceCache();
         router.push("/overview");
       } else {

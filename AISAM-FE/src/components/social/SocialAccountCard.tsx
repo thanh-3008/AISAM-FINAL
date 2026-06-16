@@ -5,7 +5,6 @@ import { type SocialAccount } from "@/services/socialAccountService";
 import {
   PLATFORM_INFO,
   STATUS_CONFIG,
-  formatNumber,
   formatDate,
   timeAgo,
   getExpiresDays,
@@ -93,20 +92,7 @@ export default function SocialAccountCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="text-center p-2.5 bg-surface-container-low rounded-xl">
-            <p className="text-label-md font-bold text-on-surface">{formatNumber(account.followers || 0)}</p>
-            <p className="text-label-2xs text-outline uppercase font-medium">Followers</p>
-          </div>
-          <div className="text-center p-2.5 bg-surface-container-low rounded-xl">
-            <p className="text-label-md font-bold text-on-surface">{formatNumber(account.following || 0)}</p>
-            <p className="text-label-2xs text-outline uppercase font-medium">Following</p>
-          </div>
-          <div className="text-center p-2.5 bg-surface-container-low rounded-xl">
-            <p className="text-label-md font-bold text-on-surface">{formatNumber(account.postsCount || 0)}</p>
-            <p className="text-label-2xs text-outline uppercase font-medium">Posts</p>
-          </div>
-        </div>
+        {/* Metrics grid hidden — BE does not return followers/following/postsCount */}
 
         {account.expiresAt && (
           <div className="mb-4">

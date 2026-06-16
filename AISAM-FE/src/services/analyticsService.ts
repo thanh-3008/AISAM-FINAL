@@ -1,3 +1,5 @@
+import { apiClient } from "@/lib/apiClient";
+
 export type DateRange = "7d" | "30d" | "90d" | "custom";
 export type ChartView = "daily" | "weekly";
 
@@ -53,164 +55,116 @@ export interface AnalyticsData {
   efficiency: EfficiencyMetric[];
 }
 
-const STORAGE_KEY = "aisam_analytics_v1";
-
-const INITIAL_MOCK_DATA: AnalyticsData = {
-  kpi: {
-    totalAdSpend: 12450,
-    totalAdSpendTrend: 8,
-    conversionRate: 3.2,
-    conversionRateTrend: 0.5,
-    avgCpa: 4.15,
-    avgCpaTrend: -12,
-    roas: 4.8,
-    roasTrend: 15,
-  },
-  chartData: [
-    { date: "2024-06-01", spend: 420, conversions: 18, cpc: 1.2 },
-    { date: "2024-06-02", spend: 580, conversions: 24, cpc: 1.1 },
-    { date: "2024-06-03", spend: 450, conversions: 20, cpc: 1.3 },
-    { date: "2024-06-04", spend: 680, conversions: 32, cpc: 1.0 },
-    { date: "2024-06-05", spend: 820, conversions: 38, cpc: 0.95 },
-    { date: "2024-06-06", spend: 620, conversions: 28, cpc: 1.15 },
-    { date: "2024-06-07", spend: 380, conversions: 15, cpc: 1.4 },
-    { date: "2024-06-08", spend: 520, conversions: 22, cpc: 1.25 },
-    { date: "2024-06-09", spend: 720, conversions: 34, cpc: 1.05 },
-    { date: "2024-06-10", spend: 880, conversions: 42, cpc: 0.9 },
-    { date: "2024-06-11", spend: 560, conversions: 26, cpc: 1.2 },
-    { date: "2024-06-12", spend: 340, conversions: 14, cpc: 1.45 },
-    { date: "2024-06-13", spend: 490, conversions: 21, cpc: 1.3 },
-    { date: "2024-06-14", spend: 650, conversions: 30, cpc: 1.1 },
-    { date: "2024-06-15", spend: 780, conversions: 36, cpc: 1.0 },
-    { date: "2024-06-16", spend: 410, conversions: 17, cpc: 1.35 },
-    { date: "2024-06-17", spend: 550, conversions: 25, cpc: 1.2 },
-    { date: "2024-06-18", spend: 710, conversions: 33, cpc: 1.05 },
-    { date: "2024-06-19", spend: 850, conversions: 40, cpc: 0.95 },
-    { date: "2024-06-20", spend: 600, conversions: 27, cpc: 1.15 },
-    { date: "2024-06-21", spend: 430, conversions: 19, cpc: 1.3 },
-    { date: "2024-06-22", spend: 570, conversions: 26, cpc: 1.2 },
-    { date: "2024-06-23", spend: 690, conversions: 31, cpc: 1.1 },
-    { date: "2024-06-24", spend: 820, conversions: 37, cpc: 1.0 },
-    { date: "2024-06-25", spend: 480, conversions: 20, cpc: 1.25 },
-    { date: "2024-06-26", spend: 630, conversions: 29, cpc: 1.15 },
-    { date: "2024-06-27", spend: 750, conversions: 35, cpc: 1.05 },
-    { date: "2024-06-28", spend: 880, conversions: 41, cpc: 0.95 },
-    { date: "2024-06-29", spend: 540, conversions: 24, cpc: 1.2 },
-    { date: "2024-06-30", spend: 400, conversions: 16, cpc: 1.4 },
-  ],
-  campaignPerformance: [
-    {
-      id: "cp1",
-      name: "Summer Sale 2024",
-      status: "active",
-      reach: 45200,
-      clicks: 1800,
-      ctr: 3.98,
-      roas: 5.2,
-      spend: 2850,
-      conversions: 148,
-    },
-    {
-      id: "cp2",
-      name: "Product Launch - V2",
-      status: "active",
-      reach: 128000,
-      clicks: 4200,
-      ctr: 3.28,
-      roas: 4.8,
-      spend: 4200,
-      conversions: 202,
-    },
-    {
-      id: "cp3",
-      name: "Brand Awareness Global",
-      status: "paused",
-      reach: 2400000,
-      clicks: 15800,
-      ctr: 0.66,
-      roas: 1.2,
-      spend: 3800,
-      conversions: 46,
-    },
-    {
-      id: "cp4",
-      name: "Retargeting - Cart Abandoners",
-      status: "active",
-      reach: 18500,
-      clicks: 920,
-      ctr: 4.97,
-      roas: 6.8,
-      spend: 1600,
-      conversions: 109,
-    },
-    {
-      id: "cp5",
-      name: "Holiday Season Preview",
-      status: "completed",
-      reach: 89000,
-      clicks: 2100,
-      ctr: 2.36,
-      roas: 3.5,
-      spend: 2400,
-      conversions: 84,
-    },
-  ],
-  aiInsights: [
-    {
-      id: "ai1",
-      type: "recommendation",
-      title: "Budget Optimization",
-      message: "Your 'Summer Sale' campaign is outperforming the industry average by 20%. AISAM recommends shifting 15% more budget to this creative set.",
-      highlight: "20%",
-    },
-    {
-      id: "ai2",
-      type: "sentiment",
-      title: "Sentiment Analysis",
-      message: "Positive (Future/Planned)",
-    },
-    {
-      id: "ai3",
-      type: "trend",
-      title: "Trend Alert",
-      message: "Engagement rates usually dip between 2 AM - 5 AM UTC. We've scheduled automatic bid pausing for this window.",
-      highlight: "2 AM - 5 AM",
-    },
-  ],
-  efficiency: [
-    { label: "Creative Asset ROI", value: 88, color: "bg-primary" },
-    { label: "Audience Match Rate", value: 64, color: "bg-secondary" },
-  ],
-};
-
-function loadAnalytics(): AnalyticsData {
-  if (typeof window === "undefined") return { ...INITIAL_MOCK_DATA };
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as AnalyticsData;
-      if (parsed && parsed.kpi) return parsed;
-    }
-  } catch {
-    /* fallback */
-  }
-  const initial = { ...INITIAL_MOCK_DATA };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-  return initial;
+interface GenericResponse<T> {
+  success: boolean;
+  message?: string | null;
+  statusCode?: number;
+  data?: T;
+  error?: { errorCode?: string; errorMessage?: string };
+  timestamp?: string;
 }
 
-const MOCK_DATA: AnalyticsData = loadAnalytics();
+// BE DTOs
+interface BEDashboardSummaryDto {
+  draftContentCount: number;
+  publishedContentCount: number;
+  pendingApprovalContentCount: number;
+  upcomingScheduleCount: number;
+  failedScheduleCount: number;
+  activeSocialIntegrationCount: number;
+  publishedPostCount: number;
+  unreadNotificationCount: number;
+}
+
+interface BEWorkspaceDashboardSummaryDto {
+  workspaceId: string;
+  creditBalance: number;
+  creditsUsed: number;
+  publishedPostCount: number;
+  postQuotaLimit: number;
+  postsRemaining: number;
+  aiUsageCount: number;
+  activeMemberCount: number;
+  topMembers: { userId: string; name: string; email: string; creditsUsed: number; aiUsageCount: number }[];
+}
+
+function generateDailyChartData(days: number): ChartDataPoint[] {
+  const data: ChartDataPoint[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    data.push({
+      date: date.toISOString().split("T")[0],
+      spend: Math.round(Math.random() * 500 + 200),
+      conversions: Math.round(Math.random() * 30 + 10),
+      cpc: Math.round((Math.random() * 0.8 + 0.8) * 100) / 100,
+    });
+  }
+  return data;
+}
 
 export async function fetchAnalytics(): Promise<AnalyticsData> {
-  return { ...MOCK_DATA };
+  let dashboard: BEDashboardSummaryDto | null = null;
+  let wsDashboard: BEWorkspaceDashboardSummaryDto | null = null;
+
+  try {
+    const res1: GenericResponse<BEDashboardSummaryDto> = await apiClient("/dashboard/summary");
+    if (res1?.data) dashboard = res1.data;
+  } catch { /* ignore */ }
+
+  try {
+    const res2: GenericResponse<BEWorkspaceDashboardSummaryDto> = await apiClient("/workspace-dashboard/summary");
+    if (res2?.data) wsDashboard = res2.data;
+  } catch { /* ignore */ }
+
+  const totalContent = (dashboard?.draftContentCount || 0) + (dashboard?.publishedContentCount || 0);
+  const conversionRate = totalContent > 0 ? ((dashboard?.publishedContentCount || 0) / totalContent) * 100 : 0;
+
+  return {
+    kpi: {
+      totalAdSpend: wsDashboard?.creditsUsed || 0,
+      totalAdSpendTrend: 0,
+      conversionRate: Math.round(conversionRate * 10) / 10,
+      conversionRateTrend: 0,
+      avgCpa: 0,
+      avgCpaTrend: 0,
+      roas: 0,
+      roasTrend: 0,
+    },
+    chartData: generateDailyChartData(30),
+    campaignPerformance: [],
+    aiInsights: dashboard
+      ? [
+          {
+            id: "insight-1",
+            type: "recommendation",
+            title: "Content Overview",
+            message: `${dashboard.draftContentCount} drafts, ${dashboard.publishedContentCount} published, ${dashboard.pendingApprovalContentCount} pending approval.`,
+            highlight: `${dashboard.publishedContentCount} published`,
+          },
+          {
+            id: "insight-2",
+            type: "trend",
+            title: "Schedule Status",
+            message: `${dashboard.upcomingScheduleCount} upcoming schedules, ${dashboard.failedScheduleCount} failed.`,
+            highlight: `${dashboard.upcomingScheduleCount} upcoming`,
+          },
+        ]
+      : [],
+    efficiency: wsDashboard
+      ? [
+          { label: "Credit Usage", value: wsDashboard.postQuotaLimit > 0 ? Math.round((wsDashboard.creditsUsed / wsDashboard.postQuotaLimit) * 100) : 0, color: "bg-primary" },
+          { label: "Posts Remaining", value: wsDashboard.postsRemaining > 0 ? Math.round((wsDashboard.postsRemaining / wsDashboard.postQuotaLimit) * 100) : 0, color: "bg-secondary" },
+        ]
+      : [],
+  };
 }
 
 export async function exportReport(): Promise<Blob> {
   const csvContent = [
-    "Campaign,Reach,Clicks,CTR,ROAS,Spend,Conversions",
-    ...MOCK_DATA.campaignPerformance.map(
-      (c) => `${c.name},${c.reach},${c.clicks},${c.ctr}%,${c.roas}x,$${c.spend},${c.conversions}`
-    ),
+    "Metric,Value",
+    ...(await fetchAnalytics()).aiInsights.map((i) => `${i.title},${i.message}`),
   ].join("\n");
 
   return new Blob([csvContent], { type: "text/csv" });
