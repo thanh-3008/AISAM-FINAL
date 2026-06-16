@@ -14,7 +14,7 @@ function isValidGuid(str: string): boolean {
 }
 
 async function buildHeaders(customHeaders?: Record<string, string>) {
-  let token = getToken();
+  const token = getToken();
   let workspace = getStoredActiveWorkspace();
   let profile = getStoredActiveProfile();
   if (workspace && !isValidGuid(workspace.id)) {
