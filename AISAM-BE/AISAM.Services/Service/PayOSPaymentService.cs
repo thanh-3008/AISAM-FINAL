@@ -324,6 +324,36 @@ public sealed class PayOSPaymentService : IPaymentService
         return await ApplyPaymentStatusAsync(reference, status, query["id"].FirstOrDefault(), acknowledgeMissingPayment: false, cancellationToken);
     }
 
+    public async Task<GenericResponse<bool>> SyncReturnAsync(
+        Guid workspaceId,
+        Guid userId,
+        IQueryCollection query,
+        CancellationToken cancellationToken = default)
+    {
+        var reference = FirstNonEmpty(
+            query["orderCode"].FirstOrDefault(),
+            query["id"].FirstOrDefault(),
+            query["paymentLinkId"].FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return GenericResponse<bool>.CreateError("PayOS return is missing payment reference.", HttpStatusCode.BadRequest, "PAYOS_REFERENCE_MISSING");
+        }
+
+        var payment = await _paymentRepository.GetByReferenceAsync(reference, cancellationToken);
+        if (payment == null)
+        {
+            return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
+        }
+
+        if (payment.WorkspaceId != workspaceId || payment.UserId != userId)
+        {
+            return GenericResponse<bool>.CreateError("Payment does not belong to the active workspace.", HttpStatusCode.Forbidden, "PAYMENT_WORKSPACE_MISMATCH");
+        }
+
+        var status = FirstNonEmpty(query["status"].FirstOrDefault(), query["code"].FirstOrDefault());
+        return await ApplyPaymentStatusAsync(reference, status, query["id"].FirstOrDefault(), acknowledgeMissingPayment: false, cancellationToken);
+    }
+
     public async Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default)
     {
         if (!HasPayOsConfig())

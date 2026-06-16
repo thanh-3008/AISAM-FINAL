@@ -38,6 +38,19 @@ public sealed class PaymentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("return-sync")]
+    [Authorize]
+    public async Task<ActionResult<GenericResponse<bool>>> SyncReturn(CancellationToken cancellationToken = default)
+    {
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _paymentService.SyncReturnAsync(
+            membership.WorkspaceId,
+            membership.UserId,
+            Request.Query,
+            cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("webhook")]
     [AllowAnonymous]
     public async Task<ActionResult<GenericResponse<bool>>> HandleWebhook([FromBody] object payload, CancellationToken cancellationToken = default)

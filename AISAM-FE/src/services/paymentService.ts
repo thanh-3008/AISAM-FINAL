@@ -57,3 +57,11 @@ export async function checkPaymentStatus(_orderId: string): Promise<PayOSPayment
   void _orderId;
   return null;
 }
+
+export async function syncPaymentReturn(params: URLSearchParams): Promise<boolean> {
+  const query = params.toString();
+  const res: GenericResponse<boolean> = await apiClient(`/payment/return-sync${query ? `?${query}` : ""}`, {
+    method: "POST",
+  });
+  return Boolean(res.success && res.data !== false);
+}

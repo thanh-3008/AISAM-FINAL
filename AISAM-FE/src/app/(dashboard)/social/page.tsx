@@ -132,8 +132,8 @@ export default function SocialAccountsPage() {
     try {
       const authResponse = await getFacebookAuthUrl();
       window.location.href = authResponse.authUrl;
-    } catch {
-      showToast("Failed to get auth URL", "error");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to get auth URL", "error");
     } finally {
       setActionLoading(null);
     }

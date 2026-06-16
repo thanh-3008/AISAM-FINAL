@@ -3,11 +3,11 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { useWorkspaces, addWorkspaceToCache } from "@/hooks/useWorkspaces";
+import { useWorkspaces, addWorkspaceToCache, invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { createWorkspace, fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment } from "@/services/paymentService";
+import { createPayment, syncPaymentReturn } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { getUserIdFromToken } from "@/lib/auth";
@@ -18,7 +18,7 @@ type PlanCategory = "personal" | "business";
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeWorkspace, selectWorkspace } = useWorkspaces();
+  const { activeWorkspace, selectWorkspace, refetch: refetchWorkspaces } = useWorkspaces();
   const featureGate = useFeatureGate();
   const { showToast } = useToast();
   const reduceMotion = useReducedMotion();
@@ -45,6 +45,43 @@ function PricingContent() {
   useEffect(() => {
     fetchCreditWallet().then(w => setCreditWallet(w));
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    if (searchParams.get("payment") !== "success") return;
+    if (searchParams.get("status") !== "PAID" && searchParams.get("code") !== "00") return;
+
+    let cancelled = false;
+    const sync = async () => {
+      setProcessing(-2);
+      try {
+        await syncPaymentReturn(new URLSearchParams(searchParams.toString()));
+        if (cancelled) return;
+        invalidateWorkspaceCache();
+        await refetchWorkspaces();
+        const wallet = await fetchCreditWallet();
+        if (!cancelled) {
+          setCreditWallet(wallet);
+          showToast({ type: "success", title: "Payment synced", message: "Your subscription has been updated." });
+          router.replace("/pricing", undefined);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showToast({
+            type: "error",
+            title: "Payment sync failed",
+            message: error instanceof Error ? error.message : "Unable to update subscription from PayOS return.",
+          });
+        }
+      } finally {
+        if (!cancelled) setProcessing(null);
+      }
+    };
+
+    sync();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, refetchWorkspaces, router, showToast]);
 
   const currentPlan = featureGate.plan;
   const isCurrentPlan = (planType: PlanType) => currentPlan === planType;
