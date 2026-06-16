@@ -1,25 +1,29 @@
 "use client";
 
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import type { ProfileResponseDto } from "@/features/profile/types/profile";
+export interface ActiveProfile {
+  id: string;
+  name: string;
+  profileType: number;
+}
 
-type ProfileState = {
-  activeProfile: ProfileResponseDto | null;
-  setActiveProfile: (profile: ProfileResponseDto | null) => void;
-  clearActiveProfile: () => void;
-};
+const STORAGE_KEY = "aisam_active_profile";
 
-export const useProfileStore = create<ProfileState>()(
-  persist(
-    (set) => ({
-      activeProfile: null,
-      setActiveProfile: (profile) => set({ activeProfile: profile }),
-      clearActiveProfile: () => set({ activeProfile: null })
-    }),
-    {
-      name: "aisam-active-profile",
-      storage: createJSONStorage(() => localStorage)
-    }
-  )
-);
+export function getStoredActiveProfile(): ActiveProfile | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function storeActiveProfile(profile: ActiveProfile): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+}
+
+export function clearActiveProfile(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(STORAGE_KEY);
+}

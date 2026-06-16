@@ -24,4 +24,8 @@ public sealed class ContentScheduleDto
     public string Status { get; set; } = string.Empty;
     public int AttemptCount { get; set; }
     public string? LastError { get; set; }
+    public string? Title { get; set; }
+    public string? BrandName { get; set; }
+    public string? Type { get; set; }
+    public string? Platform { get; set; }
 }

@@ -1,0 +1,190 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { getUserIdFromToken } from "@/lib/auth";
+import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { apiClient } from "@/lib/apiClient";
+
+export interface WorkspaceData {
+  id: string;
+  userId: string;
+  name: string;
+  workspaceType: number;
+  plan: string;
+  status: number;
+  bio?: string | null;
+  companyName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isOwner: boolean;
+  memberRole: string | null;
+}
+
+const workspaceTypeLabels: Record<number, string> = {
+  1: "Personal",
+  2: "Business",
+};
+
+export function getWorkspaceTypeLabel(type: number): string {
+  return workspaceTypeLabels[type] ?? "Unknown";
+}
+
+let cachedWorkspaces: WorkspaceData[] | null = null;
+let cacheListeners: Array<() => void> = [];
+let fetchingWorkspaces = false;
+let workspaceSelectListeners: Array<() => void> = [];
+
+function notifyWorkspaceSelected() {
+  workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
+}
+
+function getPlanName(profileType: number): string {
+  if (profileType === 0) return "Free";
+  if (profileType === 2) return "Business Plus";
+  return "Personal Pro";
+}
+
+function notifyCache() {
+  cacheListeners = cacheListeners.filter((fn) => {
+    try { fn(); } catch { /* skip */ }
+    return true;
+  });
+}
+
+export function invalidateWorkspaceCache() {
+  cachedWorkspaces = null;
+  notifyCache();
+}
+
+export function addWorkspaceToCache(workspace: WorkspaceData) {
+  if (cachedWorkspaces) {
+    const exists = cachedWorkspaces.some((p) => p.id === workspace.id);
+    if (!exists) cachedWorkspaces = [...cachedWorkspaces, workspace];
+  } else {
+    cachedWorkspaces = [workspace];
+  }
+}
+
+export function useWorkspaces() {
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    const handler = () => forceRender((n) => n + 1);
+    workspaceSelectListeners.push(handler);
+    return () => {
+      workspaceSelectListeners = workspaceSelectListeners.filter((fn) => fn !== handler);
+    };
+  }, []);
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceData[]>(() => {
+    if (!cachedWorkspaces) return [];
+    const userId = getUserIdFromToken();
+    if (userId && cachedWorkspaces.some((p) => p.userId === userId)) return cachedWorkspaces;
+    cachedWorkspaces = null;
+    return [];
+  });
+  const [loading, setLoading] = useState(!cachedWorkspaces);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchWorkspaces = useCallback(async () => {
+    const userId = getUserIdFromToken();
+
+    if (cachedWorkspaces) {
+      const belongsToUser = userId && cachedWorkspaces.some((p) => p.userId === userId);
+      if (belongsToUser) {
+        setWorkspaces(cachedWorkspaces);
+        setLoading(false);
+        return;
+      }
+      cachedWorkspaces = null;
+    }
+
+    if (!userId) {
+      setLoading(false);
+      setWorkspaces([]);
+      return;
+    }
+
+    if (fetchingWorkspaces) return;
+    fetchingWorkspaces = true;
+
+    const fetchFromProfiles = async () => {
+      try {
+        const res: any = await apiClient(`/profiles/user/${userId}`);
+        if (res?.success && Array.isArray(res.data)) {
+          const mapped: WorkspaceData[] = res.data.map((p: any) => ({
+            id: p.id,
+            userId: p.userId,
+            name: p.name,
+            workspaceType: p.profileType ?? 1,
+            plan: getPlanName(p.profileType ?? 0),
+            status: p.status,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+            isOwner: p.isOwner ?? true,
+            memberRole: p.memberRole ?? "Owner",
+          }));
+          cachedWorkspaces = mapped;
+          setWorkspaces(mapped);
+        }
+      } catch { /* ignore */ }
+    };
+
+    let mapped: WorkspaceData[] = [];
+    try {
+      const res: any = await apiClient("/workspaces");
+      if (res?.success && res.data && Array.isArray(res.data)) {
+        mapped = res.data.map((w: any) => ({
+          id: w.id, userId, name: w.name,
+          workspaceType: w.workspaceType ?? 1,
+          plan: w.workspaceType === 2 ? "Business" : "Personal",
+          status: w.status ?? 1, createdAt: w.createdAt, updatedAt: w.updatedAt,
+          isOwner: w.currentUserRole === 0,
+          memberRole: w.currentUserRole !== undefined ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
+        }));
+      }
+    } catch { /* /workspaces fail */ }
+
+    cachedWorkspaces = mapped;
+    setWorkspaces(mapped);
+    setLoading(false);
+    fetchingWorkspaces = false;
+  }, []);
+
+  useEffect(() => {
+    const isMounted = { current: true };
+    fetchWorkspaces();
+    const listener = () => {
+      if (isMounted.current) fetchWorkspaces();
+    };
+    cacheListeners.push(listener);
+    return () => {
+      isMounted.current = false;
+      cacheListeners = cacheListeners.filter((fn) => fn !== listener);
+    };
+  }, [fetchWorkspaces]);
+
+  const stored = getStoredActiveWorkspace();
+  const storedMatch = stored ? workspaces.find((p) => p.id === stored.id) : null;
+  const fallbackMatch = workspaces.find((p) => p.status === 1) || workspaces[0] || null;
+  const activeWorkspace = storedMatch || fallbackMatch;
+
+  const selectWorkspace = useCallback((workspace: WorkspaceData) => {
+    storeActiveWorkspace({
+      id: workspace.id,
+      name: workspace.name,
+      workspaceType: workspace.workspaceType,
+    });
+    setWorkspaces((prev) => {
+      if (prev.some((p) => p.id === workspace.id)) return prev;
+      return [...prev, workspace];
+    });
+    notifyWorkspaceSelected();
+  }, []);
+
+  const clearSelectedWorkspace = useCallback(() => {
+    clearActiveWorkspace();
+  }, []);
+
+  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, refetch: fetchWorkspaces };
+}
