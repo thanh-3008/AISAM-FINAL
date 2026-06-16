@@ -36,10 +36,9 @@ async function buildHeaders(customHeaders?: Record<string, string>) {
 
 const ERROR_MAP: Record<string, string> = {
   "Missing or invalid X-Workspace-Id header.": "Chưa chọn Workspace. Vào Overview để chọn workspace.",
-  "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile. Vào Overview để chọn workspace.",
+  "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile cho tính năng này.",
   "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
-  "Workspace not found.": "Workspace không tồn tại.",
-  "Profile not found.": "Profile không tồn tại. Đang chuyển hướng...",
+  "Profile does not belong to active workspace.": "Profile không thuộc workspace đang chọn.",
 };
 
 async function handleResponse(response: Response) {
@@ -54,7 +53,6 @@ async function handleResponse(response: Response) {
     }
     if (response.status === 404 && errorMessage === "Profile not found.") {
       clearActiveProfile();
-      clearActiveWorkspace();
     }
     throw new Error(ERROR_MAP[errorMessage] || errorMessage);
   }
