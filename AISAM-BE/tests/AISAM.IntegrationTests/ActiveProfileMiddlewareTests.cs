@@ -70,6 +70,24 @@ public class ActiveProfileMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ReturnsForbidden_WhenProfileDoesNotBelongToActiveWorkspace()
+    {
+        var userId = Guid.NewGuid();
+        var profile = CreateProfile(userId);
+        var activeWorkspaceId = Guid.NewGuid(); // Different from profile.Id
+        
+        var context = CreateContext(userId);
+        context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = activeWorkspaceId;
+        
+        var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task InvokeAsync_SkipsDevSchedulerPrefix_WhenEnvironmentIsNotDevelopment()
     {
         var nextCalled = false;
