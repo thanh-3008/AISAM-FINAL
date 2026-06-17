@@ -108,6 +108,11 @@ namespace AISAM.Services.Service
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(_googleSettings.ClientId))
+                {
+                    throw new UnauthorizedAccessException("Google login is not configured");
+                }
+
                 var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, new GoogleJsonWebSignature.ValidationSettings
                 {
                     Audience = new[] { _googleSettings.ClientId }
@@ -116,6 +121,11 @@ namespace AISAM.Services.Service
                 if (payload == null)
                 {
                     throw new UnauthorizedAccessException("Invalid Google token");
+                }
+
+                if (payload.EmailVerified != true)
+                {
+                    throw new UnauthorizedAccessException("Google email is not verified");
                 }
 
                 var user = await _userRepository.GetByEmailAsync(payload.Email);
@@ -157,9 +167,9 @@ namespace AISAM.Services.Service
             {
                 throw new UnauthorizedAccessException("Invalid Google token: " + ex.Message);
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
             {
-                throw new Exception("Error during Google login: " + ex.Message);
+                throw new UnauthorizedAccessException("Invalid Google token: " + ex.Message);
             }
         }
 
