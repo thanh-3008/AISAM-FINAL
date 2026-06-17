@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { storeActiveProfile } from "@/stores/profile-store";
+import { storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
 import { apiClient, apiFetch } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
 

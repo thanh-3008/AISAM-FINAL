@@ -111,15 +111,16 @@ export function useWorkspaces() {
 
     let mapped: WorkspaceData[] = [];
     try {
-      const res: any = await apiClient("/workspaces");
+      const res = await apiClient("/workspaces") as { success: boolean; data?: Record<string, unknown>[] };
       if (res?.success && res.data && Array.isArray(res.data)) {
-        mapped = res.data.map((w: any) => ({
-          id: w.id, userId, name: w.name,
-          workspaceType: w.workspaceType ?? 1,
+        mapped = res.data.map((w) => ({
+          id: String(w.id), userId, name: String(w.name),
+          workspaceType: typeof w.workspaceType === "number" ? w.workspaceType : 1,
           plan: w.workspaceType === 2 ? "Business" : "Personal",
-          status: w.status ?? 1, createdAt: w.createdAt, updatedAt: w.updatedAt,
+          status: typeof w.status === "number" ? w.status : 1,
+          createdAt: String(w.createdAt), updatedAt: String(w.updatedAt),
           isOwner: w.currentUserRole === 0,
-          memberRole: w.currentUserRole !== undefined ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
+          memberRole: typeof w.currentUserRole === "number" ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
         }));
       }
     } catch { /* /workspaces fail */ }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
@@ -72,7 +73,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const router = useRouter();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifs, setRecentNotifs] = useState<NotificationListItem[]>([]);
@@ -84,19 +85,8 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("darkMode") === "true";
-    setDarkMode(stored);
     setUser(getUserFromToken());
   }, []);
-
-  useEffect(() => {
-    if (darkMode === false) {
-      document.documentElement.classList.remove("dark");
-    } else {
-      document.documentElement.classList.add("dark");
-    }
-    localStorage.setItem("darkMode", String(darkMode));
-  }, [darkMode]);
 
   // Fetch unread count
   useEffect(() => {
@@ -324,11 +314,11 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     Workspace Settings
                   </Link>
                   <button
-                    onClick={() => setDarkMode(!darkMode)}
+                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
                   >
-                    <span className="material-symbols-outlined text-[18px] text-outline/60" style={{ fontVariationSettings: "'FILL' 1" }}>{darkMode ? "light_mode" : "dark_mode"}</span>
-                    {darkMode ? "Light Mode" : "Dark Mode"}
+                    <span className="material-symbols-outlined text-[18px] text-outline/60" style={{ fontVariationSettings: "'FILL' 1" }}>{theme === 'dark' ? "light_mode" : "dark_mode"}</span>
+                    {theme === 'dark' ? "Light Mode" : "Dark Mode"}
                   </button>
                 </div>
                 <div className="border-t border-outline-variant/10 mt-1 pt-1">

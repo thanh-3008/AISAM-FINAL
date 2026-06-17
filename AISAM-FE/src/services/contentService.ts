@@ -47,6 +47,7 @@ export interface ContentApiItem {
 export interface ContentItem {
   id: string;
   title: string;
+  brandId: string;
   brandName: string;
   productName: string;
   type: ContentType;
@@ -61,6 +62,7 @@ export interface ContentItem {
 export interface ContentDetail {
   id: string;
   title: string;
+  brandId: string;
   brandName: string;
   productName: string;
   type: ContentType;
@@ -128,6 +130,7 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
   return {
     id: api.id,
     title: api.title || "",
+    brandId: api.brandId,
     brandName: api.brandName || "",
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
@@ -144,6 +147,7 @@ function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
   return {
     id: api.id,
     title: api.title || "",
+    brandId: api.brandId,
     brandName: api.brandName || "",
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",

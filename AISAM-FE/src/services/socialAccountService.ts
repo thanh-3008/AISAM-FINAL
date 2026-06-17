@@ -38,6 +38,7 @@ export interface SocialIntegration {
   accountName: string;
   targetName: string;
   isActive: boolean;
+  brandId: string;
 }
 
 export interface AvailableTarget {
@@ -238,6 +239,7 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
           accountName: dto.name,
           targetName: dto.name,
           isActive: dto.isActive,
+          brandId: brandId,
         }));
       }
     }

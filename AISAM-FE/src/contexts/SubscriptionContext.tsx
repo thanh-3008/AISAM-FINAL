@@ -59,8 +59,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     checkSubscription();
   }, [checkSubscription]);
 
+  const [now] = useState(() => Date.now());
   const daysUntilExpiry = subscriptionEndDate
-    ? Math.max(0, Math.floor((new Date(subscriptionEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    ? Math.max(0, Math.floor((new Date(subscriptionEndDate).getTime() - now) / (1000 * 60 * 60 * 24)))
     : 0;
 
   const isLimited = status === "limited";
