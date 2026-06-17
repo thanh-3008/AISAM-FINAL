@@ -5,7 +5,6 @@ import { getStoredActiveProfile, clearActiveProfile } from "@/stores/profile-sto
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
 type ApiOptions = RequestInit & {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any;
 };
 
@@ -59,7 +58,7 @@ async function handleResponse(response: Response) {
   return result;
 }
 
-async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<any> {
+async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<unknown> {
   const newToken = await refreshAccessToken();
   if (!newToken) {
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");

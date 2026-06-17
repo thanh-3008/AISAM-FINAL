@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 
 function useScrollProgress() {
@@ -156,7 +157,7 @@ function TiltCard({ children, className = "" }: { children: ReactNode; className
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, setTheme } = useTheme();
   const progress = useScrollProgress();
 
   useEffect(() => {
@@ -165,22 +166,7 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("darkMode");
-    if (saved === "true") {
-      setDarkMode(true);
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
 
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    localStorage.setItem("darkMode", String(darkMode));
-  }, [darkMode]);
 
   useEffect(() => {
     document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
@@ -276,9 +262,9 @@ export default function LandingPage() {
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            <button onClick={() => setDarkMode(!darkMode)} className="relative w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-all hover:scale-110 active:scale-95 group" aria-label="Toggle dark mode">
-              <span className={`material-symbols-outlined text-[16px] transition-all duration-300 ${darkMode ? "text-warning-amber" : "text-on-surface"}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                {darkMode ? "dark_mode" : "light_mode"}
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="relative w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-all hover:scale-110 active:scale-95 group" aria-label="Toggle dark mode">
+              <span className={`material-symbols-outlined text-[16px] transition-all duration-300 ${theme === 'dark' ? "text-warning-amber" : "text-on-surface"}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                {theme === 'dark' ? "dark_mode" : "light_mode"}
               </span>
             </button>
             <Link href="/login" className="text-body-sm text-outline hover:text-on-surface font-semibold transition-colors">Log In</Link>
@@ -300,9 +286,9 @@ export default function LandingPage() {
                 <Link key={href} href={href} className="block text-body-lg text-on-surface font-semibold py-2">{label}</Link>
               ))}
               <div className="pt-4 border-t border-outline-variant/20 flex flex-col gap-3">
-                <button onClick={() => setDarkMode(!darkMode)} className="flex items-center gap-3 py-3 text-body-md text-on-surface font-semibold">
-                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{darkMode ? "light_mode" : "dark_mode"}</span>
-                  {darkMode ? "Light Mode" : "Dark Mode"}
+                <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="flex items-center gap-3 py-3 text-body-md text-on-surface font-semibold">
+                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{theme === 'dark' ? "light_mode" : "dark_mode"}</span>
+                  {theme === 'dark' ? "Light Mode" : "Dark Mode"}
                 </button>
                 <Link href="/login" className="text-center py-3 text-body-lg text-on-surface font-semibold">Log In</Link>
                 <Link href="/register" className="text-center py-3 bg-primary text-on-primary rounded-xl text-body-lg font-bold">Start Free Trial</Link>

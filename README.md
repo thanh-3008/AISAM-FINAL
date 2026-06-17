@@ -534,5 +534,10 @@ Trong dai han, AISAM co the phat trien thanh enterprise marketing automation pla
 - **Sidebar Team Management gate:** Ẩn Team Management cho non-Business plans qua `useFeatureGate`.
 - **Credit Pack max balance:** Kiểm tra `balance + pack.credits > maxBalance` → error toast.
 - **Invite Member limit:** Warning banner + disabled button khi đạt member limit (BusinessPlus=10, BusinessPro=50).
-- **SubscriptionContext (Limited Mode):** Tạo Limited Mode / Archived Banner system-wide qua `SubscriptionProvider`.
 - **Styling & Responsive:** `overflow-x-hidden` trên body, `min-w-0 max-w-full` trên dashboard content; fix header workspace selector redundancy.
+
+## 13. FINAL NORMALIZED RULES
+
+- Workspace is the primary dashboard context
+- Profile is secondary and feature-specific
+- No runtime fallback may copy workspace ID into profile ID or profile ID into workspace ID

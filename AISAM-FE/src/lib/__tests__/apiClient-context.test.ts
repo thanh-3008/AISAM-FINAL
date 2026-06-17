@@ -8,7 +8,7 @@ describe("apiClient context headers", () => {
       ok: true,
       status: 200,
       json: async () => ({ success: true }),
-    })) as any;
+    })) as unknown as typeof fetch;
   });
 
   it("always sends workspace header from workspace storage", async () => {

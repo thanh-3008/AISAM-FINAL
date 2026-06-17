@@ -86,7 +86,7 @@ export function useProfiles() {
     fetchingProfiles = true;
 
     try {
-      const res: any = await apiClient(`/profiles/user/${userId}`);
+      const res = await apiClient(`/profiles/user/${userId}`) as { success: boolean; data?: Profile[]; message?: string };
       if (res?.success && Array.isArray(res.data)) {
         cachedProfiles = res.data;
         setProfiles(res.data);
@@ -148,7 +148,7 @@ export function useProfiles() {
         profileType: activeProfileType,
       });
     }
-  }, [storedId, storedName, storedProfileType, storedMatch, activeProfileId, activeProfileName, activeProfileType]);
+  }, [storedId, storedName, storedProfileType, storedMatch, activeProfileId, activeProfileName, activeProfileType, profiles.length]);
 
   const selectProfile = useCallback((profile: Profile) => {
     storeActiveProfile({
