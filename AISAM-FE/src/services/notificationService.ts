@@ -107,8 +107,7 @@ export async function markAllNotificationsRead(): Promise<boolean> {
 export async function getUnreadCount(): Promise<number> {
   try {
     const res: GenericResponse<UnreadCount> = await apiClient("/notifications/unread-count");
-    if (res?.data && res.data.count >= 0) return res.data.count;
-    return 0;
+    return res?.data?.count ?? 0;
   } catch {
     return 0;
   }

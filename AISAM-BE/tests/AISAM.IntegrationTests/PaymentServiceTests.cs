@@ -830,6 +830,8 @@ public class PaymentServiceTests
         }
 
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_profiles.Values.Where(profile => profile.UserId == userId).OrderBy(profile => profile.CreatedAt).FirstOrDefault());
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.Values.Where(profile => profile.UserId == userId).AsEnumerable());
         public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
         public Task<IEnumerable<Profile>> SearchUserProfilesAsync(Guid userId, string? searchTerm = null, bool? isDeleted = null, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);

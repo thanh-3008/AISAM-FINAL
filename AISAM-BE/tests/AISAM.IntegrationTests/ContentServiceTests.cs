@@ -276,6 +276,9 @@ public class ContentServiceTests
         public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
             => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
 
+        public Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
         public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
             => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }

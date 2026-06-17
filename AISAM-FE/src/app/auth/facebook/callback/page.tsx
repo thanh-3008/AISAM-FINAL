@@ -29,7 +29,7 @@ export default function FacebookCallbackPage() {
           const targets = await getAvailableTargets(account.id);
           const targetIds = targets.map((t) => t.providerTargetId);
           if (targetIds.length > 0) {
-            await linkTargets(account.id, targetIds, brandId);
+            await linkTargets(account.id, targetIds, brandId, account.profileId);
           }
         }
 

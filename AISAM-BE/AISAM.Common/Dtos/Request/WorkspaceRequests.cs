@@ -18,4 +18,13 @@ public sealed class UpdateWorkspaceRequest
     [Required]
     [MaxLength(255)]
     public string Name { get; set; } = string.Empty;
+
+    [MaxLength(255)]
+    public string? CompanyName { get; set; }
+
+    [MaxLength(1000)]
+    public string? Bio { get; set; }
+
+    [MaxLength(2048)]
+    public string? AvatarUrl { get; set; }
 }

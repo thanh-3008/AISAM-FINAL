@@ -62,19 +62,6 @@ interface BEWorkspaceMemberDto {
   joinedAt: string;
 }
 
-interface BEWorkspaceInvitationDto {
-  id: string;
-  workspaceId: string;
-  workspaceName: string;
-  email: string;
-  role: number;
-  quotaMode: number;
-  creditLimit: number | null;
-  invitedByUserId: string;
-  expiresAt: string;
-  createdAt: string;
-}
-
 // Role mapping: BE enum values match FE string values
 const ROLE_MAP: Record<number, MemberRole> = {
   1: "Owner",
@@ -104,7 +91,7 @@ function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
 // Default team representing the whole workspace
 const DEFAULT_TEAM: Team = {
   id: "workspace-team",
-  name: "Workspace Team",
+  name: "Workspace Members",
   description: "All workspace members",
   brandCount: 0,
   memberIds: [],
@@ -134,7 +121,9 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
   return { data: [], total: 0 };
 }
 
+/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function createTeam(data: CreateTeamData): Promise<Team> {
+  console.warn("[DEPRECATED] createTeam is local-only and is not persisted to BE.");
   const team: Team = {
     id: `team_${Date.now()}`,
     name: data.name,
@@ -148,7 +137,9 @@ export async function createTeam(data: CreateTeamData): Promise<Team> {
   return team;
 }
 
+/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
+  console.warn("[DEPRECATED] updateTeam is local-only and is not persisted to BE.");
   if (id === DEFAULT_TEAM.id) {
     return {
       ...DEFAULT_TEAM,
@@ -159,11 +150,15 @@ export async function updateTeam(id: string, data: Partial<CreateTeamData>): Pro
   return null;
 }
 
+/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function deleteTeam(id: string): Promise<boolean> {
+  console.warn("[DEPRECATED] deleteTeam is local-only and is not persisted to BE.");
   return id !== DEFAULT_TEAM.id;
 }
 
+/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function getTeamById(id: string): Promise<Team | null> {
+  console.warn("[DEPRECATED] getTeamById is local-only and is not persisted to BE.");
   return id === DEFAULT_TEAM.id ? DEFAULT_TEAM : null;
 }
 

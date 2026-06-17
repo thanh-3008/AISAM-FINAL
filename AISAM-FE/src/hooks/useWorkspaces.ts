@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { apiClient } from "@/lib/apiClient";
+import { fetchWorkspaces as fetchWorkspaceList } from "@/services/workspaceService";
 
 export interface WorkspaceData {
   id: string;
@@ -36,12 +36,6 @@ let workspaceSelectListeners: Array<() => void> = [];
 
 function notifyWorkspaceSelected() {
   workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
-}
-
-function getPlanName(profileType: number): string {
-  if (profileType === 0) return "Free";
-  if (profileType === 2) return "Business Plus";
-  return "Personal Pro";
 }
 
 function notifyCache() {
@@ -108,37 +102,17 @@ export function useWorkspaces() {
     if (fetchingWorkspaces) return;
     fetchingWorkspaces = true;
 
-    const fetchFromProfiles = async () => {
-      try {
-        const res: any = await apiClient(`/profiles/user/${userId}`);
-        if (res?.success && Array.isArray(res.data)) {
-          const mapped: WorkspaceData[] = res.data.map((p: any) => ({
-            id: p.id,
-            userId: p.userId,
-            name: p.name,
-            workspaceType: p.profileType ?? 1,
-            plan: getPlanName(p.profileType ?? 0),
-            status: p.status,
-            createdAt: p.createdAt,
-            updatedAt: p.updatedAt,
-            isOwner: p.isOwner ?? true,
-            memberRole: p.memberRole ?? "Owner",
-          }));
-          cachedWorkspaces = mapped;
-          setWorkspaces(mapped);
-        }
-      } catch { /* ignore */ }
-    };
-
     let mapped: WorkspaceData[] = [];
     try {
-      const res: any = await apiClient("/workspaces");
-      if (res?.success && res.data && Array.isArray(res.data)) {
-        mapped = res.data.map((w: any) => ({
+      const workspaces = await fetchWorkspaceList();
+      if (Array.isArray(workspaces)) {
+        mapped = workspaces.map((w) => ({
           id: w.id, userId, name: w.name,
           workspaceType: w.workspaceType ?? 1,
           plan: w.workspaceType === 2 ? "Business" : "Personal",
-          status: w.status ?? 1, createdAt: w.createdAt, updatedAt: w.updatedAt,
+          status: w.status ?? 1,
+          createdAt: w.createdAt || new Date().toISOString(),
+          updatedAt: w.updatedAt || new Date().toISOString(),
           isOwner: w.currentUserRole === 0,
           memberRole: w.currentUserRole !== undefined ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
         }));

@@ -133,6 +133,25 @@ public sealed class QuotaService : IQuotaService
         return GenericResponse<bool>.CreateSuccess(true);
     }
 
+    public async Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var summary = await GetWorkspaceSummaryAsync(workspaceId, cancellationToken);
+        if (!summary.Success)
+        {
+            return GenericResponse<bool>.CreateError(summary.Message ?? "Unable to resolve workspace prompt quota.", (HttpStatusCode)summary.StatusCode, summary.Error?.ErrorCode);
+        }
+
+        if (summary.Data!.PromptRemaining <= 0)
+        {
+            return GenericResponse<bool>.CreateError(
+                "Prompt quota has been exceeded for the current subscription.",
+                HttpStatusCode.Forbidden,
+                "PROMPT_QUOTA_EXCEEDED");
+        }
+
+        return GenericResponse<bool>.CreateSuccess(true);
+    }
+
     public async Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
         var summary = await GetWorkspaceSummaryAsync(workspaceId, cancellationToken);

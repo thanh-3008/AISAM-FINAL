@@ -14,6 +14,10 @@ public interface IContentService
     Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, UpdateContentRequest request, CancellationToken cancellationToken = default);
     Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<ContentResponseDto>> ApproveInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+        => Task.FromResult(GenericResponse<ContentResponseDto>.CreateError("Content approval is not supported."));
+    Task<GenericResponse<ContentResponseDto>> RejectInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+        => Task.FromResult(GenericResponse<ContentResponseDto>.CreateError("Content rejection is not supported."));
     Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default);

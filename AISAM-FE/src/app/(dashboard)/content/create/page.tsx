@@ -8,7 +8,6 @@ import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, ALL_TAGS, getBrandColor
 import { createContent, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
-import { getStoredActiveProfile, storeActiveProfile } from "@/stores/profile-store";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -138,16 +137,11 @@ export default function CreateContentPage() {
     setSaving(true);
     setSaveError(null);
 
-    let storedWs = getStoredActiveWorkspace();
-    let storedProfile = getStoredActiveProfile();
+    const storedWs = getStoredActiveWorkspace();
     if (!storedWs) {
       setSaving(false);
       setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
       return;
-    }
-    if (!storedProfile) {
-      storeActiveProfile({ id: storedWs.id, name: storedWs.name, profileType: storedWs.workspaceType });
-      storedProfile = getStoredActiveProfile();
     }
 
     const payload: CreateContentPayload = {
@@ -172,7 +166,7 @@ export default function CreateContentPage() {
       }
     } catch (e: any) {
       const msg = e?.message || "";
-      if (msg.includes("Profile not found")) {
+      if (msg.includes("Workspace not found")) {
         setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {

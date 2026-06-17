@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { apiFetch } from "@/lib/apiClient";
+import { createProduct, updateProduct } from "@/services/productService";
 
 export interface Product {
   id: string;
@@ -57,10 +57,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
 
   const buildApiBody = () => {
     const fd = new FormData();
-    fd.append("name", form.name.trim());
-    fd.append("brandId", brandId);
-    fd.append("description", form.description.trim());
-    fd.append("price", form.price);
+    fd.append("Name", form.name.trim());
+    fd.append("BrandId", brandId);
+    fd.append("Description", form.description.trim());
+    fd.append("Price", form.price);
     files.forEach((file) => fd.append("ImageFiles", file));
     return fd;
   };
@@ -73,16 +73,19 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     setLoading(true);
     setError(null);
 
-    const endpoint = mode === "edit" && product ? `/products/${product.id}` : "/products";
-    const method = mode === "edit" ? "PUT" : "POST";
-
     try {
-      const result = await apiFetch(endpoint, { method, body: buildApiBody() });
-      if (result?.success && result.data) {
-        onSuccess(result.data);
+      const result = mode === "edit" && product
+        ? await updateProduct(product.id, buildApiBody())
+        : await createProduct(buildApiBody());
+      if (result) {
+        onSuccess(result as Product);
         handleClose();
+      } else {
+        setError("Failed to save product");
       }
-    } catch { /* ignore */ } finally {
+    } catch (err: any) {
+      setError(err?.message || "Failed to save product");
+    } finally {
       setLoading(false);
     }
   };

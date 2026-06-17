@@ -8,9 +8,9 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
 import { createPayment, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
+import { createWorkspace } from "@/services/workspaceService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
-import { apiFetch } from "@/lib/apiClient";
 import { getUserIdFromToken } from "@/lib/auth";
 
 type TabType = "subscription" | "credits";
@@ -63,26 +63,21 @@ function PricingContent() {
     if (!userId) return false;
 
     try {
-      const formBody = new FormData();
-      formBody.append("name", wsName.trim());
-      formBody.append("profileType", "2");
-      if (wsCompany.trim()) formBody.append("companyName", wsCompany.trim());
-
-      const result = await apiFetch(`/profiles/user/${userId}`, {
-        method: "POST",
-        body: formBody,
+      const workspace = await createWorkspace({
+        name: wsName.trim(),
+        workspaceType: 2,
       });
 
-      const wsData = result?.success && result.data
+      const wsData = workspace
         ? {
-            id: result.data.id,
-            userId: result.data.userId,
-            name: result.data.name,
-            workspaceType: 2,
+            id: workspace.id,
+            userId,
+            name: workspace.name,
+            workspaceType: workspace.workspaceType ?? 2,
             plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: result.data.status,
-            createdAt: result.data.createdAt,
-            updatedAt: result.data.updatedAt,
+            status: workspace.status ?? 1,
+            createdAt: workspace.createdAt || new Date().toISOString(),
+            updatedAt: workspace.updatedAt || new Date().toISOString(),
             isOwner: true,
             memberRole: "Owner",
           }

@@ -3,14 +3,11 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import {
   fetchTeams,
   fetchMembers,
-  createTeam,
-  updateTeam,
-  deleteTeam,
   inviteMember,
   updateMemberRole,
   removeMember,
@@ -18,7 +15,6 @@ import {
   type TeamMember,
   type MemberRole,
   type MemberStatus,
-  type CreateTeamData,
   type InviteMemberData,
 } from "@/services/teamService";
 import TeamStatsCards from "@/components/team/TeamStatsCards";
@@ -27,14 +23,10 @@ import TeamListView from "@/components/team/TeamListView";
 import TeamFilterBar, { type SortOption } from "@/components/team/TeamFilterBar";
 import TeamEmptyState from "@/components/team/TeamEmptyState";
 import TeamDetailModal from "@/components/team/TeamDetailModal";
-import CreateTeamModal from "@/components/team/CreateTeamModal";
-import EditTeamModal from "@/components/team/EditTeamModal";
 import EditMemberModal from "@/components/team/EditMemberModal";
 import MemberDetailModal from "@/components/team/MemberDetailModal";
 import DeleteMemberConfirmModal from "@/components/team/DeleteMemberConfirmModal";
 import InviteMemberModal from "@/components/team/InviteMemberModal";
-import DeleteConfirmModal from "@/components/team/DeleteConfirmModal";
-import BulkActionsBar from "@/components/team/BulkActionsBar";
 import RoleDonutChart from "@/components/team/RoleDonutChart";
 import MemberCard from "@/components/team/MemberCard";
 import { calcTimeAgo } from "@/components/team/teamUtils";
@@ -58,13 +50,10 @@ export default function TeamPage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [detailTeam, setDetailTeam] = useState<Team | null>(null);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
-  const [deletingTeams, setDeletingTeams] = useState<Team[]>([]);
   const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -109,36 +98,6 @@ export default function TeamPage() {
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
-  };
-
-  const handleCreate = async (data: CreateTeamData) => {
-    setActionLoading("create");
-    try {
-      const newTeam = await createTeam(data);
-      setTeams((prev) => [newTeam, ...prev]);
-      setShowCreateModal(false);
-      showToast(`Team "${newTeam.name}" created successfully`);
-    } catch {
-      showToast("Failed to create team", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleEdit = async (id: string, data: CreateTeamData) => {
-    setActionLoading("edit");
-    try {
-      const updated = await updateTeam(id, data);
-      if (updated) {
-        setTeams((prev) => prev.map((t) => (t.id === id ? updated : t)));
-        setEditingTeam(null);
-        showToast(`Team "${updated.name}" updated successfully`);
-      }
-    } catch {
-      showToast("Failed to update team", "error");
-    } finally {
-      setActionLoading(null);
-    }
   };
 
   const handleEditMember = async (id: string, role: MemberRole) => {
@@ -192,41 +151,10 @@ export default function TeamPage() {
     }
   };
 
-  const handleDelete = (team: Team) => {
-    setDeletingTeams([team]);
-  };
-
-  const handleBulkDelete = () => {
-    const selected = teams.filter((t) => selectedIds.includes(t.id));
-    setDeletingTeams(selected);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (deletingTeams.length === 0) return;
-    setActionLoading("delete");
-    try {
-      for (const team of deletingTeams) {
-        await deleteTeam(team.id);
-      }
-      setTeams((prev) => prev.filter((t) => !deletingTeams.some((d) => d.id === t.id)));
-      setSelectedIds((prev) => prev.filter((id) => !deletingTeams.some((d) => d.id === id)));
-      setDeletingTeams([]);
-      showToast(`${deletingTeams.length} team(s) deleted`);
-    } catch {
-      showToast("Failed to delete team(s)", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const handleSelect = (id: string, selected: boolean) => {
     setSelectedIds((prev) =>
       selected ? [...prev, id] : prev.filter((x) => x !== id)
     );
-  };
-
-  const handleClearSelection = () => {
-    setSelectedIds([]);
   };
 
   const filteredMembers = useMemo(() => {
@@ -318,8 +246,9 @@ export default function TeamPage() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all flex items-center gap-2"
+                disabled
+                title="Team CRUD is being migrated to Workspace Members"
+                className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline/50 bg-surface-container-low cursor-not-allowed flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-[16px]">add_circle</span>
                 Create Team
@@ -339,6 +268,9 @@ export default function TeamPage() {
 
           {/* Teams Section */}
           <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <div className="mb-4 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-label-sm text-on-surface-variant">
+              Team object management is being migrated to Workspace Members. Create, edit, and delete team actions are disabled for now.
+            </div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-headline-sm text-on-surface font-semibold">Teams</h2>
               <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
@@ -387,8 +319,8 @@ export default function TeamPage() {
                     isLoading={actionLoading === team.id}
                     onSelect={handleSelect}
                     onViewDetail={setDetailTeam}
-                    onEdit={setEditingTeam}
-                    onDelete={handleDelete}
+                    onEdit={() => showToast("Team editing is being migrated to Workspace Members", "error")}
+                    onDelete={() => showToast("Team deletion is being migrated to Workspace Members", "error")}
                   />
                 ))}
               </div>
@@ -399,19 +331,11 @@ export default function TeamPage() {
                 actionLoading={actionLoading}
                 onSelect={handleSelect}
                 onViewDetail={setDetailTeam}
-                onEdit={setEditingTeam}
-                onDelete={handleDelete}
+                onEdit={() => showToast("Team editing is being migrated to Workspace Members", "error")}
+                onDelete={() => showToast("Team deletion is being migrated to Workspace Members", "error")}
               />
             )}
           </section>
-
-          {/* Bulk Actions */}
-          <BulkActionsBar
-            selectedCount={selectedIds.length}
-            onClearSelection={handleClearSelection}
-            onBulkDelete={handleBulkDelete}
-            isLoading={actionLoading === "delete"}
-          />
 
           {/* Members Section */}
           <section className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
@@ -462,7 +386,7 @@ export default function TeamPage() {
             ) : filteredMembers.length === 0 && teams.length === 0 ? (
               <TeamEmptyState
                 hasFilters={hasFilters}
-                onCreate={() => setShowCreateModal(true)}
+                onCreate={() => showToast("Team creation is being migrated to Workspace Members", "error")}
                 onInvite={() => setShowInviteModal(true)}
               />
             ) : (
@@ -587,20 +511,6 @@ export default function TeamPage() {
           onDelete={handleDeleteMember}
         />
 
-        <CreateTeamModal
-          open={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreate}
-          isLoading={actionLoading === "create"}
-        />
-
-        <EditTeamModal
-          team={editingTeam}
-          onClose={() => setEditingTeam(null)}
-          onUpdate={handleEdit}
-          isLoading={actionLoading === "edit"}
-        />
-
         <EditMemberModal
           member={editingMember}
           onClose={() => setEditingMember(null)}
@@ -629,13 +539,6 @@ export default function TeamPage() {
           team={detailTeam}
           members={members}
           onClose={() => setDetailTeam(null)}
-        />
-
-        <DeleteConfirmModal
-          teams={deletingTeams}
-          isLoading={actionLoading === "delete"}
-          onConfirm={handleConfirmDelete}
-          onCancel={() => setDeletingTeams([])}
         />
 
         {/* Toast */}

@@ -88,7 +88,7 @@ interface BEWorkspaceDashboardSummaryDto {
   topMembers: { userId: string; name: string; email: string; creditsUsed: number; aiUsageCount: number }[];
 }
 
-function generateDailyChartData(days: number): ChartDataPoint[] {
+function generateEmptyDailyChartData(days: number): ChartDataPoint[] {
   const data: ChartDataPoint[] = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
@@ -96,9 +96,9 @@ function generateDailyChartData(days: number): ChartDataPoint[] {
     date.setDate(date.getDate() - i);
     data.push({
       date: date.toISOString().split("T")[0],
-      spend: Math.round(Math.random() * 500 + 200),
-      conversions: Math.round(Math.random() * 30 + 10),
-      cpc: Math.round((Math.random() * 0.8 + 0.8) * 100) / 100,
+      spend: 0,
+      conversions: 0,
+      cpc: 0,
     });
   }
   return data;
@@ -132,7 +132,7 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
       roas: 0,
       roasTrend: 0,
     },
-    chartData: generateDailyChartData(30),
+    chartData: generateEmptyDailyChartData(30),
     campaignPerformance: [],
     aiInsights: dashboard
       ? [

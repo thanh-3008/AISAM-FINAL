@@ -313,7 +313,8 @@ public class AIServiceTests
             productRepository ?? new FakeProductRepository(),
             geminiTextClient,
             conversationRepository ?? new FakeConversationRepository(),
-            creditService ?? new FakeCreditService());
+            creditService ?? new FakeCreditService(),
+            new FakeQuotaService());
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -329,6 +330,27 @@ public class AIServiceTests
         public FakeGeminiTextClient(Exception exception) => _exception = exception;
         public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default) =>
             _exception != null ? Task.FromException<string>(_exception) : Task.FromResult(_response!);
+    }
+
+    private sealed class FakeQuotaService : IQuotaService
+    {
+        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+
+        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+
+        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 
     private sealed class FakeAiGenerationRepository : IAiGenerationRepository

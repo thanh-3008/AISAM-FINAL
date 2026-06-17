@@ -1,5 +1,6 @@
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using System.Net;
 
@@ -47,17 +48,20 @@ public sealed class ActiveProfileMiddleware
             return;
         }
 
-        if (!Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
+        var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
+        Profile? profile = null;
+        if (Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
         {
-            await WriteErrorAsync(context, HttpStatusCode.Unauthorized, "Missing or invalid X-Profile-Id header.");
-            return;
+            profile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
+        }
+        else
+        {
+            profile = await profileRepository.GetFirstByUserIdAsync(userId, context.RequestAborted);
         }
 
-        var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
-        var profile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
         if (profile == null)
         {
-            await WriteErrorAsync(context, HttpStatusCode.NotFound, "Profile not found.");
+            await WriteErrorAsync(context, HttpStatusCode.NotFound, "No profile found for this user.");
             return;
         }
 

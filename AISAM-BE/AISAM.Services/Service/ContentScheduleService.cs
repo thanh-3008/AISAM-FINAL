@@ -16,17 +16,20 @@ public sealed class ContentScheduleService : IContentScheduleService
     private readonly ISocialIntegrationRepository _socialIntegrationRepository;
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly INotificationRepository _notificationRepository;
+    private readonly IQuotaService _quotaService;
 
     public ContentScheduleService(
         IContentRepository contentRepository,
         ISocialIntegrationRepository socialIntegrationRepository,
         IContentCalendarRepository contentCalendarRepository,
-        INotificationRepository notificationRepository)
+        INotificationRepository notificationRepository,
+        IQuotaService quotaService)
     {
         _contentRepository = contentRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
         _contentCalendarRepository = contentCalendarRepository;
         _notificationRepository = notificationRepository;
+        _quotaService = quotaService;
     }
 
     public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
@@ -35,6 +38,15 @@ public sealed class ContentScheduleService : IContentScheduleService
         if (!validationResult.Success)
         {
             return validationResult.Error!;
+        }
+
+        var quotaCheck = await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<ContentScheduleDto>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
         }
 
         var scheduledAt = NormalizeScheduledAt(request.ScheduledAt);
@@ -192,6 +204,14 @@ public sealed class ContentScheduleService : IContentScheduleService
             return GenericResponse<ContentScheduleDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
         if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != content.BrandId || integration.IsDeleted)
             return GenericResponse<ContentScheduleDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
+        var quotaCheck = await _quotaService.EnsureWorkspacePostQuotaAsync(workspaceId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<ContentScheduleDto>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
+        }
         var scheduledAt = NormalizeScheduledAt(request.ScheduledAt);
         if (scheduledAt == default) return GenericResponse<ContentScheduleDto>.CreateError("Scheduled time is invalid.", HttpStatusCode.BadRequest);
         var schedule = new ContentCalendar { WorkspaceId = workspaceId, ProfileId = profileId, ContentId = content.Id, Content = content, IntegrationId = integration.Id, Integration = integration, ScheduledAt = scheduledAt, ScheduledDate = scheduledAt, ScheduledTime = scheduledAt.TimeOfDay, IntegrationIds = JsonSerializer.Serialize(new[] { integration.Id }), Status = ScheduleStatusEnum.Pending };

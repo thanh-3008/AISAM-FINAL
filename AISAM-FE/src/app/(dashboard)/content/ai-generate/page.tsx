@@ -3,14 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { createContent, generateAIDraft, chatWithAI, type CreateContentPayload } from "@/services/contentService";
+import { createContent, chatWithAI, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { fetchCreditWallet, deductCredits } from "@/services/workspaceService";
-import { CREDIT_COST } from "@/lib/featureConfig";
-import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useQuotaGuard } from "@/hooks/useQuotaGuard";
+import { fetchCreditWallet } from "@/services/workspaceService";
 
 interface ChatMessage {
   id: string;
@@ -51,28 +50,9 @@ export default function AIGeneratePage() {
   const router = useRouter();
   const { addToast } = useToast();
   const { activeWorkspace } = useWorkspaces();
-  const featureGate = useFeatureGate();
+  const { canGenerateAI, quota, refresh: refreshQuota } = useQuotaGuard();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
-
-  const getCreditCostForPrompt = (prompt: string): number => {
-    const lower = prompt.toLowerCase();
-    if (lower.includes("video") || lower.includes("generate video")) return CREDIT_COST.generateVideo;
-    if (lower.includes("image") || lower.includes("generate image")) return CREDIT_COST.generateImage;
-    if (lower.includes("trend") || lower.includes("trend analysis")) return CREDIT_COST.trendContent;
-    if (lower.includes("campaign") || lower.includes("recommend")) return CREDIT_COST.campaignRecommendation;
-    if (lower.includes("longer") || lower.includes("expand") || lower.includes("refine") || lower.includes("rewrite")) return CREDIT_COST.refine;
-    return CREDIT_COST.generateText;
-  };
-
-  const handleDeductCredits = async (prompt: string) => {
-    const cost = getCreditCostForPrompt(prompt);
-    const result = await deductCredits({ feature: "generateText", credits: cost });
-    if (result) {
-      setCreditBalance(result.balance);
-    }
-    return cost;
-  };
 
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
   const [productList, setProductList] = useState<{ id: string; name: string; brandId: string }[]>([]);
@@ -125,6 +105,12 @@ export default function AIGeneratePage() {
   }, [activeWorkspace?.id]);
 
   const simulateAIResponse = async (userPrompt: string) => {
+    if (!canGenerateAI) {
+      addToast("AI generation quota has been exceeded for this workspace.");
+      setInsufficientCredits(true);
+      return;
+    }
+
     if (creditBalance !== null && creditBalance <= 0) {
       setInsufficientCredits(true);
       addToast("Insufficient AI Credits. Please purchase more credits.");
@@ -146,8 +132,9 @@ export default function AIGeneratePage() {
       };
       setVariations((prev) => [variation, ...prev]);
 
-      await handleDeductCredits(userPrompt);
-      addToast(`Credits deducted for AI generation.`);
+      await refreshQuota();
+      const wallet = await fetchCreditWallet();
+      if (wallet) setCreditBalance(wallet.balance);
 
       setIsGenerating(false);
 
@@ -212,8 +199,9 @@ export default function AIGeneratePage() {
       };
       setVariations((prev) => [variation, ...prev]);
 
-      await handleDeductCredits(userPrompt);
-      addToast(`Credits deducted for AI generation.`);
+      await refreshQuota();
+      const wallet = await fetchCreditWallet();
+      if (wallet) setCreditBalance(wallet.balance);
 
       setIsGenerating(false);
 
@@ -222,8 +210,6 @@ export default function AIGeneratePage() {
   };
 
   const autoSavePost = async (postTitle: string, postContent: string, postHashtags: string[], varId: string) => {
-    const platformKey = platform.split("-")[0];
-
     const payload: CreateContentPayload = {
       brandId,
       productId: productId || null,
@@ -373,7 +359,13 @@ export default function AIGeneratePage() {
               {insufficientCredits && (
                 <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-danger-red/10 text-danger-red text-label-xs font-semibold">
                   <span className="material-symbols-outlined text-[12px]">error</span>
-                  Insufficient Credits
+                  {canGenerateAI ? "Insufficient Credits" : "AI Quota Exceeded"}
+                </span>
+              )}
+              {quota && (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container text-on-surface-variant text-label-xs font-semibold">
+                  <span className="material-symbols-outlined text-[14px]">speed</span>
+                  {quota.promptRemaining}/{quota.promptQuotaLimit} prompts
                 </span>
               )}
               {justGenerated && generatedId && (
@@ -601,7 +593,7 @@ export default function AIGeneratePage() {
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
                   className="flex-1 bg-transparent border-none outline-none text-body-sm text-on-surface placeholder:text-outline/30"
                   placeholder="Ask AI to generate content..." disabled={isGenerating} />
-                <button onClick={handleSendChat} disabled={!chatInput.trim() || isGenerating}
+                <button onClick={handleSendChat} disabled={!chatInput.trim() || isGenerating || !canGenerateAI}
                   className="w-7 h-7 rounded-lg bg-primary text-on-primary flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-all active:scale-[0.95]">
                   <span className="material-symbols-outlined text-[14px]">send</span>
                 </button>

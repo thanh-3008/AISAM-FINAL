@@ -124,6 +124,7 @@ builder.Services.AddScoped<ICreditUsageRecordRepository, CreditUsageRecordReposi
 builder.Services.AddScoped<IBrandRepository, BrandRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IContentRepository, ContentRepository>();
+builder.Services.AddScoped<IAdCampaignRepository, AdCampaignRepository>();
 builder.Services.AddScoped<IAiGenerationRepository, AiGenerationRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
@@ -144,6 +145,7 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IContentService, ContentService>();
+builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
@@ -211,6 +213,8 @@ builder.Services.AddSwaggerGen(options =>
         Title = "AISAM API",
         Version = "v1"
     });
+
+    options.OperationFilter<WorkspaceHeaderOperationFilter>();
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {

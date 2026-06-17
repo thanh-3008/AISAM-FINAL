@@ -127,7 +127,14 @@ export default function ContentPage() {
       case "brand-asc": list.sort((a, b) => a.brandName.localeCompare(b.brandName)); break;
       case "product-asc": list.sort((a, b) => a.productName.localeCompare(b.productName)); break;
       case "status": {
-        const order: Record<ContentStatus, number> = { "Published": 0, "Scheduled": 1, "Awaiting Approval": 2, "Draft": 3 };
+        const order: Record<ContentStatus, number> = {
+          "Published": 0,
+          "Scheduled": 1,
+          "Approved": 2,
+          "Awaiting Approval": 3,
+          "Draft": 4,
+          "Rejected": 5,
+        };
         list.sort((a, b) => order[a.status] - order[b.status]); break;
       }
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

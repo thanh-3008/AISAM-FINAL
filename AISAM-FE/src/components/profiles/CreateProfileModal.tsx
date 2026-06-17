@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, WorkspaceData } from "@/hooks/useWorkspaces";
-import { apiFetch } from "@/lib/apiClient";
+import { createWorkspace } from "@/services/workspaceService";
 
 const WORKSPACE_TYPES = [
   {
@@ -90,29 +90,21 @@ export default function CreateProfileModal({ open, onClose }: Props) {
     }
 
     try {
-      const formBody = new FormData();
-      formBody.append("name", form.name.trim());
-      formBody.append("profileType", form.profileType);
-      if (form.companyName.trim()) formBody.append("companyName", form.companyName.trim());
-      if (form.bio.trim()) formBody.append("bio", form.bio.trim());
-      if (form.avatarUrl.trim()) formBody.append("avatarUrl", form.avatarUrl.trim());
-
-      const result = await apiFetch(`/profiles/user/${userId}`, {
-        method: "POST",
-        body: formBody,
+      const workspace = await createWorkspace({
+        name: form.name.trim(),
+        workspaceType: Number(form.profileType),
       });
 
-      if (result?.success && result.data) {
-        const p = result.data;
+      if (workspace) {
         const wsData: WorkspaceData = {
-          id: p.id,
-          userId: p.userId,
-          name: p.name,
-          workspaceType: p.profileType ?? 1,
-          plan: (p.profileType ?? 1) === 2 ? "Business" : "Personal",
-          status: p.status,
-          createdAt: p.createdAt,
-          updatedAt: p.updatedAt,
+          id: workspace.id,
+          userId,
+          name: workspace.name,
+          workspaceType: workspace.workspaceType ?? Number(form.profileType),
+          plan: (workspace.workspaceType ?? Number(form.profileType)) === 2 ? "Business" : "Personal",
+          status: workspace.status ?? 1,
+          createdAt: workspace.createdAt || new Date().toISOString(),
+          updatedAt: workspace.updatedAt || new Date().toISOString(),
           isOwner: true,
           memberRole: "Owner",
         };
@@ -121,7 +113,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
         handleClose();
         router.push("/dashboard");
       } else {
-        setError(result?.message || "Failed to create workspace");
+        setError("Failed to create workspace");
       }
     } catch (err: any) {
       setError(err.message || "Network error");

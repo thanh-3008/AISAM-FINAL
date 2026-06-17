@@ -20,14 +20,14 @@ namespace AISAM.IntegrationTests;
 public class SocialControllerTests
 {
     [Fact]
-    public async Task GetFacebookAuthUrl_ReturnsUnauthorized_WhenProfileHeaderMissing()
+    public async Task GetFacebookAuthUrl_ReturnsNotFound_WhenProfileHeaderMissingAndUserHasNoProfile()
     {
         var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/social-auth/facebook");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWebHostEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }
 
     [Fact]
@@ -221,6 +221,7 @@ public class SocialControllerTests
     {
         public Task<Profile?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
+        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());
         public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());
         public Task<IEnumerable<Profile>> SearchUserProfilesAsync(Guid userId, string? searchTerm = null, bool? isDeleted = null, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());

@@ -22,11 +22,17 @@ export interface WorkspaceInvitation {
   expiresAt: string;
 }
 
+interface GenericResponse<T> {
+  success: boolean;
+  message?: string | null;
+  data?: T;
+}
+
 const ROLE_TO_ENUM: Record<WorkspaceMemberRole, number> = { Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 };
 
 export async function inviteMember(data: InviteMemberRequest): Promise<WorkspaceInvitation | null> {
   try {
-    const res = await apiClient("/workspace-invitations", {
+    const res: GenericResponse<WorkspaceInvitation> = await apiClient("/workspace-invitations", {
       method: "POST",
       data: { ...data, role: ROLE_TO_ENUM[data.role] ?? 4 },
     });
@@ -38,7 +44,7 @@ export async function inviteMember(data: InviteMemberRequest): Promise<Workspace
 
 export async function acceptInvitation(token: string): Promise<{ success: boolean; workspaceId?: string; message?: string }> {
   try {
-    const res = await apiClient("/workspace-invitations/accept", {
+    const res: GenericResponse<{ workspaceId?: string }> = await apiClient("/workspace-invitations/accept", {
       method: "POST",
       data: { token },
     });

@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { getUserIdFromToken } from "@/lib/auth";
-import { getStoredActiveProfile, storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
-import { apiClient } from "@/lib/apiClient";
+import { useCallback } from "react";
+import { useWorkspaces, addWorkspaceToCache, invalidateWorkspaceCache, type WorkspaceData } from "@/hooks/useWorkspaces";
 
 export interface Profile {
   id: string;
@@ -21,119 +19,74 @@ export interface Profile {
   memberRole: string | null;
 }
 
-const profileTypeLabels = ["Free", "Basic", "Pro"];
+const workspaceTypeLabels: Record<number, string> = {
+  1: "Personal",
+  2: "Business",
+};
 
 export function getProfileTypeLabel(type: number): string {
-  return profileTypeLabels[type] ?? "Unknown";
+  return workspaceTypeLabels[type] ?? "Unknown";
 }
 
-let cachedProfiles: Profile[] | null = null;
-let cacheListeners: Array<() => void> = [];
-let fetchingProfiles = false;
+function workspaceToProfile(workspace: WorkspaceData): Profile {
+  return {
+    id: workspace.id,
+    userId: workspace.userId,
+    name: workspace.name,
+    profileType: workspace.workspaceType,
+    subscriptionId: null,
+    companyName: workspace.companyName ?? null,
+    bio: workspace.bio ?? null,
+    avatarUrl: null,
+    status: workspace.status,
+    createdAt: workspace.createdAt,
+    updatedAt: workspace.updatedAt,
+    isOwner: workspace.isOwner,
+    memberRole: workspace.memberRole,
+  };
+}
 
-function notifyCache() {
-  cacheListeners = cacheListeners.filter((fn) => {
-    try { fn(); } catch { /* skip */ }
-    return true;
-  });
+function profileToWorkspace(profile: Profile): WorkspaceData {
+  return {
+    id: profile.id,
+    userId: profile.userId,
+    name: profile.name,
+    workspaceType: profile.profileType,
+    plan: profile.profileType === 2 ? "Business" : "Personal",
+    status: profile.status,
+    bio: profile.bio,
+    companyName: profile.companyName,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    isOwner: profile.isOwner,
+    memberRole: profile.memberRole,
+  };
 }
 
 export function invalidateProfileCache() {
-  cachedProfiles = null;
-  notifyCache();
+  invalidateWorkspaceCache();
 }
 
 export function addProfileToCache(profile: Profile) {
-  if (cachedProfiles) {
-    const exists = cachedProfiles.some((p) => p.id === profile.id);
-    if (!exists) cachedProfiles = [...cachedProfiles, profile];
-  } else {
-    cachedProfiles = [profile];
-  }
+  addWorkspaceToCache(profileToWorkspace(profile));
 }
 
 export function useProfiles() {
-  const [profiles, setProfiles] = useState<Profile[]>(() => {
-    if (!cachedProfiles) return [];
-    const userId = getUserIdFromToken();
-    if (userId && cachedProfiles.some((p) => p.userId === userId)) return cachedProfiles;
-    cachedProfiles = null;
-    return [];
-  });
-  const [loading, setLoading] = useState(!cachedProfiles);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchProfiles = useCallback(async () => {
-    const userId = getUserIdFromToken();
-
-    if (cachedProfiles) {
-      const belongsToUser = userId && cachedProfiles.some((p) => p.userId === userId);
-      if (belongsToUser) {
-        setProfiles(cachedProfiles);
-        setLoading(false);
-        return;
-      }
-      cachedProfiles = null;
-    }
-
-    if (!userId) {
-      setLoading(false);
-      setProfiles([]);
-      return;
-    }
-
-    if (fetchingProfiles) return;
-    fetchingProfiles = true;
-
-    try {
-      const res: any = await apiClient(`/profiles/user/${userId}`);
-      if (res?.success && Array.isArray(res.data)) {
-        cachedProfiles = res.data;
-        setProfiles(res.data);
-      } else {
-        setError(res?.message || "Failed to load profiles");
-      }
-    } catch {
-      setError("Network error loading profiles");
-    } finally {
-      setLoading(false);
-      fetchingProfiles = false;
-    }
-  }, []);
-
-  useEffect(() => {
-    const isMounted = { current: true };
-    fetchProfiles();
-    const listener = () => {
-      if (isMounted.current) fetchProfiles();
-    };
-    cacheListeners.push(listener);
-    return () => {
-      isMounted.current = false;
-      cacheListeners = cacheListeners.filter((fn) => fn !== listener);
-    };
-  }, [fetchProfiles]);
-
-  const stored = getStoredActiveProfile();
-  const storedMatch = stored ? profiles.find((p) => p.id === stored.id) : null;
-  const fallbackMatch = profiles.find((p) => p.status === 1) || profiles[0] || null;
-  const activeProfile = storedMatch || fallbackMatch;
+  const { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, refetch } = useWorkspaces();
+  const profiles = workspaces.map(workspaceToProfile);
+  const activeProfile = activeWorkspace ? workspaceToProfile(activeWorkspace) : null;
 
   const selectProfile = useCallback((profile: Profile) => {
-    storeActiveProfile({
-      id: profile.id,
-      name: profile.name,
-      profileType: profile.profileType,
-    });
-    setProfiles((prev) => {
-      if (prev.some((p) => p.id === profile.id)) return prev;
-      return [...prev, profile];
-    });
-  }, []);
+    selectWorkspace(profileToWorkspace(profile));
+  }, [selectWorkspace]);
 
-  const clearSelectedProfile = useCallback(() => {
-    clearActiveProfile();
-  }, []);
-
-  return { profiles, loading, error, activeProfile, selectProfile, clearSelectedProfile, refetch: fetchProfiles };
+  return {
+    profiles,
+    loading,
+    error,
+    activeProfile,
+    selectProfile,
+    clearSelectedProfile: clearSelectedWorkspace,
+    refetch,
+  };
 }

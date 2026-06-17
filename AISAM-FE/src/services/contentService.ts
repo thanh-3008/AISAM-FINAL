@@ -110,7 +110,47 @@ export interface UpdateContentPayload {
   styleDescription?: string | null;
   contextDescription?: string | null;
   representativeCharacter?: string | null;
-  status?: ContentApiStatus;
+  status?: ContentApiStatus | ContentStatus;
+}
+
+export interface AiGeneration {
+  aiGenerationId: string;
+  contentId: string;
+  generatedText: string | null;
+  status: number;
+  errorMessage?: string | null;
+  createdAt: string;
+}
+
+export interface ImproveContentPayload {
+  prompt?: string | null;
+}
+
+export interface ConversationListItem {
+  id: string;
+  profileId?: string;
+  brandId?: string | null;
+  brandName?: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  adType: AdType;
+  title?: string | null;
+  isActive: boolean;
+  lastMessage?: string | null;
+  lastMessageAt?: string | null;
+  messageCount: number;
+}
+
+export interface ConversationMessage {
+  id?: string;
+  role?: string;
+  content?: string;
+  message?: string;
+  createdAt?: string;
+}
+
+export interface ConversationDetail extends ConversationListItem {
+  messages?: ConversationMessage[] | null;
 }
 
 export const ADTYPE_TO_CONTENTTYPE: Record<AdType, ContentType> = { 0: "TEXT", 1: "IMAGE", 2: "VIDEO" };
@@ -219,7 +259,9 @@ export async function createContent(data: CreateContentPayload): Promise<Content
 
 export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {
   try {
-    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data, method: "PUT" });
+    const { status: _unsupportedStatus, ...payload } = data;
+    if (Object.keys(payload).length === 0) return false;
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data: payload, method: "PUT" });
     return res?.success === true;
   } catch {
     return false;
@@ -227,11 +269,21 @@ export async function updateContent(id: string, data: UpdateContentPayload): Pro
 }
 
 export async function approveContent(id: string): Promise<boolean> {
-  return updateContent(id, { status: 2 });
+  try {
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/approve`, { method: "POST" });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function rejectContent(id: string): Promise<boolean> {
-  return updateContent(id, { status: 3 });
+  try {
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/reject`, { method: "POST" });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function deleteContent(id: string): Promise<boolean> {
@@ -252,15 +304,67 @@ export async function restoreContent(id: string): Promise<boolean> {
   }
 }
 
-export async function generateAIDraft(prompt: string, brandId: string, adType: AdType, productId?: string, title?: string): Promise<string | null> {
+export async function cloneContent(id: string): Promise<ContentItem | null> {
   try {
-    const res: GenericResponse<{ aiGenerationId: string; contentId: string; generatedText: string; status: number }> = await apiClient("/ai/generate-draft", {
-      data: { prompt, brandId, adType, productId, title },
-    });
-    if (res?.success && res.data?.generatedText) return res.data.generatedText;
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/clone`, { method: "POST" });
+    if (res?.success && res.data) return apiItemToContentItem(res.data);
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function publishContent(id: string, integrationId: string): Promise<boolean> {
+  try {
+    const quota: GenericResponse<{ postRemaining?: number }> = await apiClient("/quota/workspace/current");
+    if ((quota?.data?.postRemaining ?? 0) <= 0) return false;
+    const res: GenericResponse<unknown> = await apiClient(`/content/${id}/publish/${integrationId}`, { method: "POST" });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function generateAIDraft(prompt: string, brandId: string, adType: AdType, productId?: string, title?: string): Promise<AiGeneration | null> {
+  try {
+    const res: GenericResponse<AiGeneration> = await apiClient("/ai/generate-draft", {
+      data: { prompt, brandId, adType, productId, title },
+    });
+    if (res?.success && res.data) return res.data;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function improveContent(contentId: string, payload: ImproveContentPayload = {}): Promise<AiGeneration | null> {
+  try {
+    const res: GenericResponse<AiGeneration> = await apiClient(`/ai/improve/${contentId}`, {
+      method: "POST",
+      data: payload,
+    });
+    return res?.success && res.data ? res.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function approveAIGeneration(aiGenerationId: string): Promise<ContentItem | null> {
+  try {
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/ai/approve/${aiGenerationId}`, { method: "POST" });
+    if (res?.success && res.data) return apiItemToContentItem(res.data);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getAIGenerations(contentId: string): Promise<AiGeneration[]> {
+  try {
+    const res: GenericResponse<AiGeneration[]> = await apiClient(`/ai/generations/${contentId}`);
+    return res?.data ?? [];
+  } catch {
+    return [];
   }
 }
 
@@ -280,6 +384,46 @@ export async function chatWithAI(
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function getConversations(params?: {
+  page?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDescending?: boolean;
+}): Promise<PagedResult<ConversationListItem> | null> {
+  try {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+    if (params?.searchTerm) query.set("searchTerm", params.searchTerm);
+    if (params?.sortBy) query.set("sortBy", params.sortBy);
+    if (params?.sortDescending !== undefined) query.set("sortDescending", String(params.sortDescending));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const res: GenericResponse<PagedResult<ConversationListItem>> = await apiClient(`/conversations${suffix}`);
+    return res?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getConversationById(id: string): Promise<ConversationDetail | null> {
+  try {
+    const res: GenericResponse<ConversationDetail> = await apiClient(`/conversations/${id}`);
+    return res?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteConversation(id: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<unknown> = await apiClient(`/conversations/${id}`, { method: "DELETE" });
+    return res?.success === true;
+  } catch {
+    return false;
   }
 }
 

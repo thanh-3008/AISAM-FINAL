@@ -6,6 +6,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useQuotaGuard } from "@/hooks/useQuotaGuard";
 import {
   fetchSchedules, createSchedule,
   updateSchedule, deleteSchedule, type ScheduleItem,
@@ -99,6 +100,7 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
 export default function CalendarPage() {
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
+  const { canSchedule, quota, refresh: refreshQuota } = useQuotaGuard();
   const today = new Date();
   const [view, setView] = useState<ViewMode>("month");
   const [year, setYear] = useState(today.getFullYear());
@@ -201,10 +203,15 @@ export default function CalendarPage() {
 
   const handleCreate = async () => {
     if (!form.contentId || !form.integrationId || !form.date || !form.time) return;
+    if (!canSchedule) {
+      setToast("Post quota reached");
+      return;
+    }
     setActionId("create");
     const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
     const result = await createSchedule({ contentId: form.contentId, integrationId: form.integrationId, scheduledAt });
     if (result) {
+      await refreshQuota();
       setSchedules((prev) => [result, ...prev]);
       setToast("Schedule created");
       setShowCreate(false);
@@ -312,6 +319,7 @@ export default function CalendarPage() {
                 ))}
               </div>
               <button onClick={() => setShowCreate(true)}
+                disabled={!canSchedule}
                 className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center gap-1.5 hover:bg-primary/90 transition-all shadow-sm">
                 <span className="material-symbols-outlined text-[14px]">add</span>
                 Schedule
@@ -326,8 +334,17 @@ export default function CalendarPage() {
                 <span className="material-symbols-outlined">schedule</span>
               </div>
               <div>
-                <p className="text-[11px] text-outline font-medium">Pending</p>
-                <p className="text-headline-sm font-bold text-on-surface">{pendingCount}</p>
+                    <p className="text-[11px] text-outline font-medium">Pending</p>
+                    <p className="text-headline-sm font-bold text-on-surface">{pendingCount}</p>
+                  </div>
+                </div>
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4 flex items-center gap-4 shadow-sm">
+              <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined">data_usage</span>
+              </div>
+              <div>
+                <p className="text-[11px] text-outline font-medium">Post Quota</p>
+                <p className="text-headline-sm font-bold text-on-surface">{quota ? `${quota.postRemaining}/${quota.postQuotaLimit}` : "—"}</p>
               </div>
             </div>
             <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4 flex items-center gap-4 shadow-sm">
@@ -832,7 +849,7 @@ export default function CalendarPage() {
                 <div className="flex items-center gap-3 mt-6">
                   <button onClick={() => setShowCreate(false)}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
-                  <button onClick={handleCreate} disabled={!form.contentId || !form.integrationId || !form.date || !form.time || actionId === "create"}
+                  <button onClick={handleCreate} disabled={!form.contentId || !form.integrationId || !form.date || !form.time || !canSchedule || actionId === "create"}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
                     {actionId === "create" ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

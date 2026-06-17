@@ -334,6 +334,14 @@ public class FoundationTests
             return Task.FromResult(profile);
         }
 
+        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_profiles.Values
+                .Where(profile => profile.UserId == userId && profile.Status != ProfileStatusEnum.Cancelled)
+                .OrderBy(profile => profile.CreatedAt)
+                .FirstOrDefault());
+        }
+
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_profiles.Values.Where(profile => profile.UserId == userId).AsEnumerable());

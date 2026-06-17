@@ -133,6 +133,26 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), "Content cloned successfully.");
     }
 
+    public Task<GenericResponse<ContentResponseDto>> ApproveInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+        => ChangeStatusInWorkspaceAsync(id, workspaceId, ContentStatusEnum.Approved, "Content approved successfully.", cancellationToken);
+
+    public Task<GenericResponse<ContentResponseDto>> RejectInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+        => ChangeStatusInWorkspaceAsync(id, workspaceId, ContentStatusEnum.Rejected, "Content rejected successfully.", cancellationToken);
+
+    private async Task<GenericResponse<ContentResponseDto>> ChangeStatusInWorkspaceAsync(Guid id, Guid workspaceId, ContentStatusEnum status, string message, CancellationToken cancellationToken)
+    {
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId) return NotFound();
+        if (content.Status == ContentStatusEnum.Published)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError("Published content status cannot be changed.", HttpStatusCode.BadRequest);
+        }
+
+        content.Status = status;
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), message);
+    }
+
     public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => ChangeDeletedInWorkspaceAsync(id, workspaceId, true, cancellationToken);
 

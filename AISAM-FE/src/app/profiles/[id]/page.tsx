@@ -7,7 +7,6 @@ import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
 import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
-import { apiFetch } from "@/lib/apiClient";
 import {
   changePassword,
   getPaymentHistory,
@@ -23,12 +22,18 @@ import {
   fetchCreditWallet,
   fetchWorkspaceDashboard,
   fetchPostQuota,
+  getWorkspaceById,
+  updateWorkspace,
+  deleteWorkspace,
+  updateWorkspaceMemberQuota,
+  transferWorkspaceOwnership,
   type WorkspaceMember,
   type WorkspaceMemberRole,
   type CreditUsageRecord,
   type CreditWallet,
   type WorkspaceDashboard,
 } from "@/services/workspaceService";
+import { removeMember, updateMemberRole } from "@/services/teamService";
 import { inviteMember, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 
 interface Workspace {
@@ -147,6 +152,7 @@ export default function ProfileDetailPage() {
   const [creditTotalPages, setCreditTotalPages] = useState(0);
   const [creditTotalCount, setCreditTotalCount] = useState(0);
   const [creditFilter, setCreditFilter] = useState<"all" | "success" | "failed">("all");
+  const [creditHistoryUnavailable, setCreditHistoryUnavailable] = useState(false);
 
   // Credit wallet state
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
@@ -209,9 +215,19 @@ export default function ProfileDetailPage() {
     if (!id) return;
     const fetchWorkspace = async () => {
       try {
-        const result = await apiFetch(`/profiles/${id}`);
-        if (result?.success && result.data) {
-          const w = result.data as Workspace;
+        const result = await getWorkspaceById(id);
+        if (result) {
+          const w = {
+            ...result,
+            userId: result.userId || "",
+            companyName: result.companyName || null,
+            bio: result.bio || null,
+            avatarUrl: result.avatarUrl || null,
+            isOwner: result.currentUserRole === 1,
+            memberRole: result.currentUserRole !== undefined
+              ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][result.currentUserRole] ?? "Viewer"
+              : "Owner",
+          } as Workspace;
           setWorkspace(w);
           setForm({
             name: w.name,
@@ -221,10 +237,11 @@ export default function ProfileDetailPage() {
             avatarUrl: w.avatarUrl || "",
           });
         } else {
-          setError(result?.message || "Workspace not found");
+          setError("Workspace not found");
         }
-      } catch {
-        setError("Network error");
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Network error";
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -238,25 +255,39 @@ export default function ProfileDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const formBody = new FormData();
-      formBody.append("name", form.name.trim());
-      formBody.append("profileType", form.profileType);
-      if (form.companyName.trim()) formBody.append("companyName", form.companyName.trim());
-      if (form.bio.trim()) formBody.append("bio", form.bio.trim());
-      if (form.avatarUrl.trim()) formBody.append("avatarUrl", form.avatarUrl.trim());
-
-      const result = await apiFetch(`/profiles/${id}`, {
-        method: "PUT",
-        body: formBody,
+      const result = await updateWorkspace(id, {
+        name: form.name.trim(),
+        companyName: form.companyName.trim() || null,
+        bio: form.bio.trim() || null,
+        avatarUrl: form.avatarUrl.trim() || null,
       });
-      if (result?.success && result.data) {
-        setWorkspace(result.data);
+      if (result) {
+        const updatedWorkspace = {
+          ...result,
+          userId: result.userId || workspace?.userId || "",
+          companyName: result.companyName || null,
+          bio: result.bio || null,
+          avatarUrl: result.avatarUrl || null,
+          status: result.status ?? workspace?.status ?? 1,
+          createdAt: result.createdAt || workspace?.createdAt || new Date().toISOString(),
+          updatedAt: result.updatedAt || new Date().toISOString(),
+          isOwner: workspace?.isOwner ?? true,
+          memberRole: workspace?.memberRole ?? "Owner",
+        } as Workspace;
+        setWorkspace((prev) => prev ? {
+          ...prev,
+          ...updatedWorkspace,
+          companyName: updatedWorkspace.companyName,
+          bio: updatedWorkspace.bio,
+          avatarUrl: updatedWorkspace.avatarUrl,
+        } : updatedWorkspace);
         setEditing(false);
       } else {
-        setError(result?.message || "Update failed");
+        setError("Update failed");
       }
-    } catch {
-      setError("Network error");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Network error";
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -265,8 +296,12 @@ export default function ProfileDetailPage() {
   const handleDelete = async () => {
     setShowDeleteDialog(false);
     try {
-      await apiFetch(`/profiles/${id}`, { method: "DELETE" });
-      router.push("/profiles");
+      const deleted = await deleteWorkspace(id);
+      if (deleted) {
+        router.push("/profiles");
+      } else {
+        setError("Delete failed");
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Delete failed";
       setError(message);
@@ -463,11 +498,11 @@ export default function ProfileDetailPage() {
     if (!selectedMember) return;
     setChangingRole(true);
     try {
-      // TODO: Call API to change role when BE is ready
-      // await updateMemberRole(selectedMember.id, newRole);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
-      
-      // Update local state
+      const updated = await updateMemberRole(selectedMember.id, newRole);
+      if (!updated) {
+        throw new Error("Failed to update role");
+      }
+
       setMembers(prev => prev.map(m => 
         m.id === selectedMember.id ? { ...m, role: newRole } : m
       ));
@@ -489,11 +524,18 @@ export default function ProfileDetailPage() {
       message: `Are you sure you want to remove ${member.name} from the workspace? This action cannot be undone.`,
       type: "danger",
       confirmText: "Remove",
-      onConfirm: () => {
-        setMembers(prev => prev.filter(m => m.id !== member.id));
-        setMemberActionMenu(null);
-        showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        const success = await removeMember(member.id);
+        if (success) {
+          setMembers(prev => prev.filter(m => m.id !== member.id));
+          setMemberActionMenu(null);
+          showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+          setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+        } else {
+          showToast({ type: "error", title: "Remove failed", message: "Failed to remove member. Please try again." });
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
       },
     });
   };
@@ -508,7 +550,11 @@ export default function ProfileDetailPage() {
     if (!selectedNewOwner) return;
     setTransferring(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const success = await transferWorkspaceOwnership(selectedNewOwner.id);
+      if (!success) {
+        throw new Error("Transfer failed");
+      }
+
       setMembers(prev => prev.map(m => {
         if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
         if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
@@ -537,7 +583,15 @@ export default function ProfileDetailPage() {
     if (!quotaMember) return;
     setSavingQuota(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const updated = await updateWorkspaceMemberQuota(quotaMember.id, {
+        quotaMode,
+        creditLimit: quotaMode === "SharedPool" ? null : quotaLimit,
+      });
+      if (!updated) {
+        throw new Error("Failed to update quota");
+      }
+
+      setMembers(prev => prev.map(member => member.id === quotaMember.id ? updated : member));
       showToast({ 
         type: "success", 
         title: "Quota updated", 
@@ -558,9 +612,15 @@ export default function ProfileDetailPage() {
     try {
       const data = await fetchCreditUsageHistory(pg, 10);
       if (data) {
+        setCreditHistoryUnavailable(false);
         setCreditHistory(data.data);
         setCreditTotalPages(data.totalPages);
         setCreditTotalCount(data.totalCount);
+      } else {
+        setCreditHistoryUnavailable(true);
+        setCreditHistory([]);
+        setCreditTotalPages(0);
+        setCreditTotalCount(0);
       }
     } catch {
       console.error("Failed to load credit history");
@@ -630,36 +690,46 @@ export default function ProfileDetailPage() {
   // Load payment history when billing section is active
   useEffect(() => {
     if (activeSection === "billing" && paymentHistory.length === 0) {
-      handleLoadPaymentHistory();
+      queueMicrotask(() => {
+        void handleLoadPaymentHistory();
+      });
     }
   }, [activeSection, paymentHistory.length]);
 
   // Load subscription when subscription section is active
   useEffect(() => {
     if (activeSection === "subscription" && !subscription) {
-      handleLoadSubscription();
-      handleLoadCreditWallet();
+      queueMicrotask(() => {
+        void handleLoadSubscription();
+        void handleLoadCreditWallet();
+      });
     }
   }, [activeSection, subscription]);
 
   // Load members when team section is active
   useEffect(() => {
     if (activeSection === "team" && members.length === 0) {
-      handleLoadMembers();
+      queueMicrotask(() => {
+        void handleLoadMembers();
+      });
     }
   }, [activeSection, members.length]);
 
   // Load credit history when billing tab is usage
   useEffect(() => {
     if (activeSection === "billing" && billingTab === "usage" && creditHistory.length === 0) {
-      handleLoadCreditHistory(1);
+      queueMicrotask(() => {
+        void handleLoadCreditHistory(1);
+      });
     }
   }, [activeSection, billingTab, creditHistory.length]);
 
   // Load overview data when overview section is active
   useEffect(() => {
     if (activeSection === "overview" && !dashboardData) {
-      handleLoadOverview();
+      queueMicrotask(() => {
+        void handleLoadOverview();
+      });
     }
   }, [activeSection, dashboardData]);
 
@@ -1077,7 +1147,7 @@ export default function ProfileDetailPage() {
                                 key={idx}
                                 whileHover={reduceMotion ? undefined : { scale: 1.05, y: -2 }}
                                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-                                onClick={action.onClick as any}
+                                onClick={"onClick" in action ? action.onClick : undefined}
                                 {...(action.href && !action.onClick ? { as: "a", href: action.href } : {})}
                                 className="flex flex-col items-center gap-3 p-5 rounded-xl bg-surface-container-lowest border border-outline-variant/10 hover:border-outline-variant/30 hover:shadow-md transition-all duration-200 group"
                               >
@@ -2181,7 +2251,9 @@ export default function ProfileDetailPage() {
                           }).length === 0 ? (
                             <div className="px-6 py-12 text-center">
                               <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">history</span>
-                              <p className="text-body-sm text-on-surface-variant">No credit usage yet</p>
+                              <p className="text-body-sm text-on-surface-variant">
+                                {creditHistoryUnavailable ? "Credit history is coming soon." : "No credit usage yet"}
+                              </p>
                             </div>
                           ) : (
                             <>

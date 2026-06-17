@@ -4,11 +4,9 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { useProfiles } from "@/hooks/useProfiles";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { clearActiveProfile } from "@/stores/profile-store";
+import { deleteBrand, fetchBrands as fetchBrandList } from "@/services/brandService";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
 import EditBrandModal from "@/components/brands/EditBrandModal";
 
@@ -21,7 +19,7 @@ interface Brand {
   slogan: string | null;
   usp: string | null;
   targetAudience: string | null;
-  profileId: string | null;
+  workspaceId: string | null;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
@@ -64,7 +62,6 @@ export default function BrandsPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
-  const { activeProfile } = useProfiles();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -78,7 +75,6 @@ export default function BrandsPage() {
     const ws = getStoredActiveWorkspace();
     if (ws && !/^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(ws.id)) {
       clearActiveWorkspace();
-      clearActiveProfile();
       router.push("/overview");
     }
   }, [router]);
@@ -91,9 +87,11 @@ export default function BrandsPage() {
   const fetchBrands = useCallback(async () => {
     if (!activeWorkspace) { setLoading(false); return; }
     try {
-      const result = await apiFetch(`/brands?pageSize=100`);
-      if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
-    } catch { /* ignore */ }
+      const result = await fetchBrandList();
+      setBrands(result as Brand[]);
+    } catch (err: any) {
+      setError(err?.message || "Failed to load brands");
+    }
     finally { setLoading(false); }
   }, [activeWorkspace]);
 
@@ -125,11 +123,15 @@ export default function BrandsPage() {
     const brandToDelete = deletingBrand;
     setDeletingBrand(null);
     try {
-      await apiFetch(`/brands/${brandToDelete.id}`, { method: "DELETE" });
-    } catch {
-      // mock fallback — remove from local state
+      const deleted = await deleteBrand(brandToDelete.id);
+      if (!deleted) {
+        setError("Failed to delete brand");
+        return;
+      }
+      setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
+    } catch (err: any) {
+      setError(err?.message || "Failed to delete brand");
     }
-    setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
   };
 
   return (
@@ -365,7 +367,6 @@ export default function BrandsPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={(brand) => setBrands((prev) => [brand, ...prev])}
-        profileId={activeProfile?.id || ""}
       />
 
       {editingBrand && (

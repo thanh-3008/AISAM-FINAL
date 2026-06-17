@@ -5,12 +5,13 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/apiClient";
-import { getStoredActiveProfile } from "@/stores/profile-store";
+import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 type ConnectionState = "processing" | "success" | "error";
 
 type SocialAccount = {
   id: string;
+  profileId: string;
   provider: string;
   providerUserId: string;
   isActive: boolean;
@@ -29,6 +30,16 @@ type AvailableTarget = {
 type Brand = {
   id: string;
   name: string;
+};
+
+type GenericResponse<T> = {
+  success: boolean;
+  message?: string | null;
+  data?: T;
+};
+
+type PagedResult<T> = {
+  data: T[];
 };
 
 function FacebookGlyph() {
@@ -52,24 +63,24 @@ function SocialCallbackContent() {
   const [linking, setLinking] = useState(false);
   const [linked, setLinked] = useState(false);
 
-  const activeProfile = getStoredActiveProfile();
+  const activeWorkspace = getStoredActiveWorkspace();
   const selectedCount = selectedTargetIds.length;
 
-  const activeProfileLabel = useMemo(() => {
-    if (!activeProfile) return "No active profile";
-    return activeProfile.name || activeProfile.id;
-  }, [activeProfile]);
+  const activeWorkspaceLabel = useMemo(() => {
+    if (!activeWorkspace) return "No active workspace";
+    return activeWorkspace.name || activeWorkspace.id;
+  }, [activeWorkspace]);
 
   const loadBrands = useCallback(async () => {
     try {
-      const result = await apiFetch(activeProfile ? `/brands?profileId=${activeProfile.id}&pageSize=100` : "/brands?pageSize=100");
+      const result: GenericResponse<PagedResult<Brand>> = await apiFetch("/brands?pageSize=100");
       if (result?.success && Array.isArray(result.data?.data)) {
         setBrands(result.data.data.map((brand: Brand) => ({ id: brand.id, name: brand.name })));
       }
     } catch {
       setBrands([]);
     }
-  }, [activeProfile]);
+  }, []);
 
   const processCallback = useCallback(async () => {
     const oauthError = searchParams.get("error");
@@ -90,7 +101,7 @@ function SocialCallbackContent() {
     }
 
     try {
-      const callbackResult = await apiFetch("/social-auth/facebook/callback", {
+      const callbackResult: GenericResponse<SocialAccount> = await apiFetch("/social-auth/facebook/callback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, state: oauthState }),
@@ -100,11 +111,11 @@ function SocialCallbackContent() {
         throw new Error(callbackResult?.message || "Facebook account could not be verified.");
       }
 
-      const connectedAccount = callbackResult.data as SocialAccount;
+      const connectedAccount = callbackResult.data;
       setAccount(connectedAccount);
 
       const [targetsResult] = await Promise.all([
-        apiFetch(`/social/accounts/${connectedAccount.id}/available-targets`),
+        apiFetch<GenericResponse<AvailableTarget[]>>(`/social/accounts/${connectedAccount.id}/available-targets`),
         loadBrands(),
       ]);
 
@@ -143,10 +154,11 @@ function SocialCallbackContent() {
     setLinking(true);
     setLinked(false);
     try {
-      const result = await apiFetch(`/social/accounts/${account.id}/link-targets`, {
+      const result: GenericResponse<SocialAccount> = await apiFetch(`/social/accounts/${account.id}/link-targets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          profileId: account.profileId,
           provider: "facebook",
           providerTargetIds: selectedTargetIds,
           brandId: selectedBrandId,
@@ -185,7 +197,7 @@ function SocialCallbackContent() {
               <div>
                 <h1 className="text-headline-lg text-on-surface tracking-tight mb-2">Finalize Facebook Connection</h1>
                 <p className="text-body-lg text-on-surface-variant max-w-3xl">
-                  AISAM is securely retrieving available social assets for <span className="font-bold text-primary">{activeProfileLabel}</span>.
+                  AISAM is securely retrieving available social assets for <span className="font-bold text-primary">{activeWorkspaceLabel}</span>.
                 </p>
               </div>
               <Link href="/social" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-outline-variant text-on-surface text-label-md font-semibold rounded-xl hover:bg-surface-container-high transition-colors">
@@ -380,8 +392,8 @@ function SocialCallbackContent() {
                 <p className="text-label-sm font-bold text-outline uppercase tracking-widest mb-6">Verification Context</p>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-body-sm text-on-surface-variant">Active Profile</span>
-                    <span className="font-mono text-body-sm bg-surface-container-lowest px-3 py-1 rounded border border-outline-variant truncate max-w-[180px]">{activeProfile?.id || "missing"}</span>
+                    <span className="text-body-sm text-on-surface-variant">Active Workspace</span>
+                    <span className="font-mono text-body-sm bg-surface-container-lowest px-3 py-1 rounded border border-outline-variant truncate max-w-[180px]">{activeWorkspace?.id || "missing"}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-body-sm text-on-surface-variant">Endpoint Status</span>

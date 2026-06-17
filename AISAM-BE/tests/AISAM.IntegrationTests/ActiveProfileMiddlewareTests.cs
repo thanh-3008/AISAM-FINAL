@@ -14,26 +14,53 @@ namespace AISAM.IntegrationTests;
 public class ActiveProfileMiddlewareTests
 {
     [Fact]
-    public async Task InvokeAsync_ReturnsUnauthorized_WhenProfileHeaderIsMissing()
+    public async Task InvokeAsync_StoresFirstUserProfile_WhenProfileHeaderIsMissing()
     {
-        var context = CreateContext(Guid.NewGuid());
-        var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
+        var userId = Guid.NewGuid();
+        var profile = CreateProfile(userId);
+        var context = CreateContext(userId);
+        var nextCalled = false;
+        var middleware = new ActiveProfileMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.True(nextCalled);
+        Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
     }
 
     [Fact]
-    public async Task InvokeAsync_ReturnsUnauthorized_WhenProfileHeaderIsInvalid()
+    public async Task InvokeAsync_ReturnsNotFound_WhenProfileHeaderIsMissingAndUserHasNoProfile()
     {
         var context = CreateContext(Guid.NewGuid());
-        context.Request.Headers["X-Profile-Id"] = "invalid";
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FallsBackToFirstUserProfile_WhenProfileHeaderIsInvalid()
+    {
+        var userId = Guid.NewGuid();
+        var profile = CreateProfile(userId);
+        var context = CreateContext(userId);
+        context.Request.Headers["X-Profile-Id"] = "invalid";
+        var nextCalled = false;
+        var middleware = new ActiveProfileMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+
+        Assert.True(nextCalled);
+        Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
     }
 
     [Fact]
@@ -173,6 +200,14 @@ public class ActiveProfileMiddlewareTests
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return GetByIdAsync(id, cancellationToken);
+        }
+
+        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_profiles.Values
+                .Where(profile => profile.UserId == userId)
+                .OrderBy(profile => profile.CreatedAt)
+                .FirstOrDefault());
         }
 
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)

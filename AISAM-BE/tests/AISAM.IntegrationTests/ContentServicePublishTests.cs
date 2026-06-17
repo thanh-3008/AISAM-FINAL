@@ -539,6 +539,7 @@ public class ContentServicePublishTests
     {
         public GenericResponse<bool> PromptQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<bool> PostQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
+        public GenericResponse<bool> WorkspacePromptQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<bool> WorkspacePostQuotaResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public Guid LastWorkspaceId { get; private set; }
 
@@ -555,6 +556,12 @@ public class ContentServicePublishTests
         {
             LastWorkspaceId = workspaceId;
             return Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
+        }
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            return Task.FromResult(WorkspacePromptQuotaResult);
         }
 
         public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)

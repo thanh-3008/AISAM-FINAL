@@ -13,13 +13,6 @@ export function getStoredActiveWorkspace(): ActiveWorkspace | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-    const legacy = localStorage.getItem("aisam_active_profile");
-    if (legacy) {
-      const legacyProfile = JSON.parse(legacy);
-      const ws: ActiveWorkspace = { id: legacyProfile.id, name: legacyProfile.name, workspaceType: legacyProfile.profileType };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(ws));
-      return ws;
-    }
     return null;
   } catch {
     return null;

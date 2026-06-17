@@ -33,11 +33,16 @@ export interface SocialAccount {
 export interface SocialIntegration {
   id: string;
   socialAccountId: string;
+  profileId?: string;
+  brandId?: string;
+  brandName?: string | null;
   targetId: string;
   provider: SocialPlatform;
   accountName: string;
   targetName: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AvailableTarget {
@@ -103,10 +108,15 @@ interface BEAuthUrlResponse {
 interface BESocialIntegrationDto {
   id: string;
   socialAccountId: string;
+  profileId?: string;
+  brandId?: string;
+  brandName?: string | null;
   externalId: string;
   name: string;
   platform: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface BECallbackRequest {
@@ -115,6 +125,7 @@ interface BECallbackRequest {
 }
 
 interface BELinkTargetsRequest {
+  profileId: string;
   provider: string;
   providerTargetIds: string[];
   brandId: string;
@@ -207,10 +218,10 @@ export async function getLinkedTargets(accountId: string): Promise<SocialTarget[
   return [];
 }
 
-export async function linkTargets(accountId: string, targetIds: string[], brandId: string): Promise<SocialAccount> {
+export async function linkTargets(accountId: string, targetIds: string[], brandId: string, profileId: string): Promise<SocialAccount> {
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
     method: "POST",
-    data: { provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
+    data: { profileId, provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
   });
   if (res?.data) {
     return mapSocialAccount(res.data);
@@ -225,6 +236,13 @@ export async function deleteSocialAccount(accountId: string): Promise<boolean> {
   return res?.data === true;
 }
 
+export async function deleteSocialIntegration(socialIntegrationId: string): Promise<boolean> {
+  const res: GenericResponse<boolean> = await apiClient(`/social/integrations/${socialIntegrationId}`, {
+    method: "DELETE",
+  });
+  return res?.data === true || res?.success === true;
+}
+
 export async function fetchSocialIntegrations(brandId?: string): Promise<SocialIntegration[]> {
   try {
     if (brandId) {
@@ -233,11 +251,16 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
         return res.data.map((dto) => ({
           id: dto.id,
           socialAccountId: dto.socialAccountId,
+          profileId: dto.profileId,
+          brandId: dto.brandId,
+          brandName: dto.brandName ?? null,
           targetId: dto.externalId,
           provider: dto.platform.toLowerCase() as SocialPlatform,
           accountName: dto.name,
           targetName: dto.name,
           isActive: dto.isActive,
+          createdAt: dto.createdAt,
+          updatedAt: dto.updatedAt,
         }));
       }
     }

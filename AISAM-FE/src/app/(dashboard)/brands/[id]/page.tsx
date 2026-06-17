@@ -5,9 +5,10 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { apiClient, apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { PlatformIcon } from "@/lib/contentConstants";
+import { deleteBrand, getBrandById, updateBrand, type BrandPayload } from "@/services/brandService";
+import { deleteProduct, fetchProducts } from "@/services/productService";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 
 interface Brand {
@@ -19,7 +20,7 @@ interface Brand {
   slogan: string | null;
   usp: string | null;
   targetAudience: string | null;
-  profileId: string | null;
+  workspaceId: string | null;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
@@ -98,9 +99,9 @@ export default function BrandDetailPage() {
       await Promise.all([
         (async () => {
           try {
-            const result = await apiFetch(`/brands/${id}`);
-            if (result?.success && result.data) {
-              const b = result.data as Brand;
+            const result = await getBrandById(id);
+            if (result) {
+              const b = result as Brand;
               setBrand(b);
               setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
               return;
@@ -110,11 +111,9 @@ export default function BrandDetailPage() {
         })(),
         (async () => {
           try {
-            const result = await apiFetch(`/products?brandId=${id}&pageSize=100`);
-            if (result?.success && Array.isArray(result.data?.data)) {
-              setProducts(result.data.data as Product[]);
-              return;
-            }
+            const result = await fetchProducts(id);
+            setProducts(result as Product[]);
+            return;
           } catch { /* ignore */ }
         })(),
       ]).finally(() => setLoading(false));
@@ -128,18 +127,18 @@ export default function BrandDetailPage() {
     setError(null);
 
     try {
-      const body: Record<string, string> = { name: form.name.trim() };
+      const body: BrandPayload = { name: form.name.trim() };
       if (form.description.trim()) body.description = form.description.trim();
       if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
       if (form.slogan.trim()) body.slogan = form.slogan.trim();
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
 
-      const result = await apiClient(`/brands/${id}`, { method: "PUT", data: body });
-      if (result?.success && result.data) {
-        setBrand(result.data);
+      const result = await updateBrand(id, body);
+      if (result) {
+        setBrand(result as Brand);
       } else {
-        setError(result?.message || "Failed to save brand");
+        setError("Failed to save brand");
         return;
       }
     } catch (e: any) {
@@ -154,11 +153,11 @@ export default function BrandDetailPage() {
     setShowDeleteDialog(false);
     setError(null);
     try {
-      const result = await apiFetch(`/brands/${id}`, { method: "DELETE" });
-      if (result?.success) {
+      const result = await deleteBrand(id);
+      if (result) {
         router.push("/brands");
       } else {
-        setError(result?.message || "Failed to delete brand");
+        setError("Failed to delete brand");
       }
     } catch (e: any) {
       setError(e?.message || "Failed to delete brand");
@@ -178,11 +177,15 @@ export default function BrandDetailPage() {
     const target = deletingProduct;
     setDeletingProduct(null);
     try {
-      await apiFetch(`/products/${target.id}`, { method: "DELETE" });
-    } catch {
-      // ignore
+      const deleted = await deleteProduct(target.id);
+      if (!deleted) {
+        setError("Failed to delete product");
+        return;
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== target.id));
+    } catch (err: any) {
+      setError(err?.message || "Failed to delete product");
     }
-    setProducts((prev) => prev.filter((p) => p.id !== target.id));
   };
 
   if (loading) {

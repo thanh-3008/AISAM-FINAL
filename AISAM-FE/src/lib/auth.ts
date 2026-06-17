@@ -1,3 +1,6 @@
+import { AUTH_ENDPOINTS } from "./authEndpoints";
+import { getApiBaseUrl } from "./apiBaseUrl";
+
 export const setToken = (token: string) => {
   if (typeof window !== "undefined") {
     localStorage.setItem("aisam_token", token);
@@ -69,14 +72,14 @@ export const removeStoredUser = () => {
   }
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+const API_URL = getApiBaseUrl();
 
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
+    const res = await fetch(`${API_URL}${AUTH_ENDPOINTS.REFRESH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -123,7 +126,7 @@ export async function logout(): Promise<void> {
     const token = getToken();
     const refreshToken = getRefreshToken();
     if (token) {
-      await fetch(`${API_URL}/auth/logout`, {
+      await fetch(`${API_URL}${AUTH_ENDPOINTS.LOGOUT}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -150,7 +153,6 @@ export async function logout(): Promise<void> {
 const CLAIM_UID = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier";
 const CLAIM_NAME = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name";
 const CLAIM_EMAIL = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
-const CLAIM_ROLE = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/role";
 
 export function getUserIdFromToken(): string | null {
   const token = getToken();

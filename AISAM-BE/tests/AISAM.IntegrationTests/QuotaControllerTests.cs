@@ -1,11 +1,13 @@
 using AISAM.API.Controllers;
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Common.Dtos;
 using AISAM.Common.Models;
+using AISAM.Data.Model;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System.Net;
 
 namespace AISAM.IntegrationTests;
 
@@ -31,10 +33,34 @@ public class QuotaControllerTests
         var context = new DefaultHttpContext();
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
 
-        return new QuotaController(service)
+        return new QuotaController(service, new FakeCreditUsageRecordRepository())
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
+    }
+
+    private sealed class FakeCreditUsageRecordRepository : ICreditUsageRecordRepository
+    {
+        public Task<CreditUsageRecord> AddAsync(CreditUsageRecord record, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(record);
+        }
+
+        public Task<IReadOnlyList<CreditUsageRecord>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<CreditUsageRecord>>(Array.Empty<CreditUsageRecord>());
+        }
+
+        public Task<PagedResult<CreditUsageRecord>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new PagedResult<CreditUsageRecord>
+            {
+                Data = new List<CreditUsageRecord>(),
+                TotalCount = 0,
+                Page = request.Page,
+                PageSize = request.PageSize
+            });
+        }
     }
 
     private sealed class FakeQuotaService : IQuotaService
@@ -67,6 +93,12 @@ public class QuotaControllerTests
         {
             LastWorkspaceId = workspaceId;
             return Task.FromResult(SummaryResult);
+        }
+
+        public Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            return Task.FromResult(PromptResult);
         }
 
         public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)

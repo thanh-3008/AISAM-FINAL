@@ -88,7 +88,7 @@ export default function ApprovalsPage() {
 
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); setPage(1); }
-    const statusMap: Record<string, number | undefined> = { all: undefined, pending: 1, approved: 4, rejected: 0 };
+    const statusMap: Record<string, number | undefined> = { all: undefined, pending: 1, approved: 2, rejected: 3 };
     const result = await fetchContents({ pageSize: 100, status: statusMap[tab] });
     setItems(result?.items ?? []);
     setLoading(false);
@@ -106,7 +106,12 @@ export default function ApprovalsPage() {
   const handleApprove = async (id: string) => {
     setActionId(id);
     const item = items.find((i) => i.id === id);
-    await approveContent(id);
+    const ok = await approveContent(id);
+    if (!ok) {
+      setActionId(null);
+      showToast("Backend does not expose content approval action yet.", "error");
+      return;
+    }
     setItems((prev) => {
       const removed = prev.find((i) => i.id === id);
       return removed ? prev.filter((i) => i.id !== id) : prev;
@@ -122,7 +127,12 @@ export default function ApprovalsPage() {
     setConfirmItem(null);
     setActionId(id);
     const item = items.find((i) => i.id === id);
-    await rejectContent(id);
+    const ok = await rejectContent(id);
+    if (!ok) {
+      setActionId(null);
+      showToast("Backend does not expose content rejection action yet.", "error");
+      return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
     setActionId(null);
     setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
@@ -132,24 +142,38 @@ export default function ApprovalsPage() {
   };
 
   const batchApprove = async () => {
+    let successCount = 0;
     for (const id of selected) {
       setActionId(id);
-      await approveContent(id);
+      const ok = await approveContent(id);
+      if (!ok) {
+        setActionId(null);
+        showToast("Backend does not expose content approval action yet.", "error");
+        return;
+      }
+      successCount += 1;
       setItems((prev) => prev.filter((i) => i.id !== id));
       setActionId(null);
     }
-    showToast(`${selected.size} assets approved`, "success");
+    showToast(`${successCount} assets approved`, "success");
     setSelected(new Set());
   };
 
   const batchReject = async () => {
+    let successCount = 0;
     for (const id of selected) {
       setActionId(id);
-      await rejectContent(id);
+      const ok = await rejectContent(id);
+      if (!ok) {
+        setActionId(null);
+        showToast("Backend does not expose content rejection action yet.", "error");
+        return;
+      }
+      successCount += 1;
       setItems((prev) => prev.filter((i) => i.id !== id));
       setActionId(null);
     }
-    showToast(`${selected.size} assets rejected`, "error");
+    showToast(`${successCount} assets rejected`, "error");
     setSelected(new Set());
   };
 
@@ -167,7 +191,12 @@ export default function ApprovalsPage() {
   const submitRevision = async () => {
     if (!revisionDrawer || !revisionNote.trim()) return;
     setActionId(revisionDrawer.id);
-    await rejectContent(revisionDrawer.id);
+    const ok = await rejectContent(revisionDrawer.id);
+    if (!ok) {
+      setActionId(null);
+      showToast("Backend does not expose content rejection action yet.", "error");
+      return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== revisionDrawer.id));
     setActionId(null);
     setRevisionDrawer(null);
@@ -191,8 +220,8 @@ export default function ApprovalsPage() {
   const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
     all: () => true,
     pending: (i) => i.status === "Awaiting Approval",
-    approved: (i) => i.status === "Published",
-    rejected: (i) => i.status === "Draft",
+    approved: (i) => i.status === "Approved",
+    rejected: (i) => i.status === "Rejected",
   };
 
   const filtered = sortItems(
@@ -209,8 +238,8 @@ export default function ApprovalsPage() {
   const tabCounts: Record<TabKey, number> = {
     all: items.length,
     pending: items.filter((i) => i.status === "Awaiting Approval").length,
-    approved: items.filter((i) => i.status === "Published").length,
-    rejected: items.filter((i) => i.status === "Draft").length,
+    approved: items.filter((i) => i.status === "Approved").length,
+    rejected: items.filter((i) => i.status === "Rejected").length,
   };
 
   const brands = [...new Set(items.map((i) => i.brandName))];

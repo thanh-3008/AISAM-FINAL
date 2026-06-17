@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { storeActiveProfile } from "@/stores/profile-store";
-import { apiClient, apiFetch } from "@/lib/apiClient";
+import { createWorkspace } from "@/services/workspaceService";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
 
 interface PendingWorkspace {
@@ -58,49 +57,29 @@ export default function OverviewPage() {
 
     try {
       // 1. Tạo Workspace thật trong DB
-      const wsResult = await apiClient("/workspaces", {
-        method: "POST",
-        data: { name, workspaceType },
-      });
+      const workspace = await createWorkspace({ name, workspaceType });
 
-      if (!wsResult?.success || !wsResult.data) {
-        setCreateError(wsResult?.message || "Tạo workspace thất bại.");
+      if (!workspace) {
+        setCreateError("Tạo workspace thất bại.");
         return;
       }
 
-      // 2. Tạo Profile (để có X-Profile-Id)
-      const formBody = new FormData();
-      formBody.append("name", name);
-      formBody.append("profileType", workspaceType.toString());
-      if (companyName) formBody.append("companyName", companyName);
-
-      const pfResult = await apiFetch(`/profiles/user/${userId}`, {
-        method: "POST",
-        body: formBody,
-      });
-
-      const wsId = wsResult.data.id;
-      const pfId = pfResult?.success && pfResult.data ? pfResult.data.id : wsId;
+      const wsId = workspace.id;
 
       const wsData: WorkspaceData = {
         id: wsId,
         userId,
-        name: wsResult.data.name || name,
-        workspaceType: wsResult.data.workspaceType ?? workspaceType,
+        name: workspace.name || name,
+        workspaceType: workspace.workspaceType ?? workspaceType,
         plan: workspaceType === 2 ? "Business" : "Personal",
-        status: wsResult.data.status ?? 1,
-        createdAt: wsResult.data.createdAt || new Date().toISOString(),
-        updatedAt: wsResult.data.updatedAt || new Date().toISOString(),
+        status: workspace.status ?? 1,
+        createdAt: workspace.createdAt || new Date().toISOString(),
+        updatedAt: workspace.updatedAt || new Date().toISOString(),
         isOwner: true,
         memberRole: "Owner",
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
-      storeActiveProfile({
-        id: pfId,
-        name: wsData.name,
-        profileType: workspaceType,
-      });
     } catch (e: any) {
       setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
       return;
@@ -126,7 +105,6 @@ export default function OverviewPage() {
     } else {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
-      storeActiveProfile({ id: w.id, name: w.name, profileType: w.workspaceType });
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }
