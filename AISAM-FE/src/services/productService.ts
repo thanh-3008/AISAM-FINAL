@@ -49,27 +49,19 @@ export async function getProductById(id: string): Promise<ProductApiItem | null>
 }
 
 export async function createProduct(data: ProductPayload | FormData): Promise<ProductApiItem | null> {
-  try {
-    const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
-    const res: GenericResponse<ProductApiItem> = isFormData
-      ? await apiFetch("/products", { method: "POST", body: data })
-      : await apiFetch("/products", { method: "POST", body: productPayloadToFormData(data as ProductPayload) });
-    return res?.data ?? null;
-  } catch {
-    return null;
-  }
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+  const res: GenericResponse<ProductApiItem> = isFormData
+    ? await apiFetch("/products", { method: "POST", body: data })
+    : await apiFetch("/products", { method: "POST", body: productPayloadToFormData(data as ProductPayload) });
+  return res?.data ?? null;
 }
 
 export async function updateProduct(id: string, data: Partial<ProductPayload> | FormData): Promise<ProductApiItem | null> {
-  try {
-    const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
-    const res: GenericResponse<ProductApiItem> = isFormData
-      ? await apiFetch(`/products/${id}`, { method: "PUT", body: data })
-      : await apiFetch(`/products/${id}`, { method: "PUT", body: productPayloadToFormData(data as Partial<ProductPayload>) });
-    return res?.data ?? null;
-  } catch {
-    return null;
-  }
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+  const res: GenericResponse<ProductApiItem> = isFormData
+    ? await apiFetch(`/products/${id}`, { method: "PUT", body: data })
+    : await apiFetch(`/products/${id}`, { method: "PUT", body: productPayloadToFormData(data as Partial<ProductPayload>) });
+  return res?.data ?? null;
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {

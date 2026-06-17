@@ -7,6 +7,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { PlatformIcon } from "@/lib/contentConstants";
+import { resolveApiMediaUrl } from "@/lib/apiBaseUrl";
 import { deleteBrand, getBrandById, updateBrand, type BrandPayload } from "@/services/brandService";
 import { deleteProduct, fetchProducts } from "@/services/productService";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
@@ -267,8 +268,8 @@ export default function BrandDetailPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="flex items-start gap-6">
                 <div className="w-24 h-24 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant overflow-hidden p-2 shrink-0">
-                  {safeBrand.logoUrl ? (
-                    <img src={safeBrand.logoUrl} alt={safeBrand.name} className="w-full h-full object-contain" />
+                  {resolveApiMediaUrl(safeBrand.logoUrl) ? (
+                    <img src={resolveApiMediaUrl(safeBrand.logoUrl)} alt={safeBrand.name} className="w-full h-full object-contain" />
                   ) : (
                     <span className={`w-full h-full rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
                       <span className="text-headline-lg font-bold text-white">{initials}</span>
@@ -398,6 +399,7 @@ export default function BrandDetailPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredProducts.map((product, i) => {
                       const inStock = (product.stock ?? 0) > 0;
+                      const imageUrl = resolveApiMediaUrl(product.images?.[0]);
                       return (
                         <motion.div key={product.id}
                           initial={{ opacity: 0, y: 16 }}
@@ -407,12 +409,16 @@ export default function BrandDetailPage() {
                           whileHover={{ y: -3, boxShadow: "0 10px 25px -12px rgba(0,0,0,0.15)" }}
                           className="group border border-outline-variant/20 bg-surface-container-lowest rounded-2xl overflow-hidden hover:border-primary/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col">
                           <div className="aspect-video relative overflow-hidden bg-surface-container-low">
-                            <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            )}
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
                             <p className="text-on-surface-variant text-body-sm mb-2 line-clamp-2 flex-1">{product.description}</p>
-                            <p className="text-label-lg font-bold text-primary mb-3">${product.price.toFixed(2)}</p>
+                            <p className="text-label-lg font-bold text-primary mb-3">${(product.price ?? 0).toFixed(2)}</p>
                             <div className="flex items-center justify-between mt-auto">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-1.5 text-on-surface-variant">
@@ -642,13 +648,17 @@ export default function BrandDetailPage() {
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
               <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
-                <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                {resolveApiMediaUrl(viewingProduct.images?.[0]) ? (
+                  <img src={resolveApiMediaUrl(viewingProduct.images?.[0])} alt={viewingProduct.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                )}
               </div>
               <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Price</span>
-                  <p className="text-body-sm font-semibold text-on-surface">${viewingProduct.price.toFixed(2)}</p>
+                  <p className="text-body-sm font-semibold text-on-surface">${(viewingProduct.price ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Stock</span>

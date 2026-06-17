@@ -37,7 +37,7 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
     label: "Marketing",
     items: [
       { label: "Social Accounts", href: "/social", icon: "public" },
-      { label: "Campaigns", href: "/campaigns", icon: "campaign", disabled: process.env.NEXT_PUBLIC_USE_MOCK_API !== "true" },
+      { label: "Campaigns", href: "/campaigns", icon: "campaign" },
       { label: "Analysis", href: "/analytics", icon: "bar_chart" },
     ],
   },

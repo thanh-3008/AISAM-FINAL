@@ -8,6 +8,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.FileProviders;
 
 namespace AISAM.API.Controllers;
 
@@ -17,10 +18,23 @@ namespace AISAM.API.Controllers;
 public sealed class ContentController : ControllerBase
 {
     private readonly IContentService _contentService;
+    private readonly IWebHostEnvironment _environment;
+    private static readonly HashSet<string> AllowedMediaContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "video/mp4",
+        "video/webm",
+        "video/quicktime"
+    };
+    private const long MaxMediaBytes = 50 * 1024 * 1024;
 
-    public ContentController(IContentService contentService)
+    public ContentController(IContentService contentService, IWebHostEnvironment? environment = null)
     {
         _contentService = contentService;
+        _environment = environment ?? new NullWebHostEnvironment();
     }
 
     [HttpPost]
@@ -30,6 +44,60 @@ public sealed class ContentController : ControllerBase
     {
         var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("media")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<GenericResponse<ContentMediaUploadResponse>>> UploadMedia(
+        [FromForm] IFormFile file,
+        CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length <= 0)
+        {
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file is required."));
+        }
+
+        if (file.Length > MaxMediaBytes)
+        {
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file must be 50MB or smaller."));
+        }
+
+        if (!AllowedMediaContentTypes.Contains(file.ContentType))
+        {
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file must be JPEG, PNG, WebP, GIF, MP4, WebM, or MOV."));
+        }
+
+        var workspaceId = GetWorkspaceId();
+        var rootPath = _environment.WebRootPath;
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            rootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
+        }
+        Directory.CreateDirectory(rootPath);
+
+        var relativeDirectory = Path.Combine("uploads", "content", workspaceId.ToString("N"));
+        var uploadDirectory = Path.Combine(rootPath, relativeDirectory);
+        Directory.CreateDirectory(uploadDirectory);
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var safeExtension = string.IsNullOrWhiteSpace(extension)
+            ? (file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ? ".mp4" : ".jpg")
+            : extension;
+        var fileName = $"{Guid.NewGuid():N}{safeExtension}";
+        var filePath = Path.Combine(uploadDirectory, fileName);
+
+        await using var stream = System.IO.File.Create(filePath);
+        await file.CopyToAsync(stream, cancellationToken);
+
+        var response = new ContentMediaUploadResponse
+        {
+            Url = $"/uploads/content/{workspaceId:N}/{fileName}",
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            Size = file.Length
+        };
+
+        return Ok(GenericResponse<ContentMediaUploadResponse>.CreateSuccess(response, "Media uploaded successfully."));
     }
 
     [HttpGet]
@@ -142,4 +210,14 @@ public sealed class ContentController : ControllerBase
     }
 
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+
+    private sealed class NullWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "AISAM.API";
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string WebRootPath { get; set; } = string.Empty;
+        public string EnvironmentName { get; set; } = Environments.Production;
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
 }

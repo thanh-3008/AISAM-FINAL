@@ -187,7 +187,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProductService_ReturnsError_WhenImageFilesAreProvided()
+    public async Task ProductService_SavesImageFiles_WhenProvided()
     {
         var userId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
@@ -213,23 +213,33 @@ public class FoundationTests
             Name = "New product",
             ImageFiles = new List<IFormFile>
             {
-                new FormFile(createStream, 0, createStream.Length, "image", "product.png")
+                new FormFile(createStream, 0, createStream.Length, "ImageFiles", "product.png")
+                {
+                    Headers = new HeaderDictionary(),
+                    ContentType = "image/png"
+                }
             }
         });
         var updateResult = await service.UpdateAsync(product.Id, workspaceId, userId, new ProductUpdateRequestDto
         {
             ImageFiles = new List<IFormFile>
             {
-                new FormFile(updateStream, 0, updateStream.Length, "image", "product.png")
+                new FormFile(updateStream, 0, updateStream.Length, "ImageFiles", "product.png")
+                {
+                    Headers = new HeaderDictionary(),
+                    ContentType = "image/png"
+                }
             }
         });
 
-        Assert.False(createResult.Success);
-        Assert.Contains("upload is not enabled", createResult.Message);
-        Assert.False(productRepository.AddCalled);
-        Assert.False(updateResult.Success);
-        Assert.Contains("upload is not enabled", updateResult.Message);
-        Assert.False(productRepository.UpdateCalled);
+        Assert.True(createResult.Success);
+        Assert.True(productRepository.AddCalled);
+        Assert.Single(createResult.Data!.Images!);
+        Assert.StartsWith("/uploads/products/", createResult.Data.Images![0]);
+        Assert.True(updateResult.Success);
+        Assert.True(productRepository.UpdateCalled);
+        Assert.Single(updateResult.Data!.Images!);
+        Assert.StartsWith("/uploads/products/", updateResult.Data.Images![0]);
     }
 
     [Fact]

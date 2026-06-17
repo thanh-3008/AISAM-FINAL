@@ -20,6 +20,11 @@ export interface ProductApiItem {
   id: string;
   name: string;
   brandId: string;
+  description?: string | null;
+  price?: number | null;
+  images?: string[] | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BrandPayload {
@@ -97,7 +102,7 @@ export async function restoreBrand(id: string): Promise<boolean> {
   }
 }
 
-export async function fetchProducts(brandId?: string): Promise<{ id: string; name: string; brandId: string }[]> {
+export async function fetchProducts(brandId?: string): Promise<ProductApiItem[]> {
   try {
     const query = brandId ? `?brandId=${brandId}&pageSize=100` : "?pageSize=100";
     const res: GenericResponse<PagedResult<ProductApiItem> | ProductApiItem[]> = await apiClient(`/products${query}`);

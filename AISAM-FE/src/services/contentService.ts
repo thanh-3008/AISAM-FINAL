@@ -1,4 +1,5 @@
 import { apiClient, apiFetch } from "@/lib/apiClient";
+import { resolveApiMediaUrl } from "@/lib/apiBaseUrl";
 import type { ContentType, ContentStatus } from "@/lib/contentConstants";
 
 interface GenericResponse<T> {
@@ -100,6 +101,13 @@ export interface CreateContentPayload {
   representativeCharacter?: string | null;
 }
 
+export interface ContentMediaUpload {
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 export interface UpdateContentPayload {
   productId?: string | null;
   adType?: AdType;
@@ -164,7 +172,28 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   4: "Published",
 };
 
+function getFirstMediaUrl(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.find((item) => typeof item === "string" && item.trim().length > 0)?.trim() ?? "";
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  return trimmed;
+}
+
 function apiItemToContentItem(api: ContentApiItem): ContentItem {
+  const imageUrl = getFirstMediaUrl(api.imageUrl);
+  const videoUrl = getFirstMediaUrl(api.videoUrl);
   return {
     id: api.id,
     title: api.title || "",
@@ -172,7 +201,7 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: api.imageUrl || api.videoUrl || "",
+    thumbnail: resolveApiMediaUrl(imageUrl || videoUrl),
     createdAt: api.createdAt,
     platforms: [],
     tags: [],
@@ -181,6 +210,8 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
 }
 
 function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
+  const imageUrl = getFirstMediaUrl(api.imageUrl);
+  const videoUrl = getFirstMediaUrl(api.videoUrl);
   return {
     id: api.id,
     title: api.title || "",
@@ -188,13 +219,13 @@ function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: api.imageUrl || api.videoUrl || "",
+    thumbnail: resolveApiMediaUrl(imageUrl || videoUrl),
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,
     textContent: api.textContent,
-    imageUrl: api.imageUrl || undefined,
-    videoUrl: api.videoUrl || undefined,
+    imageUrl: resolveApiMediaUrl(imageUrl) || undefined,
+    videoUrl: resolveApiMediaUrl(videoUrl) || undefined,
     tags: [],
     hashtags: [],
   };
@@ -255,6 +286,20 @@ export async function createContent(data: CreateContentPayload): Promise<Content
     return apiItemToContentItem(res.data);
   }
   return null;
+}
+
+export async function uploadContentMedia(file: File): Promise<ContentMediaUpload | null> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res: GenericResponse<ContentMediaUpload> = await apiFetch("/content/media", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res?.success || !res.data?.url) return null;
+  return {
+    ...res.data,
+    url: resolveApiMediaUrl(res.data.url),
+  };
 }
 
 export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {

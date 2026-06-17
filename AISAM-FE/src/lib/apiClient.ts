@@ -33,14 +33,30 @@ const ERROR_MAP: Record<string, string> = {
   "Workspace not found.": "Workspace không tồn tại.",
 };
 
+function getValidationMessage(errors: unknown): string | null {
+  if (!errors || typeof errors !== "object") return null;
+  const parts = Object.entries(errors as Record<string, unknown>)
+    .flatMap(([field, messages]) => {
+      const list = Array.isArray(messages) ? messages : [messages];
+      return list
+        .filter((message): message is string => typeof message === "string" && message.trim().length > 0)
+        .map((message) => `${field}: ${message}`);
+    });
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
 async function handleResponse<TResponse>(response: Response): Promise<TResponse> {
   const result = await response.json().catch(() => null);
   if (!response.ok) {
-    const errorMessage = result?.message || response.statusText || "Đã có lỗi xảy ra";
+    const validationMessage = getValidationMessage(result?.errors);
+    const errorMessage = validationMessage || result?.message || result?.title || response.statusText || "Đã có lỗi xảy ra";
     if (errorMessage === "Authentication is required.") {
       removeToken();
       removeRefreshToken();
       clearActiveWorkspace();
+    }
+    if (response.status === 403 && !ERROR_MAP[errorMessage]) {
+      throw new Error("Bạn không có quyền truy cập tài nguyên này. Hãy kiểm tra workspace đang chọn hoặc đăng nhập bằng tài khoản có quyền.");
     }
     throw new Error(ERROR_MAP[errorMessage] || errorMessage);
   }
