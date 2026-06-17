@@ -33,7 +33,7 @@ interface CampaignBrandOption {
 }
 
 export default function CampaignsPage() {
-  const { activeWorkspace } = useWorkspaces();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspaces();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [brands, setBrands] = useState<CampaignBrandOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +61,15 @@ export default function CampaignsPage() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      if (!activeWorkspace?.id) {
+        if (!workspaceLoading) {
+          setCampaigns([]);
+          setBrands([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
       try {
         const [campaignRes, brandRes] = await Promise.all([
@@ -83,7 +92,7 @@ export default function CampaignsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, [activeWorkspace?.id]);
+  }, [activeWorkspace?.id, workspaceLoading]);
 
   // Toast auto-dismiss
   useEffect(() => {

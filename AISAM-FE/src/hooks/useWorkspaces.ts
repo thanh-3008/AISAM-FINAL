@@ -146,6 +146,30 @@ export function useWorkspaces() {
   const storedMatch = stored ? workspaces.find((p) => p.id === stored.id) : null;
   const fallbackMatch = workspaces.find((p) => p.status === 1) || workspaces[0] || null;
   const activeWorkspace = storedMatch || fallbackMatch;
+  const storedId = stored?.id ?? null;
+  const storedName = stored?.name ?? null;
+  const storedWorkspaceType = stored?.workspaceType ?? null;
+  const activeWorkspaceId = activeWorkspace?.id ?? null;
+  const activeWorkspaceName = activeWorkspace?.name ?? null;
+  const activeWorkspaceType = activeWorkspace?.workspaceType ?? null;
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeWorkspaceName || activeWorkspaceType === null) {
+      return;
+    }
+
+    if (
+      storedId !== activeWorkspaceId ||
+      storedName !== activeWorkspaceName ||
+      storedWorkspaceType !== activeWorkspaceType
+    ) {
+      storeActiveWorkspace({
+        id: activeWorkspaceId,
+        name: activeWorkspaceName,
+        workspaceType: activeWorkspaceType,
+      });
+    }
+  }, [storedId, storedName, storedWorkspaceType, activeWorkspaceId, activeWorkspaceName, activeWorkspaceType]);
 
   const selectWorkspace = useCallback((workspace: WorkspaceData) => {
     storeActiveWorkspace({
