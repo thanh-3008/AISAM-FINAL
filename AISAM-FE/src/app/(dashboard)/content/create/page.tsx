@@ -8,6 +8,7 @@ import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, ALL_TAGS, getBrandColor
 import { createContent, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -157,6 +158,12 @@ export default function CreateContentPage() {
     if (!storedWs) {
       setSaving(false);
       setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
+      return;
+    }
+    const storedProfile = getStoredActiveProfile();
+    if (!storedProfile) {
+      setSaving(false);
+      setSaveError("Tính năng này yêu cầu chọn Profile hợp lệ trong workspace hiện tại.");
       return;
     }
 

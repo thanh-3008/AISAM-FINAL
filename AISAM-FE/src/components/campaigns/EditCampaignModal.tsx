@@ -2,16 +2,22 @@
 
 import { useState } from "react";
 import { type Campaign, type CampaignObjective, type CreateCampaignData } from "@/services/campaignService";
-import { OBJECTIVE_CONFIG, BRANDS } from "./campaignUtils";
+import { OBJECTIVE_CONFIG } from "./campaignUtils";
+
+interface CampaignBrandOption {
+  id: string;
+  name: string;
+}
 
 interface EditCampaignModalProps {
   campaign: Campaign | null;
   onClose: () => void;
   onUpdate: (id: string, data: CreateCampaignData) => void;
   isLoading: boolean;
+  brands: CampaignBrandOption[];
 }
 
-export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoading }: EditCampaignModalProps) {
+export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoading, brands }: EditCampaignModalProps) {
   const [name, setName] = useState(campaign?.name || "");
   const [brandId, setBrandId] = useState(campaign?.brandId || "");
   const [objective, setObjective] = useState<CampaignObjective>(campaign?.objective || "AWARENESS");
@@ -22,7 +28,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
   if (!campaign) return null;
 
   const handleSubmit = () => {
-    const brand = BRANDS.find((b) => b.id === brandId);
+    const brand = brands.find((b) => b.id === brandId);
     if (!name.trim() || !brand) return;
 
     onUpdate(campaign.id, {
@@ -82,7 +88,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10"
               >
                 <option value="">Select brand...</option>
-                {BRANDS.map((b) => (
+                {brands.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>

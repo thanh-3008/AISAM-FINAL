@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { createWorkspace } from "@/services/workspaceService";
+import { storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
+import { apiClient, apiFetch } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
 
 interface PendingWorkspace {
@@ -23,6 +24,30 @@ interface PendingWorkspace {
 }
 
 type DisplayWorkspace = WorkspaceData | PendingWorkspace;
+
+type ApiResponse<T> = {
+  success: boolean;
+  message?: string | null;
+  data?: T;
+};
+
+type WorkspaceCreateResponse = {
+  id: string;
+  name?: string | null;
+  workspaceType?: number;
+  status?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type ProfileCreateResponse = {
+  id: string;
+  name?: string | null;
+};
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -53,35 +78,63 @@ export default function OverviewPage() {
     setCreating(true);
     setCreateError(null);
     const userId = getUserIdFromToken();
-    if (!userId) return;
+    if (!userId) {
+      setCreating(false);
+      setCreateError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+      return;
+    }
 
     try {
       // 1. Tạo Workspace thật trong DB
-      const workspace = await createWorkspace({ name, workspaceType });
+      const wsResult: ApiResponse<WorkspaceCreateResponse> = await apiClient("/workspaces", {
+        method: "POST",
+        data: { name, workspaceType },
+      });
 
-      if (!workspace) {
-        setCreateError("Tạo workspace thất bại.");
+      if (!wsResult?.success || !wsResult.data) {
+        setCreateError(wsResult?.message || "Tạo workspace thất bại.");
         return;
       }
 
-      const wsId = workspace.id;
+      // 2. Tạo Profile (để có X-Profile-Id)
+      const formBody = new FormData();
+      formBody.append("name", name);
+      formBody.append("profileType", workspaceType.toString());
+      if (companyName) formBody.append("companyName", companyName);
+
+      const pfResult: ApiResponse<ProfileCreateResponse> = await apiFetch(`/profiles/user/${userId}`, {
+        method: "POST",
+        body: formBody,
+      });
+
+      const wsId = wsResult.data.id;
 
       const wsData: WorkspaceData = {
         id: wsId,
         userId,
-        name: workspace.name || name,
-        workspaceType: workspace.workspaceType ?? workspaceType,
+        name: wsResult.data.name || name,
+        workspaceType: wsResult.data.workspaceType ?? workspaceType,
         plan: workspaceType === 2 ? "Business" : "Personal",
-        status: workspace.status ?? 1,
-        createdAt: workspace.createdAt || new Date().toISOString(),
-        updatedAt: workspace.updatedAt || new Date().toISOString(),
+        status: wsResult.data.status ?? 1,
+        createdAt: wsResult.data.createdAt || new Date().toISOString(),
+        updatedAt: wsResult.data.updatedAt || new Date().toISOString(),
         isOwner: true,
         memberRole: "Owner",
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
-    } catch (e: any) {
-      setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
+
+      if (pfResult?.success && pfResult.data?.id) {
+        storeActiveProfile({
+          id: pfResult.data.id,
+          name: pfResult.data.name || wsData.name,
+          profileType: workspaceType,
+        });
+      } else {
+        clearActiveProfile();
+      }
+    } catch (e: unknown) {
+      setCreateError(getErrorMessage(e, "Lỗi kết nối khi tạo workspace."));
       return;
     } finally {
       setCreating(false);
@@ -105,6 +158,7 @@ export default function OverviewPage() {
     } else {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
+      clearActiveProfile();
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }

@@ -80,7 +80,7 @@ export async function createSchedule(data: {
   contentId: string;
   integrationId: string;
   scheduledAt: string;
-}): Promise<ScheduleItem | null> {
+}): Promise<{ data: ScheduleItem | null; error?: string }> {
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient("/content-schedules", {
       data,
@@ -88,10 +88,15 @@ export async function createSchedule(data: {
     });
     if (res?.data) {
       dispatchScheduleChange();
-      return res.data;
+      return { data: res.data };
     }
-  } catch { /* ignore */ }
-  return null;
+    if (res?.error?.errorMessage || res?.message) {
+      return { data: null, error: res?.error?.errorMessage || res?.message || "Unknown error" };
+    }
+  } catch (err: any) { 
+    return { data: null, error: err.message || "Failed to create schedule" };
+  }
+  return { data: null, error: "Failed to create schedule" };
 }
 
 export async function updateSchedule(id: string, data: {

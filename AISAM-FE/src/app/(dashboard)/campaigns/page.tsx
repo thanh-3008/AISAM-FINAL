@@ -25,10 +25,17 @@ import CreateCampaignModal from "@/components/campaigns/CreateCampaignModal";
 import EditCampaignModal from "@/components/campaigns/EditCampaignModal";
 import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
+import { fetchBrands } from "@/services/brandService";
+
+interface CampaignBrandOption {
+  id: string;
+  name: string;
+}
 
 export default function CampaignsPage() {
   const { activeWorkspace } = useWorkspaces();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [brands, setBrands] = useState<CampaignBrandOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -56,10 +63,20 @@ export default function CampaignsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetchCampaigns();
-        if (!cancelled) setCampaigns(res.data);
-      } catch {
-        if (!cancelled) setCampaigns([]);
+        const [campaignRes, brandRes] = await Promise.all([
+          fetchCampaigns(),
+          fetchBrands(),
+        ]);
+        if (!cancelled) {
+          setCampaigns(campaignRes.data);
+          setBrands(brandRes);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setCampaigns([]);
+          setBrands([]);
+          showToast(err instanceof Error ? err.message : "Failed to load campaigns", "error");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -136,8 +153,8 @@ export default function CampaignsPage() {
       setCampaigns((prev) => [campaign, ...prev]);
       setShowCreateModal(false);
       showToast(`Campaign "${campaign.name}" created successfully`);
-    } catch {
-      showToast("Failed to create campaign", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to create campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -152,8 +169,8 @@ export default function CampaignsPage() {
         setEditCampaign(null);
         showToast(`Campaign "${updated.name}" updated successfully`);
       }
-    } catch {
-      showToast("Failed to update campaign", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to update campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -363,6 +380,7 @@ export default function CampaignsPage() {
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreate}
           isLoading={actionLoading === "create"}
+          brands={brands}
         />
 
         <EditCampaignModal
@@ -371,6 +389,7 @@ export default function CampaignsPage() {
           onClose={() => setEditCampaign(null)}
           onUpdate={handleEdit}
           isLoading={actionLoading === "edit"}
+          brands={brands}
         />
 
         <CampaignDetailModal

@@ -49,9 +49,10 @@ public sealed class ContentController : ControllerBase
     [HttpPost("media")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<GenericResponse<ContentMediaUploadResponse>>> UploadMedia(
-        [FromForm] IFormFile file,
+        [FromForm] ContentMediaUploadRequest request,
         CancellationToken cancellationToken = default)
     {
+        var file = request.File;
         if (file == null || file.Length <= 0)
         {
             return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file is required."));

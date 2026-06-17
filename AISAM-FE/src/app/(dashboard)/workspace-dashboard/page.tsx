@@ -285,34 +285,34 @@ export default function WorkspaceDashboardPage() {
               <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6">
                 <h3 className="text-headline-sm text-on-surface mb-4">Quick Actions</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <a
+                  <Link
                     href="/content/ai-generate"
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-primary text-[28px]">auto_awesome</span>
                     <span className="text-label-sm text-on-surface font-medium">Generate Content</span>
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/posts"
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-blue-500 text-[28px]">send</span>
                     <span className="text-label-sm text-on-surface font-medium">View Posts</span>
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/profiles/[id]?section=billing"
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-emerald-500 text-[28px]">token</span>
                     <span className="text-label-sm text-on-surface font-medium">Buy Credits</span>
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/team"
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-purple-500 text-[28px]">group</span>
                     <span className="text-label-sm text-on-surface font-medium">Manage Team</span>
-                  </a>
+                  </Link>
                 </div>
               </div>
             </>

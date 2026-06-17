@@ -18,7 +18,8 @@ public sealed class ActiveProfileMiddleware
         new("/api/social-auth"),
         new("/api/social"),
         new("/api/posts"),
-        new("/api/notifications")
+        new("/api/notifications"),
+        new("/api/ad-campaigns")
     };
 
     private readonly RequestDelegate _next;

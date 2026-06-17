@@ -34,13 +34,13 @@ export interface SocialIntegration {
   id: string;
   socialAccountId: string;
   profileId?: string;
-  brandId?: string;
   brandName?: string | null;
   targetId: string;
   provider: SocialPlatform;
   accountName: string;
   targetName: string;
   isActive: boolean;
+  brandId: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -125,7 +125,7 @@ interface BECallbackRequest {
 }
 
 interface BELinkTargetsRequest {
-  profileId: string;
+  profileId?: string;
   provider: string;
   providerTargetIds: string[];
   brandId: string;
@@ -218,7 +218,7 @@ export async function getLinkedTargets(accountId: string): Promise<SocialTarget[
   return [];
 }
 
-export async function linkTargets(accountId: string, targetIds: string[], brandId: string, profileId: string): Promise<SocialAccount> {
+export async function linkTargets(accountId: string, targetIds: string[], brandId: string, profileId?: string): Promise<SocialAccount> {
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
     method: "POST",
     data: { profileId, provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
@@ -252,13 +252,13 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
           id: dto.id,
           socialAccountId: dto.socialAccountId,
           profileId: dto.profileId,
-          brandId: dto.brandId,
           brandName: dto.brandName ?? null,
           targetId: dto.externalId,
           provider: dto.platform.toLowerCase() as SocialPlatform,
           accountName: dto.name,
           targetName: dto.name,
           isActive: dto.isActive,
+          brandId: dto.brandId ?? brandId,
           createdAt: dto.createdAt,
           updatedAt: dto.updatedAt,
         }));

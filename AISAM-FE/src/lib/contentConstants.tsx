@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 export type ContentType = "IMAGE" | "TEXT" | "VIDEO";
-export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Scheduled" | "Published";
+export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled";
 
 export const PLATFORM_CONFIG: Record<string, { color: string; icon: string; label: string }> = {
   facebook: { color: "#1877F2", icon: "facebook", label: "Facebook" },
@@ -36,8 +36,8 @@ export const STATUS_OPTIONS: { label: string; value: ContentStatus }[] = [
   { label: "Awaiting Approval", value: "Awaiting Approval" },
   { label: "Approved", value: "Approved" },
   { label: "Rejected", value: "Rejected" },
-  { label: "Scheduled", value: "Scheduled" },
   { label: "Published", value: "Published" },
+  { label: "Scheduled", value: "Scheduled" },
 ];
 
 export const STATUS_STYLES: Record<ContentStatus, string> = {
@@ -45,8 +45,8 @@ export const STATUS_STYLES: Record<ContentStatus, string> = {
   "Awaiting Approval": "bg-amber-50 text-amber-600",
   "Approved": "bg-emerald-50 text-emerald-600",
   "Rejected": "bg-danger-red/10 text-danger-red",
-  "Scheduled": "bg-blue-50 text-blue-600",
   "Published": "bg-blue-50 text-blue-600",
+  "Scheduled": "bg-blue-50 text-blue-600",
 };
 
 export const ALL_TAGS = ["Product Launch", "Tutorial", "Seasonal", "Brand Story", "Behind the Scenes", "Testimonial", "Promotion", "Educational"];
