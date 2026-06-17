@@ -80,7 +80,6 @@ export default function OverviewPage() {
       });
 
       const wsId = wsResult.data.id;
-      const pfId = pfResult?.success && pfResult.data ? pfResult.data.id : wsId;
 
       const wsData: WorkspaceData = {
         id: wsId,
@@ -96,11 +95,16 @@ export default function OverviewPage() {
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
-      storeActiveProfile({
-        id: pfId,
-        name: wsData.name,
-        profileType: workspaceType,
-      });
+      
+      if (pfResult?.success && pfResult.data?.id) {
+        storeActiveProfile({
+          id: pfResult.data.id,
+          name: pfResult.data.name || wsData.name,
+          profileType: workspaceType,
+        });
+      } else {
+        clearActiveProfile();
+      }
     } catch (e: any) {
       setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
       return;
@@ -126,7 +130,7 @@ export default function OverviewPage() {
     } else {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
-      storeActiveProfile({ id: w.id, name: w.name, profileType: w.workspaceType });
+      clearActiveProfile();
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }

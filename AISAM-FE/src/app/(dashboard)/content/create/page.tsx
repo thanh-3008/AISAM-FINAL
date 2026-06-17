@@ -8,7 +8,7 @@ import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, ALL_TAGS, getBrandColor
 import { createContent, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
-import { getStoredActiveProfile, storeActiveProfile } from "@/stores/profile-store";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -146,8 +146,9 @@ export default function CreateContentPage() {
       return;
     }
     if (!storedProfile) {
-      storeActiveProfile({ id: storedWs.id, name: storedWs.name, profileType: storedWs.workspaceType });
-      storedProfile = getStoredActiveProfile();
+      setSaving(false);
+      setSaveError("Tính năng này yêu cầu chọn Profile hợp lệ trong workspace hiện tại.");
+      return;
     }
 
     const payload: CreateContentPayload = {

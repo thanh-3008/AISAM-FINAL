@@ -116,8 +116,39 @@ export function useProfiles() {
 
   const stored = getStoredActiveProfile();
   const storedMatch = stored ? profiles.find((p) => p.id === stored.id) : null;
-  const fallbackMatch = profiles.find((p) => p.status === 1) || profiles[0] || null;
+  const fallbackMatch = profiles.length === 1
+    ? profiles[0]
+    : profiles.find((p) => p.status === 1) || null;
   const activeProfile = storedMatch || fallbackMatch;
+  const storedId = stored?.id ?? null;
+  const storedName = stored?.name ?? null;
+  const storedProfileType = stored?.profileType ?? null;
+  const activeProfileId = activeProfile?.id ?? null;
+  const activeProfileName = activeProfile?.name ?? null;
+  const activeProfileType = activeProfile?.profileType ?? null;
+
+  useEffect(() => {
+    if (storedId && !storedMatch && profiles.length > 1) {
+      clearActiveProfile();
+      return;
+    }
+
+    if (!activeProfileId || !activeProfileName || activeProfileType === null) {
+      return;
+    }
+
+    if (
+      storedId !== activeProfileId ||
+      storedName !== activeProfileName ||
+      storedProfileType !== activeProfileType
+    ) {
+      storeActiveProfile({
+        id: activeProfileId,
+        name: activeProfileName,
+        profileType: activeProfileType,
+      });
+    }
+  }, [storedId, storedName, storedProfileType, storedMatch, activeProfileId, activeProfileName, activeProfileType]);
 
   const selectProfile = useCallback((profile: Profile) => {
     storeActiveProfile({

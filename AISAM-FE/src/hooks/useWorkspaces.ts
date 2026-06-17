@@ -108,27 +108,6 @@ export function useWorkspaces() {
     if (fetchingWorkspaces) return;
     fetchingWorkspaces = true;
 
-    const fetchFromProfiles = async () => {
-      try {
-        const res: any = await apiClient(`/profiles/user/${userId}`);
-        if (res?.success && Array.isArray(res.data)) {
-          const mapped: WorkspaceData[] = res.data.map((p: any) => ({
-            id: p.id,
-            userId: p.userId,
-            name: p.name,
-            workspaceType: p.profileType ?? 1,
-            plan: getPlanName(p.profileType ?? 0),
-            status: p.status,
-            createdAt: p.createdAt,
-            updatedAt: p.updatedAt,
-            isOwner: p.isOwner ?? true,
-            memberRole: p.memberRole ?? "Owner",
-          }));
-          cachedWorkspaces = mapped;
-          setWorkspaces(mapped);
-        }
-      } catch { /* ignore */ }
-    };
 
     let mapped: WorkspaceData[] = [];
     try {

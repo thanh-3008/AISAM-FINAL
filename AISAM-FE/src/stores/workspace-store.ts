@@ -12,16 +12,21 @@ export function getStoredActiveWorkspace(): ActiveWorkspace | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-    const legacy = localStorage.getItem("aisam_active_profile");
-    if (legacy) {
-      const legacyProfile = JSON.parse(legacy);
-      const ws: ActiveWorkspace = { id: legacyProfile.id, name: legacyProfile.name, workspaceType: legacyProfile.profileType };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(ws));
-      return ws;
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<ActiveWorkspace>;
+    if (!parsed.id || !parsed.name || typeof parsed.workspaceType !== "number") {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
     }
-    return null;
+
+    return {
+      id: parsed.id,
+      name: parsed.name,
+      workspaceType: parsed.workspaceType,
+    };
   } catch {
+    localStorage.removeItem(STORAGE_KEY);
     return null;
   }
 }
