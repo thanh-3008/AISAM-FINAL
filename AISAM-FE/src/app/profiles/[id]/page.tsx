@@ -212,10 +212,45 @@ export default function ProfileDetailPage() {
     if (!id) return;
     const fetchWorkspace = async () => {
       try {
-        const result = await apiFetch(`/profiles/${id}`);
+        const result = await apiFetch(`/workspaces/${id}`);
         if (result?.success && result.data) {
-          const w = result.data as Workspace;
+          const data = result.data as {
+            id: string;
+            name: string;
+            workspaceType: number;
+            status: number;
+            createdAt: string;
+            updatedAt: string;
+            currentUserRole?: number;
+          };
+          const w: Workspace = {
+            id: data.id,
+            userId: "",
+            name: data.name,
+            workspaceType: data.workspaceType,
+            companyName: null,
+            bio: null,
+            avatarUrl: null,
+            status: data.status,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            isOwner: data.currentUserRole === 1,
+            memberRole: typeof data.currentUserRole === "number"
+              ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
+              : null,
+          };
           setWorkspace(w);
+          selectWorkspace({
+            id: w.id,
+            name: w.name,
+            workspaceType: w.workspaceType,
+            plan: w.workspaceType === 2 ? "Business" : "Personal",
+            status: w.status,
+            createdAt: w.createdAt,
+            updatedAt: w.updatedAt,
+            isOwner: w.isOwner,
+            memberRole: w.memberRole,
+          });
           setForm({
             name: w.name,
             profileType: String(w.workspaceType),
@@ -224,16 +259,26 @@ export default function ProfileDetailPage() {
             avatarUrl: w.avatarUrl || "",
           });
         } else {
+          if (activeWorkspace?.id && activeWorkspace.id !== id) {
+            const section = searchParams.get("section");
+            router.replace(`/profiles/${activeWorkspace.id}${section ? `?section=${section}` : ""}`);
+            return;
+          }
           setError(result?.message || "Workspace not found");
         }
-      } catch {
-        setError("Network error");
+      } catch (err) {
+        if (activeWorkspace?.id && activeWorkspace.id !== id) {
+          const section = searchParams.get("section");
+          router.replace(`/profiles/${activeWorkspace.id}${section ? `?section=${section}` : ""}`);
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Network error");
       } finally {
         setLoading(false);
       }
     };
     fetchWorkspace();
-  }, [id]);
+  }, [activeWorkspace?.id, id, router, searchParams, selectWorkspace]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Name is required"); return; }
@@ -241,25 +286,40 @@ export default function ProfileDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const formBody = new FormData();
-      formBody.append("name", form.name.trim());
-      formBody.append("profileType", form.profileType);
-      if (form.companyName.trim()) formBody.append("companyName", form.companyName.trim());
-      if (form.bio.trim()) formBody.append("bio", form.bio.trim());
-      if (form.avatarUrl.trim()) formBody.append("avatarUrl", form.avatarUrl.trim());
-
-      const result = await apiFetch(`/profiles/${id}`, {
+      const result = await apiFetch(`/workspaces/${id}`, {
         method: "PUT",
-        body: formBody,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name.trim() }),
       });
       if (result?.success && result.data) {
-        setWorkspace(result.data);
+        const data = result.data as {
+          id: string;
+          name: string;
+          workspaceType: number;
+          status: number;
+          createdAt: string;
+          updatedAt: string;
+          currentUserRole?: number;
+        };
+        setWorkspace((prev) => prev ? {
+          ...prev,
+          id: data.id,
+          name: data.name,
+          workspaceType: data.workspaceType,
+          status: data.status,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          isOwner: data.currentUserRole === 1,
+          memberRole: typeof data.currentUserRole === "number"
+            ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
+            : prev.memberRole,
+        } : null);
         setEditing(false);
       } else {
         setError(result?.message || "Update failed");
       }
-    } catch {
-      setError("Network error");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setSaving(false);
     }
@@ -268,7 +328,7 @@ export default function ProfileDetailPage() {
   const handleDelete = async () => {
     setShowDeleteDialog(false);
     try {
-      await apiFetch(`/profiles/${id}`, { method: "DELETE" });
+      await apiFetch(`/workspaces/${id}`, { method: "DELETE" });
       router.push("/profiles");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Delete failed";
@@ -335,58 +395,75 @@ export default function ProfileDetailPage() {
   // Subscription section handlers
   const handleLoadSubscription = async () => {
     setLoadingSubscription(true);
-    const data = await getCurrentSubscription();
-    if (data) {
-      setSubscription(data);
+    try {
+      const data = await getCurrentSubscription();
+      if (data) {
+        setSubscription(data);
 
-      const isExpired = data.status === "Expired" || data.status === "Cancelled" || data.status === "Inactive";
-      if (isExpired) {
-        setShowExpiredBanner(true);
+        const isExpired = data.status === "Expired" || data.status === "Cancelled" || data.status === "Inactive";
+        if (isExpired) {
+          setShowExpiredBanner(true);
 
-        const now = Date.now();
-        const endDate = data.endDate ? new Date(data.endDate).getTime() : now;
-        const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
+          const now = Date.now();
+          const endDate = data.endDate ? new Date(data.endDate).getTime() : now;
+          const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
 
-        if (daysSinceExpiry < 90) {
-          setIsLimitedMode(true);
-          setShowLimitedModeBanner(true);
+          if (daysSinceExpiry < 90) {
+            setIsLimitedMode(true);
+            setShowLimitedModeBanner(true);
+            setIsArchived(false);
+            setShowArchivedBanner(false);
+          } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
+            setIsLimitedMode(true);
+            setShowLimitedModeBanner(false);
+            setIsArchived(true);
+            setShowArchivedBanner(true);
+          }
+        } else {
+          setShowExpiredBanner(false);
+          setIsLimitedMode(false);
+          setShowLimitedModeBanner(false);
           setIsArchived(false);
           setShowArchivedBanner(false);
-        } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
-          setIsLimitedMode(true);
-          setShowLimitedModeBanner(false);
-          setIsArchived(true);
-          setShowArchivedBanner(true);
         }
       } else {
+        setSubscription(null);
         setShowExpiredBanner(false);
         setIsLimitedMode(false);
         setShowLimitedModeBanner(false);
         setIsArchived(false);
         setShowArchivedBanner(false);
       }
-    } else {
-      setError("Failed to load subscription.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load subscription.";
+      setError(message);
+      showToast({ type: "error", title: "Subscription", message });
+    } finally {
+      setLoadingSubscription(false);
     }
-    setLoadingSubscription(false);
   };
 
   const handleUpgradePlan = async (planType: number) => {
     setUpgradingPlan(true);
     try {
-      const planCodes = ["", "basic_monthly", "pro_monthly", "business_monthly"];
+      const planCodes: Record<number, string> = {
+        1: "Plus",
+        2: "Premium",
+      };
       const checkout = await createCheckout({
-        planCode: planCodes[planType] || "basic_monthly",
+        planCode: planCodes[planType] || "Plus",
         returnUrl: window.location.origin + "/profiles?payment=success",
         cancelUrl: window.location.origin + "/profiles?payment=cancelled",
       });
-      if (checkout?.checkoutUrl) {
-        window.location.href = checkout.checkoutUrl;
-      } else {
-        showToast({ type: "info", title: "Upgrade", message: "PayOS checkout will be available when backend is connected." });
+      if (!checkout?.checkoutUrl) {
+        throw new Error("Backend did not return a PayOS checkout URL.");
       }
-    } catch {
-      setError("Network error while upgrading plan");
+
+      window.location.href = checkout.checkoutUrl;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Network error while upgrading plan.";
+      setError(message);
+      showToast({ type: "error", title: "Upgrade failed", message });
     } finally {
       setUpgradingPlan(false);
     }
@@ -740,6 +817,8 @@ export default function ProfileDetailPage() {
     ? form.avatarUrl
     : null;
   const planLabel = workspace ? getWorkspaceTypeLabel(workspace.workspaceType) : "";
+  const isBusinessWorkspace = workspace?.workspaceType === 2;
+  const subscriptionPlanLabel = subscription?.planName || "Free";
   const initials = workspace ? getInitials(workspace.name) : "?";
   const statusInfo = workspace ? statusConfig[workspace.status] || statusConfig[0] : statusConfig[0];
 
@@ -2553,7 +2632,7 @@ export default function ProfileDetailPage() {
                                 <div>
                                   <div className="flex items-center gap-2 mb-1">
                                     <h3 className="text-xl font-bold text-on-surface">
-                                      {subscription?.planName || planLabel} Plan
+                                      {subscriptionPlanLabel} Plan
                                     </h3>
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold border ${statusInfo.class}`}>
                                       <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${workspace?.status === 1 ? "animate-pulse" : ""}`} />
@@ -2567,7 +2646,7 @@ export default function ProfileDetailPage() {
                                   </p>
                                 </div>
                               </div>
-                              {planLabel === "Free" && (
+                              {subscriptionPlanLabel === "Free" && (
                                 <motion.button
                                   whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                                   onClick={() => handleUpgradePlan(1)}
@@ -2601,7 +2680,7 @@ export default function ProfileDetailPage() {
                                     : nextPaymentDate}
                                 </p>
                                 <p className="text-label-xs text-outline mt-1">
-                                  {planLabel === "Free" ? "Free" : "$29.00 USD"}
+                                  {subscriptionPlanLabel === "Free" ? "Free" : "$29.00 USD"}
                                 </p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
@@ -2632,28 +2711,32 @@ export default function ProfileDetailPage() {
                             planType: 0,
                             price: "$0",
                             period: "/month",
-                            current: planLabel === "Free",
+                            current: subscriptionPlanLabel === "Free",
                             features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
                             cta: "Current Plan",
                           },
                           {
-                            name: "Personal Plus",
+                            name: isBusinessWorkspace ? "Business Plus" : "Personal Plus",
                             planType: 1,
-                            price: "$29",
+                            price: isBusinessWorkspace ? "$149" : "$29",
                             period: "/month",
-                            current: planLabel === "Personal Plus",
+                            current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus"),
                             popular: true,
-                            features: ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
-                            cta: planLabel === "Personal Plus" ? "Current Plan" : "Upgrade",
+                            features: isBusinessWorkspace
+                              ? ["Team Management", "Shared Credits Pool", "Shared Workspace", "Workspace Dashboard", "Up to 10 Team Members", "15,000 Credits"]
+                              : ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
+                            cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus") ? "Current Plan" : "Upgrade",
                           },
                           {
-                            name: "Personal Pro",
+                            name: isBusinessWorkspace ? "Business Pro" : "Personal Pro",
                             planType: 2,
-                            price: "$79",
+                            price: isBusinessWorkspace ? "$299" : "$79",
                             period: "/month",
-                            current: planLabel === "Personal Pro",
-                            features: ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
-                            cta: planLabel === "Personal Pro" ? "Current Plan" : "Upgrade",
+                            current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro"),
+                            features: isBusinessWorkspace
+                              ? ["All Business Plus features", "Lifetime Assigned Limit", "Monthly Assigned Limit", "Credit Usage Report", "Up to 50 Team Members", "50,000 Credits"]
+                              : ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
+                            cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro") ? "Current Plan" : "Upgrade",
                           },
                         ].map((plan) => (
                           <div
