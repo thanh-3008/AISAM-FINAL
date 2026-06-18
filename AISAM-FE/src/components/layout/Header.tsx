@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { getUserFromToken, logout } from "@/lib/auth";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
   getNotifications,
@@ -262,7 +263,10 @@ export default function Header({ breadcrumbs }: HeaderProps) {
 
         {/* Settings */}
         <button 
-          onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles")}
+          onClick={() => {
+            const profileId = getStoredActiveProfile()?.id;
+            router.push(profileId ? `/profiles/${profileId}` : activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles");
+          }}
           className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
         >
           <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:rotate-90 transition-transform duration-300" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
@@ -306,7 +310,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     Upgrade Plan
                   </Link>
                   <Link
-                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles"}
+                    href={getStoredActiveProfile()?.id ? `/profiles/${getStoredActiveProfile()!.id}` : activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles"}
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
                   >

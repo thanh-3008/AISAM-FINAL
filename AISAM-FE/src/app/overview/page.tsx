@@ -130,7 +130,15 @@ export default function OverviewPage() {
     } else {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
-      clearActiveProfile();
+      const uid = getUserIdFromToken();
+      if (uid) {
+        apiFetch(`/profiles/user/${uid}`).then((res) => {
+          if (res?.success && res.data && res.data.length > 0) {
+            const p = res.data[0];
+            storeActiveProfile({ id: p.id, name: p.name, profileType: p.profileType ?? w.workspaceType });
+          }
+        });
+      }
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }

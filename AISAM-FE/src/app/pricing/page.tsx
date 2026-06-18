@@ -12,6 +12,7 @@ import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { apiFetch } from "@/lib/apiClient";
 import { getUserIdFromToken } from "@/lib/auth";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 
 type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
@@ -290,7 +291,10 @@ function PricingContent() {
               </span>
               <span className="text-label-xs text-outline/50">·</span>
               <button
-                onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles")}
+                onClick={() => {
+                  const pid = getStoredActiveProfile()?.id;
+                  router.push(pid ? `/profiles/${pid}?section=subscription` : activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles");
+                }}
                 className="text-label-sm font-semibold text-primary hover:underline"
               >
                 Manage
