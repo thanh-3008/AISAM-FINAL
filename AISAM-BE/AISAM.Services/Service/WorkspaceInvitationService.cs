@@ -219,6 +219,16 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             "Workspace invitation accepted successfully.");
     }
 
+    public async Task<GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>> GetPendingByWorkspaceAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var invitations = await _workspaceInvitationRepository.GetPendingByWorkspaceIdAsync(workspaceId, cancellationToken);
+        return GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>.CreateSuccess(
+            invitations.Select(Map).ToList(),
+            "Pending invitations retrieved successfully.");
+    }
+
     private async Task<(string Message, HttpStatusCode Status, string? ErrorCode)?> ValidateQuotaRequestAsync(
         Workspace workspace,
         MemberQuotaModeEnum quotaMode,
@@ -269,6 +279,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             QuotaMode = invitation.QuotaMode,
             CreditLimit = invitation.CreditLimit,
             InvitedByUserId = invitation.InvitedByUserId,
+            InvitedByName = invitation.InvitedByUser?.FullName ?? invitation.InvitedByUser?.Email ?? "",
             ExpiresAt = invitation.ExpiresAt,
             CreatedAt = invitation.CreatedAt
         };

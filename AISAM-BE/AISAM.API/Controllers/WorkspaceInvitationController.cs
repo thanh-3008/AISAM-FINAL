@@ -31,6 +31,15 @@ public sealed class WorkspaceInvitationController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet]
+    public async Task<ActionResult<GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>>> GetPending(
+        CancellationToken cancellationToken = default)
+    {
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var result = await _workspaceInvitationService.GetPendingByWorkspaceAsync(workspaceId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("accept")]
     public async Task<ActionResult<GenericResponse<AcceptWorkspaceInvitationResponseDto>>> Accept(
         [FromBody] AcceptWorkspaceInvitationRequest request,

@@ -29,7 +29,7 @@ import {
   type CreditWallet,
   type WorkspaceDashboard,
 } from "@/services/workspaceService";
-import { inviteMember, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
+import { inviteMember, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 
 interface Workspace {
   id: string;
@@ -135,6 +135,8 @@ export default function ProfileDetailPage() {
   // Team members state
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [memberFilter, setMemberFilter] = useState<"all" | "active" | "pending">("all");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", role: "Viewer" as InvitationRole });
@@ -417,6 +419,11 @@ export default function ProfileDetailPage() {
       setError("Failed to load team members.");
     }
     setLoadingMembers(false);
+
+    setLoadingInvitations(true);
+    const invites = await getWorkspaceInvitations();
+    setInvitations(invites);
+    setLoadingInvitations(false);
   };
 
   const handleInviteMember = () => {
@@ -1602,6 +1609,37 @@ export default function ProfileDetailPage() {
                   )}
                 </div>
               </motion.div>
+
+              {/* Pending Invitations */}
+              {invitations.length > 0 && (
+                <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30">
+                    <h3 className="text-body-md font-semibold text-on-surface">Pending Invitations</h3>
+                  </div>
+                  <div className="divide-y divide-outline-variant/10">
+                    {loadingInvitations ? (
+                      <div className="px-6 py-4 text-center text-body-sm text-on-surface-variant">Loading...</div>
+                    ) : (
+                      invitations.map((inv) => (
+                        <div key={inv.id} className="px-6 py-4 flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[18px] text-blue-500">mail</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-body-sm font-medium text-on-surface">{inv.email}</p>
+                            <p className="text-label-xs text-outline">
+                              Invited by {inv.invitedByName} · {new Date(inv.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span className="text-label-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 font-medium">
+                            Pending
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
 
               {/* Bulk Actions Bar */}
               {showBulkActions && selectedMembers.size > 0 && (
