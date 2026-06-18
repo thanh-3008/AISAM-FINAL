@@ -100,6 +100,7 @@ export interface CreateContentPayload {
   styleDescription?: string | null;
   contextDescription?: string | null;
   representativeCharacter?: string | null;
+  status?: Extract<ContentApiStatus, 0 | 1>;
 }
 
 export interface UpdateContentPayload {

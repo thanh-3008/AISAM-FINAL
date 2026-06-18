@@ -48,6 +48,12 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
+        var statusValidation = ValidateCreateStatus(request.Status);
+        if (!statusValidation.Success)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
+        }
+
         var validation = await ValidateBrandAndProductAsync(profileId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
@@ -67,7 +73,7 @@ public sealed class ContentService : IContentService
             StyleDescription = request.StyleDescription,
             ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter,
-            Status = ContentStatusEnum.Draft
+            Status = request.Status ?? ContentStatusEnum.PendingApproval
         };
 
         await _contentRepository.AddAsync(content, cancellationToken);
@@ -76,6 +82,9 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
+        var statusValidation = ValidateCreateStatus(request.Status);
+        if (!statusValidation.Success) return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
+
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         var content = new Content
@@ -84,7 +93,7 @@ public sealed class ContentService : IContentService
             AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
             ImageUrl = FormatImageUrlForJsonb(request.ImageUrl), VideoUrl = request.VideoUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
-            RepresentativeCharacter = request.RepresentativeCharacter, Status = ContentStatusEnum.Draft
+            RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.PendingApproval
         };
         await _contentRepository.AddAsync(content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content created successfully.");
@@ -120,6 +129,10 @@ public sealed class ContentService : IContentService
         if (request.TextContent != null) content.TextContent = request.TextContent;
         if (request.ImageUrl != null) content.ImageUrl = FormatImageUrlForJsonb(request.ImageUrl);
         if (request.VideoUrl != null) content.VideoUrl = request.VideoUrl;
+        if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
+        if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
+        if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
+        if (request.Status.HasValue) content.Status = request.Status.Value;
         await _contentRepository.UpdateAsync(content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content updated successfully.");
     }
@@ -409,6 +422,18 @@ public sealed class ContentService : IContentService
             if (product.BrandId != brandId) return GenericResponse<bool>.CreateError("Product does not belong to the selected brand.", HttpStatusCode.BadRequest);
         }
         return GenericResponse<bool>.CreateSuccess(true);
+    }
+
+    private static GenericResponse<bool> ValidateCreateStatus(ContentStatusEnum? status)
+    {
+        if (status is null or ContentStatusEnum.Draft or ContentStatusEnum.PendingApproval)
+        {
+            return GenericResponse<bool>.CreateSuccess(true);
+        }
+
+        return GenericResponse<bool>.CreateError(
+            "Only Draft or PendingApproval status can be selected when creating content.",
+            HttpStatusCode.BadRequest);
     }
 
     private static GenericResponse<ContentResponseDto> NotFound()

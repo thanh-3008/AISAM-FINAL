@@ -40,6 +40,11 @@ export const STATUS_OPTIONS: { label: string; value: ContentStatus }[] = [
   { label: "Scheduled", value: "Scheduled" },
 ];
 
+export const CREATE_STATUS_OPTIONS: { label: string; value: Extract<ContentStatus, "Draft" | "Awaiting Approval"> }[] = [
+  { label: "Draft", value: "Draft" },
+  { label: "Awaiting Approval", value: "Awaiting Approval" },
+];
+
 export const STATUS_STYLES: Record<ContentStatus, string> = {
   "Draft": "bg-surface-container-high text-on-surface-variant",
   "Awaiting Approval": "bg-amber-50 text-amber-600",
