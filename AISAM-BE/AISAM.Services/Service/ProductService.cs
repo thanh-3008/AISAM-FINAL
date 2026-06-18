@@ -7,7 +7,9 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
+using AISAM.Common.Config;
 
 namespace AISAM.Services.Service
 {
@@ -16,6 +18,7 @@ namespace AISAM.Services.Service
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
         private readonly IWebHostEnvironment? _environment;
+        private readonly MediaStorageSettings _mediaStorageSettings;
         private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             "image/jpeg",
@@ -25,11 +28,16 @@ namespace AISAM.Services.Service
         };
         private const long MaxImageBytes = 10 * 1024 * 1024;
 
-        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository, IWebHostEnvironment? environment = null)
+        public ProductService(
+            IProductRepository productRepository,
+            IBrandRepository brandRepository,
+            IWebHostEnvironment? environment = null,
+            IOptions<MediaStorageSettings>? mediaStorageSettings = null)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
             _environment = environment;
+            _mediaStorageSettings = mediaStorageSettings?.Value ?? new MediaStorageSettings();
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -299,11 +307,7 @@ namespace AISAM.Services.Service
                 return urls;
             }
 
-            var rootPath = _environment?.WebRootPath;
-            if (string.IsNullOrWhiteSpace(rootPath))
-            {
-                rootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-            }
+            var rootPath = _mediaStorageSettings.ResolveUploadRootPath(_environment?.ContentRootPath);
 
             var relativeDirectory = Path.Combine("uploads", "products", brandId.ToString("N"));
             var uploadDirectory = Path.Combine(rootPath, relativeDirectory);

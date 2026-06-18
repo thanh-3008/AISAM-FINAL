@@ -60,6 +60,8 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSett
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_BASE_URL", "PayOSSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
+ApplyEnvironmentOverride(builder.Configuration, "UPLOAD_ROOT_PATH", "MediaStorage:UploadRootPath");
+ApplyEnvironmentOverride(builder.Configuration, "INITIAL_PERSONAL_WORKSPACE_CREDITS", "CreditSettings:InitialPersonalWorkspaceCredits");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -78,6 +80,8 @@ builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("Goo
 builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("GeminiSettings"));
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
+builder.Services.Configure<MediaStorageSettings>(builder.Configuration.GetSection("MediaStorage"));
+builder.Services.Configure<CreditSettings>(builder.Configuration.GetSection("CreditSettings"));
 
 var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -243,8 +247,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var webRootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
-Directory.CreateDirectory(webRootPath);
+var mediaStorageSettings = builder.Configuration.GetSection("MediaStorage").Get<MediaStorageSettings>() ?? new MediaStorageSettings();
+var uploadRootPath = mediaStorageSettings.ResolveUploadRootPath(builder.Environment.ContentRootPath);
+Directory.CreateDirectory(uploadRootPath);
 
 var app = builder.Build();
 
@@ -257,7 +262,7 @@ app.UseMiddleware<ExceptionHandlerMiddleware>();
 
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(webRootPath)
+    FileProvider = new PhysicalFileProvider(uploadRootPath)
 });
 
 app.UseAuthentication();

@@ -9,6 +9,8 @@ using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
+using AISAM.Common.Config;
 
 namespace AISAM.API.Controllers;
 
@@ -19,6 +21,7 @@ public sealed class ContentController : ControllerBase
 {
     private readonly IContentService _contentService;
     private readonly IWebHostEnvironment _environment;
+    private readonly MediaStorageSettings _mediaStorageSettings;
     private static readonly HashSet<string> AllowedMediaContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -31,10 +34,14 @@ public sealed class ContentController : ControllerBase
     };
     private const long MaxMediaBytes = 50 * 1024 * 1024;
 
-    public ContentController(IContentService contentService, IWebHostEnvironment? environment = null)
+    public ContentController(
+        IContentService contentService,
+        IWebHostEnvironment? environment = null,
+        IOptions<MediaStorageSettings>? mediaStorageSettings = null)
     {
         _contentService = contentService;
         _environment = environment ?? new NullWebHostEnvironment();
+        _mediaStorageSettings = mediaStorageSettings?.Value ?? new MediaStorageSettings();
     }
 
     [HttpPost]
@@ -69,11 +76,7 @@ public sealed class ContentController : ControllerBase
         }
 
         var workspaceId = GetWorkspaceId();
-        var rootPath = _environment.WebRootPath;
-        if (string.IsNullOrWhiteSpace(rootPath))
-        {
-            rootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
-        }
+        var rootPath = _mediaStorageSettings.ResolveUploadRootPath(_environment.ContentRootPath);
         Directory.CreateDirectory(rootPath);
 
         var relativeDirectory = Path.Combine("uploads", "content", workspaceId.ToString("N"));
