@@ -20,9 +20,9 @@ namespace AISAM.IntegrationTests;
 public class SocialControllerTests
 {
     [Fact]
-    public async Task GetFacebookAuthUrl_ReturnsUnauthorized_WhenProfileHeaderMissing()
+    public async Task ActiveProfileMiddleware_ReturnsUnauthorized_ForDevSchedulerWhenProfileHeaderMissing()
     {
-        var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/social-auth/facebook");
+        var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/dev/scheduler");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWebHostEnvironment());
@@ -98,7 +98,7 @@ public class SocialControllerTests
 
     private static SocialAuthController CreateAuthController(ISocialService service, Guid? profileId = null)
     {
-        return new SocialAuthController(service)
+        return new SocialAuthController(service, new FakeProfileRepository())
         {
             ControllerContext = new ControllerContext
             {
@@ -109,7 +109,7 @@ public class SocialControllerTests
 
     private static SocialAccountsController CreateAccountsController(ISocialService service, Guid profileId)
     {
-        return new SocialAccountsController(service)
+        return new SocialAccountsController(service, new FakeProfileRepository())
         {
             ControllerContext = new ControllerContext
             {
