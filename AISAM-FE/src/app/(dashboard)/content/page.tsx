@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContent, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import { fetchBrands } from "@/services/brandService";
 
@@ -1071,7 +1071,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Status</label>
             <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ContentStatus }))}
               className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-              {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {(isEdit ? STATUS_OPTIONS : CREATE_STATUS_OPTIONS).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
 
