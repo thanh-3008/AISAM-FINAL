@@ -21,6 +21,15 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
             .FirstOrDefaultAsync(invitation => invitation.Token == token, cancellationToken);
     }
 
+    public async Task<WorkspaceInvitation?> GetByWorkspaceAndIdAsync(
+        Guid workspaceId,
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .FirstOrDefaultAsync(invitation => invitation.WorkspaceId == workspaceId && invitation.Id == id, cancellationToken);
+    }
+
     public async Task<WorkspaceInvitation?> GetPendingByWorkspaceAndEmailAsync(
         Guid workspaceId,
         string email,

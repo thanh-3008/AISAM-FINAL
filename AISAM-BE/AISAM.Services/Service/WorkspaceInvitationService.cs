@@ -142,7 +142,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
 
         var inviter = await _userRepository.GetByIdAsync(inviterUserId);
         var inviterName = inviter?.FullName ?? inviter?.Email ?? "Workspace owner";
-        var invitationLink = $"{_frontendBaseUrl}/workspace/invitations/accept?token={Uri.EscapeDataString(invitation.Token)}";
+        var invitationLink = $"{_frontendBaseUrl}/invitation/{Uri.EscapeDataString(invitation.Token)}";
         await _emailService.SendTeamInvitationAsync(normalizedEmail, workspace.Name, inviterName, invitationLink);
 
         invitation.Workspace = workspace;
@@ -227,6 +227,36 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         return GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>.CreateSuccess(
             invitations.Select(Map).ToList(),
             "Pending invitations retrieved successfully.");
+    }
+
+    public async Task<GenericResponse<bool>> RevokeAsync(
+        Guid workspaceId,
+        Guid userId,
+        Guid invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        var inviterMembership = (await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken))
+            .FirstOrDefault(m => m.UserId == userId && m.IsActive);
+        if (inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
+        {
+            return GenericResponse<bool>.CreateError("Only the workspace owner can revoke invitations.", HttpStatusCode.Forbidden);
+        }
+
+        var invitation = await _workspaceInvitationRepository.GetByWorkspaceAndIdAsync(workspaceId, invitationId, cancellationToken);
+        if (invitation == null)
+        {
+            return GenericResponse<bool>.CreateError("Invitation not found.", HttpStatusCode.NotFound);
+        }
+
+        if (invitation.AcceptedAt.HasValue || invitation.RevokedAt.HasValue)
+        {
+            return GenericResponse<bool>.CreateError("Invitation is no longer pending.", HttpStatusCode.BadRequest);
+        }
+
+        invitation.RevokedAt = DateTime.UtcNow;
+        await _workspaceInvitationRepository.UpdateAsync(invitation, cancellationToken);
+
+        return GenericResponse<bool>.CreateSuccess(true, "Invitation revoked successfully.");
     }
 
     private async Task<(string Message, HttpStatusCode Status, string? ErrorCode)?> ValidateQuotaRequestAsync(

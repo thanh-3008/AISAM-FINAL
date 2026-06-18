@@ -54,9 +54,15 @@ export async function acceptInvitation(token: string): Promise<{ success: boolea
   }
 }
 
-export async function cancelInvitation(_invitationId: string): Promise<boolean> {
-  // No BE endpoint — returns false
-  return false;
+export async function cancelInvitation(invitationId: string): Promise<boolean> {
+  try {
+    const res = await apiClient(`/workspace-invitations/${invitationId}`, {
+      method: "DELETE",
+    });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getWorkspaceInvitations(): Promise<WorkspaceInvitation[]> {

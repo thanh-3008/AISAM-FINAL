@@ -40,6 +40,17 @@ public sealed class WorkspaceInvitationController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpDelete("{invitationId:guid}")]
+    public async Task<ActionResult<GenericResponse<bool>>> Revoke(
+        Guid invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _workspaceInvitationService.RevokeAsync(workspaceId, userId, invitationId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("accept")]
     public async Task<ActionResult<GenericResponse<AcceptWorkspaceInvitationResponseDto>>> Accept(
         [FromBody] AcceptWorkspaceInvitationRequest request,

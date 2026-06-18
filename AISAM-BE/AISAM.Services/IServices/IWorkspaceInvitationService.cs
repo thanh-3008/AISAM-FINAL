@@ -20,4 +20,10 @@ public interface IWorkspaceInvitationService
     Task<GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>> GetPendingByWorkspaceAsync(
         Guid workspaceId,
         CancellationToken cancellationToken = default);
+
+    Task<GenericResponse<bool>> RevokeAsync(
+        Guid workspaceId,
+        Guid userId,
+        Guid invitationId,
+        CancellationToken cancellationToken = default);
 }

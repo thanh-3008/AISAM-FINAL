@@ -29,7 +29,7 @@ import {
   type CreditWallet,
   type WorkspaceDashboard,
 } from "@/services/workspaceService";
-import { inviteMember, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
+import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 
 interface Workspace {
   id: string;
@@ -1621,7 +1621,7 @@ export default function ProfileDetailPage() {
                       <div className="px-6 py-4 text-center text-body-sm text-on-surface-variant">Loading...</div>
                     ) : (
                       invitations.map((inv) => (
-                        <div key={inv.id} className="px-6 py-4 flex items-center gap-4">
+                        <div key={inv.id} className="px-6 py-4 flex items-center gap-4 group">
                           <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-[18px] text-blue-500">mail</span>
                           </div>
@@ -1634,6 +1634,21 @@ export default function ProfileDetailPage() {
                           <span className="text-label-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 font-medium">
                             Pending
                           </span>
+                          <button
+                            onClick={async () => {
+                              const ok = await cancelInvitation(inv.id);
+                              if (ok) {
+                                setInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+                                showToast({ type: "success", title: "Revoked", message: `Invitation to ${inv.email} has been revoked.` });
+                              } else {
+                                showToast({ type: "error", title: "Error", message: "Failed to revoke invitation." });
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-danger-red/10 hover:text-danger-red opacity-0 group-hover:opacity-100 transition-all"
+                            title="Revoke invitation"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
                         </div>
                       ))
                     )}
