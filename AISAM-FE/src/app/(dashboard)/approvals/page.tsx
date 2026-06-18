@@ -8,6 +8,14 @@ import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
   getBrandColor,
 } from "@/lib/contentConstants";
+
+const SkeletonRow = () => (
+  <tr className="animate-pulse">
+    {[...Array(6)].map((_, i) => (
+      <td key={i} className="px-6 py-4"><div className="h-4 bg-surface-container-high rounded w-3/4" /></td>
+    ))}
+  </tr>
+);
 import type { ContentItem } from "@/services/contentService";
 
 type TabKey = "all" | "pending" | "approved" | "rejected";
@@ -214,14 +222,6 @@ export default function ApprovalsPage() {
   };
 
   const brands = [...new Set(items.map((i) => i.brandName))];
-
-  const SkeletonRow = () => (
-    <tr className="animate-pulse">
-      {[...Array(6)].map((_, i) => (
-        <td key={i} className="px-6 py-4"><div className="h-4 bg-surface-container-high rounded w-3/4" /></td>
-      ))}
-    </tr>
-  );
 
   return (
     <>

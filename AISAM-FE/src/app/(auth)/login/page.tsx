@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { setToken, setRefreshToken, setStoredUser, clearActiveContext } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
@@ -31,6 +31,7 @@ export default function LoginPage() {
       const result = await apiClient("/auth/google", { data: { idToken: credential } });
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
+        clearActiveContext();
         setToken(result.data.accessToken);
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
         if (result.data.user) setStoredUser(result.data.user);
@@ -84,6 +85,7 @@ export default function LoginPage() {
 
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
+        clearActiveContext();
         setToken(result.data.accessToken);
 
         if (result.data.refreshToken) {
@@ -107,8 +109,8 @@ export default function LoginPage() {
               setRefreshToken(meResult.data.refreshToken);
             }
           }
-        } catch {
-          // /auth/me is optional — continue regardless
+        } catch (e) {
+          console.warn("/auth/me failed:", e);
         }
 
         setIsSuccess(true);

@@ -8,6 +8,7 @@ import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, ALL_TAGS, getBrandColor
 import { createContent, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
+import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveProfile } from "@/stores/profile-store";
 
 const SAMPLE_AVATARS = [
@@ -18,6 +19,7 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -47,12 +49,12 @@ export default function CreateContentPage() {
   });
 
   useEffect(() => {
-    fetchBrands().then(setBrandList);
-  }, []);
+    fetchBrands().then(setBrandList).catch(() => showToast({ type: "error", title: "Error", message: "Failed to load brands." }));
+  }, [showToast]);
 
   useEffect(() => {
     if (form.brandId) {
-      fetchProducts(form.brandId).then(setProductList);
+      fetchProducts(form.brandId).then(setProductList).catch(() => showToast({ type: "error", title: "Error", message: "Failed to load products." }));
     } else {
       setProductList([]);
     }

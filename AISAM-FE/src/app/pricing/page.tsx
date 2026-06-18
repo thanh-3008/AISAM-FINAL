@@ -44,7 +44,7 @@ function PricingContent() {
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
 
   useEffect(() => {
-    fetchCreditWallet().then(w => setCreditWallet(w));
+    fetchCreditWallet().then(w => setCreditWallet(w)).catch(() => showToast({ type: "error", title: "Error", message: "Failed to load credit wallet." }));
   }, [activeWorkspace?.id]);
 
   const currentPlan = featureGate.plan;
@@ -73,50 +73,29 @@ function PricingContent() {
         body: formBody,
       });
 
-      const wsData = result?.success && result.data
-        ? {
-            id: result.data.id,
-            userId: result.data.userId,
-            name: result.data.name,
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: result.data.status,
-            createdAt: result.data.createdAt,
-            updatedAt: result.data.updatedAt,
-            isOwner: true,
-            memberRole: "Owner",
-          }
-        : {
-            id: `ws-${Date.now()}`,
-            userId: userId!,
-            name: wsName.trim(),
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: 1,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isOwner: true,
-            memberRole: "Owner",
-          };
-      addWorkspaceToCache(wsData);
-      selectWorkspace(wsData);
-      return true;
-    } catch {
+      if (!result?.success || !result?.data) {
+        showToast({ type: "error", title: "Error", message: result?.message || "Failed to create workspace." });
+        return false;
+      }
+
       const wsData = {
-        id: `ws-${Date.now()}`,
-        userId: userId!,
-        name: wsName.trim(),
+        id: result.data.id,
+        userId: result.data.userId,
+        name: result.data.name,
         workspaceType: 2,
         plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-        status: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        status: result.data.status,
+        createdAt: result.data.createdAt,
+        updatedAt: result.data.updatedAt,
         isOwner: true,
         memberRole: "Owner",
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
       return true;
+    } catch {
+      showToast({ type: "error", title: "Error", message: "Network error while creating workspace. Please try again." });
+      return false;
     } finally {
       setCreating(false);
     }

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import { useWorkspaces, getWorkspaceTypeLabel, WorkspaceData } from "@/hooks/useWorkspaces";
+import { getUserIdFromToken } from "@/lib/auth";
+import { apiFetch } from "@/lib/apiClient";
+import { storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function getInitials(name: string) {

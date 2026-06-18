@@ -119,9 +119,11 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
-    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
-    fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
+    fetchPostQuota().then(q => { if (q) setPostQuota(q); }).catch(() => console.error("Failed to fetch post quota"));
+    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); }).catch(() => console.error("Failed to fetch credit wallet"));
+    if (activeWorkspace?.workspaceType === 2) {
+      fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); }).catch(() => console.error("Failed to fetch workspace dashboard"));
+    }
   }, [activeWorkspace?.id]);
 
   return (
@@ -269,7 +271,7 @@ export default function DashboardPage() {
             { icon: "insights", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "Total Reach", value: "1.2M", delta: "+12%", deltaUp: true, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
             { icon: "bolt", iconBg: "from-purple-500/20 to-purple-600/10", iconColor: "text-purple-500", label: "Engagement Rate", value: "4.8%", delta: "+0.5%", deltaUp: true, gradient: "from-purple-500/5 to-transparent", accent: "#a855f7" },
             { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 850), max: "15000", pct: Math.min(100, Math.round(((creditBalance ?? 850) / 15000) * 100)), gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
-            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? 0), max: String(postQuota?.total ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
+            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? 0), max: String(postQuota?.total ?? 1000), pct: Math.min(100, postQuota && postQuota.total > 0 ? Math.round((postQuota.used / postQuota.total) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
           ].map((kpi, i) => (
             <div
               key={kpi.label}

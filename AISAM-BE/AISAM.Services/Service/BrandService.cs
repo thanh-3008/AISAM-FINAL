@@ -257,7 +257,7 @@ namespace AISAM.Services.Service
             return new BrandResponseDto
             {
                 Id = brand.Id,
-                UserId = brand.Profile.UserId,
+                UserId = brand.Profile?.UserId ?? Guid.Empty,
                 Name = brand.Name,
                 Description = brand.Description,
                 LogoUrl = brand.LogoUrl,

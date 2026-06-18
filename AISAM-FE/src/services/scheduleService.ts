@@ -64,7 +64,7 @@ export async function fetchSchedules(params?: {
     if (params?.pageSize) query.set("pageSize", String(params.pageSize));
     const res: GenericResponse<PagedResult<ScheduleItem>> = await apiClient(`/content-schedules?${query.toString()}`);
     if (res?.data) return res.data;
-  } catch { /* ignore */ }
+  } catch (e) { console.error("scheduleService: fetchSchedules failed", e); }
   return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false };
 }
 
@@ -72,7 +72,7 @@ export async function fetchUpcomingSchedules(limit = 10): Promise<ScheduleItem[]
   try {
     const res: GenericResponse<ScheduleItem[]> = await apiClient(`/content-schedules/upcoming?limit=${limit}`);
     if (res?.data) return res.data;
-  } catch { /* ignore */ }
+  } catch (e) { console.error("scheduleService: fetchUpcomingSchedules failed", e); }
   return [];
 }
 
@@ -112,7 +112,7 @@ export async function updateSchedule(id: string, data: {
       dispatchScheduleChange();
       return true;
     }
-  } catch { /* ignore */ }
+  } catch (e) { console.error("scheduleService: updateSchedule failed", e); }
   return false;
 }
 
@@ -123,7 +123,7 @@ export async function deleteSchedule(id: string): Promise<boolean> {
       dispatchScheduleChange();
       return true;
     }
-  } catch { /* ignore */ }
+  } catch (e) { console.error("scheduleService: deleteSchedule failed", e); }
   return false;
 }
 
@@ -131,6 +131,6 @@ export async function fetchScheduleById(id: string): Promise<ScheduleItem | null
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient(`/content-schedules/${id}`);
     if (res?.data) return res.data;
-  } catch { /* ignore */ }
+  } catch (e) { console.error("scheduleService: fetchScheduleById failed", e); }
   return null;
 }

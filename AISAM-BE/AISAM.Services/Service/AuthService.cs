@@ -18,6 +18,9 @@ namespace AISAM.Services.Service
 {
     public class AuthService : IAuthService
     {
+        private const int EmailVerificationExpiryDays = 7;
+        private const int PasswordResetExpiryHours = 1;
+
         private readonly IUserRepository _userRepository;
         private readonly ISessionRepository _sessionRepository;
         private readonly IEmailService _emailService;
@@ -65,7 +68,7 @@ namespace AISAM.Services.Service
 
             // Generate email verification token
             var verificationToken = GenerateSecureToken();
-            var verificationTokenExpiration = DateTime.UtcNow.AddDays(7); // Token expires in 7 days
+            var verificationTokenExpiration = DateTime.UtcNow.AddDays(EmailVerificationExpiryDays);
 
             user.EmailVerificationToken = verificationToken;
             user.EmailVerificationTokenExpiresAt = verificationTokenExpiration;
@@ -268,7 +271,7 @@ namespace AISAM.Services.Service
 
             // Generate password reset token
             var resetToken = GenerateSecureToken();
-            var resetTokenExpiration = DateTime.UtcNow.AddHours(1); // Token expires in 1 hour
+            var resetTokenExpiration = DateTime.UtcNow.AddHours(PasswordResetExpiryHours);
 
             user.PasswordResetToken = resetToken;
             user.PasswordResetTokenExpiresAt = resetTokenExpiration;
@@ -343,7 +346,7 @@ namespace AISAM.Services.Service
 
             // Generate new verification token
             var verificationToken = GenerateSecureToken();
-            var verificationTokenExpiration = DateTime.UtcNow.AddDays(7); // Token expires in 7 days
+            var verificationTokenExpiration = DateTime.UtcNow.AddDays(EmailVerificationExpiryDays);
 
             user.EmailVerificationToken = verificationToken;
             user.EmailVerificationTokenExpiresAt = verificationTokenExpiration;
@@ -394,6 +397,17 @@ namespace AISAM.Services.Service
                 WorkspaceId = personalWorkspace.Id,
                 Workspace = personalWorkspace,
                 Role = WorkspaceMemberRoleEnum.Owner
+            });
+
+            user.Profiles.Add(new Profile
+            {
+                UserId = user.Id,
+                Name = user.FullName?.Trim() ?? "Personal Workspace",
+                ProfileType = ProfileTypeEnum.Free,
+                Status = ProfileStatusEnum.Active,
+                User = user,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
         }
 

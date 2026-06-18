@@ -26,6 +26,16 @@ interface Brand {
   contentsCount: number;
 }
 
+interface AdSet {
+  id: string;
+  name: string;
+  dailyBudget: number | null;
+  status: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+}
+
 interface Campaign {
   id: string;
   brandId: string;
@@ -34,8 +44,12 @@ interface Campaign {
   platformColor: string;
   platformBg: string;
   status: string;
-  budget: string;
-  spent: string;
+  budget: number | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  adSets: AdSet[];
   createdAt: string;
 }
 
@@ -105,7 +119,7 @@ export default function BrandDetailPage() {
               setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
               return;
             }
-          } catch { /* ignore */ }
+          } catch (e) { console.error("Failed to load brand:", e); }
           setError("Brand not found");
         })(),
         (async () => {
@@ -115,7 +129,7 @@ export default function BrandDetailPage() {
               setProducts(result.data.data as Product[]);
               return;
             }
-          } catch { /* ignore */ }
+          } catch (e) { console.error("Failed to load products:", e); }
         })(),
       ]).finally(() => setLoading(false));
     };
@@ -495,11 +509,11 @@ export default function BrandDetailPage() {
                           <td className="px-5 py-4">
                             <span className={`px-2.5 py-1 ${camp.platformBg} ${camp.platformColor} rounded-lg text-label-xs font-bold tracking-wide inline-block`}>{camp.platform}</span>
                           </td>
-                          <td className="px-5 py-4 text-body-sm text-on-surface font-medium">{camp.budget}</td>
+                          <td className="px-5 py-4 text-body-sm text-on-surface font-medium">{camp.budget != null ? `$${camp.budget.toLocaleString()}` : '--'}</td>
                           <td className="px-5 py-4">
-                            <span className="text-body-sm text-on-surface font-medium">{camp.spent}</span>
-                            {parseFloat(camp.spent.replace(/[^0-9.]/g, "")) > 0 && (
-                              <span className="text-label-sm text-outline ml-2">({Math.round(parseFloat(camp.spent.replace(/[^0-9.]/g, "")) / parseFloat(camp.budget.replace(/[^0-9.]/g, "")) * 100)}%)</span>
+                            <span className="text-body-sm text-on-surface font-medium">{camp.spend != null ? `$${camp.spend.toLocaleString()}` : '--'}</span>
+                            {camp.spend > 0 && camp.budget != null && camp.budget > 0 && (
+                              <span className="text-label-sm text-outline ml-2">({Math.round((camp.spend / camp.budget) * 100)}%)</span>
                             )}
                           </td>
                           <td className="px-5 py-4">

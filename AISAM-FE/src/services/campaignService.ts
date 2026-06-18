@@ -1,6 +1,8 @@
 export type CampaignStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "DRAFT";
 export type CampaignObjective = "AWARENESS" | "TRAFFIC" | "ENGAGEMENT" | "LEADS" | "SALES" | "APP_PROMOTION";
 
+// MOCK SERVICE: No BE campaign API exists yet. All data is localStorage-only.
+// This will be replaced when the campaign feature is implemented on the backend.
 export interface AdSet {
   id: string;
   name: string;
@@ -49,7 +51,7 @@ const STORAGE_KEY = "aisam_campaigns_v1";
 const INITIAL_MOCK_CAMPAIGNS: Campaign[] = [
   {
     id: "c1",
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: "b1",
     brandName: "Lumina Tech",
     adAccountId: "act_123456",
@@ -73,7 +75,7 @@ const INITIAL_MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: "c2",
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: "b2",
     brandName: "Summit Outdoor",
     adAccountId: "act_789012",
@@ -96,7 +98,7 @@ const INITIAL_MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: "c3",
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: "b3",
     brandName: "Heritage Motors",
     adAccountId: "act_345678",
@@ -119,7 +121,7 @@ const INITIAL_MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: "c4",
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: "b4",
     brandName: "GreenLeaf Organics",
     adAccountId: "act_901234",
@@ -142,7 +144,7 @@ const INITIAL_MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: "c5",
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: "b5",
     brandName: "Pulse Finance",
     adAccountId: "act_567890",
@@ -163,7 +165,7 @@ const INITIAL_MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: "c6",
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: "b1",
     brandName: "Lumina Tech",
     adAccountId: "act_123456",
@@ -216,7 +218,7 @@ export async function fetchCampaigns(): Promise<{ data: Campaign[]; total: numbe
 export async function createCampaign(data: CreateCampaignData): Promise<Campaign> {
   const campaign: Campaign = {
     id: `c_${Date.now()}`,
-    profileId: "p1",
+    profileId: "mock-profile",
     brandId: data.brandId,
     brandName: data.brandName,
     adAccountId: `act_${Date.now()}`,

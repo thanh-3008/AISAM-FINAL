@@ -8,6 +8,7 @@ import PostTable from "@/components/posts/PostTable";
 import PostDetailModal from "@/components/posts/PostDetailModal";
 import { fetchPosts, type PostItem, type PostStatus } from "@/services/postService";
 import { fetchPostQuota } from "@/services/workspaceService";
+import { useToast } from "@/contexts/ToastContext";
 
 const PAGE_SIZE = 10;
 
@@ -21,6 +22,7 @@ const DEFAULT_FILTERS = {
 };
 
 export default function PostsPage() {
+  const { showToast } = useToast();
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -77,8 +79,8 @@ export default function PostsPage() {
   }, [page, filters, refreshKey]);
 
   useEffect(() => {
-    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
-  }, []);
+    fetchPostQuota().then(q => { if (q) setPostQuota(q); }).catch(() => showToast({ type: "error", title: "Error", message: "Failed to load post quota." }));
+  }, [showToast]);
 
   const handleFilterChange = useCallback((partial: Partial<typeof filters>) => {
     setFilters(prev => ({ ...prev, ...partial }));

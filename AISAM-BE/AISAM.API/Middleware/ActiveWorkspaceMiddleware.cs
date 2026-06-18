@@ -187,7 +187,7 @@ public sealed class ActiveWorkspaceMiddleware
 
             if (method != HttpMethods.Get)
             {
-                return await EnsureFeatureAsync(membership.WorkspaceId, subscriptionRepository, membership.Workspace.WorkspaceType, WorkspaceFeatureEnum.SchedulePost);
+                return await EnsureFeatureAsync(membership.WorkspaceId, subscriptionRepository, membership.Workspace.WorkspaceType, WorkspaceFeatureEnum.SchedulePost, context.RequestAborted);
             }
 
             return null;
@@ -212,7 +212,7 @@ public sealed class ActiveWorkspaceMiddleware
 
             if (path.Value?.Contains("/publish/", StringComparison.OrdinalIgnoreCase) == true)
             {
-                return await EnsureFeatureAsync(membership.WorkspaceId, subscriptionRepository, membership.Workspace.WorkspaceType, WorkspaceFeatureEnum.MultiPlatformPublish);
+                return await EnsureFeatureAsync(membership.WorkspaceId, subscriptionRepository, membership.Workspace.WorkspaceType, WorkspaceFeatureEnum.MultiPlatformPublish, context.RequestAborted);
             }
         }
 
@@ -240,7 +240,8 @@ public sealed class ActiveWorkspaceMiddleware
             membership.WorkspaceId,
             subscriptionRepository,
             membership.Workspace.WorkspaceType,
-            feature.Value);
+            feature.Value,
+            context.RequestAborted);
     }
 
     private static WorkspaceFeatureEnum? ResolveFeature(PathString path)
@@ -325,9 +326,10 @@ public sealed class ActiveWorkspaceMiddleware
         Guid workspaceId,
         ISubscriptionRepository subscriptionRepository,
         WorkspaceTypeEnum workspaceType,
-        WorkspaceFeatureEnum feature)
+        WorkspaceFeatureEnum feature,
+        CancellationToken cancellationToken = default)
     {
-        var subscription = await subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId);
+        var subscription = await subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
         if (subscription == null)
         {
             return feature is WorkspaceFeatureEnum.GenerateText or WorkspaceFeatureEnum.BasicAnalytics

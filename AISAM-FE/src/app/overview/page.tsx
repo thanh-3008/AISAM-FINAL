@@ -130,7 +130,26 @@ export default function OverviewPage() {
     } else {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
-      clearActiveProfile();
+      const userId = getUserIdFromToken();
+      if (userId) {
+        try {
+          const existing = await apiClient(`/profiles/user/${userId}`);
+          if (existing?.success && existing?.data?.length) {
+            const p = existing.data[0];
+            storeActiveProfile({ id: p.id, name: p.name, profileType: p.profileType });
+          } else {
+            const fd = new FormData();
+            fd.append("name", w.name);
+            fd.append("profileType", w.workspaceType.toString());
+            const pfResult = await apiFetch(`/profiles/user/${userId}`, { method: "POST", body: fd });
+            if (pfResult?.success && pfResult.data?.id) {
+              storeActiveProfile({ id: pfResult.data.id, name: pfResult.data.name || w.name, profileType: w.workspaceType });
+            }
+          }
+        } catch { clearActiveProfile(); }
+      } else {
+        clearActiveProfile();
+      }
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }

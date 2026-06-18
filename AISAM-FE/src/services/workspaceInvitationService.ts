@@ -31,7 +31,8 @@ export async function inviteMember(data: InviteMemberRequest): Promise<Workspace
       data: { ...data, role: ROLE_TO_ENUM[data.role] ?? 4 },
     });
     return res?.data ?? null;
-  } catch {
+  } catch (e) {
+    console.error("workspaceInvitationService error:", e);
     return null;
   }
 }
@@ -46,7 +47,8 @@ export async function acceptInvitation(token: string): Promise<{ success: boolea
       return { success: true, workspaceId: res.data?.workspaceId };
     }
     return { success: false, message: res?.message || "Failed to accept invitation" };
-  } catch {
+  } catch (e) {
+    console.error("workspaceInvitationService error:", e);
     return { success: false, message: "Invitation not found or already processed" };
   }
 }

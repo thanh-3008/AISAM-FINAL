@@ -1,3 +1,9 @@
+export const clearActiveContext = () => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("aisam_active_workspace");
+  localStorage.removeItem("aisam_active_profile");
+};
+
 export const setToken = (token: string) => {
   if (typeof window !== "undefined") {
     localStorage.setItem("aisam_token", token);
@@ -71,31 +77,41 @@ export const removeStoredUser = () => {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
-export async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
+let refreshPromise: Promise<string | null> | null = null;
 
-  try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    const result = await res.json();
-    if (res.ok && result.success && result.data?.accessToken) {
-      setToken(result.data.accessToken);
-      if (result.data.refreshToken) {
-        setRefreshToken(result.data.refreshToken);
+export async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success && result.data?.accessToken) {
+        setToken(result.data.accessToken);
+        if (result.data.refreshToken) {
+          setRefreshToken(result.data.refreshToken);
+        }
+        if (result.data.user) {
+          setStoredUser(result.data.user);
+        }
+        return result.data.accessToken;
       }
-      if (result.data.user) {
-        setStoredUser(result.data.user);
-      }
-      return result.data.accessToken;
+      return null;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
     }
-    return null;
-  } catch {
-    return null;
-  }
+  })();
+
+  return refreshPromise;
 }
 
 export async function ensureValidToken(): Promise<string | null> {
@@ -138,6 +154,7 @@ export async function logout(): Promise<void> {
     removeToken();
     removeRefreshToken();
     removeStoredUser();
+    clearActiveContext();
     try {
       const { invalidateWorkspaceCache } = await import("@/hooks/useWorkspaces");
       invalidateWorkspaceCache();

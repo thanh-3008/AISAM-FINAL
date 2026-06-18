@@ -228,8 +228,8 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         {
             Id = member.Id,
             UserId = member.UserId,
-            Email = member.User.Email,
-            FullName = member.User.FullName,
+            Email = member.User?.Email,
+            FullName = member.User?.FullName,
             Role = member.Role,
             QuotaMode = member.QuotaMode,
             CreditLimit = member.CreditLimit,

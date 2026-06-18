@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
@@ -22,6 +23,8 @@ namespace AISAM.Services.Service;
 public sealed class PayOSPaymentService : IPaymentService
 {
     private const string PaymentMethod = "PayOS";
+    private const string DefaultPayOSBaseUrl = "https://api-merchant.payos.vn";
+    private static readonly ConcurrentDictionary<string, byte> _processedWebhooks = new();
 
     private readonly IPaymentRepository _paymentRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
@@ -357,6 +360,12 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<bool>.CreateError("Invalid PayOS webhook signature.", HttpStatusCode.BadRequest, "PAYOS_SIGNATURE_INVALID");
         }
 
+        var webhookId = TryGetString(data, "id") ?? string.Empty;
+        if (!string.IsNullOrEmpty(webhookId) && !_processedWebhooks.TryAdd(webhookId, 0))
+        {
+            return GenericResponse<bool>.CreateSuccess(true, "Webhook already processed.");
+        }
+
         var reference = FirstNonEmpty(
             TryGetString(data, "orderCode"),
             TryGetString(data, "paymentLinkId"),
@@ -579,7 +588,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private Uri BuildPayOsUri(string path)
     {
         var baseUrl = string.IsNullOrWhiteSpace(_settings.BaseUrl)
-            ? "https://api-merchant.payos.vn"
+            ? DefaultPayOSBaseUrl
             : _settings.BaseUrl.TrimEnd('/');
 
         return new Uri($"{baseUrl}{path}");
@@ -607,7 +616,7 @@ public sealed class PayOSPaymentService : IPaymentService
 
         return new PayOSCheckoutResponse
         {
-            CheckoutUrl = FirstNonEmpty(TryGetString(data, "checkoutUrl"), TryGetString(data, "checkoutUrl")),
+            CheckoutUrl = TryGetString(data, "checkoutUrl") ?? TryGetString(data, "url") ?? string.Empty,
             PaymentLinkId = TryGetString(data, "paymentLinkId"),
             OrderCode = TryGetString(data, "orderCode")
         };

@@ -28,7 +28,7 @@ public class QuotaServiceTests
             promptUsage: 1,
             postUsage: 2),
             new FakeWorkspaceRepository(),
-            new FakeProfileRepository());
+            new FakeProfileRepository(), new FakeWorkspaceMemberRepository());
 
         var result = await service.GetSummaryAsync(profileId);
 
@@ -59,7 +59,7 @@ public class QuotaServiceTests
             promptUsage: 1,
             postUsage: 0),
             new FakeWorkspaceRepository(),
-            new FakeProfileRepository());
+            new FakeProfileRepository(), new FakeWorkspaceMemberRepository());
 
         var result = await service.EnsurePromptQuotaAsync(profileId);
 
@@ -87,7 +87,7 @@ public class QuotaServiceTests
             promptUsage: 0,
             postUsage: 1),
             new FakeWorkspaceRepository(),
-            new FakeProfileRepository());
+            new FakeProfileRepository(), new FakeWorkspaceMemberRepository());
 
         var result = await service.EnsurePostQuotaAsync(profileId);
 
@@ -113,7 +113,7 @@ public class QuotaServiceTests
             },
             promptUsage: 0,
             postUsage: 0);
-        var service = new QuotaService(repository, new FakeWorkspaceRepository(), new FakeProfileRepository());
+        var service = new QuotaService(repository, new FakeWorkspaceRepository(), new FakeProfileRepository(), new FakeWorkspaceMemberRepository());
 
         await service.GetSummaryAsync(profileId);
 
@@ -156,7 +156,7 @@ public class QuotaServiceTests
             }),
             new FakeProfileRepository(
                 new Profile { Id = ownerProfileId, UserId = ownerUserId, Name = "Owner", ProfileType = ProfileTypeEnum.Basic },
-                new Profile { Id = memberProfileId, UserId = memberUserId, Name = "Member", ProfileType = ProfileTypeEnum.Basic }));
+                new Profile { Id = memberProfileId, UserId = memberUserId, Name = "Member", ProfileType = ProfileTypeEnum.Basic }), new FakeWorkspaceMemberRepository());
 
         var result = await service.GetWorkspaceSummaryAsync(workspaceId);
 
@@ -195,7 +195,7 @@ public class QuotaServiceTests
                 Members = [new WorkspaceMember { WorkspaceId = workspaceId, UserId = userId, IsActive = true }]
             }),
             new FakeProfileRepository(
-                new Profile { Id = profileId, UserId = userId, Name = "Owner", ProfileType = ProfileTypeEnum.Basic }));
+                new Profile { Id = profileId, UserId = userId, Name = "Owner", ProfileType = ProfileTypeEnum.Basic }), new FakeWorkspaceMemberRepository());
 
         var result = await service.EnsureWorkspacePostQuotaAsync(workspaceId);
 
@@ -338,5 +338,19 @@ public class QuotaServiceTests
         public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task RestoreAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeWorkspaceMemberRepository : IWorkspaceMemberRepository
+    {
+        public Task<IReadOnlyList<WorkspaceMember>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<WorkspaceMember>>(Array.Empty<WorkspaceMember>());
+        public Task<WorkspaceMember?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<WorkspaceMember?> GetByWorkspaceAndUserAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<WorkspaceMember>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<WorkspaceMember> AddAsync(WorkspaceMember member, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(WorkspaceMember member, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<WorkspaceMember> TransferOwnershipAsync(Guid workspaceId, Guid currentOwnerUserId, Guid targetMemberId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> ExistsAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

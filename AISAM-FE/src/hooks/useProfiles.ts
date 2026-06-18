@@ -33,7 +33,7 @@ let fetchingProfiles = false;
 
 function notifyCache() {
   cacheListeners = cacheListeners.filter((fn) => {
-    try { fn(); } catch { /* skip */ }
+    try { fn(); } catch (e) { console.error("useProfiles error:", e); }
     return true;
   });
 }
@@ -93,7 +93,8 @@ export function useProfiles() {
       } else {
         setError(res?.message || "Failed to load profiles");
       }
-    } catch {
+    } catch (e) {
+      console.error("useProfiles error:", e);
       setError("Network error loading profiles");
     } finally {
       setLoading(false);

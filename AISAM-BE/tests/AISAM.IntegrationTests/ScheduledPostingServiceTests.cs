@@ -281,6 +281,13 @@ public class ScheduledPostingServiceTests
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, AISAM.Common.Dtos.Request.CreateContentRequest request, CancellationToken cancellationToken = default) => CreateAsync(profileId, request, cancellationToken);
+        public Task<GenericResponse<PagedResult<AISAM.Common.Dtos.Response.ContentResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => GetPagedAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => GetByIdAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, AISAM.Common.Dtos.Request.UpdateContentRequest request, CancellationToken cancellationToken = default) => UpdateAsync(id, workspaceId, request, cancellationToken);
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => CloneAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => SoftDeleteAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => RestoreAsync(id, workspaceId, cancellationToken);
     }
 
     private sealed class FakeProfileRepository : IProfileRepository

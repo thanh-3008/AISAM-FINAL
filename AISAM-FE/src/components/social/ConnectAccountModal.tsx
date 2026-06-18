@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type SocialPlatform } from "@/services/socialAccountService";
 import { fetchBrands } from "@/services/brandService";
+import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_INFO } from "./socialUtils";
 
 interface ConnectAccountModalProps {
@@ -12,16 +13,22 @@ interface ConnectAccountModalProps {
 }
 
 export default function ConnectAccountModal({ open, onClose, onConnect, isLoading }: ConnectAccountModalProps) {
+  const { showToast } = useToast();
   const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>("facebook");
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
+  const prevOpenRef = useRef(open);
+
+  if (open && !prevOpenRef.current) {
+    setSelectedBrandId("");
+  }
+  prevOpenRef.current = open;
 
   useEffect(() => {
     if (open) {
-      fetchBrands().then(setBrands);
-      setSelectedBrandId("");
+      fetchBrands().then(setBrands).catch(() => showToast({ type: "error", title: "Error", message: "Failed to load brands." }));
     }
-  }, [open]);
+  }, [open, showToast]);
 
   if (!open) return null;
 

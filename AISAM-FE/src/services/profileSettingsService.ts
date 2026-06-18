@@ -23,7 +23,8 @@ export async function changePassword(data: ChangePasswordRequest): Promise<boole
       method: "POST",
     });
     return res?.success ?? false;
-  } catch {
+  } catch (e) {
+    console.error("profileSettingsService error:", e);
     return false;
   }
 }
@@ -52,7 +53,8 @@ export async function getPaymentHistory(page = 1, pageSize = 10): Promise<Paymen
       `/payment/history?page=${page}&pageSize=${pageSize}`
     );
     return res?.data ?? null;
-  } catch {
+  } catch (e) {
+    console.error("profileSettingsService error:", e);
     return null;
   }
 }
@@ -69,7 +71,8 @@ export async function getCurrentSubscription(): Promise<CurrentSubscription | nu
   try {
     const res: GenericResponse<CurrentSubscription> = await apiClient("/payment/subscription/current");
     return res?.data ?? null;
-  } catch {
+  } catch (e) {
+    console.error("profileSettingsService error:", e);
     return null;
   }
 }

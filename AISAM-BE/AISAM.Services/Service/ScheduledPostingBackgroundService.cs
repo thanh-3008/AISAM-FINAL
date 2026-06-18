@@ -20,6 +20,8 @@ public sealed class ScheduledPostingBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -27,6 +29,10 @@ public sealed class ScheduledPostingBackgroundService : BackgroundService
                 using var scope = _serviceScopeFactory.CreateScope();
                 var scheduledPostingService = scope.ServiceProvider.GetRequiredService<IScheduledPostingService>();
                 await scheduledPostingService.RunDueSchedulesAsync(20, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
             catch (Exception ex)
             {

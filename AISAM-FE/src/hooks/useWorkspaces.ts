@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
 import { apiClient } from "@/lib/apiClient";
 
 export interface WorkspaceData {
@@ -123,7 +124,10 @@ export function useWorkspaces() {
           memberRole: typeof w.currentUserRole === "number" ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
         }));
       }
-    } catch { /* /workspaces fail */ }
+    } catch (e) {
+      setError("Failed to load workspaces. Please check your connection.");
+      console.error("Failed to fetch workspaces:", e);
+    }
 
     cachedWorkspaces = mapped;
     setWorkspaces(mapped);
@@ -149,6 +153,23 @@ export function useWorkspaces() {
   const fallbackMatch = workspaces.find((p) => p.status === 1) || workspaces[0] || null;
   const activeWorkspace = storedMatch || fallbackMatch;
 
+  const syncProfile = useCallback(() => {
+    const userId = getUserIdFromToken();
+    if (!userId) { clearActiveProfile(); return; }
+    const ws = getStoredActiveWorkspace();
+    if (!ws) { clearActiveProfile(); return; }
+    apiClient(`/profiles/user/${userId}`).then((existing) => {
+      if (existing?.success && Array.isArray(existing.data) && existing.data.length > 0) {
+        const profiles = existing.data;
+        const byName = profiles.find((p: any) => p.name === ws.name);
+        const p = byName || profiles[0];
+        storeActiveProfile({ id: p.id, name: p.name, profileType: p.profileType ?? ws.workspaceType });
+      } else {
+        clearActiveProfile();
+      }
+    }).catch(() => clearActiveProfile());
+  }, []);
+
   const selectWorkspace = useCallback((workspace: WorkspaceData) => {
     storeActiveWorkspace({
       id: workspace.id,
@@ -160,7 +181,8 @@ export function useWorkspaces() {
       return [...prev, workspace];
     });
     notifyWorkspaceSelected();
-  }, []);
+    syncProfile();
+  }, [syncProfile]);
 
   const clearSelectedWorkspace = useCallback(() => {
     clearActiveWorkspace();

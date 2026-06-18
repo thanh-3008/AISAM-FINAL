@@ -39,7 +39,7 @@ public sealed class PostService : IPostService
     public async Task<GenericResponse<PostListItemDto>> GetByIdAsync(Guid profileId, Guid postId, CancellationToken cancellationToken = default)
     {
         var post = await _postRepository.GetByIdAsync(postId, cancellationToken);
-        if (post == null || post.IsDeleted || post.Content.ProfileId != profileId)
+        if (post == null || post.IsDeleted || post.Content?.ProfileId != profileId)
         {
             return GenericResponse<PostListItemDto>.CreateError("Post not found.", HttpStatusCode.NotFound);
         }
@@ -57,7 +57,7 @@ public sealed class PostService : IPostService
     public async Task<GenericResponse<PostListItemDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid postId, CancellationToken cancellationToken = default)
     {
         var post = await _postRepository.GetByIdAsync(postId, cancellationToken);
-        return post == null || post.IsDeleted || post.Content.WorkspaceId != workspaceId
+        return post == null || post.IsDeleted || post.Content?.WorkspaceId != workspaceId
             ? GenericResponse<PostListItemDto>.CreateError("Post not found.", HttpStatusCode.NotFound)
             : GenericResponse<PostListItemDto>.CreateSuccess(MapToDto(post), "Post retrieved successfully.");
     }
@@ -82,11 +82,11 @@ public sealed class PostService : IPostService
             ExternalPostId = post.ExternalPostId,
             PublishedAt = post.PublishedAt,
             Status = post.Status.ToString(),
-            ContentTitle = post.Content.Title,
-            BrandName = post.Content.Brand?.Name,
+            ContentTitle = post.Content?.Title,
+            BrandName = post.Content?.Brand?.Name,
             Platform = MapPlatform(post.Integration?.Platform),
-            Type = MapAdType(post.Content.AdType),
-            Caption = post.Content.TextContent
+            Type = post.Content != null ? MapAdType(post.Content.AdType) : null,
+            Caption = post.Content?.TextContent
         };
     }
 }

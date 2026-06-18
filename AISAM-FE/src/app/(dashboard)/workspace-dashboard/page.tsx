@@ -7,10 +7,12 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { fetchWorkspaceDashboard, fetchCreditWallet, fetchPostQuota } from "@/services/workspaceService";
 import type { WorkspaceDashboard, CreditWallet } from "@/services/workspaceService";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 export default function WorkspaceDashboardPage() {
   const { activeWorkspace } = useWorkspaces();
+  const activeProfile = getStoredActiveProfile();
   const featureGate = useFeatureGate();
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
@@ -300,14 +302,14 @@ export default function WorkspaceDashboardPage() {
                     <span className="text-label-sm text-on-surface font-medium">View Posts</span>
                   </Link>
                   <Link
-                    href="/profiles/[id]?section=billing"
+                    href={activeProfile?.id ? `/profiles/${activeProfile.id}?section=billing` : "/pricing"}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-emerald-500 text-[28px]">token</span>
                     <span className="text-label-sm text-on-surface font-medium">Buy Credits</span>
                   </Link>
                   <Link
-                    href="/team"
+                    href="/workspace-members"
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-purple-500 text-[28px]">group</span>

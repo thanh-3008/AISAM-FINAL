@@ -100,16 +100,16 @@ export default function AIGeneratePage() {
     fetchBrands().then(list => {
       setBrandList(list);
       if (list.length > 0) setBrandId(list[0].id);
-    });
-  }, []);
+    }).catch(() => addToast("Failed to load brands."));
+  }, [addToast]);
 
   useEffect(() => {
     if (brandId) {
-      fetchProducts(brandId).then(setProductList);
+      fetchProducts(brandId).then(setProductList).catch(() => addToast("Failed to load products."));
     } else {
       setProductList([]);
     }
-  }, [brandId]);
+  }, [brandId, addToast]);
 
   const selectedBrand = brandList.find(b => b.id === brandId);
   const brandName = selectedBrand?.name || "";
@@ -121,8 +121,8 @@ export default function AIGeneratePage() {
   }, [messages]);
 
   useEffect(() => {
-    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
-  }, [activeWorkspace?.id]);
+    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); }).catch(() => addToast("Failed to load credit balance."));
+  }, [activeWorkspace?.id, addToast]);
 
   const simulateAIResponse = async (userPrompt: string) => {
     if (creditBalance !== null && creditBalance <= 0) {
@@ -212,11 +212,9 @@ export default function AIGeneratePage() {
       };
       setVariations((prev) => [variation, ...prev]);
 
-      await handleDeductCredits(userPrompt);
-      addToast(`Credits deducted for AI generation.`);
-
       setIsGenerating(false);
 
+      addToast(`AI generation is currently unavailable. Please try again later.`);
       autoSavePost(aiTitle, aiText, generatedHashtags, variation.id);
     }, 2000);
   };
@@ -242,7 +240,7 @@ export default function AIGeneratePage() {
         setJustGenerated(true);
         setSelectedVariation(varId);
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.error("ai-generate: operation failed", e); }
   };
 
   const handleSendChat = () => {

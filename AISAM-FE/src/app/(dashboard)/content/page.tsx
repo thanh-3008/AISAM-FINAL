@@ -79,12 +79,12 @@ export default function ContentPage() {
     try {
       const saved = localStorage.getItem("content-view-mode");
       if (saved === "grid" || saved === "list") setViewMode(saved);
-    } catch {}
+    } catch (e) { console.error("content: localStorage read failed", e); }
   }, []);
 
   // Save viewMode to localStorage
   useEffect(() => {
-    try { localStorage.setItem("content-view-mode", viewMode); } catch {}
+    try { localStorage.setItem("content-view-mode", viewMode); } catch (e) { console.error("content: localStorage write failed", e); }
   }, [viewMode]);
 
   const loadContent = useCallback(async () => {
@@ -235,7 +235,9 @@ export default function ContentPage() {
     await updateContent(updated.id, {
       title: updated.title,
       adType: updated.type === "TEXT" ? 0 : updated.type === "IMAGE" ? 1 : 2,
-      textContent: "",
+      textContent: updated.thumbnail || undefined,
+      imageUrl: updated.thumbnail || undefined,
+      status: updated.status === "Draft" ? 0 : updated.status === "Awaiting Approval" ? 1 : updated.status === "Approved" ? 2 : updated.status === "Rejected" ? 3 : 4,
     });
     setEditingItem(null);
     loadContent();

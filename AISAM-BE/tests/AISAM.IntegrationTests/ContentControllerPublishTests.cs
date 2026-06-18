@@ -95,5 +95,13 @@ public class ContentControllerPublishTests
             LastProfileId = profileId;
             return Task.FromResult(PublishResult);
         }
+
+        public Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default) => CreateAsync(profileId, request, cancellationToken);
+        public Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => GetPagedAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
+        public Task<GenericResponse<ContentResponseDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => GetByIdAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default) => UpdateAsync(id, workspaceId, request, cancellationToken);
+        public Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => CloneAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => SoftDeleteAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => RestoreAsync(id, workspaceId, cancellationToken);
     }
 }

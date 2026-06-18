@@ -13,22 +13,26 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(true);
   const svgRef = useRef<SVGSVGElement>(null);
-  const prevViewRef = useRef(view);
-  const prevDataRef = useRef(data);
 
   const displayData = useMemo(() => {
     return view === "weekly" ? aggregateWeekly(data) : data;
   }, [data, view]);
 
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const prevViewRef = useRef(view);
+  const prevDataRef = useRef(data);
+
+  if (prevViewRef.current !== view || prevDataRef.current !== data) {
+    prevViewRef.current = view;
+    prevDataRef.current = data;
+    setIsAnimating(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setIsAnimating(false), 1000);
+  }
+
   useEffect(() => {
-    if (prevViewRef.current !== view || prevDataRef.current !== data) {
-      setIsAnimating(true);
-      const timer = setTimeout(() => setIsAnimating(false), 1000);
-      prevViewRef.current = view;
-      prevDataRef.current = data;
-      return () => clearTimeout(timer);
-    }
-  }, [view, data]);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
 
   const maxSpend = Math.max(...displayData.map((d) => d.spend));
   const maxConversions = Math.max(...displayData.map((d) => d.conversions));

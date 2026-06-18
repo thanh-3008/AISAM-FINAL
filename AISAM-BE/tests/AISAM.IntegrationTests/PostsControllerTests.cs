@@ -72,5 +72,8 @@ public class PostsControllerTests
             LastProfileId = profileId;
             return Task.FromResult(DetailResult);
         }
+
+        public Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => GetPagedAsync(workspaceId, request, brandId, status, cancellationToken);
+        public Task<GenericResponse<PostListItemDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid postId, CancellationToken cancellationToken = default) => GetByIdAsync(workspaceId, postId, cancellationToken);
     }
 }

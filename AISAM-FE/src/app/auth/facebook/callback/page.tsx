@@ -10,6 +10,7 @@ export default function FacebookCallbackPage() {
   const [status, setStatus] = useState("Processing...");
 
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     const brandId = sessionStorage.getItem("facebook_connect_brand_id");
@@ -37,11 +38,13 @@ export default function FacebookCallbackPage() {
         router.push("/social");
       } catch {
         setStatus("Failed to connect Facebook account. Redirecting...");
-        setTimeout(() => router.push("/social"), 2000);
+        timer = setTimeout(() => router.push("/social"), 2000);
       }
     };
 
     process();
+
+    return () => { if (timer) clearTimeout(timer); };
   }, [router, searchParams]);
 
   return (

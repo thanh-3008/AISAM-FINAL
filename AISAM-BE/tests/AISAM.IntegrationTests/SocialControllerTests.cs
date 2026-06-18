@@ -215,6 +215,15 @@ public class SocialControllerTests
 
         public Task<SocialAccountDto?> GetSocialAccountByIdAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
             => Task.FromResult<SocialAccountDto?>(null);
+
+        public Task<SocialAccountDto> LinkAccountInWorkspaceAsync(string provider, Guid workspaceId, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default) => LinkAccountAsync(provider, profileId, request, cancellationToken);
+        public Task<IReadOnlyList<SocialAccountDto>> GetWorkspaceAccountsAsync(Guid workspaceId, CancellationToken cancellationToken = default) => GetProfileAccountsAsync(workspaceId, cancellationToken);
+        public Task<IReadOnlyList<AvailableTargetDto>> ListAvailableTargetsInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default) => ListAvailableTargetsForAccountAsync(workspaceId, socialAccountId, cancellationToken);
+        public Task<SocialAccountDto> LinkSelectedTargetsInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid socialAccountId, LinkSelectedTargetsRequest request, CancellationToken cancellationToken = default) => LinkSelectedTargetsForAccountAsync(profileId, socialAccountId, request, cancellationToken);
+        public Task<IReadOnlyList<SocialTargetDto>> GetLinkedTargetsInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default) => GetLinkedTargetsAsync(workspaceId, socialAccountId, cancellationToken);
+        public Task<bool> UnlinkAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default) => UnlinkAccountAsync(workspaceId, socialAccountId, cancellationToken);
+        public Task<bool> UnlinkTargetInWorkspaceAsync(Guid workspaceId, Guid socialIntegrationId, CancellationToken cancellationToken = default) => UnlinkTargetAsync(workspaceId, socialIntegrationId, cancellationToken);
+        public Task<IReadOnlyList<SocialIntegrationDto>> GetIntegrationsByBrandInWorkspaceAsync(Guid workspaceId, Guid brandId, CancellationToken cancellationToken = default) => GetIntegrationsByBrandAsync(workspaceId, brandId, cancellationToken);
     }
 
     private sealed class FakeProfileRepository : IProfileRepository

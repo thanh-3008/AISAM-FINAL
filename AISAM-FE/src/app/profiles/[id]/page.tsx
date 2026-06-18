@@ -8,6 +8,7 @@ import { useToast } from "@/contexts/ToastContext";
 import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { apiFetch } from "@/lib/apiClient";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 import {
   changePassword,
   getPaymentHistory,
@@ -206,10 +207,11 @@ export default function ProfileDetailPage() {
   const [showArchivedBanner, setShowArchivedBanner] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    const profileId = id || getStoredActiveProfile()?.id || "";
+    if (!profileId) return;
     const fetchWorkspace = async () => {
       try {
-        const result = await apiFetch(`/profiles/${id}`);
+        const result = await apiFetch(`/profiles/${profileId}`);
         if (result?.success && result.data) {
           const w = result.data as Workspace;
           setWorkspace(w);
@@ -238,6 +240,8 @@ export default function ProfileDetailPage() {
     setSaving(true);
     setError(null);
     try {
+      const profileId = id || getStoredActiveProfile()?.id || "";
+      if (!profileId) { setError("Profile not found"); return; }
       const formBody = new FormData();
       formBody.append("name", form.name.trim());
       formBody.append("profileType", form.profileType);
@@ -245,7 +249,7 @@ export default function ProfileDetailPage() {
       if (form.bio.trim()) formBody.append("bio", form.bio.trim());
       if (form.avatarUrl.trim()) formBody.append("avatarUrl", form.avatarUrl.trim());
 
-      const result = await apiFetch(`/profiles/${id}`, {
+      const result = await apiFetch(`/profiles/${profileId}`, {
         method: "PUT",
         body: formBody,
       });
@@ -264,8 +268,10 @@ export default function ProfileDetailPage() {
 
   const handleDelete = async () => {
     setShowDeleteDialog(false);
+    const profileId = id || getStoredActiveProfile()?.id || "";
+    if (!profileId) return;
     try {
-      await apiFetch(`/profiles/${id}`, { method: "DELETE" });
+      await apiFetch(`/profiles/${profileId}`, { method: "DELETE" });
       router.push("/profiles");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Delete failed";
@@ -398,8 +404,13 @@ export default function ProfileDetailPage() {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
-          showToast({ type: "success", title: "Cancelled", message: "Subscription has been cancelled." });
-          handleLoadSubscription();
+          const result = await apiFetch("/payment/subscription/cancel", { method: "DELETE" });
+          if (result?.success) {
+            showToast({ type: "success", title: "Cancelled", message: "Subscription has been cancelled." });
+            handleLoadSubscription();
+          } else {
+            showToast({ type: "error", title: "Error", message: result?.message || "Failed to cancel subscription." });
+          }
         } catch {
           showToast({ type: "error", title: "Error", message: "Network error while cancelling subscription." });
         }
@@ -489,11 +500,22 @@ export default function ProfileDetailPage() {
       message: `Are you sure you want to remove ${member.name} from the workspace? This action cannot be undone.`,
       type: "danger",
       confirmText: "Remove",
-      onConfirm: () => {
-        setMembers(prev => prev.filter(m => m.id !== member.id));
-        setMemberActionMenu(null);
-        showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: true }));
+        try {
+          const result = await apiFetch(`/workspace-members/${member.id}`, { method: "DELETE" });
+          if (result?.success) {
+            setMembers(prev => prev.filter(m => m.id !== member.id));
+            setMemberActionMenu(null);
+            showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+          } else {
+            showToast({ type: "error", title: "Error", message: result?.message || "Failed to remove member." });
+          }
+        } catch {
+          showToast({ type: "error", title: "Error", message: "Network error while removing member." });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
       },
     });
   };
@@ -508,15 +530,23 @@ export default function ProfileDetailPage() {
     if (!selectedNewOwner) return;
     setTransferring(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setMembers(prev => prev.map(m => {
-        if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
-        if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
-        return m;
-      }));
-      setShowTransferModal(false);
-      setSelectedNewOwner(null);
-      showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
+      const result = await apiFetch("/workspace-members/ownership-transfer", {
+        method: "POST",
+        body: JSON.stringify({ targetMemberId: selectedNewOwner.id }),
+        headers: { "Content-Type": "application/json" },
+      });
+      if (result?.success) {
+        setMembers(prev => prev.map(m => {
+          if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
+          if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
+          return m;
+        }));
+        setShowTransferModal(false);
+        setSelectedNewOwner(null);
+        showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
+      } else {
+        showToast({ type: "error", title: "Transfer failed", message: result?.message || "Failed to transfer ownership." });
+      }
     } catch {
       showToast({ type: "error", title: "Transfer failed", message: "Failed to transfer ownership. Please try again." });
     } finally {

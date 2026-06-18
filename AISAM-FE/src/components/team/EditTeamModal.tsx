@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { type Team, type CreateTeamData } from "@/services/teamService";
 import { BRANDS } from "./teamUtils";
 
@@ -12,17 +12,9 @@ interface EditTeamModalProps {
 }
 
 export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: EditTeamModalProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [name, setName] = useState(team?.name ?? "");
+  const [description, setDescription] = useState(team?.description ?? "");
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (team) {
-      setName(team.name);
-      setDescription(team.description);
-      setSelectedBrands([]);
-    }
-  }, [team]);
 
   if (!team) return null;
 

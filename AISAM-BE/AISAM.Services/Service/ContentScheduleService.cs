@@ -217,7 +217,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<ContentScheduleDto>.CreateError("Schedule not found.", HttpStatusCode.NotFound);
         if (request.ScheduledAt.HasValue) { var at = NormalizeScheduledAt(request.ScheduledAt.Value); if (at == default) return GenericResponse<ContentScheduleDto>.CreateError("Scheduled time is invalid.", HttpStatusCode.BadRequest); schedule.ScheduledAt = at; schedule.ScheduledDate = at; schedule.ScheduledTime = at.TimeOfDay; }
-        if (request.IntegrationId.HasValue) { var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId.Value, cancellationToken); if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != schedule.Content.BrandId) return GenericResponse<ContentScheduleDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound); schedule.IntegrationId = integration.Id; schedule.Integration = integration; }
+        if (request.IntegrationId.HasValue) { var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId.Value, cancellationToken); if (integration == null || integration.WorkspaceId != workspaceId || schedule.Content == null || integration.BrandId != schedule.Content.BrandId) return GenericResponse<ContentScheduleDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound); schedule.IntegrationId = integration.Id; schedule.Integration = integration; }
         await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
         return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule updated successfully.");
     }
@@ -285,7 +285,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         await _notificationRepository.AddAsync(new Notification
         {
             ProfileId = profileId,
-            WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
+            WorkspaceId = workspaceId ?? Guid.Empty,
             Title = title,
             Message = message,
             Type = NotificationTypeEnum.PostScheduled,

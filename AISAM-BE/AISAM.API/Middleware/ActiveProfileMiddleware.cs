@@ -67,14 +67,6 @@ public sealed class ActiveProfileMiddleware
             return;
         }
 
-        if (context.Items.TryGetValue(WorkspaceContextHelper.ActiveWorkspaceItemKey, out var workspaceValue) &&
-            workspaceValue is Guid activeWorkspaceId &&
-            profile.Id != activeWorkspaceId)
-        {
-            await WriteErrorAsync(context, HttpStatusCode.Forbidden, "Profile does not belong to active workspace.");
-            return;
-        }
-
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profile.Id;
         await _next(context);
     }

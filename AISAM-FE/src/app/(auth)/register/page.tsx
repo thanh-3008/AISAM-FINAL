@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { setToken, setRefreshToken, setStoredUser, clearActiveContext } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
@@ -32,6 +32,7 @@ export default function RegisterPage() {
       const result = await apiClient("/auth/google", { data: { idToken: credential } });
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
+        clearActiveContext();
         setToken(result.data.accessToken);
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
         if (result.data.user) setStoredUser(result.data.user);
@@ -93,6 +94,7 @@ export default function RegisterPage() {
       });
 
       if (result.success) {
+        clearActiveContext();
         if (result.data?.accessToken) {
           setToken(result.data.accessToken);
         }

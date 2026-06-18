@@ -26,8 +26,8 @@ export async function fetchBrands(): Promise<{ id: string; name: string }[]> {
       brandList = res.data.data;
       return res.data.data;
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.error("brandService error:", e);
   }
   return [];
 }
@@ -40,8 +40,8 @@ export async function fetchProducts(brandId?: string): Promise<{ id: string; nam
       productList = res.data.data;
       return res.data.data;
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.error("brandService error:", e);
   }
   return [];
 }

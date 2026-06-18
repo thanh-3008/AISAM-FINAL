@@ -1,5 +1,6 @@
 using AISAM.Common;
 using AISAM.Common.Dtos.Request;
+using AISAM.Data.Enumeration;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -220,7 +221,8 @@ namespace AISAM.API.Controllers
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 var email = User.FindFirstValue(ClaimTypes.Email);
-                var role = User.FindFirstValue(ClaimTypes.Role);
+                var roleStr = User.FindFirstValue(ClaimTypes.Role);
+                var roleValue = Enum.TryParse<UserRoleEnum>(roleStr, out var parsedRole) ? (int)parsedRole : 0;
                 var name = User.FindFirstValue(ClaimTypes.Name);
 
                 var userData = new
@@ -228,7 +230,7 @@ namespace AISAM.API.Controllers
                     id = userId,
                     email = email,
                     fullName = name,
-                    role = role
+                    role = roleValue
                 };
 
                 return Ok(GenericResponse<object>.CreateSuccess(

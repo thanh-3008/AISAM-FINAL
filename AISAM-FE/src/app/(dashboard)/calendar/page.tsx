@@ -151,7 +151,7 @@ export default function CalendarPage() {
         setSchedules(sched.data);
         setContents(cont?.items ?? []);
         setIntegrations(integ);
-      } catch { /* ignore */ }
+      } catch (e) { console.error("calendar: operation failed", e); }
       setLoading(false);
     };
     load();
@@ -168,7 +168,7 @@ export default function CalendarPage() {
     };
   }, [pathname, activeWorkspace?.id]);
 
-  useEffect(() => { if (toast) setTimeout(() => setToast(null), 3000); }, [toast]);
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
 
   const handlePrev = () => {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }

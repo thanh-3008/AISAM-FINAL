@@ -93,7 +93,7 @@ export default function BrandsPage() {
     try {
       const result = await apiFetch(`/brands?pageSize=100`);
       if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
-    } catch { /* ignore */ }
+    } catch (e) { console.error("brands: operation failed", e); }
     finally { setLoading(false); }
   }, [activeWorkspace]);
 

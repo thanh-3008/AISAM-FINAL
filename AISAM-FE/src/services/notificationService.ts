@@ -63,7 +63,8 @@ export async function getNotifications(page = 1, pageSize = 20): Promise<PagedRe
       return res.data;
     }
     return { data: [], totalCount: 0, page, pageSize, totalPages: 0, hasNextPage: false, hasPreviousPage: false };
-  } catch {
+  } catch (e) {
+    console.error("notificationService error:", e);
     return null;
   }
 }
@@ -77,7 +78,8 @@ export async function getNotificationDetail(id: string): Promise<NotificationDet
       return res.data;
     }
     return null;
-  } catch {
+  } catch (e) {
+    console.error("notificationService error:", e);
     return null;
   }
 }
@@ -88,7 +90,8 @@ export async function markNotificationRead(id: string): Promise<boolean> {
       method: "POST",
     });
     return res?.success === true;
-  } catch {
+  } catch (e) {
+    console.error("notificationService error:", e);
     return false;
   }
 }
@@ -99,7 +102,8 @@ export async function markAllNotificationsRead(): Promise<boolean> {
       method: "POST",
     });
     return res?.success === true;
-  } catch {
+  } catch (e) {
+    console.error("notificationService error:", e);
     return false;
   }
 }
@@ -109,7 +113,8 @@ export async function getUnreadCount(): Promise<number> {
     const res: GenericResponse<UnreadCount> = await apiClient("/notifications/unread-count");
     if (res?.data && res.data.count >= 0) return res.data.count;
     return 0;
-  } catch {
+  } catch (e) {
+    console.error("notificationService error:", e);
     return 0;
   }
 }

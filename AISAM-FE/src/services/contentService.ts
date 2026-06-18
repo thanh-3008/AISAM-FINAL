@@ -196,7 +196,8 @@ export async function fetchContents(params?: {
       };
     }
     return null;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return null;
   }
 }
@@ -208,7 +209,8 @@ export async function fetchContentById(id: string): Promise<ContentDetail | null
       return apiItemToContentDetail(res.data);
     }
     return null;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return null;
   }
 }
@@ -225,7 +227,8 @@ export async function updateContent(id: string, data: UpdateContentPayload): Pro
   try {
     const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data, method: "PUT" });
     return res?.success === true;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return false;
   }
 }
@@ -242,7 +245,8 @@ export async function deleteContent(id: string): Promise<boolean> {
   try {
     const res: GenericResponse<null> = await apiFetch(`/content/${id}`, { method: "DELETE" });
     return res?.success === true;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return false;
   }
 }
@@ -251,7 +255,8 @@ export async function restoreContent(id: string): Promise<boolean> {
   try {
     const res: GenericResponse<null> = await apiClient(`/content/${id}/restore`, { method: "POST" });
     return res?.success === true;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return false;
   }
 }
@@ -263,7 +268,8 @@ export async function generateAIDraft(prompt: string, brandId: string, adType: A
     });
     if (res?.success && res.data?.generatedText) return res.data.generatedText;
     return null;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return null;
   }
 }
@@ -282,7 +288,8 @@ export async function chatWithAI(
     });
     if (res?.success && res.data?.response) return res.data.response;
     return null;
-  } catch {
+  } catch (e) {
+    console.error("contentService error:", e);
     return null;
   }
 }
@@ -299,7 +306,7 @@ export async function resolveBrandName(brandId: string): Promise<string> {
       brandNameCache.set(brandId, res.data.name);
       return res.data.name;
     }
-  } catch { /* fallback */ }
+  } catch (e) { console.error("contentService: resolveBrandName failed", e); }
   return brandId;
 }
 
@@ -307,6 +314,6 @@ export async function resolveProductName(productId: string): Promise<string> {
   try {
     const res: GenericResponse<{ id: string; name: string }> = await apiClient(`/products/${productId}`);
     if (res?.success && res.data?.name) return res.data.name;
-  } catch { /* fallback */ }
+  } catch (e) { console.error("contentService: resolveProductName failed", e); }
   return productId;
 }

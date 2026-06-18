@@ -48,7 +48,7 @@ namespace AISAM.API.Controllers
                     SortDescending = sortDescending
                 }, workspaceId, userId, brandId, includeDeleted, cancellationToken);
 
-                return result.Success ? Ok(result) : BadRequest(result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -115,7 +115,7 @@ namespace AISAM.API.Controllers
             {
                 var userId = GetUserIdOrThrow();
                 var result = await _productService.UpdateAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, request, cancellationToken);
-                return result.Success ? Ok(result) : BadRequest(result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {
@@ -155,7 +155,7 @@ namespace AISAM.API.Controllers
             {
                 var userId = GetUserIdOrThrow();
                 var result = await _productService.RestoreAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
-                return result.Success ? Ok(result) : BadRequest(result);
+                return StatusCode(result.StatusCode, result);
             }
             catch (UnauthorizedAccessException)
             {

@@ -66,8 +66,8 @@ public sealed class WorkspaceDashboardService : IWorkspaceDashboardService
                 return new WorkspaceTopMemberDto
                 {
                     UserId = member.UserId,
-                    Name = member.User.FullName ?? member.User.Email,
-                    Email = member.User.Email,
+                    Name = member.User?.FullName ?? member.User?.Email ?? "Unknown",
+                    Email = member.User?.Email ?? "Unknown",
                     CreditsUsed = memberUsage?.Credits ?? 0,
                     AiUsageCount = memberUsage?.Count ?? 0
                 };

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useToast } from "@/contexts/ToastContext";
 import {
   fetchAnalytics,
   exportReport,
@@ -21,6 +22,7 @@ import AnalyticsEfficiencyCard from "@/components/analytics/AnalyticsEfficiencyC
 export default function AnalyticsPage() {
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
+  const { showToast } = useToast();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +39,7 @@ export default function AnalyticsPage() {
         const res = await fetchAnalytics();
         if (!cancelled) setData(res);
       } catch {
-        if (!cancelled) setData(null);
+        if (!cancelled) { setData(null); showToast({ type: "error", title: "Error", message: "Failed to load analytics data." }); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -52,7 +54,7 @@ export default function AnalyticsPage() {
     fetchAnalytics().then((res) => {
       setData(res);
       setLoading(false);
-    });
+    }).catch(() => { setLoading(false); showToast({ type: "error", title: "Error", message: "Failed to load analytics data." }); });
   };
 
   const handleExport = async () => {

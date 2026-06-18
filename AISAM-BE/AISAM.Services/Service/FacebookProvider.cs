@@ -318,7 +318,7 @@ public sealed class FacebookProvider : IProviderService
         }) ?? throw new InvalidOperationException("Failed to parse Facebook response.");
     }
 
-    private static string GetErrorMessage(string content)
+    private string GetErrorMessage(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -337,8 +337,9 @@ public sealed class FacebookProvider : IProviderService
                 return error.Error.Message!;
             }
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            _logger.LogWarning(ex, "Failed to parse Facebook error response.");
         }
 
         return "Facebook request failed.";

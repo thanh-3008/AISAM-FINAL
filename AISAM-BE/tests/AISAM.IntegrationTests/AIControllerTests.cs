@@ -84,5 +84,9 @@ public class AIControllerTests
             LastProfileId = profileId;
             return Task.FromResult(ChatResult);
         }
+
+        public Task<GenericResponse<ChatResponse>> ChatInWorkspaceAsync(Guid profileId, Guid workspaceId, ChatRequest request, CancellationToken cancellationToken = default) => ChatAsync(profileId, request, cancellationToken);
+        public Task<GenericResponse<ContentResponseDto>> ApproveInWorkspaceAsync(Guid generationId, Guid workspaceId, CancellationToken cancellationToken = default) => ApproveAsync(generationId, workspaceId, cancellationToken);
+        public Task<GenericResponse<IEnumerable<AiGenerationResponse>>> GetGenerationsInWorkspaceAsync(Guid contentId, Guid workspaceId, CancellationToken cancellationToken = default) => GetGenerationsAsync(contentId, workspaceId, cancellationToken);
     }
 }

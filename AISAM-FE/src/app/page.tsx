@@ -169,21 +169,22 @@ export default function LandingPage() {
 
 
   useEffect(() => {
-    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-      anchor.addEventListener("click", function (this: HTMLAnchorElement, e) {
-        e.preventDefault();
-        const targetId = this.getAttribute("href");
-        if (!targetId || targetId === "#") return;
-        const targetElement = document.querySelector(targetId);
-        if (targetElement) {
-          const headerOffset = 80;
-          const elementPosition = targetElement.getBoundingClientRect().top;
-          const offsetPosition = elementPosition + window.scrollY - headerOffset;
-          window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-          setMobileMenuOpen(false);
-        }
-      });
-    });
+    const anchors = document.querySelectorAll('a[href^="#"]');
+    const handler = function (this: HTMLAnchorElement, e: Event) {
+      e.preventDefault();
+      const targetId = this.getAttribute("href");
+      if (!targetId || targetId === "#") return;
+      const targetElement = document.querySelector(targetId);
+      if (targetElement) {
+        const headerOffset = 80;
+        const elementPosition = targetElement.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.scrollY - headerOffset;
+        window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+        setMobileMenuOpen(false);
+      }
+    };
+    anchors.forEach((anchor) => anchor.addEventListener("click", handler));
+    return () => anchors.forEach((anchor) => anchor.removeEventListener("click", handler));
   }, []);
 
   return (

@@ -88,22 +88,6 @@ interface BEWorkspaceDashboardSummaryDto {
   topMembers: { userId: string; name: string; email: string; creditsUsed: number; aiUsageCount: number }[];
 }
 
-function generateDailyChartData(days: number): ChartDataPoint[] {
-  const data: ChartDataPoint[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    data.push({
-      date: date.toISOString().split("T")[0],
-      spend: Math.round(Math.random() * 500 + 200),
-      conversions: Math.round(Math.random() * 30 + 10),
-      cpc: Math.round((Math.random() * 0.8 + 0.8) * 100) / 100,
-    });
-  }
-  return data;
-}
-
 export async function fetchAnalytics(): Promise<AnalyticsData> {
   let dashboard: BEDashboardSummaryDto | null = null;
   let wsDashboard: BEWorkspaceDashboardSummaryDto | null = null;
@@ -111,12 +95,12 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
   try {
     const res1: GenericResponse<BEDashboardSummaryDto> = await apiClient("/dashboard/summary");
     if (res1?.data) dashboard = res1.data;
-  } catch { /* ignore */ }
+  } catch (e) { console.error("analyticsService: API call failed", e); }
 
   try {
     const res2: GenericResponse<BEWorkspaceDashboardSummaryDto> = await apiClient("/workspace-dashboard/summary");
     if (res2?.data) wsDashboard = res2.data;
-  } catch { /* ignore */ }
+  } catch (e) { console.error("analyticsService: API call failed", e); }
 
   const totalContent = (dashboard?.draftContentCount || 0) + (dashboard?.publishedContentCount || 0);
   const conversionRate = totalContent > 0 ? ((dashboard?.publishedContentCount || 0) / totalContent) * 100 : 0;
@@ -132,7 +116,7 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
       roas: 0,
       roasTrend: 0,
     },
-    chartData: generateDailyChartData(30),
+    chartData: [],
     campaignPerformance: [],
     aiInsights: dashboard
       ? [

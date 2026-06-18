@@ -26,6 +26,7 @@ declare global {
             client_id: string;
             callback: (response: GoogleCredentialResponse) => void;
             cancel_on_tap_outside?: boolean;
+            locale?: string;
           }) => void;
           prompt: (momentListener?: (moment: GooglePromptMoment) => void) => void;
           renderButton: (parent: HTMLElement, options: GoogleButtonOptions) => void;
@@ -104,6 +105,7 @@ export async function initializeGoogleIdentity(
       }
     },
     cancel_on_tap_outside: false,
+    locale: "en",
   });
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { getUserFromToken, logout } from "@/lib/auth";
+import { getStoredActiveProfile, type ActiveProfile } from "@/stores/profile-store";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
   getNotifications,
@@ -75,6 +76,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
+  const [activeProfile, setActiveProfile] = useState<ActiveProfile | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifs, setRecentNotifs] = useState<NotificationListItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
@@ -84,9 +86,17 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
+  const syncProfile = useCallback(() => {
+    setActiveProfile(getStoredActiveProfile());
+  }, []);
+
   useEffect(() => {
     setUser(getUserFromToken());
   }, []);
+
+  useEffect(() => {
+    syncProfile();
+  }, [syncProfile, activeWorkspace?.id]);
 
   // Fetch unread count
   useEffect(() => {
@@ -143,9 +153,10 @@ export default function Header({ breadcrumbs }: HeaderProps) {
     window.location.href = "/login";
   };
 
-  const displayName = user?.name || activeWorkspace?.name || "User";
+  const displayName = activeProfile?.name || user?.name || activeWorkspace?.name || "User";
   const initials = getInitials(displayName);
   const displayPlan = activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace";
+  const profileId = activeProfile?.id || "";
 
   return (
     <header className="h-16 bg-surface-gray border-b border-outline-variant/30 flex justify-between items-center px-gutter z-40 sticky top-0">
@@ -262,7 +273,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
 
         {/* Settings */}
         <button 
-          onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles")}
+          onClick={() => router.push(profileId || activeWorkspace?.id ? `/profiles/${profileId || activeWorkspace?.id}` : "/profiles")}
           className="hover:bg-surface-container rounded-full p-2 transition-all relative group"
         >
           <span className="material-symbols-outlined text-on-surface-variant text-[22px] group-hover:rotate-90 transition-transform duration-300" style={{ fontVariationSettings: "'FILL' 1" }}>settings_suggest</span>
@@ -306,7 +317,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     Upgrade Plan
                   </Link>
                   <Link
-                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles"}
+                    href={profileId || activeWorkspace?.id ? `/profiles/${profileId || activeWorkspace?.id}` : "/profiles"}
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
                   >

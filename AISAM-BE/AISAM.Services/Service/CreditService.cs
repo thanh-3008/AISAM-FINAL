@@ -395,7 +395,7 @@ public sealed class CreditService : ICreditService
         }
 
         await using var transaction = await _context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+            IsolationLevel.ReadCommitted,
             cancellationToken);
         try
         {

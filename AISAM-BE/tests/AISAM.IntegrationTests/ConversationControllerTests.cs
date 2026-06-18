@@ -69,5 +69,8 @@ public class ConversationControllerTests
         }
 
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<PagedResult<ConversationResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default) => GetPagedAsync(workspaceId, request, cancellationToken);
+        public Task<GenericResponse<ConversationDetailDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => GetByIdAsync(id, workspaceId, cancellationToken);
+        public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default) => SoftDeleteAsync(id, workspaceId, cancellationToken);
     }
 }

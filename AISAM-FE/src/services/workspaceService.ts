@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
+import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -29,7 +30,8 @@ export async function fetchWorkspaces(): Promise<{ id: string; name: string; wor
   try {
     const res: GenericResponse<{ id: string; name: string; workspaceType: number }[]> = await apiClient("/workspaces");
     return res?.data ?? [];
-  } catch {
+  } catch (e) {
+    console.error("workspaceService error:", e);
     return [];
   }
 }
@@ -61,7 +63,8 @@ export async function fetchWorkspaceDashboard(): Promise<{
       };
     }
     return null;
-  } catch {
+  } catch (e) {
+    console.error("workspaceService error:", e);
     return null;
   }
 }
@@ -93,15 +96,20 @@ export async function fetchCreditWallet(): Promise<{
       workspaceId?: string;
     } | undefined : undefined;
 
+    const storedWs = getStoredActiveWorkspace();
+    const isBusiness = storedWs?.workspaceType === 2;
+    const maxBalance = isBusiness ? 500000 : 15000;
+
     return {
       id: sub?.subscriptionId || "",
       workspaceId: dash?.workspaceId || "",
       balance: dash?.creditBalance ?? 0,
-      maxBalance: 15000,
+      maxBalance,
       subscriptionEndDate: sub?.endDate,
       subscriptionStatus: sub?.status,
     };
-  } catch {
+  } catch (e) {
+    console.error("workspaceService error:", e);
     return null;
   }
 }
@@ -114,7 +122,8 @@ export async function fetchPostQuota(): Promise<{ used: number; total: number } 
       return { used: q.postUsage ?? 0, total: q.postQuotaLimit ?? 0 };
     }
     return null;
-  } catch {
+  } catch (e) {
+    console.error("workspaceService error:", e);
     return null;
   }
 }
@@ -203,7 +212,8 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMembersResponse 
       return { data: members, totalCount: members.length };
     }
     return null;
-  } catch {
+  } catch (e) {
+    console.error("workspaceService error:", e);
     return null;
   }
 }

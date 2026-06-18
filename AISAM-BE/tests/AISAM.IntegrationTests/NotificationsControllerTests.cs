@@ -92,5 +92,11 @@ public class NotificationsControllerTests
             LastProfileId = profileId;
             return Task.FromResult(CountResult);
         }
+
+        public Task<GenericResponse<PagedResult<NotificationListItemDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default) => GetPagedAsync(workspaceId, request, cancellationToken);
+        public Task<GenericResponse<NotificationDetailDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default) => GetByIdAsync(workspaceId, notificationId, cancellationToken);
+        public Task<GenericResponse<bool>> MarkReadInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default) => MarkReadAsync(workspaceId, notificationId, cancellationToken);
+        public Task<GenericResponse<bool>> MarkAllReadInWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => MarkAllReadAsync(workspaceId, cancellationToken);
+        public Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => GetUnreadCountAsync(workspaceId, cancellationToken);
     }
 }

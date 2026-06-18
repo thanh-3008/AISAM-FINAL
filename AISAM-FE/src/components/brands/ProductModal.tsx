@@ -82,7 +82,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
         onSuccess(result.data);
         handleClose();
       }
-    } catch { /* ignore */ } finally {
+    } catch (e) { console.error("ProductModal: operation failed", e); } finally {
       setLoading(false);
     }
   };

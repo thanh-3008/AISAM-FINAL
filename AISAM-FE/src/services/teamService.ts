@@ -1,5 +1,7 @@
 import { apiClient } from "@/lib/apiClient";
 
+// NOTE: Teams are a UI abstraction over workspace-members.
+// The BE has no /teams endpoint — all team operations are local-only.
 export type MemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
 export type MemberStatus = "Active" | "Pending" | "Inactive";
 
@@ -135,6 +137,7 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
 }
 
 export async function createTeam(data: CreateTeamData): Promise<Team> {
+  console.warn("teamService: createTeam is local-only (no BE /teams API)");
   const team: Team = {
     id: `team_${Date.now()}`,
     name: data.name,
@@ -149,6 +152,7 @@ export async function createTeam(data: CreateTeamData): Promise<Team> {
 }
 
 export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
+  console.warn("teamService: updateTeam is local-only (no BE /teams API)");
   if (id === DEFAULT_TEAM.id) {
     return {
       ...DEFAULT_TEAM,
@@ -160,10 +164,12 @@ export async function updateTeam(id: string, data: Partial<CreateTeamData>): Pro
 }
 
 export async function deleteTeam(id: string): Promise<boolean> {
+  console.warn("teamService: deleteTeam is local-only (no BE /teams API)");
   return id !== DEFAULT_TEAM.id;
 }
 
 export async function getTeamById(id: string): Promise<Team | null> {
+  console.warn("teamService: getTeamById is local-only (no BE /teams API)");
   return id === DEFAULT_TEAM.id ? DEFAULT_TEAM : null;
 }
 

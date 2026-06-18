@@ -13,15 +13,18 @@ public sealed class QuotaService : IQuotaService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IProfileRepository _profileRepository;
+    private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
 
     public QuotaService(
         ISubscriptionRepository subscriptionRepository,
         IWorkspaceRepository workspaceRepository,
-        IProfileRepository profileRepository)
+        IProfileRepository profileRepository,
+        IWorkspaceMemberRepository workspaceMemberRepository)
     {
         _subscriptionRepository = subscriptionRepository;
         _workspaceRepository = workspaceRepository;
         _profileRepository = profileRepository;
+        _workspaceMemberRepository = workspaceMemberRepository;
     }
 
     public async Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
@@ -29,7 +32,21 @@ public sealed class QuotaService : IQuotaService
         var subscription = await _subscriptionRepository.GetCurrentActiveByProfileIdAsync(profileId, cancellationToken);
         if (subscription == null)
         {
-            return GenericResponse<QuotaSummaryDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
+            var profile = await _profileRepository.GetByIdAsync(profileId, cancellationToken);
+            if (profile != null)
+            {
+                var members = await _workspaceMemberRepository.GetByUserIdAsync(profile.UserId, cancellationToken);
+                foreach (var member in members)
+                {
+                    subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(member.WorkspaceId, cancellationToken);
+                    if (subscription != null) break;
+                }
+            }
+
+            if (subscription == null)
+            {
+                return GenericResponse<QuotaSummaryDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
+            }
         }
 
         var windowStart = subscription.StartDate;
