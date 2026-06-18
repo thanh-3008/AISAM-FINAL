@@ -132,7 +132,13 @@ public sealed class ContentService : IContentService
         if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
         if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
         if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
-        if (request.Status.HasValue) content.Status = request.Status.Value;
+        if (request.Status.HasValue)
+        {
+            var statusValidation = ValidateStatusTransition(content.Status, request.Status.Value);
+            if (!statusValidation.Success)
+                return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
+            content.Status = request.Status.Value;
+        }
         await _contentRepository.UpdateAsync(content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content updated successfully.");
     }
@@ -319,6 +325,11 @@ public sealed class ContentService : IContentService
             return GenericResponse<PublishResultDto>.CreateError("Content has already been published.", HttpStatusCode.BadRequest);
         }
 
+        if (content.Status != ContentStatusEnum.Approved)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Content must be approved before publishing.", HttpStatusCode.BadRequest);
+        }
+
         var integration = await _socialIntegrationRepository.GetByIdAsync(integrationId, cancellationToken);
         if (integration == null || integration.IsDeleted || integration.BrandId != content.BrandId ||
             (workspaceId.HasValue ? integration.WorkspaceId != workspaceId : integration.ProfileId != profileId))
@@ -421,6 +432,38 @@ public sealed class ContentService : IContentService
             if (product == null) return GenericResponse<bool>.CreateError("Product not found.", HttpStatusCode.NotFound);
             if (product.BrandId != brandId) return GenericResponse<bool>.CreateError("Product does not belong to the selected brand.", HttpStatusCode.BadRequest);
         }
+        return GenericResponse<bool>.CreateSuccess(true);
+    }
+
+    private static GenericResponse<bool> ValidateStatusTransition(ContentStatusEnum current, ContentStatusEnum next)
+    {
+        if (current == next) return GenericResponse<bool>.CreateSuccess(true);
+
+        if (current == ContentStatusEnum.Published)
+        {
+            return GenericResponse<bool>.CreateError("Cannot change status of published content.", HttpStatusCode.BadRequest);
+        }
+
+        if (next == ContentStatusEnum.Published)
+        {
+            return GenericResponse<bool>.CreateError("Use the publish endpoint to publish content.", HttpStatusCode.BadRequest);
+        }
+
+        var allowed = current switch
+        {
+            ContentStatusEnum.Draft => new[] { ContentStatusEnum.PendingApproval },
+            ContentStatusEnum.PendingApproval => new[] { ContentStatusEnum.Draft, ContentStatusEnum.Approved, ContentStatusEnum.Rejected },
+            ContentStatusEnum.Approved => new[] { ContentStatusEnum.Draft },
+            ContentStatusEnum.Rejected => new[] { ContentStatusEnum.Draft, ContentStatusEnum.PendingApproval },
+            _ => Array.Empty<ContentStatusEnum>()
+        };
+
+        if (!allowed.Contains(next))
+        {
+            return GenericResponse<bool>.CreateError(
+                $"Cannot transition content from {current} to {next}.", HttpStatusCode.BadRequest);
+        }
+
         return GenericResponse<bool>.CreateSuccess(true);
     }
 

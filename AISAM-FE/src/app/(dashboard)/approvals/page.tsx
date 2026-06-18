@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
+import PostNowModal from "@/components/content/PostNowModal";
 import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
@@ -114,6 +116,7 @@ function getStatusMeta(status: string) {
 }
 
 export default function ApprovalsPage() {
+  const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +132,7 @@ export default function ApprovalsPage() {
   const [page, setPage] = useState(1);
   const [confirmItem, setConfirmItem] = useState<ContentItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<ContentItem | null>(null);
+  const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
   const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
@@ -601,6 +605,20 @@ export default function ApprovalsPage() {
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
                                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
                               </button>
+                              {isApprovedStatus(item.status) && (
+                                <>
+                                  <button onClick={() => { setPostNowItem(item); }}
+                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Đăng ngay">
+                                    <span className="material-symbols-outlined text-[17px]">send</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Post Now</span>
+                                  </button>
+                                  <button onClick={() => { router.push(`/calendar?contentId=${item.id}`); }}
+                                    className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Schedule">
+                                    <span className="material-symbols-outlined text-[17px]">calendar_month</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Schedule</span>
+                                  </button>
+                                </>
+                              )}
                               {(canReview || canDelete) && <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />}
                               {canReview && (
                                 <button onClick={() => setConfirmItem(item)} disabled={actionId === item.id}
@@ -890,9 +908,18 @@ export default function ApprovalsPage() {
                   </button>
                 )}
                 {isApprovedStatus(drawerItem.status) && (
-                  <div className="flex-1 text-center py-3 rounded-xl bg-emerald-500/10 text-emerald-600 text-label-sm font-bold border border-emerald-500/20">
-                    This content has been approved.
-                  </div>
+                  <>
+                    <button onClick={() => { setPostNowItem(drawerItem); setDrawerItem(null); }}
+                      className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">
+                      <span className="material-symbols-outlined text-[17px]">send</span>
+                      Post Now
+                    </button>
+                    <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.id}`); setDrawerItem(null); }}
+                      className="flex-1 border border-outline-variant/20 text-on-surface-variant py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-surface-container active:scale-[0.98] transition-all">
+                      <span className="material-symbols-outlined text-[17px]">calendar_month</span>
+                      Schedule
+                    </button>
+                  </>
                   )}
               </div>
             </div>
@@ -1028,6 +1055,20 @@ export default function ApprovalsPage() {
             </div>
             </div>
           </>
+        )}
+
+        {/* ── Post Now Modal ── */}
+        {postNowItem && (
+          <PostNowModal
+            contentId={postNowItem.id}
+            brandId={postNowItem.brandId}
+            onClose={() => setPostNowItem(null)}
+            onSuccess={() => {
+              setPostNowItem(null);
+              showToast(`"${postNowItem.title}" published successfully!`, "success");
+              load();
+            }}
+          />
         )}
 
         {/* ── Toast ── */}

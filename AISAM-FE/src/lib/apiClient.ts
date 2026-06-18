@@ -1,5 +1,6 @@
 import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
@@ -18,9 +19,11 @@ async function buildHeaders(customHeaders?: Record<string, string>) {
     clearActiveWorkspace();
     workspace = null;
   }
+  const profile = getStoredActiveProfile();
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
+    ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
     ...(customHeaders || {}),
   };
   return { headers, token };
@@ -53,10 +56,12 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
   }
   const workspace = getStoredActiveWorkspace();
+  const profile = getStoredActiveProfile();
   const newHeaders: Record<string, string> = {
     ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
+    ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
   };
   const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
   return handleResponse(retryResponse);
