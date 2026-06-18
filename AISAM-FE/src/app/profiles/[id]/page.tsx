@@ -436,13 +436,13 @@ export default function ProfileDetailPage() {
         role: inviteForm.role,
       });
 
-      if (result) {
+      if (result?.data) {
         setShowInviteModal(false);
         setInviteForm({ email: "", role: "Viewer" });
         showToast({ type: "success", title: "Invitation sent", message: `Invitation sent to ${inviteForm.email}` });
         handleLoadMembers();
       } else {
-        showToast({ type: "error", title: "Invitation failed", message: "Failed to send invitation. Please try again." });
+        showToast({ type: "error", title: "Invitation failed", message: result?.error || "Failed to send invitation. Please try again." });
       }
     } catch {
       showToast({ type: "error", title: "Network error", message: "Please check your connection and try again." });

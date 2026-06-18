@@ -24,15 +24,16 @@ export interface WorkspaceInvitation {
 
 const ROLE_TO_ENUM: Record<WorkspaceMemberRole, number> = { Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 };
 
-export async function inviteMember(data: InviteMemberRequest): Promise<WorkspaceInvitation | null> {
+export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: WorkspaceInvitation; error?: string } | null> {
   try {
     const res = await apiClient("/workspace-invitations", {
       method: "POST",
       data: { ...data, role: ROLE_TO_ENUM[data.role] ?? 4 },
     });
-    return res?.data ?? null;
-  } catch {
-    return null;
+    if (!res?.success) return { error: res?.message || "Failed to send invitation" };
+    return { data: res?.data ?? undefined };
+  } catch (err: any) {
+    return { error: err?.message || "Network error" };
   }
 }
 
