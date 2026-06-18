@@ -56,6 +56,22 @@ public class WorkspaceServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_RejectsSecondPersonalWorkspaceForSameUser()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var service = CreateService(context);
+
+        await service.CreateAsync(user.Id, new CreateWorkspaceRequest { Name = "Personal", WorkspaceType = WorkspaceTypeEnum.Personal });
+
+        var result = await service.CreateAsync(user.Id, new CreateWorkspaceRequest { Name = "Another Personal", WorkspaceType = WorkspaceTypeEnum.Personal });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal("PERSONAL_WORKSPACE_LIMIT_REACHED", result.Error?.ErrorCode);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_ReturnsNotFoundForNonMember()
     {
         await using var context = CreateContext();

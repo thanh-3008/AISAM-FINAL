@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { storeActiveProfile, clearActiveProfile } from "@/stores/profile-store";
-import { apiClient, apiFetch } from "@/lib/apiClient";
+import { apiClient } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
 
 interface PendingWorkspace {
@@ -68,17 +67,6 @@ export default function OverviewPage() {
         return;
       }
 
-      // 2. Tạo Profile (để có X-Profile-Id)
-      const formBody = new FormData();
-      formBody.append("name", name);
-      formBody.append("profileType", workspaceType.toString());
-      if (companyName) formBody.append("companyName", companyName);
-
-      const pfResult = await apiFetch(`/profiles/user/${userId}`, {
-        method: "POST",
-        body: formBody,
-      });
-
       const wsId = wsResult.data.id;
 
       const wsData: WorkspaceData = {
@@ -95,16 +83,6 @@ export default function OverviewPage() {
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
-      
-      if (pfResult?.success && pfResult.data?.id) {
-        storeActiveProfile({
-          id: pfResult.data.id,
-          name: pfResult.data.name || wsData.name,
-          profileType: workspaceType,
-        });
-      } else {
-        clearActiveProfile();
-      }
     } catch (e: any) {
       setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
       return;
@@ -130,7 +108,6 @@ export default function OverviewPage() {
     } else {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
-      clearActiveProfile();
       setToast({ name: workspace.name });
       setTimeout(() => router.push("/dashboard"), 2000);
     }

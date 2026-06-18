@@ -5,6 +5,7 @@ namespace AISAM.Repositories.IRepositories;
 public interface IWorkspaceInvitationRepository
 {
     Task<WorkspaceInvitation?> GetByTokenAsync(string token, CancellationToken cancellationToken = default);
+    Task<WorkspaceInvitation?> GetByWorkspaceAndIdAsync(Guid workspaceId, Guid id, CancellationToken cancellationToken = default);
     Task<WorkspaceInvitation?> GetPendingByWorkspaceAndEmailAsync(Guid workspaceId, string email, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<WorkspaceInvitation>> GetPendingByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default);
     Task<int> CountPendingByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default);
