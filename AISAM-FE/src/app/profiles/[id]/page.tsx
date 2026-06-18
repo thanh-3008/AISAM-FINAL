@@ -339,7 +339,8 @@ export default function ProfileDetailPage() {
     if (data) {
       setSubscription(data);
 
-      if (data.status === "Expired" || data.status === "Cancelled") {
+      const isExpired = data.status === "Expired" || data.status === "Cancelled" || data.status === "Inactive";
+      if (isExpired) {
         setShowExpiredBanner(true);
 
         const now = Date.now();
