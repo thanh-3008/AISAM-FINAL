@@ -23,6 +23,7 @@ import {
   fetchCreditWallet,
   fetchWorkspaceDashboard,
   fetchPostQuota,
+  transferOwnership,
   type WorkspaceMember,
   type WorkspaceMemberRole,
   type CreditUsageRecord,
@@ -515,17 +516,21 @@ export default function ProfileDetailPage() {
     if (!selectedNewOwner) return;
     setTransferring(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setMembers(prev => prev.map(m => {
-        if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
-        if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
-        return m;
-      }));
-      setShowTransferModal(false);
-      setSelectedNewOwner(null);
-      showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
+      const result = await transferOwnership(selectedNewOwner.id);
+      if (result.success) {
+        setMembers(prev => prev.map(m => {
+          if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
+          if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
+          return m;
+        }));
+        setShowTransferModal(false);
+        setSelectedNewOwner(null);
+        showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
+      } else {
+        showToast({ type: "error", title: "Transfer failed", message: result.message || "Failed to transfer ownership." });
+      }
     } catch {
-      showToast({ type: "error", title: "Transfer failed", message: "Failed to transfer ownership. Please try again." });
+      showToast({ type: "error", title: "Network error", message: "Please check your connection and try again." });
     } finally {
       setTransferring(false);
     }
