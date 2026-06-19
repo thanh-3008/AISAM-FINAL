@@ -328,7 +328,9 @@ public sealed class CreditService : ICreditService
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => 50,
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 500,
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 2_000,
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => 100,
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 15_000,
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => 1_000,
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 50_000,
             _ => 0
         };

@@ -628,8 +628,9 @@ public sealed class PayOSPaymentService : IPaymentService
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(499_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(999_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 1_000, 10, 3, 1, 1, 1, 0m, 1),
             _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
         };
     }

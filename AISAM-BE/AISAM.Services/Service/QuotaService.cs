@@ -179,6 +179,7 @@ public sealed class QuotaService : IQuotaService
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 300,
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 1_000,
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => 300,
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => 1_000,
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 5_000,
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 20_000,
             _ => subscriptionFallback(plan)
