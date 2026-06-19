@@ -44,6 +44,17 @@ function PricingContent() {
     fetchCreditWallet().then(w => setCreditWallet(w));
   }, [activeWorkspace?.id]);
 
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment");
+    if (paymentStatus === "success") {
+      showToast({ type: "success", title: "Thanh toán thành công", message: "Nâng cấp gói thành công" });
+      router.replace("/pricing");
+    } else if (paymentStatus === "cancelled") {
+      showToast({ type: "info", title: "Thanh toán bị hủy", message: "Bạn đã hủy quá trình thanh toán" });
+      router.replace("/pricing");
+    }
+  }, [searchParams, router, showToast]);
+
   const currentPlan = featureGate.plan;
   const isCurrentPlan = (planType: PlanType) => currentPlan === planType;
   const isPlanLocked = (planType: PlanType) => PLAN_HIERARCHY[planType] <= PLAN_HIERARCHY[currentPlan];

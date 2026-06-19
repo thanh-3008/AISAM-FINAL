@@ -407,8 +407,8 @@ export default function ProfileDetailPage() {
       const planCodes = ["", "basic_monthly", "pro_monthly", "business_monthly"];
       const checkout = await createCheckout({
         planCode: planCodes[planType] || "basic_monthly",
-        returnUrl: window.location.origin + "/profiles?payment=success",
-        cancelUrl: window.location.origin + "/profiles?payment=cancelled",
+        returnUrl: window.location.origin + `/profiles/${id}?payment=success`,
+        cancelUrl: window.location.origin + `/profiles/${id}?payment=cancelled`,
       });
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;
@@ -640,8 +640,8 @@ export default function ProfileDetailPage() {
       const creditPackCodes: Record<string, number> = { Starter: 1, Standard: 2, Growth: 3, Business: 4 };
       const checkout = await createCreditPackCheckout({
         creditPackCode: creditPackCodes[selectedCreditPack.name] || 1,
-        returnUrl: window.location.origin + "/profiles?payment=success",
-        cancelUrl: window.location.origin + "/profiles?payment=cancelled",
+        returnUrl: window.location.origin + `/profiles/${id}?payment=success`,
+        cancelUrl: window.location.origin + `/profiles/${id}?payment=cancelled`,
       });
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;
@@ -679,6 +679,21 @@ export default function ProfileDetailPage() {
     // TODO: Implement update payment method when BE API is available
     showToast({ type: "info", title: "Update Payment Method", message: "Feature coming soon!" });
   };
+
+  // Handle payment redirect
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment");
+    if (paymentStatus === "success") {
+      showToast({ type: "success", title: "Thanh toán thành công", message: "Nâng cấp Thành công cho tài khoản" });
+      void handleLoadSubscription();
+      void handleLoadOverview();
+      void handleLoadCreditWallet();
+      router.replace(`/profiles/${id}`);
+    } else if (paymentStatus === "cancelled") {
+      showToast({ type: "info", title: "Thanh toán bị hủy", message: "Bạn đã hủy quá trình thanh toán" });
+      router.replace(`/profiles/${id}`);
+    }
+  }, [searchParams, id, router, showToast]);
 
   // Load payment history when billing section is active
   useEffect(() => {

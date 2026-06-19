@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { createProduct, updateProduct } from "@/services/productService";
+import { useToast } from "@/contexts/ToastContext";
 
 export interface Product {
   id: string;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export default function ProductModal({ open, mode, onClose, onSuccess, brandId, product }: Props) {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +80,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
         ? await updateProduct(product.id, buildApiBody())
         : await createProduct(buildApiBody());
       if (result) {
+        showToast({ type: "success", title: "Thành công", message: mode === "edit" ? "Product updated successfully" : "Product added successfully" });
         onSuccess(result as Product);
         handleClose();
       } else {
