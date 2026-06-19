@@ -55,9 +55,9 @@ export default function ProfilesListPage() {
   const stats = useMemo(() => ({
     total: workspaces.length,
     active: workspaces.filter(w => w.status === 1).length,
-    free: workspaces.filter(w => w.workspaceType === 0).length,
-    basic: workspaces.filter(w => w.workspaceType === 1).length,
-    pro: workspaces.filter(w => w.workspaceType === 2).length,
+    pending: workspaces.filter(w => w.status === 0).length,
+    personal: workspaces.filter(w => w.workspaceType === 1).length,
+    business: workspaces.filter(w => w.workspaceType === 2).length,
   }), [workspaces]);
 
   const handleSelect = (workspace: WorkspaceData) => {
@@ -104,9 +104,9 @@ export default function ProfilesListPage() {
                 {[
                   { label: "Total", value: stats.total, color: "text-primary", bg: "bg-primary/5", bar: "bg-primary" },
                   { label: "Active", value: stats.active, color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-emerald-500" },
-                  { label: "Free", value: stats.free, color: "text-outline", bg: "bg-surface-container/50", bar: "bg-outline" },
-                  { label: "Basic", value: stats.basic, color: "text-secondary", bg: "bg-secondary/5", bar: "bg-secondary" },
-                  { label: "Pro", value: stats.pro, color: "text-amber-600", bg: "bg-amber-50", bar: "bg-amber-500" },
+                  { label: "Pending", value: stats.pending, color: "text-amber-600", bg: "bg-amber-50", bar: "bg-amber-500" },
+                  { label: "Personal", value: stats.personal, color: "text-secondary", bg: "bg-secondary/5", bar: "bg-secondary" },
+                  { label: "Business", value: stats.business, color: "text-blue-600", bg: "bg-blue-50", bar: "bg-blue-500" },
                 ].map((s) => (
                   <motion.div
                     key={s.label}

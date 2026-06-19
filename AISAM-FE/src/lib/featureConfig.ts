@@ -127,10 +127,10 @@ export const CREDIT_COST: Record<string, number> = {
 
 export function getPlanType(planName: string): PlanType {
   const normalized = planName.toLowerCase().replace(/\s+/g, "");
-  if (normalized.includes("businesspro")) return PlanType.BusinessPro;
-  if (normalized.includes("businessplus")) return PlanType.BusinessPlus;
-  if (normalized.includes("personalpro") || normalized.includes("premium")) return PlanType.PersonalPro;
-  if (normalized.includes("personalplus") || normalized.includes("plus")) return PlanType.PersonalPlus;
+  if (normalized.includes("businesspro") || normalized === "premium") return PlanType.BusinessPro;
+  if (normalized.includes("businessplus") || normalized === "plus") return PlanType.BusinessPlus;
+  if (normalized.includes("personalpro")) return PlanType.PersonalPro;
+  if (normalized.includes("personalplus")) return PlanType.PersonalPlus;
   return PlanType.Free;
 }
 

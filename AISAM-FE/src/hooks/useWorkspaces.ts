@@ -148,7 +148,10 @@ export function useWorkspaces() {
     let mapped: WorkspaceData[] = [];
     let fetched = false;
     try {
-      const res = await apiClient("/workspaces") as { success: boolean; data?: Record<string, unknown>[] };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const res = await apiClient("/workspaces", { signal: controller.signal }) as { success: boolean; data?: Record<string, unknown>[] };
+      clearTimeout(timeoutId);
       if (res?.success && res.data && Array.isArray(res.data)) {
         fetched = true;
         mapped = res.data.map((w) => ({
@@ -163,6 +166,8 @@ export function useWorkspaces() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load workspaces");
+    } finally {
+      fetchingWorkspaces = false;
     }
 
     if (!fetched) {
@@ -172,14 +177,12 @@ export function useWorkspaces() {
         return fallback ? [fallback] : [];
       });
       setLoading(false);
-      fetchingWorkspaces = false;
       return;
     }
 
     cachedWorkspaces = mapped;
     setWorkspaces(mapped);
     setLoading(false);
-    fetchingWorkspaces = false;
   }, []);
 
   useEffect(() => {
