@@ -220,7 +220,7 @@ public class AIServiceTests
             new FakeGeminiTextClient("AI response"),
             conversations);
 
-        var result = await service.ChatInWorkspaceAsync(profileId, Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, profileId, Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.True(result.Success);
         Assert.Equal("AI response", result.Data!.Response);
@@ -239,8 +239,10 @@ public class AIServiceTests
     }
 
     [Fact]
-    public async Task ChatAsync_DoesNotConsumeWorkspaceCredits()
+    public async Task ChatAsync_ConsumesOneWorkspaceCredit_AfterGeminiSucceeds()
     {
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
@@ -249,29 +251,63 @@ public class AIServiceTests
             new FakeGeminiTextClient("AI response"),
             creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), workspaceId, userId, new ChatRequest { Message = "User message" });
 
         Assert.True(result.Success);
-        Assert.Equal(0, credits.ConsumeCallCount);
+        Assert.Equal(1, credits.ConsumeCallCount);
+        Assert.Equal(workspaceId, credits.LastWorkspaceId);
+        Assert.Equal(userId, credits.LastUserId);
+        Assert.Equal(CreditActionEnum.GenerateText, credits.LastAction);
+        Assert.Equal(1, credits.LastCredits);
+    }
+
+    [Fact]
+    public async Task ChatAsync_ReturnsCreditError_WhenCreditDeductionFails()
+    {
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var credits = new FakeCreditService
+        {
+            ConsumeResult = GenericResponse<CreditUsageRecord>.CreateError(
+                "Workspace does not have enough credits.",
+                HttpStatusCode.BadRequest,
+                "INSUFFICIENT_WORKSPACE_CREDITS")
+        };
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("AI response"),
+            creditService: credits);
+
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), workspaceId, userId, new ChatRequest { Message = "User message" });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("INSUFFICIENT_WORKSPACE_CREDITS", result.Error?.ErrorCode);
+        Assert.Equal(1, credits.ConsumeCallCount);
     }
 
     [Fact]
     public async Task ChatAsync_ReturnsClearErrorAndStoresAiErrorMessage_WhenGeminiFails()
     {
         var conversations = new FakeConversationRepository();
+        var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
             new FakeBrandRepository(),
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")),
-            conversations);
+            conversations,
+            creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.StatusCode);
         Assert.Contains("AI chat is temporarily unavailable.", result.Message);
         Assert.Equal("AI chat is temporarily unavailable.", conversations.Messages.Last().Message);
+        Assert.Equal(0, credits.ConsumeCallCount);
     }
 
     [Fact]
