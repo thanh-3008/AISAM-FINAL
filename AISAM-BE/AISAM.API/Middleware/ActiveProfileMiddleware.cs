@@ -1,5 +1,7 @@
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Data.Enumeration;
+using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using System.Net;
 
@@ -9,7 +11,9 @@ public sealed class ActiveProfileMiddleware
 {
     private static readonly PathString[] ProtectedPrefixes =
     {
-        new("/api/dev/scheduler")
+        new("/api/dev/scheduler"),
+        new("/api/ai"),
+        new("/api/conversations"),
     };
 
     private readonly RequestDelegate _next;
@@ -39,21 +43,41 @@ public sealed class ActiveProfileMiddleware
             return;
         }
 
+        var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
+
         if (!Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
         {
+            // Try to resolve a default profile for protected routes
+            var userProfiles = await profileRepository.GetByUserIdAsync(userId, context.RequestAborted);
+            var workspaceHeader = context.Request.Headers["X-Workspace-Id"].FirstOrDefault();
+            Profile? profile = null;
+
+            if (Guid.TryParse(workspaceHeader, out var wsId))
+            {
+                profile = userProfiles.FirstOrDefault(p => p.Id == wsId);
+            }
+
+            profile ??= userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active);
+
+            if (profile != null)
+            {
+                context.Items[ProfileContextHelper.ActiveProfileItemKey] = profile.Id;
+                await _next(context);
+                return;
+            }
+
             await WriteErrorAsync(context, HttpStatusCode.Unauthorized, "Missing or invalid X-Profile-Id header.");
             return;
         }
 
-        var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
-        var profile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
-        if (profile == null)
+        var resolvedProfile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
+        if (resolvedProfile == null)
         {
             await WriteErrorAsync(context, HttpStatusCode.NotFound, "Profile not found.");
             return;
         }
 
-        if (profile.UserId != userId)
+        if (resolvedProfile.UserId != userId)
         {
             await WriteErrorAsync(context, HttpStatusCode.Forbidden, "You are not allowed to use this profile.");
             return;
@@ -61,13 +85,13 @@ public sealed class ActiveProfileMiddleware
 
         if (context.Items.TryGetValue(WorkspaceContextHelper.ActiveWorkspaceItemKey, out var workspaceValue) &&
             workspaceValue is Guid activeWorkspaceId &&
-            profile.Id != activeWorkspaceId)
+            resolvedProfile.Id != activeWorkspaceId)
         {
             await WriteErrorAsync(context, HttpStatusCode.Forbidden, "Profile does not belong to active workspace.");
             return;
         }
 
-        context.Items[ProfileContextHelper.ActiveProfileItemKey] = profile.Id;
+        context.Items[ProfileContextHelper.ActiveProfileItemKey] = resolvedProfile.Id;
         await _next(context);
     }
 

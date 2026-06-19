@@ -28,7 +28,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/social"),
         new("/api/social-auth"),
         new("/api/conversations"),
-        new("/api/notifications")
+        new("/api/notifications"),
+        new("/api/credit-usage")
     };
 
     private readonly RequestDelegate _next;
@@ -347,7 +348,7 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspaceFeatureEnum.CampaignRecommendation => subscription.Plan is SubscriptionPlanEnum.Premium,
             WorkspaceFeatureEnum.BasicAnalytics => true,
             WorkspaceFeatureEnum.AdvancedAnalytics => subscription.Plan is SubscriptionPlanEnum.Premium,
-            WorkspaceFeatureEnum.WorkspaceDashboard => workspaceType == WorkspaceTypeEnum.Business && subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium,
+            WorkspaceFeatureEnum.WorkspaceDashboard => workspaceType == WorkspaceTypeEnum.Business && (subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium),
             _ => false
         };
 
