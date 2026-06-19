@@ -1,6 +1,7 @@
 import { apiClient, apiFetch } from "@/lib/apiClient";
 import { resolveApiMediaUrl } from "@/lib/apiBaseUrl";
 import type { ContentType, ContentStatus } from "@/lib/contentConstants";
+import { getToken } from "@/lib/auth";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -101,6 +102,7 @@ export interface CreateContentPayload {
   styleDescription?: string | null;
   contextDescription?: string | null;
   representativeCharacter?: string | null;
+  status?: Extract<ContentApiStatus, 0 | 1>;
 }
 
 export interface ContentMediaUpload {
@@ -344,6 +346,43 @@ export async function deleteContent(id: string): Promise<boolean> {
   }
 }
 
+export async function publishContent(contentId: string, integrationId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const quota: GenericResponse<{ postRemaining?: number }> = await apiClient("/quota/workspace/current");
+    if ((quota?.data?.postRemaining ?? 0) <= 0) {
+      return { success: false, error: "Post quota exceeded. Please upgrade or wait for quota reset." };
+    }
+
+    const res: GenericResponse<null> = await apiClient(`/content/${contentId}/publish/${integrationId}`, { method: "POST" });
+    return { success: res?.success === true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Failed to publish. Please try again." };
+  }
+}
+
+export async function publishContentDebug(contentId: string, integrationId: string): Promise<{ success: boolean; error?: string; status?: number; body?: string }> {
+  try {
+    const token = getToken();
+    const workspace = (await import("@/stores/workspace-store")).getStoredActiveWorkspace();
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+    const headers: Record<string, string> = {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
+      "Content-Type": "application/json",
+    };
+    const response = await fetch(`${API_URL}/content/${contentId}/publish/${integrationId}`, { method: "POST", headers });
+    const bodyText = await response.text();
+    return {
+      success: response.ok,
+      status: response.status,
+      body: bodyText,
+      error: response.ok ? undefined : `HTTP ${response.status}: ${response.statusText}`
+    };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Network error" };
+  }
+}
+
 export async function restoreContent(id: string): Promise<boolean> {
   try {
     const res: GenericResponse<null> = await apiClient(`/content/${id}/restore`, { method: "POST" });
@@ -360,17 +399,6 @@ export async function cloneContent(id: string): Promise<ContentItem | null> {
     return null;
   } catch {
     return null;
-  }
-}
-
-export async function publishContent(id: string, integrationId: string): Promise<boolean> {
-  try {
-    const quota: GenericResponse<{ postRemaining?: number }> = await apiClient("/quota/workspace/current");
-    if ((quota?.data?.postRemaining ?? 0) <= 0) return false;
-    const res: GenericResponse<unknown> = await apiClient(`/content/${id}/publish/${integrationId}`, { method: "POST" });
-    return res?.success === true;
-  } catch {
-    return false;
   }
 }
 

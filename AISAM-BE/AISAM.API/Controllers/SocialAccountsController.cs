@@ -2,6 +2,7 @@ using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Models;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,12 @@ namespace AISAM.API.Controllers;
 public sealed class SocialAccountsController : ControllerBase
 {
     private readonly ISocialService _socialService;
+    private readonly IProfileRepository _profileRepository;
 
-    public SocialAccountsController(ISocialService socialService)
+    public SocialAccountsController(ISocialService socialService, IProfileRepository profileRepository)
     {
         _socialService = socialService;
+        _profileRepository = profileRepository;
     }
 
     [HttpGet("me")]
@@ -96,7 +99,8 @@ public sealed class SocialAccountsController : ControllerBase
 
         try
         {
-            var result = await _socialService.LinkSelectedTargetsInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), socialAccountId, request, cancellationToken);
+            var profileId = await GetProfileIdAsync(cancellationToken);
+            var result = await _socialService.LinkSelectedTargetsInWorkspaceAsync(GetWorkspaceId(), profileId, socialAccountId, request, cancellationToken);
             return Ok(GenericResponse<SocialAccountDto>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -136,10 +140,11 @@ public sealed class SocialAccountsController : ControllerBase
         }
     }
 
-    private Guid GetProfileId()
+    private async Task<Guid> GetProfileIdAsync(CancellationToken cancellationToken)
     {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
+        return await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
     }
+
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 
     private static bool IsNotFoundMessage(string message)

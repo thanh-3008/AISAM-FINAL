@@ -159,7 +159,6 @@ export default function ProfileDetailPage() {
   const [selectedCreditPack, setSelectedCreditPack] = useState<{ name: string; credits: number; price: string } | null>(null);
   const [showPurchaseConfirm, setShowPurchaseConfirm] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
-  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
   // Role management state
   const [memberActionMenu, setMemberActionMenu] = useState<string | null>(null);
@@ -647,13 +646,7 @@ export default function ProfileDetailPage() {
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setPurchaseSuccess(true);
-        if (creditWallet) {
-          setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
-        }
-        showToast({ type: "success", title: "Purchase successful", message: `${selectedCreditPack.credits.toLocaleString()} credits added to your workspace.` });
-        setTimeout(() => setPurchaseSuccess(false), 3000);
+        showToast({ type: "error", title: "Checkout unavailable", message: "Payment checkout could not be created. Please check PayOS configuration." });
       }
     } catch {
       showToast({ type: "error", title: "Payment failed", message: "Failed to process credit pack purchase." });
@@ -2734,13 +2727,6 @@ export default function ProfileDetailPage() {
                           </div>
                         )}
                       </div>
-
-                      {purchaseSuccess && (
-                        <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-600 text-white mb-4 animate-in slide-in-from-top-2">
-                          <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                          <span className="text-body-sm font-semibold">Credits added successfully!</span>
-                        </div>
-                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {[

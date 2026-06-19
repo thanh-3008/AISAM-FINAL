@@ -296,6 +296,8 @@ public class ScheduledPostingServiceTests
             => Task.FromResult(Profiles.GetValueOrDefault(id));
 
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Profiles.Values.FirstOrDefault(profile => profile.WorkspaceId == workspaceId));
         public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
             => Task.FromResult(Profiles.Values.Where(profile => profile.UserId == userId).OrderBy(profile => profile.CreatedAt).FirstOrDefault());
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

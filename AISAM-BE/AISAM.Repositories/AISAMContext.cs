@@ -203,10 +203,17 @@ namespace AISAM.Repositories
                 entity.Property(p => p.Name).HasMaxLength(255).IsRequired();
                 entity.HasIndex(p => p.UserId);
                 entity.HasIndex(p => p.SubscriptionId);
+                entity.HasIndex(p => p.WorkspaceId)
+                      .IsUnique()
+                      .HasFilter("\"workspace_id\" IS NOT NULL");
                 entity.HasOne(p => p.User)
                       .WithMany(u => u.Profiles)
                       .HasForeignKey(p => p.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(p => p.Workspace)
+                      .WithOne(w => w.Profile)
+                      .HasForeignKey<Profile>(p => p.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(p => p.Subscription)
                       .WithMany()
                       .HasForeignKey(p => p.SubscriptionId)

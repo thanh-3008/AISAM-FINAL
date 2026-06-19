@@ -1,19 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "@/lib/apiClient";
-
-interface QuotaSummary {
-  planName: string;
-  promptRemaining: number;
-  promptQuotaLimit: number;
-  postRemaining: number;
-  postQuotaLimit: number;
-}
-
-interface GenericResponse<T> {
-  data?: T;
-}
+import { fetchCurrentWorkspaceQuota, type QuotaSummary } from "@/services/quotaService";
 
 export function useQuotaGuard() {
   const [quota, setQuota] = useState<QuotaSummary | null>(null);
@@ -23,10 +11,11 @@ export function useQuotaGuard() {
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res: GenericResponse<QuotaSummary> = await apiClient("/quota/workspace/current");
-      setQuota(res?.data ?? null);
+      // [REFACTOR] Route quota reads through the service layer while preserving the same endpoint and guard behavior.
+      const data = await fetchCurrentWorkspaceQuota();
+      setQuota(data);
       setError(null);
-      return res?.data ?? null;
+      return data;
     } catch (err) {
       const nextError = err instanceof Error ? err : new Error("Failed to load quota.");
       setError(nextError);

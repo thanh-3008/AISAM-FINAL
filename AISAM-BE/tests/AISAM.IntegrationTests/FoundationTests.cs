@@ -26,7 +26,9 @@ public class FoundationTests
     {
         var jwtUserId = Guid.NewGuid();
         var routeUserId = Guid.NewGuid();
+#pragma warning disable CS0618 // Profile endpoints are covered as legacy compatibility.
         var controller = new ProfileController(new NoopProfileService(), NullLogger<ProfileController>.Instance);
+#pragma warning restore CS0618
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -342,6 +344,11 @@ public class FoundationTests
         {
             _profiles.TryGetValue(id, out var profile);
             return Task.FromResult(profile);
+        }
+
+        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_profiles.Values.FirstOrDefault(profile => profile.WorkspaceId == workspaceId));
         }
 
         public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)

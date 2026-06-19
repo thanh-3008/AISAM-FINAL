@@ -25,12 +25,53 @@ public class ContentServiceTests
         {
             BrandId = brand.Id,
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft"
+            TextContent = "Needs review"
         });
 
         Assert.True(result.Success);
         Assert.Equal(profileId, repository.Added.Single().ProfileId);
-        Assert.Equal(ContentStatusEnum.Draft, repository.Added.Single().Status);
+        Assert.Equal(ContentStatusEnum.PendingApproval, repository.Added.Single().Status);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UsesPendingApproval_WhenRequestedAtCreation()
+    {
+        var profileId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeBrandRepository(brand));
+
+        var result = await service.CreateAsync(profileId, new CreateContentRequest
+        {
+            BrandId = brand.Id,
+            AdType = AdTypeEnum.TextOnly,
+            TextContent = "Needs review",
+            Status = ContentStatusEnum.PendingApproval
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(ContentStatusEnum.PendingApproval, repository.Added.Single().Status);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsBadRequest_WhenLifecycleStatusIsSelectedAtCreation()
+    {
+        var profileId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeBrandRepository(brand));
+
+        var result = await service.CreateAsync(profileId, new CreateContentRequest
+        {
+            BrandId = brand.Id,
+            AdType = AdTypeEnum.TextOnly,
+            TextContent = "Published too early",
+            Status = ContentStatusEnum.Published
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Empty(repository.Added);
     }
 
     [Fact]

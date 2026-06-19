@@ -22,7 +22,7 @@ public class SocialControllerTests
     [Fact]
     public async Task GetFacebookAuthUrl_ReturnsNotFound_WhenProfileHeaderMissingAndUserHasNoProfile()
     {
-        var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/social-auth/facebook");
+        var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/dev/scheduler");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWebHostEnvironment());
@@ -98,7 +98,7 @@ public class SocialControllerTests
 
     private static SocialAuthController CreateAuthController(ISocialService service, Guid? profileId = null)
     {
-        return new SocialAuthController(service)
+        return new SocialAuthController(service, new FakeProfileRepository())
         {
             ControllerContext = new ControllerContext
             {
@@ -109,7 +109,7 @@ public class SocialControllerTests
 
     private static SocialAccountsController CreateAccountsController(ISocialService service, Guid profileId)
     {
-        return new SocialAccountsController(service)
+        return new SocialAccountsController(service, new FakeProfileRepository())
         {
             ControllerContext = new ControllerContext
             {
@@ -221,6 +221,7 @@ public class SocialControllerTests
     {
         public Task<Profile?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
+        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());
         public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());

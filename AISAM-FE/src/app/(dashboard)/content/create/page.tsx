@@ -4,11 +4,10 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 
-import { PLATFORM_CONFIG, CONTENT_TYPES, STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
-import { getStoredActiveProfile } from "@/stores/profile-store";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -31,7 +30,7 @@ export default function CreateContentPage() {
     brandId: "",
     productId: "",
     type: "TEXT" as ContentType,
-    status: "Draft" as ContentStatus,
+    status: "Awaiting Approval" as ContentStatus,
     platforms: [] as string[],
     tags: [] as string[],
     hashtags: [] as string[],
@@ -160,13 +159,6 @@ export default function CreateContentPage() {
       setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
       return;
     }
-    const storedProfile = getStoredActiveProfile();
-    if (!storedProfile) {
-      setSaving(false);
-      setSaveError("Tính năng này yêu cầu chọn Profile hợp lệ trong workspace hiện tại.");
-      return;
-    }
-
     const payload: CreateContentPayload = {
       brandId: form.brandId,
       productId: form.productId || null,
@@ -177,6 +169,7 @@ export default function CreateContentPage() {
       videoUrl: form.videoUrl || undefined,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
+      status: form.status === "Awaiting Approval" ? 1 : 0,
     };
 
     try {
@@ -453,8 +446,8 @@ export default function CreateContentPage() {
                 {/* Status */}
                 <div>
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Status</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {STATUS_OPTIONS.map((s) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {CREATE_STATUS_OPTIONS.map((s) => (
                       <button key={s.value} type="button" onClick={() => update({ status: s.value })}
                         className={`px-3 py-2 rounded-xl text-label-sm font-semibold transition-all ${
                           form.status === s.value
@@ -577,15 +570,6 @@ export default function CreateContentPage() {
                       placeholder={form.hashtags.length === 0 ? "Type and press Enter to add hashtags" : "Add more..."} />
                   </div>
                 </div>
-
-                {/* Scheduled Date */}
-                {form.status === "Scheduled" && (
-                  <div>
-                    <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Schedule Date & Time</label>
-                    <input type="datetime-local" value={form.scheduledAt} onChange={(e) => update({ scheduledAt: e.target.value })}
-                      className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all" />
-                  </div>
-                )}
 
                 {/* CTA Link */}
                 <div>

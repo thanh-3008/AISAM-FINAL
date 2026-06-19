@@ -1,5 +1,6 @@
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using System.Net;
@@ -18,8 +19,7 @@ public sealed class ActiveProfileMiddleware
         new("/api/social-auth"),
         new("/api/social"),
         new("/api/posts"),
-        new("/api/notifications"),
-        new("/api/ad-campaigns")
+        new("/api/notifications")
     };
 
     private readonly RequestDelegate _next;
@@ -49,26 +49,39 @@ public sealed class ActiveProfileMiddleware
             return;
         }
 
-        var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
         Profile? profile = null;
-        if (Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
+        if (context.Items.TryGetValue(WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey, out var membershipValue) &&
+            membershipValue is WorkspaceMember membership)
         {
-            profile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
+            profile = await profileRepository.GetByWorkspaceIdAsync(membership.WorkspaceId, context.RequestAborted);
+            if (profile == null)
+            {
+                profile = await profileRepository.CreateAsync(new Profile
+                {
+                    UserId = membership.UserId,
+                    WorkspaceId = membership.WorkspaceId,
+                    Name = string.IsNullOrWhiteSpace(membership.Workspace.Name)
+                        ? "Workspace Profile"
+                        : membership.Workspace.Name,
+                    ProfileType = ProfileTypeEnum.Free,
+                    Status = ProfileStatusEnum.Pending
+                }, context.RequestAborted);
+            }
         }
         else
         {
+            var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
             profile = await profileRepository.GetFirstByUserIdAsync(userId, context.RequestAborted);
+            if (profile?.UserId != userId)
+            {
+                await WriteErrorAsync(context, HttpStatusCode.Forbidden, "You are not allowed to use this profile.");
+                return;
+            }
         }
 
         if (profile == null)
         {
-            await WriteErrorAsync(context, HttpStatusCode.NotFound, "No profile found for this user.");
-            return;
-        }
-
-        if (profile.UserId != userId)
-        {
-            await WriteErrorAsync(context, HttpStatusCode.Forbidden, "You are not allowed to use this profile.");
+            await WriteErrorAsync(context, HttpStatusCode.NotFound, "No profile found for this workspace.");
             return;
         }
 

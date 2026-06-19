@@ -55,7 +55,6 @@ export async function createPayment(data: CreateCheckoutRequest): Promise<Checko
     });
     return res?.data ?? null;
   } catch {
-    console.log("Mock: createPayment failed — is BE running?");
     return null;
   }
 }

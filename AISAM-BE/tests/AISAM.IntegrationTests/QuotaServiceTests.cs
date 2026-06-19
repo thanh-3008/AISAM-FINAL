@@ -324,6 +324,9 @@ public class QuotaServiceTests
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
             => GetByIdAsync(id, cancellationToken);
 
+        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_profiles.FirstOrDefault(profile => profile.WorkspaceId == workspaceId));
+
         public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
             => Task.FromResult(_profiles.Where(profile => profile.UserId == userId).OrderBy(profile => profile.CreatedAt).FirstOrDefault());
 

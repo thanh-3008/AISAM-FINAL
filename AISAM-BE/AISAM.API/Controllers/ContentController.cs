@@ -4,13 +4,14 @@ using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
+using AISAM.Common.Config;
 using AISAM.Data.Enumeration;
+using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
-using AISAM.Common.Config;
 
 namespace AISAM.API.Controllers;
 
@@ -20,6 +21,7 @@ namespace AISAM.API.Controllers;
 public sealed class ContentController : ControllerBase
 {
     private readonly IContentService _contentService;
+    private readonly IProfileRepository _profileRepository;
     private readonly IWebHostEnvironment _environment;
     private readonly MediaStorageSettings _mediaStorageSettings;
     private static readonly HashSet<string> AllowedMediaContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -36,10 +38,12 @@ public sealed class ContentController : ControllerBase
 
     public ContentController(
         IContentService contentService,
+        IProfileRepository profileRepository,
         IWebHostEnvironment? environment = null,
         IOptions<MediaStorageSettings>? mediaStorageSettings = null)
     {
         _contentService = contentService;
+        _profileRepository = profileRepository;
         _environment = environment ?? new NullWebHostEnvironment();
         _mediaStorageSettings = mediaStorageSettings?.Value ?? new MediaStorageSettings();
     }
@@ -49,7 +53,7 @@ public sealed class ContentController : ControllerBase
         [FromBody] CreateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), GetProfileId(), request, cancellationToken);
+        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -184,7 +188,7 @@ public sealed class ContentController : ControllerBase
         var result = await _contentService.PublishAsync(
             contentId,
             integrationId,
-            GetProfileId(),
+            await GetProfileIdAsync(cancellationToken),
             WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
             cancellationToken);
         return StatusCode(result.StatusCode, result);
@@ -208,9 +212,9 @@ public sealed class ContentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
-    private Guid GetProfileId()
+    private async Task<Guid> GetProfileIdAsync(CancellationToken cancellationToken)
     {
-        return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
+        return await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
     }
 
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);

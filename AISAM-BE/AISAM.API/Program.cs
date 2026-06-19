@@ -129,7 +129,6 @@ builder.Services.AddScoped<ICreditUsageRecordRepository, CreditUsageRecordReposi
 builder.Services.AddScoped<IBrandRepository, BrandRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IContentRepository, ContentRepository>();
-builder.Services.AddScoped<IAdCampaignRepository, AdCampaignRepository>();
 builder.Services.AddScoped<IAiGenerationRepository, AiGenerationRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
@@ -140,6 +139,7 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IContentCalendarRepository, ContentCalendarRepository>();
 builder.Services.AddScoped<IPerformanceReportRepository, PerformanceReportRepository>();
+builder.Services.AddScoped<IAdCampaignRepository, AdCampaignRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
@@ -150,7 +150,6 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IContentService, ContentService>();
-builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
@@ -169,6 +168,7 @@ builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
+builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 
 var controllers = builder.Services
@@ -266,8 +266,8 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseAuthentication();
-app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseMiddleware<ActiveWorkspaceMiddleware>();
+app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

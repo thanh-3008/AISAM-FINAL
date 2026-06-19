@@ -151,6 +151,7 @@ namespace AISAM.Services.Service
             {
                 Id = profile.Id,
                 UserId = profile.UserId,
+                WorkspaceId = profile.WorkspaceId,
                 Name = profile.Name,
                 ProfileType = profile.ProfileType,
                 SubscriptionId = profile.SubscriptionId,

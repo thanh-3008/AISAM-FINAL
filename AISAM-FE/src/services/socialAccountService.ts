@@ -125,7 +125,6 @@ interface BECallbackRequest {
 }
 
 interface BELinkTargetsRequest {
-  profileId?: string;
   provider: string;
   providerTargetIds: string[];
   brandId: string;
@@ -218,10 +217,10 @@ export async function getLinkedTargets(accountId: string): Promise<SocialTarget[
   return [];
 }
 
-export async function linkTargets(accountId: string, targetIds: string[], brandId: string, profileId?: string): Promise<SocialAccount> {
+export async function linkTargets(accountId: string, targetIds: string[], brandId: string): Promise<SocialAccount> {
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
     method: "POST",
-    data: { profileId, provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
+    data: { provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
   });
   if (res?.data) {
     return mapSocialAccount(res.data);

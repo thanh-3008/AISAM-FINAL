@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
-import { fetchContents, approveContent, rejectContent } from "@/services/contentService";
+import PostNowModal from "@/components/content/PostNowModal";
+import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
   getBrandColor,
@@ -65,13 +67,62 @@ function sortItems(list: ContentItem[], key: SortKey, dir: SortDir): ContentItem
   });
 }
 
+function isPendingStatus(status: string) {
+  return status === "Awaiting Approval" || status === "PendingApproval" || status === "Pending";
+}
+
+function isApprovedStatus(status: string) {
+  return status === "Approved";
+}
+
+function isRejectedStatus(status: string) {
+  return status === "Rejected";
+}
+
+function getStatusMeta(status: string) {
+  if (isPendingStatus(status)) {
+    return {
+      label: "Pending",
+      icon: "hourglass_top",
+      className: "bg-warning-amber/10 text-warning-amber ring-1 ring-warning-amber/20",
+      dotClassName: "bg-warning-amber animate-pulse",
+    };
+  }
+
+  if (isApprovedStatus(status)) {
+    return {
+      label: "Approved",
+      icon: "verified",
+      className: "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/20",
+      dotClassName: "bg-emerald-500",
+    };
+  }
+
+  if (isRejectedStatus(status)) {
+    return {
+      label: "Rejected",
+      icon: "block",
+      className: "bg-danger-red/10 text-danger-red ring-1 ring-danger-red/20",
+      dotClassName: "bg-danger-red",
+    };
+  }
+
+  return {
+    label: status || "Draft",
+    icon: "edit_note",
+    className: "bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant/20",
+    dotClassName: "bg-outline",
+  };
+}
+
 export default function ApprovalsPage() {
+  const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "undo"; id?: string; undo?: () => void } | null>(null);
-  const [tab, setTab] = useState<TabKey>("pending");
+  const [tab, setTab] = useState<TabKey>("all");
   const [brandFilter, setBrandFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -81,6 +132,7 @@ export default function ApprovalsPage() {
   const [page, setPage] = useState(1);
   const [confirmItem, setConfirmItem] = useState<ContentItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<ContentItem | null>(null);
+  const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
   const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
   const [tabCounts, setTabCounts] = useState<Record<TabKey, number>>({
@@ -110,11 +162,11 @@ export default function ApprovalsPage() {
 
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); setPage(1); }
-    const statusMap: Record<string, number | undefined> = { all: undefined, pending: 1, approved: 2, rejected: 3 };
+    const statusMap: Record<TabKey, number | undefined> = { all: undefined, pending: 1, approved: 2, rejected: 3 };
     const result = await fetchContents({ pageSize: 100, status: statusMap[tab] });
     setItems(result?.items ?? []);
     setLoading(false);
-  }, [tab, activeWorkspace?.id]);
+  }, [activeWorkspace?.id, tab]);
 
   useEffect(() => {
     void Promise.all([load(), loadCounts()]);
@@ -125,19 +177,25 @@ export default function ApprovalsPage() {
     setTimeout(() => setToast(null), type === "undo" ? 6000 : 3000);
   };
 
+  const applyItemStatus = (id: string, status: ContentItem["status"]) => {
+    setItems((prev) => {
+      if (tab === "all") {
+        return prev.map((item) => (item.id === id ? { ...item, status } : item));
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
   const handleApprove = async (id: string) => {
     setActionId(id);
     const item = items.find((i) => i.id === id);
     const ok = await approveContent(id);
     if (!ok) {
       setActionId(null);
-      showToast("Backend does not expose content approval action yet.", "error");
+      showToast("Could not approve content", "error");
       return;
     }
-    setItems((prev) => {
-      const removed = prev.find((i) => i.id === id);
-      return removed ? prev.filter((i) => i.id !== id) : prev;
-    });
+    applyItemStatus(id, "Approved");
     setActionId(null);
     setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
     if (drawerItem?.id === id) setDrawerItem(null);
@@ -153,10 +211,10 @@ export default function ApprovalsPage() {
     const ok = await rejectContent(id);
     if (!ok) {
       setActionId(null);
-      showToast("Backend does not expose content rejection action yet.", "error");
+      showToast("Could not reject content", "error");
       return;
     }
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    applyItemStatus(id, "Rejected");
     setActionId(null);
     setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
     if (drawerItem?.id === id) setDrawerItem(null);
@@ -165,41 +223,78 @@ export default function ApprovalsPage() {
     showToast(`"${item?.title || "Asset"}" rejected`, "error");
   };
 
+  const handleDeleteRejected = async (item: ContentItem) => {
+    if (!isRejectedStatus(item.status)) return;
+    const ok = window.confirm(`Delete rejected content "${item.title || "Asset"}"?`);
+    if (!ok) return;
+
+    setActionId(item.id);
+    const deleted = await deleteContent(item.id);
+    setActionId(null);
+
+    if (!deleted) {
+      showToast("Could not delete rejected content", "error");
+      return;
+    }
+
+    setItems((prev) => prev.filter((content) => content.id !== item.id));
+    setSelected((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
+    if (drawerItem?.id === item.id) setDrawerItem(null);
+    void loadCounts();
+    showToast(`"${item.title || "Asset"}" deleted`, "success");
+  };
+
   const batchApprove = async () => {
+    const selectedIds = Array.from(selected);
     let successCount = 0;
-    for (const id of selected) {
+    for (const id of selectedIds) {
       setActionId(id);
       const ok = await approveContent(id);
+      setActionId(null);
       if (!ok) {
-        setActionId(null);
-        showToast("Backend does not expose content approval action yet.", "error");
-        return;
+        showToast("Could not approve all selected assets", "error");
+        break;
       }
       successCount += 1;
-      setItems((prev) => prev.filter((i) => i.id !== id));
-      setActionId(null);
     }
-    showToast(`${successCount} assets approved`, "success");
-    setSelected(new Set());
+    const selectedSet = new Set(selectedIds.slice(0, successCount));
+    setItems((prev) => prev.map((item) => (selectedSet.has(item.id) ? { ...item, status: "Approved" } : item)));
+    if (tab !== "all") {
+      setItems((prev) => prev.filter((item) => !selectedSet.has(item.id)));
+    }
+    showToast(`${successCount} assets approved`, successCount === selectedIds.length ? "success" : "error");
+    setSelected((prev) => {
+      const next = new Set(prev);
+      selectedSet.forEach((id) => next.delete(id));
+      return next;
+    });
     void loadCounts();
   };
 
   const batchReject = async () => {
+    const selectedIds = Array.from(selected);
     let successCount = 0;
-    for (const id of selected) {
+    for (const id of selectedIds) {
       setActionId(id);
       const ok = await rejectContent(id);
+      setActionId(null);
       if (!ok) {
-        setActionId(null);
-        showToast("Backend does not expose content rejection action yet.", "error");
-        return;
+        showToast("Could not reject all selected assets", "error");
+        break;
       }
       successCount += 1;
-      setItems((prev) => prev.filter((i) => i.id !== id));
-      setActionId(null);
+    }
+    const selectedSet = new Set(selectedIds.slice(0, successCount));
+    setItems((prev) => prev.map((item) => (selectedSet.has(item.id) ? { ...item, status: "Rejected" } : item)));
+    if (tab !== "all") {
+      setItems((prev) => prev.filter((item) => !selectedSet.has(item.id)));
     }
     showToast(`${successCount} assets rejected`, "error");
-    setSelected(new Set());
+    setSelected((prev) => {
+      const next = new Set(prev);
+      selectedSet.forEach((id) => next.delete(id));
+      return next;
+    });
     void loadCounts();
   };
 
@@ -220,10 +315,10 @@ export default function ApprovalsPage() {
     const ok = await rejectContent(revisionDrawer.id);
     if (!ok) {
       setActionId(null);
-      showToast("Backend does not expose content rejection action yet.", "error");
+      showToast("Could not request revision", "error");
       return;
     }
-    setItems((prev) => prev.filter((i) => i.id !== revisionDrawer.id));
+    applyItemStatus(revisionDrawer.id, "Rejected");
     setActionId(null);
     setRevisionDrawer(null);
     setRevisionNote("");
@@ -246,9 +341,9 @@ export default function ApprovalsPage() {
 
   const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
     all: () => true,
-    pending: (i) => i.status === "Awaiting Approval",
-    approved: (i) => i.status === "Approved",
-    rejected: (i) => i.status === "Rejected",
+    pending: (i) => isPendingStatus(i.status),
+    approved: (i) => isApprovedStatus(i.status),
+    rejected: (i) => isRejectedStatus(i.status),
   };
 
   const filtered = sortItems(
@@ -426,7 +521,7 @@ export default function ApprovalsPage() {
                 <span className="material-symbols-outlined text-5xl text-outline/30">done_all</span>
               </div>
               <h3 className="text-headline-sm text-on-surface font-semibold">
-                {search || brandFilter || priorityFilter ? "No matching results" : "Zero Pending Approvals"}
+                {search || brandFilter || priorityFilter ? "No matching results" : `No ${tab === "all" ? "assets" : tab} items`}
               </h3>
               <p className="text-body-sm text-outline mt-1 mb-6">
                 {search || brandFilter || priorityFilter ? "Try adjusting your search or filters." : "Your queue is empty. High five your team!"}
@@ -468,6 +563,7 @@ export default function ApprovalsPage() {
                         <span className="flex items-center gap-0.5">Date{renderSortIcon(sortKey, sortDir, "createdAt")}</span>
                       </th>
                       <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Urgency</th>
+                      <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider">Status</th>
                       <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
@@ -477,6 +573,9 @@ export default function ApprovalsPage() {
                       const priority = getPriority(item);
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
+                      const statusMeta = getStatusMeta(item.status);
+                      const canReview = isPendingStatus(item.status);
+                      const canDelete = isRejectedStatus(item.status);
                       return (
                         <tr key={item.id}
                           className={`transition-colors cursor-pointer group ${
@@ -549,33 +648,70 @@ export default function ApprovalsPage() {
                               {priority.label}
                             </span>
                           </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-bold ${statusMeta.className}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClassName}`} />
+                              {statusMeta.label}
+                            </span>
+                          </td>
                           <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => handleApprove(item.id)} disabled={actionId === item.id}
-                                className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Approve (A)">
-                                {actionId === item.id ? (
-                                  <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin block" />
-                                ) : (
-                                  <span className="material-symbols-outlined text-[17px]">check_circle</span>
-                                )}
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
-                              </button>
-                              <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id}
-                                className="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Request Changes">
-                                <span className="material-symbols-outlined text-[17px]">rate_review</span>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
-                              </button>
+                              {canReview && (
+                                <>
+                                  <button onClick={() => handleApprove(item.id)} disabled={actionId === item.id}
+                                    className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Approve (A)">
+                                    {actionId === item.id ? (
+                                      <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin block" />
+                                    ) : (
+                                      <span className="material-symbols-outlined text-[17px]">check_circle</span>
+                                    )}
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
+                                  </button>
+                                  <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id}
+                                    className="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Request Changes">
+                                    <span className="material-symbols-outlined text-[17px]">rate_review</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
+                                  </button>
+                                </>
+                              )}
                               <button onClick={() => setDrawerItem(item)}
                                 className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Review">
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
                                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
                               </button>
-                              <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />
-                              <button onClick={() => setConfirmItem(item)} disabled={actionId === item.id}
-                                className="p-2 text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Reject (R)">
-                                <span className="material-symbols-outlined text-[17px]">block</span>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Reject</span>
-                              </button>
+                              {isApprovedStatus(item.status) && (
+                                <>
+                                  <button onClick={() => { setPostNowItem(item); }}
+                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Đăng ngay">
+                                    <span className="material-symbols-outlined text-[17px]">send</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Post Now</span>
+                                  </button>
+                                  <button onClick={() => { router.push(`/calendar?contentId=${item.id}`); }}
+                                    className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Schedule">
+                                    <span className="material-symbols-outlined text-[17px]">calendar_month</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Schedule</span>
+                                  </button>
+                                </>
+                              )}
+                              {(canReview || canDelete) && <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />}
+                              {canReview && (
+                                <button onClick={() => setConfirmItem(item)} disabled={actionId === item.id}
+                                  className="p-2 text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Reject (R)">
+                                  <span className="material-symbols-outlined text-[17px]">block</span>
+                                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Reject</span>
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => handleDeleteRejected(item)} disabled={actionId === item.id}
+                                  className="p-2 text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Delete rejected content">
+                                  {actionId === item.id ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-danger-red/30 border-t-danger-red rounded-full animate-spin block" />
+                                  ) : (
+                                    <span className="material-symbols-outlined text-[17px]">delete</span>
+                                  )}
+                                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Delete</span>
+                                </button>
+                              )}
                               <button onClick={(e) => e.stopPropagation()}
                                 className="p-2 text-outline/40 hover:text-outline hover:bg-surface-container rounded-lg transition-all relative group/btn cursor-not-allowed" title="Leader Only">
                                 <span className="material-symbols-outlined text-[15px]">lock</span>
@@ -607,14 +743,14 @@ export default function ApprovalsPage() {
         {/* ── Confirm Reject Modal ── */}
         {confirmItem && (
           <>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setConfirmItem(null)} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmItem(null)}>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]" onClick={() => setConfirmItem(null)} />
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setConfirmItem(null)}>
               <div className="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                 <div className="w-12 h-12 rounded-full bg-danger-red/10 text-danger-red flex items-center justify-center mx-auto mb-4">
                   <span className="material-symbols-outlined text-[24px]">block</span>
                 </div>
                 <h3 className="text-headline-sm font-bold text-on-surface text-center mb-2">Reject Asset?</h3>
-                <p className="text-body-sm text-outline text-center mb-6">This will reject &quot;{confirmItem.title}&quot; and move it to drafts.</p>
+                <p className="text-body-sm text-outline text-center mb-6">This will reject &quot;{confirmItem.title}&quot; and move it to the rejected queue.</p>
                 <div className="flex items-center gap-3">
                   <button onClick={() => setConfirmItem(null)}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all">Cancel</button>
@@ -698,17 +834,9 @@ export default function ApprovalsPage() {
                         <span className="text-body-sm text-on-surface-variant">{drawerItem.productName}</span>
                       </div>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
-                      drawerItem.status === "Awaiting Approval" ? "bg-warning-amber/10 text-warning-amber ring-1 ring-warning-amber/20" :
-                      drawerItem.status === "Published" ? "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/20" :
-                      "bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant/20"
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        drawerItem.status === "Awaiting Approval" ? "bg-warning-amber animate-pulse" :
-                        drawerItem.status === "Published" ? "bg-emerald-500" :
-                        "bg-outline"
-                      }`} />
-                      {drawerItem.status}
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${getStatusMeta(drawerItem.status).className}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${getStatusMeta(drawerItem.status).dotClassName}`} />
+                      {getStatusMeta(drawerItem.status).label}
                     </span>
                   </div>
 
@@ -827,24 +955,53 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
-                <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
-                  className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
-                  {actionId === drawerItem.id ? (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span className="material-symbols-outlined text-[17px]">verified</span>
+                {isPendingStatus(drawerItem.status) && (
+                  <>
+                    <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
+                      className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
+                      {actionId === drawerItem.id ? (
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[17px]">verified</span>
+                      )}
+                      Approve
+                    </button>
+                    <button onClick={() => { handleRequestChanges(drawerItem); setDrawerItem(null); }}
+                      className="flex-1 bg-secondary/5 text-secondary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary/10 active:scale-[0.98] transition-all border border-secondary/20">
+                      <span className="material-symbols-outlined text-[17px]">rate_review</span>
+                      Revise
+                    </button>
+                    <button onClick={() => { setConfirmItem(drawerItem); setDrawerItem(null); }} disabled={actionId === drawerItem.id}
+                      className="px-4 py-3 bg-danger-red/5 text-danger-red rounded-xl text-label-sm font-bold hover:bg-danger-red/10 active:scale-[0.98] transition-all disabled:opacity-50 border border-danger-red/20">
+                      <span className="material-symbols-outlined text-[17px]">block</span>
+                    </button>
+                  </>
+                )}
+                {isRejectedStatus(drawerItem.status) && (
+                  <button onClick={() => handleDeleteRejected(drawerItem)} disabled={actionId === drawerItem.id}
+                    className="flex-1 bg-danger-red/5 text-danger-red py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-danger-red/10 active:scale-[0.98] transition-all disabled:opacity-50 border border-danger-red/20">
+                    {actionId === drawerItem.id ? (
+                      <span className="w-4 h-4 border-2 border-danger-red/30 border-t-danger-red rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[17px]">delete</span>
+                    )}
+                    Delete Rejected Content
+                  </button>
+                )}
+                {isApprovedStatus(drawerItem.status) && (
+                  <>
+                    <button onClick={() => { setPostNowItem(drawerItem); setDrawerItem(null); }}
+                      className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">
+                      <span className="material-symbols-outlined text-[17px]">send</span>
+                      Post Now
+                    </button>
+                    <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.id}`); setDrawerItem(null); }}
+                      className="flex-1 border border-outline-variant/20 text-on-surface-variant py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-surface-container active:scale-[0.98] transition-all">
+                      <span className="material-symbols-outlined text-[17px]">calendar_month</span>
+                      Schedule
+                    </button>
+                  </>
                   )}
-                  Approve
-                </button>
-                <button onClick={() => { handleRequestChanges(drawerItem); setDrawerItem(null); }}
-                  className="flex-1 bg-secondary/5 text-secondary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary/10 active:scale-[0.98] transition-all border border-secondary/20">
-                  <span className="material-symbols-outlined text-[17px]">rate_review</span>
-                  Revise
-                </button>
-                <button onClick={() => setConfirmItem(drawerItem)} disabled={actionId === drawerItem.id}
-                  className="px-4 py-3 bg-danger-red/5 text-danger-red rounded-xl text-label-sm font-bold hover:bg-danger-red/10 active:scale-[0.98] transition-all disabled:opacity-50 border border-danger-red/20">
-                  <span className="material-symbols-outlined text-[17px]">block</span>
-                </button>
               </div>
             </div>
             </div>
@@ -979,6 +1136,20 @@ export default function ApprovalsPage() {
             </div>
             </div>
           </>
+        )}
+
+        {/* ── Post Now Modal ── */}
+        {postNowItem && (
+          <PostNowModal
+            contentId={postNowItem.id}
+            brandId={postNowItem.brandId}
+            onClose={() => setPostNowItem(null)}
+            onSuccess={() => {
+              setPostNowItem(null);
+              showToast(`"${postNowItem.title}" published successfully!`, "success");
+              load();
+            }}
+          />
         )}
 
         {/* ── Toast ── */}

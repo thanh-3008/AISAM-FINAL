@@ -96,7 +96,7 @@ export default function OverviewPage() {
         return;
       }
 
-      // 2. Tạo Profile (để có X-Profile-Id)
+      // 2. Bootstrap profile gắn với workspace đang chọn
       const formBody = new FormData();
       formBody.append("name", name);
       formBody.append("profileType", workspaceType.toString());

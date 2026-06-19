@@ -166,7 +166,6 @@ export default function NotFound() {
                     key={i}
                     className="w-8 h-8 rounded-full border-2 border-white bg-surface-container overflow-hidden"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={src}
                       alt="User"

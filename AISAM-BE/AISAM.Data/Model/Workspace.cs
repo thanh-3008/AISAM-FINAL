@@ -56,6 +56,7 @@ namespace AISAM.Data.Model
         public string? AvatarUrl { get; set; }
 
         public virtual ICollection<WorkspaceMember> Members { get; set; } = new List<WorkspaceMember>();
+        public virtual Profile? Profile { get; set; }
         public virtual ICollection<WorkspaceInvitation> Invitations { get; set; } = new List<WorkspaceInvitation>();
         public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
         public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();

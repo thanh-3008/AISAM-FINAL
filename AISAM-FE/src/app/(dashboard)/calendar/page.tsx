@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
@@ -98,7 +98,7 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
   );
 }
 
-export default function CalendarPage() {
+function CalendarContent() {
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
   const { canSchedule, quota, refresh: refreshQuota } = useQuotaGuard();
@@ -138,6 +138,7 @@ export default function CalendarPage() {
   });
 
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const load = async () => {
@@ -171,6 +172,20 @@ export default function CalendarPage() {
   }, [pathname, activeWorkspace?.id]);
 
   useEffect(() => { if (toast) setTimeout(() => setToast(null), 3000); }, [toast]);
+
+  useEffect(() => {
+    const contentId = searchParams.get("contentId");
+    if (contentId && contents.length > 0) {
+      const match = contents.find((c) => c.id === contentId && c.status !== "Published");
+      if (match) {
+        const now = new Date();
+        const date = now.toISOString().slice(0, 10);
+        const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        setForm({ contentId, integrationId: "", date, time });
+        setShowCreate(true);
+      }
+    }
+  }, [searchParams, contents]);
 
   const handlePrev = () => {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
@@ -925,5 +940,13 @@ export default function CalendarPage() {
         )}
       </main>
     </>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense fallback={null}>
+      <CalendarContent />
+    </Suspense>
   );
 }

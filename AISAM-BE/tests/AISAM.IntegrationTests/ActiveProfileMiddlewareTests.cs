@@ -44,12 +44,11 @@ public class ActiveProfileMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_FallsBackToFirstUserProfile_WhenProfileHeaderIsInvalid()
+    public async Task InvokeAsync_UsesFirstUserProfile_ForLegacyRoutesWithoutWorkspaceContext()
     {
         var userId = Guid.NewGuid();
         var profile = CreateProfile(userId);
         var context = CreateContext(userId);
-        context.Request.Headers["X-Profile-Id"] = "invalid";
         var nextCalled = false;
         var middleware = new ActiveProfileMiddleware(_ =>
         {
@@ -64,25 +63,22 @@ public class ActiveProfileMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ReturnsForbidden_WhenProfileBelongsToAnotherUser()
+    public async Task InvokeAsync_ReturnsNotFound_WhenNoWorkspaceOrUserProfileExists()
     {
         var context = CreateContext(Guid.NewGuid());
-        var profile = CreateProfile(Guid.NewGuid());
-        context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }
 
     [Fact]
-    public async Task InvokeAsync_StoresActiveProfile_WhenProfileBelongsToJwtUser()
+    public async Task InvokeAsync_StoresActiveProfile_WhenLegacyProfileBelongsToJwtUser()
     {
         var userId = Guid.NewGuid();
         var profile = CreateProfile(userId);
         var context = CreateContext(userId);
-        context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         var nextCalled = false;
         var middleware = new ActiveProfileMiddleware(_ =>
         {
@@ -97,16 +93,22 @@ public class ActiveProfileMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AllowsUserProfile_WhenActiveWorkspaceIsDifferent()
+    public async Task InvokeAsync_UsesWorkspaceProfile_WhenActiveWorkspaceContextExists()
     {
         var userId = Guid.NewGuid();
-        var profile = CreateProfile(userId);
-        var activeWorkspaceId = Guid.NewGuid(); // Different from profile.Id
-        
+        var activeWorkspaceId = Guid.NewGuid();
+        var profile = CreateProfile(Guid.NewGuid());
+        profile.WorkspaceId = activeWorkspaceId;
+
         var context = CreateContext(userId);
-        context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = activeWorkspaceId;
-        
+        context.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = new WorkspaceMember
+        {
+            UserId = userId,
+            WorkspaceId = activeWorkspaceId,
+            Workspace = new Workspace { Id = activeWorkspaceId, Name = "Workspace" }
+        };
+
         var nextCalled = false;
         var middleware = new ActiveProfileMiddleware(_ =>
         {
@@ -173,7 +175,7 @@ public class ActiveProfileMiddlewareTests
         Assert.True(nextCalled);
     }
 
-    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/content")
+    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/dev/scheduler")
     {
         return new DefaultHttpContext
         {
@@ -224,6 +226,11 @@ public class ActiveProfileMiddlewareTests
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return GetByIdAsync(id, cancellationToken);
+        }
+
+        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_profiles.Values.FirstOrDefault(profile => profile.WorkspaceId == workspaceId));
         }
 
         public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)

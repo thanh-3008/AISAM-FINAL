@@ -5,7 +5,6 @@ export const FEATURE_FLAGS = {
   AI_VIDEO_GENERATION: false,
   MEDIA_UPLOAD: false,
   AI_RECOMMENDATIONS: false,
-  ADMIN_PORTAL: false,
 } as const;
 
 export function isFeatureEnabled(flag: keyof typeof FEATURE_FLAGS): boolean {

@@ -27,7 +27,7 @@ public class ContentServicePublishTests
             AdType = AdTypeEnum.ImageText,
             TextContent = "Publish me",
             ImageUrl = "[\"https://example.com/image-1.png\",\"https://example.com/image-2.png\"]",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -97,7 +97,7 @@ public class ContentServicePublishTests
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -140,7 +140,7 @@ public class ContentServicePublishTests
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.BadGateway, result.StatusCode);
-        Assert.Equal(ContentStatusEnum.Draft, content.Status);
+        Assert.Equal(ContentStatusEnum.Approved, content.Status);
         Assert.Empty(postRepository.Added);
     }
 
@@ -179,7 +179,7 @@ public class ContentServicePublishTests
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -232,7 +232,7 @@ public class ContentServicePublishTests
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
         Assert.Equal("POST_QUOTA_EXCEEDED", result.Error?.ErrorCode);
-        Assert.Equal(ContentStatusEnum.Draft, content.Status);
+        Assert.Equal(ContentStatusEnum.Approved, content.Status);
         Assert.Empty(postRepository.Added);
         Assert.Null(provider.LastPublishedPost);
     }
@@ -251,7 +251,7 @@ public class ContentServicePublishTests
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -300,7 +300,7 @@ public class ContentServicePublishTests
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var integration = new SocialIntegration
         {
