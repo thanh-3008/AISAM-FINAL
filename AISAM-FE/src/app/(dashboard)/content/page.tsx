@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContent, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import { fetchBrands } from "@/services/brandService";
+import PostNowModal from "@/components/content/PostNowModal";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -62,6 +63,7 @@ export default function ContentPage() {
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<ContentItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
+  const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
   const [brandNameList, setBrandNameList] = useState<string[]>([]);
@@ -225,6 +227,14 @@ export default function ContentPage() {
         break;
       case "Duplicate": {
         addToast(`"${item.title}" duplicated`, "content_copy");
+        break;
+      }
+      case "Post Now": {
+        setPostNowItem(item);
+        break;
+      }
+      case "Schedule": {
+        router.push(`/calendar?contentId=${item.id}`);
         break;
       }
     }
@@ -833,6 +843,20 @@ export default function ContentPage() {
         </div>
       )}
 
+      {/* ─── Post Now Modal ─── */}
+      {postNowItem && (
+        <PostNowModal
+          contentId={postNowItem.id}
+          brandId={postNowItem.brandId}
+          onClose={() => setPostNowItem(null)}
+          onSuccess={() => {
+            setPostNowItem(null);
+            addToast(`"${postNowItem.title}" published successfully!`, "check_circle");
+            loadContent();
+          }}
+        />
+      )}
+
       {/* ─── Toast Notifications ─── */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
         {toasts.map((t) => (
@@ -865,7 +889,7 @@ function TableMenu({ item, onClose, onAction }: { item: ContentItem; onClose: ()
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 w-44 bg-surface-container-lowest rounded-xl border border-outline-variant/20 shadow-xl z-20 overflow-hidden dropdown-enter">
+      <div className="absolute right-0 top-full mt-1 w-48 bg-surface-container-lowest rounded-xl border border-outline-variant/20 shadow-xl z-20 overflow-hidden dropdown-enter">
         <button onClick={(e) => { e.stopPropagation(); onAction("Preview", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">visibility</span>
           Quick Preview
@@ -882,6 +906,19 @@ function TableMenu({ item, onClose, onAction }: { item: ContentItem; onClose: ()
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">content_copy</span>
           Duplicate
         </button>
+        <div className="h-px bg-outline-variant/10 mx-3" />
+        {item.status === "Approved" && (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+              <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">send</span>
+              Post Now
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onAction("Schedule", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+              <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">calendar_month</span>
+              Schedule
+            </button>
+          </>
+        )}
         <div className="h-px bg-outline-variant/10 mx-3" />
         <button onClick={(e) => { e.stopPropagation(); onAction("delete", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-danger-red group">
           <span className="material-symbols-outlined text-[14px]">delete</span>
@@ -1071,7 +1108,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Status</label>
             <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ContentStatus }))}
               className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-              {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {(isEdit ? STATUS_OPTIONS : CREATE_STATUS_OPTIONS).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
 

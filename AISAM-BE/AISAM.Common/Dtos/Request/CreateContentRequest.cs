@@ -14,4 +14,5 @@ public sealed class CreateContentRequest
     public string? StyleDescription { get; set; }
     public string? ContextDescription { get; set; }
     public string? RepresentativeCharacter { get; set; }
+    public ContentStatusEnum? Status { get; set; }
 }

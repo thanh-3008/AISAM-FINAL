@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { clearActiveProfile } from "@/stores/profile-store";
 import { apiClient } from "@/lib/apiClient";
 
 export interface WorkspaceData {
@@ -51,6 +52,41 @@ function notifyCache() {
   });
 }
 
+function resolveMemberRole(role: unknown): string | null {
+  if (typeof role !== "number") return "Owner";
+  const roleMap: Record<number, string> = {
+    0: "Owner",
+    1: "Owner",
+    2: "Manager",
+    3: "ContentCreator",
+    4: "Viewer",
+  };
+  return roleMap[role] ?? "Viewer";
+}
+
+function isOwnerRole(role: unknown): boolean {
+  return role === 0 || role === 1;
+}
+
+function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null {
+  if (!userId) return null;
+  const stored = getStoredActiveWorkspace();
+  if (!stored) return null;
+
+  return {
+    id: stored.id,
+    userId,
+    name: stored.name,
+    workspaceType: stored.workspaceType,
+    plan: stored.workspaceType === 2 ? "Business" : "Personal",
+    status: 1,
+    createdAt: "",
+    updatedAt: "",
+    isOwner: true,
+    memberRole: "Owner",
+  };
+}
+
 export function invalidateWorkspaceCache() {
   cachedWorkspaces = null;
   notifyCache();
@@ -77,11 +113,11 @@ export function useWorkspaces() {
   }, []);
 
   const [workspaces, setWorkspaces] = useState<WorkspaceData[]>(() => {
-    if (!cachedWorkspaces) return [];
     const userId = getUserIdFromToken();
-    if (userId && cachedWorkspaces.some((p) => p.userId === userId)) return cachedWorkspaces;
-    cachedWorkspaces = null;
-    return [];
+    if (cachedWorkspaces && userId && cachedWorkspaces.some((p) => p.userId === userId)) return cachedWorkspaces;
+    if (cachedWorkspaces) cachedWorkspaces = null;
+    const storedFallback = getStoredWorkspaceFallback(userId);
+    return storedFallback ? [storedFallback] : [];
   });
   const [loading, setLoading] = useState(!cachedWorkspaces);
   const [error, setError] = useState<string | null>(null);
@@ -110,20 +146,35 @@ export function useWorkspaces() {
 
 
     let mapped: WorkspaceData[] = [];
+    let fetched = false;
     try {
       const res = await apiClient("/workspaces") as { success: boolean; data?: Record<string, unknown>[] };
       if (res?.success && res.data && Array.isArray(res.data)) {
+        fetched = true;
         mapped = res.data.map((w) => ({
           id: String(w.id), userId, name: String(w.name),
           workspaceType: typeof w.workspaceType === "number" ? w.workspaceType : 1,
           plan: w.workspaceType === 2 ? "Business" : "Personal",
           status: typeof w.status === "number" ? w.status : 1,
           createdAt: String(w.createdAt), updatedAt: String(w.updatedAt),
-          isOwner: w.currentUserRole === 0,
-          memberRole: typeof w.currentUserRole === "number" ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
+          isOwner: isOwnerRole(w.currentUserRole),
+          memberRole: resolveMemberRole(w.currentUserRole),
         }));
       }
-    } catch { /* /workspaces fail */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load workspaces");
+    }
+
+    if (!fetched) {
+      const fallback = getStoredWorkspaceFallback(userId);
+      setWorkspaces((prev) => {
+        if (prev.length > 0) return prev;
+        return fallback ? [fallback] : [];
+      });
+      setLoading(false);
+      fetchingWorkspaces = false;
+      return;
+    }
 
     cachedWorkspaces = mapped;
     setWorkspaces(mapped);
@@ -150,6 +201,7 @@ export function useWorkspaces() {
   const activeWorkspace = storedMatch || fallbackMatch;
 
   const selectWorkspace = useCallback((workspace: WorkspaceData) => {
+    clearActiveProfile();
     storeActiveWorkspace({
       id: workspace.id,
       name: workspace.name,
@@ -166,5 +218,15 @@ export function useWorkspaces() {
     clearActiveWorkspace();
   }, []);
 
-  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, refetch: fetchWorkspaces };
+  const updateWorkspacePlan = useCallback((workspaceId: string, plan: string) => {
+    const source = cachedWorkspaces ?? workspaces;
+    const next = source.map((workspace) =>
+      workspace.id === workspaceId ? { ...workspace, plan } : workspace
+    );
+    cachedWorkspaces = next;
+    setWorkspaces(next);
+    notifyCache();
+  }, [workspaces]);
+
+  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, refetch: fetchWorkspaces, updateWorkspacePlan };
 }

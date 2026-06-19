@@ -140,7 +140,7 @@ public class ActiveProfileMiddlewareTests
         Assert.True(nextCalled);
     }
 
-    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/content")
+    private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/dev/scheduler")
     {
         return new DefaultHttpContext
         {

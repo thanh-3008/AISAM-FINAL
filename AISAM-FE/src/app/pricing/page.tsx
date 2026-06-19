@@ -12,6 +12,7 @@ import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { apiFetch } from "@/lib/apiClient";
 import { getUserIdFromToken } from "@/lib/auth";
+import { getCurrentSubscription } from "@/services/profileSettingsService";
 
 type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
@@ -19,15 +20,19 @@ type PlanCategory = "personal" | "business";
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeWorkspace, selectWorkspace } = useWorkspaces();
+  const { activeWorkspace, selectWorkspace, updateWorkspacePlan } = useWorkspaces();
   const featureGate = useFeatureGate();
   const { showToast } = useToast();
   const reduceMotion = useReducedMotion();
 
   const createMode = searchParams.get("create") === "business";
+  const categoryParam = searchParams.get("category");
+  const activeWorkspaceCategory: PlanCategory = activeWorkspace?.workspaceType === 2 ? "business" : "personal";
 
   const [activeTab, setActiveTab] = useState<TabType>("subscription");
-  const [planCategory, setPlanCategory] = useState<PlanCategory>(createMode ? "business" : "personal");
+  const [planCategory, setPlanCategory] = useState<PlanCategory>(
+    createMode || categoryParam === "business" ? "business" : activeWorkspaceCategory
+  );
   const [yearly, setYearly] = useState(false);
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [processing, setProcessing] = useState<number | null>(null);
@@ -47,6 +52,49 @@ function PricingContent() {
     fetchCreditWallet().then(w => setCreditWallet(w));
   }, [activeWorkspace?.id]);
 
+  useEffect(() => {
+    if (searchParams.get("payment") !== "success" || !activeWorkspace?.id) return;
+
+    let cancelled = false;
+    const synchronizePayment = async () => {
+      try {
+        const subscription = await getCurrentSubscription();
+        const wallet = await fetchCreditWallet();
+        if (cancelled) return;
+
+        if (subscription?.planName) {
+          updateWorkspacePlan(activeWorkspace.id, subscription.planName);
+          showToast({
+            type: "success",
+            title: "Payment successful",
+            message: `${subscription.planName} is now active for this workspace.`,
+          });
+          router.replace("/dashboard");
+          return;
+        }
+
+        if (wallet) setCreditWallet(wallet);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Payment was received, but subscription refresh failed.";
+        showToast({ type: "error", title: "Subscription refresh failed", message });
+      }
+    };
+
+    synchronizePayment();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.id, router, searchParams, showToast, updateWorkspacePlan]);
+
+  useEffect(() => {
+    if (createMode || categoryParam === "business") {
+      setPlanCategory("business");
+      return;
+    }
+    setPlanCategory(activeWorkspaceCategory);
+  }, [activeWorkspaceCategory, categoryParam, createMode]);
+
   const currentPlan = featureGate.plan;
   const isCurrentPlan = (planType: PlanType) => currentPlan === planType;
   const isPlanLocked = (planType: PlanType) => PLAN_HIERARCHY[planType] <= PLAN_HIERARCHY[currentPlan];
@@ -63,60 +111,38 @@ function PricingContent() {
     if (!userId) return false;
 
     try {
-      const formBody = new FormData();
-      formBody.append("name", wsName.trim());
-      formBody.append("profileType", "2");
-      if (wsCompany.trim()) formBody.append("companyName", wsCompany.trim());
-
-      const result = await apiFetch(`/profiles/user/${userId}`, {
+      const result = await apiFetch("/workspaces", {
         method: "POST",
-        body: formBody,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: wsName.trim(),
+          workspaceType: 2,
+        }),
       });
 
-      const wsData = result?.success && result.data
-        ? {
-            id: result.data.id,
-            userId: result.data.userId,
-            name: result.data.name,
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: result.data.status,
-            createdAt: result.data.createdAt,
-            updatedAt: result.data.updatedAt,
-            isOwner: true,
-            memberRole: "Owner",
-          }
-        : {
-            id: `ws-${Date.now()}`,
-            userId: userId!,
-            name: wsName.trim(),
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: 1,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isOwner: true,
-            memberRole: "Owner",
-          };
-      addWorkspaceToCache(wsData);
-      selectWorkspace(wsData);
-      return true;
-    } catch {
+      if (!result?.success || !result.data) {
+        throw new Error(result?.message || "Failed to create business workspace.");
+      }
+
       const wsData = {
-        id: `ws-${Date.now()}`,
-        userId: userId!,
-        name: wsName.trim(),
-        workspaceType: 2,
-        plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-        status: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isOwner: true,
+        id: String(result.data.id),
+        userId,
+        name: String(result.data.name || wsName.trim()),
+        workspaceType: typeof result.data.workspaceType === "number" ? result.data.workspaceType : 2,
+        plan: "Business",
+        status: typeof result.data.status === "number" ? result.data.status : 1,
+        createdAt: String(result.data.createdAt || new Date().toISOString()),
+        updatedAt: String(result.data.updatedAt || new Date().toISOString()),
+        isOwner: result.data.currentUserRole === 0 || result.data.currentUserRole === 1 || typeof result.data.currentUserRole !== "number",
         memberRole: "Owner",
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
       return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create business workspace.";
+      showToast({ type: "error", title: "Workspace creation failed", message });
+      return false;
     } finally {
       setCreating(false);
     }
@@ -290,7 +316,9 @@ function PricingContent() {
               </span>
               <span className="text-label-xs text-outline/50">·</span>
               <button
-                onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles")}
+                onClick={() => {
+                  router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles");
+                }}
                 className="text-label-sm font-semibold text-primary hover:underline"
               >
                 Manage
@@ -339,14 +367,14 @@ function PricingContent() {
                 </motion.div>
               )}
 
-              {/* Personal / Business Category Tabs (like ChatGPT) */}
+              {/* Plan category follows the active workspace type. */}
               <div className="flex items-center justify-center gap-2">
                 <button
-                  onClick={() => { if (!createMode) setPlanCategory("personal"); }}
+                  onClick={() => { if (activeWorkspaceCategory === "personal" && !createMode) setPlanCategory("personal"); }}
                   className={`px-5 py-2 rounded-lg text-label-sm font-semibold transition-all ${
                     planCategory === "personal"
                       ? "bg-primary text-on-primary shadow-sm shadow-primary/20"
-                      : createMode
+                      : createMode || activeWorkspaceCategory === "business"
                       ? "bg-surface-container-lowest border border-outline-variant/20 text-outline/40 cursor-not-allowed"
                       : "bg-surface-container-lowest border border-outline-variant/20 text-outline hover:text-on-surface hover:border-primary/30"
                   }`}
@@ -356,15 +384,18 @@ function PricingContent() {
                   {createMode && <span className="ml-1.5 text-label-2xs text-outline/40">· locked</span>}
                 </button>
                 <button
-                  onClick={() => setPlanCategory("business")}
+                  onClick={() => { if (activeWorkspaceCategory === "business" || createMode) setPlanCategory("business"); }}
                   className={`px-5 py-2 rounded-lg text-label-sm font-semibold transition-all ${
                     planCategory === "business"
                       ? "bg-primary text-on-primary shadow-sm shadow-primary/20"
+                      : activeWorkspaceCategory === "personal" && !createMode
+                      ? "bg-surface-container-lowest border border-outline-variant/20 text-outline/40 cursor-not-allowed"
                       : "bg-surface-container-lowest border border-outline-variant/20 text-outline hover:text-on-surface hover:border-primary/30"
                   }`}
                 >
                   <span className="material-symbols-outlined text-[16px] align-middle mr-1.5">business</span>
                   Business
+                  {activeWorkspaceCategory === "personal" && !createMode && <span className="ml-1.5 text-label-2xs text-outline/40">· locked</span>}
                 </button>
               </div>
 

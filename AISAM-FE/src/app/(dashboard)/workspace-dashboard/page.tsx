@@ -300,7 +300,7 @@ export default function WorkspaceDashboardPage() {
                     <span className="text-label-sm text-on-surface font-medium">View Posts</span>
                   </Link>
                   <Link
-                    href="/profiles/[id]?section=billing"
+                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}?section=billing` : "/profiles"}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-emerald-500 text-[28px]">token</span>

@@ -69,8 +69,12 @@ export async function getCurrentSubscription(): Promise<CurrentSubscription | nu
   try {
     const res: GenericResponse<CurrentSubscription> = await apiClient("/payment/subscription/current");
     return res?.data ?? null;
-  } catch {
-    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Active subscription not found")) {
+      return null;
+    }
+    throw error;
   }
 }
 

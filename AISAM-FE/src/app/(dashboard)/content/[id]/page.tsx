@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
+import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE } from "@/services/contentService";
@@ -15,7 +16,9 @@ export default function ContentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
+  const [showPostNow, setShowPostNow] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const [item, setItem] = useState<ContentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,6 +137,20 @@ export default function ContentDetailPage() {
           <div className="flex items-center gap-2">
             {!editing ? (
               <>
+                {item.status === "Approved" && (
+                  <>
+                    <button onClick={() => setShowPostNow(true)}
+                      className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">send</span>
+                      Post Now
+                    </button>
+                    <button onClick={() => router.push(`/calendar?contentId=${item.id}`)}
+                      className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+                      Schedule
+                    </button>
+                  </>
+                )}
                 <button onClick={() => setEditing(true)}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">edit</span>
@@ -441,6 +458,33 @@ export default function ContentDetailPage() {
               <button onClick={handleDelete} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2">Delete</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Post Now Modal */}
+      {showPostNow && item && (
+        <PostNowModal
+          contentId={item.id}
+          brandId={item.brandId}
+          onClose={() => setShowPostNow(false)}
+          onSuccess={() => {
+            setShowPostNow(false);
+            setToast({ message: "Post published successfully!", type: "success" });
+            fetchContentById(params.id as string).then((result) => setItem(result as any));
+          }}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-inverse-surface text-inverse-on-surface px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <span className={`material-symbols-outlined text-[18px] ${toast.type === "success" ? "text-emerald-400" : "text-danger-red"}`}>
+            {toast.type === "success" ? "check_circle" : "error"}
+          </span>
+          <p className="text-label-sm font-semibold">{toast.message}</p>
+          <button onClick={() => setToast(null)} className="p-1 hover:bg-white/10 rounded-full transition-all">
+            <span className="material-symbols-outlined text-[14px]">close</span>
+          </button>
         </div>
       )}
     </>

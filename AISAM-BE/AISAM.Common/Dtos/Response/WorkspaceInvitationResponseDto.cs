@@ -12,6 +12,7 @@ public sealed class WorkspaceInvitationResponseDto
     public MemberQuotaModeEnum QuotaMode { get; set; }
     public long? CreditLimit { get; set; }
     public Guid InvitedByUserId { get; set; }
+    public string InvitedByName { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }

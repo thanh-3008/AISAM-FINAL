@@ -207,3 +207,15 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMembersResponse 
     return null;
   }
 }
+
+export async function transferOwnership(targetMemberId: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res = await apiClient("/workspace-members/ownership-transfer", {
+      method: "POST",
+      data: { targetMemberId },
+    });
+    return { success: res?.success === true, message: res?.message };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Network error" };
+  }
+}

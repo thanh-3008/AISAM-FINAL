@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
@@ -97,7 +97,7 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
   );
 }
 
-export default function CalendarPage() {
+function CalendarContent() {
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
   const today = new Date();
@@ -136,6 +136,7 @@ export default function CalendarPage() {
   });
 
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const load = async () => {
@@ -169,6 +170,20 @@ export default function CalendarPage() {
   }, [pathname, activeWorkspace?.id]);
 
   useEffect(() => { if (toast) setTimeout(() => setToast(null), 3000); }, [toast]);
+
+  useEffect(() => {
+    const contentId = searchParams.get("contentId");
+    if (contentId && contents.length > 0) {
+      const match = contents.find((c) => c.id === contentId && c.status !== "Published");
+      if (match) {
+        const now = new Date();
+        const date = now.toISOString().slice(0, 10);
+        const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        setForm({ contentId, integrationId: "", date, time });
+        setShowCreate(true);
+      }
+    }
+  }, [searchParams, contents]);
 
   const handlePrev = () => {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
@@ -260,6 +275,25 @@ export default function CalendarPage() {
     setActionId(null);
   };
 
+  if (featureGate.isResolvingPlan) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Calendar" }]} />
+        <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto">
+          <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="w-16 h-16 mx-auto mb-6 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-[32px] animate-spin">progress_activity</span>
+              </div>
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">Checking subscription</h2>
+              <p className="text-body-md text-on-surface-variant">Syncing your current workspace plan...</p>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   if (!featureGate.canAccess("schedulePost")) {
     return (
       <>
@@ -271,7 +305,7 @@ export default function CalendarPage() {
                 <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
               </div>
               <h2 className="text-headline-md text-on-surface font-bold mb-2">Content Calendar</h2>
-              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Personal Plus</strong> plan or higher. Upgrade to schedule and manage your content calendar.</p>
+              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a paid Plus plan or higher. Upgrade to schedule and manage your content calendar.</p>
               <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
                 View Plans
                 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
@@ -922,5 +956,13 @@ export default function CalendarPage() {
         )}
       </main>
     </>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense fallback={null}>
+      <CalendarContent />
+    </Suspense>
   );
 }
