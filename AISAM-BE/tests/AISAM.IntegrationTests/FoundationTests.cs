@@ -205,7 +205,7 @@ public class FoundationTests
         };
 
         var productRepository = new FakeProductRepository(product);
-        var service = new ProductService(productRepository, new FakeBrandRepository(brand));
+        var service = new ProductService(productRepository, new FakeBrandRepository(brand), new FakeMediaStorageService());
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 
@@ -237,11 +237,11 @@ public class FoundationTests
         Assert.True(createResult.Success);
         Assert.True(productRepository.AddCalled);
         Assert.Single(createResult.Data!.Images!);
-        Assert.StartsWith("/uploads/products/", createResult.Data.Images![0]);
+        Assert.StartsWith("https://storage.test/products/", createResult.Data.Images![0]);
         Assert.True(updateResult.Success);
         Assert.True(productRepository.UpdateCalled);
         Assert.Single(updateResult.Data!.Images!);
-        Assert.StartsWith("/uploads/products/", updateResult.Data.Images![0]);
+        Assert.StartsWith("https://storage.test/products/", updateResult.Data.Images![0]);
     }
 
     [Fact]
@@ -286,6 +286,14 @@ public class FoundationTests
             Profile = profile,
             Name = "Owned brand"
         };
+    }
+
+    private sealed class FakeMediaStorageService : IMediaStorageService
+    {
+        public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult($"https://storage.test/{folder}/{fileName}");
+        }
     }
 
     private sealed class NoopProfileService : IProfileService

@@ -278,6 +278,25 @@ function CalendarContent() {
     setActionId(null);
   };
 
+  if (featureGate.isResolvingPlan) {
+    return (
+      <>
+        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Calendar" }]} />
+        <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto">
+          <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="w-16 h-16 mx-auto mb-6 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-[32px] animate-spin">progress_activity</span>
+              </div>
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">Checking subscription</h2>
+              <p className="text-body-md text-on-surface-variant">Syncing your current workspace plan...</p>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   if (!featureGate.canAccess("schedulePost")) {
     return (
       <>
@@ -289,7 +308,7 @@ function CalendarContent() {
                 <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
               </div>
               <h2 className="text-headline-md text-on-surface font-bold mb-2">Content Calendar</h2>
-              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Personal Plus</strong> plan or higher. Upgrade to schedule and manage your content calendar.</p>
+              <p className="text-body-md text-on-surface-variant mb-6">This feature requires a paid Plus plan or higher. Upgrade to schedule and manage your content calendar.</p>
               <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
                 View Plans
                 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

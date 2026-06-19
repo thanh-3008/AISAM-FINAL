@@ -72,6 +72,18 @@ public sealed class WorkspaceService : IWorkspaceService
             return GenericResponse<WorkspaceResponseDto>.CreateError("Invalid workspace type.");
         }
 
+        if (request.WorkspaceType == WorkspaceTypeEnum.Personal)
+        {
+            var existingWorkspaces = await _workspaceRepository.GetByUserIdAsync(userId, cancellationToken);
+            if (existingWorkspaces.Any(workspace => workspace.WorkspaceType == WorkspaceTypeEnum.Personal))
+            {
+                return GenericResponse<WorkspaceResponseDto>.CreateError(
+                    "Each account can only have one personal workspace.",
+                    HttpStatusCode.Conflict,
+                    "PERSONAL_WORKSPACE_LIMIT_REACHED");
+            }
+        }
+
         var workspace = new Workspace
         {
             Name = request.Name.Trim(),

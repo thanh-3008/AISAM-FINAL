@@ -61,6 +61,9 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_BASE_URL", "PayOSSettings
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
 ApplyEnvironmentOverride(builder.Configuration, "UPLOAD_ROOT_PATH", "MediaStorage:UploadRootPath");
+ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_URL", "MediaStorage:SupabaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_KEY", "MediaStorage:SupabaseKey");
+ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_BUCKET", "MediaStorage:SupabaseBucket");
 ApplyEnvironmentOverride(builder.Configuration, "INITIAL_PERSONAL_WORKSPACE_CREDITS", "CreditSettings:InitialPersonalWorkspaceCredits");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
@@ -150,6 +153,7 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IContentService, ContentService>();
+builder.Services.AddHttpClient<IMediaStorageService, SupabaseMediaStorageService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();

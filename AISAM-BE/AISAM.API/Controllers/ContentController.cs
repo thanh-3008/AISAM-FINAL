@@ -4,14 +4,12 @@ using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
-using AISAM.Common.Config;
 using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Options;
+using System.Net;
 
 namespace AISAM.API.Controllers;
 
@@ -22,8 +20,7 @@ public sealed class ContentController : ControllerBase
 {
     private readonly IContentService _contentService;
     private readonly IProfileRepository _profileRepository;
-    private readonly IWebHostEnvironment _environment;
-    private readonly MediaStorageSettings _mediaStorageSettings;
+    private readonly IMediaStorageService _mediaStorageService;
     private static readonly HashSet<string> AllowedMediaContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -39,13 +36,11 @@ public sealed class ContentController : ControllerBase
     public ContentController(
         IContentService contentService,
         IProfileRepository profileRepository,
-        IWebHostEnvironment? environment = null,
-        IOptions<MediaStorageSettings>? mediaStorageSettings = null)
+        IMediaStorageService? mediaStorageService = null)
     {
         _contentService = contentService;
         _profileRepository = profileRepository;
-        _environment = environment ?? new NullWebHostEnvironment();
-        _mediaStorageSettings = mediaStorageSettings?.Value ?? new MediaStorageSettings();
+        _mediaStorageService = mediaStorageService ?? new UnconfiguredMediaStorageService();
     }
 
     [HttpPost]
@@ -80,26 +75,26 @@ public sealed class ContentController : ControllerBase
         }
 
         var workspaceId = GetWorkspaceId();
-        var rootPath = _mediaStorageSettings.ResolveUploadRootPath(_environment.ContentRootPath);
-        Directory.CreateDirectory(rootPath);
-
-        var relativeDirectory = Path.Combine("uploads", "content", workspaceId.ToString("N"));
-        var uploadDirectory = Path.Combine(rootPath, relativeDirectory);
-        Directory.CreateDirectory(uploadDirectory);
-
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         var safeExtension = string.IsNullOrWhiteSpace(extension)
             ? (file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ? ".mp4" : ".jpg")
             : extension;
         var fileName = $"{Guid.NewGuid():N}{safeExtension}";
-        var filePath = Path.Combine(uploadDirectory, fileName);
 
-        await using var stream = System.IO.File.Create(filePath);
-        await file.CopyToAsync(stream, cancellationToken);
+        string url;
+        try
+        {
+            url = await _mediaStorageService.UploadAsync(file, $"content/{workspaceId:N}", fileName, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode((int)HttpStatusCode.ServiceUnavailable,
+                GenericResponse<ContentMediaUploadResponse>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable));
+        }
 
         var response = new ContentMediaUploadResponse
         {
-            Url = $"/uploads/content/{workspaceId:N}/{fileName}",
+            Url = url,
             FileName = file.FileName,
             ContentType = file.ContentType,
             Size = file.Length
@@ -219,13 +214,9 @@ public sealed class ContentController : ControllerBase
 
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 
-    private sealed class NullWebHostEnvironment : IWebHostEnvironment
+    private sealed class UnconfiguredMediaStorageService : IMediaStorageService
     {
-        public string ApplicationName { get; set; } = "AISAM.API";
-        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
-        public string WebRootPath { get; set; } = string.Empty;
-        public string EnvironmentName { get; set; } = Environments.Production;
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+        public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Supabase storage is not configured.");
     }
 }

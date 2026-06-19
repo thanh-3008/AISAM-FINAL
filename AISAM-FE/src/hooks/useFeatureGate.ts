@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { getCurrentSubscription } from "@/services/profileSettingsService";
 import {
-  getPlanType,
+  getWorkspacePlanType,
   canAccessFeature,
   hasPermission,
   FEATURE_MATRIX,
@@ -16,12 +17,47 @@ import {
 } from "@/lib/featureConfig";
 
 export function useFeatureGate() {
-  const { activeWorkspace } = useWorkspaces();
+  const { activeWorkspace, updateWorkspacePlan } = useWorkspaces();
+  const [syncedPlanName, setSyncedPlanName] = useState<string | null>(null);
+  const [isResolvingPlan, setIsResolvingPlan] = useState(false);
+
+  useEffect(() => {
+    if (!activeWorkspace?.id) {
+      setSyncedPlanName(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSyncedPlanName(null);
+    setIsResolvingPlan(true);
+
+    getCurrentSubscription()
+      .then((subscription) => {
+        if (cancelled) return;
+
+        const planName = subscription?.planName || null;
+        setSyncedPlanName(planName);
+
+        if (planName && planName !== activeWorkspace.plan) {
+          updateWorkspacePlan(activeWorkspace.id, planName);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSyncedPlanName(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingPlan(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.id, activeWorkspace?.plan, updateWorkspacePlan]);
 
   const plan = useMemo(() => {
     if (!activeWorkspace) return PlanType.Free;
-    return getPlanType(activeWorkspace.plan);
-  }, [activeWorkspace]);
+    return getWorkspacePlanType(syncedPlanName || activeWorkspace.plan, activeWorkspace.workspaceType);
+  }, [activeWorkspace, syncedPlanName]);
 
   const role = useMemo(() => {
     if (!activeWorkspace?.memberRole) return null;
@@ -32,6 +68,7 @@ export function useFeatureGate() {
     plan,
     planName: PLAN_NAMES[plan] || "Free",
     role,
+    isResolvingPlan,
     isOwner: role === "Owner",
     isManager: role === "Manager",
     isContentCreator: role === "ContentCreator",
@@ -62,5 +99,5 @@ export function useFeatureGate() {
     getPlanLevel(): number {
       return PLAN_HIERARCHY[plan] ?? 0;
     },
-  }), [plan, role, activeWorkspace]);
+  }), [plan, role, isResolvingPlan, activeWorkspace]);
 }

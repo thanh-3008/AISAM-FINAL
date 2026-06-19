@@ -5,11 +5,9 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
+using System.Net;
 using System.Text.Json;
-using AISAM.Common.Config;
 
 namespace AISAM.Services.Service
 {
@@ -17,8 +15,7 @@ namespace AISAM.Services.Service
     {
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
-        private readonly IWebHostEnvironment? _environment;
-        private readonly MediaStorageSettings _mediaStorageSettings;
+        private readonly IMediaStorageService _mediaStorageService;
         private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             "image/jpeg",
@@ -31,13 +28,11 @@ namespace AISAM.Services.Service
         public ProductService(
             IProductRepository productRepository,
             IBrandRepository brandRepository,
-            IWebHostEnvironment? environment = null,
-            IOptions<MediaStorageSettings>? mediaStorageSettings = null)
+            IMediaStorageService mediaStorageService)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
-            _environment = environment;
-            _mediaStorageSettings = mediaStorageSettings?.Value ?? new MediaStorageSettings();
+            _mediaStorageService = mediaStorageService;
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -99,7 +94,15 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError(imageValidation.Message);
             }
 
-            var imageUrls = await SaveProductImagesAsync(request.BrandId, request.ImageFiles, cancellationToken);
+            List<string> imageUrls;
+            try
+            {
+                imageUrls = await SaveProductImagesAsync(request.BrandId, request.ImageFiles, cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable);
+            }
 
             var product = new Product
             {
@@ -161,7 +164,15 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError(imageValidation.Message);
             }
 
-            var newImageUrls = await SaveProductImagesAsync(product.BrandId, request.ImageFiles, cancellationToken);
+            List<string> newImageUrls;
+            try
+            {
+                newImageUrls = await SaveProductImagesAsync(product.BrandId, request.ImageFiles, cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable);
+            }
             if (newImageUrls.Count > 0)
             {
                 var existingImages = ParseImages(product.Images);
@@ -307,23 +318,13 @@ namespace AISAM.Services.Service
                 return urls;
             }
 
-            var rootPath = _mediaStorageSettings.ResolveUploadRootPath(_environment?.ContentRootPath);
-
-            var relativeDirectory = Path.Combine("uploads", "products", brandId.ToString("N"));
-            var uploadDirectory = Path.Combine(rootPath, relativeDirectory);
-            Directory.CreateDirectory(uploadDirectory);
-
             foreach (var file in files)
             {
                 var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
                 var safeExtension = string.IsNullOrWhiteSpace(extension) ? ".jpg" : extension;
                 var fileName = $"{Guid.NewGuid():N}{safeExtension}";
-                var filePath = Path.Combine(uploadDirectory, fileName);
-
-                await using var stream = File.Create(filePath);
-                await file.CopyToAsync(stream, cancellationToken);
-
-                urls.Add($"/uploads/products/{brandId:N}/{fileName}");
+                var url = await _mediaStorageService.UploadAsync(file, $"products/{brandId:N}", fileName, cancellationToken);
+                urls.Add(url);
             }
 
             return urls;

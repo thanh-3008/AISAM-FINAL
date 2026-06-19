@@ -3,6 +3,9 @@ namespace AISAM.Common.Config;
 public sealed class MediaStorageSettings
 {
     public string? UploadRootPath { get; set; }
+    public string? SupabaseUrl { get; set; }
+    public string? SupabaseKey { get; set; }
+    public string SupabaseBucket { get; set; } = "aisam-media";
 
     public string ResolveUploadRootPath(string? contentRootPath = null)
     {

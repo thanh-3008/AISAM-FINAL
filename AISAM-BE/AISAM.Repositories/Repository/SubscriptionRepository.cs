@@ -26,7 +26,12 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
                 subscription.IsActive &&
                 subscription.StartDate <= today &&
                 (!subscription.EndDate.HasValue || subscription.EndDate.Value >= today))
-            .OrderByDescending(subscription => subscription.StartDate)
+            .OrderByDescending(subscription =>
+                subscription.Plan == SubscriptionPlanEnum.Premium ? 3 :
+                subscription.Plan == SubscriptionPlanEnum.Plus ? 2 :
+                subscription.Plan == SubscriptionPlanEnum.PlusTrial ? 1 :
+                0)
+            .ThenByDescending(subscription => subscription.StartDate)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -42,7 +47,12 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
                 subscription.IsActive &&
                 subscription.StartDate <= today &&
                 (!subscription.EndDate.HasValue || subscription.EndDate.Value >= today))
-            .OrderByDescending(subscription => subscription.StartDate)
+            .OrderByDescending(subscription =>
+                subscription.Plan == SubscriptionPlanEnum.Premium ? 3 :
+                subscription.Plan == SubscriptionPlanEnum.Plus ? 2 :
+                subscription.Plan == SubscriptionPlanEnum.PlusTrial ? 1 :
+                0)
+            .ThenByDescending(subscription => subscription.StartDate)
             .FirstOrDefaultAsync(cancellationToken);
     }
 

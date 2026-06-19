@@ -30,15 +30,18 @@ interface GenericResponse<T> {
 
 const ROLE_TO_ENUM: Record<WorkspaceMemberRole, number> = { Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 };
 
-export async function inviteMember(data: InviteMemberRequest): Promise<WorkspaceInvitation | null> {
+const ENUM_TO_ROLE: Record<number, WorkspaceMemberRole> = { 1: "Owner", 2: "Manager", 3: "ContentCreator", 4: "Viewer" };
+
+export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: WorkspaceInvitation; error?: string } | null> {
   try {
     const res: GenericResponse<WorkspaceInvitation> = await apiClient("/workspace-invitations", {
       method: "POST",
       data: { ...data, role: ROLE_TO_ENUM[data.role] ?? 4 },
     });
-    return res?.data ?? null;
-  } catch {
-    return null;
+    if (!res?.success) return { error: res?.message || "Failed to send invitation" };
+    return { data: res?.data ?? undefined };
+  } catch (err: any) {
+    return { error: err?.message || "Network error" };
   }
 }
 
@@ -57,12 +60,36 @@ export async function acceptInvitation(token: string): Promise<{ success: boolea
   }
 }
 
-export async function cancelInvitation(_invitationId: string): Promise<boolean> {
-  // No BE endpoint — returns false
-  return false;
+export async function cancelInvitation(invitationId: string): Promise<boolean> {
+  try {
+    const res = await apiClient<GenericResponse<boolean>>(`/workspace-invitations/${invitationId}`, {
+      method: "DELETE",
+    });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getWorkspaceInvitations(): Promise<WorkspaceInvitation[]> {
-  // No BE endpoint — returns empty
-  return [];
+  try {
+    const res = await apiClient<GenericResponse<any[]>>("/workspace-invitations");
+    if (res?.success && res.data) {
+      return (res.data as any[]).map((item: any) => ({
+        id: item.id,
+        workspaceId: item.workspaceId,
+        workspaceName: item.workspaceName,
+        email: item.email,
+        role: ENUM_TO_ROLE[item.role] ?? "Viewer",
+        status: "Pending" as const,
+        invitedBy: item.invitedByUserId,
+        invitedByName: item.invitedByName || "",
+        createdAt: item.createdAt,
+        expiresAt: item.expiresAt,
+      }));
+    }
+    return [];
+  } catch {
+    return [];
+  }
 }

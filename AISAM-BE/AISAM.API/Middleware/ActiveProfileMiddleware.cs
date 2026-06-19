@@ -11,15 +11,7 @@ public sealed class ActiveProfileMiddleware
 {
     private static readonly PathString[] ProtectedPrefixes =
     {
-        new("/api/content"),
-        new("/api/content-schedules"),
-        new("/api/dev/scheduler"),
-        new("/api/ai"),
-        new("/api/conversations"),
-        new("/api/social-auth"),
-        new("/api/social"),
-        new("/api/posts"),
-        new("/api/notifications")
+        new("/api/dev/scheduler")
     };
 
     private readonly RequestDelegate _next;

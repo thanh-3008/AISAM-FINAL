@@ -188,5 +188,13 @@ export function useWorkspaces() {
     clearActiveWorkspace();
   }, []);
 
-  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, refetch: fetchWorkspaces };
+  const updateWorkspacePlan = useCallback((workspaceId: string, plan: string) => {
+    cachedWorkspaces = (cachedWorkspaces ?? workspaces).map((workspace) =>
+      workspace.id === workspaceId ? { ...workspace, plan } : workspace
+    );
+    setWorkspaces(cachedWorkspaces);
+    notifyCache();
+  }, [workspaces]);
+
+  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, updateWorkspacePlan, refetch: fetchWorkspaces };
 }

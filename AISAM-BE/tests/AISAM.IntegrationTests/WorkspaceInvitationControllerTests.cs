@@ -87,5 +87,25 @@ public class WorkspaceInvitationControllerTests
             LastUserId = userId;
             return Task.FromResult(GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateSuccess(new AcceptWorkspaceInvitationResponseDto()));
         }
+
+        public Task<GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>> GetPendingByWorkspaceAsync(
+            Guid workspaceId,
+            CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            IReadOnlyList<WorkspaceInvitationResponseDto> invitations = Array.Empty<WorkspaceInvitationResponseDto>();
+            return Task.FromResult(GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>.CreateSuccess(invitations));
+        }
+
+        public Task<GenericResponse<bool>> RevokeAsync(
+            Guid workspaceId,
+            Guid userId,
+            Guid invitationId,
+            CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
+            return Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+        }
     }
 }
