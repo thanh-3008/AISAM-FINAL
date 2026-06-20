@@ -112,6 +112,11 @@ public sealed class ActiveWorkspaceMiddleware
 
         if (path.StartsWithSegments("/api/payment"))
         {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBilling);
         }
 

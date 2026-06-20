@@ -23,7 +23,12 @@ public sealed class ActiveProfileMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, IProfileRepository profileRepository, IWebHostEnvironment environment)
+    public async Task InvokeAsync(
+        HttpContext context,
+        IProfileRepository profileRepository,
+        IWorkspaceRepository workspaceRepository,
+        IUserRepository userRepository,
+        IWebHostEnvironment environment)
     {
         if (context.Request.Path.StartsWithSegments("/api/dev/scheduler") && !environment.IsDevelopment())
         {
@@ -47,7 +52,6 @@ public sealed class ActiveProfileMiddleware
 
         if (!Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
         {
-            // Try to resolve a default profile for protected routes
             var userProfiles = await profileRepository.GetByUserIdAsync(userId, context.RequestAborted);
             var workspaceHeader = context.Request.Headers["X-Workspace-Id"].FirstOrDefault();
             Profile? profile = null;
@@ -58,6 +62,19 @@ public sealed class ActiveProfileMiddleware
             }
 
             profile ??= userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active);
+
+            if (profile == null && Guid.TryParse(workspaceHeader, out var newWsId))
+            {
+                var workspace = await workspaceRepository.GetByIdAsync(newWsId, context.RequestAborted);
+                var user = await userRepository.GetByIdAsync(userId);
+                profile = await profileRepository.CreateAsync(new Profile
+                {
+                    UserId = userId,
+                    Name = $"{user?.FullName ?? "User"}'s Profile",
+                    ProfileType = ProfileTypeEnum.Free,
+                    Status = ProfileStatusEnum.Active
+                }, context.RequestAborted);
+            }
 
             if (profile != null)
             {
@@ -80,14 +97,6 @@ public sealed class ActiveProfileMiddleware
         if (resolvedProfile.UserId != userId)
         {
             await WriteErrorAsync(context, HttpStatusCode.Forbidden, "You are not allowed to use this profile.");
-            return;
-        }
-
-        if (context.Items.TryGetValue(WorkspaceContextHelper.ActiveWorkspaceItemKey, out var workspaceValue) &&
-            workspaceValue is Guid activeWorkspaceId &&
-            resolvedProfile.Id != activeWorkspaceId)
-        {
-            await WriteErrorAsync(context, HttpStatusCode.Forbidden, "Profile does not belong to active workspace.");
             return;
         }
 

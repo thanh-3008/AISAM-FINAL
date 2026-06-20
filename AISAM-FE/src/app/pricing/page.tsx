@@ -47,6 +47,9 @@ function PricingContent() {
   const [qrData, setQrData] = useState<{ checkoutUrl: string; amount: number; description: string } | null>(null);
   const [qrStatus, setQrStatus] = useState<"pending" | "completed" | "failed">("pending");
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
     fetchCreditWallet().then(w => setCreditWallet(w));
@@ -235,7 +238,7 @@ function PricingContent() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container/50 transition-all bg-surface-container-lowest/60 border border-outline-variant/20"
           >
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            Back to {activeWorkspace ? "Dashboard" : "Overview"}
+            Back to {isClient && activeWorkspace ? "Dashboard" : "Overview"}
           </button>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-sm shadow-primary/20">

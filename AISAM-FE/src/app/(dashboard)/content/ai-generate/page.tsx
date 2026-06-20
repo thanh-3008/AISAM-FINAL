@@ -163,67 +163,8 @@ export default function AIGeneratePage() {
       return;
     }
 
-    setTimeout(async () => {
-      let aiText = "";
-      let aiTitle = "";
-      const lower = userPrompt.toLowerCase();
-
-      if (lower.includes("longer") || lower.includes("expand") || lower.includes("detailed")) {
-        aiTitle = `Discover the ${brandName} Difference`;
-        aiText = "Introducing our latest innovation — a product designed to transform the way you experience everyday moments. " +
-          "Built with precision engineering and a deep understanding of modern needs, this solution combines cutting-edge technology with timeless design. " +
-          "Every detail has been carefully considered to deliver exceptional performance, lasting durability, and unmatched user satisfaction. " +
-          "Whether you're a seasoned professional or a first-time user, you'll appreciate the thoughtful features that make every interaction intuitive and rewarding.";
-      } else if (lower.includes("formal") || lower.includes("professional")) {
-        aiTitle = `Introducing ${productName || brandName}`;
-        aiText = "We are pleased to present our newest offering, which has been meticulously developed to address the evolving requirements of our esteemed clientele. " +
-          "This solution reflects our unwavering commitment to excellence, quality, and innovation. We invite you to explore its capabilities and experience the difference.";
-      } else if (lower.includes("casual") || lower.includes("conversational")) {
-        aiTitle = `${productName || "Check this out"} — You'll Love It!`;
-        aiText = "Hey there! We've got something awesome we think you'll absolutely love. It's the kind of thing that makes your day just a little bit better. " +
-          "Go ahead, give it a try — we promise you won't be disappointed. Your friends will thank you!";
-      } else if (lower.includes("hashtag") || lower.includes("tag")) {
-        aiTitle = `Boost Your Reach with ${brandName}`;
-        aiText = "Here are some relevant hashtags to maximize your content visibility:\n\n" +
-          (AUTO_HASHTAGS[brandName] || []).map((h) => "#" + h).join(" ") + "\n\n" +
-          "Use these to reach the right audience and grow your engagement!";
-      } else if (lower.includes("bullet") || lower.includes("point")) {
-        aiTitle = `${productName || brandName} — Key Features`;
-        aiText = "Here's your content in bullet points:\n\n" +
-          "• High-quality design built to last\n" +
-          "• Intuitive and user-friendly interface\n" +
-          "• Exceptional value for money\n" +
-          "• Versatile for any use case\n" +
-          "• Backed by industry-leading support";
-      } else if (lower.includes("emoji") || lower.includes("emojis")) {
-        aiTitle = `${productName || "Our Latest"} is Here! 🚀`;
-        aiText = "Introducing our latest product! 🚀✨\n\n" +
-          "Get ready to experience innovation like never before. 💡🔥\n\n" +
-          "Built for those who demand the best. 💪🏆\n\n" +
-          "Try it today and see the difference! 🎯✅";
-      } else {
-        aiTitle = `Introducing ${productName || "Our Latest Innovation"}`;
-        aiText = `Great prompt! Based on your request, here's optimized content for ${brandName}'s ${productName || "product"}:\n\n` +
-          `Experience the next generation of innovation with ${brandName}. Our ${productName || "latest solution"} is designed to exceed expectations — combining style, performance, and reliability in one seamless package. ` +
-          `Perfect for modern lifestyles, it's the smart choice for those who refuse to compromise.`;
-      }
-
-      const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
-
-      const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiText };
-      setMessages((prev) => [...prev, aiMsg]);
-
-      const variation: Variation = {
-        id: `v-${Date.now()}`,
-        prompt: userPrompt,
-        result: aiText,
-      };
-      setVariations((prev) => [variation, ...prev]);
-
-      setIsGenerating(false);
-
-      autoSavePost(aiTitle, aiText, generatedHashtags, variation.id);
-    }, 2000);
+    setIsGenerating(false);
+    addToast("AI generation failed. Please check your credits and try again.");
   };
 
   const autoSavePost = async (postTitle: string, postContent: string, postHashtags: string[], varId: string) => {
