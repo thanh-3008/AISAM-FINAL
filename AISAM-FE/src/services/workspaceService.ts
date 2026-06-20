@@ -87,9 +87,10 @@ export async function fetchCreditWallet(): Promise<{
   subscriptionStatus?: string;
 } | null> {
   try {
-    const [subRes, dashRes] = await Promise.allSettled([
+    const [subRes, dashRes, walletRes] = await Promise.allSettled([
       apiClient("/payment/subscription/current"),
       apiClient("/workspace-dashboard/summary"),
+      apiClient("/credit-usage/wallet"),
     ]);
 
     const sub = subRes.status === "fulfilled" ? subRes.value?.data as {
@@ -111,11 +112,18 @@ export async function fetchCreditWallet(): Promise<{
       activeMemberCount?: number;
     } | undefined : undefined;
 
+    const wallet = walletRes.status === "fulfilled" ? walletRes.value?.data as {
+      balance?: number;
+      workspaceId?: string;
+    } | undefined : undefined;
+
+    const balance = dash?.creditBalance ?? wallet?.balance ?? 0;
+
     return {
       id: sub?.subscriptionId || "",
-      workspaceId: dash?.workspaceId || "",
-      balance: dash?.creditBalance ?? 0,
-      maxBalance: (dash?.creditBalance ?? 0) + (dash?.creditsUsed ?? 0),
+      workspaceId: dash?.workspaceId || wallet?.workspaceId || "",
+      balance,
+      maxBalance: (dash?.creditBalance ?? wallet?.balance ?? 0) + (dash?.creditsUsed ?? 0),
       creditsUsed: dash?.creditsUsed ?? 0,
       publishedPostCount: dash?.publishedPostCount ?? 0,
       postQuotaLimit: dash?.postQuotaLimit ?? 0,

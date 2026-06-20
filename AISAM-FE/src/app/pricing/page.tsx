@@ -36,6 +36,7 @@ function PricingContent() {
   const [yearly, setYearly] = useState(false);
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [processing, setProcessing] = useState<number | null>(null);
+  const [syncingPayment, setSyncingPayment] = useState(false);
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
@@ -56,13 +57,21 @@ function PricingContent() {
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
-    if (searchParams.get("payment") !== "success" || !activeWorkspace?.id) return;
+    const isPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id");
+    if (!isPayOSRedirect || !activeWorkspace?.id) return;
 
+    setSyncingPayment(true);
     let cancelled = false;
     const synchronizePayment = async () => {
       try {
-        await syncPayOSCallback(searchParams);
+        const success = await syncPayOSCallback(searchParams);
         if (cancelled) return;
+
+        if (!success) {
+          showToast({ type: "error", title: "Payment sync failed", message: "Payment was received but could not be synchronized. Please contact support." });
+          router.replace("/pricing");
+          return;
+        }
 
         const subscription = await getCurrentSubscription();
         const wallet = await fetchCreditWallet();
@@ -84,6 +93,8 @@ function PricingContent() {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : "Payment was received, but subscription refresh failed.";
         showToast({ type: "error", title: "Subscription refresh failed", message });
+      } finally {
+        if (!cancelled) setSyncingPayment(false);
       }
     };
 
@@ -172,8 +183,8 @@ function PricingContent() {
       const payment = await createPayment({
         paymentType: 1,
         planCode,
-        returnUrl: window.location.origin + "/pricing?payment=success",
-        cancelUrl: window.location.origin + "/pricing?payment=cancelled",
+        returnUrl: window.location.origin + "/pricing",
+        cancelUrl: window.location.origin + "/pricing",
       });
 
       if (payment?.checkoutUrl) {
@@ -197,8 +208,8 @@ function PricingContent() {
       const payment = await createPayment({
         paymentType: 2,
         creditPackCode,
-        returnUrl: window.location.origin + "/pricing?payment=success",
-        cancelUrl: window.location.origin + "/pricing?payment=cancelled",
+        returnUrl: window.location.origin + "/pricing",
+        cancelUrl: window.location.origin + "/pricing",
       });
 
       if (payment?.checkoutUrl) {
@@ -232,6 +243,18 @@ function PricingContent() {
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/[0.03] rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/[0.03] rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
       </div>
+
+      {syncingPayment && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <svg className="w-8 h-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-body-sm text-on-surface-variant">Processing payment...</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 px-6 md:px-8 lg:px-12 max-w-6xl mx-auto w-full py-12 md:py-16 relative z-10">
         {/* Top bar - back to dashboard */}

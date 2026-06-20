@@ -3,6 +3,7 @@ using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
+using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,24 @@ namespace AISAM.API.Controllers;
 public sealed class CreditUsageController : ControllerBase
 {
     private readonly ICreditUsageRecordRepository _creditUsageRepository;
+    private readonly ICreditWalletRepository _creditWalletRepository;
 
-    public CreditUsageController(ICreditUsageRecordRepository creditUsageRepository)
+    public CreditUsageController(ICreditUsageRecordRepository creditUsageRepository, ICreditWalletRepository creditWalletRepository)
     {
         _creditUsageRepository = creditUsageRepository;
+        _creditWalletRepository = creditWalletRepository;
+    }
+
+    [HttpGet("wallet")]
+    public async Task<ActionResult<GenericResponse<object>>> GetWallet(CancellationToken cancellationToken = default)
+    {
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var wallet = await _creditWalletRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
+        if (wallet == null)
+        {
+            return Ok(GenericResponse<object>.CreateSuccess(new { balance = 0, workspaceId }));
+        }
+        return Ok(GenericResponse<object>.CreateSuccess(new { balance = wallet.Balance, workspaceId }));
     }
 
     [HttpGet]

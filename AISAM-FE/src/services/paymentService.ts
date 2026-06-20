@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, API_URL } from "@/lib/apiClient";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -63,14 +63,16 @@ export async function createPayment(data: CreateCheckoutRequest): Promise<Checko
 
 export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<boolean> {
   try {
+    const PAYOS_PARAMS = ["id", "orderCode", "amount", "description", "cancelUrl", "returnUrl", "status", "signature"];
     const params = new URLSearchParams();
     for (const [key, value] of searchParams.entries()) {
-      if (key !== "payment") {
+      if (PAYOS_PARAMS.includes(key)) {
         params.append(key, value);
       }
     }
     const query = params.toString();
-    const res = await fetch(`/api/payment/callback${query ? "?" + query : ""}`, {
+    if (!query) return false;
+    const res = await fetch(`${API_URL}/payment/callback${query ? "?" + query : ""}`, {
       method: "POST",
     });
     const data = await res.json();
