@@ -44,7 +44,7 @@ namespace AISAM.Services.Service
 
         public async Task SendPasswordResetAsync(string email, string userName, string resetToken)
         {
-            var resetLink = $"{_frontendBaseUrl}/auth/update-password?token={resetToken}";
+            var resetLink = $"{_frontendBaseUrl}/reset-password?token={resetToken}";
             var subject = "Reset your AISAM password";
             var htmlBody = BuildEmailTemplate(
                 "Reset your password",
