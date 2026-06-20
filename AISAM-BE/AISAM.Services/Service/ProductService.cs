@@ -84,6 +84,7 @@ namespace AISAM.Services.Service
                 Name = request.Name,
                 Description = request.Description,
                 Price = request.Price,
+                Stock = request.Stock,
                 Images = JsonSerializer.Serialize(new List<string>())
             };
 
@@ -130,6 +131,11 @@ namespace AISAM.Services.Service
             if (request.Price.HasValue)
             {
                 product.Price = request.Price.Value;
+            }
+
+            if (request.Stock.HasValue)
+            {
+                product.Stock = request.Stock.Value;
             }
 
             if (request.ImageFiles != null && request.ImageFiles.Any())
@@ -216,6 +222,7 @@ namespace AISAM.Services.Service
                 Name = product.Name,
                 Description = product.Description,
                 Price = product.Price,
+                Stock = product.Stock,
                 Images = !string.IsNullOrWhiteSpace(product.Images)
                     ? JsonSerializer.Deserialize<List<string>>(product.Images) ?? new List<string>()
                     : new List<string>(),

@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContent, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import { fetchBrands } from "@/services/brandService";
+import { apiFetch } from "@/lib/apiClient";
 import PostNowModal from "@/components/content/PostNowModal";
 
 type ViewMode = "grid" | "list";
@@ -66,6 +67,7 @@ export default function ContentPage() {
   const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
+  const [scheduledCount, setScheduledCount] = useState(0);
   const [brandNameList, setBrandNameList] = useState<string[]>([]);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
@@ -91,9 +93,15 @@ export default function ContentPage() {
 
   const loadContent = useCallback(async () => {
     setLoading(true);
-    const result = await fetchContents({ pageSize: 100 });
+    const [result, dashRes] = await Promise.all([
+      fetchContents({ pageSize: 100 }),
+      apiFetch("/dashboard/summary").catch(() => null),
+    ]);
     if (result) {
       setAllContent(result.items);
+    }
+    if (dashRes?.success && dashRes.data) {
+      setScheduledCount((dashRes.data as { upcomingScheduleCount?: number }).upcomingScheduleCount ?? 0);
     }
     setLoading(false);
   }, []);
@@ -144,7 +152,7 @@ export default function ContentPage() {
   const stats = useMemo(() => ({
     total: allContent.length,
     published: allContent.filter((c) => c.status === "Published").length,
-    scheduled: allContent.filter((c) => c.status === "Scheduled").length,
+    scheduled: scheduledCount,
     draft: allContent.filter((c) => c.status === "Draft" || c.status === "Awaiting Approval").length,
   }), [allContent]);
 

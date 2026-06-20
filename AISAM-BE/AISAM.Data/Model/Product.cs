@@ -25,6 +25,9 @@ namespace AISAM.Data.Model
         [Column("price", TypeName = "decimal(10,2)")]
         public decimal? Price { get; set; }
 
+        [Column("stock")]
+        public int Stock { get; set; } = 0;
+
         [Column("images", TypeName = "jsonb")]
         public string? Images { get; set; } // JSON array of image URLs
 

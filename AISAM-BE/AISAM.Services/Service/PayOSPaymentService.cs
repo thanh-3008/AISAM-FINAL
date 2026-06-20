@@ -405,7 +405,15 @@ public sealed class PayOSPaymentService : IPaymentService
             PlanName = subscription.Plan.ToString(),
             Status = subscription.IsActive ? "Active" : "Inactive",
             StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate
+            EndDate = subscription.EndDate,
+            PromptQuota = subscription.QuotaAIContentPerDay,
+            ImageQuota = subscription.QuotaAIImagesPerDay,
+            PostQuota = subscription.QuotaPostsPerMonth,
+            PlatformQuota = subscription.QuotaPlatforms,
+            AccountQuota = subscription.QuotaAccounts,
+            AnalysisLevel = subscription.AnalysisLevel,
+            AdBudgetMonthly = subscription.QuotaAdBudgetMonthly,
+            AdCampaignQuota = subscription.QuotaAdCampaigns
         });
     }
 

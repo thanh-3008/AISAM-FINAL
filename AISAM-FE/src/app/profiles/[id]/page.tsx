@@ -91,7 +91,7 @@ export default function ProfileDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
   const initialSection = (searchParams.get("section") as WorkspaceSection) || "overview";
   const [activeSection, setActiveSection] = useState<WorkspaceSection>(
     ["overview", "my-profile", "team", "security", "billing", "subscription"].includes(initialSection) ? initialSection : "overview"
@@ -326,17 +326,6 @@ export default function ProfileDetailPage() {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    setShowDeleteDialog(false);
-    try {
-      await apiFetch(`/workspaces/${id}`, { method: "DELETE" });
-      router.push("/profiles");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Delete failed";
-      setError(message);
     }
   };
 
@@ -1217,72 +1206,22 @@ export default function ProfileDetailPage() {
                       <div className="space-y-6">
                         <motion.div variants={reduceMotion ? undefined : item}>
                           <h2 className="text-2xl font-bold text-on-surface tracking-tight">Edit Workspace</h2>
-                          <p className="text-body-sm text-on-surface-variant mt-1.5">Update your workspace information below</p>
+                          <p className="text-body-sm text-on-surface-variant mt-1.5">Update your workspace name below</p>
                         </motion.div>
 
-                        {/* Profile Summary */}
-                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm flex flex-col sm:flex-row items-center gap-5">
-                          <div className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 shrink-0 border border-primary/10">
-                            {avatarPreview ? (
-                              <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-2xl text-primary/40 font-semibold">{initials}</span>
-                            )}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5 max-w-lg">
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <div className="w-9 h-9 rounded-xl bg-primary/5 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-primary text-[18px]">workspaces</span>
+                            </div>
+                            <h3 className="text-body-lg font-semibold text-on-surface">Workspace</h3>
                           </div>
-                          <div className="text-center sm:text-left min-w-0 flex-1">
-                            <h3 className="text-xl text-on-surface font-bold">{workspace?.name}</h3>
-                            <p className="text-label-sm text-on-surface-variant mt-0.5">{planLabel}</p>
+                          <div className="space-y-1.5">
+                            <label className={labelClass}>Name <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                           </div>
                         </motion.div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5">
-                            <div className="flex items-center gap-2.5 mb-2">
-                              <div className="w-9 h-9 rounded-xl bg-primary/5 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-primary text-[18px]">workspaces</span>
-                              </div>
-                              <h3 className="text-body-lg font-semibold text-on-surface">Workspace</h3>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Name <span className="text-red-500">*</span></label>
-                              <input className={inputClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Workspace Type <span className="text-red-500">*</span></label>
-                              <div className="relative">
-                                <select className={`${inputClass} appearance-none pr-10`} value={form.profileType} onChange={e => setForm(f => ({ ...f, profileType: e.target.value }))}>
-                                  <option value="" disabled>Select workspace type</option>
-                                  {PROFILE_TYPES.map(pt => (
-                                    <option key={pt.value} value={pt.value}>{pt.label}</option>
-                                  ))}
-                                </select>
-                                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-outline">
-                                  <span className="material-symbols-outlined text-[18px]">unfold_more</span>
-                                </span>
-                              </div>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Company</label>
-                              <input className={inputClass} value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))} />
-                            </div>
-                          </motion.div>
-                          <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5">
-                            <div className="flex items-center gap-2.5 mb-2">
-                              <div className="w-9 h-9 rounded-xl bg-secondary/5 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-secondary text-[18px]">info</span>
-                              </div>
-                              <h3 className="text-body-lg font-semibold text-on-surface">Details</h3>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Description</label>
-                              <textarea className={`${inputClass} resize-none min-h-[100px]`} rows={4} value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Avatar URL</label>
-                              <input className={inputClass} placeholder="https://example.com/avatar.png" type="url" value={form.avatarUrl} onChange={e => setForm(f => ({ ...f, avatarUrl: e.target.value }))} />
-                            </div>
-                          </motion.div>
-                        </div>
                         <motion.div variants={reduceMotion ? undefined : item} className="flex justify-end gap-3">
                           <motion.button
                             whileTap={reduceMotion ? undefined : { scale: 0.97 }}
@@ -1389,16 +1328,6 @@ export default function ProfileDetailPage() {
                           </motion.div>
                         </div>
 
-                        <motion.div variants={reduceMotion ? undefined : item} className="flex justify-end">
-                          <motion.button
-                            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                            onClick={() => setShowDeleteDialog(true)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-xl text-body-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">delete</span>
-                            Delete Workspace
-                          </motion.button>
-                        </motion.div>
                       </div>
                     )}
                   </motion.div>
@@ -2889,49 +2818,6 @@ export default function ProfileDetailPage() {
                 )}
               </motion.div>
 
-              {/* Delete Confirmation Dialog */}
-              {showDeleteDialog && (
-                <motion.div
-                  initial={reduceMotion ? undefined : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-                >
-                  <motion.div
-                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.2 }}
-                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-xl p-6 w-full max-w-sm mx-4"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-red-500 text-[22px]">delete</span>
-                      </div>
-                      <div>
-                        <h3 className="text-body-lg text-on-surface font-semibold">Delete Workspace</h3>
-                        <p className="text-body-sm text-on-surface-variant">This action cannot be undone</p>
-                      </div>
-                    </div>
-                    <p className="text-body-sm text-on-surface-variant mb-6">
-                      Are you sure you want to delete <span className="font-semibold text-on-surface">{workspace?.name}</span>? All associated data will be permanently removed.
-                    </p>
-                    <div className="flex justify-end gap-3">
-                      <motion.button
-                        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                        onClick={() => setShowDeleteDialog(false)}
-                        className="px-5 py-2.5 border border-outline-variant/40 text-on-surface rounded-xl font-semibold text-body-sm hover:bg-surface-container transition-colors"
-                      >
-                        Cancel
-                      </motion.button>
-                      <motion.button
-                        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                        onClick={handleDelete}
-                        className="px-5 py-2.5 bg-red-500 text-white rounded-xl font-semibold text-body-sm hover:bg-red-600 transition-all shadow-sm flex items-center gap-2"
-                      >
-                        Delete
-                      </motion.button>
-                      </div>
-                    </motion.div>
-
                     {/* Change Role Modal */}
                     {showRoleModal && selectedMember && (
                       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -3220,8 +3106,6 @@ export default function ProfileDetailPage() {
                         </motion.div>
                       </div>
                     )}
-                  </motion.div>
-                )}
               {showInviteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                   <motion.div

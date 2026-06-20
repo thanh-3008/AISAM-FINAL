@@ -353,7 +353,7 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspaceFeatureEnum.CampaignRecommendation => subscription.Plan is SubscriptionPlanEnum.Premium,
             WorkspaceFeatureEnum.BasicAnalytics => true,
             WorkspaceFeatureEnum.AdvancedAnalytics => subscription.Plan is SubscriptionPlanEnum.Premium,
-            WorkspaceFeatureEnum.WorkspaceDashboard => workspaceType == WorkspaceTypeEnum.Business && (subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium),
+            WorkspaceFeatureEnum.WorkspaceDashboard => subscription.Plan is not SubscriptionPlanEnum.Free,
             _ => false
         };
 
