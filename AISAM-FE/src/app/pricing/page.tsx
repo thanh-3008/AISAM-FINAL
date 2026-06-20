@@ -7,7 +7,7 @@ import { useWorkspaces, addWorkspaceToCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
+import { createPayment, syncPayOSCallback, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { apiFetch } from "@/lib/apiClient";
@@ -61,6 +61,9 @@ function PricingContent() {
     let cancelled = false;
     const synchronizePayment = async () => {
       try {
+        await syncPayOSCallback(searchParams);
+        if (cancelled) return;
+
         const subscription = await getCurrentSubscription();
         const wallet = await fetchCreditWallet();
         if (cancelled) return;

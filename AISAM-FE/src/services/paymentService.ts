@@ -61,7 +61,21 @@ export async function createPayment(data: CreateCheckoutRequest): Promise<Checko
   }
 }
 
-export async function checkPaymentStatus(_orderCode: string): Promise<CheckoutResponse | null> {
-  // No dedicated BE endpoint; rely on PayOS webhook + callback
-  return null;
+export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<boolean> {
+  try {
+    const params = new URLSearchParams();
+    for (const [key, value] of searchParams.entries()) {
+      if (key !== "payment") {
+        params.append(key, value);
+      }
+    }
+    const query = params.toString();
+    const res = await fetch(`/api/payment/callback${query ? "?" + query : ""}`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    return data?.success === true;
+  } catch {
+    return false;
+  }
 }
