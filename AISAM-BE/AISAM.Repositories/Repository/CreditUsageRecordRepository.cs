@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -52,5 +53,40 @@ public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
             Page = request.Page,
             PageSize = request.PageSize
         };
+    }
+
+    public async Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+    {
+        var fromDate = DateTime.UtcNow.Date.AddDays(-days);
+
+        var raw = await _context.CreditUsageRecords
+            .Where(record =>
+                record.WorkspaceId == workspaceId &&
+                record.Status == CreditUsageStatusEnum.Success &&
+                record.Action != CreditActionEnum.SubscriptionGrant &&
+                record.Action != CreditActionEnum.CreditPackGrant &&
+                record.CreatedAt >= fromDate)
+            .GroupBy(record => record.CreatedAt.Date)
+            .Select(group => new
+            {
+                Date = group.Key,
+                TotalCredits = group.Sum(record => record.Credits)
+            })
+            .ToListAsync(cancellationToken);
+
+        var lookup = raw.ToDictionary(r => DateOnly.FromDateTime(r.Date), r => r.TotalCredits);
+
+        var result = new List<DailyCreditUsageDto>();
+        for (var i = days; i >= 0; i--)
+        {
+            var date = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-i));
+            result.Add(new DailyCreditUsageDto
+            {
+                Date = date,
+                TotalCredits = lookup.GetValueOrDefault(date, 0)
+            });
+        }
+
+        return result;
     }
 }
