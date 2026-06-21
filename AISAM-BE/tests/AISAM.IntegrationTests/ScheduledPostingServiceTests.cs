@@ -47,7 +47,7 @@ public class ScheduledPostingServiceTests
             Role = WorkspaceMemberRoleEnum.ContentCreator,
             IsActive = true
         });
-        var service = new ScheduledPostingService(repository, contentService, notificationRepository, profileRepository, membershipRepository);
+        var service = new ScheduledPostingService(repository, contentService, notificationRepository, profileRepository, membershipRepository, new FakeContentRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -77,7 +77,8 @@ public class ScheduledPostingServiceTests
             contentService,
             notificationRepository,
             new FakeProfileRepository(),
-            new FakeWorkspaceMemberRepository());
+            new FakeWorkspaceMemberRepository(),
+            new FakeContentRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -109,7 +110,8 @@ public class ScheduledPostingServiceTests
             contentService,
             notificationRepository,
             new FakeProfileRepository(),
-            new FakeWorkspaceMemberRepository());
+            new FakeWorkspaceMemberRepository(),
+            new FakeContentRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -130,18 +132,19 @@ public class ScheduledPostingServiceTests
         completed.Status = ScheduleStatusEnum.Completed;
         var contentService = new FakeContentService();
         var service = new ScheduledPostingService(
-            new FakeContentCalendarRepository(completed),
+            repository,
             contentService,
-            new FakeNotificationRepository(),
+            notificationRepository,
             new FakeProfileRepository(),
-            new FakeWorkspaceMemberRepository());
+            new FakeWorkspaceMemberRepository(),
+            new FakeContentRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
-        Assert.Equal(0, result.ScannedCount);
+        Assert.Equal(1, result.ScannedCount);
         Assert.Equal(0, result.SuccessCount);
-        Assert.Equal(0, result.FailedCount);
-        Assert.Equal(0, contentService.PublishCallCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
     }
 
     [Fact]
@@ -180,7 +183,8 @@ public class ScheduledPostingServiceTests
             contentService,
             new FakeNotificationRepository(),
             profileRepository,
-            membershipRepository);
+            membershipRepository,
+            new FakeContentRepository());
 
         var result = await service.RunDueSchedulesAsync(20);
 
@@ -242,6 +246,40 @@ public class ScheduledPostingServiceTests
 
             return Task.FromResult(result);
         }
+
+        public Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default)
+        {
+            var due = Schedules.Values
+                .Where(s =>
+                    !s.IsDeleted &&
+                    (s.Status == ScheduleStatusEnum.Pending ||
+                     (s.Status == ScheduleStatusEnum.Failed && s.AttemptCount < maxAttemptCount)) &&
+                    (s.ScheduledAt ?? s.ScheduledDate) <= utcNow)
+                .OrderBy(s => s.ScheduledAt ?? s.ScheduledDate)
+                .Take(limit)
+                .ToList();
+            foreach (var s in due) { s.Status = ScheduleStatusEnum.Processing; }
+            IReadOnlyList<ContentCalendar> result = due;
+            return Task.FromResult(result);
+        }
+
+        public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Schedules.Values.Any(s => s.ContentId == contentId && !s.IsDeleted && (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing)));
+
+        public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<PagedResult<ContentCalendar>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+            => GetPagedByProfileIdAsync(workspaceId, request, cancellationToken);
+
+        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByWorkspaceIdAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default)
+            => GetUpcomingByProfileIdAsync(workspaceId, limit, cancellationToken);
+
+        public Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default)
+            => CountUpcomingByProfileIdAsync(workspaceId, utcNow, cancellationToken);
+
+        public Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => CountFailedByProfileIdAsync(workspaceId, cancellationToken);
 
         public Task UpdateAsync(ContentCalendar schedule, CancellationToken cancellationToken = default)
         {
@@ -344,5 +382,15 @@ public class ScheduledPostingServiceTests
             Notifications[notification.Id] = notification;
             return Task.FromResult(notification);
         }
+    }
+
+    private sealed class FakeContentRepository : IContentRepository
+    {
+        public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
+        public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Content>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Content content, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default) => Task.FromResult(content);
     }
 }
