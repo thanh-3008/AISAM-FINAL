@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
+import { fetchCampaigns } from "@/services/campaignService";
 
 export type DateRange = "7d" | "30d" | "90d" | "custom";
 export type ChartView = "daily" | "weekly";
@@ -121,6 +122,22 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
   const totalContent = (dashboard?.draftContentCount || 0) + (dashboard?.publishedContentCount || 0);
   const conversionRate = totalContent > 0 ? ((dashboard?.publishedContentCount || 0) / totalContent) * 100 : 0;
 
+  let campaignPerformance: CampaignPerformance[] = [];
+  try {
+    const res = await fetchCampaigns({ pageSize: 50 });
+    campaignPerformance = res.data.map((c) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status === "ACTIVE" ? "active" : c.status === "PAUSED" ? "paused" : "completed",
+      reach: c.impressions,
+      clicks: c.clicks,
+      ctr: c.impressions > 0 ? Math.round((c.clicks / c.impressions) * 10000) / 100 : 0,
+      roas: c.spend > 0 ? Math.round((c.conversions * 10 / c.spend) * 10) / 10 : 0,
+      spend: c.spend,
+      conversions: c.conversions,
+    }));
+  } catch { /* ignore */ }
+
   return {
     kpi: {
       totalAdSpend: wsDashboard?.creditsUsed || 0,
@@ -133,7 +150,7 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
       roasTrend: 0,
     },
     chartData: generateDailyChartData(30),
-    campaignPerformance: [],
+    campaignPerformance,
     aiInsights: dashboard
       ? [
           {
