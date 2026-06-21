@@ -63,6 +63,14 @@ export interface CurrentSubscription {
   status: string;
   startDate: string;
   endDate: string | null;
+  promptQuota: number;
+  imageQuota: number;
+  postQuota: number;
+  platformQuota: number;
+  accountQuota: number;
+  analysisLevel: number;
+  adBudgetMonthly: number;
+  adCampaignQuota: number;
 }
 
 export async function getCurrentSubscription(): Promise<CurrentSubscription | null> {

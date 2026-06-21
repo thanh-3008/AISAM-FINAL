@@ -3,19 +3,19 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { createContent, generateAIDraft, chatWithAI, type CreateContentPayload } from "@/services/contentService";
+import { createContent, generateAIDraft, chatWithAI, getConversationMessages, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { fetchCreditWallet, deductCredits } from "@/services/workspaceService";
-import { CREDIT_COST } from "@/lib/featureConfig";
+import { fetchCreditWallet } from "@/services/workspaceService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
+  canApply?: boolean;
 }
 
 interface Variation {
@@ -55,25 +55,6 @@ export default function AIGeneratePage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
 
-  const getCreditCostForPrompt = (prompt: string): number => {
-    const lower = prompt.toLowerCase();
-    if (lower.includes("video") || lower.includes("generate video")) return CREDIT_COST.generateVideo;
-    if (lower.includes("image") || lower.includes("generate image")) return CREDIT_COST.generateImage;
-    if (lower.includes("trend") || lower.includes("trend analysis")) return CREDIT_COST.trendContent;
-    if (lower.includes("campaign") || lower.includes("recommend")) return CREDIT_COST.campaignRecommendation;
-    if (lower.includes("longer") || lower.includes("expand") || lower.includes("refine") || lower.includes("rewrite")) return CREDIT_COST.refine;
-    return CREDIT_COST.generateText;
-  };
-
-  const handleDeductCredits = async (prompt: string) => {
-    const cost = getCreditCostForPrompt(prompt);
-    const result = await deductCredits({ feature: "generateText", credits: cost });
-    if (result) {
-      setCreditBalance(result.balance);
-    }
-    return cost;
-  };
-
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
   const [productList, setProductList] = useState<{ id: string; name: string; brandId: string }[]>([]);
   const [brandId, setBrandId] = useState("");
@@ -85,6 +66,7 @@ export default function AIGeneratePage() {
 
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const [variations, setVariations] = useState<Variation[]>([]);
@@ -115,6 +97,9 @@ export default function AIGeneratePage() {
   const brandName = selectedBrand?.name || "";
   const selectedProduct = productList.find(p => p.id === productId);
   const productName = selectedProduct?.name || "";
+  const conversationStorageKey = activeWorkspace?.id && brandId
+    ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}`
+    : null;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -123,6 +108,32 @@ export default function AIGeneratePage() {
   useEffect(() => {
     fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    setConversationId(null);
+    setVariations([]);
+    setMessages([]);
+    setSelectedVariation(null);
+    setGeneratedId(null);
+    setJustGenerated(false);
+    if (!conversationStorageKey) return;
+
+    let cancelled = false;
+    const savedId = sessionStorage.getItem(conversationStorageKey);
+    if (!savedId) return;
+    setConversationId(savedId);
+    getConversationMessages(savedId).then(msgs => {
+      if (!cancelled && msgs) {
+        setMessages(msgs.map((message, index) => ({
+          id: `history-${index}`,
+          role: message.senderType === 0 ? "user" : "assistant",
+          text: message.message,
+          canApply: false,
+        })));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [conversationStorageKey]);
 
   const simulateAIResponse = async (userPrompt: string) => {
     if (creditBalance !== null && creditBalance <= 0) {
@@ -133,92 +144,41 @@ export default function AIGeneratePage() {
     setInsufficientCredits(false);
     setIsGenerating(true);
 
-    const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, undefined, messages.map(m => ({ role: m.role, text: m.text })));
+    const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, conversationId || undefined, messages.map(m => ({ role: m.role, text: m.text })));
     if (aiReply) {
+      setConversationId(aiReply.conversationId);
+      if (conversationStorageKey) sessionStorage.setItem(conversationStorageKey, aiReply.conversationId);
+
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
-      const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiReply };
+      const aiMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        role: "assistant",
+        text: aiReply.text,
+        canApply: aiReply.shouldCreateContent,
+      };
       setMessages((prev) => [...prev, aiMsg]);
 
       const variation: Variation = {
         id: `v-${Date.now()}`,
         prompt: userPrompt,
-        result: aiReply,
+        result: aiReply.text,
       };
-      setVariations((prev) => [variation, ...prev]);
+      if (aiReply.shouldCreateContent) {
+        setVariations((prev) => [variation, ...prev]);
+      }
 
-      await handleDeductCredits(userPrompt);
-      addToast(`Credits deducted for AI generation.`);
+      fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
 
       setIsGenerating(false);
 
-      autoSavePost(`AI Generated — ${brandName}`, aiReply, generatedHashtags, variation.id);
+      if (aiReply.shouldCreateContent) {
+        autoSavePost(`AI Generated — ${brandName}`, aiReply.text, generatedHashtags, variation.id);
+      }
       return;
     }
 
-    setTimeout(async () => {
-      let aiText = "";
-      let aiTitle = "";
-      const lower = userPrompt.toLowerCase();
-
-      if (lower.includes("longer") || lower.includes("expand") || lower.includes("detailed")) {
-        aiTitle = `Discover the ${brandName} Difference`;
-        aiText = "Introducing our latest innovation — a product designed to transform the way you experience everyday moments. " +
-          "Built with precision engineering and a deep understanding of modern needs, this solution combines cutting-edge technology with timeless design. " +
-          "Every detail has been carefully considered to deliver exceptional performance, lasting durability, and unmatched user satisfaction. " +
-          "Whether you're a seasoned professional or a first-time user, you'll appreciate the thoughtful features that make every interaction intuitive and rewarding.";
-      } else if (lower.includes("formal") || lower.includes("professional")) {
-        aiTitle = `Introducing ${productName || brandName}`;
-        aiText = "We are pleased to present our newest offering, which has been meticulously developed to address the evolving requirements of our esteemed clientele. " +
-          "This solution reflects our unwavering commitment to excellence, quality, and innovation. We invite you to explore its capabilities and experience the difference.";
-      } else if (lower.includes("casual") || lower.includes("conversational")) {
-        aiTitle = `${productName || "Check this out"} — You'll Love It!`;
-        aiText = "Hey there! We've got something awesome we think you'll absolutely love. It's the kind of thing that makes your day just a little bit better. " +
-          "Go ahead, give it a try — we promise you won't be disappointed. Your friends will thank you!";
-      } else if (lower.includes("hashtag") || lower.includes("tag")) {
-        aiTitle = `Boost Your Reach with ${brandName}`;
-        aiText = "Here are some relevant hashtags to maximize your content visibility:\n\n" +
-          (AUTO_HASHTAGS[brandName] || []).map((h) => "#" + h).join(" ") + "\n\n" +
-          "Use these to reach the right audience and grow your engagement!";
-      } else if (lower.includes("bullet") || lower.includes("point")) {
-        aiTitle = `${productName || brandName} — Key Features`;
-        aiText = "Here's your content in bullet points:\n\n" +
-          "• High-quality design built to last\n" +
-          "• Intuitive and user-friendly interface\n" +
-          "• Exceptional value for money\n" +
-          "• Versatile for any use case\n" +
-          "• Backed by industry-leading support";
-      } else if (lower.includes("emoji") || lower.includes("emojis")) {
-        aiTitle = `${productName || "Our Latest"} is Here! 🚀`;
-        aiText = "Introducing our latest product! 🚀✨\n\n" +
-          "Get ready to experience innovation like never before. 💡🔥\n\n" +
-          "Built for those who demand the best. 💪🏆\n\n" +
-          "Try it today and see the difference! 🎯✅";
-      } else {
-        aiTitle = `Introducing ${productName || "Our Latest Innovation"}`;
-        aiText = `Great prompt! Based on your request, here's optimized content for ${brandName}'s ${productName || "product"}:\n\n` +
-          `Experience the next generation of innovation with ${brandName}. Our ${productName || "latest solution"} is designed to exceed expectations — combining style, performance, and reliability in one seamless package. ` +
-          `Perfect for modern lifestyles, it's the smart choice for those who refuse to compromise.`;
-      }
-
-      const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
-
-      const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiText };
-      setMessages((prev) => [...prev, aiMsg]);
-
-      const variation: Variation = {
-        id: `v-${Date.now()}`,
-        prompt: userPrompt,
-        result: aiText,
-      };
-      setVariations((prev) => [variation, ...prev]);
-
-      await handleDeductCredits(userPrompt);
-      addToast(`Credits deducted for AI generation.`);
-
-      setIsGenerating(false);
-
-      autoSavePost(aiTitle, aiText, generatedHashtags, variation.id);
-    }, 2000);
+    setIsGenerating(false);
+    addToast("AI service request failed. Your credit balance was not the cause; restart/check the backend and Gemini connection, then try again.");
   };
 
   const autoSavePost = async (postTitle: string, postContent: string, postHashtags: string[], varId: string) => {
@@ -563,7 +523,7 @@ export default function AIGeneratePage() {
                         ? "bg-primary/10 text-on-surface"
                         : "bg-surface-container text-on-surface"
                     }`}>
-                      {msg.role === "assistant" && (
+                      {msg.role === "assistant" && msg.canApply && (
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="material-symbols-outlined text-[12px] text-primary">auto_awesome</span>
                           <span className="text-label-2xs font-semibold text-primary uppercase tracking-wider">AI</span>

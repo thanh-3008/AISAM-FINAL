@@ -7,7 +7,7 @@ import { useWorkspaces, addWorkspaceToCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
+import { createPayment, syncPayOSCallback, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { apiFetch } from "@/lib/apiClient";
@@ -36,6 +36,7 @@ function PricingContent() {
   const [yearly, setYearly] = useState(false);
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [processing, setProcessing] = useState<number | null>(null);
+  const [syncingPayment, setSyncingPayment] = useState(false);
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
@@ -47,17 +48,31 @@ function PricingContent() {
   const [qrData, setQrData] = useState<{ checkoutUrl: string; amount: number; description: string } | null>(null);
   const [qrStatus, setQrStatus] = useState<"pending" | "completed" | "failed">("pending");
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
     fetchCreditWallet().then(w => setCreditWallet(w));
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
-    if (searchParams.get("payment") !== "success" || !activeWorkspace?.id) return;
+    const isPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id");
+    if (!isPayOSRedirect || !activeWorkspace?.id) return;
 
+    setSyncingPayment(true);
     let cancelled = false;
     const synchronizePayment = async () => {
       try {
+        const success = await syncPayOSCallback(searchParams);
+        if (cancelled) return;
+
+        if (!success) {
+          showToast({ type: "error", title: "Payment sync failed", message: "Payment was received but could not be synchronized. Please contact support." });
+          router.replace("/pricing");
+          return;
+        }
+
         const subscription = await getCurrentSubscription();
         const wallet = await fetchCreditWallet();
         if (cancelled) return;
@@ -78,6 +93,8 @@ function PricingContent() {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : "Payment was received, but subscription refresh failed.";
         showToast({ type: "error", title: "Subscription refresh failed", message });
+      } finally {
+        if (!cancelled) setSyncingPayment(false);
       }
     };
 
@@ -166,8 +183,8 @@ function PricingContent() {
       const payment = await createPayment({
         paymentType: 1,
         planCode,
-        returnUrl: window.location.origin + "/pricing?payment=success",
-        cancelUrl: window.location.origin + "/pricing?payment=cancelled",
+        returnUrl: window.location.origin + "/pricing",
+        cancelUrl: window.location.origin + "/pricing",
       });
 
       if (payment?.checkoutUrl) {
@@ -191,8 +208,8 @@ function PricingContent() {
       const payment = await createPayment({
         paymentType: 2,
         creditPackCode,
-        returnUrl: window.location.origin + "/pricing?payment=success",
-        cancelUrl: window.location.origin + "/pricing?payment=cancelled",
+        returnUrl: window.location.origin + "/pricing",
+        cancelUrl: window.location.origin + "/pricing",
       });
 
       if (payment?.checkoutUrl) {
@@ -227,6 +244,18 @@ function PricingContent() {
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/[0.03] rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
       </div>
 
+      {syncingPayment && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <svg className="w-8 h-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-body-sm text-on-surface-variant">Processing payment...</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 px-6 md:px-8 lg:px-12 max-w-6xl mx-auto w-full py-12 md:py-16 relative z-10">
         {/* Top bar - back to dashboard */}
         <div className="flex items-center justify-between mb-10">
@@ -235,7 +264,7 @@ function PricingContent() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container/50 transition-all bg-surface-container-lowest/60 border border-outline-variant/20"
           >
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            Back to {activeWorkspace ? "Dashboard" : "Overview"}
+            Back to {isClient && activeWorkspace ? "Dashboard" : "Overview"}
           </button>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-sm shadow-primary/20">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
@@ -36,6 +36,13 @@ export default function ProfilesListPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const reduceMotion = useReducedMotion();
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("orderCode") || params.has("id")) {
+      router.replace(`/pricing?${params.toString()}`);
+    }
+  }, [router]);
+
   const filtered = useMemo(() => {
     let list = workspaces;
     if (search.trim()) {
@@ -55,9 +62,9 @@ export default function ProfilesListPage() {
   const stats = useMemo(() => ({
     total: workspaces.length,
     active: workspaces.filter(w => w.status === 1).length,
-    free: workspaces.filter(w => w.workspaceType === 0).length,
-    basic: workspaces.filter(w => w.workspaceType === 1).length,
-    pro: workspaces.filter(w => w.workspaceType === 2).length,
+    pending: workspaces.filter(w => w.status === 0).length,
+    personal: workspaces.filter(w => w.workspaceType === 1).length,
+    business: workspaces.filter(w => w.workspaceType === 2).length,
   }), [workspaces]);
 
   const handleSelect = (workspace: WorkspaceData) => {
@@ -104,9 +111,9 @@ export default function ProfilesListPage() {
                 {[
                   { label: "Total", value: stats.total, color: "text-primary", bg: "bg-primary/5", bar: "bg-primary" },
                   { label: "Active", value: stats.active, color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-emerald-500" },
-                  { label: "Free", value: stats.free, color: "text-outline", bg: "bg-surface-container/50", bar: "bg-outline" },
-                  { label: "Basic", value: stats.basic, color: "text-secondary", bg: "bg-secondary/5", bar: "bg-secondary" },
-                  { label: "Pro", value: stats.pro, color: "text-amber-600", bg: "bg-amber-50", bar: "bg-amber-500" },
+                  { label: "Pending", value: stats.pending, color: "text-amber-600", bg: "bg-amber-50", bar: "bg-amber-500" },
+                  { label: "Personal", value: stats.personal, color: "text-secondary", bg: "bg-secondary/5", bar: "bg-secondary" },
+                  { label: "Business", value: stats.business, color: "text-blue-600", bg: "bg-blue-50", bar: "bg-blue-500" },
                 ].map((s) => (
                   <motion.div
                     key={s.label}

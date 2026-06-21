@@ -220,7 +220,7 @@ public class AIServiceTests
             new FakeGeminiTextClient("AI response"),
             conversations);
 
-        var result = await service.ChatInWorkspaceAsync(profileId, Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, profileId, Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.True(result.Success);
         Assert.Equal("AI response", result.Data!.Response);
@@ -239,8 +239,102 @@ public class AIServiceTests
     }
 
     [Fact]
-    public async Task ChatAsync_DoesNotConsumeWorkspaceCredits()
+    public async Task ChatAsync_DoesNotCreateContent_ForConversationalResponse()
     {
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("{\"intent\":\"chat\",\"response\":\"Chao ban, minh co the noi tieng Viet.\"}"));
+
+        var result = await service.ChatInWorkspaceAsync(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new ChatRequest { Message = "Xin chao, noi tieng Viet duoc khong?" });
+
+        Assert.True(result.Success);
+        Assert.False(result.Data!.ShouldCreateContent);
+        Assert.Equal("Chao ban, minh co the noi tieng Viet.", result.Data.Response);
+    }
+
+    [Fact]
+    public async Task ChatAsync_MarksReadyPostAsContent_ForGenerationResponse()
+    {
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("{\"intent\":\"content\",\"response\":\"Bai quang cao san sang dang.\"}"));
+
+        var result = await service.ChatInWorkspaceAsync(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new ChatRequest { Message = "Viet cho toi mot bai quang cao." });
+
+        Assert.True(result.Success);
+        Assert.True(result.Data!.ShouldCreateContent);
+        Assert.Equal("Bai quang cao san sang dang.", result.Data.Response);
+    }
+
+    [Fact]
+    public async Task ChatAsync_IncludesSelectedBrandAndProductDetailsInPrompt()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = new Brand
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            Name = "Ao Nha",
+            Description = "Thoi trang gia dinh",
+            Slogan = "Mac dep moi ngay",
+            Usp = "Vai mem ben",
+            TargetAudience = "Gia dinh co con nho"
+        };
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            BrandId = brand.Id,
+            Brand = brand,
+            Name = "Ao tre em",
+            Description = "Cotton mem",
+            Price = 199000,
+            Stock = 25
+        };
+        var gemini = new FakeGeminiTextClient("{\"intent\":\"chat\",\"response\":\"Da hieu san pham.\"}");
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(brand),
+            gemini,
+            productRepository: new FakeProductRepository(product));
+
+        var result = await service.ChatInWorkspaceAsync(profileId, workspaceId, Guid.NewGuid(), new ChatRequest
+        {
+            BrandId = brand.Id,
+            ProductId = product.Id,
+            Message = "Hay xem thong tin san pham hien tai."
+        });
+
+        Assert.True(result.Success);
+        Assert.Contains("Ao Nha", gemini.LastPrompt);
+        Assert.Contains("Thoi trang gia dinh", gemini.LastPrompt);
+        Assert.Contains("Vai mem ben", gemini.LastPrompt);
+        Assert.Contains("Gia dinh co con nho", gemini.LastPrompt);
+        Assert.Contains("Ao tre em", gemini.LastPrompt);
+        Assert.Contains("Cotton mem", gemini.LastPrompt);
+        Assert.Contains("199000", gemini.LastPrompt);
+        Assert.Contains("25", gemini.LastPrompt);
+    }
+
+    [Fact]
+    public async Task ChatAsync_ConsumesOneWorkspaceCredit_AfterGeminiSucceeds()
+    {
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
@@ -249,29 +343,63 @@ public class AIServiceTests
             new FakeGeminiTextClient("AI response"),
             creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), workspaceId, userId, new ChatRequest { Message = "User message" });
 
         Assert.True(result.Success);
-        Assert.Equal(0, credits.ConsumeCallCount);
+        Assert.Equal(1, credits.ConsumeCallCount);
+        Assert.Equal(workspaceId, credits.LastWorkspaceId);
+        Assert.Equal(userId, credits.LastUserId);
+        Assert.Equal(CreditActionEnum.GenerateText, credits.LastAction);
+        Assert.Equal(1, credits.LastCredits);
+    }
+
+    [Fact]
+    public async Task ChatAsync_ReturnsCreditError_WhenCreditDeductionFails()
+    {
+        var workspaceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var credits = new FakeCreditService
+        {
+            ConsumeResult = GenericResponse<CreditUsageRecord>.CreateError(
+                "Workspace does not have enough credits.",
+                HttpStatusCode.BadRequest,
+                "INSUFFICIENT_WORKSPACE_CREDITS")
+        };
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("AI response"),
+            creditService: credits);
+
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), workspaceId, userId, new ChatRequest { Message = "User message" });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("INSUFFICIENT_WORKSPACE_CREDITS", result.Error?.ErrorCode);
+        Assert.Equal(1, credits.ConsumeCallCount);
     }
 
     [Fact]
     public async Task ChatAsync_ReturnsClearErrorAndStoresAiErrorMessage_WhenGeminiFails()
     {
         var conversations = new FakeConversationRepository();
+        var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
             new FakeBrandRepository(),
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")),
-            conversations);
+            conversations,
+            creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.StatusCode);
         Assert.Contains("AI chat is temporarily unavailable.", result.Message);
         Assert.Equal("AI chat is temporarily unavailable.", conversations.Messages.Last().Message);
+        Assert.Equal(0, credits.ConsumeCallCount);
     }
 
     [Fact]
@@ -325,10 +453,14 @@ public class AIServiceTests
     {
         private readonly string? _response;
         private readonly Exception? _exception;
+        public string LastPrompt { get; private set; } = string.Empty;
         public FakeGeminiTextClient(string response) => _response = response;
         public FakeGeminiTextClient(Exception exception) => _exception = exception;
-        public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default) =>
-            _exception != null ? Task.FromException<string>(_exception) : Task.FromResult(_response!);
+        public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+        {
+            LastPrompt = prompt;
+            return _exception != null ? Task.FromException<string>(_exception) : Task.FromResult(_response!);
+        }
     }
 
     private sealed class FakeAiGenerationRepository : IAiGenerationRepository

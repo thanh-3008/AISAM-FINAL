@@ -6,6 +6,7 @@ using AISAM.Services.IServices;
 using AISAM.API.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 using System.Security.Claims;
 
 namespace AISAM.API.Controllers
@@ -56,7 +57,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting brands");
-                return StatusCode(500, GenericResponse<PagedResult<BrandResponseDto>>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<PagedResult<BrandResponseDto>>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -76,7 +77,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting brand {BrandId}", id);
-                return StatusCode(500, GenericResponse<BrandResponseDto>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<BrandResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -101,7 +102,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating brand");
-                return StatusCode(500, GenericResponse<BrandResponseDto>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<BrandResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -121,7 +122,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating brand {BrandId}", id);
-                return StatusCode(500, GenericResponse<BrandResponseDto>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<BrandResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -141,7 +142,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting brand {BrandId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -161,7 +162,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error restoring brand {BrandId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 

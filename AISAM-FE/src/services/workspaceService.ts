@@ -14,6 +14,12 @@ export interface CreditWallet {
   workspaceId: string;
   balance: number;
   maxBalance: number;
+  creditsUsed: number;
+  publishedPostCount: number;
+  postQuotaLimit: number;
+  postsRemaining: number;
+  aiUsageCount: number;
+  activeMemberCount: number;
   subscriptionEndDate?: string;
   subscriptionStatus?: string;
 }
@@ -71,13 +77,20 @@ export async function fetchCreditWallet(): Promise<{
   workspaceId: string;
   balance: number;
   maxBalance: number;
+  creditsUsed: number;
+  publishedPostCount: number;
+  postQuotaLimit: number;
+  postsRemaining: number;
+  aiUsageCount: number;
+  activeMemberCount: number;
   subscriptionEndDate?: string;
   subscriptionStatus?: string;
 } | null> {
   try {
-    const [subRes, dashRes] = await Promise.allSettled([
+    const [subRes, dashRes, walletRes] = await Promise.allSettled([
       apiClient("/payment/subscription/current"),
       apiClient("/workspace-dashboard/summary"),
+      apiClient("/credit-usage/wallet"),
     ]);
 
     const sub = subRes.status === "fulfilled" ? subRes.value?.data as {
@@ -89,19 +102,39 @@ export async function fetchCreditWallet(): Promise<{
     } | undefined : undefined;
 
     const dash = dashRes.status === "fulfilled" ? dashRes.value?.data as {
+      workspaceId?: string;
       creditBalance?: number;
+      creditsUsed?: number;
+      publishedPostCount?: number;
+      postQuotaLimit?: number;
+      postsRemaining?: number;
+      aiUsageCount?: number;
+      activeMemberCount?: number;
+    } | undefined : undefined;
+
+    const wallet = walletRes.status === "fulfilled" ? walletRes.value?.data as {
+      balance?: number;
       workspaceId?: string;
     } | undefined : undefined;
 
+    const balance = dash?.creditBalance ?? wallet?.balance ?? 0;
+
     return {
       id: sub?.subscriptionId || "",
-      workspaceId: dash?.workspaceId || "",
-      balance: dash?.creditBalance ?? 0,
-      maxBalance: 15000,
+      workspaceId: dash?.workspaceId || wallet?.workspaceId || "",
+      balance,
+      maxBalance: (dash?.creditBalance ?? wallet?.balance ?? 0) + (dash?.creditsUsed ?? 0),
+      creditsUsed: dash?.creditsUsed ?? 0,
+      publishedPostCount: dash?.publishedPostCount ?? 0,
+      postQuotaLimit: dash?.postQuotaLimit ?? 0,
+      postsRemaining: dash?.postsRemaining ?? 0,
+      aiUsageCount: dash?.aiUsageCount ?? 0,
+      activeMemberCount: dash?.activeMemberCount ?? 0,
       subscriptionEndDate: sub?.endDate,
       subscriptionStatus: sub?.status,
     };
-  } catch {
+  } catch (err) {
+    console.error("[fetchCreditWallet] error:", err);
     return null;
   }
 }
@@ -145,16 +178,29 @@ export interface DeductCreditsRequest {
 }
 
 export async function deductCredits(_data: DeductCreditsRequest): Promise<{ balance: number } | null> {
-  // No BE endpoint — returns null
+  // Credits are now deducted server-side via ConsumeCreditsAsync
   return null;
 }
 
 export async function fetchCreditUsageHistory(
-  _page = 1,
-  _pageSize = 10
+  page = 1,
+  pageSize = 10
 ): Promise<CreditUsageHistoryResponse | null> {
-  // No BE endpoint — returns null
-  return null;
+  try {
+    const res: GenericResponse<CreditUsageHistoryResponse & { data: CreditUsageRecord[] }> = await apiClient(`/credit-usage?page=${page}&pageSize=${pageSize}`);
+    if (res?.success && res.data) {
+      return {
+        data: res.data.data || [],
+        totalCount: res.data.totalCount || 0,
+        page: res.data.page || page,
+        pageSize: res.data.pageSize || pageSize,
+        totalPages: res.data.totalPages || 0,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // Workspace Members

@@ -328,7 +328,9 @@ public sealed class CreditService : ICreditService
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => 50,
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 500,
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 2_000,
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => 100,
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 15_000,
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => 1_000,
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 50_000,
             _ => 0
         };
@@ -452,14 +454,20 @@ public sealed class CreditService : ICreditService
             member.IsActive && member.Role == WorkspaceMemberRoleEnum.Owner)
             ?? throw new InvalidOperationException("Active workspace owner not found while refreshing free credits.");
 
-        wallet.Balance = 50;
-        await _creditWalletRepository.UpdateAsync(wallet, cancellationToken);
+        long creditsGranted = 0;
+        if (wallet.Balance < 50)
+        {
+            creditsGranted = 50 - wallet.Balance;
+            wallet.Balance = 50;
+            await _creditWalletRepository.UpdateAsync(wallet, cancellationToken);
+        }
+
         await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
         {
             WorkspaceId = workspaceId,
             UserId = owner.UserId,
             Action = CreditActionEnum.SubscriptionGrant,
-            Credits = 50,
+            Credits = creditsGranted,
             Status = CreditUsageStatusEnum.Success,
             CreatedAt = utcDate
         }, cancellationToken);

@@ -105,7 +105,10 @@ export default function BrandDetailPage() {
               setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
               return;
             }
-          } catch { /* ignore */ }
+          } catch (e: any) {
+            setError(e?.message || "Failed to load brand");
+            return;
+          }
           setError("Brand not found");
         })(),
         (async () => {
@@ -315,7 +318,7 @@ export default function BrandDetailPage() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
           {[
             { icon: "inventory_2", iconBg: "bg-gradient-to-br from-primary/20 to-primary/5", iconColor: "text-primary", label: "Total Products", value: products.length },
-            { icon: "auto_awesome_motion", iconBg: "bg-gradient-to-br from-secondary/20 to-secondary/5", iconColor: "text-secondary", label: "Generated Content", value: 0 },
+            { icon: "auto_awesome_motion", iconBg: "bg-gradient-to-br from-secondary/20 to-secondary/5", iconColor: "text-secondary", label: "Generated Content", value: safeBrand.contentsCount },
             { icon: "trending_up", iconBg: "bg-gradient-to-br from-tertiary/20 to-tertiary/5", iconColor: "text-tertiary", label: "Total Reach", value: "--" },
             { icon: "favorite", iconBg: "bg-gradient-to-br from-surface/20 to-surface/5", iconColor: "text-on-surface", label: "Engagement Rate", value: "--" },
           ].map((s, i) => (

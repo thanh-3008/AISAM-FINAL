@@ -27,6 +27,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IProfileRepository _profileRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly ICreditWalletRepository _creditWalletRepository;
     private readonly ICreditService _creditService;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
@@ -37,6 +38,7 @@ public sealed class PayOSPaymentService : IPaymentService
         ISubscriptionRepository subscriptionRepository,
         IProfileRepository profileRepository,
         IWorkspaceRepository workspaceRepository,
+        ICreditWalletRepository creditWalletRepository,
         ICreditService creditService,
         IOptions<PayOSSettings> settings,
         HttpClient httpClient,
@@ -46,6 +48,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _subscriptionRepository = subscriptionRepository;
         _profileRepository = profileRepository;
         _workspaceRepository = workspaceRepository;
+        _creditWalletRepository = creditWalletRepository;
         _creditService = creditService;
         _settings = settings.Value;
         _httpClient = httpClient;
@@ -402,7 +405,15 @@ public sealed class PayOSPaymentService : IPaymentService
             PlanName = subscription.Plan.ToString(),
             Status = subscription.IsActive ? "Active" : "Inactive",
             StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate
+            EndDate = subscription.EndDate,
+            PromptQuota = subscription.QuotaAIContentPerDay,
+            ImageQuota = subscription.QuotaAIImagesPerDay,
+            PostQuota = subscription.QuotaPostsPerMonth,
+            PlatformQuota = subscription.QuotaPlatforms,
+            AccountQuota = subscription.QuotaAccounts,
+            AnalysisLevel = subscription.AnalysisLevel,
+            AdBudgetMonthly = subscription.QuotaAdBudgetMonthly,
+            AdCampaignQuota = subscription.QuotaAdCampaigns
         });
     }
 
@@ -497,18 +508,34 @@ public sealed class PayOSPaymentService : IPaymentService
                 var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value, cancellationToken);
                 if (subscription != null)
                 {
+                    var today = DateTime.UtcNow.Date;
+                    var workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId, cancellationToken);
+
                     if (subscription.IsActive)
                     {
+                        if (workspace != null)
+                        {
+                            var wallet = await _creditWalletRepository.GetByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
+                            var planCredits = ResolvePlanCreditAmount(workspace.WorkspaceType, subscription.Plan);
+                            if (wallet == null || wallet.Balance < planCredits)
+                            {
+                                await _creditService.GrantSubscriptionCreditsAsync(
+                                    workspace.Id,
+                                    payment.UserId,
+                                    workspace.WorkspaceType,
+                                    subscription.Plan,
+                                    cancellationToken);
+                            }
+                        }
                         await _paymentRepository.UpdateAsync(payment, cancellationToken);
                         return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
                     }
 
-                    var today = DateTime.UtcNow.Date;
                     var currentSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
                     var renewalBaseDate = currentSubscription?.EndDate is { } currentEndDate && currentEndDate > today
                         ? currentEndDate
                         : today;
-                    var workspace = await _workspaceRepository.GetByIdAsync(subscription.WorkspaceId, cancellationToken);
+
                     if (workspace != null)
                     {
                         var creditGrant = await _creditService.GrantSubscriptionCreditsAsync(
@@ -628,8 +655,9 @@ public sealed class PayOSPaymentService : IPaymentService
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(499_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(999_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 1_000, 10, 3, 1, 1, 1, 0m, 1),
             _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
         };
     }
@@ -658,6 +686,21 @@ public sealed class PayOSPaymentService : IPaymentService
             SubscriptionPlanEnum.Premium => 50,
             SubscriptionPlanEnum.Plus => 10,
             _ => 1
+        };
+    }
+
+    private static long ResolvePlanCreditAmount(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
+    {
+        return (workspaceType, plan) switch
+        {
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => 50,
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 500,
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 2_000,
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => 100,
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 15_000,
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => 1_000,
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 50_000,
+            _ => 0
         };
     }
 

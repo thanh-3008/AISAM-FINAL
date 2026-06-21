@@ -36,6 +36,7 @@ declare global {
 }
 
 let scriptPromise: Promise<void> | null = null;
+let initialized = false;
 
 export function loadGoogleIdentityScript(): Promise<void> {
   if (typeof window === "undefined") {
@@ -96,6 +97,9 @@ export async function initializeGoogleIdentity(
     });
   }
 
+  if (initialized) return;
+
+  initialized = true;
   window.google.accounts.id.initialize({
     client_id: clientId,
     callback: (response) => {

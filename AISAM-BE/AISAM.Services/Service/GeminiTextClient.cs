@@ -42,7 +42,8 @@ public sealed class GeminiTextClient : IGeminiTextClient
         var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}.");
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}: {ExtractErrorMessage(errorBody)}");
         }
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -59,5 +60,24 @@ public sealed class GeminiTextClient : IGeminiTextClient
         }
 
         return text.Trim();
+    }
+
+    private static string ExtractErrorMessage(string responseBody)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            if (document.RootElement.TryGetProperty("error", out var error) &&
+                error.TryGetProperty("message", out var message))
+            {
+                return message.GetString() ?? "Unknown provider error.";
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to a safe generic message.
+        }
+
+        return "Unknown provider error.";
     }
 }

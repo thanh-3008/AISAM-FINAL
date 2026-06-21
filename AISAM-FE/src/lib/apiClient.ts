@@ -2,7 +2,7 @@ import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureVa
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { getStoredActiveProfile } from "@/stores/profile-store";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
 type ApiOptions = RequestInit & {
   data?: any;
