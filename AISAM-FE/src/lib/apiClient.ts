@@ -30,16 +30,16 @@ async function buildHeaders(customHeaders?: Record<string, string>) {
 }
 
 const ERROR_MAP: Record<string, string> = {
-  "Missing or invalid X-Workspace-Id header.": "Chưa chọn Workspace. Vào Overview để chọn workspace.",
-  "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile cho tính năng này.",
-  "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
-  "Profile does not belong to active workspace.": "Profile không thuộc workspace đang chọn.",
+  "Missing or invalid X-Workspace-Id header.": "Please select a Workspace first (go to Overview).",
+  "Missing or invalid X-Profile-Id header.": "Please select a Profile for this feature.",
+  "You are not a member of this workspace.": "You are not a member of this workspace.",
+  "Profile does not belong to active workspace.": "Profile does not belong to the active workspace.",
 };
 
 async function handleResponse(response: Response) {
   const result = await response.json().catch(() => null);
   if (!response.ok) {
-    const errorMessage = result?.message || response.statusText || "Đã có lỗi xảy ra";
+    const errorMessage = result?.message || response.statusText || "An error occurred";
     if (errorMessage === "Authentication is required.") {
       removeToken();
       removeRefreshToken();
@@ -53,7 +53,7 @@ async function handleResponse(response: Response) {
 async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<unknown> {
   const newToken = await refreshAccessToken();
   if (!newToken) {
-    throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+    throw new Error("Session expired. Please log in again.");
   }
   const workspace = getStoredActiveWorkspace();
   const profile = getStoredActiveProfile();

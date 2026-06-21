@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useToast } from "@/contexts/ToastContext";
 import Header from "@/components/layout/Header";
 import {
   getNotifications,
@@ -87,6 +88,7 @@ function TimeAgo({ dateStr }: { dateStr: string }) {
 export default function NotificationsPage() {
   const reduceMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
+  const { addToast } = useToast();
   
   const [notifications, setNotifications] = useState<NotificationListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,6 +138,9 @@ export default function NotificationsPage() {
     if (success) {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
+      addToast("All notifications marked as read", "check");
+    } else {
+      addToast("Failed to mark all as read", "error");
     }
     setMarkingAll(false);
   };

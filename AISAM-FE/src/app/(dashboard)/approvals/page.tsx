@@ -608,7 +608,7 @@ export default function ApprovalsPage() {
                               {isApprovedStatus(item.status) && (
                                 <>
                                   <button onClick={() => { setPostNowItem(item); }}
-                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Đăng ngay">
+                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Post Now">
                                     <span className="material-symbols-outlined text-[17px]">send</span>
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Post Now</span>
                                   </button>

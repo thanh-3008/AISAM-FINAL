@@ -56,14 +56,13 @@ export default function OverviewPage() {
     if (!userId) return;
 
     try {
-      // 1. Tạo Workspace thật trong DB
       const wsResult = await apiClient("/workspaces", {
         method: "POST",
         data: { name, workspaceType },
       });
 
       if (!wsResult?.success || !wsResult.data) {
-        setCreateError(wsResult?.message || "Tạo workspace thất bại.");
+        setCreateError(wsResult?.message || "Failed to create workspace.");
         return;
       }
 
@@ -84,7 +83,7 @@ export default function OverviewPage() {
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
     } catch (e: any) {
-      setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
+      setCreateError(e?.message || "Connection error while creating workspace.");
       return;
     } finally {
       setCreating(false);

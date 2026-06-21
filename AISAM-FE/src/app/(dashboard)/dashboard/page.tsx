@@ -42,12 +42,13 @@ function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffi
 
 function AnimatedBar({ value, color, delay = 600 }: { value: number; color: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
+  const displayPct = Math.max(value, value > 0 ? 2 : 0);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const timer = setTimeout(() => { el.style.width = `${value}%`; }, delay);
+    const timer = setTimeout(() => { el.style.width = `${displayPct}%`; }, delay);
     return () => clearTimeout(timer);
-  }, [value, delay]);
+  }, [displayPct, delay]);
   return (
     <div className="w-full h-2 bg-surface-container/60 rounded-full overflow-hidden">
       <div ref={ref} className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`} style={{ width: "0%" }} />
@@ -285,7 +286,7 @@ export default function DashboardPage() {
             { icon: "check_circle", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "Published", value: String(dashboard?.publishedPostCount ?? 0), delta: null, deltaUp: null, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
             { icon: "auto_awesome", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "AI Usage", value: String(dashboard?.aiUsageCount ?? 0), delta: null, deltaUp: null, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
             { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 0), delta: null, deltaUp: null, max: String(maxCreditBalance), pct: Math.min(100, Math.round(((creditBalance ?? 0) / maxCreditBalance) * 100)), gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
-            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? 0), delta: null, deltaUp: null, max: String(postQuota?.total ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
+            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? (dashboard ? (dashboard.postQuotaLimit - dashboard.postsRemaining) : 0)), delta: null, deltaUp: null, max: String(postQuota?.total ?? dashboard?.postQuotaLimit ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : dashboard ? Math.round(((dashboard.postQuotaLimit - dashboard.postsRemaining) / dashboard.postQuotaLimit) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
           ].map((kpi, i) => (
             <div
               key={kpi.label}
