@@ -298,6 +298,8 @@ namespace AISAM.Services.Service
 
             foreach (var file in files)
             {
+                if (file == null) continue;
+
                 if (file.Length <= 0)
                 {
                     return (false, "Product image file is empty.");
@@ -327,6 +329,8 @@ namespace AISAM.Services.Service
 
             foreach (var file in files)
             {
+                if (file == null) continue;
+
                 var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
                 var safeExtension = string.IsNullOrWhiteSpace(extension) ? ".jpg" : extension;
                 var fileName = $"{Guid.NewGuid():N}{safeExtension}";

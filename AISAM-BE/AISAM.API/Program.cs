@@ -65,6 +65,9 @@ ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_URL", "MediaStorage:Su
 ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_KEY", "MediaStorage:SupabaseKey");
 ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_BUCKET", "MediaStorage:SupabaseBucket");
 ApplyEnvironmentOverride(builder.Configuration, "INITIAL_PERSONAL_WORKSPACE_CREDITS", "CreditSettings:InitialPersonalWorkspaceCredits");
+ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
+ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -85,6 +88,7 @@ builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gem
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
 builder.Services.Configure<MediaStorageSettings>(builder.Configuration.GetSection("MediaStorage"));
 builder.Services.Configure<CreditSettings>(builder.Configuration.GetSection("CreditSettings"));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 
 var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -153,7 +157,7 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IContentService, ContentService>();
-builder.Services.AddHttpClient<IMediaStorageService, SupabaseMediaStorageService>();
+builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
