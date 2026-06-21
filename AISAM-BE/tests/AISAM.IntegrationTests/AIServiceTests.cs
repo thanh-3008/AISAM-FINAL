@@ -239,6 +239,98 @@ public class AIServiceTests
     }
 
     [Fact]
+    public async Task ChatAsync_DoesNotCreateContent_ForConversationalResponse()
+    {
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("{\"intent\":\"chat\",\"response\":\"Chao ban, minh co the noi tieng Viet.\"}"));
+
+        var result = await service.ChatInWorkspaceAsync(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new ChatRequest { Message = "Xin chao, noi tieng Viet duoc khong?" });
+
+        Assert.True(result.Success);
+        Assert.False(result.Data!.ShouldCreateContent);
+        Assert.Equal("Chao ban, minh co the noi tieng Viet.", result.Data.Response);
+    }
+
+    [Fact]
+    public async Task ChatAsync_MarksReadyPostAsContent_ForGenerationResponse()
+    {
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("{\"intent\":\"content\",\"response\":\"Bai quang cao san sang dang.\"}"));
+
+        var result = await service.ChatInWorkspaceAsync(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new ChatRequest { Message = "Viet cho toi mot bai quang cao." });
+
+        Assert.True(result.Success);
+        Assert.True(result.Data!.ShouldCreateContent);
+        Assert.Equal("Bai quang cao san sang dang.", result.Data.Response);
+    }
+
+    [Fact]
+    public async Task ChatAsync_IncludesSelectedBrandAndProductDetailsInPrompt()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = new Brand
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            Name = "Ao Nha",
+            Description = "Thoi trang gia dinh",
+            Slogan = "Mac dep moi ngay",
+            Usp = "Vai mem ben",
+            TargetAudience = "Gia dinh co con nho"
+        };
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            BrandId = brand.Id,
+            Brand = brand,
+            Name = "Ao tre em",
+            Description = "Cotton mem",
+            Price = 199000,
+            Stock = 25
+        };
+        var gemini = new FakeGeminiTextClient("{\"intent\":\"chat\",\"response\":\"Da hieu san pham.\"}");
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            new FakeBrandRepository(brand),
+            gemini,
+            productRepository: new FakeProductRepository(product));
+
+        var result = await service.ChatInWorkspaceAsync(profileId, workspaceId, Guid.NewGuid(), new ChatRequest
+        {
+            BrandId = brand.Id,
+            ProductId = product.Id,
+            Message = "Hay xem thong tin san pham hien tai."
+        });
+
+        Assert.True(result.Success);
+        Assert.Contains("Ao Nha", gemini.LastPrompt);
+        Assert.Contains("Thoi trang gia dinh", gemini.LastPrompt);
+        Assert.Contains("Vai mem ben", gemini.LastPrompt);
+        Assert.Contains("Gia dinh co con nho", gemini.LastPrompt);
+        Assert.Contains("Ao tre em", gemini.LastPrompt);
+        Assert.Contains("Cotton mem", gemini.LastPrompt);
+        Assert.Contains("199000", gemini.LastPrompt);
+        Assert.Contains("25", gemini.LastPrompt);
+    }
+
+    [Fact]
     public async Task ChatAsync_ConsumesOneWorkspaceCredit_AfterGeminiSucceeds()
     {
         var workspaceId = Guid.NewGuid();
@@ -362,10 +454,14 @@ public class AIServiceTests
     {
         private readonly string? _response;
         private readonly Exception? _exception;
+        public string LastPrompt { get; private set; } = string.Empty;
         public FakeGeminiTextClient(string response) => _response = response;
         public FakeGeminiTextClient(Exception exception) => _exception = exception;
-        public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default) =>
-            _exception != null ? Task.FromException<string>(_exception) : Task.FromResult(_response!);
+        public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+        {
+            LastPrompt = prompt;
+            return _exception != null ? Task.FromException<string>(_exception) : Task.FromResult(_response!);
+        }
     }
 
     private sealed class FakeQuotaService : IQuotaService

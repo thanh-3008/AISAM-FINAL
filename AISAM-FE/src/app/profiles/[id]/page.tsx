@@ -426,10 +426,11 @@ export default function ProfileDetailPage() {
     setUpgradingPlan(true);
     try {
       const planCodes = ["", "basic_monthly", "pro_monthly", "business_monthly"];
+      const category = workspace?.workspaceType === 2 ? "business" : "personal";
       const checkout = await createCheckout({
         planCode: planCodes[planType] || "basic_monthly",
-        returnUrl: window.location.origin + `/profiles/${id}?payment=success`,
-        cancelUrl: window.location.origin + `/profiles/${id}?payment=cancelled`,
+        returnUrl: `${window.location.origin}/pricing?category=${category}`,
+        cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
       });
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;

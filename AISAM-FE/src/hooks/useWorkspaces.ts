@@ -34,6 +34,13 @@ let cacheListeners: Array<() => void> = [];
 let fetchingWorkspaces = false;
 let workspaceSelectListeners: Array<() => void> = [];
 
+async function waitForActiveWorkspaceFetch() {
+  const startedAt = Date.now();
+  while (fetchingWorkspaces && Date.now() - startedAt < 11000) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 function notifyWorkspaceSelected() {
   workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
 }
@@ -99,7 +106,20 @@ export function useWorkspaces() {
       return;
     }
 
-    if (fetchingWorkspaces) return;
+    if (fetchingWorkspaces) {
+      setLoading(true);
+      await waitForActiveWorkspaceFetch();
+
+      const sharedWorkspaces = cachedWorkspaces;
+      if (sharedWorkspaces && sharedWorkspaces.some((workspace) => workspace.userId === userId)) {
+        setWorkspaces(sharedWorkspaces);
+      } else {
+        const fallback = getStoredWorkspaceFallback(userId);
+        setWorkspaces((prev) => prev.length > 0 ? prev : fallback ? [fallback] : []);
+      }
+      setLoading(false);
+      return;
+    }
     fetchingWorkspaces = true;
 
     let mapped: WorkspaceData[] = [];
