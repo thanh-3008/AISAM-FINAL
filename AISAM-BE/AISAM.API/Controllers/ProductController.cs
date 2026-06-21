@@ -6,6 +6,7 @@ using AISAM.Services.IServices;
 using AISAM.API.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 using System.Security.Claims;
 
 namespace AISAM.API.Controllers
@@ -57,7 +58,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting products");
-                return StatusCode(500, GenericResponse<PagedResult<ProductResponseDto>>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<PagedResult<ProductResponseDto>>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -77,7 +78,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting product {ProductId}", id);
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -103,7 +104,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating product");
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -124,7 +125,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating product {ProductId}", id);
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -144,7 +145,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting product {ProductId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -164,7 +165,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error restoring product {ProductId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError("System error"));
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 

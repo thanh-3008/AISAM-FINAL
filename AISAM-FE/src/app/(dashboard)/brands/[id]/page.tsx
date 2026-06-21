@@ -105,7 +105,10 @@ export default function BrandDetailPage() {
               setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
               return;
             }
-          } catch { /* ignore */ }
+          } catch (e: any) {
+            setError(e?.message || "Failed to load brand");
+            return;
+          }
           setError("Brand not found");
         })(),
         (async () => {

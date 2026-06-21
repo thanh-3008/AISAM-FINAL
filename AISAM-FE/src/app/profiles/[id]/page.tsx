@@ -443,10 +443,11 @@ export default function ProfileDetailPage() {
         1: "Plus",
         2: "Premium",
       };
+      const category = workspace?.workspaceType === 2 ? "business" : "personal";
       const checkout = await createCheckout({
         planCode: planCodes[planType] || "Plus",
-        returnUrl: window.location.origin + "/profiles?payment=success",
-        cancelUrl: window.location.origin + "/profiles?payment=cancelled",
+        returnUrl: `${window.location.origin}/pricing?category=${category}`,
+        cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
       });
       if (!checkout?.checkoutUrl) {
         throw new Error("Backend did not return a PayOS checkout URL.");

@@ -15,6 +15,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
+  canApply?: boolean;
 }
 
 interface Variation {
@@ -96,6 +97,9 @@ export default function AIGeneratePage() {
   const brandName = selectedBrand?.name || "";
   const selectedProduct = productList.find(p => p.id === productId);
   const productName = selectedProduct?.name || "";
+  const conversationStorageKey = activeWorkspace?.id && brandId
+    ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}`
+    : null;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -108,27 +112,28 @@ export default function AIGeneratePage() {
   useEffect(() => {
     setConversationId(null);
     setVariations([]);
-    const wsId = activeWorkspace?.id;
-    if (!wsId) return;
-    const key = `ai-conversation-${wsId}`;
-    const savedId = sessionStorage.getItem(key);
+    setMessages([]);
+    setSelectedVariation(null);
+    setGeneratedId(null);
+    setJustGenerated(false);
+    if (!conversationStorageKey) return;
+
+    let cancelled = false;
+    const savedId = sessionStorage.getItem(conversationStorageKey);
     if (!savedId) return;
     setConversationId(savedId);
     getConversationMessages(savedId).then(msgs => {
-      if (msgs) {
-        const sideVariations: Variation[] = [];
-        let lastUserPrompt = "";
-        for (const m of msgs) {
-          if (m.senderType === 0) {
-            lastUserPrompt = m.message;
-          } else if (lastUserPrompt) {
-            sideVariations.push({ id: `v-hist-${sideVariations.length}`, prompt: lastUserPrompt, result: m.message });
-          }
-        }
-        setVariations(sideVariations);
+      if (!cancelled && msgs) {
+        setMessages(msgs.map((message, index) => ({
+          id: `history-${index}`,
+          role: message.senderType === 0 ? "user" : "assistant",
+          text: message.message,
+          canApply: false,
+        })));
       }
     });
-  }, [activeWorkspace?.id]);
+    return () => { cancelled = true; };
+  }, [conversationStorageKey]);
 
   const simulateAIResponse = async (userPrompt: string) => {
     if (creditBalance !== null && creditBalance <= 0) {
@@ -142,10 +147,15 @@ export default function AIGeneratePage() {
     const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, conversationId || undefined, messages.map(m => ({ role: m.role, text: m.text })));
     if (aiReply) {
       setConversationId(aiReply.conversationId);
-      if (activeWorkspace?.id) sessionStorage.setItem(`ai-conversation-${activeWorkspace.id}`, aiReply.conversationId);
+      if (conversationStorageKey) sessionStorage.setItem(conversationStorageKey, aiReply.conversationId);
 
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
-      const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiReply.text };
+      const aiMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        role: "assistant",
+        text: aiReply.text,
+        canApply: aiReply.shouldCreateContent,
+      };
       setMessages((prev) => [...prev, aiMsg]);
 
       const variation: Variation = {
@@ -153,18 +163,22 @@ export default function AIGeneratePage() {
         prompt: userPrompt,
         result: aiReply.text,
       };
-      setVariations((prev) => [variation, ...prev]);
+      if (aiReply.shouldCreateContent) {
+        setVariations((prev) => [variation, ...prev]);
+      }
 
       fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
 
       setIsGenerating(false);
 
-      autoSavePost(`AI Generated — ${brandName}`, aiReply.text, generatedHashtags, variation.id);
+      if (aiReply.shouldCreateContent) {
+        autoSavePost(`AI Generated — ${brandName}`, aiReply.text, generatedHashtags, variation.id);
+      }
       return;
     }
 
     setIsGenerating(false);
-    addToast("AI generation failed. Please check your credits and try again.");
+    addToast("AI service request failed. Your credit balance was not the cause; restart/check the backend and Gemini connection, then try again.");
   };
 
   const autoSavePost = async (postTitle: string, postContent: string, postHashtags: string[], varId: string) => {
@@ -509,7 +523,7 @@ export default function AIGeneratePage() {
                         ? "bg-primary/10 text-on-surface"
                         : "bg-surface-container text-on-surface"
                     }`}>
-                      {msg.role === "assistant" && (
+                      {msg.role === "assistant" && msg.canApply && (
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="material-symbols-outlined text-[12px] text-primary">auto_awesome</span>
                           <span className="text-label-2xs font-semibold text-primary uppercase tracking-wider">AI</span>

@@ -17,6 +17,7 @@ namespace AISAM.Repositories.Repository
         public async Task<Brand?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Brands
+                .AsSplitQuery()
                 .Include(b => b.Profile)
                 .Include(b => b.Workspace)
                 .Include(b => b.Products)
@@ -27,6 +28,7 @@ namespace AISAM.Repositories.Repository
         public async Task<Brand?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Brands
+                .AsSplitQuery()
                 .Include(b => b.Profile)
                 .Include(b => b.Workspace)
                 .Include(b => b.Products)
@@ -44,6 +46,7 @@ namespace AISAM.Repositories.Repository
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
             var query = _context.Brands
+                .AsSplitQuery()
                 .Include(b => b.Profile)
                 .Include(b => b.Workspace)
                 .Include(b => b.Products)
@@ -85,6 +88,7 @@ namespace AISAM.Repositories.Repository
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
             var query = _context.Brands
+                .AsSplitQuery()
                 .Include(b => b.Profile)
                 .Include(b => b.Products)
                 .Include(b => b.Contents)
