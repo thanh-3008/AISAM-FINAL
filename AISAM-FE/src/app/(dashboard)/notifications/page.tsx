@@ -11,6 +11,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   getUnreadCount,
+  deleteNotification,
   type NotificationListItem,
   type NotificationDetail,
 } from "@/services/notificationService";
@@ -143,6 +144,17 @@ export default function NotificationsPage() {
       addToast("Failed to mark all as read", "error");
     }
     setMarkingAll(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    const ok = await deleteNotification(id);
+    if (ok) {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      addToast("Notification deleted", "check");
+    } else {
+      addToast("Failed to delete notification", "error");
+    }
   };
 
   const filteredNotifications = filter === "unread" 
@@ -313,6 +325,11 @@ export default function NotificationsPage() {
                               {!notification.isRead && (
                                 <span className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
                               )}
+                              <button onClick={(e) => { e.stopPropagation(); handleDelete(notification.id); }}
+                                className="p-1.5 rounded-lg text-outline/40 hover:text-danger-red hover:bg-danger-red/10 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Delete">
+                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                              </button>
                             </div>
                           </div>
                           

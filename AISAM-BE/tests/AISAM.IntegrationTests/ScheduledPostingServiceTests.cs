@@ -382,6 +382,9 @@ public class ScheduledPostingServiceTests
             Notifications[notification.Id] = notification;
             return Task.FromResult(notification);
         }
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class FakeContentRepository : IContentRepository

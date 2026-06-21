@@ -278,6 +278,9 @@ public class DashboardServiceTests
 
         public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
             => GetUnreadCountAsync(workspaceId, cancellationToken);
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class FakeContentCalendarRepository : IContentCalendarRepository

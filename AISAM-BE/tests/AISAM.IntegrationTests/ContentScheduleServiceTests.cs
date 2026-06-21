@@ -452,5 +452,8 @@ public class ContentScheduleServiceTests
 
         public Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }
