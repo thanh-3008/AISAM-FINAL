@@ -25,6 +25,8 @@ import CreateCampaignModal from "@/components/campaigns/CreateCampaignModal";
 import EditCampaignModal from "@/components/campaigns/EditCampaignModal";
 import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
+import { fetchBrands } from "@/services/brandService";
+import { setCachedBrands } from "@/components/campaigns/campaignUtils";
 
 export default function CampaignsPage() {
   const { activeWorkspace } = useWorkspaces();
@@ -66,6 +68,12 @@ export default function CampaignsPage() {
     };
     load();
     return () => { cancelled = true; };
+  }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    fetchBrands().then((brands) => {
+      setCachedBrands(brands.map(b => ({ id: b.id, name: b.name })));
+    });
   }, [activeWorkspace?.id]);
 
   // Toast auto-dismiss

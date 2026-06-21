@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { type CampaignObjective, type CreateCampaignData } from "@/services/campaignService";
-import { OBJECTIVE_CONFIG, BRANDS } from "./campaignUtils";
+import { OBJECTIVE_CONFIG, getCachedBrands } from "./campaignUtils";
 
 interface CreateCampaignModalProps {
   open: boolean;
@@ -22,7 +22,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
   if (!open) return null;
 
   const handleSubmit = () => {
-    const brand = BRANDS.find((b) => b.id === brandId);
+    const brand = getCachedBrands().find((b) => b.id === brandId);
     if (!name.trim() || !brand) return;
 
     onCreate({
@@ -89,7 +89,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10"
               >
                 <option value="">Select brand...</option>
-                {BRANDS.map((b) => (
+                {getCachedBrands().map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
