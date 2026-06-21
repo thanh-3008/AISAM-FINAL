@@ -25,7 +25,7 @@ public class SocialControllerTests
         var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/dev/scheduler");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWebHostEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, new FakeWebHostEnvironment());
 
         Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }

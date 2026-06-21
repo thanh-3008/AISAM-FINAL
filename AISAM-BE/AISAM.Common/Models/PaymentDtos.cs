@@ -34,4 +34,12 @@ public sealed class CurrentSubscriptionDto
     public string Status { get; set; } = string.Empty;
     public DateTime StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public int PromptQuota { get; set; }
+    public int ImageQuota { get; set; }
+    public int PostQuota { get; set; }
+    public int PlatformQuota { get; set; }
+    public int AccountQuota { get; set; }
+    public int AnalysisLevel { get; set; }
+    public decimal AdBudgetMonthly { get; set; }
+    public int AdCampaignQuota { get; set; }
 }

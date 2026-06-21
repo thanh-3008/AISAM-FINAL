@@ -26,7 +26,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), null, null, CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
@@ -38,7 +38,7 @@ public class ActiveProfileMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }
@@ -56,7 +56,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), null, null, CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
@@ -68,7 +68,7 @@ public class ActiveProfileMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }
@@ -86,7 +86,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), null, null, CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
@@ -116,7 +116,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), null, null, CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
@@ -133,7 +133,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment("Production"));
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, CreateEnvironment("Production"));
 
         Assert.True(nextCalled);
     }
@@ -149,7 +149,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, CreateEnvironment());
 
         Assert.True(nextCalled);
     }
@@ -170,7 +170,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, CreateEnvironment());
 
         Assert.True(nextCalled);
     }

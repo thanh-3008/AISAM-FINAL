@@ -110,6 +110,7 @@ namespace AISAM.Services.Service
                 Name = request.Name,
                 Description = request.Description,
                 Price = request.Price,
+                Stock = request.Stock,
                 Images = JsonSerializer.Serialize(imageUrls)
             };
 
@@ -156,6 +157,11 @@ namespace AISAM.Services.Service
             if (request.Price.HasValue)
             {
                 product.Price = request.Price.Value;
+            }
+
+            if (request.Stock.HasValue)
+            {
+                product.Stock = request.Stock.Value;
             }
 
             var imageValidation = ValidateImageFiles(request.ImageFiles);
@@ -259,6 +265,7 @@ namespace AISAM.Services.Service
                 Name = product.Name,
                 Description = product.Description,
                 Price = product.Price,
+                Stock = product.Stock,
                 Images = ParseImages(product.Images),
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt

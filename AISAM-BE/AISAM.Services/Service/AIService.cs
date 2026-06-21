@@ -145,13 +145,15 @@ public sealed class AIService : IAIService
     }
 
     public async Task<GenericResponse<ChatResponse>> ChatAsync(Guid profileId, ChatRequest request, CancellationToken cancellationToken = default)
-        => await ChatInternalAsync(profileId, null, request, cancellationToken);
+        => await ChatInternalAsync(profileId, null, null, request, cancellationToken);
 
-    public async Task<GenericResponse<ChatResponse>> ChatInWorkspaceAsync(Guid profileId, Guid workspaceId, ChatRequest request, CancellationToken cancellationToken = default)
-        => await ChatInternalAsync(profileId, workspaceId, request, cancellationToken);
+    public async Task<GenericResponse<ChatResponse>> ChatInWorkspaceAsync(Guid profileId, Guid workspaceId, Guid userId, ChatRequest request, CancellationToken cancellationToken = default)
+        => await ChatInternalAsync(profileId, workspaceId, userId, request, cancellationToken);
 
-    private async Task<GenericResponse<ChatResponse>> ChatInternalAsync(Guid profileId, Guid? workspaceId, ChatRequest request, CancellationToken cancellationToken)
+    private async Task<GenericResponse<ChatResponse>> ChatInternalAsync(Guid profileId, Guid? workspaceId, Guid? userId, ChatRequest request, CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[AIService.ChatInternalAsync] profileId={profileId}, workspaceId={workspaceId}, userId={userId}, message={request.Message?.Substring(0, Math.Min(request.Message?.Length ?? 0, 50))}");
+
         if (request.BrandId.HasValue)
         {
             var validation = workspaceId.HasValue
@@ -222,6 +224,8 @@ public sealed class AIService : IAIService
             Message = request.Message
         }, cancellationToken);
 
+        Console.WriteLine($"[AIService.ChatInternalAsync] User message saved. ConversationId={conversation.Id}");
+
         try
         {
             var responseText = await _geminiTextClient.GenerateAsync(BuildChatPrompt(conversation, request.Message), cancellationToken);
@@ -232,14 +236,41 @@ public sealed class AIService : IAIService
                 Message = responseText
             }, cancellationToken);
 
+            Console.WriteLine($"[AIService.ChatInternalAsync] AI response saved. ConversationId={conversation.Id}");
+
+            if (workspaceId.HasValue && userId.HasValue)
+            {
+                Console.WriteLine($"[AIService.ChatInternalAsync] Attempting to deduct credits. workspaceId={workspaceId}, userId={userId}");
+                var chargeResult = await _creditService.ConsumeCreditsAsync(
+                    workspaceId.Value,
+                    userId.Value,
+                    CreditActionEnum.GenerateText,
+                    TextGenerationCredits,
+                    cancellationToken: cancellationToken);
+                Console.WriteLine($"[AIService.ChatInternalAsync] Credit deduction result: success={chargeResult.Success}, message={chargeResult.Message}");
+
+                if (!chargeResult.Success)
+                {
+                    return GenericResponse<ChatResponse>.CreateError(
+                        chargeResult.Message ?? "Insufficient credits.",
+                        (HttpStatusCode)chargeResult.StatusCode,
+                        chargeResult.Error?.ErrorCode);
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[AIService.ChatInternalAsync] Skipping credit deduction: workspaceId={workspaceId.HasValue}, userId={userId.HasValue}");
+            }
+
             return GenericResponse<ChatResponse>.CreateSuccess(new ChatResponse
             {
                 ConversationId = conversation.Id,
                 Response = responseText
             });
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine($"[AIService.ChatInternalAsync] Exception: {ex.Message}");
             const string errorMessage = "AI chat is temporarily unavailable.";
             await _conversationRepository.AddMessageAsync(new ChatMessage
             {

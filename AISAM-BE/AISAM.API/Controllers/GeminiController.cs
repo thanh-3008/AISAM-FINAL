@@ -75,7 +75,8 @@ public sealed class GeminiController : ControllerBase
         [FromBody] ChatRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _aiService.ChatInWorkspaceAsync(GetProfileId(), WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.ChatInWorkspaceAsync(GetProfileId(), membership.WorkspaceId, membership.UserId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

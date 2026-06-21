@@ -2,7 +2,7 @@ import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureVa
 import { getApiBaseUrl } from "./apiBaseUrl";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 
-const API_URL = getApiBaseUrl();
+export const API_URL = getApiBaseUrl();
 const LEGACY_PROFILE_HEADER = ["X", "Profile", "Id"].join("-");
 
 type ApiOptions = RequestInit & {

@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { createContent, chatWithAI, type CreateContentPayload } from "@/services/contentService";
+import { createContent, generateAIDraft, chatWithAI, getConversationMessages, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQuotaGuard } from "@/hooks/useQuotaGuard";
 import { fetchCreditWallet } from "@/services/workspaceService";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 
 interface ChatMessage {
   id: string;
@@ -65,6 +66,7 @@ export default function AIGeneratePage() {
 
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const [variations, setVariations] = useState<Variation[]>([]);
@@ -104,6 +106,31 @@ export default function AIGeneratePage() {
     fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
   }, [activeWorkspace?.id]);
 
+  useEffect(() => {
+    setConversationId(null);
+    setVariations([]);
+    const wsId = activeWorkspace?.id;
+    if (!wsId) return;
+    const key = `ai-conversation-${wsId}`;
+    const savedId = sessionStorage.getItem(key);
+    if (!savedId) return;
+    setConversationId(savedId);
+    getConversationMessages(savedId).then(msgs => {
+      if (msgs) {
+        const sideVariations: Variation[] = [];
+        let lastUserPrompt = "";
+        for (const m of msgs) {
+          if (m.senderType === 0) {
+            lastUserPrompt = m.message;
+          } else if (lastUserPrompt) {
+            sideVariations.push({ id: `v-hist-${sideVariations.length}`, prompt: lastUserPrompt, result: m.message });
+          }
+        }
+        setVariations(sideVariations);
+      }
+    });
+  }, [activeWorkspace?.id]);
+
   const simulateAIResponse = async (userPrompt: string) => {
     if (!canGenerateAI) {
       addToast("AI generation quota has been exceeded for this workspace.");
@@ -119,16 +146,19 @@ export default function AIGeneratePage() {
     setInsufficientCredits(false);
     setIsGenerating(true);
 
-    const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, undefined, messages.map(m => ({ role: m.role, text: m.text })));
+    const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, conversationId || undefined, messages.map(m => ({ role: m.role, text: m.text })));
     if (aiReply) {
+      setConversationId(aiReply.conversationId);
+      if (activeWorkspace?.id) sessionStorage.setItem(`ai-conversation-${activeWorkspace.id}`, aiReply.conversationId);
+
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
-      const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiReply };
+      const aiMsg: ChatMessage = { id: `ai-${Date.now()}`, role: "assistant", text: aiReply.text };
       setMessages((prev) => [...prev, aiMsg]);
 
       const variation: Variation = {
         id: `v-${Date.now()}`,
         prompt: userPrompt,
-        result: aiReply,
+        result: aiReply.text,
       };
       setVariations((prev) => [variation, ...prev]);
 
@@ -138,7 +168,7 @@ export default function AIGeneratePage() {
 
       setIsGenerating(false);
 
-      autoSavePost(`AI Generated — ${brandName}`, aiReply, generatedHashtags, variation.id);
+      autoSavePost(`AI Generated — ${brandName}`, aiReply.text, generatedHashtags, variation.id);
       return;
     }
 

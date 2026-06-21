@@ -364,6 +364,7 @@ export async function publishContentDebug(contentId: string, integrationId: stri
   try {
     const token = getToken();
     const workspace = (await import("@/stores/workspace-store")).getStoredActiveWorkspace();
+    const profile = (await import("@/stores/profile-store")).getStoredActiveProfile();
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
     const headers: Record<string, string> = {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -452,12 +453,24 @@ export async function chatWithAI(
   productId?: string,
   conversationId?: string,
   _history?: { role: string; text: string }[]
-): Promise<string | null> {
+): Promise<{ text: string; conversationId: string } | null> {
   try {
     const res: GenericResponse<{ response: string; conversationId: string }> = await apiClient("/ai/chat", {
       data: { message, adType, brandId, productId, conversationId },
     });
-    if (res?.success && res.data?.response) return res.data.response;
+    if (res?.success && res.data?.response) return { text: res.data.response, conversationId: res.data.conversationId };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getConversationMessages(
+  conversationId: string
+): Promise<{ senderType: number; message: string; createdAt: string }[] | null> {
+  try {
+    const res: GenericResponse<{ id: string; messages: { senderType: number; message: string; createdAt: string }[] }> = await apiClient(`/conversations/${conversationId}`);
+    if (res?.success && res.data?.messages) return res.data.messages;
     return null;
   } catch {
     return null;

@@ -45,6 +45,7 @@ interface Workspace {
   bio: string | null;
   avatarUrl: string | null;
   status: number;
+  memberLimit: number;
   createdAt: string;
   updatedAt: string;
   isOwner: boolean;
@@ -94,7 +95,7 @@ export default function ProfileDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
   const initialSection = (searchParams.get("section") as WorkspaceSection) || "overview";
   const [activeSection, setActiveSection] = useState<WorkspaceSection>(
     ["overview", "my-profile", "team", "security", "billing", "subscription"].includes(initialSection) ? initialSection : "overview"
@@ -228,6 +229,18 @@ export default function ProfileDetailPage() {
               : "Owner",
           } as Workspace;
           setWorkspace(w);
+          selectWorkspace({
+            id: w.id,
+            userId: w.userId,
+            name: w.name,
+            workspaceType: w.workspaceType,
+            plan: w.workspaceType === 2 ? "Business" : "Personal",
+            status: w.status,
+            createdAt: w.createdAt,
+            updatedAt: w.updatedAt,
+            isOwner: w.isOwner,
+            memberRole: w.memberRole,
+          });
           setForm({
             name: w.name,
             profileType: String(w.workspaceType),
@@ -293,20 +306,28 @@ export default function ProfileDetailPage() {
   };
 
   const handleDelete = async () => {
-    setShowDeleteDialog(false);
-    try {
-      const deleted = await deleteWorkspace(id);
-      if (deleted) {
-        router.push("/profiles");
-      } else {
-        setError("Delete failed");
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Workspace",
+      message: "Are you sure you want to delete this workspace? This action cannot be undone.",
+      type: "danger",
+      confirmText: "Delete",
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        try {
+          const deleted = await deleteWorkspace(id);
+          if (deleted) {
+            router.push("/profiles");
+          } else {
+            setError("Delete failed");
+          }
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : "Delete failed";
+          setError(message);
+        }
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Delete failed";
-      setError(message);
-    }
+    });
   };
-
   // Security section handlers
   const handleUpdatePassword = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
@@ -714,6 +735,13 @@ export default function ProfileDetailPage() {
     }
   }, [activeSection, subscription]);
 
+  // Load credit wallet when billing section is active
+  useEffect(() => {
+    if (activeSection === "billing" && !creditWallet) {
+      handleLoadCreditWallet();
+    }
+  }, [activeSection, creditWallet]);
+
   // Load members when team section is active
   useEffect(() => {
     if (activeSection === "team" && members.length === 0) {
@@ -725,12 +753,12 @@ export default function ProfileDetailPage() {
 
   // Load credit history when billing tab is usage
   useEffect(() => {
-    if (activeSection === "billing" && billingTab === "usage" && creditHistory.length === 0) {
+    if (activeSection === "billing" && billingTab === "usage") {
       queueMicrotask(() => {
-        void handleLoadCreditHistory(1);
+        void handleLoadCreditHistory(creditPage);
       });
     }
-  }, [activeSection, billingTab, creditHistory.length]);
+  }, [activeSection, billingTab, creditPage]);
 
   // Load overview data when overview section is active
   useEffect(() => {
@@ -805,6 +833,21 @@ export default function ProfileDetailPage() {
     ? form.avatarUrl
     : null;
   const planLabel = workspace ? getWorkspaceTypeLabel(workspace.workspaceType) : "";
+  const isBusinessWorkspace = workspace?.workspaceType === 2;
+
+  const normalizePlanLabel = (raw: string | null | undefined): string => {
+    if (!raw || raw === "Free") return "Free";
+    const n = raw.toLowerCase().replace(/\s+/g, "");
+    if (n === "plus" || n.includes("businessplus") || n.includes("personalplus")) {
+      return isBusinessWorkspace ? "Business Plus" : "Personal Plus";
+    }
+    if (n === "premium" || n.includes("businesspro") || n.includes("personalpro")) {
+      return isBusinessWorkspace ? "Business Pro" : "Personal Pro";
+    }
+    return raw;
+  };
+
+  const subscriptionPlanLabel = normalizePlanLabel(subscription?.planName);
   const initials = workspace ? getInitials(workspace.name) : "?";
   const statusInfo = workspace ? statusConfig[workspace.status] || statusConfig[0] : statusConfig[0];
 
@@ -994,20 +1037,20 @@ export default function ProfileDetailPage() {
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 flex items-center justify-center ring-1 ring-amber-500/20 group-hover:ring-amber-500/40 transition-all">
                                   <span className="material-symbols-outlined text-amber-500 text-[20px]">
-                                    {workspace && workspace.workspaceType >= 3 ? "business" : "person"}
+                                    {workspace && workspace.workspaceType === 2 ? "business" : "person"}
                                   </span>
                                 </div>
                                 <span className="text-label-sm text-on-surface-variant font-medium">Type</span>
                               </div>
                               <span className="text-label-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
-                                {workspace && workspace.workspaceType >= 3 ? "Team" : "Personal"}
+                                {workspace && workspace.workspaceType === 2 ? "Team" : "Personal"}
                               </span>
                             </div>
                             <div className="space-y-3">
                               <span className="text-xl font-bold text-on-surface">{planLabel}</span>
                               <p className="text-label-xs text-outline flex items-center gap-1">
                                 <span className="material-symbols-outlined text-[14px] text-amber-500">info</span>
-                                {workspace && workspace.workspaceType >= 3 ? "Team workspace" : "Individual workspace"}
+                                {workspace && workspace.workspaceType === 2 ? "Team workspace" : "Individual workspace"}
                               </p>
                             </div>
                           </motion.div>
@@ -1179,72 +1222,22 @@ export default function ProfileDetailPage() {
                       <div className="space-y-6">
                         <motion.div variants={reduceMotion ? undefined : item}>
                           <h2 className="text-2xl font-bold text-on-surface tracking-tight">Edit Workspace</h2>
-                          <p className="text-body-sm text-on-surface-variant mt-1.5">Update your workspace information below</p>
+                          <p className="text-body-sm text-on-surface-variant mt-1.5">Update your workspace name below</p>
                         </motion.div>
 
-                        {/* Profile Summary */}
-                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm flex flex-col sm:flex-row items-center gap-5">
-                          <div className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 shrink-0 border border-primary/10">
-                            {avatarPreview ? (
-                              <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-2xl text-primary/40 font-semibold">{initials}</span>
-                            )}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5 max-w-lg">
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <div className="w-9 h-9 rounded-xl bg-primary/5 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-primary text-[18px]">workspaces</span>
+                            </div>
+                            <h3 className="text-body-lg font-semibold text-on-surface">Workspace</h3>
                           </div>
-                          <div className="text-center sm:text-left min-w-0 flex-1">
-                            <h3 className="text-xl text-on-surface font-bold">{workspace?.name}</h3>
-                            <p className="text-label-sm text-on-surface-variant mt-0.5">{planLabel}</p>
+                          <div className="space-y-1.5">
+                            <label className={labelClass}>Name <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                           </div>
                         </motion.div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5">
-                            <div className="flex items-center gap-2.5 mb-2">
-                              <div className="w-9 h-9 rounded-xl bg-primary/5 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-primary text-[18px]">workspaces</span>
-                              </div>
-                              <h3 className="text-body-lg font-semibold text-on-surface">Workspace</h3>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Name <span className="text-red-500">*</span></label>
-                              <input className={inputClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Workspace Type <span className="text-red-500">*</span></label>
-                              <div className="relative">
-                                <select className={`${inputClass} appearance-none pr-10`} value={form.profileType} onChange={e => setForm(f => ({ ...f, profileType: e.target.value }))}>
-                                  <option value="" disabled>Select workspace type</option>
-                                  {PROFILE_TYPES.map(pt => (
-                                    <option key={pt.value} value={pt.value}>{pt.label}</option>
-                                  ))}
-                                </select>
-                                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-outline">
-                                  <span className="material-symbols-outlined text-[18px]">unfold_more</span>
-                                </span>
-                              </div>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Company</label>
-                              <input className={inputClass} value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))} />
-                            </div>
-                          </motion.div>
-                          <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm space-y-5">
-                            <div className="flex items-center gap-2.5 mb-2">
-                              <div className="w-9 h-9 rounded-xl bg-secondary/5 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-secondary text-[18px]">info</span>
-                              </div>
-                              <h3 className="text-body-lg font-semibold text-on-surface">Details</h3>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Description</label>
-                              <textarea className={`${inputClass} resize-none min-h-[100px]`} rows={4} value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className={labelClass}>Avatar URL</label>
-                              <input className={inputClass} placeholder="https://example.com/avatar.png" type="url" value={form.avatarUrl} onChange={e => setForm(f => ({ ...f, avatarUrl: e.target.value }))} />
-                            </div>
-                          </motion.div>
-                        </div>
                         <motion.div variants={reduceMotion ? undefined : item} className="flex justify-end gap-3">
                           <motion.button
                             whileTap={reduceMotion ? undefined : { scale: 0.97 }}
@@ -1351,16 +1344,6 @@ export default function ProfileDetailPage() {
                           </motion.div>
                         </div>
 
-                        <motion.div variants={reduceMotion ? undefined : item} className="flex justify-end">
-                          <motion.button
-                            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                            onClick={() => setShowDeleteDialog(true)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-xl text-body-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">delete</span>
-                            Delete Workspace
-                          </motion.button>
-                        </motion.div>
                       </div>
                     )}
                   </motion.div>
@@ -2074,7 +2057,7 @@ export default function ProfileDetailPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-3xl font-bold text-emerald-600">850</p>
+                          <p className="text-3xl font-bold text-emerald-600">{creditWallet?.balance?.toLocaleString() ?? "—"}</p>
                           <p className="text-label-sm text-outline">Credits remaining</p>
                         </div>
                       </div>
@@ -2083,9 +2066,9 @@ export default function ProfileDetailPage() {
                     {/* Workspace Credits & Usage */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {[
-                        { label: "AI Credits", used: "850", total: "2,000", pct: 43, icon: "token", color: "text-primary", bg: "bg-primary/5", bar: "bg-gradient-to-r from-primary to-primary-container", warning: false },
-                        { label: "Posts This Month", used: "124", total: "1,000", pct: 12, icon: "send", color: "text-secondary", bg: "bg-secondary/5", bar: "bg-gradient-to-r from-secondary to-secondary-container", warning: false },
-                        { label: "Team Members", used: "3", total: "10", pct: 30, icon: "group", color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-gradient-to-r from-emerald-500 to-emerald-400", warning: false },
+                        { label: "AI Credits", used: creditWallet ? creditWallet.creditsUsed.toLocaleString() : "—", total: creditWallet ? creditWallet.maxBalance.toLocaleString() : "—", pct: creditWallet && creditWallet.maxBalance > 0 ? Math.round((creditWallet.creditsUsed / creditWallet.maxBalance) * 100) : 0, icon: "token", color: "text-primary", bg: "bg-primary/5", bar: "bg-gradient-to-r from-primary to-primary-container", warning: false },
+                        { label: "Posts Published", used: creditWallet ? creditWallet.publishedPostCount.toLocaleString() : "—", total: creditWallet ? creditWallet.postQuotaLimit.toLocaleString() : "—", pct: creditWallet && creditWallet.postQuotaLimit > 0 ? Math.round((creditWallet.publishedPostCount / creditWallet.postQuotaLimit) * 100) : 0, icon: "send", color: "text-secondary", bg: "bg-secondary/5", bar: "bg-gradient-to-r from-secondary to-secondary-container", warning: false },
+                        { label: "Team Members", used: creditWallet ? creditWallet.activeMemberCount.toString() : "—", total: workspace?.memberLimit ? workspace.memberLimit.toString() : "—", pct: creditWallet && workspace?.memberLimit && workspace.memberLimit > 0 ? Math.round((creditWallet.activeMemberCount / workspace.memberLimit) * 100) : 0, icon: "group", color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-gradient-to-r from-emerald-500 to-emerald-400", warning: false },
                       ].map((q) => (
                         <motion.div
                           key={q.label}
@@ -2183,7 +2166,8 @@ export default function ProfileDetailPage() {
                       </div>
                     </motion.div>
 
-                    {/* Payment Method */}
+                    {/* Payment Method - hidden until BE API is available */}
+                    {false && (
                     <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -2207,6 +2191,7 @@ export default function ProfileDetailPage() {
                         </motion.button>
                       </div>
                     </motion.div>
+                    )}
                       </>
                     )}
 
@@ -2221,37 +2206,64 @@ export default function ProfileDetailPage() {
                             <div>
                               <p className="text-label-sm text-on-surface-variant">Total Credits Used</p>
                               <p className="text-body-lg font-bold text-emerald-600">
-                                {creditHistory.filter(r => r.status === "Success").reduce((sum, r) => sum + r.credits, 0)}
+                                {creditWallet ? creditWallet.creditsUsed.toLocaleString() : "—"}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-label-sm text-on-surface-variant">AI Usage</p>
+                              <p className="text-body-lg font-bold text-primary">{creditWallet ? creditWallet.aiUsageCount.toLocaleString() : "—"}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-label-sm text-on-surface-variant">Posts</p>
+                              <p className="text-body-lg font-bold text-secondary">{creditWallet ? creditWallet.publishedPostCount.toLocaleString() : "—"}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+
+                        {/* Usage Breakdown */}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                          <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30">
+                            <h3 className="text-body-md font-semibold text-on-surface">Usage Breakdown</h3>
+                          </div>
+                          <div className="divide-y divide-outline-variant/10">
                             {[
-                              { key: "all" as const, label: "All", count: creditTotalCount },
-                              { key: "success" as const, label: "Success", count: creditHistory.filter(r => r.status === "Success").length },
-                              { key: "failed" as const, label: "Failed", count: creditHistory.filter(r => r.status === "Failed").length },
-                            ].map((f) => (
-                              <button
-                                key={f.key}
-                                onClick={() => setCreditFilter(f.key)}
-                                className={`px-3 py-1.5 rounded-lg text-label-xs font-medium transition-all ${
-                                  creditFilter === f.key
-                                    ? "bg-primary text-on-primary shadow-sm"
-                                    : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                                }`}
-                              >
-                                {f.label} ({f.count})
-                              </button>
+                              { label: "AI Usage Count", icon: "smart_toy", color: "text-primary", value: creditWallet ? `${creditWallet.aiUsageCount} requests` : "—" },
+                              { label: "Posts Published", icon: "send", color: "text-secondary", value: creditWallet ? `${creditWallet.publishedPostCount} posts` : "—" },
+                              { label: "Credits Remaining", icon: "token", color: "text-emerald-600", value: creditWallet ? `${creditWallet.balance.toLocaleString()} credits` : "—" },
+                              { label: "Posts Remaining", icon: "inbox", color: "text-amber-600", value: creditWallet ? `${creditWallet.postsRemaining.toLocaleString()} posts` : "—" },
+                              { label: "Active Members", icon: "group", color: "text-blue-600", value: creditWallet ? `${creditWallet.activeMemberCount} members` : "—" },
+                            ].map((row) => (
+                              <div key={row.label} className="px-6 py-4 flex items-center justify-between hover:bg-surface-container/30 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <span className={`material-symbols-outlined ${row.color} text-[20px]`}>{row.icon}</span>
+                                  <span className="text-body-sm text-on-surface font-medium">{row.label}</span>
+                                </div>
+                                <span className="text-body-sm font-semibold text-on-surface">{row.value}</span>
+                              </div>
                             ))}
                           </div>
                         </motion.div>
 
-                        {/* Credit Usage Table */}
+                        {/* Credit History */}
                         <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                          <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30 flex items-center justify-between">
+                            <h3 className="text-body-md font-semibold text-on-surface">Credit History</h3>
+                            <span className="text-label-sm text-outline">{creditTotalCount} records</span>
+                          </div>
                           {loadingCreditHistory ? (
-                            <div className="px-6 py-12 text-center">
-                              <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
-                              <p className="text-body-sm text-on-surface-variant">Loading credit history...</p>
+                            <div className="p-6 space-y-4">
+                              {[1,2,3].map(i => (
+                                <div key={i} className="flex items-center gap-4 animate-pulse">
+                                  <div className="w-8 h-8 rounded-lg bg-surface-container" />
+                                  <div className="flex-1 space-y-1">
+                                    <div className="h-3 w-32 bg-surface-container rounded" />
+                                    <div className="h-2 w-20 bg-surface-container rounded" />
+                                  </div>
+                                  <div className="h-5 w-12 bg-surface-container rounded" />
+                                </div>
+                              ))}
                             </div>
                           ) : creditHistory.filter(r => {
                             if (creditFilter === "all") return true;
@@ -2265,77 +2277,39 @@ export default function ProfileDetailPage() {
                             </div>
                           ) : (
                             <>
-                              <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-surface-container/50 border-b border-outline-variant/10 text-label-sm font-semibold text-outline">
-                                <div className="col-span-5">Action</div>
-                                <div className="col-span-3">Feature</div>
-                                <div className="col-span-2 text-center">Credits</div>
-                                <div className="col-span-2 text-right">Time</div>
-                              </div>
                               <div className="divide-y divide-outline-variant/10">
-                                {creditHistory.filter(r => {
-                                  if (creditFilter === "all") return true;
-                                  return r.status.toLowerCase() === creditFilter;
-                                }).map((record) => {
-                                  const actionIcons: Record<string, string> = {
-                                    "generate text": "text_fields", "generate image": "image", "generate video": "videocam",
-                                    "regenerate": "refresh", "refine": "refresh", "trend analysis": "trending_up",
-                                    "campaign recommendation": "campaign",
-                                  };
-                                  const actionColors: Record<string, string> = {
-                                    "generate text": "text-blue-500 bg-blue-50", "generate image": "text-purple-500 bg-purple-50",
-                                    "generate video": "text-pink-500 bg-pink-50", "regenerate": "text-amber-500 bg-amber-50",
-                                    "refine": "text-amber-500 bg-amber-50", "trend analysis": "text-emerald-500 bg-emerald-50",
-                                    "campaign recommendation": "text-indigo-500 bg-indigo-50",
-                                  };
-                                  const icon = actionIcons[record.action.toLowerCase()] || "auto_awesome";
-                                  const color = actionColors[record.action.toLowerCase()] || "text-primary bg-primary/5";
-                                  return (
-                                    <div key={record.id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-surface-container/30 transition-colors">
-                                      <div className="col-span-5 flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
-                                          <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                                        </div>
-                                        <div>
-                                          <p className="text-body-sm text-on-surface font-medium">{record.action}</p>
-                                          <p className="text-label-xs text-outline">{record.userName}</p>
-                                        </div>
-                                      </div>
-                                      <div className="col-span-3 flex items-center">
-                                        <span className="text-body-sm text-on-surface-variant">{record.featureUsed}</span>
-                                      </div>
-                                      <div className="col-span-2 flex items-center justify-center">
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                                          record.status === "Success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                                        }`}>
-                                          {record.status === "Failed" && <span className="material-symbols-outlined text-[14px]">close</span>}
-                                          {record.status === "Success" ? `-${record.credits}` : "0"}
-                                        </span>
-                                      </div>
-                                      <div className="col-span-2 flex items-center justify-end">
-                                        <span className="text-label-sm text-outline">
-                                          {new Date(record.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                        </span>
-                                      </div>
+                                {creditHistory.map((record) => (
+                                  <div key={record.id} className="px-6 py-3 flex items-center gap-4 hover:bg-surface-container/30 transition-colors">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-body-sm text-on-surface font-medium truncate">{record.action}</p>
+                                      <p className="text-label-xs text-outline">{record.userName}</p>
                                     </div>
-                                  );
-                                })}
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${
+                                      record.status === "Success"
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-red-50 text-red-700"
+                                    }`}>
+                                      {record.status === "Failed" && (
+                                        <span className="material-symbols-outlined text-[10px]">close</span>
+                                      )}
+                                      {record.status === "Success" ? `-${record.credits}` : "0"}
+                                    </span>
+                                    <span className="text-label-xs text-outline shrink-0 w-20 text-right">
+                                      {new Date(record.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                    </span>
+                                  </div>
+                                ))}
                               </div>
                               {creditTotalPages > 1 && (
-                                <div className="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10">
-                                  <span className="text-label-sm text-outline">Page {creditPage} of {creditTotalPages}</span>
+                                <div className="px-6 py-3 border-t border-outline-variant/10 flex items-center justify-between">
+                                  <span className="text-label-xs text-outline">Page {creditPage} of {creditTotalPages}</span>
                                   <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => { setCreditPage(p => Math.max(1, p - 1)); handleLoadCreditHistory(Math.max(1, creditPage - 1)); }}
-                                      disabled={creditPage === 1}
-                                      className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
+                                    <button onClick={() => setCreditPage(p => Math.max(1, p - 1))} disabled={creditPage === 1}
+                                      className="px-2.5 py-1 rounded-lg text-label-xs font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 transition-colors">
                                       Previous
                                     </button>
-                                    <button
-                                      onClick={() => { setCreditPage(p => Math.min(creditTotalPages, p + 1)); handleLoadCreditHistory(Math.min(creditTotalPages, creditPage + 1)); }}
-                                      disabled={creditPage === creditTotalPages}
-                                      className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
+                                    <button onClick={() => setCreditPage(p => Math.min(creditTotalPages, p + 1))} disabled={creditPage === creditTotalPages}
+                                      className="px-2.5 py-1 rounded-lg text-label-xs font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 transition-colors">
                                       Next
                                     </button>
                                   </div>
@@ -2345,34 +2319,27 @@ export default function ProfileDetailPage() {
                           )}
                         </motion.div>
 
-                        {/* About Credit Usage */}
-                        <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-white/80 flex items-center justify-center shrink-0">
-                              <span className="material-symbols-outlined text-primary text-[24px]">info</span>
-                            </div>
-                            <div>
-                              <h4 className="text-body-md font-semibold text-on-surface mb-1">About Credit Usage</h4>
-                              <ul className="space-y-1.5 text-body-sm text-on-surface-variant">
-                                <li className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
-                                  Text generation costs 1 credit per request
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
-                                  Image generation costs 5 credits per request
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
-                                  Video generation costs 20 credits per request
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
-                                  Failed requests do not consume credits
-                                </li>
-                              </ul>
-                            </div>
-                          </div>
+                        {/* Credit Cost Guide */}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-5">
+                          <h3 className="text-body-md font-semibold text-on-surface mb-3">Credit Cost Guide</h3>
+                          <ul className="space-y-2">
+                            <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                              <span className="material-symbols-outlined text-primary text-[16px]">text_fields</span>
+                              Text generation costs 1 credit per request
+                            </li>
+                            <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                              <span className="material-symbols-outlined text-secondary text-[16px]">image</span>
+                              Image generation costs 5 credits per request
+                            </li>
+                            <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                              <span className="material-symbols-outlined text-amber-600 text-[16px]">videocam</span>
+                              Video generation costs 20 credits per request
+                            </li>
+                            <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                              <span className="material-symbols-outlined text-outline text-[16px]">info</span>
+                              Failed requests do not consume credits
+                            </li>
+                          </ul>
                         </motion.div>
                       </>
                     )}
@@ -2646,9 +2613,9 @@ export default function ProfileDetailPage() {
                     {/* Plan Comparison */}
                     <motion.div variants={reduceMotion ? undefined : item}>
                       <h3 className="text-body-lg font-semibold text-on-surface mb-4">Compare Plans</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${isBusinessWorkspace ? "2" : "3"} gap-4`}>
                         {[
-                          {
+                          ...(!isBusinessWorkspace ? [{
                             name: "Free",
                             planType: 0,
                             price: "$0",
@@ -2656,7 +2623,7 @@ export default function ProfileDetailPage() {
                             current: planLabel === "Free",
                             features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
                             cta: "Current Plan",
-                          },
+                          }] : []),
                           {
                             name: "Personal Plus",
                             planType: 1,
@@ -2814,49 +2781,6 @@ export default function ProfileDetailPage() {
                   </motion.div>
                 )}
               </motion.div>
-
-              {/* Delete Confirmation Dialog */}
-              {showDeleteDialog && (
-                <motion.div
-                  initial={reduceMotion ? undefined : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-                >
-                  <motion.div
-                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.2 }}
-                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-xl p-6 w-full max-w-sm mx-4"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-red-500 text-[22px]">delete</span>
-                      </div>
-                      <div>
-                        <h3 className="text-body-lg text-on-surface font-semibold">Delete Workspace</h3>
-                        <p className="text-body-sm text-on-surface-variant">This action cannot be undone</p>
-                      </div>
-                    </div>
-                    <p className="text-body-sm text-on-surface-variant mb-6">
-                      Are you sure you want to delete <span className="font-semibold text-on-surface">{workspace?.name}</span>? All associated data will be permanently removed.
-                    </p>
-                    <div className="flex justify-end gap-3">
-                      <motion.button
-                        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                        onClick={() => setShowDeleteDialog(false)}
-                        className="px-5 py-2.5 border border-outline-variant/40 text-on-surface rounded-xl font-semibold text-body-sm hover:bg-surface-container transition-colors"
-                      >
-                        Cancel
-                      </motion.button>
-                      <motion.button
-                        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                        onClick={handleDelete}
-                        className="px-5 py-2.5 bg-red-500 text-white rounded-xl font-semibold text-body-sm hover:bg-red-600 transition-all shadow-sm flex items-center gap-2"
-                      >
-                        Delete
-                      </motion.button>
-                      </div>
-                    </motion.div>
 
                     {/* Change Role Modal */}
                     {showRoleModal && selectedMember && (
@@ -3146,8 +3070,6 @@ export default function ProfileDetailPage() {
                         </motion.div>
                       </div>
                     )}
-                  </motion.div>
-                )}
               {showInviteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                   <motion.div

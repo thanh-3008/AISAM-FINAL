@@ -52,7 +52,7 @@ public class WorkspaceServiceTests
         Assert.True(result.Success);
         Assert.Equal(2, result.Data!.Count);
         Assert.All(result.Data, workspace => Assert.Equal(WorkspaceMemberRoleEnum.Owner, workspace.CurrentUserRole));
-        Assert.Contains(result.Data, workspace => workspace.MemberLimit == 10);
+        Assert.Contains(result.Data, workspace => workspace.MemberLimit == 1);
     }
 
     [Fact]

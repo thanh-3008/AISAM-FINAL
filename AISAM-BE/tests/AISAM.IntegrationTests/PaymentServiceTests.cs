@@ -658,9 +658,11 @@ public class PaymentServiceTests
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
+            null,
             creditService ?? new FakeCreditService(),
             Options.Create(settings ?? new PayOSSettings()),
-            httpClient ?? new HttpClient());
+            httpClient ?? new HttpClient(),
+            null);
     }
 
     private static PayOSSettings CreateConfiguredSettings()

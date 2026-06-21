@@ -88,7 +88,7 @@ public sealed class WorkspaceService : IWorkspaceService
         {
             Name = request.Name.Trim(),
             WorkspaceType = request.WorkspaceType,
-            MemberLimit = request.WorkspaceType == WorkspaceTypeEnum.Business ? 10 : 1,
+            MemberLimit = 1,
             CreditWallet = new CreditWallet { Balance = request.WorkspaceType == WorkspaceTypeEnum.Personal ? 50 : 0 },
             Members =
             [

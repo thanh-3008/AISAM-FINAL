@@ -121,12 +121,15 @@ export function useWorkspaces() {
           memberRole: typeof w.currentUserRole === "number" ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
         }));
       }
-    } catch { /* /workspaces fail */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load workspaces");
+    } finally {
+      fetchingWorkspaces = false;
+    }
 
     cachedWorkspaces = mapped;
     setWorkspaces(mapped);
     setLoading(false);
-    fetchingWorkspaces = false;
   }, []);
 
   useEffect(() => {

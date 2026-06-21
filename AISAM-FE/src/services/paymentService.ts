@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, API_URL } from "@/lib/apiClient";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -59,7 +59,23 @@ export async function createPayment(data: CreateCheckoutRequest): Promise<Checko
   }
 }
 
-export async function checkPaymentStatus(_orderCode: string): Promise<CheckoutResponse | null> {
-  // No dedicated BE endpoint; rely on PayOS webhook + callback
-  return null;
+export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<boolean> {
+  try {
+    const PAYOS_PARAMS = ["id", "orderCode", "amount", "description", "cancelUrl", "returnUrl", "status", "signature"];
+    const params = new URLSearchParams();
+    for (const [key, value] of searchParams.entries()) {
+      if (PAYOS_PARAMS.includes(key)) {
+        params.append(key, value);
+      }
+    }
+    const query = params.toString();
+    if (!query) return false;
+    const res = await fetch(`${API_URL}/payment/callback${query ? "?" + query : ""}`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    return data?.success === true;
+  } catch {
+    return false;
+  }
 }

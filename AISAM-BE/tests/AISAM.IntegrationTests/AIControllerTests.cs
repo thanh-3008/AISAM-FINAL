@@ -84,5 +84,13 @@ public class AIControllerTests
             LastProfileId = profileId;
             return Task.FromResult(ChatResult);
         }
+
+        public Task<GenericResponse<ChatResponse>> ChatInWorkspaceAsync(Guid profileId, Guid workspaceId, Guid userId, ChatRequest request, CancellationToken cancellationToken = default)
+        {
+            LastProfileId = profileId;
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
+            return Task.FromResult(ChatResult);
+        }
     }
 }

@@ -90,7 +90,7 @@ namespace AISAM.Services.Service
                     UserId = userId,
                     Name = "Workspace Profile",
                     ProfileType = ProfileTypeEnum.Free,
-                    Status = ProfileStatusEnum.Pending
+                    Status = ProfileStatusEnum.Active
                 }, cancellationToken);
             }
 

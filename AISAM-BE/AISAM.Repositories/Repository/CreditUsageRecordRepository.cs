@@ -1,6 +1,6 @@
+using AISAM.Common.Dtos;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
-using AISAM.Common.Dtos;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Repositories.Repository;
