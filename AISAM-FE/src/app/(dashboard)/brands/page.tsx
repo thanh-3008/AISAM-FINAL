@@ -7,6 +7,7 @@ import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useProfiles } from "@/hooks/useProfiles";
+import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { clearActiveProfile } from "@/stores/profile-store";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
@@ -65,6 +66,7 @@ export default function BrandsPage() {
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
   const { activeProfile } = useProfiles();
+  const { addToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -118,6 +120,7 @@ export default function BrandsPage() {
   const handleEditSuccess = (updated: Brand) => {
     setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setEditingBrand(null);
+    addToast("Brand updated successfully", "check");
   };
 
   const handleDeleteBrand = async () => {
@@ -125,11 +128,18 @@ export default function BrandsPage() {
     const brandToDelete = deletingBrand;
     setDeletingBrand(null);
     try {
-      await apiFetch(`/brands/${brandToDelete.id}`, { method: "DELETE" });
+      const result = await apiFetch(`/brands/${brandToDelete.id}`, { method: "DELETE" });
+      if (result?.success) {
+        setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
+        addToast("Brand deleted successfully", "check");
+      } else {
+        addToast(result?.message || "Failed to delete brand", "error");
+        setDeletingBrand(brandToDelete);
+      }
     } catch {
-      // mock fallback — remove from local state
+      addToast("Failed to delete brand", "error");
+      setDeletingBrand(brandToDelete);
     }
-    setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
   };
 
   return (
@@ -156,7 +166,7 @@ export default function BrandsPage() {
           </div>
           <button onClick={() => {
             if (!activeWorkspace) {
-              setError("Vui lòng chọn Workspace trước (vào Overview).");
+              setError("Please select a Workspace first (go to Overview).");
               return;
             }
             setShowCreateModal(true);
@@ -277,7 +287,7 @@ export default function BrandsPage() {
             </div>
             <button onClick={() => {
               if (!activeWorkspace) {
-                setError("Vui lòng chọn Workspace trước (vào Overview).");
+                setError("Please select a Workspace first (go to Overview).");
                 return;
               }
               setShowCreateModal(true);
@@ -368,7 +378,10 @@ export default function BrandsPage() {
       <CreateBrandModal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={(brand) => setBrands((prev) => [brand, ...prev])}
+        onSuccess={(brand) => {
+            setBrands((prev) => [brand, ...prev]);
+            addToast("Brand created successfully", "check");
+          }}
         profileId={activeProfile?.id || ""}
       />
 
