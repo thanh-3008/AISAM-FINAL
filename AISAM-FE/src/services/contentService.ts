@@ -253,7 +253,8 @@ export async function deleteContent(id: string): Promise<boolean> {
 export async function publishContent(contentId: string, integrationId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<null> = await apiClient(`/content/${contentId}/publish/${integrationId}`, { method: "POST" });
-    return { success: res?.success === true };
+    if (res?.success) return { success: true };
+    return { success: false, error: res?.error?.errorMessage || res?.message || "Failed to publish. Please try again." };
   } catch (e: any) {
     return { success: false, error: e?.message || "Failed to publish. Please try again." };
   }
