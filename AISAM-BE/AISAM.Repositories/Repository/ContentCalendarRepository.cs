@@ -26,7 +26,7 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var query = Query()
-            .Where(schedule => schedule.ProfileId == profileId && !schedule.IsDeleted)
+            .Where(schedule => schedule.ProfileId == profileId && !schedule.IsDeleted && (schedule.Content.Status == AISAM.Data.Enumeration.ContentStatusEnum.Approved || schedule.Content.Status == AISAM.Data.Enumeration.ContentStatusEnum.Published))
             .OrderBy(schedule => schedule.ScheduledAt ?? schedule.ScheduledDate);
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -63,7 +63,7 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(s => s.WorkspaceId == workspaceId && !s.IsDeleted).OrderBy(s => s.ScheduledAt ?? s.ScheduledDate);
+        var query = Query().Where(s => s.WorkspaceId == workspaceId && !s.IsDeleted && (s.Content.Status == AISAM.Data.Enumeration.ContentStatusEnum.Approved || s.Content.Status == AISAM.Data.Enumeration.ContentStatusEnum.Published)).OrderBy(s => s.ScheduledAt ?? s.ScheduledDate);
         var totalCount = await query.CountAsync(cancellationToken);
         var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return new PagedResult<ContentCalendar> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
@@ -125,6 +125,73 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
             .OrderBy(schedule => schedule.ScheduledAt ?? schedule.ScheduledDate)
             .Take(take)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default)
+    {
+        var take = Math.Clamp(limit, 1, 100);
+
+        var ids = await _context.Database.SqlQueryRaw<Guid>(
+            """
+            UPDATE content_calendar
+            SET status = {0}, updated_at = NOW()
+            WHERE id IN (
+                SELECT id FROM content_calendar
+                WHERE is_deleted = false
+                  AND (
+                      (status = {1} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2}))
+                      OR
+                      (status = {3} AND attempt_count < {4} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2}))
+                  )
+                ORDER BY scheduled_at
+                LIMIT {5}
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id
+            """,
+            (int)ScheduleStatusEnum.Processing,
+            (int)ScheduleStatusEnum.Pending,
+            utcNow,
+            (int)ScheduleStatusEnum.Failed,
+            maxAttemptCount,
+            take
+        ).ToListAsync(cancellationToken);
+
+        if (ids.Count == 0)
+            return [];
+
+        return await Query()
+            .Where(s => ids.Contains(s.Id))
+            .OrderBy(s => s.ScheduledAt ?? s.ScheduledDate)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ContentCalendars
+            .AnyAsync(s =>
+                s.ContentId == contentId &&
+                !s.IsDeleted &&
+                (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing),
+                cancellationToken);
+    }
+
+    public async Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
+    {
+        var active = await _context.ContentCalendars
+            .Where(s => s.ContentId == contentId && !s.IsDeleted &&
+                        (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing))
+            .ToListAsync(cancellationToken);
+        foreach (var s in active)
+        {
+            s.Status = ScheduleStatusEnum.Completed;
+            s.ExecutedAt = DateTime.UtcNow;
+            s.LastError = null;
+            s.AttemptCount = 0;
+            s.IsActive = false;
+            s.UpdatedAt = DateTime.UtcNow;
+        }
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ContentCalendar> AddAsync(ContentCalendar schedule, CancellationToken cancellationToken = default)
