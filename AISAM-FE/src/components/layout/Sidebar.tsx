@@ -36,8 +36,8 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
   {
     label: "Marketing",
     items: [
-      { label: "Campaigns", href: "/campaigns", icon: "campaign" },
       { label: "Social Accounts", href: "/social", icon: "public" },
+      { label: "Campaigns", href: "/campaigns", icon: "campaign" },
       { label: "Analysis", href: "/analytics", icon: "bar_chart" },
     ],
   },
