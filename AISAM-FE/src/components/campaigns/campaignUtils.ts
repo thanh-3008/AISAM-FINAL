@@ -16,13 +16,20 @@ export const STATUS_CONFIG: Record<CampaignStatus, { label: string; color: strin
   DRAFT: { label: "Draft", color: "text-outline", bg: "bg-surface-container-high border-outline-variant/20", dot: "bg-outline" },
 };
 
-export const BRANDS = [
-  { id: "b1", name: "Lumina Tech" },
-  { id: "b2", name: "Summit Outdoor" },
-  { id: "b3", name: "Heritage Motors" },
-  { id: "b4", name: "GreenLeaf Organics" },
-  { id: "b5", name: "Pulse Finance" },
-];
+export interface BrandOption {
+  id: string;
+  name: string;
+}
+
+export let cachedBrands: BrandOption[] = [];
+
+export function setCachedBrands(brands: BrandOption[]) {
+  cachedBrands = brands;
+}
+
+export function getCachedBrands(): BrandOption[] {
+  return cachedBrands;
+}
 
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);

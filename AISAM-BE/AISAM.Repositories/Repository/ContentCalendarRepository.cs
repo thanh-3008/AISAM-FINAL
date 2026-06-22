@@ -206,7 +206,6 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
     public async Task UpdateAsync(ContentCalendar schedule, CancellationToken cancellationToken = default)
     {
         schedule.UpdatedAt = DateTime.UtcNow;
-        _context.ContentCalendars.Update(schedule);
         await _context.SaveChangesAsync(cancellationToken);
     }
 

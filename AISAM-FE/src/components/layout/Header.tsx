@@ -137,15 +137,20 @@ export default function Header({ breadcrumbs }: HeaderProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleLogout = async () => {
     setUserMenuOpen(false);
     await logout();
     window.location.href = "/login";
   };
 
-  const displayName = user?.name || activeWorkspace?.name || "User";
+  const displayName = mounted ? (user?.name || activeWorkspace?.name || "User") : "User";
   const initials = getInitials(displayName);
-  const displayPlan = activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace";
+  const displayPlan = mounted ? (activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace") : "Loading...";
   const settingsHref = activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles";
 
   return (

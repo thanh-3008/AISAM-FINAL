@@ -47,4 +47,5 @@ public sealed class ChatResponse
 {
     public string Response { get; set; } = string.Empty;
     public Guid ConversationId { get; set; }
+    public bool ShouldCreateContent { get; set; }
 }

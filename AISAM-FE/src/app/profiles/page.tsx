@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
@@ -35,6 +35,13 @@ export default function ProfilesListPage() {
   const [filterStatus, setFilterStatus] = useState<number | "all">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("orderCode") || params.has("id")) {
+      router.replace(`/pricing?${params.toString()}`);
+    }
+  }, [router]);
 
   const filtered = useMemo(() => {
     let list = workspaces;

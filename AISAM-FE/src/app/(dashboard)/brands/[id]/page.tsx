@@ -10,6 +10,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
 import { PlatformIcon } from "@/lib/contentConstants";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
+import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 
 interface Brand {
   id: string;
@@ -25,19 +26,6 @@ interface Brand {
   updatedAt: string;
   productsCount: number;
   contentsCount: number;
-}
-
-interface Campaign {
-  id: string;
-  brandId: string;
-  name: string;
-  platform: string;
-  platformColor: string;
-  platformBg: string;
-  status: string;
-  budget: string;
-  spent: string;
-  createdAt: string;
 }
 
 
@@ -107,7 +95,10 @@ export default function BrandDetailPage() {
               setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
               return;
             }
-          } catch { /* ignore */ }
+          } catch (e: any) {
+            setError(e?.message || "Failed to load brand");
+            return;
+          }
           setError("Brand not found");
         })(),
         (async () => {
@@ -117,6 +108,12 @@ export default function BrandDetailPage() {
               setProducts(result.data.data as Product[]);
               return;
             }
+          } catch { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await fetchCampaigns({ pageSize: 100 });
+            setCampaigns(res.data.filter((c) => c.brandId === id));
           } catch { /* ignore */ }
         })(),
       ]).finally(() => setLoading(false));
@@ -483,9 +480,9 @@ export default function BrandDetailPage() {
                     <thead>
                       <tr className="text-label-sm text-outline border-b border-outline-variant">
                         <th className="px-5 py-3.5 font-semibold">Campaign</th>
-                        <th className="px-5 py-3.5 font-semibold">Platform</th>
+                        <th className="px-5 py-3.5 font-semibold">Objective</th>
                         <th className="px-5 py-3.5 font-semibold">Budget</th>
-                        <th className="px-5 py-3.5 font-semibold">Spent</th>
+                        <th className="px-5 py-3.5 font-semibold">Spend</th>
                         <th className="px-5 py-3.5 font-semibold">Status</th>
                       </tr>
                     </thead>
@@ -506,21 +503,20 @@ export default function BrandDetailPage() {
                             </div>
                           </td>
                           <td className="px-5 py-4">
-                            <span className={`px-2.5 py-1 ${camp.platformBg} ${camp.platformColor} rounded-lg text-label-xs font-bold tracking-wide inline-block`}>{camp.platform}</span>
+                            <span className="text-body-sm text-on-surface-variant capitalize">{camp.objective.toLowerCase()}</span>
                           </td>
-                          <td className="px-5 py-4 text-body-sm text-on-surface font-medium">{camp.budget}</td>
-                          <td className="px-5 py-4">
-                            <span className="text-body-sm text-on-surface font-medium">{camp.spent}</span>
-                            {parseFloat(camp.spent.replace(/[^0-9.]/g, "")) > 0 && (
-                              <span className="text-label-sm text-outline ml-2">({Math.round(parseFloat(camp.spent.replace(/[^0-9.]/g, "")) / parseFloat(camp.budget.replace(/[^0-9.]/g, "")) * 100)}%)</span>
-                            )}
+                          <td className="px-5 py-4 text-body-sm text-on-surface font-medium">
+                            {camp.budget != null ? `$${camp.budget.toLocaleString()}` : "--"}
+                          </td>
+                          <td className="px-5 py-4 text-body-sm text-on-surface font-medium">
+                            ${camp.spend.toLocaleString()}
                           </td>
                           <td className="px-5 py-4">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                              camp.status === "Active" ? "bg-success-green/10 text-success-green" : "bg-surface-container-high text-on-surface-variant"
+                              camp.status === "ACTIVE" ? "bg-success-green/10 text-success-green" : "bg-surface-container-high text-on-surface-variant"
                             }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${camp.status === "Active" ? "bg-success-green animate-pulse" : "bg-outline"}`} />
-                              {camp.status}
+                              <span className={`w-1.5 h-1.5 rounded-full ${camp.status === "ACTIVE" ? "bg-success-green animate-pulse" : "bg-outline"}`} />
+                              {camp.status.charAt(0) + camp.status.slice(1).toLowerCase()}
                             </span>
                           </td>
                         </motion.tr>

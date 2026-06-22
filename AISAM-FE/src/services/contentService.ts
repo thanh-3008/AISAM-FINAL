@@ -313,12 +313,18 @@ export async function chatWithAI(
   productId?: string,
   conversationId?: string,
   _history?: { role: string; text: string }[]
-): Promise<{ text: string; conversationId: string } | null> {
+): Promise<{ text: string; conversationId: string; shouldCreateContent: boolean } | null> {
   try {
-    const res: GenericResponse<{ response: string; conversationId: string }> = await apiClient("/ai/chat", {
+    const res: GenericResponse<{ response: string; conversationId: string; shouldCreateContent: boolean }> = await apiClient("/ai/chat", {
       data: { message, adType, brandId, productId, conversationId },
     });
-    if (res?.success && res.data?.response) return { text: res.data.response, conversationId: res.data.conversationId };
+    if (res?.success && res.data?.response) {
+      return {
+        text: res.data.response,
+        conversationId: res.data.conversationId,
+        shouldCreateContent: res.data.shouldCreateContent === true,
+      };
+    }
     return null;
   } catch {
     return null;
