@@ -114,7 +114,7 @@ export function useWorkspaces() {
       if (sharedWorkspaces && sharedWorkspaces.some((workspace) => workspace.userId === userId)) {
         setWorkspaces(sharedWorkspaces);
       } else {
-        const fallback = getStoredWorkspaceFallback(userId);
+        const fallback = null;
         setWorkspaces((prev) => prev.length > 0 ? prev : fallback ? [fallback] : []);
       }
       setLoading(false);
