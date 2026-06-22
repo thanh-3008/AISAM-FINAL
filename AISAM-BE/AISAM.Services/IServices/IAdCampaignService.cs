@@ -1,22 +1,17 @@
 using AISAM.Common;
 using AISAM.Common.Dtos;
-using AISAM.Common.Models;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Dtos.Response;
 
 namespace AISAM.Services.IServices
 {
     public interface IAdCampaignService
     {
-        Task<GenericResponse<PagedResult<AdCampaignDto>>> GetPagedByWorkspaceAsync(
-            Guid workspaceId,
-            PaginationRequest request,
-            Guid? brandId = null,
-            bool? isActive = null,
-            CancellationToken cancellationToken = default);
-
-        Task<GenericResponse<AdCampaignDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid campaignId, CancellationToken cancellationToken = default);
-        Task<GenericResponse<AdCampaignDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid userId, CreateAdCampaignRequest request, CancellationToken cancellationToken = default);
-        Task<GenericResponse<AdCampaignDto>> UpdateInWorkspaceAsync(Guid workspaceId, Guid campaignId, UpdateAdCampaignRequest request, CancellationToken cancellationToken = default);
-        Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid campaignId, CancellationToken cancellationToken = default);
-        Task<GenericResponse<AdCampaignDto>> SyncInWorkspaceAsync(Guid workspaceId, Guid campaignId, CancellationToken cancellationToken = default);
+        Task<GenericResponse<PagedResult<AdCampaignResponseDto>>> GetPagedByWorkspaceIdAsync(Guid workspaceId, Guid userId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default);
+        Task<GenericResponse<AdCampaignResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
+        Task<GenericResponse<AdCampaignResponseDto>> CreateAsync(Guid workspaceId, Guid userId, CreateAdCampaignRequest request, CancellationToken cancellationToken = default);
+        Task<GenericResponse<AdCampaignResponseDto>> UpdateAsync(Guid id, Guid workspaceId, Guid userId, UpdateAdCampaignRequest request, CancellationToken cancellationToken = default);
+        Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
+        Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
     }
 }

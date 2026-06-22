@@ -174,6 +174,7 @@ builder.Services.AddScoped<IQuotaService, QuotaService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
@@ -279,6 +280,26 @@ app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
+    var freeSubscriptions = dbContext.Subscriptions.Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free).ToList();
+    foreach (var sub in freeSubscriptions)
+    {
+        sub.Plan = AISAM.Data.Enumeration.SubscriptionPlanEnum.Premium;
+        sub.QuotaPostsPerMonth = 20000;
+        sub.QuotaAIContentPerDay = 1000;
+        sub.QuotaAIImagesPerDay = 100;
+        sub.QuotaPlatforms = 10;
+        sub.QuotaAccounts = 10;
+        sub.AnalysisLevel = 2;
+        sub.QuotaAdBudgetMonthly = 10000000;
+        sub.QuotaAdCampaigns = 100;
+        sub.EndDate = DateTime.UtcNow.AddYears(1);
+    }
+    dbContext.SaveChanges();
+}
 
 app.Run();
 

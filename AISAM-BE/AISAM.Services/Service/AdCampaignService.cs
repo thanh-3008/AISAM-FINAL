@@ -1,8 +1,7 @@
-using System.Net;
 using AISAM.Common;
 using AISAM.Common.Dtos;
-using AISAM.Common.Models;
-using AISAM.Data.Enumeration;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
@@ -12,301 +11,251 @@ namespace AISAM.Services.Service
     public class AdCampaignService : IAdCampaignService
     {
         private readonly IAdCampaignRepository _campaignRepository;
+        private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
         private readonly IBrandRepository _brandRepository;
-        private readonly IProfileRepository _profileRepository;
 
         public AdCampaignService(
             IAdCampaignRepository campaignRepository,
-            IBrandRepository brandRepository,
-            IProfileRepository profileRepository)
+            IWorkspaceMemberRepository workspaceMemberRepository,
+            IBrandRepository brandRepository)
         {
             _campaignRepository = campaignRepository;
+            _workspaceMemberRepository = workspaceMemberRepository;
             _brandRepository = brandRepository;
-            _profileRepository = profileRepository;
         }
 
-        public async Task<GenericResponse<PagedResult<AdCampaignDto>>> GetPagedByWorkspaceAsync(
-            Guid workspaceId,
-            PaginationRequest request,
-            Guid? brandId = null,
-            bool? isActive = null,
-            CancellationToken cancellationToken = default)
-        {
-            if (brandId.HasValue && !await BrandBelongsToWorkspaceAsync(brandId.Value, workspaceId, cancellationToken))
-            {
-                return GenericResponse<PagedResult<AdCampaignDto>>.CreateError("Brand not found.", HttpStatusCode.NotFound);
-            }
-
-            var result = await _campaignRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, isActive, cancellationToken);
-            return GenericResponse<PagedResult<AdCampaignDto>>.CreateSuccess(new PagedResult<AdCampaignDto>
-            {
-                Data = result.Data.Select(Map).ToList(),
-                TotalCount = result.TotalCount,
-                Page = result.Page,
-                PageSize = result.PageSize
-            }, "Ad campaigns retrieved successfully.");
-        }
-
-        public async Task<GenericResponse<AdCampaignDto>> GetByIdInWorkspaceAsync(
-            Guid workspaceId,
-            Guid campaignId,
-            CancellationToken cancellationToken = default)
-        {
-            var campaign = await _campaignRepository.GetByIdAsync(campaignId, cancellationToken);
-            if (campaign == null || campaign.WorkspaceId != workspaceId)
-            {
-                return GenericResponse<AdCampaignDto>.CreateError("Ad campaign not found.", HttpStatusCode.NotFound);
-            }
-
-            return GenericResponse<AdCampaignDto>.CreateSuccess(Map(campaign), "Ad campaign retrieved successfully.");
-        }
-
-        public async Task<GenericResponse<AdCampaignDto>> CreateInWorkspaceAsync(
+        public async Task<GenericResponse<PagedResult<AdCampaignResponseDto>>> GetPagedByWorkspaceIdAsync(
             Guid workspaceId,
             Guid userId,
-            CreateAdCampaignRequest request,
+            PaginationRequest request,
+            bool includeDeleted = false,
             CancellationToken cancellationToken = default)
         {
-            var validation = await ValidateRequestAsync(
-                workspaceId,
-                request.BrandId,
-                request.AdAccountId,
-                request.Name,
-                request.Budget,
-                request.StartDate,
-                request.EndDate,
-                cancellationToken);
-            if (!validation.Success)
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
             {
-                return GenericResponse<AdCampaignDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+                return GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateError(access.Message);
             }
 
-            var profile = await ResolveWorkspaceProfileAsync(workspaceId, userId, cancellationToken);
+            var campaigns = await _campaignRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, includeDeleted, cancellationToken);
+
+            return GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateSuccess(new PagedResult<AdCampaignResponseDto>
+            {
+                Data = campaigns.Data.Select(MapToDto).ToList(),
+                TotalCount = campaigns.TotalCount,
+                Page = campaigns.Page,
+                PageSize = campaigns.PageSize
+            }, "Campaigns retrieved successfully");
+        }
+
+        public async Task<GenericResponse<AdCampaignResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
+            if (campaign == null)
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
+            }
+
+            if (campaign.WorkspaceId != workspaceId)
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
+            }
+
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
+            }
+
+            return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(campaign), "Campaign retrieved successfully");
+        }
+
+        public async Task<GenericResponse<AdCampaignResponseDto>> CreateAsync(Guid workspaceId, Guid userId, CreateAdCampaignRequest request, CancellationToken cancellationToken = default)
+        {
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
+            }
+
+            var brand = await _brandRepository.GetByIdAsync(request.BrandId, cancellationToken);
+            if (brand == null || brand.WorkspaceId != workspaceId)
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Brand not found in this workspace");
+            }
+
             var campaign = new AdCampaign
             {
                 WorkspaceId = workspaceId,
-                ProfileId = profile.Id,
+                ProfileId = brand.ProfileId,
                 BrandId = request.BrandId,
-                AdAccountId = request.AdAccountId.Trim(),
-                Name = request.Name.Trim(),
-                Objective = NormalizeObjective(request.Objective),
+                AdAccountId = request.AdAccountId,
+                Name = request.Name,
+                Objective = request.Objective,
                 Budget = request.Budget,
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
-                IsActive = false
+                IsActive = true
             };
 
-            await _campaignRepository.AddAsync(campaign, cancellationToken);
-            var loaded = await _campaignRepository.GetByIdAsync(campaign.Id, cancellationToken) ?? campaign;
-            return GenericResponse<AdCampaignDto>.CreateSuccess(Map(loaded), "Ad campaign created successfully.");
+            var created = await _campaignRepository.AddAsync(campaign, cancellationToken);
+
+            return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(created), "Campaign created successfully");
         }
 
-        public async Task<GenericResponse<AdCampaignDto>> UpdateInWorkspaceAsync(
-            Guid workspaceId,
-            Guid campaignId,
-            UpdateAdCampaignRequest request,
-            CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<AdCampaignResponseDto>> UpdateAsync(Guid id, Guid workspaceId, Guid userId, UpdateAdCampaignRequest request, CancellationToken cancellationToken = default)
         {
-            var campaign = await _campaignRepository.GetByIdAsync(campaignId, cancellationToken);
+            var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
-                return GenericResponse<AdCampaignDto>.CreateError("Ad campaign not found.", HttpStatusCode.NotFound);
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
             }
 
-            var brandId = request.BrandId ?? campaign.BrandId;
-            var adAccountId = request.AdAccountId ?? campaign.AdAccountId;
-            var name = request.Name ?? campaign.Name;
-            var budget = request.Budget ?? campaign.Budget;
-            var startDate = request.StartDate ?? campaign.StartDate;
-            var endDate = request.EndDate ?? campaign.EndDate;
-
-            var validation = await ValidateRequestAsync(workspaceId, brandId, adAccountId, name, budget, startDate, endDate, cancellationToken);
-            if (!validation.Success)
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
             {
-                return GenericResponse<AdCampaignDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+                return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
             }
 
-            campaign.BrandId = brandId;
-            campaign.AdAccountId = adAccountId.Trim();
-            campaign.Name = name.Trim();
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                campaign.Name = request.Name;
+            }
+
+            if (request.BrandId.HasValue)
+            {
+                var brand = await _brandRepository.GetByIdAsync(request.BrandId.Value, cancellationToken);
+                if (brand == null || brand.WorkspaceId != workspaceId)
+                {
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Brand not found in this workspace");
+                }
+
+                campaign.BrandId = request.BrandId.Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.AdAccountId))
+            {
+                campaign.AdAccountId = request.AdAccountId;
+            }
+
             if (request.Objective != null)
             {
-                campaign.Objective = NormalizeObjective(request.Objective);
+                campaign.Objective = request.Objective;
             }
 
-            campaign.Budget = budget;
-            campaign.StartDate = startDate;
-            campaign.EndDate = endDate;
-            ApplyStatus(campaign, request.Status);
+            if (request.Budget.HasValue)
+            {
+                campaign.Budget = request.Budget.Value;
+            }
+
+            if (request.StartDate.HasValue)
+            {
+                campaign.StartDate = request.StartDate.Value;
+            }
+
+            if (request.EndDate.HasValue)
+            {
+                campaign.EndDate = request.EndDate.Value;
+            }
+
+            if (request.IsActive.HasValue)
+            {
+                campaign.IsActive = request.IsActive.Value;
+            }
 
             await _campaignRepository.UpdateAsync(campaign, cancellationToken);
-            var loaded = await _campaignRepository.GetByIdAsync(campaign.Id, cancellationToken) ?? campaign;
-            return GenericResponse<AdCampaignDto>.CreateSuccess(Map(loaded), "Ad campaign updated successfully.");
+
+            return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(campaign), "Campaign updated successfully");
         }
 
-        public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(
-            Guid workspaceId,
-            Guid campaignId,
-            CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
-            var campaign = await _campaignRepository.GetByIdAsync(campaignId, cancellationToken);
+            var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
-                return GenericResponse<bool>.CreateError("Ad campaign not found.", HttpStatusCode.NotFound);
+                return GenericResponse<bool>.CreateError("Campaign not found");
+            }
+
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
+            {
+                return GenericResponse<bool>.CreateError(access.Message);
             }
 
             campaign.IsDeleted = true;
-            campaign.IsActive = false;
             await _campaignRepository.UpdateAsync(campaign, cancellationToken);
-            return GenericResponse<bool>.CreateSuccess(true, "Ad campaign deleted successfully.");
+
+            return GenericResponse<bool>.CreateSuccess(true, "Campaign deleted successfully");
         }
 
-        public async Task<GenericResponse<AdCampaignDto>> SyncInWorkspaceAsync(
-            Guid workspaceId,
-            Guid campaignId,
-            CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
-            var campaign = await _campaignRepository.GetByIdAsync(campaignId, cancellationToken);
+            var campaign = await _campaignRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
-                return GenericResponse<AdCampaignDto>.CreateError("Ad campaign not found.", HttpStatusCode.NotFound);
+                return GenericResponse<bool>.CreateError("Campaign not found");
             }
 
-            if (string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
             {
-                campaign.FacebookCampaignId = $"local_pending_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                return GenericResponse<bool>.CreateError(access.Message);
             }
 
-            campaign.IsActive = true;
+            if (!campaign.IsDeleted)
+            {
+                return GenericResponse<bool>.CreateError("Campaign is not deleted");
+            }
+
+            campaign.IsDeleted = false;
             await _campaignRepository.UpdateAsync(campaign, cancellationToken);
-            return GenericResponse<AdCampaignDto>.CreateSuccess(Map(campaign), "Ad campaign marked as synced locally.");
+
+            return GenericResponse<bool>.CreateSuccess(true, "Campaign restored successfully");
         }
 
-        private async Task<GenericResponse<bool>> ValidateRequestAsync(
-            Guid workspaceId,
-            Guid brandId,
-            string? adAccountId,
-            string? name,
-            decimal? budget,
-            DateTime? startDate,
-            DateTime? endDate,
-            CancellationToken cancellationToken)
+        private async Task<(bool Success, string Message)> EnsureWorkspaceMemberAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken)
         {
-            if (brandId == Guid.Empty)
-            {
-                return GenericResponse<bool>.CreateError("Brand is required.", HttpStatusCode.BadRequest);
-            }
-
-            if (string.IsNullOrWhiteSpace(adAccountId))
-            {
-                return GenericResponse<bool>.CreateError("Facebook ad account is required.", HttpStatusCode.BadRequest);
-            }
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return GenericResponse<bool>.CreateError("Campaign name is required.", HttpStatusCode.BadRequest);
-            }
-
-            if (budget.HasValue && budget.Value <= 0)
-            {
-                return GenericResponse<bool>.CreateError("Budget must be positive.", HttpStatusCode.BadRequest);
-            }
-
-            if (startDate.HasValue && endDate.HasValue && endDate.Value.Date <= startDate.Value.Date)
-            {
-                return GenericResponse<bool>.CreateError("End date must be after start date.", HttpStatusCode.BadRequest);
-            }
-
-            if (!await BrandBelongsToWorkspaceAsync(brandId, workspaceId, cancellationToken))
-            {
-                return GenericResponse<bool>.CreateError("Brand not found.", HttpStatusCode.NotFound);
-            }
-
-            return GenericResponse<bool>.CreateSuccess(true);
+            var membership = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId, userId, cancellationToken);
+            return membership == null
+                ? (false, "You are not allowed to access this workspace")
+                : (true, string.Empty);
         }
 
-        private async Task<bool> BrandBelongsToWorkspaceAsync(Guid brandId, Guid workspaceId, CancellationToken cancellationToken)
+        private static AdCampaignResponseDto MapToDto(AdCampaign campaign)
         {
-            var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
-            return brand != null && !brand.IsDeleted && brand.WorkspaceId == workspaceId;
-        }
-
-        private async Task<Profile> ResolveWorkspaceProfileAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken)
-        {
-            var profile = await _profileRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
-            if (profile != null)
-            {
-                return profile;
-            }
-
-            return await _profileRepository.CreateAsync(new Profile
-            {
-                UserId = userId,
-                WorkspaceId = workspaceId,
-                Name = "Workspace Profile",
-                ProfileType = ProfileTypeEnum.Free,
-                Status = ProfileStatusEnum.Pending
-            }, cancellationToken);
-        }
-
-        private static void ApplyStatus(AdCampaign campaign, string? status)
-        {
-            if (string.IsNullOrWhiteSpace(status))
-            {
-                return;
-            }
-
-            var normalized = status.Trim().ToUpperInvariant();
-            if (normalized == "ACTIVE")
-            {
-                campaign.IsActive = true;
-            }
-            else if (normalized is "PAUSED" or "DRAFT" or "COMPLETED")
-            {
-                campaign.IsActive = false;
-            }
-        }
-
-        private static string NormalizeObjective(string? objective)
-        {
-            return string.IsNullOrWhiteSpace(objective) ? "TRAFFIC" : objective.Trim().ToUpperInvariant();
-        }
-
-        private static AdCampaignDto Map(AdCampaign campaign)
-        {
-            var status = campaign.EndDate.HasValue && campaign.EndDate.Value.Date < DateTime.UtcNow.Date
-                ? "COMPLETED"
-                : campaign.IsActive
-                    ? "ACTIVE"
-                    : string.IsNullOrWhiteSpace(campaign.FacebookCampaignId) ? "DRAFT" : "PAUSED";
-
-            return new AdCampaignDto
+            return new AdCampaignResponseDto
             {
                 Id = campaign.Id,
-                WorkspaceId = campaign.WorkspaceId,
                 ProfileId = campaign.ProfileId,
+                WorkspaceId = campaign.WorkspaceId,
                 BrandId = campaign.BrandId,
-                BrandName = campaign.Brand?.Name,
+                BrandName = campaign.Brand?.Name ?? string.Empty,
                 AdAccountId = campaign.AdAccountId,
                 FacebookCampaignId = campaign.FacebookCampaignId,
                 Name = campaign.Name,
-                Objective = campaign.Objective ?? "TRAFFIC",
+                Objective = campaign.Objective,
                 Budget = campaign.Budget,
                 StartDate = campaign.StartDate,
                 EndDate = campaign.EndDate,
                 IsActive = campaign.IsActive,
                 IsDeleted = campaign.IsDeleted,
-                Status = status,
                 CreatedAt = campaign.CreatedAt,
                 UpdatedAt = campaign.UpdatedAt,
-                AdSets = campaign.AdSets.Where(adSet => !adSet.IsDeleted).Select(adSet => new AdSetDto
+                AdSets = campaign.AdSets.Select(ads => new AdSetSummaryDto
                 {
-                    Id = adSet.Id,
-                    Name = adSet.Name,
-                    FacebookAdSetId = adSet.FacebookAdSetId,
-                    DailyBudget = adSet.DailyBudget,
-                    Status = adSet.Status ?? "PAUSED"
-                }).ToList()
+                    Id = ads.Id,
+                    Name = ads.Name,
+                    FacebookAdSetId = ads.FacebookAdSetId,
+                    DailyBudget = ads.DailyBudget,
+                    Status = ads.Status,
+                    Impressions = 0,
+                    Clicks = 0,
+                    Spend = 0
+                }).ToList(),
+                Impressions = 0,
+                Clicks = 0,
+                Spend = 0,
+                Conversions = 0
             };
         }
     }

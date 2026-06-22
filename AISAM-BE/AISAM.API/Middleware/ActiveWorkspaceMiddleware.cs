@@ -13,7 +13,6 @@ public sealed class ActiveWorkspaceMiddleware
     private static readonly PathString[] ProtectedPrefixes =
     {
         new("/api/ai"),
-        new("/api/ad-campaigns"),
         new("/api/brands"),
         new("/api/content"),
         new("/api/content-schedules"),
@@ -30,7 +29,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/social-auth"),
         new("/api/conversations"),
         new("/api/notifications"),
-        new("/api/credit-usage")
+        new("/api/credit-usage"),
+        new("/api/campaigns")
     };
 
     private readonly RequestDelegate _next;
@@ -149,14 +149,14 @@ public sealed class ActiveWorkspaceMiddleware
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBrands);
         }
 
-        if (path.StartsWithSegments("/api/ad-campaigns"))
+        if (path.StartsWithSegments("/api/campaigns"))
         {
             if (method == HttpMethods.Get)
             {
                 return null;
             }
 
-            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageCampaign);
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageCampaigns);
         }
 
         if (path.StartsWithSegments("/api/products"))
@@ -330,7 +330,7 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
             WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.ContentCreator,
             WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
-            WorkspacePermissionEnum.ManageCampaign => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
+            WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             _ => false
         };
 

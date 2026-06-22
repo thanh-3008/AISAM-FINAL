@@ -14,50 +14,62 @@ namespace AISAM.Repositories.Repository
             _context = context;
         }
 
+        public async Task<AdCampaign?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdCampaigns
+                .AsSplitQuery()
+                .Include(ac => ac.Brand)
+                .Include(ac => ac.AdSets.Where(ads => !ads.IsDeleted))
+                .FirstOrDefaultAsync(ac => ac.Id == id && !ac.IsDeleted, cancellationToken);
+        }
+
+        public async Task<AdCampaign?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdCampaigns
+                .AsSplitQuery()
+                .Include(ac => ac.Brand)
+                .Include(ac => ac.AdSets)
+                .FirstOrDefaultAsync(ac => ac.Id == id, cancellationToken);
+        }
+
         public async Task<PagedResult<AdCampaign>> GetPagedByWorkspaceIdAsync(
             Guid workspaceId,
             PaginationRequest request,
-            Guid? brandId = null,
-            bool? isActive = null,
+            bool includeDeleted = false,
             CancellationToken cancellationToken = default)
         {
             var page = Math.Max(request.Page, 1);
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
-            var query = Query()
-                .Where(campaign => campaign.WorkspaceId == workspaceId && !campaign.IsDeleted);
+            var query = _context.AdCampaigns
+                .AsSplitQuery()
+                .Include(ac => ac.Brand)
+                .Include(ac => ac.AdSets.Where(ads => !ads.IsDeleted))
+                .Where(ac => ac.WorkspaceId == workspaceId);
 
-            if (brandId.HasValue)
+            if (!includeDeleted)
             {
-                query = query.Where(campaign => campaign.BrandId == brandId.Value);
-            }
-
-            if (isActive.HasValue)
-            {
-                query = query.Where(campaign => campaign.IsActive == isActive.Value);
+                query = query.Where(ac => !ac.IsDeleted);
             }
 
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
-                var pattern = $"%{request.SearchTerm}%";
-                query = query.Where(campaign =>
-                    EF.Functions.ILike(campaign.Name, pattern) ||
-                    (campaign.Objective != null && EF.Functions.ILike(campaign.Objective, pattern)));
+                var searchPattern = $"%{request.SearchTerm}%";
+                query = query.Where(ac =>
+                    EF.Functions.ILike(ac.Name, searchPattern) ||
+                    (ac.Objective != null && EF.Functions.ILike(ac.Objective, searchPattern)));
             }
 
             query = (request.SortBy ?? string.Empty).ToLowerInvariant() switch
             {
-                "name" => request.SortDescending ? query.OrderByDescending(campaign => campaign.Name) : query.OrderBy(campaign => campaign.Name),
-                "updatedat" => request.SortDescending ? query.OrderByDescending(campaign => campaign.UpdatedAt) : query.OrderBy(campaign => campaign.UpdatedAt),
-                "createdat" => request.SortDescending ? query.OrderByDescending(campaign => campaign.CreatedAt) : query.OrderBy(campaign => campaign.CreatedAt),
-                _ => query.OrderByDescending(campaign => campaign.CreatedAt)
+                "name" => request.SortDescending ? query.OrderByDescending(ac => ac.Name) : query.OrderBy(ac => ac.Name),
+                "budget" => request.SortDescending ? query.OrderByDescending(ac => ac.Budget) : query.OrderBy(ac => ac.Budget),
+                "startdate" => request.SortDescending ? query.OrderByDescending(ac => ac.StartDate) : query.OrderBy(ac => ac.StartDate),
+                _ => query.OrderByDescending(ac => ac.CreatedAt)
             };
 
             var totalCount = await query.CountAsync(cancellationToken);
-            var data = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken);
+            var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
 
             return new PagedResult<AdCampaign>
             {
@@ -66,12 +78,6 @@ namespace AISAM.Repositories.Repository
                 Page = page,
                 PageSize = pageSize
             };
-        }
-
-        public async Task<AdCampaign?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-        {
-            return await Query()
-                .FirstOrDefaultAsync(campaign => campaign.Id == id && !campaign.IsDeleted, cancellationToken);
         }
 
         public async Task<AdCampaign> AddAsync(AdCampaign campaign, CancellationToken cancellationToken = default)
@@ -89,14 +95,6 @@ namespace AISAM.Repositories.Repository
             campaign.UpdatedAt = DateTime.UtcNow;
             _context.AdCampaigns.Update(campaign);
             await _context.SaveChangesAsync(cancellationToken);
-        }
-
-        private IQueryable<AdCampaign> Query()
-        {
-            return _context.AdCampaigns
-                .Include(campaign => campaign.Brand)
-                .Include(campaign => campaign.Workspace)
-                .Include(campaign => campaign.AdSets);
         }
     }
 }
