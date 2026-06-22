@@ -131,6 +131,8 @@ public class ScheduledPostingServiceTests
         var completed = CreateDueSchedule();
         completed.Status = ScheduleStatusEnum.Completed;
         var contentService = new FakeContentService();
+        var repository = new FakeContentCalendarRepository(completed);
+        var notificationRepository = new FakeNotificationRepository();
         var service = new ScheduledPostingService(
             repository,
             contentService,
@@ -144,7 +146,7 @@ public class ScheduledPostingServiceTests
         Assert.Equal(1, result.ScannedCount);
         Assert.Equal(0, result.SuccessCount);
         Assert.Equal(1, result.FailedCount);
-        Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
+        Assert.Equal(ScheduleStatusEnum.Failed, completed.Status);
     }
 
     [Fact]

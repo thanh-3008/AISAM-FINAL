@@ -226,6 +226,31 @@ public static class MessageConstants
         public const string GrantedSuccess = "Subscription credits granted successfully.";
     }
 
+    public static class Campaign
+    {
+        // Success
+        public const string CreatedSuccess = "Campaign created successfully.";
+        public const string RetrievedSuccess = "Campaign retrieved successfully.";
+        public const string UpdatedSuccess = "Campaign updated successfully.";
+        public const string DeletedSuccess = "Campaign deleted successfully.";
+        public const string ListRetrievedSuccess = "Campaigns retrieved successfully.";
+        public const string AppliedSuccess = "Campaign applied successfully.";
+        public const string RestartedSuccess = "Campaign restarted successfully.";
+        public const string StatusUpdatedSuccess = "Campaign status updated successfully.";
+
+        // Error
+        public const string NotFound = "Campaign not found.";
+        public const string CreateFailed = "Failed to create campaign.";
+        public const string UpdateFailed = "Failed to update campaign.";
+        public const string DeleteFailed = "Failed to delete campaign.";
+        public const string StatusUpdateFailed = "Failed to update campaign status.";
+        public const string ApplyFailed = "Failed to apply campaign.";
+        public const string RestartFailed = "Failed to restart campaign.";
+        public const string InvalidStatusTransition = "Invalid campaign status transition.";
+        public const string BrandNotFound = "Brand not found.";
+        public const string WorkspaceAccessDenied = "You are not allowed to access campaigns in this workspace.";
+    }
+
     public static class Scheduler
     {
         public const string RunCompleted = "Scheduler run completed successfully.";

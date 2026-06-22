@@ -248,6 +248,8 @@ public class DashboardServiceTests
 
         public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
             => GetPagedByProfileIdAsync(workspaceId, request, brandId, status, cancellationToken);
+
+        public Task DeleteAsync(Post post, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeNotificationRepository : INotificationRepository
