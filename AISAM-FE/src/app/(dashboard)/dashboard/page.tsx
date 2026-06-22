@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type WorkspaceDashboard } from "@/services/workspaceService";
 import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
+import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
@@ -57,10 +58,6 @@ function DrawSVG({ children }: { children: React.ReactNode }) {
   return <g className="draw-svg">{children}</g>;
 }
 
-function parseCurrency(str: string) {
-  return parseFloat(str.replace(/[^0-9.]/g, ""));
-}
-
 function formatScheduleDate(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -78,14 +75,6 @@ const PLATFORM_DISPLAY: Record<string, { color: string; bg: string }> = {
   tiktok: { color: "text-white", bg: "bg-neutral-900" },
 };
 
-const campaignsData = [
-  { name: "Winter Collection 2024", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$5,000", spent: "$3,240", status: "Active" },
-  { name: "Coffee Morning Blast", platform: "INSTAGRAM", color: "text-pink-600", bg: "bg-pink-50", budget: "$2,500", spent: "$1,120", status: "Active" },
-  { name: "Enterprise Data Launch", platform: "TIKTOK", color: "text-black", bg: "bg-gray-50", budget: "$12,000", spent: "$8,450", status: "Active" },
-  { name: "Flash Sale Q4", platform: "FACEBOOK", color: "text-blue-600", bg: "bg-blue-50", budget: "$1,500", spent: "$1,500", status: "Completed" },
-  { name: "Brand Awareness 2024", platform: "INSTAGRAM", color: "text-pink-600", bg: "bg-pink-50", budget: "$8,000", spent: "$2,100", status: "Active" },
-];
-
 const aiSuggestions = [
   { icon: "trending_up", bg: "from-blue-500/10 to-blue-600/5", color: "text-blue-500", title: "Eco-Friendly Packaging", desc: "Trending in your niche. 85% predicted engagement for video content." },
   { icon: "schedule", bg: "from-purple-500/10 to-purple-600/5", color: "text-purple-500", title: "Morning Routine Series", desc: "High conversion potential for Instagram Stories between 7-9 AM." },
@@ -102,6 +91,7 @@ export default function DashboardPage() {
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [dashboardCampaigns, setDashboardCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
@@ -122,6 +112,9 @@ export default function DashboardPage() {
     fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
     fetchPostQuota().then(q => { if (q) setPostQuota(q); });
     fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
+    fetchCampaigns({ pageSize: 5 }).then((res) => {
+      if (res) setDashboardCampaigns(res.data.slice(0, 5));
+    });
   }, [activeWorkspace?.id]);
 
   return (
@@ -453,11 +446,11 @@ export default function DashboardPage() {
           <div className="px-6 py-5 border-b border-outline-variant/20 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h4 className="text-headline-sm text-on-surface">Recent Campaigns</h4>
-              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">{campaignsData.length} active</span>
+              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">{dashboardCampaigns.length} campaigns</span>
             </div>
             <button onClick={() => {
-              const csv = ["Name,Platform,Budget,Spent,Status"];
-              campaignsData.forEach((c) => csv.push(`"${c.name}","${c.platform}","${c.budget}","${c.spent}","${c.status}"`));
+              const csv = ["Name,Objective,Budget,Spend,Status"];
+              dashboardCampaigns.forEach((c) => csv.push(`"${c.name}","${c.objective}","$${c.budget || 0}","$${c.spend}","${c.status}"`));
               const blob = new Blob([csv.join("\n")], { type: "text/csv" });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href = url; a.download = "campaigns-export.csv"; a.click();
@@ -472,16 +465,16 @@ export default function DashboardPage() {
               <thead>
                 <tr className="text-label-sm text-outline border-b border-outline-variant/10">
                   <th className="px-6 py-3.5 font-semibold">Campaign Name</th>
-                  <th className="px-6 py-3.5 font-semibold">Platform</th>
+                  <th className="px-6 py-3.5 font-semibold">Objective</th>
                   <th className="px-6 py-3.5 font-semibold">Budget</th>
                   <th className="px-6 py-3.5 font-semibold">Spent</th>
                   <th className="px-6 py-3.5 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
-                {campaignsData.map((row, i) => (
+                {dashboardCampaigns.map((row, i) => (
                   <tr
-                    key={i}
+                    key={row.id}
                     className="group hover:bg-surface-container/40 transition-colors duration-150"
                     style={{ animation: `slide-up-row 0.4s ease-out ${0.5 + i * 0.08}s forwards`, opacity: 0 }}
                   >
@@ -494,21 +487,31 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 ${row.bg} ${row.color} rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform`}>{row.platform}</span>
+                      <span className={`px-2.5 py-1 rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform ${
+                        row.objective === "SALES" ? "bg-blue-50 text-blue-600" :
+                        row.objective === "AWARENESS" ? "bg-purple-50 text-purple-600" :
+                        row.objective === "TRAFFIC" ? "bg-orange-50 text-orange-600" :
+                        row.objective === "LEADS" ? "bg-emerald-50 text-emerald-600" :
+                        "bg-surface-container-high text-on-surface-variant"
+                      }`}>{row.objective}</span>
                     </td>
-                    <td className="px-6 py-4 text-body-sm text-on-surface font-medium">{row.budget}</td>
+                    <td className="px-6 py-4 text-body-sm text-on-surface font-medium">${row.budget?.toLocaleString() || "0"}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-body-sm text-on-surface font-medium">{row.spent}</span>
-                        <span className="text-label-sm text-outline">({Math.round(parseCurrency(row.spent) / parseCurrency(row.budget) * 100)}%)</span>
+                        <span className="text-body-sm text-on-surface font-medium">${row.spend.toLocaleString()}</span>
+                        {row.budget && row.budget > 0 && (
+                          <span className="text-label-sm text-outline">({Math.round(row.spend / row.budget * 100)}%)</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                        row.status === "Active" ? "bg-emerald-50 text-emerald-600" : "bg-surface-container-high text-on-surface-variant"
+                        row.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" :
+                        row.status === "COMPLETED" ? "bg-blue-50 text-blue-600" :
+                        "bg-surface-container-high text-on-surface-variant"
                       }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${row.status === "Active" ? "bg-emerald-500 animate-pulse" : "bg-outline"}`} />
-                        {row.status}
+                        <span className={`w-1.5 h-1.5 rounded-full ${row.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : "bg-outline"}`} />
+                        {row.status === "ACTIVE" ? "Active" : row.status === "COMPLETED" ? "Completed" : row.status === "PAUSED" ? "Paused" : "Draft"}
                       </span>
                     </td>
                   </tr>

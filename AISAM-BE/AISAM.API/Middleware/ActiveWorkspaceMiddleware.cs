@@ -29,7 +29,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/social-auth"),
         new("/api/conversations"),
         new("/api/notifications"),
-        new("/api/credit-usage")
+        new("/api/credit-usage"),
+        new("/api/campaigns")
     };
 
     private readonly RequestDelegate _next;
@@ -146,6 +147,16 @@ public sealed class ActiveWorkspaceMiddleware
             }
 
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageBrands);
+        }
+
+        if (path.StartsWithSegments("/api/campaigns"))
+        {
+            if (method == HttpMethods.Get)
+            {
+                return null;
+            }
+
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageCampaigns);
         }
 
         if (path.StartsWithSegments("/api/products"))
@@ -319,6 +330,7 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
             WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.ContentCreator,
             WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             _ => false
         };
 

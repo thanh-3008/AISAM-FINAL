@@ -1,0 +1,186 @@
+using AISAM.API.Utils;
+using AISAM.Common;
+using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Dtos.Response;
+using AISAM.Services.IServices;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Security.Claims;
+
+namespace AISAM.API.Controllers
+{
+    [ApiController]
+    [Route("api/campaigns")]
+    [Authorize]
+    public class AdCampaignController : ControllerBase
+    {
+        private readonly IAdCampaignService _campaignService;
+        private readonly ILogger<AdCampaignController> _logger;
+
+        public AdCampaignController(IAdCampaignService campaignService, ILogger<AdCampaignController> logger)
+        {
+            _campaignService = campaignService;
+            _logger = logger;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<GenericResponse<PagedResult<AdCampaignResponseDto>>>> GetCampaigns(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] string? sortBy = null,
+            [FromQuery] bool sortDescending = true,
+            [FromQuery] bool includeDeleted = false,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = GetUserIdOrThrow();
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.GetPagedByWorkspaceIdAsync(workspaceId, userId, new PaginationRequest
+                {
+                    Page = page,
+                    PageSize = pageSize,
+                    SearchTerm = searchTerm,
+                    SortBy = sortBy,
+                    SortDescending = sortDescending
+                }, includeDeleted, cancellationToken);
+
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting campaigns");
+                return StatusCode(500, GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> GetById(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = GetUserIdOrThrow();
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.GetByIdAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : NotFound(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> Create([FromBody] CreateAdCampaignRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = GetUserIdOrThrow();
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.CreateAsync(workspaceId, userId, request, cancellationToken);
+
+                if (!result.Success)
+                {
+                    return BadRequest(result);
+                }
+
+                return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating campaign");
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPut("{id}")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> Update(Guid id, [FromBody] UpdateAdCampaignRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = GetUserIdOrThrow();
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.UpdateAsync(id, workspaceId, userId, request, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<ActionResult<GenericResponse<bool>>> SoftDelete(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = GetUserIdOrThrow();
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.SoftDeleteAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : NotFound(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<bool>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("{id}/restore")]
+        public async Task<ActionResult<GenericResponse<bool>>> Restore(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = GetUserIdOrThrow();
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.RestoreAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<bool>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error restoring campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        private Guid GetUserIdOrThrow()
+        {
+            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdValue, out var userId))
+            {
+                throw new UnauthorizedAccessException("Invalid token");
+            }
+
+            return userId;
+        }
+    }
+}

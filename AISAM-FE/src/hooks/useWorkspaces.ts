@@ -152,7 +152,7 @@ export function useWorkspaces() {
       setLoading(true);
       await waitForActiveWorkspaceFetch();
 
-      const sharedWorkspaces = cachedWorkspaces;
+      const sharedWorkspaces = cachedWorkspaces as WorkspaceData[] | null;
       if (sharedWorkspaces && sharedWorkspaces.some((workspace) => workspace.userId === userId)) {
         setWorkspaces(sharedWorkspaces);
       } else {
