@@ -382,7 +382,6 @@ export default function BrandsPage() {
           setBrands((prev) => [brand, ...prev]);
           addToast("Brand created successfully", "check");
         }}
-        profileId={activeProfile?.id || ""}
       />
 
       {editingBrand && (

@@ -124,7 +124,7 @@ export default function DashboardPage() {
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
-    apiFetch(`/credit-usage/daily-summary?days=${usageDays}`).then(res => {
+    apiFetch(`/credit-usage/daily-summary?days=${usageDays}`).then((res: any) => {
       if (res?.success && res.data) {
         setDailyUsage((res.data as { date: string; totalCredits: number }[]).map(d => ({
           date: d.date,

@@ -128,7 +128,7 @@ function PricingContent() {
     if (!userId) return false;
 
     try {
-      const result = await apiFetch("/workspaces", {
+      const result = await apiFetch<any>("/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
