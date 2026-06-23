@@ -61,6 +61,11 @@ public class QuotaControllerTests
                 PageSize = request.PageSize
             });
         }
+
+        public Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<DailyCreditUsageDto>>(Array.Empty<DailyCreditUsageDto>());
+        }
     }
 
     private sealed class FakeQuotaService : IQuotaService
