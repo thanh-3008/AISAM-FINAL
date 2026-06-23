@@ -179,7 +179,11 @@ function PricingContent() {
     }
 
     try {
-      const planCode = PLAN_CODES[plan.planType] || "Plus";
+      // Map frontend PlanType to backend SubscriptionPlanEnum strings
+      let planCode = "Plus";
+      if (plan.planType === 1 || plan.planType === 3) planCode = "Plus";
+      if (plan.planType === 2 || plan.planType === 4) planCode = "Premium";
+      
       const payment = await createPayment({
         paymentType: 1,
         planCode,

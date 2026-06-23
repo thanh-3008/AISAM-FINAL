@@ -88,6 +88,7 @@ const aiSuggestions = [
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspaces();
   const workspaceName = activeWorkspace?.name || "User";
+  const isBusiness = activeWorkspace?.workspaceType === 2;
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
@@ -200,17 +201,17 @@ export default function DashboardPage() {
       <Header />
       <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-8">
         {/* ===== HERO CARD ===== */}
-        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.12] via-surface to-surface-container border border-primary/20 shadow-sm ${visible ? "animate-scale-in" : ""}`} style={{ animationDelay: "0s" }}>
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-primary/20 via-primary/[0.08] to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${isBusiness ? "from-purple-500/[0.12] border-purple-500/20" : "from-primary/[0.12] border-primary/20"} via-surface to-surface-container border shadow-sm ${visible ? "animate-scale-in" : ""}`} style={{ animationDelay: "0s" }}>
+          <div className={`absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl ${isBusiness ? "from-purple-500/20 via-purple-500/[0.08]" : "from-primary/20 via-primary/[0.08]"} to-transparent rounded-full blur-3xl pointer-events-none`} />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-secondary/[0.08] via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+          <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent ${isBusiness ? "via-purple-500/50" : "via-primary/50"} to-transparent`} />
 
           <div className="relative z-10 p-8">
             <div className="flex items-start justify-between gap-8">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-label-sm font-semibold inline-flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                  <span className={`px-3 py-1 ${isBusiness ? "bg-purple-500/10 text-purple-600" : "bg-primary/10 text-primary"} rounded-full text-label-sm font-semibold inline-flex items-center gap-1.5`}>
+                    <span className={`w-1.5 h-1.5 ${isBusiness ? "bg-purple-600" : "bg-primary"} rounded-full animate-pulse`} />
                     Dashboard Overview
                   </span>
                   <span className="text-label-sm text-outline">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</span>
@@ -222,7 +223,7 @@ export default function DashboardPage() {
                     if (h < 12) return "Good morning";
                     if (h < 18) return "Good afternoon";
                     return "Good evening";
-                  })()}, <span className="text-primary">{workspaceName}</span>!
+                  })()}, <span className={isBusiness ? "text-purple-600" : "text-primary"}>{workspaceName}</span>!
                 </h2>
                 <p className="text-body-lg text-on-surface-variant max-w-xl mb-6">Here&apos;s your brand performance snapshot. Everything you need is right here.</p>
 

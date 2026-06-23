@@ -141,8 +141,26 @@ export default function ApprovalsPage() {
     approved: 0,
     rejected: 0,
   });
+  const [requestedRevisions, setRequestedRevisions] = useState<Set<string>>(new Set());
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
   const pageSize = 15;
+
+  useEffect(() => {
+    const stored = localStorage.getItem("requestedRevisions");
+    if (stored) {
+      try {
+        setRequestedRevisions(new Set(JSON.parse(stored)));
+      } catch (e) {}
+    }
+  }, []);
+
+  const markRevisionRequested = (id: string) => {
+    setRequestedRevisions(prev => {
+      const next = new Set(prev).add(id);
+      localStorage.setItem("requestedRevisions", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
 
   const loadCounts = useCallback(async () => {
     const [all, pending, approved, rejected] = await Promise.all([
@@ -312,18 +330,16 @@ export default function ApprovalsPage() {
   const submitRevision = async () => {
     if (!revisionDrawer || !revisionNote.trim()) return;
     setActionId(revisionDrawer.id);
-    const ok = await rejectContent(revisionDrawer.id);
-    if (!ok) {
-      setActionId(null);
-      showToast("Could not request revision", "error");
-      return;
-    }
-    applyItemStatus(revisionDrawer.id, "Rejected");
+    
+    // Giữ ở pending và lưu trạng thái revision requested cục bộ
+    await new Promise(r => setTimeout(r, 600)); // Simulate API delay
+    
+    markRevisionRequested(revisionDrawer.id);
+    
     setActionId(null);
     setRevisionDrawer(null);
     setRevisionNote("");
-    void loadCounts();
-    showToast("Revision requested", "success");
+    showToast("Revision requested. Item remains pending.", "success");
   };
 
   const toggleSelect = (id: string) => {
@@ -576,6 +592,7 @@ export default function ApprovalsPage() {
                       const statusMeta = getStatusMeta(item.status);
                       const canReview = isPendingStatus(item.status);
                       const canDelete = isRejectedStatus(item.status);
+                      const hasRevision = requestedRevisions.has(item.id);
                       return (
                         <tr key={item.id}
                           className={`transition-colors cursor-pointer group ${
@@ -649,9 +666,9 @@ export default function ApprovalsPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-bold ${statusMeta.className}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClassName}`} />
-                              {statusMeta.label}
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-bold ${hasRevision ? "bg-secondary/10 text-secondary ring-1 ring-secondary/20" : statusMeta.className}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${hasRevision ? "bg-secondary animate-pulse" : statusMeta.dotClassName}`} />
+                              {hasRevision ? "Revision Requested" : statusMeta.label}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -667,10 +684,12 @@ export default function ApprovalsPage() {
                                     )}
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
                                   </button>
-                                  <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id}
-                                    className="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Request Changes">
+                                  <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id || hasRevision}
+                                    className={`p-2 rounded-lg transition-all relative group/btn ${hasRevision ? "text-outline/40 cursor-not-allowed" : "text-secondary hover:bg-secondary/10"}`} title={hasRevision ? "Revision Already Requested" : "Request Changes"}>
                                     <span className="material-symbols-outlined text-[17px]">rate_review</span>
-                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">
+                                      {hasRevision ? "Revision Requested" : "Request Changes"}
+                                    </span>
                                   </button>
                                 </>
                               )}

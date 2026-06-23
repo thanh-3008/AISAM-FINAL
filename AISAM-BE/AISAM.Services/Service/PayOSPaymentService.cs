@@ -220,7 +220,7 @@ public sealed class PayOSPaymentService : IPaymentService
         }
 
         var orderCode = GenerateOrderCode();
-        var description = $"AISAM Credit Pack {request.CreditPackCode.Value}";
+        var description = $"AISAM Pack {request.CreditPackCode.Value}";
         var payment = await _paymentRepository.AddAsync(new Payment
         {
             UserId = userId,
