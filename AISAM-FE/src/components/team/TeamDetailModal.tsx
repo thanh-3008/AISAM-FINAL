@@ -13,8 +13,8 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
   if (!team) return null;
 
   const teamMembers = members.filter((m) => team.memberIds.includes(m.id));
-  const colorIdx = TEAM_COLORS.findIndex((c) => c.badge.includes(team.id.charAt(0))) || 0;
-  const colors = TEAM_COLORS[colorIdx % TEAM_COLORS.length];
+  const colorIdx = TEAM_COLORS.findIndex((c) => c.badge.includes(team.id.charAt(0)));
+  const colors = TEAM_COLORS[colorIdx >= 0 ? colorIdx : 0];
 
   return (
     <>

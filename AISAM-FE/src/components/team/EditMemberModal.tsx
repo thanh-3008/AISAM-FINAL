@@ -58,6 +58,12 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading }
                 {member.status}
               </div>
             </div>
+            {member.status === "Pending" && (
+              <div className="p-3 rounded-xl bg-warning-amber/10 border border-warning-amber/20 flex items-start gap-2">
+                <span className="material-symbols-outlined text-warning-amber text-[18px] shrink-0">info</span>
+                <p className="text-label-xs text-warning-amber">This member hasn&apos;t accepted the invitation yet. Role will apply after they join.</p>
+              </div>
+            )}
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Role</label>
               <div className="space-y-2">

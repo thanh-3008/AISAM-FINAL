@@ -48,9 +48,12 @@ export async function acceptInvitation(token: string): Promise<{ success: boolea
     if (res?.success) {
       return { success: true, workspaceId: res.data?.workspaceId };
     }
-    return { success: false, message: res?.message || "Failed to accept invitation" };
-  } catch {
-    return { success: false, message: "Invitation not found or already processed" };
+    const serverMsg = res?.message || res?.error?.errorMessage || res?.error?.message || "";
+    return { success: false, message: serverMsg || "Failed to accept invitation" };
+  } catch (err: any) {
+    const caughtMsg = err?.message || err || "Invitation not found or already processed";
+    console.error("[acceptInvitation]", caughtMsg, err);
+    return { success: false, message: typeof caughtMsg === "string" ? caughtMsg : JSON.stringify(caughtMsg) };
   }
 }
 
@@ -68,21 +71,20 @@ export async function cancelInvitation(invitationId: string): Promise<boolean> {
 export async function getWorkspaceInvitations(): Promise<WorkspaceInvitation[]> {
   try {
     const res = await apiClient("/workspace-invitations");
-    if (res?.success && res.data) {
-      return (res.data as any[]).map((item: any) => ({
-        id: item.id,
-        workspaceId: item.workspaceId,
-        workspaceName: item.workspaceName,
-        email: item.email,
-        role: ENUM_TO_ROLE[item.role] ?? "Viewer",
-        status: "Pending" as const,
-        invitedBy: item.invitedByUserId,
-        invitedByName: item.invitedByName || "",
-        createdAt: item.createdAt,
-        expiresAt: item.expiresAt,
-      }));
-    }
-    return [];
+    const items: any[] = res?.data || (Array.isArray(res) ? res : null) || [];
+    if (items.length === 0) return [];
+    return items.map((item: any) => ({
+      id: item.id,
+      workspaceId: item.workspaceId,
+      workspaceName: item.workspaceName,
+      email: item.email,
+      role: ENUM_TO_ROLE[item.role] ?? "Viewer",
+      status: item.status || "Pending",
+      invitedBy: item.invitedByUserId,
+      invitedByName: item.invitedByName || "",
+      createdAt: item.createdAt,
+      expiresAt: item.expiresAt,
+    }));
   } catch {
     return [];
   }
