@@ -1,559 +1,438 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { useFeatureGate } from "@/hooks/useFeatureGate";
-import {
-  fetchTeams,
-  fetchMembers,
-  inviteMember,
-  updateMemberRole,
-  removeMember,
-  type Team,
-  type TeamMember,
-  type MemberRole,
-  type MemberStatus,
-  type InviteMemberData,
-} from "@/services/teamService";
-import TeamStatsCards from "@/components/team/TeamStatsCards";
-import TeamCard from "@/components/team/TeamCard";
-import TeamListView from "@/components/team/TeamListView";
-import TeamFilterBar, { type SortOption } from "@/components/team/TeamFilterBar";
-import TeamEmptyState from "@/components/team/TeamEmptyState";
-import TeamDetailModal from "@/components/team/TeamDetailModal";
-import EditMemberModal from "@/components/team/EditMemberModal";
-import MemberDetailModal from "@/components/team/MemberDetailModal";
-import DeleteMemberConfirmModal from "@/components/team/DeleteMemberConfirmModal";
-import InviteMemberModal from "@/components/team/InviteMemberModal";
-import RoleDonutChart from "@/components/team/RoleDonutChart";
-import MemberCard from "@/components/team/MemberCard";
-import { calcTimeAgo } from "@/components/team/teamUtils";
 
-export default function TeamPage() {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(() => Date.now());
+type Team = {
+  id: string;
+  initials: string;
+  name: string;
+  description: string;
+  members: number;
+  brands: number;
+  tone: "primary" | "secondary" | "tertiary";
+};
 
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 60000);
-    return () => clearInterval(interval);
-  }, []);
+type Member = {
+  initials: string;
+  name: string;
+  email: string;
+  role: "Owner" | "Admin" | "Editor";
+  status: "Active" | "Pending";
+  teams: string;
+};
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<MemberStatus | "">("");
-  const [sortBy, setSortBy] = useState<SortOption>("newest");
-  const [teamView, setTeamView] = useState<"grid" | "list">("list");
-  const [memberView, setMemberView] = useState<"grid" | "table">("table");
+const teams: Team[] = [
+  {
+    id: "creative-alpha",
+    initials: "MK",
+    name: "Marketing Team",
+    description: "Global marketing initiatives, campaign strategy, and budget governance.",
+    members: 10,
+    brands: 4,
+    tone: "primary",
+  },
+  {
+    id: "content-creators",
+    initials: "CC",
+    name: "Content Creators",
+    description: "AI-assisted content production, design review, and channel packaging.",
+    members: 13,
+    brands: 2,
+    tone: "secondary",
+  },
+  {
+    id: "brand-managers",
+    initials: "BM",
+    name: "Brand Managers",
+    description: "Brand compliance, product positioning, and asset ownership.",
+    members: 4,
+    brands: 6,
+    tone: "tertiary",
+  },
+];
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+const members: Member[] = [
+  {
+    initials: "SC",
+    name: "Sarah Connor",
+    email: "sarah@aisam.intelligence",
+    role: "Owner",
+    status: "Active",
+    teams: "Marketing, Admin",
+  },
+  {
+    initials: "JD",
+    name: "James Doe",
+    email: "j.doe@marketing.com",
+    role: "Admin",
+    status: "Active",
+    teams: "Content Creators",
+  },
+  {
+    initials: "ML",
+    name: "Maya Lin",
+    email: "maya@design.co",
+    role: "Editor",
+    status: "Pending",
+    teams: "Brand Managers",
+  },
+];
 
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [detailTeam, setDetailTeam] = useState<Team | null>(null);
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-  const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
-  const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+const toneStyles = {
+  primary: {
+    icon: "bg-primary-fixed text-primary",
+    badge: "bg-primary-fixed text-primary",
+    bar: "bg-primary",
+  },
+  secondary: {
+    icon: "bg-secondary-fixed text-secondary",
+    badge: "bg-secondary-fixed text-secondary",
+    bar: "bg-secondary",
+  },
+  tertiary: {
+    icon: "bg-tertiary-fixed text-tertiary",
+    badge: "bg-tertiary-fixed text-tertiary",
+    bar: "bg-tertiary",
+  },
+};
 
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const featureGate = useFeatureGate();
-  const { activeWorkspace } = useWorkspaces();
+const roleStyles = {
+  Owner: "bg-primary-fixed text-primary",
+  Admin: "bg-secondary-fixed text-secondary",
+  Editor: "bg-tertiary-fixed text-tertiary",
+};
 
-  const activeMemberCount = members.filter((m) => m.status === "Active").length;
-  const maxMembers = featureGate.isBusiness
-    ? featureGate.plan === 4 ? 50 : 10
-    : Infinity;
+function CreateTeamModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [teamsRes, membersRes] = await Promise.all([fetchTeams(), fetchMembers()]);
-        if (!cancelled) {
-          setTeams(teamsRes.data);
-          setMembers(membersRes.data);
-        }
-      } catch {
-        if (!cancelled) {
-          setTeams([]);
-          setMembers([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [activeWorkspace?.id]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        aria-label="Close create team modal"
+        className="absolute inset-0 bg-enterprise-navy/55 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <section className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-2xl">
+        <div className="flex items-center justify-between border-b border-outline-variant/30 px-6 py-5">
+          <div>
+            <h2 className="text-headline-sm font-bold text-on-surface">Create New Team</h2>
+            <p className="mt-1 text-body-sm text-on-surface-variant">Set ownership, brand scope, and initial collaborators.</p>
+          </div>
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-surface-container active:scale-95"
+            onClick={onClose}
+            title="Close"
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
+        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-6">
+          <label className="block space-y-2">
+            <span className="text-label-md uppercase tracking-wider text-on-surface-variant">Team Name</span>
+            <input
+              className="w-full rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3 text-body-md outline-none transition-all placeholder:text-outline/50 focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+              placeholder="e.g. Creative Explorers"
+              type="text"
+            />
+          </label>
 
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
-  };
+          <label className="block space-y-2">
+            <span className="text-label-md uppercase tracking-wider text-on-surface-variant">Description</span>
+            <textarea
+              className="min-h-24 w-full resize-none rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3 text-body-md outline-none transition-all placeholder:text-outline/50 focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+              placeholder="Describe this team's focus and goals..."
+            />
+          </label>
 
-  const handleEditMember = async (id: string, role: MemberRole) => {
-    setActionLoading("editMember");
-    try {
-      const updated = await updateMemberRole(id, role);
-      if (updated) {
-        setMembers((prev) => prev.map((m) => (m.id === id ? updated : m)));
-        setEditingMember(null);
-        showToast(`Member role updated to ${role}`);
-      }
-    } catch {
-      showToast("Failed to update member role", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleDeleteMember = (member: TeamMember) => {
-    setDeletingMembers([member]);
-  };
-
-  const handleConfirmDeleteMember = async () => {
-    if (deletingMembers.length === 0) return;
-    setActionLoading("deleteMember");
-    try {
-      for (const member of deletingMembers) {
-        await removeMember(member.id);
-      }
-      setMembers((prev) => prev.filter((m) => !deletingMembers.some((d) => d.id === m.id)));
-      setDeletingMembers([]);
-      showToast(`${deletingMembers.length} member(s) removed`);
-    } catch {
-      showToast("Failed to remove member(s)", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleInvite = async (data: InviteMemberData) => {
-    setActionLoading("invite");
-    try {
-      const newMember = await inviteMember(data);
-      setMembers((prev) => [newMember, ...prev]);
-      setShowInviteModal(false);
-      showToast(`Invitation sent to ${newMember.email}`);
-    } catch {
-      showToast("Failed to send invitation", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSelect = (id: string, selected: boolean) => {
-    setSelectedIds((prev) =>
-      selected ? [...prev, id] : prev.filter((x) => x !== id)
-    );
-  };
-
-  const filteredMembers = useMemo(() => {
-    let result = [...members];
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
-      );
-    }
-    if (statusFilter) {
-      result = result.filter((m) => m.status === statusFilter);
-    }
-    switch (sortBy) {
-      case "newest":
-        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-      case "oldest":
-        result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        break;
-      case "name":
-        result.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "role":
-        result.sort((a, b) => a.role.localeCompare(b.role));
-        break;
-      case "status":
-        result.sort((a, b) => a.status.localeCompare(b.status));
-        break;
-    }
-    return result;
-  }, [members, search, statusFilter, sortBy]);
-
-  const hasFilters = !!(search || statusFilter);
-
-  if (!featureGate.canAccess("teamManagement")) {
-    return (
-      <>
-        <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Team Management" }]} />
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 mx-auto mb-6 bg-outline/10 rounded-2xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
+          <div className="space-y-2">
+            <span className="text-label-md uppercase tracking-wider text-on-surface-variant">Assign Brands</span>
+            <div className="flex flex-wrap gap-2 rounded-xl border border-outline-variant/50 bg-surface-container-low p-3">
+              {["Lumina Tech", "Summit Outdoor"].map((brand) => (
+                <span key={brand} className="inline-flex items-center gap-1 rounded-lg bg-primary-fixed px-2.5 py-1 text-[11px] font-bold text-primary">
+                  {brand}
+                  <button className="flex items-center" title={`Remove ${brand}`}>
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                  </button>
+                </span>
+              ))}
+              <input
+                className="min-w-32 flex-1 bg-transparent px-1 py-1 text-body-sm outline-none placeholder:text-outline/50"
+                placeholder="Search brands..."
+                type="text"
+              />
             </div>
-            <h2 className="text-headline-md text-on-surface font-bold mb-2">Team Management</h2>
-            <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Business plan</strong>. Upgrade to manage teams and members.</p>
-            <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
-              View Plans
-              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-            </Link>
+          </div>
+
+          <label className="block space-y-2">
+            <span className="text-label-md uppercase tracking-wider text-on-surface-variant">Initial Members</span>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-outline">search</span>
+              <input
+                className="w-full rounded-xl border border-outline-variant/50 bg-surface-container-low py-3 pl-10 pr-4 text-body-md outline-none transition-all placeholder:text-outline/50 focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+                placeholder="Search members by name or email..."
+                type="text"
+              />
+            </div>
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-label-md uppercase tracking-wider text-on-surface-variant">Default Role</span>
+              <select className="w-full rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3 text-body-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10">
+                <option>Editor</option>
+                <option>Admin</option>
+                <option>Viewer</option>
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-label-md uppercase tracking-wider text-on-surface-variant">Governance</span>
+              <select className="w-full rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3 text-body-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10">
+                <option>Require approvals</option>
+                <option>Open publishing</option>
+                <option>Admin approval only</option>
+              </select>
+            </label>
           </div>
         </div>
-      </>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-outline-variant/30 bg-surface-container-low px-6 py-5 sm:flex-row sm:justify-end">
+          <button
+            className="rounded-xl px-5 py-2.5 text-label-md text-on-surface-variant transition-all hover:bg-surface-container-high active:scale-95"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-label-md text-on-primary shadow-sm transition-all hover:opacity-90 active:scale-95">
+            <span className="material-symbols-outlined text-[18px]">group_add</span>
+            Create Team
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function TeamsPage() {
+  const [createOpen, setCreateOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filteredMembers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter((member) =>
+      [member.name, member.email, member.role, member.teams].some((value) => value.toLowerCase().includes(q)),
     );
-  }
+  }, [query]);
+
+  const filteredTeams = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return teams;
+    return teams.filter((team) => [team.name, team.description].some((value) => value.toLowerCase().includes(q)));
+  }, [query]);
 
   return (
     <>
-      <style>{`
-        @keyframes fade-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
-        @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .animate-fade-up { animation: fade-up 0.5s ease-out forwards; opacity: 0; }
-        .animate-float { animation: float 4s ease-in-out infinite; }
-        .animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
-        .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 40px -12px rgba(0,0,0,0.15); }
-      `}</style>
-
-      <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Team Management" }]} />
-
-      <div className="p-8 h-[calc(100vh-64px)] overflow-y-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
-
-          {/* Page Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-fade-up">
-            <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 shrink-0">
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 animate-float shadow-lg shadow-primary/20" />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/15 to-transparent" />
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-primary text-[24px]">group</span>
-                </div>
+      <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Teams" }]} />
+      <main className="h-[calc(100vh-64px)] overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+          <section className="flex flex-col gap-4 rounded-2xl border border-outline-variant/25 bg-surface-container-lowest px-5 py-5 shadow-sm sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-primary">
+                <span className="material-symbols-outlined text-[24px]">group</span>
               </div>
               <div>
-                <h1 className="text-headline-sm font-bold text-on-surface">Teams &amp; Collaboration</h1>
-                <p className="text-label-sm text-outline">{members.length} members · {teams.length} teams · Manage your organization</p>
+                <h1 className="text-headline-md font-bold text-on-surface sm:text-headline-lg">Teams & Collaboration</h1>
+                <p className="mt-1 max-w-2xl text-body-sm text-on-surface-variant sm:text-body-md">
+                  Manage organizational hierarchy, team roles, and collaborative brand environments.
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
-                disabled
-                title="Team CRUD is being migrated to Workspace Members"
-                className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline/50 bg-surface-container-low cursor-not-allowed flex items-center gap-2"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 px-4 py-2.5 text-label-md text-primary transition-all hover:bg-primary-fixed active:scale-95"
+                onClick={() => setCreateOpen(true)}
               >
-                <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                <span className="material-symbols-outlined text-[18px]">add_circle</span>
                 Create Team
               </button>
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[16px]">person_add</span>
+              <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-label-md text-on-primary shadow-sm transition-all hover:opacity-90 active:scale-95">
+                <span className="material-symbols-outlined text-[18px]">person_add</span>
                 Invite Member
               </button>
             </div>
-          </div>
-
-          {/* Stats */}
-          <TeamStatsCards teams={teams} members={members} />
-
-          {/* Teams Section */}
-          <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-            <div className="mb-4 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-label-sm text-on-surface-variant">
-              Team object management is being migrated to Workspace Members. Create, edit, and delete team actions are disabled for now.
-            </div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-headline-sm text-on-surface font-semibold">Teams</h2>
-              <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
-                <button
-                  onClick={() => setTeamView("grid")}
-                  className={`p-1.5 rounded-md transition-all ${teamView === "grid" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">grid_view</span>
-                </button>
-                <button
-                  onClick={() => setTeamView("list")}
-                  className={`p-1.5 rounded-md transition-all ${teamView === "list" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">view_list</span>
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className={teamView === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" : ""}>
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 animate-pulse">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-surface-container" />
-                      <div className="space-y-2 flex-1">
-                        <div className="h-4 w-32 bg-surface-container rounded" />
-                        <div className="h-3 w-24 bg-surface-container rounded" />
-                      </div>
-                    </div>
-                    <div className="h-2 bg-surface-container rounded-full mb-4" />
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-surface-container" />
-                      <div className="w-6 h-6 rounded-full bg-surface-container" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : teamView === "grid" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {teams.map((team, i) => (
-                  <TeamCard
-                    key={team.id}
-                    team={team}
-                    index={i}
-                    isSelected={selectedIds.includes(team.id)}
-                    isLoading={actionLoading === team.id}
-                    onSelect={handleSelect}
-                    onViewDetail={setDetailTeam}
-                    onEdit={() => showToast("Team editing is being migrated to Workspace Members", "error")}
-                    onDelete={() => showToast("Team deletion is being migrated to Workspace Members", "error")}
-                  />
-                ))}
-              </div>
-            ) : (
-              <TeamListView
-                teams={teams}
-                selectedIds={selectedIds}
-                actionLoading={actionLoading}
-                onSelect={handleSelect}
-                onViewDetail={setDetailTeam}
-                onEdit={() => showToast("Team editing is being migrated to Workspace Members", "error")}
-                onDelete={() => showToast("Team deletion is being migrated to Workspace Members", "error")}
-              />
-            )}
           </section>
 
-          {/* Members Section */}
-          <section className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-headline-sm text-on-surface font-semibold">Members</h2>
-              <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
-                <button
-                  onClick={() => setMemberView("grid")}
-                  className={`p-1.5 rounded-md transition-all ${memberView === "grid" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">grid_view</span>
-                </button>
-                <button
-                  onClick={() => setMemberView("table")}
-                  className={`p-1.5 rounded-md transition-all ${memberView === "table" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">view_list</span>
-                </button>
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {[
+              { label: "Total Members", value: "24", icon: "group", iconClass: "bg-primary-fixed text-primary" },
+              { label: "Active Teams", value: "6", icon: "schema", iconClass: "bg-secondary-fixed text-secondary" },
+              { label: "Pending Invites", value: "3", icon: "mail", iconClass: "bg-tertiary-fixed text-tertiary" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-outline-variant/25 bg-surface-container-lowest p-5 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.iconClass}`}>
+                    <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
+                  </div>
+                  <div>
+                    <p className="text-label-md text-on-surface-variant">{item.label}</p>
+                    <p className="text-headline-md font-bold text-on-surface">{item.value}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-headline-sm font-bold text-on-surface">Teams</h2>
+              <div className="relative w-full sm:max-w-sm">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-outline">search</span>
+                <input
+                  className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest py-2.5 pl-10 pr-4 text-body-sm outline-none transition-all placeholder:text-outline/50 focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search teams, members, or brands..."
+                  type="text"
+                  value={query}
+                />
               </div>
             </div>
 
-            {/* Filter Bar */}
-            <TeamFilterBar
-              search={search}
-              onSearchChange={setSearch}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              resultCount={filteredMembers.length}
-              totalCount={members.length}
-            />
-
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 animate-pulse">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-14 h-14 rounded-full bg-surface-container" />
-                      <div className="space-y-2 flex-1">
-                        <div className="h-4 w-32 bg-surface-container rounded" />
-                        <div className="h-3 w-40 bg-surface-container rounded" />
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              {filteredTeams.map((team) => {
+                const styles = toneStyles[team.tone];
+                return (
+                  <Link key={team.name} href={`/teams/${team.id}`} className="group overflow-hidden rounded-2xl border border-outline-variant/25 bg-surface-container-lowest shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+                    <div className={`h-1.5 ${styles.bar}`} />
+                    <div className="p-5">
+                      <div className="mb-4 flex items-start justify-between">
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-label-md font-extrabold ${styles.icon}`}>
+                          {team.initials}
+                        </div>
+                        <button className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant opacity-100 transition-all hover:bg-surface-container sm:opacity-0 sm:group-hover:opacity-100" title="Team actions">
+                          <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                        </button>
+                      </div>
+                      <h3 className="text-headline-sm font-bold text-on-surface">{team.name}</h3>
+                      <p className="mt-1 line-clamp-2 min-h-10 text-body-sm text-on-surface-variant">{team.description}</p>
+                      <div className="mt-5 flex items-center justify-between border-t border-outline-variant/20 pt-4">
+                        <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                          <span className="material-symbols-outlined text-[17px]">groups</span>
+                          {team.members} members
+                        </div>
+                        <span className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${styles.badge}`}>{team.brands} Brands</span>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : filteredMembers.length === 0 && teams.length === 0 ? (
-              <TeamEmptyState
-                hasFilters={hasFilters}
-                onCreate={() => showToast("Team creation is being migrated to Workspace Members", "error")}
-                onInvite={() => setShowInviteModal(true)}
-              />
-            ) : (
-              <>
-                {/* Role Distribution Chart */}
-                {!hasFilters && filteredMembers.length > 0 && (
-                  <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 p-6 shadow-sm mb-6">
-                    <h3 className="text-label-sm font-bold text-on-surface mb-4">Role Distribution</h3>
-                    <RoleDonutChart members={filteredMembers} />
-                  </div>
-                )}
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
 
-                {/* Members Grid */}
-                {memberView === "grid" ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredMembers.map((member) => (
-                      <MemberCard
-                        key={member.id}
-                        member={member}
-                        onEdit={setEditingMember}
-                        onDelete={handleDeleteMember}
-                        onViewDetail={setDetailMember}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-surface-container/50">
-                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Member</th>
-                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Last Active</th>
-                            <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-outline-variant/10">
-                          {filteredMembers.map((member) => (
-                            <tr key={member.id} className="hover:bg-primary-fixed/10 transition-colors group cursor-pointer" onClick={() => setDetailMember(member)}>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  {member.avatar ? (
-                                    <div className="relative">
-                                      <img src={member.avatar} alt={member.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-white shadow-sm" />
-                                      {member.status === "Active" && (
-                                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-success-green border-2 border-white animate-pulse-dot" />
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="relative">
-                                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-label-sm font-bold text-primary ring-2 ring-white shadow-sm">
-                                        {member.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
-                                      </div>
-                                      {member.status === "Active" && (
-                                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-success-green border-2 border-white animate-pulse-dot" />
-                                      )}
-                                    </div>
-                                  )}
-                                  <div>
-                                    <p className="text-body-sm text-on-surface font-semibold">{member.name}</p>
-                                    <p className="text-label-xs text-outline">{member.email}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`px-2.5 py-1 rounded-full text-label-2xs font-bold uppercase tracking-wider ${
-                                  member.role === "Owner" ? "bg-primary-fixed text-primary" :
-                                  member.role === "Manager" ? "bg-secondary-fixed text-secondary" :
-                                  member.role === "ContentCreator" ? "bg-tertiary-fixed text-tertiary" :
-                                  "bg-surface-container text-outline"
-                                }`}>
-                                  {member.role === "ContentCreator" ? "Content Creator" : member.role}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-2 h-2 rounded-full ${member.status === "Active" ? "bg-success-green" : member.status === "Pending" ? "bg-warning-amber" : "bg-outline"} ${member.status === "Active" ? "animate-pulse-dot" : ""}`} />
-                                  <span className="text-body-sm">{member.status}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-label-xs text-outline">{calcTimeAgo(now, member.lastActive)}</span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setEditingMember(member); }}
-                                    className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
-                                    title="Edit member"
-                                  >
-                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteMember(member); }}
-                                    className="p-1.5 rounded-lg text-outline hover:text-danger-red hover:bg-danger-red/10 transition-all"
-                                    title="Remove member"
-                                  >
-                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+          <section className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-surface-container-lowest shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-outline-variant/25 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-headline-sm font-bold text-on-surface">Member Management</h2>
+                <p className="text-body-sm text-on-surface-variant">Review roles, invite status, and assigned teams.</p>
+              </div>
+              <button className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-outline-variant/40 text-on-surface-variant transition-all hover:bg-surface-container" title="Filter members">
+                <span className="material-symbols-outlined text-[20px]">filter_list</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left">
+                <thead>
+                  <tr className="border-b border-outline-variant/20 bg-surface-container text-label-md text-on-surface-variant">
+                    <th className="px-5 py-4 font-bold">Member</th>
+                    <th className="px-5 py-4 font-bold">Role</th>
+                    <th className="px-5 py-4 font-bold">Status</th>
+                    <th className="px-5 py-4 font-bold">Assigned Teams</th>
+                    <th className="px-5 py-4 text-right font-bold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/20">
+                  {filteredMembers.map((member) => (
+                    <tr key={member.email} className="transition-colors hover:bg-primary-fixed/20">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-label-md font-extrabold text-primary">
+                            {member.initials}
+                          </div>
+                          <div>
+                            <p className="text-body-sm font-bold text-on-surface">{member.name}</p>
+                            <p className="text-label-sm text-on-surface-variant">{member.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${roleStyles[member.role]}`}>
+                          {member.role}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="inline-flex items-center gap-2 text-body-sm text-on-surface">
+                          <span className={`h-2 w-2 rounded-full ${member.status === "Active" ? "bg-success-green" : "bg-warning-amber"}`} />
+                          {member.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-body-sm text-on-surface-variant">{member.teams}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-1">
+                          <button className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-primary-fixed hover:text-primary" title={member.status === "Pending" ? "Resend invite" : "Edit member"}>
+                            <span className="material-symbols-outlined text-[18px]">{member.status === "Pending" ? "mail" : "edit"}</span>
+                          </button>
+                          <button className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-error-container hover:text-danger-red" title={member.status === "Pending" ? "Cancel invite" : "Remove member"}>
+                            <span className="material-symbols-outlined text-[18px]">{member.status === "Pending" ? "close" : "delete"}</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-outline-variant/20 px-5 py-4 text-label-sm text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
+              <span>Showing {filteredMembers.length} of 24 members</span>
+              <div className="flex gap-2">
+                <button className="rounded-lg border border-outline-variant/40 px-3 py-1.5 opacity-50" disabled>Previous</button>
+                <button className="rounded-lg border border-outline-variant/40 px-3 py-1.5 transition-all hover:bg-surface-container">Next</button>
+              </div>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl bg-enterprise-navy text-white shadow-sm">
+            <div className="grid gap-6 p-6 md:grid-cols-[1fr_auto] md:items-center lg:p-8">
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-label-sm text-primary-fixed-dim">
+                  <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                  Enterprise Intelligence
+                </div>
+                <h2 className="text-headline-md font-bold">Advanced Workflows Coming Soon</h2>
+                <p className="mt-2 max-w-2xl text-body-md text-white/70">
+                  Approval SLAs, automated delegation, and multi-brand governance are being prepared for larger operations.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {["Approval SLA Tracking", "Smart Delegation AI", "Regional Governance"].map((item) => (
+                    <span key={item} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-label-sm">
+                      <span className="material-symbols-outlined text-[15px] text-success-green">check_circle</span>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-label-md font-bold text-enterprise-navy transition-all hover:bg-primary-fixed active:scale-95">
+                Request Beta Access
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </button>
+            </div>
           </section>
         </div>
+      </main>
 
-        {/* Modals */}
-        <MemberDetailModal
-          member={detailMember}
-          teams={teams}
-          onClose={() => setDetailMember(null)}
-          onEdit={setEditingMember}
-          onDelete={handleDeleteMember}
-        />
-
-        <EditMemberModal
-          member={editingMember}
-          onClose={() => setEditingMember(null)}
-          onUpdate={handleEditMember}
-          isLoading={actionLoading === "editMember"}
-        />
-
-        <DeleteMemberConfirmModal
-          members={deletingMembers}
-          isLoading={actionLoading === "deleteMember"}
-          onConfirm={handleConfirmDeleteMember}
-          onCancel={() => setDeletingMembers([])}
-        />
-
-        <InviteMemberModal
-          open={showInviteModal}
-          onClose={() => setShowInviteModal(false)}
-          onInvite={handleInvite}
-          isLoading={actionLoading === "invite"}
-          teams={teams}
-          currentMemberCount={activeMemberCount}
-          maxMembers={maxMembers}
-        />
-
-        <TeamDetailModal
-          team={detailTeam}
-          members={members}
-          onClose={() => setDetailTeam(null)}
-        />
-
-        {/* Toast */}
-        {toast && (
-          <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-right-2 duration-200 ${
-            toast.type === "success" ? "bg-emerald-600 text-white" : "bg-danger-red text-white"
-          }`}>
-            <span className="material-symbols-outlined text-[18px]">{toast.type === "success" ? "check_circle" : "error"}</span>
-            <p className="text-label-sm font-bold">{toast.msg}</p>
-            <button onClick={() => setToast(null)} className="ml-2 p-0.5 hover:bg-white/20 rounded-full transition-colors">
-              <span className="material-symbols-outlined text-[14px]">close</span>
-            </button>
-          </div>
-        )}
-      </div>
+      <CreateTeamModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </>
   );
 }

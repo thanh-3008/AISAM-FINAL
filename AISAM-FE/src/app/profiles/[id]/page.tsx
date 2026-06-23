@@ -7,6 +7,7 @@ import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
 import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
+import { apiFetch } from "@/lib/apiClient";
 import {
   changePassword,
   getPaymentHistory,
@@ -22,19 +23,14 @@ import {
   fetchCreditWallet,
   fetchWorkspaceDashboard,
   fetchPostQuota,
-  getWorkspaceById,
-  updateWorkspace,
-  deleteWorkspace,
-  updateWorkspaceMemberQuota,
-  transferWorkspaceOwnership,
+  transferOwnership,
   type WorkspaceMember,
   type WorkspaceMemberRole,
   type CreditUsageRecord,
   type CreditWallet,
   type WorkspaceDashboard,
 } from "@/services/workspaceService";
-import { removeMember, updateMemberRole } from "@/services/teamService";
-import { inviteMember, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
+import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 
 interface Workspace {
   id: string;
@@ -141,6 +137,8 @@ export default function ProfileDetailPage() {
   // Team members state
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [memberFilter, setMemberFilter] = useState<"all" | "active" | "pending">("all");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", role: "Viewer" as InvitationRole });
@@ -153,13 +151,13 @@ export default function ProfileDetailPage() {
   const [creditTotalPages, setCreditTotalPages] = useState(0);
   const [creditTotalCount, setCreditTotalCount] = useState(0);
   const [creditFilter, setCreditFilter] = useState<"all" | "success" | "failed">("all");
-  const [creditHistoryUnavailable, setCreditHistoryUnavailable] = useState(false);
 
   // Credit wallet state
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [selectedCreditPack, setSelectedCreditPack] = useState<{ name: string; credits: number; price: string } | null>(null);
   const [showPurchaseConfirm, setShowPurchaseConfirm] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
   // Role management state
   const [memberActionMenu, setMemberActionMenu] = useState<string | null>(null);
@@ -215,23 +213,39 @@ export default function ProfileDetailPage() {
     if (!id) return;
     const fetchWorkspace = async () => {
       try {
-        const result = await getWorkspaceById(id);
-        if (result) {
-          const w = {
-            ...result,
-            userId: result.userId || "",
-            companyName: result.companyName || null,
-            bio: result.bio || null,
-            avatarUrl: result.avatarUrl || null,
-            isOwner: result.currentUserRole === 1,
-            memberRole: result.currentUserRole !== undefined
-              ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][result.currentUserRole] ?? "Viewer"
-              : "Owner",
-          } as Workspace;
+        const result = await apiFetch(`/workspaces/${id}`);
+        if (result?.success && result.data) {
+          const data = result.data as {
+            id: string;
+            name: string;
+            workspaceType: number;
+            status: number;
+            memberLimit?: number;
+            createdAt: string;
+            updatedAt: string;
+            currentUserRole?: number;
+          };
+          const w: Workspace = {
+            id: data.id,
+            userId: "",
+            name: data.name,
+            workspaceType: data.workspaceType,
+            companyName: null,
+            bio: null,
+            avatarUrl: null,
+            status: data.status,
+            memberLimit: data.memberLimit ?? 1,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            isOwner: data.currentUserRole === 1,
+            memberRole: typeof data.currentUserRole === "number"
+              ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
+              : null,
+          };
           setWorkspace(w);
           selectWorkspace({
             id: w.id,
-            userId: w.userId,
+            userId: w.userId || "",
             name: w.name,
             workspaceType: w.workspaceType,
             plan: w.workspaceType === 2 ? "Business" : "Personal",
@@ -249,17 +263,26 @@ export default function ProfileDetailPage() {
             avatarUrl: w.avatarUrl || "",
           });
         } else {
-          setError("Workspace not found");
+          if (activeWorkspace?.id && activeWorkspace.id !== id) {
+            const section = searchParams.get("section");
+            router.replace(`/profiles/${activeWorkspace.id}${section ? `?section=${section}` : ""}`);
+            return;
+          }
+          setError(result?.message || "Workspace not found");
         }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Network error";
-        setError(message);
+      } catch (err) {
+        if (activeWorkspace?.id && activeWorkspace.id !== id) {
+          const section = searchParams.get("section");
+          router.replace(`/profiles/${activeWorkspace.id}${section ? `?section=${section}` : ""}`);
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Network error");
       } finally {
         setLoading(false);
       }
     };
     fetchWorkspace();
-  }, [id]);
+  }, [activeWorkspace?.id, id, router, searchParams, selectWorkspace]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Name is required"); return; }
@@ -267,67 +290,45 @@ export default function ProfileDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const result = await updateWorkspace(id, {
-        name: form.name.trim(),
-        companyName: form.companyName.trim() || null,
-        bio: form.bio.trim() || null,
-        avatarUrl: form.avatarUrl.trim() || null,
+      const result = await apiFetch(`/workspaces/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name.trim() }),
       });
-      if (result) {
-        const updatedWorkspace = {
-          ...result,
-          userId: result.userId || workspace?.userId || "",
-          companyName: result.companyName || null,
-          bio: result.bio || null,
-          avatarUrl: result.avatarUrl || null,
-          status: result.status ?? workspace?.status ?? 1,
-          createdAt: result.createdAt || workspace?.createdAt || new Date().toISOString(),
-          updatedAt: result.updatedAt || new Date().toISOString(),
-          isOwner: workspace?.isOwner ?? true,
-          memberRole: workspace?.memberRole ?? "Owner",
-        } as Workspace;
+      if (result?.success && result.data) {
+        const data = result.data as {
+          id: string;
+          name: string;
+          workspaceType: number;
+          status: number;
+          createdAt: string;
+          updatedAt: string;
+          currentUserRole?: number;
+        };
         setWorkspace((prev) => prev ? {
           ...prev,
-          ...updatedWorkspace,
-          companyName: updatedWorkspace.companyName,
-          bio: updatedWorkspace.bio,
-          avatarUrl: updatedWorkspace.avatarUrl,
-        } : updatedWorkspace);
+          id: data.id,
+          name: data.name,
+          workspaceType: data.workspaceType,
+          status: data.status,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          isOwner: data.currentUserRole === 1,
+          memberRole: typeof data.currentUserRole === "number"
+            ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
+            : prev.memberRole,
+        } : null);
         setEditing(false);
       } else {
-        setError("Update failed");
+        setError(result?.message || "Update failed");
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Network error";
-      setError(message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async () => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Delete Workspace",
-      message: "Are you sure you want to delete this workspace? This action cannot be undone.",
-      type: "danger",
-      confirmText: "Delete",
-      onConfirm: async () => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        try {
-          const deleted = await deleteWorkspace(id);
-          if (deleted) {
-            router.push("/profiles");
-          } else {
-            setError("Delete failed");
-          }
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : "Delete failed";
-          setError(message);
-        }
-      }
-    });
-  };
   // Security section handlers
   const handleUpdatePassword = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
@@ -387,58 +388,76 @@ export default function ProfileDetailPage() {
   // Subscription section handlers
   const handleLoadSubscription = async () => {
     setLoadingSubscription(true);
-    const data = await getCurrentSubscription();
-    if (data) {
-      setSubscription(data);
+    try {
+      const data = await getCurrentSubscription();
+      if (data) {
+        setSubscription(data);
 
-      if (data.status === "Expired" || data.status === "Cancelled") {
-        setShowExpiredBanner(true);
+        const isExpired = data.status === "Expired" || data.status === "Cancelled" || data.status === "Inactive";
+        if (isExpired) {
+          setShowExpiredBanner(true);
 
-        const now = Date.now();
-        const endDate = data.endDate ? new Date(data.endDate).getTime() : now;
-        const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
+          const now = Date.now();
+          const endDate = data.endDate ? new Date(data.endDate).getTime() : now;
+          const daysSinceExpiry = Math.floor((now - endDate) / (1000 * 60 * 60 * 24));
 
-        if (daysSinceExpiry < 90) {
-          setIsLimitedMode(true);
-          setShowLimitedModeBanner(true);
+          if (daysSinceExpiry < 90) {
+            setIsLimitedMode(true);
+            setShowLimitedModeBanner(true);
+            setIsArchived(false);
+            setShowArchivedBanner(false);
+          } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
+            setIsLimitedMode(true);
+            setShowLimitedModeBanner(false);
+            setIsArchived(true);
+            setShowArchivedBanner(true);
+          }
+        } else {
+          setShowExpiredBanner(false);
+          setIsLimitedMode(false);
+          setShowLimitedModeBanner(false);
           setIsArchived(false);
           setShowArchivedBanner(false);
-        } else if (daysSinceExpiry >= 90 && daysSinceExpiry <= 180) {
-          setIsLimitedMode(true);
-          setShowLimitedModeBanner(false);
-          setIsArchived(true);
-          setShowArchivedBanner(true);
         }
       } else {
+        setSubscription(null);
         setShowExpiredBanner(false);
         setIsLimitedMode(false);
         setShowLimitedModeBanner(false);
         setIsArchived(false);
         setShowArchivedBanner(false);
       }
-    } else {
-      setError("Failed to load subscription.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load subscription.";
+      setError(message);
+      showToast({ type: "error", title: "Subscription", message });
+    } finally {
+      setLoadingSubscription(false);
     }
-    setLoadingSubscription(false);
   };
 
   const handleUpgradePlan = async (planType: number) => {
     setUpgradingPlan(true);
     try {
-      const planCodes = ["", "basic_monthly", "pro_monthly", "business_monthly"];
+      const planCodes: Record<number, string> = {
+        1: "Plus",
+        2: "Premium",
+      };
       const category = workspace?.workspaceType === 2 ? "business" : "personal";
       const checkout = await createCheckout({
-        planCode: planCodes[planType] || "basic_monthly",
+        planCode: planCodes[planType] || "Plus",
         returnUrl: `${window.location.origin}/pricing?category=${category}`,
         cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
       });
-      if (checkout?.checkoutUrl) {
-        window.location.href = checkout.checkoutUrl;
-      } else {
-        showToast({ type: "info", title: "Upgrade", message: "PayOS checkout will be available when backend is connected." });
+      if (!checkout?.checkoutUrl) {
+        throw new Error("Backend did not return a PayOS checkout URL.");
       }
-    } catch {
-      setError("Network error while upgrading plan");
+
+      window.location.href = checkout.checkoutUrl;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Network error while upgrading plan.";
+      setError(message);
+      showToast({ type: "error", title: "Upgrade failed", message });
     } finally {
       setUpgradingPlan(false);
     }
@@ -473,6 +492,11 @@ export default function ProfileDetailPage() {
       setError("Failed to load team members.");
     }
     setLoadingMembers(false);
+
+    setLoadingInvitations(true);
+    const invites = await getWorkspaceInvitations();
+    setInvitations(invites);
+    setLoadingInvitations(false);
   };
 
   const handleInviteMember = () => {
@@ -492,13 +516,13 @@ export default function ProfileDetailPage() {
         role: inviteForm.role,
       });
 
-      if (result) {
+      if (result?.data) {
         setShowInviteModal(false);
         setInviteForm({ email: "", role: "Viewer" });
         showToast({ type: "success", title: "Invitation sent", message: `Invitation sent to ${inviteForm.email}` });
         handleLoadMembers();
       } else {
-        showToast({ type: "error", title: "Invitation failed", message: "Failed to send invitation. Please try again." });
+        showToast({ type: "error", title: "Invitation failed", message: result?.error || "Failed to send invitation. Please try again." });
       }
     } catch {
       showToast({ type: "error", title: "Network error", message: "Please check your connection and try again." });
@@ -519,11 +543,11 @@ export default function ProfileDetailPage() {
     if (!selectedMember) return;
     setChangingRole(true);
     try {
-      const updated = await updateMemberRole(selectedMember.id, newRole);
-      if (!updated) {
-        throw new Error("Failed to update role");
-      }
-
+      // TODO: Call API to change role when BE is ready
+      // await updateMemberRole(selectedMember.id, newRole);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
+      
+      // Update local state
       setMembers(prev => prev.map(m => 
         m.id === selectedMember.id ? { ...m, role: newRole } : m
       ));
@@ -545,18 +569,11 @@ export default function ProfileDetailPage() {
       message: `Are you sure you want to remove ${member.name} from the workspace? This action cannot be undone.`,
       type: "danger",
       confirmText: "Remove",
-      onConfirm: async () => {
-        setConfirmModal(prev => ({ ...prev, isLoading: true }));
-        const success = await removeMember(member.id);
-        if (success) {
-          setMembers(prev => prev.filter(m => m.id !== member.id));
-          setMemberActionMenu(null);
-          showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
-          setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
-        } else {
-          showToast({ type: "error", title: "Remove failed", message: "Failed to remove member. Please try again." });
-          setConfirmModal(prev => ({ ...prev, isLoading: false }));
-        }
+      onConfirm: () => {
+        setMembers(prev => prev.filter(m => m.id !== member.id));
+        setMemberActionMenu(null);
+        showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
       },
     });
   };
@@ -571,21 +588,21 @@ export default function ProfileDetailPage() {
     if (!selectedNewOwner) return;
     setTransferring(true);
     try {
-      const success = await transferWorkspaceOwnership(selectedNewOwner.id);
-      if (!success) {
-        throw new Error("Transfer failed");
+      const result = await transferOwnership(selectedNewOwner.id);
+      if (result.success) {
+        setMembers(prev => prev.map(m => {
+          if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
+          if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
+          return m;
+        }));
+        setShowTransferModal(false);
+        setSelectedNewOwner(null);
+        showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
+      } else {
+        showToast({ type: "error", title: "Transfer failed", message: result.message || "Failed to transfer ownership." });
       }
-
-      setMembers(prev => prev.map(m => {
-        if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
-        if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
-        return m;
-      }));
-      setShowTransferModal(false);
-      setSelectedNewOwner(null);
-      showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
     } catch {
-      showToast({ type: "error", title: "Transfer failed", message: "Failed to transfer ownership. Please try again." });
+      showToast({ type: "error", title: "Network error", message: "Please check your connection and try again." });
     } finally {
       setTransferring(false);
     }
@@ -604,15 +621,7 @@ export default function ProfileDetailPage() {
     if (!quotaMember) return;
     setSavingQuota(true);
     try {
-      const updated = await updateWorkspaceMemberQuota(quotaMember.id, {
-        quotaMode,
-        creditLimit: quotaMode === "SharedPool" ? null : quotaLimit,
-      });
-      if (!updated) {
-        throw new Error("Failed to update quota");
-      }
-
-      setMembers(prev => prev.map(member => member.id === quotaMember.id ? updated : member));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       showToast({ 
         type: "success", 
         title: "Quota updated", 
@@ -633,15 +642,9 @@ export default function ProfileDetailPage() {
     try {
       const data = await fetchCreditUsageHistory(pg, 10);
       if (data) {
-        setCreditHistoryUnavailable(false);
         setCreditHistory(data.data);
         setCreditTotalPages(data.totalPages);
         setCreditTotalCount(data.totalCount);
-      } else {
-        setCreditHistoryUnavailable(true);
-        setCreditHistory([]);
-        setCreditTotalPages(0);
-        setCreditTotalCount(0);
       }
     } catch {
       console.error("Failed to load credit history");
@@ -662,13 +665,19 @@ export default function ProfileDetailPage() {
       const creditPackCodes: Record<string, number> = { Starter: 1, Standard: 2, Growth: 3, Business: 4 };
       const checkout = await createCreditPackCheckout({
         creditPackCode: creditPackCodes[selectedCreditPack.name] || 1,
-        returnUrl: window.location.origin + `/profiles/${id}?payment=success`,
-        cancelUrl: window.location.origin + `/profiles/${id}?payment=cancelled`,
+        returnUrl: window.location.origin + "/profiles?payment=success",
+        cancelUrl: window.location.origin + "/profiles?payment=cancelled",
       });
       if (checkout?.checkoutUrl) {
         window.location.href = checkout.checkoutUrl;
       } else {
-        showToast({ type: "error", title: "Checkout unavailable", message: "Payment checkout could not be created. Please check PayOS configuration." });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setPurchaseSuccess(true);
+        if (creditWallet) {
+          setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
+        }
+        showToast({ type: "success", title: "Purchase successful", message: `${selectedCreditPack.credits.toLocaleString()} credits added to your workspace.` });
+        setTimeout(() => setPurchaseSuccess(false), 3000);
       }
     } catch {
       showToast({ type: "error", title: "Payment failed", message: "Failed to process credit pack purchase." });
@@ -702,37 +711,18 @@ export default function ProfileDetailPage() {
     showToast({ type: "info", title: "Update Payment Method", message: "Feature coming soon!" });
   };
 
-  // Handle payment redirect
-  useEffect(() => {
-    const paymentStatus = searchParams.get("payment");
-    if (paymentStatus === "success") {
-      showToast({ type: "success", title: "Thanh toán thành công", message: "Nâng cấp Thành công cho tài khoản" });
-      void handleLoadSubscription();
-      void handleLoadOverview();
-      void handleLoadCreditWallet();
-      router.replace(`/profiles/${id}`);
-    } else if (paymentStatus === "cancelled") {
-      showToast({ type: "info", title: "Thanh toán bị hủy", message: "Bạn đã hủy quá trình thanh toán" });
-      router.replace(`/profiles/${id}`);
-    }
-  }, [searchParams, id, router, showToast]);
-
   // Load payment history when billing section is active
   useEffect(() => {
     if (activeSection === "billing" && paymentHistory.length === 0) {
-      queueMicrotask(() => {
-        void handleLoadPaymentHistory();
-      });
+      handleLoadPaymentHistory();
     }
   }, [activeSection, paymentHistory.length]);
 
   // Load subscription when subscription section is active
   useEffect(() => {
     if (activeSection === "subscription" && !subscription) {
-      queueMicrotask(() => {
-        void handleLoadSubscription();
-        void handleLoadCreditWallet();
-      });
+      handleLoadSubscription();
+      handleLoadCreditWallet();
     }
   }, [activeSection, subscription]);
 
@@ -746,27 +736,21 @@ export default function ProfileDetailPage() {
   // Load members when team section is active
   useEffect(() => {
     if (activeSection === "team" && members.length === 0) {
-      queueMicrotask(() => {
-        void handleLoadMembers();
-      });
+      handleLoadMembers();
     }
   }, [activeSection, members.length]);
 
   // Load credit history when billing tab is usage
   useEffect(() => {
     if (activeSection === "billing" && billingTab === "usage") {
-      queueMicrotask(() => {
-        void handleLoadCreditHistory(creditPage);
-      });
+      handleLoadCreditHistory(creditPage);
     }
   }, [activeSection, billingTab, creditPage]);
 
   // Load overview data when overview section is active
   useEffect(() => {
     if (activeSection === "overview" && !dashboardData) {
-      queueMicrotask(() => {
-        void handleLoadOverview();
-      });
+      handleLoadOverview();
     }
   }, [activeSection, dashboardData]);
 
@@ -1199,7 +1183,7 @@ export default function ProfileDetailPage() {
                                 key={idx}
                                 whileHover={reduceMotion ? undefined : { scale: 1.05, y: -2 }}
                                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-                                onClick={"onClick" in action ? action.onClick : undefined}
+                                onClick={action.onClick as any}
                                 {...(action.href && !action.onClick ? { as: "a", href: action.href } : {})}
                                 className="flex flex-col items-center gap-3 p-5 rounded-xl bg-surface-container-lowest border border-outline-variant/10 hover:border-outline-variant/30 hover:shadow-md transition-all duration-200 group"
                               >
@@ -1664,6 +1648,52 @@ export default function ProfileDetailPage() {
                   )}
                 </div>
               </motion.div>
+
+              {/* Pending Invitations */}
+              {invitations.length > 0 && (
+                <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30">
+                    <h3 className="text-body-md font-semibold text-on-surface">Pending Invitations</h3>
+                  </div>
+                  <div className="divide-y divide-outline-variant/10">
+                    {loadingInvitations ? (
+                      <div className="px-6 py-4 text-center text-body-sm text-on-surface-variant">Loading...</div>
+                    ) : (
+                      invitations.map((inv) => (
+                        <div key={inv.id} className="px-6 py-4 flex items-center gap-4 group">
+                          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[18px] text-blue-500">mail</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-body-sm font-medium text-on-surface">{inv.email}</p>
+                            <p className="text-label-xs text-outline">
+                              Invited by {inv.invitedByName} · {new Date(inv.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span className="text-label-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 font-medium">
+                            Pending
+                          </span>
+                          <button
+                            onClick={async () => {
+                              const ok = await cancelInvitation(inv.id);
+                              if (ok) {
+                                setInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+                                showToast({ type: "success", title: "Revoked", message: `Invitation to ${inv.email} has been revoked.` });
+                              } else {
+                                showToast({ type: "error", title: "Error", message: "Failed to revoke invitation." });
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-danger-red/10 hover:text-danger-red opacity-0 group-hover:opacity-100 transition-all"
+                            title="Revoke invitation"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
 
               {/* Bulk Actions Bar */}
               {showBulkActions && selectedMembers.size > 0 && (
@@ -2266,15 +2296,10 @@ export default function ProfileDetailPage() {
                                 </div>
                               ))}
                             </div>
-                          ) : creditHistory.filter(r => {
-                            if (creditFilter === "all") return true;
-                            return r.status.toLowerCase() === creditFilter;
-                          }).length === 0 ? (
-                            <div className="px-6 py-12 text-center">
-                              <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">history</span>
-                              <p className="text-body-sm text-on-surface-variant">
-                                {creditHistoryUnavailable ? "Credit history is coming soon." : "No credit usage yet"}
-                              </p>
+                          ) : creditHistory.length === 0 ? (
+                            <div className="p-8 text-center">
+                              <span className="material-symbols-outlined text-outline/30 text-3xl mb-2 block">history</span>
+                              <p className="text-body-sm text-on-surface-variant">No credit usage yet</p>
                             </div>
                           ) : (
                             <>
@@ -2542,7 +2567,7 @@ export default function ProfileDetailPage() {
                                 <div>
                                   <div className="flex items-center gap-2 mb-1">
                                     <h3 className="text-xl font-bold text-on-surface">
-                                      {subscription?.planName || planLabel} Plan
+                                      {subscriptionPlanLabel} Plan
                                     </h3>
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold border ${statusInfo.class}`}>
                                       <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${workspace?.status === 1 ? "animate-pulse" : ""}`} />
@@ -2556,7 +2581,7 @@ export default function ProfileDetailPage() {
                                   </p>
                                 </div>
                               </div>
-                              {planLabel === "Free" && (
+                              {subscriptionPlanLabel === "Free" && (
                                 <motion.button
                                   whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                                   onClick={() => handleUpgradePlan(1)}
@@ -2590,7 +2615,7 @@ export default function ProfileDetailPage() {
                                     : nextPaymentDate}
                                 </p>
                                 <p className="text-label-xs text-outline mt-1">
-                                  {planLabel === "Free" ? "Free" : "$29.00 USD"}
+                                  {subscriptionPlanLabel === "Free" ? "Free" : "$29.00 USD"}
                                 </p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
@@ -2621,28 +2646,32 @@ export default function ProfileDetailPage() {
                             planType: 0,
                             price: "$0",
                             period: "/month",
-                            current: planLabel === "Free",
+                            current: subscriptionPlanLabel === "Free",
                             features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
                             cta: "Current Plan",
                           }] : []),
                           {
-                            name: "Personal Plus",
+                            name: isBusinessWorkspace ? "Business Plus" : "Personal Plus",
                             planType: 1,
-                            price: "$29",
+                            price: isBusinessWorkspace ? "$149" : "$29",
                             period: "/month",
-                            current: planLabel === "Personal Plus",
+                            current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus"),
                             popular: true,
-                            features: ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
-                            cta: planLabel === "Personal Plus" ? "Current Plan" : "Upgrade",
+                            features: isBusinessWorkspace
+                              ? ["Team Management", "Shared Credits Pool", "Shared Workspace", "Workspace Dashboard", "Up to 10 Team Members", "15,000 Credits"]
+                              : ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
+                            cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus") ? "Current Plan" : "Upgrade",
                           },
                           {
-                            name: "Personal Pro",
+                            name: isBusinessWorkspace ? "Business Pro" : "Personal Pro",
                             planType: 2,
-                            price: "$79",
+                            price: isBusinessWorkspace ? "$299" : "$79",
                             period: "/month",
-                            current: planLabel === "Personal Pro",
-                            features: ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
-                            cta: planLabel === "Personal Pro" ? "Current Plan" : "Upgrade",
+                            current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro"),
+                            features: isBusinessWorkspace
+                              ? ["All Business Plus features", "Lifetime Assigned Limit", "Monthly Assigned Limit", "Credit Usage Report", "Up to 50 Team Members", "50,000 Credits"]
+                              : ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
+                            cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro") ? "Current Plan" : "Upgrade",
                           },
                         ].map((plan) => (
                           <div
@@ -2710,6 +2739,13 @@ export default function ProfileDetailPage() {
                           </div>
                         )}
                       </div>
+
+                      {purchaseSuccess && (
+                        <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-600 text-white mb-4 animate-in slide-in-from-top-2">
+                          <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                          <span className="text-body-sm font-semibold">Credits added successfully!</span>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {[

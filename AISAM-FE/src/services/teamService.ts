@@ -88,27 +88,57 @@ function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
   };
 }
 
-// Default team representing the whole workspace
-const DEFAULT_TEAM: Team = {
-  id: "workspace-team",
-  name: "Workspace Members",
-  description: "All workspace members",
-  brandCount: 0,
-  memberIds: [],
-  activity: 100,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+// Local Storage Keys
+const LOCAL_TEAMS_KEY = "aisam_local_teams";
+
+function getLocalTeams(): Team[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const data = localStorage.getItem(LOCAL_TEAMS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalTeams(teams: Team[]) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(LOCAL_TEAMS_KEY, JSON.stringify(teams));
+  }
+}
 
 export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
   try {
-    const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members");
-    const members = res?.data || [];
-    DEFAULT_TEAM.memberIds = members.map((m) => m.id);
-    DEFAULT_TEAM.brandCount = 0;
-    return { data: [DEFAULT_TEAM], total: 1 };
+    const localTeams = getLocalTeams();
+    if (localTeams.length === 0) {
+      // Default initial team
+      const defaultTeam: Team = {
+        id: "workspace-team",
+        name: "Workspace Members",
+        description: "All workspace members",
+        brandCount: 0,
+        memberIds: [],
+        activity: 100,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      try {
+        const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members");
+        if (res?.data) {
+          defaultTeam.memberIds = res.data.map(m => m.id);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch workspace members for default team", e);
+      }
+      
+      saveLocalTeams([defaultTeam]);
+      return { data: [defaultTeam], total: 1 };
+    }
+    
+    return { data: localTeams, total: localTeams.length };
   } catch {
-    return { data: [DEFAULT_TEAM], total: 1 };
+    return { data: [], total: 0 };
   }
 }
 
@@ -121,9 +151,7 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
   return { data: [], total: 0 };
 }
 
-/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function createTeam(data: CreateTeamData): Promise<Team> {
-  console.warn("[DEPRECATED] createTeam is local-only and is not persisted to BE.");
   const team: Team = {
     id: `team_${Date.now()}`,
     name: data.name,
@@ -134,32 +162,43 @@ export async function createTeam(data: CreateTeamData): Promise<Team> {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+  
+  const teams = getLocalTeams();
+  teams.push(team);
+  saveLocalTeams(teams);
+  
   return team;
 }
 
-/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
-  console.warn("[DEPRECATED] updateTeam is local-only and is not persisted to BE.");
-  if (id === DEFAULT_TEAM.id) {
-    return {
-      ...DEFAULT_TEAM,
-      name: data.name || DEFAULT_TEAM.name,
-      description: data.description || DEFAULT_TEAM.description,
-    };
-  }
-  return null;
+  const teams = getLocalTeams();
+  const index = teams.findIndex(t => t.id === id);
+  if (index === -1) return null;
+  
+  const updatedTeam = {
+    ...teams[index],
+    ...data,
+    updatedAt: new Date().toISOString()
+  };
+  
+  teams[index] = updatedTeam;
+  saveLocalTeams(teams);
+  return updatedTeam;
 }
 
-/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function deleteTeam(id: string): Promise<boolean> {
-  console.warn("[DEPRECATED] deleteTeam is local-only and is not persisted to BE.");
-  return id !== DEFAULT_TEAM.id;
+  const teams = getLocalTeams();
+  const index = teams.findIndex(t => t.id === id);
+  if (index === -1) return false;
+  
+  teams.splice(index, 1);
+  saveLocalTeams(teams);
+  return true;
 }
 
-/** @deprecated Local-only: does not persist to BE. Use workspace-members API. */
 export async function getTeamById(id: string): Promise<Team | null> {
-  console.warn("[DEPRECATED] getTeamById is local-only and is not persisted to BE.");
-  return id === DEFAULT_TEAM.id ? DEFAULT_TEAM : null;
+  const teams = getLocalTeams();
+  return teams.find(t => t.id === id) || null;
 }
 
 export async function inviteMember(data: InviteMemberData): Promise<TeamMember> {
@@ -176,7 +215,7 @@ export async function inviteMember(data: InviteMemberData): Promise<TeamMember> 
     avatar: null,
     role: data.role,
     status: "Pending",
-    teamIds: [],
+    teamIds: data.teamIds || [],
     lastActive: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   };

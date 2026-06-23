@@ -8,11 +8,11 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
 import { createPayment, syncPayOSCallback, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
-import { getCurrentSubscription } from "@/services/profileSettingsService";
-import { createWorkspace } from "@/services/workspaceService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
+import { apiFetch } from "@/lib/apiClient";
 import { getUserIdFromToken } from "@/lib/auth";
+import { getCurrentSubscription } from "@/services/profileSettingsService";
 
 type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
@@ -26,9 +26,13 @@ function PricingContent() {
   const reduceMotion = useReducedMotion();
 
   const createMode = searchParams.get("create") === "business";
+  const categoryParam = searchParams.get("category");
+  const activeWorkspaceCategory: PlanCategory = activeWorkspace?.workspaceType === 2 ? "business" : "personal";
 
   const [activeTab, setActiveTab] = useState<TabType>("subscription");
-  const [planCategory, setPlanCategory] = useState<PlanCategory>(createMode ? "business" : "personal");
+  const [planCategory, setPlanCategory] = useState<PlanCategory>(
+    createMode || categoryParam === "business" ? "business" : activeWorkspaceCategory
+  );
   const [yearly, setYearly] = useState(false);
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [processing, setProcessing] = useState<number | null>(null);
@@ -40,6 +44,9 @@ function PricingContent() {
   const [creating, setCreating] = useState(false);
 
   // Payment state
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrData, setQrData] = useState<{ checkoutUrl: string; amount: number; description: string } | null>(null);
+  const [qrStatus, setQrStatus] = useState<"pending" | "completed" | "failed">("pending");
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
   const [isClient, setIsClient] = useState(false);
 
@@ -98,12 +105,12 @@ function PricingContent() {
   }, [activeWorkspace?.id, router, searchParams, showToast, updateWorkspacePlan]);
 
   useEffect(() => {
-    const categoryParam = searchParams.get("category");
     if (createMode || categoryParam === "business") {
       setPlanCategory("business");
       return;
     }
-  }, [searchParams, router, showToast]);
+    setPlanCategory(activeWorkspaceCategory);
+  }, [activeWorkspaceCategory, categoryParam, createMode]);
 
   const currentPlan = featureGate.plan;
   const isCurrentPlan = (planType: PlanType) => currentPlan === planType;
@@ -121,55 +128,38 @@ function PricingContent() {
     if (!userId) return false;
 
     try {
-      const workspace = await createWorkspace({
-        name: wsName.trim(),
-        workspaceType: 2,
+      const result = await apiFetch("/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: wsName.trim(),
+          workspaceType: 2,
+        }),
       });
 
-      const wsData = workspace
-        ? {
-            id: workspace.id,
-            userId,
-            name: workspace.name,
-            workspaceType: workspace.workspaceType ?? 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: workspace.status ?? 1,
-            createdAt: workspace.createdAt || new Date().toISOString(),
-            updatedAt: workspace.updatedAt || new Date().toISOString(),
-            isOwner: true,
-            memberRole: "Owner",
-          }
-        : {
-            id: `ws-${Date.now()}`,
-            userId: userId!,
-            name: wsName.trim(),
-            workspaceType: 2,
-            plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-            status: 1,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isOwner: true,
-            memberRole: "Owner",
-          };
-      addWorkspaceToCache(wsData);
-      selectWorkspace(wsData);
-      return true;
-    } catch {
+      if (!result?.success || !result.data) {
+        throw new Error(result?.message || "Failed to create business workspace.");
+      }
+
       const wsData = {
-        id: `ws-${Date.now()}`,
-        userId: userId!,
-        name: wsName.trim(),
-        workspaceType: 2,
-        plan: planType === PlanType.BusinessPro ? "Business Pro" : "Business Plus",
-        status: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isOwner: true,
+        id: String(result.data.id),
+        userId,
+        name: String(result.data.name || wsName.trim()),
+        workspaceType: typeof result.data.workspaceType === "number" ? result.data.workspaceType : 2,
+        plan: "Business",
+        status: typeof result.data.status === "number" ? result.data.status : 1,
+        createdAt: String(result.data.createdAt || new Date().toISOString()),
+        updatedAt: String(result.data.updatedAt || new Date().toISOString()),
+        isOwner: result.data.currentUserRole === 0 || result.data.currentUserRole === 1 || typeof result.data.currentUserRole !== "number",
         memberRole: "Owner",
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
       return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create business workspace.";
+      showToast({ type: "error", title: "Workspace creation failed", message });
+      return false;
     } finally {
       setCreating(false);
     }
@@ -232,6 +222,15 @@ function PricingContent() {
     } finally {
       setProcessing(null);
     }
+  };
+
+  const handleMockPayment = () => {
+    setQrStatus("completed");
+    if (selectedPack && creditWallet) {
+      setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedPack.credits });
+    }
+    showToast({ type: "success", title: "Payment successful", message: "Transaction completed." });
+    setTimeout(() => setShowQRModal(false), 3000);
   };
 
   const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -346,7 +345,9 @@ function PricingContent() {
               </span>
               <span className="text-label-xs text-outline/50">·</span>
               <button
-                onClick={() => router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles")}
+                onClick={() => {
+                  router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles");
+                }}
                 className="text-label-sm font-semibold text-primary hover:underline"
               >
                 Manage
@@ -395,14 +396,14 @@ function PricingContent() {
                 </motion.div>
               )}
 
-              {/* Personal / Business Category Tabs (like ChatGPT) */}
+              {/* Plan category follows the active workspace type. */}
               <div className="flex items-center justify-center gap-2">
                 <button
-                  onClick={() => { if (!createMode) setPlanCategory("personal"); }}
+                  onClick={() => { if (activeWorkspaceCategory === "personal" && !createMode) setPlanCategory("personal"); }}
                   className={`px-5 py-2 rounded-lg text-label-sm font-semibold transition-all ${
                     planCategory === "personal"
                       ? "bg-primary text-on-primary shadow-sm shadow-primary/20"
-                      : createMode
+                      : createMode || activeWorkspaceCategory === "business"
                       ? "bg-surface-container-lowest border border-outline-variant/20 text-outline/40 cursor-not-allowed"
                       : "bg-surface-container-lowest border border-outline-variant/20 text-outline hover:text-on-surface hover:border-primary/30"
                   }`}
@@ -412,15 +413,18 @@ function PricingContent() {
                   {createMode && <span className="ml-1.5 text-label-2xs text-outline/40">· locked</span>}
                 </button>
                 <button
-                  onClick={() => setPlanCategory("business")}
+                  onClick={() => { if (activeWorkspaceCategory === "business" || createMode) setPlanCategory("business"); }}
                   className={`px-5 py-2 rounded-lg text-label-sm font-semibold transition-all ${
                     planCategory === "business"
                       ? "bg-primary text-on-primary shadow-sm shadow-primary/20"
+                      : activeWorkspaceCategory === "personal" && !createMode
+                      ? "bg-surface-container-lowest border border-outline-variant/20 text-outline/40 cursor-not-allowed"
                       : "bg-surface-container-lowest border border-outline-variant/20 text-outline hover:text-on-surface hover:border-primary/30"
                   }`}
                 >
                   <span className="material-symbols-outlined text-[16px] align-middle mr-1.5">business</span>
                   Business
+                  {activeWorkspaceCategory === "personal" && !createMode && <span className="ml-1.5 text-label-2xs text-outline/40">· locked</span>}
                 </button>
               </div>
 
@@ -695,6 +699,96 @@ function PricingContent() {
         </div>
       </div>
 
+      {/* QR Payment Modal */}
+      {showQRModal && qrData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6">
+            {qrStatus === "pending" && (
+              <>
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <span className="material-symbols-outlined text-primary text-[32px]">qr_code_scanner</span>
+                  </div>
+                  <h3 className="text-body-lg font-bold text-on-surface">Scan to Pay</h3>
+                  <p className="text-label-sm text-on-surface-variant mt-1">Use your banking app to scan the QR code</p>
+                </div>
+
+                {/* QR Code */}
+                <div className="flex justify-center mb-6">
+                  <div className="w-64 h-64 rounded-2xl bg-white border-2 border-outline-variant/20 p-4 shadow-inner flex items-center justify-center">
+                    <div className="w-full h-full rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center relative">
+                      <div className="absolute inset-4 flex flex-wrap gap-[3px] opacity-30">
+                        {Array.from({ length: 35 }).map((_, i) => (
+                          <div key={i} className={`w-[calc(14.28%-3px)] aspect-square rounded-sm ${[1, 2, 4, 7, 9, 12, 15, 18, 22, 25, 28, 31, 34].includes(i % 35) ? "bg-gray-800" : "bg-transparent"}`} />
+                        ))}
+                      </div>
+                      <div className="relative z-10 bg-white rounded-xl px-4 py-2 shadow-sm border border-gray-200">
+                        <span className="text-label-sm font-bold text-primary">PayOS</span>
+                      </div>
+                      <div className="absolute top-3 left-3 w-12 h-12 border-2 border-gray-800 rounded-lg" />
+                      <div className="absolute top-3 right-3 w-12 h-12 border-2 border-gray-800 rounded-lg" />
+                      <div className="absolute bottom-3 left-3 w-12 h-12 border-2 border-gray-800 rounded-lg" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Info */}
+                <div className="space-y-2 mb-6">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                    <span className="text-label-sm text-on-surface-variant">Order</span>
+                    <span className="text-label-sm font-semibold text-on-surface">{qrData.description}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                    <span className="text-label-sm text-on-surface-variant">Amount</span>
+                    <span className="text-label-sm font-bold text-primary">{qrData.amount.toLocaleString()}₫</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200/30">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-label-sm text-amber-700">Waiting for payment...</span>
+                  </div>
+                </div>
+
+                <button onClick={handleMockPayment}
+                  className="w-full py-3 rounded-xl text-label-sm font-semibold bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all mb-2">
+                  Simulate Payment (Demo)
+                </button>
+                <button onClick={() => setShowQRModal(false)}
+                  className="w-full py-3 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container/50 transition-all">
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {qrStatus === "completed" && (
+              <div className="text-center py-8">
+                <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                  <span className="material-symbols-outlined text-emerald-500 text-[40px]">check_circle</span>
+                </div>
+                <h3 className="text-headline-sm font-bold text-on-surface mb-2">Payment Successful!</h3>
+                <p className="text-body-sm text-on-surface-variant mb-6">Your transaction has been completed.</p>
+                <button onClick={() => setShowQRModal(false)}
+                  className="px-8 py-3 rounded-xl text-label-sm font-semibold bg-primary text-on-primary hover:opacity-90 transition-all shadow-lg shadow-primary/20">
+                  Done
+                </button>
+              </div>
+            )}
+
+            {qrStatus === "failed" && (
+              <div className="text-center py-8">
+                <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                  <span className="material-symbols-outlined text-red-500 text-[40px]">error</span>
+                </div>
+                <h3 className="text-headline-sm font-bold text-on-surface mb-2">Payment Failed</h3>
+                <p className="text-body-sm text-on-surface-variant mb-6">Please try again.</p>
+                <button onClick={() => setShowQRModal(false)}
+                  className="px-8 py-3 rounded-xl text-label-sm font-semibold bg-primary text-on-primary hover:opacity-90 transition-all shadow-lg shadow-primary/20">
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
