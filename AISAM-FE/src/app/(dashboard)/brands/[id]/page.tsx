@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useToast } from "@/contexts/ToastContext";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { resolveApiMediaUrl } from "@/lib/apiBaseUrl";
 import { deleteBrand, getBrandById, updateBrand, type BrandPayload } from "@/services/brandService";
@@ -55,6 +56,7 @@ export default function BrandDetailPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
+  const { addToast } = useToast();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -135,6 +137,7 @@ export default function BrandDetailPage() {
       const result = await updateBrand(id, body);
       if (result) {
         setBrand(result as Brand);
+        addToast("Brand updated successfully", "check");
       } else {
         setError("Failed to save brand");
         return;
@@ -153,6 +156,7 @@ export default function BrandDetailPage() {
     try {
       const result = await deleteBrand(id);
       if (result) {
+        addToast("Brand deleted successfully", "check");
         router.push("/brands");
       } else {
         setError("Failed to delete brand");
@@ -164,10 +168,12 @@ export default function BrandDetailPage() {
 
   const handleAddProduct = (product: Product) => {
     setProducts((prev) => [product, ...prev]);
+    addToast("Product created successfully", "check");
   };
 
   const handleEditProduct = (updated: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    addToast("Product updated successfully", "check");
   };
 
   const handleDeleteProduct = async () => {
@@ -176,13 +182,16 @@ export default function BrandDetailPage() {
     setDeletingProduct(null);
     try {
       const deleted = await deleteProduct(target.id);
-      if (!deleted) {
-        setError("Failed to delete product");
-        return;
+      if (deleted) {
+        setProducts((prev) => prev.filter((p) => p.id !== target.id));
+        addToast("Product deleted successfully", "check");
+      } else {
+        addToast("Failed to delete product", "error");
+        setDeletingProduct(target);
       }
-      setProducts((prev) => prev.filter((p) => p.id !== target.id));
     } catch (err: any) {
-      setError(err?.message || "Failed to delete product");
+      addToast(err?.message || "Failed to delete product", "error");
+      setDeletingProduct(target);
     }
   };
 

@@ -5,6 +5,8 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useProfiles } from "@/hooks/useProfiles";
+import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { deleteBrand, fetchBrands as fetchBrandList } from "@/services/brandService";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
@@ -62,6 +64,8 @@ export default function BrandsPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
+  const { activeProfile } = useProfiles();
+  const { addToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -116,6 +120,7 @@ export default function BrandsPage() {
   const handleEditSuccess = (updated: Brand) => {
     setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setEditingBrand(null);
+    addToast("Brand updated successfully", "check");
   };
 
   const handleDeleteBrand = async () => {
@@ -124,13 +129,16 @@ export default function BrandsPage() {
     setDeletingBrand(null);
     try {
       const deleted = await deleteBrand(brandToDelete.id);
-      if (!deleted) {
-        setError("Failed to delete brand");
-        return;
+      if (deleted) {
+        setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
+        addToast("Brand deleted successfully", "check");
+      } else {
+        addToast("Failed to delete brand", "error");
+        setDeletingBrand(brandToDelete);
       }
-      setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
     } catch (err: any) {
-      setError(err?.message || "Failed to delete brand");
+      addToast(err?.message || "Failed to delete brand", "error");
+      setDeletingBrand(brandToDelete);
     }
   };
 
@@ -158,7 +166,7 @@ export default function BrandsPage() {
           </div>
           <button onClick={() => {
             if (!activeWorkspace) {
-              setError("Vui lòng chọn Workspace trước (vào Overview).");
+              setError("Please select a Workspace first (go to Overview).");
               return;
             }
             setShowCreateModal(true);
@@ -279,7 +287,7 @@ export default function BrandsPage() {
             </div>
             <button onClick={() => {
               if (!activeWorkspace) {
-                setError("Vui lòng chọn Workspace trước (vào Overview).");
+                setError("Please select a Workspace first (go to Overview).");
                 return;
               }
               setShowCreateModal(true);
@@ -370,7 +378,11 @@ export default function BrandsPage() {
       <CreateBrandModal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={(brand) => setBrands((prev) => [brand, ...prev])}
+        onSuccess={(brand) => {
+          setBrands((prev) => [brand, ...prev]);
+          addToast("Brand created successfully", "check");
+        }}
+        profileId={activeProfile?.id || ""}
       />
 
       {editingBrand && (

@@ -2,6 +2,7 @@ using AISAM.API.Controllers;
 using AISAM.API.Middleware;
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
@@ -25,7 +26,7 @@ public class SocialControllerTests
         var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/dev/scheduler");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), null, null, new FakeWebHostEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), new FakeWebHostEnvironment());
 
         Assert.Equal((int)HttpStatusCode.NotFound, context.Response.StatusCode);
     }
@@ -241,5 +242,26 @@ public class SocialControllerTests
         public string EnvironmentName { get; set; } = "Development";
         public string ContentRootPath { get; set; } = string.Empty;
         public IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(Array.Empty<Workspace>());
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    }
+
+    private sealed class FakeUserRepository : IUserRepository
+    {
+        public Task<User?> GetByIdAsync(Guid id) => Task.FromResult<User?>(null);
+        public Task<User?> GetByEmailAsync(string email) => Task.FromResult<User?>(null);
+        public Task<User> CreateAsync(User user) => throw new NotImplementedException();
+        public Task<User> UpdateAsync(User user) => throw new NotImplementedException();
+        public Task<User?> GetByPasswordResetTokenAsync(string token) => Task.FromResult<User?>(null);
+        public Task<User?> GetByEmailVerificationTokenAsync(string token) => Task.FromResult<User?>(null);
+        public Task<PagedResult<UserListDto>> GetPagedUsersAsync(PaginationRequest request) => throw new NotImplementedException();
     }
 }

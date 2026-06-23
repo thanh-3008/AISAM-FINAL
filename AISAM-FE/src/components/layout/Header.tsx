@@ -285,7 +285,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="flex items-center gap-3 cursor-pointer group px-2 py-1.5 rounded-full hover:bg-surface-container transition-all"
           >
-            <div className="text-right hidden sm:block">
+            <div className="text-right hidden sm:block" suppressHydrationWarning>
               <p className="text-body-sm font-semibold text-on-surface text-left leading-tight">{displayName}</p>
               <p className="text-label-sm text-outline text-left leading-tight">{displayPlan}</p>
             </div>

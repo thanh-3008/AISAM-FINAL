@@ -25,9 +25,13 @@ export interface CreditWallet {
 }
 
 export interface WorkspaceDashboard {
-  creditsRemaining: number;
+  creditBalance: number;
+  creditsUsed: number;
+  publishedPostCount: number;
+  postQuotaLimit: number;
   postsRemaining: number;
-  totalAiUsage: number;
+  aiUsageCount: number;
+  activeMemberCount: number;
   topMembers: { userId: string; name: string; usage: number }[];
 }
 
@@ -104,12 +108,7 @@ export async function deleteWorkspace(id: string): Promise<boolean> {
   }
 }
 
-export async function fetchWorkspaceDashboard(): Promise<{
-  creditsRemaining: number;
-  postsRemaining: number;
-  totalAiUsage: number;
-  topMembers: { userId: string; name: string; usage: number }[];
-} | null> {
+export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | null> {
   try {
     const res: GenericResponse<{
       creditBalance?: number;
@@ -118,11 +117,24 @@ export async function fetchWorkspaceDashboard(): Promise<{
       topMembers?: { userId: string; name: string; creditsUsed: number }[];
     }> = await apiClient("/workspace-dashboard/summary");
     if (res?.data) {
-      const d = res.data;
+      const d = res.data as {
+        creditBalance?: number;
+        creditsUsed?: number;
+        publishedPostCount?: number;
+        postQuotaLimit?: number;
+        postsRemaining?: number;
+        aiUsageCount?: number;
+        activeMemberCount?: number;
+        topMembers?: { userId: string; name: string; creditsUsed: number }[];
+      };
       return {
-        creditsRemaining: d.creditBalance ?? 0,
+        creditBalance: d.creditBalance ?? 0,
+        creditsUsed: d.creditsUsed ?? 0,
+        publishedPostCount: d.publishedPostCount ?? 0,
+        postQuotaLimit: d.postQuotaLimit ?? 0,
         postsRemaining: d.postsRemaining ?? 0,
-        totalAiUsage: d.aiUsageCount ?? 0,
+        aiUsageCount: d.aiUsageCount ?? 0,
+        activeMemberCount: d.activeMemberCount ?? 0,
         topMembers: (d.topMembers ?? []).map(m => ({
           userId: m.userId,
           name: m.name,

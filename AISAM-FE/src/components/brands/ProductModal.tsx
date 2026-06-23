@@ -84,10 +84,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
         onSuccess(result as Product);
         handleClose();
       } else {
-        setError("Failed to save product");
+        setError(`Failed to ${mode === "edit" ? "update" : "create"} product`);
       }
     } catch (err: any) {
-      setError(err?.message || "Failed to save product");
+      setError(err?.message || `Failed to ${mode === "edit" ? "update" : "create"} product`);
     } finally {
       setLoading(false);
     }

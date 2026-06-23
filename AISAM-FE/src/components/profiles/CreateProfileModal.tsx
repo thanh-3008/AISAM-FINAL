@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, WorkspaceData } from "@/hooks/useWorkspaces";
 import { createWorkspace } from "@/services/workspaceService";
+import { useToast } from "@/contexts/ToastContext";
 
 const WORKSPACE_TYPES = [
   {
@@ -47,6 +48,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { selectWorkspace } = useWorkspaces();
+  const { addToast } = useToast();
 
   const [form, setForm] = useState({
     name: "",
@@ -111,6 +113,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
         addWorkspaceToCache(wsData);
         selectWorkspace(wsData);
         handleClose();
+        addToast("Workspace created successfully", "check");
         router.push("/dashboard");
       } else {
         setError("Failed to create workspace");

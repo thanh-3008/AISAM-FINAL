@@ -412,6 +412,27 @@ public class ContentScheduleServiceTests
         public Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
 
+        public Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default)
+            => GetDueSchedulesAsync(utcNow, limit, cancellationToken);
+
+        public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Schedules.Values.Any(s => s.ContentId == contentId && !s.IsDeleted && (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing)));
+
+        public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<PagedResult<ContentCalendar>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+            => GetPagedByProfileIdAsync(workspaceId, request, cancellationToken);
+
+        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByWorkspaceIdAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default)
+            => GetUpcomingByProfileIdAsync(workspaceId, limit, cancellationToken);
+
+        public Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default)
+            => CountUpcomingByProfileIdAsync(workspaceId, utcNow, cancellationToken);
+
+        public Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => CountFailedByProfileIdAsync(workspaceId, cancellationToken);
+
         public Task<ContentCalendar> AddAsync(ContentCalendar schedule, CancellationToken cancellationToken = default)
         {
             Schedules[schedule.Id] = schedule;
@@ -455,5 +476,8 @@ public class ContentScheduleServiceTests
 
         public Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }

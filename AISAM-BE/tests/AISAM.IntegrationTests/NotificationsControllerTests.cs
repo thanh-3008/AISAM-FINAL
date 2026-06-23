@@ -92,5 +92,10 @@ public class NotificationsControllerTests
             LastProfileId = profileId;
             return Task.FromResult(CountResult);
         }
+
+        public Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<bool>.CreateSuccess(true, "Deleted."));
+        }
     }
 }

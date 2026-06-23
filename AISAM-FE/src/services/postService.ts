@@ -59,3 +59,8 @@ export async function fetchPost(id: string): Promise<PostItem | null> {
   if (res?.data) return res.data;
   return null;
 }
+
+export async function deletePost(id: string): Promise<boolean> {
+  const res: GenericResponse<null> = await apiClient(`/posts/${id}`, { method: "DELETE" });
+  return res?.success === true;
+}

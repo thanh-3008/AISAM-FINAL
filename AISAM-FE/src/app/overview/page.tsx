@@ -92,7 +92,7 @@ export default function OverviewPage() {
       });
 
       if (!wsResult?.success || !wsResult.data) {
-        setCreateError(wsResult?.message || "Tạo workspace thất bại.");
+        setCreateError(wsResult?.message || "Failed to create workspace.");
         return;
       }
 
@@ -123,7 +123,6 @@ export default function OverviewPage() {
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
-
       if (pfResult?.success && pfResult.data?.id) {
         storeActiveProfile({
           id: pfResult.data.id,
@@ -133,8 +132,8 @@ export default function OverviewPage() {
       } else {
         clearActiveProfile();
       }
-    } catch (e: unknown) {
-      setCreateError(getErrorMessage(e, "Lỗi kết nối khi tạo workspace."));
+    } catch (e: any) {
+      setCreateError(e?.message || "Connection error while creating workspace.");
       return;
     } finally {
       setCreating(false);

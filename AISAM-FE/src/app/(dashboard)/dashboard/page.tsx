@@ -8,6 +8,8 @@ import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type Worksp
 import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
+import { apiFetch } from "@/lib/apiClient";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
@@ -41,12 +43,13 @@ function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffi
 
 function AnimatedBar({ value, color, delay = 600 }: { value: number; color: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
+  const displayPct = Math.max(value, value > 0 ? 2 : 0);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const timer = setTimeout(() => { el.style.width = `${value}%`; }, delay);
+    const timer = setTimeout(() => { el.style.width = `${displayPct}%`; }, delay);
     return () => clearTimeout(timer);
-  }, [value, delay]);
+  }, [displayPct, delay]);
   return (
     <div className="w-full h-2 bg-surface-container/60 rounded-full overflow-hidden">
       <div ref={ref} className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`} style={{ width: "0%" }} />
@@ -88,9 +91,12 @@ export default function DashboardPage() {
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [maxCreditBalance, setMaxCreditBalance] = useState(15000);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [dailyUsage, setDailyUsage] = useState<{ date: string; credits: number }[]>([]);
+  const [usageDays, setUsageDays] = useState(7);
   const [dashboardCampaigns, setDashboardCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
@@ -109,13 +115,24 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
+    fetchCreditWallet().then(w => { if (w) { setCreditBalance(w.balance); setMaxCreditBalance(w.maxBalance); } });
     fetchPostQuota().then(q => { if (q) setPostQuota(q); });
     fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
     fetchCampaigns({ pageSize: 5 }).then((res) => {
       if (res) setDashboardCampaigns(res.data.slice(0, 5));
     });
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    apiFetch(`/credit-usage/daily-summary?days=${usageDays}`).then(res => {
+      if (res?.success && res.data) {
+        setDailyUsage((res.data as { date: string; totalCredits: number }[]).map(d => ({
+          date: d.date,
+          credits: d.totalCredits,
+        })));
+      }
+    });
+  }, [usageDays, activeWorkspace?.id]);
 
   return (
     <>
@@ -259,10 +276,10 @@ export default function DashboardPage() {
         {/* ===== KPI GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
           {[
-            { icon: "insights", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "Total Reach", value: "1.2M", delta: "+12%", deltaUp: true, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
-            { icon: "bolt", iconBg: "from-purple-500/20 to-purple-600/10", iconColor: "text-purple-500", label: "Engagement Rate", value: "4.8%", delta: "+0.5%", deltaUp: true, gradient: "from-purple-500/5 to-transparent", accent: "#a855f7" },
-            { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 850), max: "15000", pct: Math.min(100, Math.round(((creditBalance ?? 850) / 15000) * 100)), gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
-            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? 0), max: String(postQuota?.total ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
+            { icon: "check_circle", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "Published", value: String(dashboard?.publishedPostCount ?? 0), delta: null, deltaUp: null, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
+            { icon: "auto_awesome", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "AI Usage", value: String(dashboard?.aiUsageCount ?? 0), delta: null, deltaUp: null, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
+            { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 0), delta: null, deltaUp: null, max: String(maxCreditBalance), pct: Math.min(100, Math.round(((creditBalance ?? 0) / maxCreditBalance) * 100)), gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
+            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? (dashboard ? (dashboard.postQuotaLimit - dashboard.postsRemaining) : 0)), delta: null, deltaUp: null, max: String(postQuota?.total ?? dashboard?.postQuotaLimit ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : dashboard ? Math.round(((dashboard.postQuotaLimit - dashboard.postsRemaining) / dashboard.postQuotaLimit) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
           ].map((kpi, i) => (
             <div
               key={kpi.label}
@@ -307,74 +324,54 @@ export default function DashboardPage() {
 
         {/* ===== CHART + UPCOMING ===== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
-          {/* Chart */}
+          {/* Daily Credit Usage Chart */}
           <div className={`lg:col-span-2 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.32s" }}>
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="text-headline-sm text-on-surface">Performance Overview</h4>
-                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold inline-flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                    LIVE
+                  <h4 className="text-headline-sm text-on-surface">Daily Credit Usage</h4>
+                  <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full text-label-xs font-semibold">
+                    Total: {dailyUsage.reduce((s, d) => s + d.credits, 0).toLocaleString()}
                   </span>
                 </div>
-                <p className="text-body-sm text-on-surface-variant">Daily engagement trends over the last 30 days</p>
+                <p className="text-body-sm text-on-surface-variant">AI credits consumed per day by your team</p>
               </div>
               <div className="flex items-center gap-1.5 bg-surface-container rounded-lg p-1">
-                <button className="px-3 py-1.5 bg-white text-on-surface rounded-md text-label-sm font-semibold shadow-sm transition-all hover:shadow-md">30D</button>
-                <button className="px-3 py-1.5 text-on-surface-variant rounded-md text-label-sm hover:text-on-surface transition-all">90D</button>
+                {[7, 30, 90].map(d => (
+                  <button key={d} onClick={() => setUsageDays(d)}
+                    className={`px-3 py-1.5 rounded-md text-label-sm font-semibold transition-all ${usageDays === d ? "bg-white text-on-surface shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}>
+                    {d}D
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="relative h-72 w-full">
-              <svg className="absolute inset-0 h-full w-full pointer-events-none" viewBox="0 0 1000 300" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#0f62fe" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#0f62fe" stopOpacity="0" />
-                  </linearGradient>
-                  <linearGradient id="chartGrad2" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#731be5" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#731be5" stopOpacity="0" />
-                  </linearGradient>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="3" result="blur" />
-                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                  </filter>
-                </defs>
-                <line x1="0" y1="250" x2="1000" y2="250" stroke="#e0e0e0" strokeOpacity="0.12" strokeWidth="0.5" strokeDasharray="4,4" />
-                <line x1="0" y1="200" x2="1000" y2="200" stroke="#e0e0e0" strokeOpacity="0.12" strokeWidth="0.5" strokeDasharray="4,4" />
-                <line x1="0" y1="150" x2="1000" y2="150" stroke="#e0e0e0" strokeOpacity="0.12" strokeWidth="0.5" strokeDasharray="4,4" />
-                <line x1="0" y1="100" x2="1000" y2="100" stroke="#e0e0e0" strokeOpacity="0.12" strokeWidth="0.5" strokeDasharray="4,4" />
-                <line x1="0" y1="50" x2="1000" y2="50" stroke="#e0e0e0" strokeOpacity="0.12" strokeWidth="0.5" strokeDasharray="4,4" />
-                <path className="chart-fill" d="M0,200 Q100,180 200,220 T400,150 T600,100 T800,180 T1000,50 L1000,300 L0,300 Z" fill="url(#chartGrad)" />
-                <path className="chart-line" d="M0,200 Q100,180 200,220 T400,150 T600,100 T800,180 T1000,50" fill="none" stroke="#0f62fe" strokeLinecap="round" strokeWidth="2.5" filter="url(#glow)" />
-                <circle cx="1000" cy="50" r="4" fill="#0f62fe" stroke="#fff" strokeWidth="2" className="animate-float" />
-                <circle cx="400" cy="150" r="3" fill="#731be5" stroke="#fff" strokeWidth="1.5" />
-                <path className="chart-fill" d="M0,230 Q100,210 200,250 T400,180 T600,140 T800,210 T1000,90 L1000,300 L0,300 Z" fill="url(#chartGrad2)" style={{ animationDelay: "0.8s" }} />
-                <path className="chart-line" d="M0,230 Q100,210 200,250 T400,180 T600,140 T800,210 T1000,90" fill="none" stroke="#731be5" strokeLinecap="round" strokeWidth="1.5" strokeDasharray="6,4" style={{ animationDelay: "0.5s" }} />
-              </svg>
-              <div className="absolute top-4 right-4 flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 bg-[#0f62fe] rounded animate-glow-pulse" />
-                  <span className="text-label-xs text-outline">Engagement</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 bg-[#731be5]" style={{ borderTop: "1px dashed" }} />
-                  <span className="text-label-xs text-outline">Predicted</span>
-                </div>
-              </div>
-              <div className="absolute right-0 top-0 bottom-0 w-1/4 bg-gradient-to-r from-transparent to-primary/[0.02] border-l border-dashed border-primary/20 flex items-center justify-center backdrop-blur-[1px]">
-                <div className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1.5 rounded-full text-label-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
-                  <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
-                  AI PREDICTION
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between mt-4 px-1 text-label-xs text-outline font-medium">
-              <span className="hover:text-on-surface transition-colors cursor-pointer">Oct 01</span>
-              <span className="relative hover:text-on-surface transition-colors cursor-pointer">Oct 15 <span className="absolute -top-1 -right-2 w-1.5 h-1.5 bg-primary rounded-full animate-ping" style={{ animationDuration: "2s" }} /></span>
-              <span className="text-primary font-bold cursor-pointer">Today</span>
-              <span className="text-primary-fixed-dim cursor-pointer">Oct 30</span>
+            <div className="h-72 w-full">
+              {dailyUsage.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dailyUsage} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="creditGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0f62fe" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#0f62fe" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.12} vertical={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#888" }} tickLine={false} axisLine={false}
+                      tickFormatter={(v: string) => {
+                        const d = new Date(v);
+                        return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                      }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#888" }} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}
+                      labelFormatter={(label) => new Date(String(label)).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                      formatter={(value: any) => [`${Number(value).toLocaleString()} credits used`, "Credits"]} />
+                    <Area type="monotone" dataKey="credits" stroke="#0f62fe" strokeWidth={2.5} fill="url(#creditGrad)" dot={false} activeDot={{ r: 5, fill: "#0f62fe", stroke: "#fff", strokeWidth: 2 }}
+                      animationBegin={200} animationDuration={1200} animationEasing="ease-out" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-outline text-body-sm">No credit usage data</div>
+              )}
             </div>
           </div>
 

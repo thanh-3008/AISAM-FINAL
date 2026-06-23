@@ -75,6 +75,15 @@ public sealed class ContentSchedulesController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("bulk")]
+    public async Task<ActionResult<GenericResponse<BulkCreateResultDto>>> BulkCreate(
+        [FromBody] BulkCreateContentScheduleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _contentScheduleService.BulkCreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpDelete("{scheduleId:guid}")]
     public async Task<ActionResult<GenericResponse<bool>>> Delete(
         Guid scheduleId,

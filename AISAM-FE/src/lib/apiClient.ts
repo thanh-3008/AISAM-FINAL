@@ -32,8 +32,10 @@ async function buildHeaders(customHeaders?: Record<string, string>) {
 }
 
 const ERROR_MAP: Record<string, string> = {
-  "Missing or invalid X-Workspace-Id header.": "Chưa chọn Workspace. Vào Overview để chọn workspace.",
+  "Missing or invalid X-Workspace-Id header.": "Vui lòng chọn Workspace trước (vào Overview).",
+  "Missing or invalid X-Profile-Id header.": "Vui lòng chọn Profile cho tính năng này.",
   "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
+  "Profile does not belong to active workspace.": "Profile không thuộc về workspace hiện tại.",
   "Workspace not found.": "Workspace không tồn tại.",
 };
 
@@ -74,7 +76,7 @@ async function handleResponse<TResponse>(response: Response): Promise<TResponse>
 async function retryWithRefresh<TResponse>(endpoint: string, config: RequestInit): Promise<TResponse> {
   const newToken = await refreshAccessToken();
   if (!newToken) {
-    throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+    throw new Error("Session expired. Please log in again.");
   }
   const workspace = getStoredActiveWorkspace();
   const newHeaders: Record<string, string> = {

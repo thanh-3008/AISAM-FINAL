@@ -649,6 +649,7 @@ public class PaymentServiceTests
         FakeSubscriptionRepository? subscriptionRepository = null,
         FakeProfileRepository? profileRepository = null,
         FakeWorkspaceRepository? workspaceRepository = null,
+        FakeCreditWalletRepository? creditWalletRepository = null,
         FakeCreditService? creditService = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
@@ -658,7 +659,7 @@ public class PaymentServiceTests
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
-            null,
+            creditWalletRepository ?? new FakeCreditWalletRepository(),
             creditService ?? new FakeCreditService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient(),
@@ -1039,5 +1040,15 @@ public class PaymentServiceTests
                 Content = new StringContent(_responseBody, Encoding.UTF8, "application/json")
             });
         }
+    }
+
+    private sealed class FakeCreditWalletRepository : ICreditWalletRepository
+    {
+        public Task<CreditWallet?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult<CreditWallet?>(null);
+        public Task<CreditWallet> AddAsync(CreditWallet wallet, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+        public Task UpdateAsync(CreditWallet wallet, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }
