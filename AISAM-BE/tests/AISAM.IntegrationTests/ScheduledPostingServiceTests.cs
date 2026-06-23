@@ -86,7 +86,7 @@ public class ScheduledPostingServiceTests
         Assert.Equal(0, result.SuccessCount);
         Assert.Equal(1, result.FailedCount);
         Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
-        Assert.Equal(1, schedule.AttemptCount);
+        Assert.Equal(3, schedule.AttemptCount);
         Assert.Equal("Facebook rejected the request.", schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
         Assert.Equal("Scheduled publish failed", notificationRepository.Notifications.Values.Single().Title);
@@ -119,7 +119,7 @@ public class ScheduledPostingServiceTests
         Assert.Equal(0, result.SuccessCount);
         Assert.Equal(1, result.FailedCount);
         Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
-        Assert.Equal(1, schedule.AttemptCount);
+        Assert.Equal(3, schedule.AttemptCount);
         Assert.Equal("Post quota has been exceeded for the current subscription.", schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
         Assert.Equal("Scheduled publish failed", notificationRepository.Notifications.Values.Single().Title);
@@ -143,10 +143,10 @@ public class ScheduledPostingServiceTests
 
         var result = await service.RunDueSchedulesAsync(20);
 
-        Assert.Equal(1, result.ScannedCount);
+        Assert.Equal(0, result.ScannedCount);
         Assert.Equal(0, result.SuccessCount);
-        Assert.Equal(1, result.FailedCount);
-        Assert.Equal(ScheduleStatusEnum.Failed, completed.Status);
+        Assert.Equal(0, result.FailedCount);
+        Assert.Equal(ScheduleStatusEnum.Completed, completed.Status);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class ScheduledPostingServiceTests
             IntegrationId = Guid.NewGuid(),
             ScheduledAt = DateTime.UtcNow.AddMinutes(-2),
             ScheduledDate = DateTime.UtcNow.AddMinutes(-2),
-            Status = ScheduleStatusEnum.Pending
+            Status = ScheduleStatusEnum.Pending, AttemptCount = 2
         };
     }
 

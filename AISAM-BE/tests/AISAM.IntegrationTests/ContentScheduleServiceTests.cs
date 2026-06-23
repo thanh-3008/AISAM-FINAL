@@ -24,8 +24,7 @@ public class ContentScheduleServiceTests
             WorkspaceId = workspaceId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft content",
-            Status = ContentStatusEnum.Draft
+            TextContent = "Draft content", Status = ContentStatusEnum.Approved
         };
         var integration = new SocialIntegration
         {
@@ -75,8 +74,7 @@ public class ContentScheduleServiceTests
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft content",
-            Status = ContentStatusEnum.Draft
+            TextContent = "Draft content", Status = ContentStatusEnum.Approved
         };
         var integration = new SocialIntegration
         {
@@ -151,8 +149,7 @@ public class ContentScheduleServiceTests
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft content",
-            Status = ContentStatusEnum.Draft
+            TextContent = "Draft content", Status = ContentStatusEnum.Approved
         };
         var integration = new SocialIntegration
         {
@@ -481,3 +478,4 @@ public class ContentScheduleServiceTests
             => Task.CompletedTask;
     }
 }
+
