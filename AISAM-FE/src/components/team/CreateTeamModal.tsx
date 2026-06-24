@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { type CreateTeamData } from "@/services/teamService";
-import { BRANDS } from "./teamUtils";
+import { fetchBrands } from "@/services/brandService";
 
 interface CreateTeamModalProps {
   open: boolean;
@@ -15,6 +15,11 @@ export default function CreateTeamModal({ open, onClose, onCreate, isLoading }: 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetchBrands().then(setBrands);
+  }, []);
 
   if (!open) return null;
 
@@ -80,7 +85,7 @@ export default function CreateTeamModal({ open, onClose, onCreate, isLoading }: 
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Assign Brands</label>
               <div className="grid grid-cols-2 gap-2">
-                {BRANDS.map((brand) => (
+                {brands.map((brand) => (
                   <button
                     key={brand.id}
                     type="button"

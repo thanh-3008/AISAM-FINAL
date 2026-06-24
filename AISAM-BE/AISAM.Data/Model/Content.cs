@@ -37,8 +37,11 @@ namespace AISAM.Data.Model
         [Column("text_content")]
         public string TextContent { get; set; } = string.Empty;
 
-		[Column("image_url", TypeName = "jsonb")]
+        [Column("image_url", TypeName = "jsonb")]
 		public string? ImageUrl { get; set; }
+
+        [Column("tags", TypeName = "jsonb")]
+        public string? Tags { get; set; }
 
         [MaxLength(500)]
         [Column("video_url")]
@@ -56,6 +59,9 @@ namespace AISAM.Data.Model
         [Required]
         [Column("status")]
         public ContentStatusEnum Status { get; set; } = ContentStatusEnum.Draft;
+
+        [Column("is_ai_generated")]
+        public bool IsAiGenerated { get; set; } = false;
 
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;

@@ -42,6 +42,8 @@ export interface ContentApiItem {
   contextDescription: string | null;
   representativeCharacter: string | null;
   status: ContentApiStatus;
+  isAiGenerated: boolean;
+  tags: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +61,7 @@ export interface ContentItem {
   platforms: string[];
   tags: string[];
   hashtags: string[];
+  isAiGenerated: boolean;
 }
 
 export interface ContentDetail {
@@ -103,6 +106,8 @@ export interface CreateContentPayload {
   contextDescription?: string | null;
   representativeCharacter?: string | null;
   status?: Extract<ContentApiStatus, 0 | 1>;
+  isAiGenerated?: boolean;
+  tags?: string[];
 }
 
 export interface UpdateContentPayload {
@@ -141,8 +146,9 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
     thumbnail: api.imageUrl || api.videoUrl || "",
     createdAt: api.createdAt,
     platforms: [],
-    tags: [],
+    tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
+    isAiGenerated: api.isAiGenerated,
   };
 }
 
@@ -162,7 +168,7 @@ function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     textContent: api.textContent,
     imageUrl: api.imageUrl || undefined,
     videoUrl: api.videoUrl || undefined,
-    tags: [],
+    tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
   };
 }

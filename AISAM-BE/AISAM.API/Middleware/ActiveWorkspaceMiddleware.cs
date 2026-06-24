@@ -30,7 +30,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/conversations"),
         new("/api/notifications"),
         new("/api/credit-usage"),
-        new("/api/campaigns")
+        new("/api/campaigns"),
+        new("/api/tags")
     };
 
     private readonly RequestDelegate _next;

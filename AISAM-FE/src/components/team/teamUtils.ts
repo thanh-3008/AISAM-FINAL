@@ -19,14 +19,6 @@ export const TEAM_COLORS = [
   { bg: "from-tertiary to-tertiary/70", text: "text-tertiary", badge: "bg-tertiary-fixed text-tertiary", iconBg: "bg-tertiary/10" },
 ];
 
-export const BRANDS = [
-  { id: "b1", name: "Lumina Tech" },
-  { id: "b2", name: "Summit Outdoor" },
-  { id: "b3", name: "Heritage Motors" },
-  { id: "b4", name: "GreenLeaf Organics" },
-  { id: "b5", name: "Pulse Finance" },
-];
-
 export function getInitials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }

@@ -15,4 +15,6 @@ public sealed class CreateContentRequest
     public string? ContextDescription { get; set; }
     public string? RepresentativeCharacter { get; set; }
     public ContentStatusEnum? Status { get; set; }
+    public bool IsAiGenerated { get; set; }
+    public List<string>? Tags { get; set; }
 }

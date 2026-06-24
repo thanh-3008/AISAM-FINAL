@@ -146,12 +146,43 @@ export async function fetchCreditWallet(): Promise<{
   }
 }
 
+export interface QuotaSummary {
+  promptUsage: number;
+  promptQuotaLimit: number;
+  postUsage: number;
+  postQuotaLimit: number;
+  textContentCount: number;
+  imageContentCount: number;
+  videoContentCount: number;
+}
+
 export async function fetchPostQuota(): Promise<{ used: number; total: number } | null> {
   try {
     const res = await apiClient("/quota/workspace/current");
     if (res?.data) {
       const q = res.data as { postUsage?: number; postQuotaLimit?: number };
       return { used: q.postUsage ?? 0, total: q.postQuotaLimit ?? 0 };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchContentQuota(): Promise<QuotaSummary | null> {
+  try {
+    const res = await apiClient("/quota/workspace/current");
+    if (res?.data) {
+      const q = res.data as { promptUsage?: number; promptQuotaLimit?: number; postUsage?: number; postQuotaLimit?: number; textContentCount?: number; imageContentCount?: number; videoContentCount?: number };
+      return {
+        promptUsage: q.promptUsage ?? 0,
+        promptQuotaLimit: q.promptQuotaLimit ?? 0,
+        postUsage: q.postUsage ?? 0,
+        postQuotaLimit: q.postQuotaLimit ?? 0,
+        textContentCount: q.textContentCount ?? 0,
+        imageContentCount: q.imageContentCount ?? 0,
+        videoContentCount: q.videoContentCount ?? 0,
+      };
     }
     return null;
   } catch {

@@ -4,8 +4,9 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 
-import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
+import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
@@ -68,7 +69,6 @@ export default function CreateContentPage() {
   const [hashtagInput, setHashtagInput] = useState("");
 
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
-  const [showTagPicker, setShowTagPicker] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState("facebook");
 
@@ -157,6 +157,7 @@ export default function CreateContentPage() {
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
       status: form.status === "Awaiting Approval" ? 1 : 0,
+      tags: form.tags.length > 0 ? form.tags : undefined,
     };
 
     try {
@@ -489,44 +490,13 @@ export default function CreateContentPage() {
                 </div>
 
                 {/* Tags */}
-                <div className="relative">
+                <div>
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Tags</label>
-                  <button type="button" onClick={() => setShowTagPicker(!showTagPicker)}
-                    className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-left text-on-surface hover:border-primary/40 transition-all flex items-center justify-between">
-                    <span className={form.tags.length === 0 ? "text-outline/40" : ""}>
-                      {form.tags.length === 0 ? "Add tags to categorize" : `${form.tags.length} tag${form.tags.length > 1 ? "s" : ""} selected`}
-                    </span>
-                    <span className={`material-symbols-outlined text-[14px] text-outline transition-transform ${showTagPicker ? "rotate-180" : ""}`}>expand_more</span>
-                  </button>
-                  {showTagPicker && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowTagPicker(false)} />
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-xl z-20 p-2 space-y-0.5 dropdown-enter">
-                        {ALL_TAGS.map((t) => (
-                          <label key={t} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-container cursor-pointer transition-colors">
-                            <input type="checkbox" checked={form.tags.includes(t)} onChange={() => {
-                              update({
-                                tags: form.tags.includes(t) ? form.tags.filter((x) => x !== t) : [...form.tags, t],
-                              });
-                            }} className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/30" />
-                            <span className="text-label-sm text-on-surface">{t}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {form.tags.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      {form.tags.map((t) => (
-                        <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-label-xs font-semibold text-on-surface-variant flex items-center gap-1">
-                          {t}
-                          <button onClick={() => update({ tags: form.tags.filter((x) => x !== t) })} className="hover:opacity-60">
-                            <span className="material-symbols-outlined text-label-xs">close</span>
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <TagPicker
+                    selected={form.tags}
+                    onChange={(tags) => setForm((prev) => ({ ...prev, tags }))}
+                    placeholder="Add tags to categorize"
+                  />
                 </div>
 
                 {/* Hashtags */}

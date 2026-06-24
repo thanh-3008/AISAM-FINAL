@@ -13,15 +13,18 @@ public sealed class QuotaService : IQuotaService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IProfileRepository _profileRepository;
+    private readonly IContentRepository _contentRepository;
 
     public QuotaService(
         ISubscriptionRepository subscriptionRepository,
         IWorkspaceRepository workspaceRepository,
-        IProfileRepository profileRepository)
+        IProfileRepository profileRepository,
+        IContentRepository contentRepository)
     {
         _subscriptionRepository = subscriptionRepository;
         _workspaceRepository = workspaceRepository;
         _profileRepository = profileRepository;
+        _contentRepository = contentRepository;
     }
 
     public async Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
@@ -80,6 +83,10 @@ public sealed class QuotaService : IQuotaService
         var postLimit = ResolveWorkspacePostQuota(workspace.WorkspaceType, subscription.Plan);
         var promptLimit = subscription.QuotaAIContentPerDay;
 
+        var textCount = await _contentRepository.CountByWorkspaceAndAdTypeAsync(workspaceId, AdTypeEnum.TextOnly, cancellationToken);
+        var imageCount = await _contentRepository.CountByWorkspaceAndAdTypeAsync(workspaceId, AdTypeEnum.ImageText, cancellationToken);
+        var videoCount = await _contentRepository.CountByWorkspaceAndAdTypeAsync(workspaceId, AdTypeEnum.VideoText, cancellationToken);
+
         return GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto
         {
             PlanName = BuildWorkspacePlanName(workspace.WorkspaceType, subscription.Plan),
@@ -91,7 +98,10 @@ public sealed class QuotaService : IQuotaService
             PromptRemaining = Math.Max(0, promptLimit - promptUsage),
             PostQuotaLimit = postLimit,
             PostUsage = postUsage,
-            PostRemaining = Math.Max(0, postLimit - postUsage)
+            PostRemaining = Math.Max(0, postLimit - postUsage),
+            TextContentCount = textCount,
+            ImageContentCount = imageCount,
+            VideoContentCount = videoCount
         });
     }
 

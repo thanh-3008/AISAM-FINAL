@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { type Team, type CreateTeamData } from "@/services/teamService";
-import { BRANDS } from "./teamUtils";
+import { fetchBrands } from "@/services/brandService";
 
 interface EditTeamModalProps {
   team: Team | null;
@@ -15,6 +15,11 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetchBrands().then(setBrands);
+  }, []);
 
   useEffect(() => {
     if (team) {
@@ -85,7 +90,7 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Assign Brands</label>
               <div className="grid grid-cols-2 gap-2">
-                {BRANDS.map((brand) => (
+                {brands.map((brand) => (
                   <button
                     key={brand.id}
                     type="button"

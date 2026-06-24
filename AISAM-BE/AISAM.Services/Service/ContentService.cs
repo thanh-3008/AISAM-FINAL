@@ -83,7 +83,9 @@ public sealed class ContentService : IContentService
             StyleDescription = request.StyleDescription,
             ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter,
-            Status = request.Status ?? ContentStatusEnum.PendingApproval
+            Status = request.Status ?? ContentStatusEnum.PendingApproval,
+            IsAiGenerated = request.IsAiGenerated,
+            Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
 
         await _contentRepository.AddAsync(content, cancellationToken);
@@ -103,10 +105,18 @@ public sealed class ContentService : IContentService
             AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
             ImageUrl = FormatImageUrlForJsonb(request.ImageUrl), VideoUrl = request.VideoUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
-            RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.PendingApproval
+            RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.PendingApproval,
+            IsAiGenerated = request.IsAiGenerated,
+            Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
         await _contentRepository.AddAsync(content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.CreatedSuccess);
+    }
+
+    public async Task<GenericResponse<List<string>>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var tags = await _contentRepository.GetDistinctTagsByWorkspaceAsync(workspaceId, cancellationToken);
+        return GenericResponse<List<string>>.CreateSuccess(tags);
     }
 
     public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
@@ -142,6 +152,7 @@ public sealed class ContentService : IContentService
         if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
         if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
         if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
+        if (request.Tags != null) content.Tags = request.Tags.Count > 0 ? JsonSerializer.Serialize(request.Tags) : null;
         if (request.Status.HasValue)
         {
             var statusValidation = ValidateStatusTransition(content.Status, request.Status.Value);
@@ -161,7 +172,7 @@ public sealed class ContentService : IContentService
     {
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
-        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Status = ContentStatusEnum.Draft };
+        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
     }
@@ -237,6 +248,7 @@ public sealed class ContentService : IContentService
         if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
         if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
         if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
+        if (request.Tags != null) content.Tags = request.Tags.Count > 0 ? JsonSerializer.Serialize(request.Tags) : null;
 
         if (content.Status == ContentStatusEnum.Approved)
         {
@@ -271,6 +283,7 @@ public sealed class ContentService : IContentService
             StyleDescription = existing.StyleDescription,
             ContextDescription = existing.ContextDescription,
             RepresentativeCharacter = existing.RepresentativeCharacter,
+            Tags = existing.Tags,
             Status = ContentStatusEnum.Draft
         };
 
@@ -664,6 +677,8 @@ public sealed class ContentService : IContentService
             StyleDescription = content.StyleDescription,
             ContextDescription = content.ContextDescription,
             RepresentativeCharacter = content.RepresentativeCharacter,
+            IsAiGenerated = content.IsAiGenerated,
+            Tags = content.Tags,
             Status = content.Status,
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt

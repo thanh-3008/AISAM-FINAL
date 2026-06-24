@@ -127,6 +127,46 @@ public sealed class ContentRepository : IContentRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var tagsJsonList = await _context.Contents
+            .Where(c => c.WorkspaceId == workspaceId && c.Tags != null && !c.IsDeleted)
+            .Select(c => c.Tags)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return tagsJsonList
+            .SelectMany(t => System.Text.Json.JsonSerializer.Deserialize<List<string>>(t!) ?? [])
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+    }
+
+    public async Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default)
+    {
+        var tagsJsonList = await _context.Contents
+            .Where(c => c.ProfileId == profileId && c.Tags != null && !c.IsDeleted)
+            .Select(c => c.Tags)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return tagsJsonList
+            .SelectMany(t => System.Text.Json.JsonSerializer.Deserialize<List<string>>(t!) ?? [])
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+    }
+
+    public async Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default)
+    {
+        return await _context.Contents
+            .CountAsync(content =>
+                content.WorkspaceId == workspaceId &&
+                content.AdType == adType &&
+                !content.IsDeleted,
+                cancellationToken);
+    }
+
     private IQueryable<Content> Query()
     {
         return _context.Contents
