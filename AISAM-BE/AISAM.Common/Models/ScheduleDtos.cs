@@ -13,27 +13,6 @@ public sealed class UpdateContentScheduleRequest
     public DateTime? ScheduledAt { get; set; }
 }
 
-public sealed class BulkCreateContentScheduleRequest
-{
-    public List<CreateContentScheduleRequest> Items { get; set; } = [];
-}
-
-public sealed class BulkCreateResultDto
-{
-    public int TotalRequested { get; set; }
-    public int SuccessCount { get; set; }
-    public int FailedCount { get; set; }
-    public List<BulkCreateItemResult> Results { get; set; } = [];
-}
-
-public sealed class BulkCreateItemResult
-{
-    public Guid ContentId { get; set; }
-    public bool Success { get; set; }
-    public string? Error { get; set; }
-    public ContentScheduleDto? Schedule { get; set; }
-}
-
 public sealed class ContentScheduleDto
 {
     public Guid Id { get; set; }

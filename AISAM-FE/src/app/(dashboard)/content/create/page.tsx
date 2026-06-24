@@ -7,7 +7,6 @@ import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
-import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 const SAMPLE_AVATARS = [
@@ -18,7 +17,6 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
-  const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -142,7 +140,7 @@ export default function CreateContentPage() {
     const storedWs = getStoredActiveWorkspace();
     if (!storedWs) {
       setSaving(false);
-      setSaveError("Please select a Workspace before creating content.");
+      setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
       return;
     }
 
@@ -162,20 +160,18 @@ export default function CreateContentPage() {
     try {
       const result = await createContent(payload);
       if (result) {
-        addToast("Content created successfully", "check");
-        router.push("/content");
+        setSaved(true);
+        setTimeout(() => router.push("/content"), 1000);
       } else {
-        setSaveError("Failed to save content. BE returned an error, check console (F12) for details.");
-        addToast("Failed to create content", "error");
+        setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
       }
     } catch (e: any) {
       const msg = e?.message || "";
       if (msg.includes("Profile not found")) {
-        addToast("Workspace not found, redirecting...", "error");
+        setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {
-        setSaveError(msg || "Unknown error while saving content.");
-        addToast(msg || "Failed to create content", "error");
+        setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
       }
     } finally {
       setSaving(false);

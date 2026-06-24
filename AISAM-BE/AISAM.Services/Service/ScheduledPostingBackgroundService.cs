@@ -1,4 +1,3 @@
-using AISAM.Common.Messages;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +30,7 @@ public sealed class ScheduledPostingBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, MessageConstants.Schedule.WorkerIterationFailed);
+                _logger.LogError(ex, "Scheduled posting worker iteration failed.");
             }
 
             try

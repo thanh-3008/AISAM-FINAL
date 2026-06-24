@@ -114,13 +114,7 @@ export async function getUnreadCount(): Promise<number> {
   }
 }
 
-export async function deleteNotification(id: string): Promise<boolean> {
-  try {
-    const res: GenericResponse<boolean> = await apiClient(`/notifications/${id}`, {
-      method: "DELETE",
-    });
-    return res?.success === true;
-  } catch {
-    return false;
-  }
+export async function deleteNotification(_id: string): Promise<boolean> {
+  // BE does not expose DELETE /notifications/{id} — no-op
+  return false;
 }

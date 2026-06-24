@@ -72,8 +72,5 @@ public class PostsControllerTests
             LastProfileId = profileId;
             return Task.FromResult(DetailResult);
         }
-
-        public Task<GenericResponse<bool>> DeleteAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 }

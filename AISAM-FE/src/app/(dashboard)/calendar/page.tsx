@@ -135,7 +135,7 @@ function CalendarContent() {
     return true;
   });
 
-    const pathname = usePathname();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -149,21 +149,13 @@ function CalendarContent() {
         ]);
         const integrationsArrays = await Promise.all(brands.map((b) => fetchSocialIntegrations(b.id)));
         const integ = integrationsArrays.flat();
-        setSchedules(sched.data.data);
-        if (sched.error) setToast(sched.error);
+        setSchedules(sched.data);
         setContents(cont?.items ?? []);
         setIntegrations(integ);
       } catch { /* ignore */ }
       setLoading(false);
     };
     load();
-
-    const pollSchedules = async () => {
-      const res = await fetchSchedules({ pageSize: 100 });
-      setSchedules(res.data.data);
-    };
-    const pollInterval = setInterval(pollSchedules, 30_000);
-
     const unsubscribe = onScheduleChange(load);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -174,7 +166,6 @@ function CalendarContent() {
     return () => {
       unsubscribe();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      clearInterval(pollInterval);
     };
   }, [pathname, activeWorkspace?.id]);
 
@@ -245,15 +236,11 @@ function CalendarContent() {
   const handleDelete = async (id: string) => {
     setActionId(id);
     const item = schedules.find((s) => s.id === id);
-    const result = await deleteSchedule(id);
-    if (result.success) {
-      setSchedules((prev) => prev.filter((s) => s.id !== id));
-      setDeletedItem(item || null);
-      setToast("Schedule deleted");
-    } else {
-      setToast(result.error || "Failed to delete schedule");
-    }
+    await deleteSchedule(id);
+    setSchedules((prev) => prev.filter((s) => s.id !== id));
+    setDeletedItem(item || null);
     setActionId(null);
+    setToast("Schedule deleted");
   };
 
   const handleUndoDelete = () => {
@@ -277,18 +264,14 @@ function CalendarContent() {
     if (!editingSchedule || !editForm.date || !editForm.time || !editForm.integrationId) return;
     setActionId("edit");
     const scheduledAt = new Date(`${editForm.date}T${editForm.time}`).toISOString();
-    const result = await updateSchedule(editingSchedule.id, { integrationId: editForm.integrationId, scheduledAt });
-    if (result.success) {
-      setSchedules((prev) => prev.map((s) =>
-        s.id === editingSchedule.id
-          ? { ...s, scheduledAt, integrationId: editForm.integrationId }
-          : s
-      ));
-      setToast("Schedule updated");
-      setEditingSchedule(null);
-    } else {
-      setToast(result.error || "Failed to update schedule");
-    }
+    await updateSchedule(editingSchedule.id, { integrationId: editForm.integrationId, scheduledAt });
+    setSchedules((prev) => prev.map((s) =>
+      s.id === editingSchedule.id
+        ? { ...s, scheduledAt, integrationId: editForm.integrationId }
+        : s
+    ));
+    setToast("Schedule updated");
+    setEditingSchedule(null);
     setActionId(null);
   };
 

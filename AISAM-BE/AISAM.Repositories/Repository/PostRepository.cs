@@ -21,12 +21,6 @@ public sealed class PostRepository : IPostRepository
             .FirstOrDefaultAsync(post => post.Id == id && !post.IsDeleted, cancellationToken);
     }
 
-    public async Task DeleteAsync(Post post, CancellationToken cancellationToken = default)
-    {
-        post.IsDeleted = true;
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
     public async Task<Post> AddAsync(Post post, CancellationToken cancellationToken = default)
     {
         post.CreatedAt = DateTime.UtcNow;

@@ -25,13 +25,9 @@ export interface CreditWallet {
 }
 
 export interface WorkspaceDashboard {
-  creditBalance: number;
-  creditsUsed: number;
-  publishedPostCount: number;
-  postQuotaLimit: number;
+  creditsRemaining: number;
   postsRemaining: number;
-  aiUsageCount: number;
-  activeMemberCount: number;
+  totalAiUsage: number;
   topMembers: { userId: string; name: string; usage: number }[];
 }
 
@@ -44,28 +40,25 @@ export async function fetchWorkspaces(): Promise<{ id: string; name: string; wor
   }
 }
 
-export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | null> {
+export async function fetchWorkspaceDashboard(): Promise<{
+  creditsRemaining: number;
+  postsRemaining: number;
+  totalAiUsage: number;
+  topMembers: { userId: string; name: string; usage: number }[];
+} | null> {
   try {
     const res = await apiClient("/workspace-dashboard/summary");
     if (res?.data) {
       const d = res.data as {
         creditBalance?: number;
-        creditsUsed?: number;
-        publishedPostCount?: number;
-        postQuotaLimit?: number;
         postsRemaining?: number;
         aiUsageCount?: number;
-        activeMemberCount?: number;
         topMembers?: { userId: string; name: string; creditsUsed: number }[];
       };
       return {
-        creditBalance: d.creditBalance ?? 0,
-        creditsUsed: d.creditsUsed ?? 0,
-        publishedPostCount: d.publishedPostCount ?? 0,
-        postQuotaLimit: d.postQuotaLimit ?? 0,
+        creditsRemaining: d.creditBalance ?? 0,
         postsRemaining: d.postsRemaining ?? 0,
-        aiUsageCount: d.aiUsageCount ?? 0,
-        activeMemberCount: d.activeMemberCount ?? 0,
+        totalAiUsage: d.aiUsageCount ?? 0,
         topMembers: (d.topMembers ?? []).map(m => ({
           userId: m.userId,
           name: m.name,

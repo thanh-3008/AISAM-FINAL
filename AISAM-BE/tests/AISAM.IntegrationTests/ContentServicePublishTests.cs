@@ -332,7 +332,7 @@ public class ContentServicePublishTests
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.NotFound, result.StatusCode);
-        Assert.Equal("Social integration not found or inactive.", result.Message);
+        Assert.Equal("Social integration not found.", result.Message);
     }
 
     private static ContentService CreateService(
@@ -344,9 +344,7 @@ public class ContentServicePublishTests
         IPostRepository? postRepository = null,
         IProviderService? providerService = null,
         ISocialTokenProtector? tokenProtector = null,
-        IQuotaService? quotaService = null,
-        IContentCalendarRepository? contentCalendarRepository = null,
-        IWorkspaceRepository? workspaceRepository = null)
+        IQuotaService? quotaService = null)
     {
         return new ContentService(
             contentRepository ?? new FakeContentRepository(),
@@ -357,28 +355,7 @@ public class ContentServicePublishTests
             postRepository ?? new FakePostRepository(),
             providerService is null ? Array.Empty<IProviderService>() : new[] { providerService },
             tokenProtector ?? new FakeSocialTokenProtector(),
-            quotaService ?? new FakeQuotaService(),
-            contentCalendarRepository ?? new FakeContentCalendarRepository(),
-            workspaceRepository ?? new FakeWorkspaceRepository());
-    }
-
-    private sealed class FakeContentCalendarRepository : IContentCalendarRepository
-    {
-        public Task<ContentCalendar?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<ContentCalendar?>(null);
-        public Task<PagedResult<ContentCalendar>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default) => Task.FromResult(new PagedResult<ContentCalendar>());
-        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByProfileIdAsync(Guid profileId, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ContentCalendar>>([]);
-        public Task<int> CountUpcomingByProfileIdAsync(Guid profileId, DateTime utcNow, CancellationToken cancellationToken = default) => Task.FromResult(0);
-        public Task<int> CountFailedByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default) => Task.FromResult(0);
-        public Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ContentCalendar>>([]);
-        public Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ContentCalendar>>([]);
-        public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.FromResult(false);
-        public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<ContentCalendar> AddAsync(ContentCalendar schedule, CancellationToken cancellationToken = default) => Task.FromResult(schedule);
-        public Task UpdateAsync(ContentCalendar schedule, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<PagedResult<ContentCalendar>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByWorkspaceIdAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            quotaService ?? new FakeQuotaService());
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -496,8 +473,6 @@ public class ContentServicePublishTests
         }
 
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-
-        public Task DeleteAsync(Post post, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeProviderService : IProviderService
@@ -587,15 +562,5 @@ public class ContentServicePublishTests
             LastWorkspaceId = workspaceId;
             return Task.FromResult(WorkspacePostQuotaResult);
         }
-    }
-
-    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
-    {
-        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
-        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

@@ -77,14 +77,14 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
 
       if (result?.success && result.data) {
         onSuccess(result.data);
-        onClose();
-        return;
+      } else {
+        onSuccess(updatedFields);
       }
-      setError(result?.message || "Failed to save brand");
-    } catch (err: any) {
-      setError(err?.message || "Failed to save brand");
+    } catch {
+      onSuccess(updatedFields);
     } finally {
       setLoading(false);
+      onClose();
     }
   };
 

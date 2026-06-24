@@ -52,13 +52,4 @@ public sealed class PostsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
-    [HttpDelete("{postId:guid}")]
-    public async Task<ActionResult<GenericResponse<bool>>> Delete(
-        Guid postId,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await _postService.DeleteAsync(postId, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), cancellationToken);
-        return StatusCode(result.StatusCode, result);
-    }
-
 }

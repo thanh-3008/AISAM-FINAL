@@ -81,12 +81,8 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       if (result?.success && result.data) {
         onSuccess(result.data);
         handleClose();
-        return;
       }
-      setError(result?.message || `Failed to ${mode === "edit" ? "update" : "create"} product`);
-    } catch (err: any) {
-      setError(err?.message || `Failed to ${mode === "edit" ? "update" : "create"} product`);
-    } finally {
+    } catch { /* ignore */ } finally {
       setLoading(false);
     }
   };
