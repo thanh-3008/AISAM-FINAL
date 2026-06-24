@@ -12,7 +12,6 @@ namespace AISAM.API.Controllers
     [ApiController]
     [Route("api/profiles")]
     [Authorize]
-    [Obsolete("Profile endpoints are deprecated. Use /api/workspaces instead.")]
     public class ProfileController : ControllerBase
     {
         private readonly IProfileService _profileService;

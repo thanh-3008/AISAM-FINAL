@@ -1,12 +1,11 @@
 import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
-import { getApiBaseUrl } from "./apiBaseUrl";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { getStoredActiveProfile } from "@/stores/profile-store";
 
-export const API_URL = getApiBaseUrl();
-const LEGACY_PROFILE_HEADER = ["X", "Profile", "Id"].join("-");
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
 type ApiOptions = RequestInit & {
-  data?: unknown;
+  data?: any;
 };
 
 function isValidGuid(str: string): boolean {
@@ -20,75 +19,55 @@ async function buildHeaders(customHeaders?: Record<string, string>) {
     clearActiveWorkspace();
     workspace = null;
   }
-  const sanitizedCustomHeaders = { ...(customHeaders || {}) };
-  delete sanitizedCustomHeaders[LEGACY_PROFILE_HEADER];
-  delete sanitizedCustomHeaders[LEGACY_PROFILE_HEADER.toLowerCase()];
+  const profile = getStoredActiveProfile();
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
-    ...sanitizedCustomHeaders,
+    ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
+    ...(customHeaders || {}),
   };
   return { headers, token };
 }
 
 const ERROR_MAP: Record<string, string> = {
-  "Missing or invalid X-Workspace-Id header.": "Vui lòng chọn Workspace trước (vào Overview).",
-  "Missing or invalid X-Profile-Id header.": "Vui lòng chọn Profile cho tính năng này.",
+  "Missing or invalid X-Workspace-Id header.": "Chưa chọn Workspace. Vào Overview để chọn workspace.",
+  "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile cho tính năng này.",
   "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
-  "Profile does not belong to active workspace.": "Profile không thuộc về workspace hiện tại.",
-  "Workspace not found.": "Workspace không tồn tại.",
+  "Profile does not belong to active workspace.": "Profile không thuộc workspace đang chọn.",
 };
 
-function getValidationMessage(errors: unknown): string | null {
-  if (!errors || typeof errors !== "object") return null;
-  const parts = Object.entries(errors as Record<string, unknown>)
-    .flatMap(([field, messages]) => {
-      const list = Array.isArray(messages) ? messages : [messages];
-      return list
-        .filter((message): message is string => typeof message === "string" && message.trim().length > 0)
-        .map((message) => `${field}: ${message}`);
-    });
-  return parts.length > 0 ? parts.join("; ") : null;
-}
-
-async function handleResponse<TResponse>(response: Response): Promise<TResponse> {
-  const result = await response.json().catch(() => null) as {
-    errors?: unknown;
-    message?: string;
-    title?: string;
-  } | null;
+async function handleResponse(response: Response) {
+  const result = await response.json().catch(() => null);
   if (!response.ok) {
-    const validationMessage = getValidationMessage(result?.errors);
-    const errorMessage = validationMessage || result?.message || result?.title || response.statusText || "Đã có lỗi xảy ra";
+    const errorMessage = result?.message || response.statusText || "Đã có lỗi xảy ra";
     if (errorMessage === "Authentication is required.") {
       removeToken();
       removeRefreshToken();
       clearActiveWorkspace();
     }
-    if (response.status === 403 && !ERROR_MAP[errorMessage]) {
-      throw new Error("Bạn không có quyền truy cập tài nguyên này. Hãy kiểm tra workspace đang chọn hoặc đăng nhập bằng tài khoản có quyền.");
-    }
     throw new Error(ERROR_MAP[errorMessage] || errorMessage);
   }
-  return result as TResponse;
+  return result;
 }
 
-async function retryWithRefresh<TResponse>(endpoint: string, config: RequestInit): Promise<TResponse> {
+async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<unknown> {
   const newToken = await refreshAccessToken();
   if (!newToken) {
-    throw new Error("Session expired. Please log in again.");
+    throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
   }
   const workspace = getStoredActiveWorkspace();
+  const profile = getStoredActiveProfile();
   const newHeaders: Record<string, string> = {
     ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
+    ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
   };
   const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
-  return handleResponse<TResponse>(retryResponse);
+  return handleResponse(retryResponse);
 }
 
-export async function apiClient<TResponse = unknown>(endpoint: string, options: ApiOptions = {}): Promise<TResponse> {
+export async function apiClient(endpoint: string, options: ApiOptions = {}) {
   await ensureValidToken();
   const { data, headers: customHeaders, ...customConfig } = options;
   const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
@@ -107,13 +86,13 @@ export async function apiClient<TResponse = unknown>(endpoint: string, options: 
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
   if (response.status === 401 && token) {
-    return retryWithRefresh<TResponse>(endpoint, config);
+    return retryWithRefresh(endpoint, config);
   }
 
-  return handleResponse<TResponse>(response);
+  return handleResponse(response);
 }
 
-export async function apiFetch<TResponse = unknown>(endpoint: string, options: RequestInit = {}): Promise<TResponse> {
+export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   await ensureValidToken();
   const { headers, token } = await buildHeaders(options.headers as Record<string, string> | undefined);
 
@@ -122,8 +101,8 @@ export async function apiFetch<TResponse = unknown>(endpoint: string, options: R
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
   if (response.status === 401 && token) {
-    return retryWithRefresh<TResponse>(endpoint, config);
+    return retryWithRefresh(endpoint, config);
   }
 
-  return handleResponse<TResponse>(response);
+  return handleResponse(response);
 }

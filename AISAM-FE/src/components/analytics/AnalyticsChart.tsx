@@ -30,8 +30,8 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
     }
   }, [view, data]);
 
-  const maxSpend = Math.max(1, ...displayData.map((d) => d.spend));
-  const maxConversions = Math.max(1, ...displayData.map((d) => d.conversions));
+  const maxSpend = Math.max(...displayData.map((d) => d.spend));
+  const maxConversions = Math.max(...displayData.map((d) => d.conversions));
 
   const width = 800;
   const height = 400;
@@ -41,11 +41,6 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
 
   // Generate smooth bezier curve path
   const generateSmoothPath = useCallback((dataPoints: number[], maxValue: number) => {
-    if (dataPoints.length === 0) return "";
-    if (dataPoints.length === 1) {
-      const y = padding.top + chartHeight - (dataPoints[0] / maxValue) * chartHeight;
-      return `M ${padding.left} ${y}`;
-    }
     return dataPoints
       .map((point, i) => {
         const x = padding.left + (i / (dataPoints.length - 1)) * chartWidth;

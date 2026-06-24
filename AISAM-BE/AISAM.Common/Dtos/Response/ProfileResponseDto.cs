@@ -6,7 +6,6 @@ namespace AISAM.Common.Dtos.Response
     {
         public Guid Id { get; set; }
         public Guid UserId { get; set; }
-        public Guid? WorkspaceId { get; set; }
         public string Name { get; set; } = string.Empty;
         public ProfileTypeEnum ProfileType { get; set; }
         public Guid? SubscriptionId { get; set; }

@@ -250,9 +250,6 @@ public class WorkspaceDashboardTests
         public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
         public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }

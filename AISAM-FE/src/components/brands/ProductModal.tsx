@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { createProduct, updateProduct } from "@/services/productService";
-import { useToast } from "@/contexts/ToastContext";
+import { apiFetch } from "@/lib/apiClient";
 
 export interface Product {
   id: string;
@@ -25,7 +24,6 @@ interface Props {
 }
 
 export default function ProductModal({ open, mode, onClose, onSuccess, brandId, product }: Props) {
-  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,10 +57,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
 
   const buildApiBody = () => {
     const fd = new FormData();
-    fd.append("Name", form.name.trim());
-    fd.append("BrandId", brandId);
-    fd.append("Description", form.description.trim());
-    fd.append("Price", form.price);
+    fd.append("name", form.name.trim());
+    fd.append("brandId", brandId);
+    fd.append("description", form.description.trim());
+    fd.append("price", form.price);
     files.forEach((file) => fd.append("ImageFiles", file));
     return fd;
   };
@@ -75,20 +73,16 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     setLoading(true);
     setError(null);
 
+    const endpoint = mode === "edit" && product ? `/products/${product.id}` : "/products";
+    const method = mode === "edit" ? "PUT" : "POST";
+
     try {
-      const result = mode === "edit" && product
-        ? await updateProduct(product.id, buildApiBody())
-        : await createProduct(buildApiBody());
-      if (result) {
-        showToast({ type: "success", title: "Thành công", message: mode === "edit" ? "Product updated successfully" : "Product added successfully" });
-        onSuccess(result as Product);
+      const result = await apiFetch(endpoint, { method, body: buildApiBody() });
+      if (result?.success && result.data) {
+        onSuccess(result.data);
         handleClose();
-      } else {
-        setError(`Failed to ${mode === "edit" ? "update" : "create"} product`);
       }
-    } catch (err: any) {
-      setError(err?.message || `Failed to ${mode === "edit" ? "update" : "create"} product`);
-    } finally {
+    } catch { /* ignore */ } finally {
       setLoading(false);
     }
   };

@@ -33,16 +33,12 @@ export interface SocialAccount {
 export interface SocialIntegration {
   id: string;
   socialAccountId: string;
-  profileId?: string;
-  brandName?: string | null;
   targetId: string;
   provider: SocialPlatform;
   accountName: string;
   targetName: string;
   isActive: boolean;
   brandId: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface AvailableTarget {
@@ -108,15 +104,10 @@ interface BEAuthUrlResponse {
 interface BESocialIntegrationDto {
   id: string;
   socialAccountId: string;
-  profileId?: string;
-  brandId?: string;
-  brandName?: string | null;
   externalId: string;
   name: string;
   platform: string;
   isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 interface BECallbackRequest {
@@ -235,13 +226,6 @@ export async function deleteSocialAccount(accountId: string): Promise<boolean> {
   return res?.data === true;
 }
 
-export async function deleteSocialIntegration(socialIntegrationId: string): Promise<boolean> {
-  const res: GenericResponse<boolean> = await apiClient(`/social/integrations/${socialIntegrationId}`, {
-    method: "DELETE",
-  });
-  return res?.data === true || res?.success === true;
-}
-
 export async function fetchSocialIntegrations(brandId?: string): Promise<SocialIntegration[]> {
   try {
     if (brandId) {
@@ -250,16 +234,12 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
         return res.data.map((dto) => ({
           id: dto.id,
           socialAccountId: dto.socialAccountId,
-          profileId: dto.profileId,
-          brandName: dto.brandName ?? null,
           targetId: dto.externalId,
           provider: dto.platform.toLowerCase() as SocialPlatform,
           accountName: dto.name,
           targetName: dto.name,
           isActive: dto.isActive,
-          brandId: dto.brandId ?? brandId,
-          createdAt: dto.createdAt,
-          updatedAt: dto.updatedAt,
+          brandId: brandId,
         }));
       }
     }

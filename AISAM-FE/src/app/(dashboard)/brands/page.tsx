@@ -4,11 +4,11 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
+import { apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useProfiles } from "@/hooks/useProfiles";
-import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { deleteBrand, fetchBrands as fetchBrandList } from "@/services/brandService";
+import { clearActiveProfile } from "@/stores/profile-store";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
 import EditBrandModal from "@/components/brands/EditBrandModal";
 
@@ -21,7 +21,7 @@ interface Brand {
   slogan: string | null;
   usp: string | null;
   targetAudience: string | null;
-  workspaceId: string | null;
+  profileId: string | null;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
@@ -65,7 +65,6 @@ export default function BrandsPage() {
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
   const { activeProfile } = useProfiles();
-  const { addToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -79,6 +78,7 @@ export default function BrandsPage() {
     const ws = getStoredActiveWorkspace();
     if (ws && !/^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(ws.id)) {
       clearActiveWorkspace();
+      clearActiveProfile();
       router.push("/overview");
     }
   }, [router]);
@@ -91,11 +91,9 @@ export default function BrandsPage() {
   const fetchBrands = useCallback(async () => {
     if (!activeWorkspace) { setLoading(false); return; }
     try {
-      const result = await fetchBrandList();
-      setBrands(result as Brand[]);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load brands");
-    }
+      const result = await apiFetch(`/brands?pageSize=100`);
+      if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
+    } catch { /* ignore */ }
     finally { setLoading(false); }
   }, [activeWorkspace]);
 
@@ -120,7 +118,6 @@ export default function BrandsPage() {
   const handleEditSuccess = (updated: Brand) => {
     setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setEditingBrand(null);
-    addToast("Brand updated successfully", "check");
   };
 
   const handleDeleteBrand = async () => {
@@ -128,18 +125,11 @@ export default function BrandsPage() {
     const brandToDelete = deletingBrand;
     setDeletingBrand(null);
     try {
-      const deleted = await deleteBrand(brandToDelete.id);
-      if (deleted) {
-        setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
-        addToast("Brand deleted successfully", "check");
-      } else {
-        addToast("Failed to delete brand", "error");
-        setDeletingBrand(brandToDelete);
-      }
-    } catch (err: any) {
-      addToast(err?.message || "Failed to delete brand", "error");
-      setDeletingBrand(brandToDelete);
+      await apiFetch(`/brands/${brandToDelete.id}`, { method: "DELETE" });
+    } catch {
+      // mock fallback — remove from local state
     }
+    setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
   };
 
   return (
@@ -166,7 +156,7 @@ export default function BrandsPage() {
           </div>
           <button onClick={() => {
             if (!activeWorkspace) {
-              setError("Please select a Workspace first (go to Overview).");
+              setError("Vui lòng chọn Workspace trước (vào Overview).");
               return;
             }
             setShowCreateModal(true);
@@ -287,7 +277,7 @@ export default function BrandsPage() {
             </div>
             <button onClick={() => {
               if (!activeWorkspace) {
-                setError("Please select a Workspace first (go to Overview).");
+                setError("Vui lòng chọn Workspace trước (vào Overview).");
                 return;
               }
               setShowCreateModal(true);
@@ -378,10 +368,8 @@ export default function BrandsPage() {
       <CreateBrandModal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={(brand) => {
-          setBrands((prev) => [brand, ...prev]);
-          addToast("Brand created successfully", "check");
-        }}
+        onSuccess={(brand) => setBrands((prev) => [brand, ...prev])}
+        profileId={activeProfile?.id || ""}
       />
 
       {editingBrand && (

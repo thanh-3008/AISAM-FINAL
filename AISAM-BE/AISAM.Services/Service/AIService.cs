@@ -19,7 +19,6 @@ public sealed class AIService : IAIService
     private readonly IGeminiTextClient _geminiTextClient;
     private readonly IConversationRepository _conversationRepository;
     private readonly ICreditService _creditService;
-    private readonly IQuotaService _quotaService;
     private const long TextGenerationCredits = 1;
 
     public AIService(
@@ -29,8 +28,7 @@ public sealed class AIService : IAIService
         IProductRepository productRepository,
         IGeminiTextClient geminiTextClient,
         IConversationRepository conversationRepository,
-        ICreditService creditService,
-        IQuotaService quotaService)
+        ICreditService creditService)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -39,7 +37,6 @@ public sealed class AIService : IAIService
         _geminiTextClient = geminiTextClient;
         _conversationRepository = conversationRepository;
         _creditService = creditService;
-        _quotaService = quotaService;
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
@@ -48,15 +45,6 @@ public sealed class AIService : IAIService
         if (!validation.Success)
         {
             return GenericResponse<AiGenerationResponse>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
-        }
-
-        var quotaCheck = await _quotaService.EnsureWorkspacePromptQuotaAsync(workspaceId, cancellationToken);
-        if (!quotaCheck.Success)
-        {
-            return GenericResponse<AiGenerationResponse>.CreateError(
-                quotaCheck.Message!,
-                (HttpStatusCode)quotaCheck.StatusCode,
-                quotaCheck.Error?.ErrorCode);
         }
 
         var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, TextGenerationCredits, cancellationToken: cancellationToken);
@@ -90,15 +78,6 @@ public sealed class AIService : IAIService
         if (content == null || content.WorkspaceId != workspaceId)
         {
             return GenericResponse<AiGenerationResponse>.CreateError("Content not found.", HttpStatusCode.NotFound);
-        }
-
-        var quotaCheck = await _quotaService.EnsureWorkspacePromptQuotaAsync(workspaceId, cancellationToken);
-        if (!quotaCheck.Success)
-        {
-            return GenericResponse<AiGenerationResponse>.CreateError(
-                quotaCheck.Message!,
-                (HttpStatusCode)quotaCheck.StatusCode,
-                quotaCheck.Error?.ErrorCode);
         }
 
         var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, TextGenerationCredits, cancellationToken: cancellationToken);
@@ -174,29 +153,6 @@ public sealed class AIService : IAIService
         else if (request.ProductId.HasValue)
         {
             return GenericResponse<ChatResponse>.CreateError("Brand is required when product is selected.", HttpStatusCode.BadRequest);
-        }
-
-        if (workspaceId.HasValue)
-        {
-            var quotaCheck = await _quotaService.EnsureWorkspacePromptQuotaAsync(workspaceId.Value, cancellationToken);
-            if (!quotaCheck.Success)
-            {
-                return GenericResponse<ChatResponse>.CreateError(
-                    quotaCheck.Message!,
-                    (HttpStatusCode)quotaCheck.StatusCode,
-                    quotaCheck.Error?.ErrorCode);
-            }
-        }
-        else
-        {
-            var quotaCheck = await _quotaService.EnsurePromptQuotaAsync(profileId, cancellationToken);
-            if (!quotaCheck.Success)
-            {
-                return GenericResponse<ChatResponse>.CreateError(
-                    quotaCheck.Message!,
-                    (HttpStatusCode)quotaCheck.StatusCode,
-                    quotaCheck.Error?.ErrorCode);
-            }
         }
 
         var selectedBrand = request.BrandId.HasValue

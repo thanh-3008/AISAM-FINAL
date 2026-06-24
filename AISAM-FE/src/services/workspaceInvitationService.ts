@@ -22,19 +22,13 @@ export interface WorkspaceInvitation {
   expiresAt: string;
 }
 
-interface GenericResponse<T> {
-  success: boolean;
-  message?: string | null;
-  data?: T;
-}
-
 const ROLE_TO_ENUM: Record<WorkspaceMemberRole, number> = { Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 };
 
 const ENUM_TO_ROLE: Record<number, WorkspaceMemberRole> = { 1: "Owner", 2: "Manager", 3: "ContentCreator", 4: "Viewer" };
 
 export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: WorkspaceInvitation; error?: string } | null> {
   try {
-    const res: GenericResponse<WorkspaceInvitation> = await apiClient("/workspace-invitations", {
+    const res = await apiClient("/workspace-invitations", {
       method: "POST",
       data: { ...data, role: ROLE_TO_ENUM[data.role] ?? 4 },
     });
@@ -47,7 +41,7 @@ export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: 
 
 export async function acceptInvitation(token: string): Promise<{ success: boolean; workspaceId?: string; message?: string }> {
   try {
-    const res: GenericResponse<{ workspaceId?: string }> = await apiClient("/workspace-invitations/accept", {
+    const res = await apiClient("/workspace-invitations/accept", {
       method: "POST",
       data: { token },
     });
@@ -62,7 +56,7 @@ export async function acceptInvitation(token: string): Promise<{ success: boolea
 
 export async function cancelInvitation(invitationId: string): Promise<boolean> {
   try {
-    const res = await apiClient<GenericResponse<boolean>>(`/workspace-invitations/${invitationId}`, {
+    const res = await apiClient(`/workspace-invitations/${invitationId}`, {
       method: "DELETE",
     });
     return res?.success === true;
@@ -73,7 +67,7 @@ export async function cancelInvitation(invitationId: string): Promise<boolean> {
 
 export async function getWorkspaceInvitations(): Promise<WorkspaceInvitation[]> {
   try {
-    const res = await apiClient<GenericResponse<any[]>>("/workspace-invitations");
+    const res = await apiClient("/workspace-invitations");
     if (res?.success && res.data) {
       return (res.data as any[]).map((item: any) => ({
         id: item.id,

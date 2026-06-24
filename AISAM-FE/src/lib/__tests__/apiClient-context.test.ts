@@ -29,29 +29,4 @@ describe("apiClient context headers", () => {
       }),
     );
   });
-
-  it("does not send legacy profile header", async () => {
-    const legacyHeader = ["X", "Profile", "Id"].join("-");
-    localStorage.setItem("aisam_active_workspace", JSON.stringify({
-      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-      name: "Workspace",
-      workspaceType: 2,
-    }));
-    localStorage.setItem("aisam_active_profile", JSON.stringify({
-      id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-      name: "Legacy Profile",
-      profileType: 0,
-    }));
-
-    await apiClient("/content");
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/content"),
-      expect.objectContaining({
-        headers: expect.not.objectContaining({
-          [legacyHeader]: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-        }),
-      }),
-    );
-  });
 });

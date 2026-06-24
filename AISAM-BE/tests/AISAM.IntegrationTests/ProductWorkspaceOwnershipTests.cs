@@ -4,9 +4,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories;
 using AISAM.Repositories.Repository;
-using AISAM.Services.IServices;
 using AISAM.Services.Service;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.IntegrationTests;
@@ -59,7 +57,7 @@ public class ProductWorkspaceOwnershipTests
     }
 
     private static ProductService CreateService(AisamContext context)
-        => new(new ProductRepository(context), new BrandRepository(context), new FakeMediaStorageService());
+        => new(new ProductRepository(context), new BrandRepository(context));
 
     private static AisamContext CreateContext()
         => new(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
@@ -101,13 +99,5 @@ public class ProductWorkspaceOwnershipTests
         context.Brands.Add(brand);
         context.SaveChanges();
         return brand;
-    }
-
-    private sealed class FakeMediaStorageService : IMediaStorageService
-    {
-        public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult($"https://storage.test/{folder}/{fileName}");
-        }
     }
 }

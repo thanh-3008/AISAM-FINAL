@@ -9,34 +9,6 @@ import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
 
-type AuthUser = {
-  id: string;
-  fullName: string;
-  email: string;
-};
-
-type AuthApiResponse<T> = {
-  success: boolean;
-  message?: string | null;
-  data?: T;
-};
-
-type AuthData = {
-  accessToken?: string;
-  refreshToken?: string;
-  user?: AuthUser;
-};
-
-type MeData = AuthUser & {
-  userId?: string;
-  full_name?: string;
-  refreshToken?: string;
-};
-
-function getErrorMessage(err: unknown, fallback: string) {
-  return err instanceof Error ? err.message : fallback;
-}
-
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,7 +28,7 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const result: AuthApiResponse<AuthData> = await apiClient("/auth/google", { data: { idToken: credential } });
+      const result = await apiClient("/auth/google", { data: { idToken: credential } });
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
         setToken(result.data.accessToken);
@@ -67,8 +39,8 @@ export default function LoginPage() {
       } else {
         setError("Google sign-in failed.");
       }
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "Google sign-in failed."));
+    } catch (err: any) {
+      setError(err.message || "Google sign-in failed.");
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +78,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const result: AuthApiResponse<AuthData> = await apiClient("/auth/login", {
+      const result = await apiClient("/auth/login", {
         data: { email, password },
       });
 
@@ -124,7 +96,7 @@ export default function LoginPage() {
 
         // fetch full user info
         try {
-          const meResult: AuthApiResponse<MeData> = await apiClient("/auth/me");
+          const meResult = await apiClient("/auth/me");
           if (meResult.success && meResult.data) {
             setStoredUser({
               id: meResult.data.id || meResult.data.userId || "",
@@ -144,8 +116,8 @@ export default function LoginPage() {
       } else {
         setError("Login failed, please try again.");
       }
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "Invalid email or password."));
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password.");
     } finally {
       setIsLoading(false);
     }

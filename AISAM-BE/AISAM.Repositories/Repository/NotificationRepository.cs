@@ -99,13 +99,6 @@ public sealed class NotificationRepository : INotificationRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
-    {
-        notification.IsDeleted = true;
-        _context.Notifications.Update(notification);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
     public async Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
     {
         var notifications = await Query()

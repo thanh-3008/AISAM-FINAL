@@ -34,7 +34,8 @@ export const PLAN_CODES: Record<number, string> = {
   0: "Free",
   1: "Plus",
   2: "Premium",
-  3: "PlusTrial",
+  3: "Plus",
+  4: "Premium",
 };
 
 /** Credit‑pack codes understood by BE CreditPackCodeEnum */
@@ -54,8 +55,9 @@ export async function createPayment(data: CreateCheckoutRequest): Promise<Checko
       method: "POST",
     });
     return res?.data ?? null;
-  } catch {
-    return null;
+  } catch (error) {
+    console.error("createPayment failed", error);
+    throw error;
   }
 }
 

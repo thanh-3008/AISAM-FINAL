@@ -27,9 +27,6 @@ namespace AISAM.Data.Model
         [Column("subscription_id")]
         public Guid? SubscriptionId { get; set; }
 
-        [Column("workspace_id")]
-        public Guid? WorkspaceId { get; set; }
-
         [MaxLength(255)]
         [Column("company_name")]
         public string? CompanyName { get; set; }
@@ -56,9 +53,6 @@ namespace AISAM.Data.Model
         // Navigation properties
         [ForeignKey("UserId")]
         public virtual User User { get; set; } = null!;
-
-        [ForeignKey("WorkspaceId")]
-        public virtual Workspace? Workspace { get; set; }
 
         public virtual Subscription? Subscription { get; set; }
 

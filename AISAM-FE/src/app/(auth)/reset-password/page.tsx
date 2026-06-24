@@ -6,10 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import AuthShell from "@/components/auth/AuthShell";
 
-function getErrorMessage(err: unknown, fallback: string) {
-  return err instanceof Error ? err.message : fallback;
-}
-
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,8 +44,8 @@ function ResetPasswordForm() {
       });
       setIsSuccess(true);
       setTimeout(() => router.push("/login"), 3000);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "Invalid or expired reset token."));
+    } catch (err: any) {
+      setError(err.message || "Invalid or expired reset token.");
     } finally {
       setIsLoading(false);
     }

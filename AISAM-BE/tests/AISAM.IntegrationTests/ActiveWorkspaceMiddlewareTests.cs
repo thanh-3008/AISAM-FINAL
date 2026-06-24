@@ -259,7 +259,7 @@ public class ActiveWorkspaceMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AllowsPersonalPlusWorkspaceDashboardFeature()
+    public async Task InvokeAsync_ReturnsForbidden_WhenPersonalPlusUsesWorkspaceDashboardFeature()
     {
         var userId = Guid.NewGuid();
         var membership = CreateMembership(
@@ -267,15 +267,10 @@ public class ActiveWorkspaceMiddlewareTests
             WorkspaceStatusEnum.Active,
             WorkspaceMemberRoleEnum.Owner,
             WorkspaceTypeEnum.Personal);
-        var nextCalled = false;
         var context = CreateContext(userId, "/api/workspace-dashboard/summary");
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
-        var middleware = new ActiveWorkspaceMiddleware(_ =>
-        {
-            nextCalled = true;
-            return Task.CompletedTask;
-        });
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(
             context,
@@ -290,8 +285,7 @@ public class ActiveWorkspaceMiddlewareTests
                     EndDate = DateTime.UtcNow.Date.AddDays(30)
                 }));
 
-        Assert.True(nextCalled);
-        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode == 0 ? StatusCodes.Status200OK : context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
 
     [Fact]

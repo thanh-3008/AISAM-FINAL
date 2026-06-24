@@ -31,7 +31,7 @@ public class WorkspaceInvitationServiceTests
         Assert.True(result.Success);
         Assert.Equal("invited@example.com", result.Data!.Email);
         Assert.Equal("invited@example.com", emailService.LastRecipient);
-        Assert.Contains("/invitation/", emailService.LastInvitationLink);
+        Assert.Contains("/workspace/invitations/accept?token=", emailService.LastInvitationLink);
         Assert.Equal(1, await context.WorkspaceInvitations.CountAsync());
     }
 

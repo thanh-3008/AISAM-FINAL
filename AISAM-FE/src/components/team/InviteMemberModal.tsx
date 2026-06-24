@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { type InviteMemberData, type MemberRole, Team } from "@/services/teamService";
+import { type InviteMemberData, type MemberRole, type Team } from "@/services/teamService";
 
 interface InviteMemberModalProps {
   open: boolean;

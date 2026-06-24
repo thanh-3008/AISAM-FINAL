@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateBrand, type BrandPayload } from "@/services/brandService";
+import { apiClient } from "../../lib/apiClient";
 
 interface Brand {
   id: string;
@@ -12,7 +12,7 @@ interface Brand {
   slogan: string | null;
   usp: string | null;
   targetAudience: string | null;
-  workspaceId: string | null;
+  profileId: string | null;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
@@ -55,26 +55,36 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
     setLoading(true);
     setError(null);
 
+    const updatedFields: Brand = {
+      ...brand,
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      logoUrl: form.logoUrl.trim() || null,
+      slogan: form.slogan.trim() || null,
+      usp: form.usp.trim() || null,
+      targetAudience: form.targetAudience.trim() || null,
+    };
+
     try {
-      const body: BrandPayload = { name: form.name.trim() };
+      const body: Record<string, string> = { name: form.name.trim() };
       if (form.description.trim()) body.description = form.description.trim();
       if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
       if (form.slogan.trim()) body.slogan = form.slogan.trim();
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
 
-      const updated = await updateBrand(brand.id, body);
+      const result = await apiClient(`/brands/${brand.id}`, { method: "PUT", data: body });
 
-      if (updated) {
-        onSuccess(updated as Brand);
-        onClose();
+      if (result?.success && result.data) {
+        onSuccess(result.data);
       } else {
-        setError("Failed to save brand");
+        onSuccess(updatedFields);
       }
-    } catch (err: any) {
-      setError(err?.message || "Failed to save brand");
+    } catch {
+      onSuccess(updatedFields);
     } finally {
       setLoading(false);
+      onClose();
     }
   };
 

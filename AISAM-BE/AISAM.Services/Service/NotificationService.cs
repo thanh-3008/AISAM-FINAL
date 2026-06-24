@@ -105,15 +105,6 @@ public sealed class NotificationService : INotificationService
     public async Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         => GenericResponse<UnreadNotificationCountDto>.CreateSuccess(new UnreadNotificationCountDto { Count = await _notificationRepository.GetUnreadCountByWorkspaceIdAsync(workspaceId, cancellationToken) }, "Unread notification count retrieved successfully.");
 
-    public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default)
-    {
-        var notification = await _notificationRepository.GetByIdAsync(notificationId, cancellationToken);
-        if (notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted)
-            return GenericResponse<bool>.CreateError("Notification not found.", HttpStatusCode.NotFound);
-        await _notificationRepository.DeleteAsync(notification, cancellationToken);
-        return GenericResponse<bool>.CreateSuccess(true, "Notification deleted successfully.");
-    }
-
     private static NotificationListItemDto MapListItem(Notification notification)
     {
         return new NotificationListItemDto
