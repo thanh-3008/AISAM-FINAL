@@ -139,22 +139,19 @@ src/
 ├── lib/
 │   ├── apiClient.ts             # API client (JSON + FormData) with X-Workspace-Id header
 │   ├── auth.ts                  # Token management, refresh, user storage
-│   ├── mockContent.ts           # Shared mock data for Content pages
-│   ├── mockWorkspace.ts         # Mock data for Workspace, Credit Wallet, Post Quota
 │   └── contentConstants.ts      # Shared constants (PlatformIcon, BRANDS, PRODUCTS, etc.)
 │
 ├── services/
-│   ├── analyticsService.ts      # Analytics data — Mock data only
-│   ├── brandService.ts          # Brands/Products fetch — API first, mock fallback
-│   ├── campaignService.ts       # Campaigns CRUD — localStorage mock
-│   ├── contentService.ts        # Content CRUD + AI draft/chat — API first, mock fallback
-│   ├── notificationService.ts   # Notifications list/detail + mark read/delete — API first, mock fallback
-│   ├── postService.ts           # Posts listing — API first, mock fallback
-│   ├── profileSettingsService.ts # Password, Payment, Subscription — API first, mock fallback
-│   ├── scheduleService.ts       # Schedules CRUD — API first, mock fallback
-│   ├── socialAccountService.ts  # Social accounts — localStorage mock
-│   ├── teamService.ts           # Teams/Members CRUD — localStorage mock
-│   └── workspaceService.ts      # Workspace dashboard, Credit Wallet, Post Quota — API first, mock fallback
+│   ├── analyticsService.ts      # Analytics from dashboard APIs with generated chart shells
+│   ├── brandService.ts          # Brands/Products API service
+│   ├── contentService.ts        # Content CRUD + AI draft/chat API service
+│   ├── notificationService.ts   # Notifications API service
+│   ├── postService.ts           # Posts API service
+│   ├── profileSettingsService.ts # Password, Payment, Subscription API service
+│   ├── scheduleService.ts       # Schedules API service
+│   ├── socialAccountService.ts  # Social accounts API service
+│   ├── teamService.ts           # Workspace members/invitations API plus local team grouping
+│   └── workspaceService.ts      # Workspace dashboard, Credit Wallet, Post Quota API service
 │
 └── stores/
     ├── profile-store.ts         # Legacy active profile store (deprecated)
@@ -219,18 +216,13 @@ Sau khi khởi chạy dự án, bạn có thể truy cập các đường dẫn 
     - Danh sách bài đã đăng lên mạng xã hội
     - Xem chi tiết và xoá bài
 
-13. **Campaigns (`/campaigns`)**: Quản lý chiến dịch quảng cáo.
-    - Tạo / Sửa / Xoá campaign
-    - Theo dõi hiệu suất (impressions, clicks, spend)
-    - Bulk actions (chọn nhiều campaign)
-
-14. **Team Management (`/team`)**: Quản lý nhóm và thành viên.
+13. **Team Management (`/team`)**: Quản lý nhóm và thành viên.
     - Tạo / Sửa / Xoá team
     - Mời thành viên mới
     - Phân quyền (Owner, Admin, Editor, Member, Viewer)
     - Xem biểu đồ phân bố roles
 
-15. **Analytics (`/analytics`)**: Phân tích hiệu suất.
+14. **Analytics (`/analytics`)**: Phân tích hiệu suất.
     - KPIs: Ad Spend, Conversion Rate, CPA, ROAS
     - Biểu đồ xu hướng
     - AI Insights và recommendations
@@ -278,27 +270,16 @@ Khi user chọn "Create & Select" trên Business Workspace card:
 ### Credit Balance & Post Quota
 
 Dashboard hiển thị 2 KPI cards mới:
-1. **AI Credits**: Hiển thị số credits còn lại / tổng (mock: 850/15000)
-2. **Posts This Month**: Hiển thị số posts đã dùng / quota (mock: 124/1000)
+1. **AI Credits**: Hiển thị số credits còn lại từ `/workspace-dashboard/summary`
+2. **Posts This Month**: Hiển thị số posts đã dùng / quota từ `/quota/workspace/current`
 
 ### API Fallback Mechanism
 
 ```
-1. Gọi API /workspaces/user/{userId}
-   ↓ (fail vì BE chưa có)
-2. Fallback sang /profiles/user/{userId}
-   ↓ (map Profile → WorkspaceData)
-3. Nếu vẫn fail → dùng mock data
+1. Gọi API /workspaces
+2. Lưu workspace được chọn vào localStorage `aisam_active_workspace`
+3. Nếu API fail → hiển thị empty/error state
 ```
-
-### Mock Data
-
-| API | Mock Value |
-|-----|------------|
-| Workspaces | 1 Personal Workspace |
-| Credit Wallet | 850 / 15,000 credits |
-| Post Quota | 124 / 1,000 posts |
-| Dashboard | 850 credits, 876 posts remaining, 124 AI usage |
 
 ## Completed Pages & BE API Map
 
@@ -312,13 +293,12 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | | | `/auth/me` | GET | — (lấy user info sau login) | ✅ PASS — trả về user info |
 | | | `/auth/google` | POST | `{ idToken }` | ✅ PASS — cần Google Client ID |
 | **Register** | `/register` | `/auth/register` | POST | `{ email, password, confirmPassword, fullName? }` | ✅ PASS — tạo user + workspace tự động |
-| **Register → Profile** | (auto) | `/profiles/user/{userId}` | POST | FormData (FE gửi JSON → sai) | ⚠️ FAIL — FE gửi JSON nhưng BE cần multipart/form-data → 415, fallback ignored |
 | **Forgot Password** | `/forgot-password` | `/auth/forgot-password` | POST | `{ email }` | ✅ PASS — gửi email reset |
 | **Reset Password** | `/reset-password` | `/auth/reset-password` | POST | `{ email, token, newPassword, confirmPassword }` | ✅ PASS |
 | **Logout** | (sidebar) | `/auth/logout` | POST | `{ refreshToken? }` | ✅ PASS — clear localStorage |
 | **Refresh Token** | (auto) | `/auth/refresh` | POST | `{ refreshToken }` | ✅ PASS — cấp token mới |
 
-> **Test note:** Register tự động tạo workspace (`{User}'s Workspace`). Profile creation sau register dùng JSON body nhưng BE yêu cầu FormData → lỗi 415. User không có profile → `useProfiles` trả về empty → fallback qua mock data. Cần tạo profile thủ công ở `/overview`.
+> **Test note:** Register tự động tạo workspace (`{User}'s Workspace`). Profile endpoints còn tồn tại cho legacy compatibility; workspace là context runtime chính.
 
 ### Payment & Subscription
 
@@ -334,28 +314,25 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 | FE Function | Calls | BE Expects | Status |
 |-------------|-------|------------|--------|
-| `paymentService.createPayment()` | `POST /payment/create` ❌ | `POST /payment/checkout` | ⚠️ Wrong path |
-| `paymentService.checkPaymentStatus()` | `GET /payment/status/{orderId}` ❌ | No BE endpoint | ⚠️ Mock fallback |
-| `profileSettingsService.createCheckout()` | `POST /payment/checkout` | `{ planType }` (number) → cần `planCode` (string) | ⚠️ Field mismatch |
-| `profileSettingsService.createCreditPackCheckout()` | `POST /payment/checkout` | `{ packName, credits, price }` → cần `creditPackCode` | ⚠️ Field mismatch |
-| `profileSettingsService.cancelSubscription()` | `POST /payment/subscription/cancel` ❌ | No BE endpoint | ⚠️ Mock fallback |
-| `profileSettingsService.getCurrentSubscription()` | `GET /payment/subscription/current` ✅ | FE expects `{ planType, endDate, autoRenew, amount }` không có trong BE response | ⚠️ Field mismatch |
+| `paymentService.createPayment()` | `POST /payment/checkout` | `CreateCheckoutRequest` | ✅ Correct path |
+| `paymentService.checkPaymentStatus()` | — | No dedicated BE endpoint; PayOS callback/webhook drives status | N/A |
+| `profileSettingsService.createCheckout()` | `POST /payment/checkout` | `{ paymentType: 1, planCode, returnUrl, cancelUrl }` | ✅ |
+| `profileSettingsService.createCreditPackCheckout()` | `POST /payment/checkout` | `{ paymentType: 2, creditPackCode, returnUrl, cancelUrl }` | ✅ |
+| `profileSettingsService.getCurrentSubscription()` | `GET /payment/subscription/current` | `CurrentSubscription` | ✅ |
 
-> **Note:** PayOS keys trống trong `.env` → checkout luôn fail. FE dùng mock fallback cho tất cả payment features.
+> **Note:** Nếu PayOS keys trống trong `.env`, checkout trả lỗi từ BE và FE hiển thị null/error state; không còn mock QR fallback.
 
 ### Workspaces
 
 | Page | Route | BE Endpoint | Method | Body | Status |
 |------|-------|-------------|--------|------|--------|
-| **Overview** | `/overview` | `/workspaces/user/{userId}` | GET | — | ✅ (fallback → `/profiles`) |
-| | | `/profiles/user/{userId}` | POST | FormData: `name, profileType, companyName?` | ✅ |
-| **Workspaces List** | `/profiles` | `/profiles/user/{userId}` | GET | — | ✅ |
-| **Create Workspace** | (modal) | `/profiles/user/{userId}` | POST | FormData | ✅ |
-| **Workspace Detail** | `/profiles/[id]` | `/profiles/{id}` | GET | — | ✅ |
-| | | `/profiles/{id}` | PUT | FormData | ✅ |
+| **Overview** | `/overview` | `/workspaces` | GET/POST | Workspace JSON payload | ✅ |
+| **Workspaces List** | `/profiles` | `/workspaces` | GET | — | ✅ |
+| **Create Workspace** | (modal) | `/workspaces` | POST | Workspace JSON payload | ✅ |
+| **Workspace Detail** | `/profiles/[id]` | `/workspaces/{id}` | GET/PUT | Workspace JSON payload | ✅ |
 | | | `/profiles/{id}` | DELETE | — | ✅ |
 
-> **Note**: BE chưa có `/workspaces` endpoints. FE fallback sang `/profiles` API và map `profileType` → `workspaceType`.
+> **Note**: BE đã có `/workspaces` endpoints. Profile endpoints còn tồn tại cho legacy compatibility.
 
 ### Brands & Products
 
@@ -401,7 +378,7 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Delete Notification** | (icon) | `/notifications/{id}` | DELETE | — | ✅ |
 | **Unread Count** | (header badge) | `/notifications/unread-count` | GET | — | ✅ |
 
-> **Note**: BE đã có `NotificationsController` đầy đủ. FE dùng mock data mặc định (`useMockData = true`), có flag sẵn để switch sang API thật.
+> **Note**: BE đã có `NotificationsController` đầy đủ. FE gọi API thật qua `notificationService`.
 
 ### Calendar / Schedules
 
@@ -444,18 +421,6 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 > **Note**: BE có `PerformanceReport` model và `PerformanceReportRepository` nhưng chưa có Controller/Service.
 
-### Campaigns
-
-| Page | Route | BE Endpoint | Method | Body / Params | Status |
-|------|-------|-------------|--------|---------------|--------|
-| **Campaigns List** | `/campaigns` | — | — | — | ⏳ Mock (localStorage) |
-| **Create Campaign** | (modal) | — | — | — | ⏳ Mock (localStorage) |
-| **Edit Campaign** | (modal) | — | — | — | ⏳ Mock (localStorage) |
-| **Delete Campaign** | (modal) | — | — | — | ⏳ Mock (localStorage) |
-| **Bulk Actions** | — | — | — | — | ⏳ Mock (localStorage) |
-
-> **Note**: BE có entity `AdCampaign` trong DB nhưng chưa có Controller/Service.
-
 ### Social Accounts
 
 | Page | Route | BE Endpoint | Method | Body / Params | Test Result |
@@ -476,18 +441,17 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 | File | Mô tả | Fallback |
 |------|-------|----------|
-| `src/services/contentService.ts` | CRUD Content + AI draft/chat | `MOCK_CONTENT` / `MOCK_DETAILS` nếu API lỗi |
+| `src/services/contentService.ts` | CRUD Content + AI draft/chat | Empty/null state nếu API lỗi |
 | `src/services/brandService.ts` | Brands + Products listing | `BRANDS` / `PRODUCTS` constants nếu API lỗi |
 | `src/services/scheduleService.ts` | CRUD Schedules + upcoming | `MOCK_SCHEDULES` nếu API lỗi |
 | `src/services/postService.ts` | Posts listing + delete | `MOCK_POSTS` nếu API lỗi |
-| `src/services/notificationService.ts` | Notifications list/detail + mark read/delete | `MOCK_NOTIFICATIONS` nếu API lỗi hoặc `useMockData = true` |
-| `src/services/campaignService.ts` | Campaigns CRUD | `INITIAL_MOCK_CAMPAIGNS` (localStorage) — **kế hoạch giữ mock** |
+| `src/services/notificationService.ts` | Notifications list/detail + mark read/delete | Null/empty state nếu API lỗi |
 | `src/services/teamService.ts` | Teams + Members CRUD | Members: `GET /workspace-members`, Invite: `POST /workspace-invitations`, Role: `PUT /workspace-members/{id}/role`, Remove: `DELETE /workspace-members/{id}` — Teams concept mock (single "Workspace Team") |
 | `src/services/analyticsService.ts` | Analytics data | `GET /dashboard/summary` + `GET /workspace-dashboard/summary` (FE sinh chart data random) |
 | `src/services/socialAccountService.ts` | Social accounts CRUD | `GET /social/accounts/me`, `GET /social-auth/facebook`, `POST /social-auth/facebook/callback`, `GET /social/accounts/{id}/available-targets`, `GET /social/accounts/{id}/linked-targets`, `POST /social/accounts/{id}/link-targets`, `DELETE /social/accounts/{id}`, `GET /social/integrations/brand/{brandId}` |
-| `src/services/workspaceService.ts` | Workspace dashboard, Credit Wallet, Post Quota | `getMockWorkspaceDashboard()`, `getMockCreditWallet()`, `getMockPostQuota()` |
-| `src/services/paymentService.ts` | Payment checkout + status check | Mock QR payment data nếu API lỗi **(⚠️ gọi sai endpoint `/payment/create`)** |
-| `src/services/profileSettingsService.ts` | Password, Payment history, Subscription | Mock data nếu API lỗi |
+| `src/services/workspaceService.ts` | Workspace dashboard, Credit Wallet, Post Quota | Empty/null state nếu API lỗi |
+| `src/services/paymentService.ts` | Payment checkout + status check | Null state nếu API lỗi |
+| `src/services/profileSettingsService.ts` | Password, Payment history, Subscription | Null/false state nếu API lỗi |
 
 ### Auth Flow
 - JWT access token lưu trong `localStorage` key `aisam_token`
@@ -506,35 +470,32 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 - Brand CRUD dùng **JSON body** (`[FromBody]`) — đúng BE
 - Product CRUD dùng **FormData** (`[FromForm]`) — đúng BE
 
-### Workspace API (Mock/Fallback)
+### Workspace API
 
-| API | Endpoint | Mock Data | Status |
-|-----|----------|-----------|--------|
-| **List Workspaces** | `/workspaces/user/{userId}` | 1 Personal Workspace | ✅ Fallback → `/profiles` |
-| **Credit Wallet** | `/credits/wallet` | 850/15000 credits | ✅ Mock |
-| **Post Quota** | `/quota/posts` | 124/1000 posts | ✅ Mock |
-| **Workspace Dashboard** | `/workspaces/dashboard` | credits, posts, AI usage | ✅ Mock |
-
-> **Note**: Các workspace API chưa có trên BE. FE dùng mock data từ `lib/mockWorkspace.ts`.
+| API | Endpoint | Status |
+|-----|----------|--------|
+| **List Workspaces** | `/workspaces` | ✅ BE |
+| **Credit Wallet** | `/payment/subscription/current` + `/workspace-dashboard/summary` | ✅ BE-derived |
+| **Post Quota** | `/quota/workspace/current` | ✅ BE |
+| **Workspace Dashboard** | `/workspace-dashboard/summary` | ✅ BE |
 
 ### Middleware Notes
 - `ActiveWorkspaceMiddleware` yêu cầu header `X-Workspace-Id` cho các prefix: `/api/content`, `/api/dashboard`, `/api/social`, `/api/posts`, `/api/ai`, `/api/quota`, `/api/payment`
-- `ActiveProfileMiddleware` yêu cầu header `X-Profile-Id` cho các endpoint: `/api/social/accounts`, `/api/social-auth`, `/api/notifications`, `/api/social/integrations`, `/api/content-schedules`, `/api/ai`, `/api/content`, `/api/workspace-dashboard`
-- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu workspace/profile context
-- `apiClient.ts` tự động gửi `Authorization: Bearer <token>`, `X-Workspace-Id`, và `X-Profile-Id` headers
+- `ActiveProfileMiddleware` resolve profile từ active workspace context; frontend không gửi profile header riêng.
+- Auth endpoints (`/api/auth/*`) và brand/product/profile endpoints **không** yêu cầu workspace context
+- `apiClient.ts` tự động gửi `Authorization: Bearer <token>` và `X-Workspace-Id` headers
 
 ### Sections chưa map BE (chỉ UI / mock / localStorage)
 
 | Section | Route | Trạng thái | Chi tiết |
 |---------|-------|-----------|----------|
 | **Workspace Selector** | (sidebar, header) | ✅ Hoàn chỉnh | Dropdown chọn workspace, `GET /workspaces` hoặc fallback `GET /profiles/user/{id}` |
-| **Credit Balance** | `/dashboard` | ✅ Hoàn chỉnh | Hiển thị 850/15000 credits (mock) |
+| **Credit Balance** | `/dashboard` | ✅ Hoàn chỉnh | Lấy từ `/workspace-dashboard/summary` và subscription hiện tại |
 | **Post Quota** | `/dashboard`, `/posts` | ✅ Hoàn chỉnh | `GET /quota/workspace/current` — 20 posts remaining (Free plan) |
 | **Personal Workspace** | `/overview` | ✅ Hoàn chỉnh | Auto-create với tên user |
 | **Business Workspace** | `/overview` | ✅ Hoàn chỉnh | Modal nhập tên công ty |
 | **Notifications** | `/notifications` | ✅ Hoàn chỉnh | `GET /notifications`, `POST /notifications/{id}/mark-read`, `POST /notifications/mark-all-read`, `GET /notifications/unread-count`, `DELETE /notifications/{id}` |
 | **Dashboard KPI & Charts** | `/dashboard` | ⏳ Một phần | `GET /dashboard/summary` OK, `GET /workspace-dashboard/summary` 403 (Personal plan) |
-| **Campaigns** | `/campaigns` | ⏳ Mock (giữ mock) | BE có entity `AdCampaign`, chưa có Controller/Service |
 | **Team Management** | `/team` | ✅ BE | Members: `GET /workspace-members`, Invite: `POST /workspace-invitations`, Role: `PUT /workspace-members/{id}/role`, Remove: `DELETE /workspace-members/{id}` — Teams concept mock |
 | **Analytics** | `/analytics` | ✅ BE (partial) | `GET /dashboard/summary` + `GET /workspace-dashboard/summary` (403 Personal plan). Chart data random placeholder |
 | **Social Accounts** | `/social` | ✅ BE | `GET /social/accounts/me`, `GET /social-auth/facebook`, `POST /social-auth/facebook/callback`, linked to ManageTargetsModal + brand selector |
@@ -647,7 +608,7 @@ Administration
 | `app/(auth)/invitation/[token]/page.tsx` | **NEW** - Accept invitation page |
 | `app/profiles/[id]/page.tsx` | Thêm Overview section, merge Members/Credit History/Buy Credits |
 | `app/overview/page.tsx` | Thêm "Go to Dashboard" button |
-| `services/workspaceInvitationService.ts` | **NEW** - Invitation API service với mock data |
+| `services/workspaceInvitationService.ts` | Invitation API service: invite/accept gọi BE; cancel/list chưa có endpoint nên trả no-op/empty |
 
 ## UI/UX Enhancements (2026-01-11)
 
@@ -800,9 +761,8 @@ Hệ thống đã chuyển từ **Profile-based** sang **Workspace-based** owner
 |----------|-------|
 | **Store** | `stores/workspace-store.ts` (new), `stores/profile-store.ts` (deprecated) |
 | **Hook** | `hooks/useWorkspaces.ts` (new), `hooks/useProfiles.ts` (deprecated) |
-| **API Client** | `lib/apiClient.ts` - Changed `X-Profile-Id` → `X-Workspace-Id` |
+| **API Client** | `lib/apiClient.ts` - dùng workspace header thay cho profile header cũ |
 | **Services** | `services/workspaceService.ts` (new), `services/profileSettingsService.ts` |
-| **Mock Data** | `lib/mockWorkspace.ts` (new) |
 | **Layout** | `components/layout/Header.tsx`, `components/layout/Sidebar.tsx` - Added Workspace Selector |
 | **Settings** | `components/layout/WorkspaceSettingsSidebar.tsx` (new) |
 | **Pages** | `app/overview/page.tsx`, `app/profiles/page.tsx`, `app/profiles/[id]/page.tsx` |
@@ -814,10 +774,7 @@ Hệ thống đã chuyển từ **Profile-based** sang **Workspace-based** owner
 ### API Header Change
 
 ```typescript
-// Before
-headers: { "X-Profile-Id": profile.id }
-
-// After
+// Current
 headers: { "X-Workspace-Id": workspace.id }
 ```
 
@@ -835,9 +792,8 @@ headers: { "X-Workspace-Id": workspace.id }
 2. Check localStorage for aisam_active_workspace
 3. If not found, check aisam_active_profile (legacy)
 4. Migrate legacy profile to workspace format
-5. Call /workspaces/user/{userId} API
-6. If API fails → fallback to /profiles/user/{userId}
-7. If still fails → use mock data
+5. Call /workspaces API
+6. If API fails → show empty/error state
 ```
 
 ## UI Polish — Brands Page (2026-06-12)

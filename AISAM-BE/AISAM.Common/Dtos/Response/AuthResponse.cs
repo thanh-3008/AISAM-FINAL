@@ -9,6 +9,7 @@ namespace AISAM.Common.Dtos.Response
         public DateTime ExpiresAt { get; set; }
         public string TokenType { get; set; } = "Bearer";
         public UserDto User { get; set; } = null!;
+        public AuthWorkspaceDto? DefaultWorkspace { get; set; }
     }
 
     public class UserDto
@@ -30,5 +31,12 @@ namespace AISAM.Common.Dtos.Response
         public string? UserAgent { get; set; }
         public string? IpAddress { get; set; }
         public bool IsActive { get; set; }
+    }
+
+    public class AuthWorkspaceDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public long CreditBalance { get; set; }
     }
 }

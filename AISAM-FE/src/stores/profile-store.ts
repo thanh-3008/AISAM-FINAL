@@ -12,8 +12,21 @@ export function getStoredActiveProfile(): ActiveProfile | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<ActiveProfile>;
+    if (!parsed.id || !parsed.name || typeof parsed.profileType !== "number") {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+
+    return {
+      id: parsed.id,
+      name: parsed.name,
+      profileType: parsed.profileType,
+    };
   } catch {
+    localStorage.removeItem(STORAGE_KEY);
     return null;
   }
 }

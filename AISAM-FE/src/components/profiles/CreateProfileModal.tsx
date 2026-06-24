@@ -5,24 +5,29 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, WorkspaceData } from "@/hooks/useWorkspaces";
-import { apiFetch } from "@/lib/apiClient";
+import { createWorkspace } from "@/services/workspaceService";
+import { useToast } from "@/contexts/ToastContext";
 
-const BUSINESS_WORKSPACE_TYPE = 2;
-
-const BUSINESS_WORKSPACE = {
-  value: BUSINESS_WORKSPACE_TYPE,
-  label: "Business",
-  icon: "business",
-  color: "text-purple-500",
-  bg: "bg-purple-50",
-  ring: "ring-purple-500/20",
-  features: [
-    "For teams & companies",
-    "Requires Business Plus or higher",
-    "Team collaboration",
-    "Shared workspace & credits",
-  ],
-};
+const WORKSPACE_TYPES = [
+  {
+    value: 1,
+    label: "Personal",
+    icon: "person",
+    color: "text-blue-500",
+    bg: "bg-blue-50",
+    ring: "ring-blue-500/20",
+    features: ["For individual use", "Up to 15,000 credits", "AI content generation", "Social media publishing"],
+  },
+  {
+    value: 2,
+    label: "Business",
+    icon: "business",
+    color: "text-purple-500",
+    bg: "bg-purple-50",
+    ring: "ring-purple-500/20",
+    features: ["For teams & companies", "Up to 500,000 credits", "Team collaboration", "Shared workspace & credits"],
+  },
+];
 
 function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
@@ -43,10 +48,11 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { selectWorkspace } = useWorkspaces();
+  const { addToast } = useToast();
 
   const [form, setForm] = useState({
     name: "",
-    profileType: String(BUSINESS_WORKSPACE_TYPE),
+    profileType: "",
     companyName: "",
     bio: "",
     avatarUrl: "",
@@ -58,7 +64,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   };
 
   const resetForm = () => {
-    setForm({ name: "", profileType: String(BUSINESS_WORKSPACE_TYPE), companyName: "", bio: "", avatarUrl: "" });
+    setForm({ name: "", profileType: "", companyName: "", bio: "", avatarUrl: "" });
     setError(null);
   };
 
@@ -68,11 +74,12 @@ export default function CreateProfileModal({ open, onClose }: Props) {
   };
 
   const avatarPreview = form.avatarUrl && isValidUrl(form.avatarUrl) ? form.avatarUrl : null;
-  const selectedType = BUSINESS_WORKSPACE;
+  const selectedType = WORKSPACE_TYPES.find(t => t.value === Number(form.profileType));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { setError("Workspace name is required"); return; }
+    if (!form.profileType) { setError("Please select a workspace type"); return; }
 
     setLoading(true);
     setError(null);
@@ -85,36 +92,31 @@ export default function CreateProfileModal({ open, onClose }: Props) {
     }
 
     try {
-      const workspaceType = Number(form.profileType);
-      const result = await apiFetch("/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          workspaceType,
-        }),
+      const workspace = await createWorkspace({
+        name: form.name.trim(),
+        workspaceType: Number(form.profileType),
       });
 
-      if (result?.success && result.data) {
-        const w = result.data;
+      if (workspace) {
         const wsData: WorkspaceData = {
-          id: String(w.id),
+          id: workspace.id,
           userId,
-          name: String(w.name || form.name.trim()),
-          workspaceType: typeof w.workspaceType === "number" ? w.workspaceType : workspaceType,
-          plan: (typeof w.workspaceType === "number" ? w.workspaceType : workspaceType) === 2 ? "Business" : "Personal",
-          status: typeof w.status === "number" ? w.status : 1,
-          createdAt: String(w.createdAt || new Date().toISOString()),
-          updatedAt: String(w.updatedAt || new Date().toISOString()),
-          isOwner: w.currentUserRole === 0 || w.currentUserRole === 1 || typeof w.currentUserRole !== "number",
+          name: workspace.name,
+          workspaceType: workspace.workspaceType ?? Number(form.profileType),
+          plan: (workspace.workspaceType ?? Number(form.profileType)) === 2 ? "Business" : "Personal",
+          status: workspace.status ?? 1,
+          createdAt: workspace.createdAt || new Date().toISOString(),
+          updatedAt: workspace.updatedAt || new Date().toISOString(),
+          isOwner: true,
           memberRole: "Owner",
         };
         addWorkspaceToCache(wsData);
         selectWorkspace(wsData);
         handleClose();
-        router.push("/pricing?category=business");
+        addToast("Workspace created successfully", "check");
+        router.push("/dashboard");
       } else {
-        setError(result?.message || "Failed to create workspace");
+        setError("Failed to create workspace");
       }
     } catch (err: any) {
       setError(err.message || "Network error");
@@ -167,26 +169,41 @@ export default function CreateProfileModal({ open, onClose }: Props) {
 
           {/* Workspace Type Selection */}
           <div className="space-y-3">
-            <label className={labelClass}>Workspace Type</label>
-            <div className="relative flex flex-col p-5 rounded-xl border-2 border-primary bg-purple-50 text-left shadow-md">
-              <div className="absolute top-3 right-3">
-                <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
-              </div>
-              <div className={`w-10 h-10 rounded-xl ${BUSINESS_WORKSPACE.bg} flex items-center justify-center mb-3 ring-1 ${BUSINESS_WORKSPACE.ring}`}>
-                <span className={`material-symbols-outlined ${BUSINESS_WORKSPACE.color} text-[22px]`}>{BUSINESS_WORKSPACE.icon}</span>
-              </div>
-              <h3 className="text-body-md font-bold text-on-surface mb-2">{BUSINESS_WORKSPACE.label}</h3>
-              <p className="text-label-xs text-on-surface-variant mb-3">
-                Personal workspace is created automatically for each account. New workspaces are Business workspaces and require a paid plan.
-              </p>
-              <ul className="space-y-1.5">
-                {BUSINESS_WORKSPACE.features.map((f) => (
-                  <li key={f} className="flex items-center gap-1.5 text-label-xs text-on-surface-variant">
-                    <span className="material-symbols-outlined text-emerald-500 text-[14px]">check</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
+            <label className={labelClass}>Workspace Type <span className="text-red-500">*</span></label>
+            <div className="grid grid-cols-2 gap-4">
+              {WORKSPACE_TYPES.map((type) => {
+                const selected = form.profileType === String(type.value);
+                return (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => updateField("profileType", String(type.value))}
+                    className={`relative flex flex-col p-5 rounded-xl border-2 text-left transition-all duration-200 ${
+                      selected
+                        ? `border-primary ${type.bg} shadow-md scale-[1.02]`
+                        : "border-outline-variant/30 hover:border-outline-variant/60 hover:bg-surface-container/50"
+                    }`}
+                  >
+                    {selected && (
+                      <div className="absolute top-3 right-3">
+                        <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                      </div>
+                    )}
+                    <div className={`w-10 h-10 rounded-xl ${type.bg} flex items-center justify-center mb-3 ring-1 ${type.ring}`}>
+                      <span className={`material-symbols-outlined ${type.color} text-[22px]`}>{type.icon}</span>
+                    </div>
+                    <h3 className="text-body-md font-bold text-on-surface mb-2">{type.label}</h3>
+                    <ul className="space-y-1.5">
+                      {type.features.map((f) => (
+                        <li key={f} className="flex items-center gap-1.5 text-label-xs text-on-surface-variant">
+                          <span className="material-symbols-outlined text-emerald-500 text-[14px]">check</span>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -278,7 +295,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
             </button>
             <button
               type="submit"
-              disabled={loading || !form.name.trim()}
+              disabled={loading || !form.name.trim() || !form.profileType}
               className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-body-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm shadow-primary/20"
             >
               {loading ? (
@@ -292,7 +309,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
               ) : (
                 <>
                   <span className="material-symbols-outlined text-[18px]">add</span>
-                  Create Business Workspace
+                  Create Workspace
                 </>
               )}
             </button>

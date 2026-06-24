@@ -62,6 +62,16 @@ public sealed class PostService : IPostService
             : GenericResponse<PostListItemDto>.CreateSuccess(MapToDto(post), "Post retrieved successfully.");
     }
 
+    public async Task<GenericResponse<bool>> DeleteAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var post = await _postRepository.GetByIdAsync(id, cancellationToken);
+        if (post == null || post.IsDeleted || post.Content.WorkspaceId != workspaceId)
+            return GenericResponse<bool>.CreateError("Post not found.", HttpStatusCode.NotFound);
+
+        await _postRepository.DeleteAsync(post, cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "Post deleted successfully.");
+    }
+
     private static string MapAdType(AdTypeEnum adType) => adType switch
     {
         AdTypeEnum.TextOnly => "TEXT",

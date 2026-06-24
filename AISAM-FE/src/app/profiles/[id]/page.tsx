@@ -23,7 +23,7 @@ import {
   fetchCreditWallet,
   fetchWorkspaceDashboard,
   fetchPostQuota,
-  transferOwnership,
+  transferWorkspaceOwnership as transferOwnership,
   type WorkspaceMember,
   type WorkspaceMemberRole,
   type CreditUsageRecord,
@@ -213,7 +213,7 @@ export default function ProfileDetailPage() {
     if (!id) return;
     const fetchWorkspace = async () => {
       try {
-        const result = await apiFetch(`/workspaces/${id}`);
+        const result = await apiFetch<any>(`/workspaces/${id}`);
         if (result?.success && result.data) {
           const data = result.data as {
             id: string;
@@ -290,7 +290,7 @@ export default function ProfileDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const result = await apiFetch(`/workspaces/${id}`, {
+      const result = await apiFetch<any>(`/workspaces/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.name.trim() }),
@@ -589,7 +589,7 @@ export default function ProfileDetailPage() {
     setTransferring(true);
     try {
       const result = await transferOwnership(selectedNewOwner.id);
-      if (result.success) {
+      if (result) {
         setMembers(prev => prev.map(m => {
           if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
           if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
@@ -599,7 +599,7 @@ export default function ProfileDetailPage() {
         setSelectedNewOwner(null);
         showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
       } else {
-        showToast({ type: "error", title: "Transfer failed", message: result.message || "Failed to transfer ownership." });
+        showToast({ type: "error", title: "Transfer failed", message: "Failed to transfer ownership." });
       }
     } catch {
       showToast({ type: "error", title: "Network error", message: "Please check your connection and try again." });
@@ -1004,7 +1004,7 @@ export default function ProfileDetailPage() {
                               </span>
                             </div>
                             <div className="space-y-3">
-                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.totalAiUsage.toLocaleString() || 0}</span>
+                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.aiUsageCount.toLocaleString() || 0}</span>
                               <p className="text-label-xs text-outline flex items-center gap-1">
                                 <span className="material-symbols-outlined text-[14px] text-purple-500">insights</span>
                                 Total generations

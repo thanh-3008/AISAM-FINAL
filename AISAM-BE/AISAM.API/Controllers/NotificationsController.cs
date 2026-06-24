@@ -67,4 +67,12 @@ public sealed class NotificationsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpDelete("{notificationId:guid}")]
+    public async Task<ActionResult<GenericResponse<bool>>> Delete(
+        Guid notificationId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _notificationService.DeleteInWorkspaceAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), notificationId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

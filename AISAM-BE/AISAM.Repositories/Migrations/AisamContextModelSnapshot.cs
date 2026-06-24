@@ -1377,12 +1377,20 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<Guid?>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SubscriptionId")
                         .IsUnique();
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceId")
+                        .IsUnique()
+                        .HasFilter("\"workspace_id\" IS NOT NULL");
 
                     b.ToTable("profiles");
                 });
@@ -1906,6 +1914,21 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime?>("ArchivedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("archived_at");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("avatar_url");
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("bio");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("company_name");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2520,9 +2543,16 @@ namespace AISAM.Repositories.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("AISAM.Data.Model.Workspace", "Workspace")
+                        .WithOne("Profile")
+                        .HasForeignKey("AISAM.Data.Model.Profile", "WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Subscription");
 
                     b.Navigation("User");
+
+                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("AISAM.Data.Model.Session", b =>
@@ -2825,6 +2855,8 @@ namespace AISAM.Repositories.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("Payments");
+
+                    b.Navigation("Profile");
 
                     b.Navigation("SocialAccounts");
 

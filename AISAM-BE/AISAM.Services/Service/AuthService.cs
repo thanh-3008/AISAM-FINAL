@@ -23,19 +23,22 @@ namespace AISAM.Services.Service
         private readonly IEmailService _emailService;
         private readonly JwtSettings _jwtSettings;
         private readonly GoogleSettings _googleSettings;
+        private readonly CreditSettings _creditSettings;
 
         public AuthService(
             IUserRepository userRepository,
             ISessionRepository sessionRepository,
             IEmailService emailService,
             IOptions<JwtSettings> jwtSettings,
-            IOptions<GoogleSettings> googleSettings)
+            IOptions<GoogleSettings> googleSettings,
+            IOptions<CreditSettings>? creditSettings = null)
         {
             _userRepository = userRepository;
             _sessionRepository = sessionRepository;
             _emailService = emailService;
             _jwtSettings = jwtSettings.Value;
             _googleSettings = googleSettings.Value;
+            _creditSettings = creditSettings?.Value ?? new CreditSettings();
         }
 
         public async Task<TokenResponse> RegisterAsync(RegisterRequest request, string? userAgent, string? ipAddress)
@@ -70,7 +73,7 @@ namespace AISAM.Services.Service
             user.EmailVerificationToken = verificationToken;
             user.EmailVerificationTokenExpiresAt = verificationTokenExpiration;
 
-            AddPersonalWorkspace(user);
+            AddPersonalWorkspace(user, _creditSettings.InitialPersonalWorkspaceCredits);
 
             await _userRepository.CreateAsync(user);
 
@@ -147,7 +150,7 @@ namespace AISAM.Services.Service
                         PasswordHash = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
                     };
 
-                    AddPersonalWorkspace(user);
+                    AddPersonalWorkspace(user, _creditSettings.InitialPersonalWorkspaceCredits);
                     await _userRepository.CreateAsync(user);
                 }
                 else
@@ -359,7 +362,7 @@ namespace AISAM.Services.Service
 
         #region Private Helper Methods
 
-        private static void AddPersonalWorkspace(User user)
+        private static void AddPersonalWorkspace(User user, long initialCredits)
         {
             var personalWorkspace = new Workspace
             {
@@ -367,7 +370,7 @@ namespace AISAM.Services.Service
                     ? "Personal Workspace"
                     : $"{user.FullName.Trim()}'s Workspace",
                 WorkspaceType = WorkspaceTypeEnum.Personal,
-                CreditWallet = new CreditWallet { Balance = 50 }
+                CreditWallet = new CreditWallet { Balance = initialCredits }
             };
             personalWorkspace.Subscriptions.Add(new Subscription
             {
@@ -383,7 +386,7 @@ namespace AISAM.Services.Service
                 UserId = user.Id,
                 User = user,
                 Action = CreditActionEnum.SubscriptionGrant,
-                Credits = 50,
+                Credits = initialCredits,
                 Status = CreditUsageStatusEnum.Success
             });
 
@@ -437,7 +440,29 @@ namespace AISAM.Services.Service
                     IsEmailVerified = user.IsEmailVerified,
                     CreatedAt = user.CreatedAt,
                     LastLoginAt = user.LastLoginAt
-                }
+                },
+                DefaultWorkspace = MapDefaultWorkspace(user)
+            };
+        }
+
+        private static AuthWorkspaceDto? MapDefaultWorkspace(User user)
+        {
+            var workspace = user.WorkspaceMembers
+                .Where(member => member.IsActive)
+                .OrderBy(member => member.Role == WorkspaceMemberRoleEnum.Owner ? 0 : 1)
+                .Select(member => member.Workspace)
+                .FirstOrDefault();
+
+            if (workspace == null)
+            {
+                return null;
+            }
+
+            return new AuthWorkspaceDto
+            {
+                Id = workspace.Id,
+                Name = workspace.Name,
+                CreditBalance = workspace.CreditWallet?.Balance ?? 0
             };
         }
 

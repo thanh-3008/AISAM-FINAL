@@ -53,6 +53,7 @@ export default function CreditHistoryPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<"all" | "success" | "failed">("all");
+  const [historyUnavailable, setHistoryUnavailable] = useState(false);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -60,9 +61,15 @@ export default function CreditHistoryPage() {
       try {
         const data = await fetchCreditUsageHistory(page, 10);
         if (data) {
+          setHistoryUnavailable(false);
           setHistory(data.data);
           setTotalPages(data.totalPages);
           setTotalCount(data.totalCount);
+        } else {
+          setHistoryUnavailable(true);
+          setHistory([]);
+          setTotalPages(0);
+          setTotalCount(0);
         }
       } catch (error) {
         console.error("Failed to load credit history:", error);
@@ -155,9 +162,13 @@ export default function CreditHistoryPage() {
           ) : filteredHistory.length === 0 ? (
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-12 text-center">
               <span className="material-symbols-outlined text-outline/40 text-5xl mb-4 block">history</span>
-              <p className="text-body-md text-on-surface font-semibold mb-2">No credit usage yet</p>
+              <p className="text-body-md text-on-surface font-semibold mb-2">
+                {historyUnavailable ? "Credit history is coming soon" : "No credit usage yet"}
+              </p>
               <p className="text-body-sm text-on-surface-variant">
-                Your AI generation history will appear here
+                {historyUnavailable
+                  ? "The backend endpoint is not available yet."
+                  : "Your AI generation history will appear here"}
               </p>
             </div>
           ) : (

@@ -51,6 +51,18 @@ public class AuthRegistrationWorkspaceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_ReturnsDefaultWorkspaceWithInitialCredits()
+    {
+        await using var context = CreateContext();
+        var service = CreateService(context);
+
+        var response = await service.RegisterAsync(CreateRegisterRequest(), null, null);
+
+        Assert.NotNull(response.DefaultWorkspace);
+        Assert.Equal(50, response.DefaultWorkspace.CreditBalance);
+    }
+
+    [Fact]
     public async Task RegisterAsync_DuplicateEmail_DoesNotCreateAnotherWorkspace()
     {
         await using var context = CreateContext();

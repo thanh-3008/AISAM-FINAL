@@ -190,5 +190,11 @@ public class PostServiceTests
                 PageSize = request.PageSize
             });
         }
+
+        public Task DeleteAsync(Post post, CancellationToken cancellationToken = default)
+        {
+            post.IsDeleted = true;
+            return Task.CompletedTask;
+        }
     }
 }

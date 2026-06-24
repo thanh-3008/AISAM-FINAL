@@ -156,6 +156,10 @@ public sealed class WorkspaceService : IWorkspaceService
         }
 
         workspace.Name = request.Name.Trim();
+        workspace.CompanyName = request.CompanyName?.Trim();
+        workspace.Bio = request.Bio?.Trim();
+        workspace.AvatarUrl = request.AvatarUrl?.Trim();
+        workspace.UpdatedAt = DateTime.UtcNow;
         await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
 
         return GenericResponse<WorkspaceResponseDto>.CreateSuccess(
@@ -220,6 +224,9 @@ public sealed class WorkspaceService : IWorkspaceService
         {
             Id = workspace.Id,
             Name = workspace.Name,
+            CompanyName = workspace.CompanyName,
+            Bio = workspace.Bio,
+            AvatarUrl = workspace.AvatarUrl,
             WorkspaceType = workspace.WorkspaceType,
             Status = workspace.Status,
             CurrentUserRole = membership.Role,

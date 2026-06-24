@@ -9,6 +9,28 @@ import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
 
+type AuthUser = {
+  id: string;
+  fullName: string;
+  email: string;
+};
+
+type AuthApiResponse<T> = {
+  success: boolean;
+  message?: string | null;
+  data?: T;
+};
+
+type AuthData = {
+  accessToken?: string;
+  refreshToken?: string;
+  user?: AuthUser;
+};
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
 export default function RegisterPage() {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +51,7 @@ export default function RegisterPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const result = await apiClient("/auth/google", { data: { idToken: credential } });
+      const result: AuthApiResponse<AuthData> = await apiClient("/auth/google", { data: { idToken: credential } });
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
         setToken(result.data.accessToken);
@@ -39,8 +61,8 @@ export default function RegisterPage() {
       } else {
         setError("Google sign-in failed.");
       }
-    } catch (err: any) {
-      setError(err.message || "Google sign-in failed.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Google sign-in failed."));
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +105,7 @@ export default function RegisterPage() {
         setIsLoading(false);
         return;
       }
-      const result = await apiClient("/auth/register", {
+      const result: AuthApiResponse<AuthData> = await apiClient("/auth/register", {
         data: {
           fullName: form.full_name,
           email: form.email,
@@ -107,8 +129,8 @@ export default function RegisterPage() {
       } else {
         setError("Registration failed, please try again.");
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred during registration.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "An error occurred during registration."));
     } finally {
       setIsLoading(false);
     }

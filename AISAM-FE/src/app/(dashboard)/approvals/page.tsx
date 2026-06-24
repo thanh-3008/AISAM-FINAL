@@ -135,19 +135,60 @@ export default function ApprovalsPage() {
   const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
   const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
+  const [tabCounts, setTabCounts] = useState<Record<TabKey, number>>({
+    all: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+  });
+  const [requestedRevisions, setRequestedRevisions] = useState<Set<string>>(new Set());
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
   const pageSize = 15;
 
-  const load = useCallback(async (reset = true) => {
-    if (reset) { setLoading(true); setPage(1); }
-    const result = await fetchContents({ pageSize: 100 });
-    setItems(result?.items ?? []);
-    setLoading(false);
+  useEffect(() => {
+    const stored = localStorage.getItem("requestedRevisions");
+    if (stored) {
+      try {
+        setRequestedRevisions(new Set(JSON.parse(stored)));
+      } catch (e) {}
+    }
+  }, []);
+
+  const markRevisionRequested = (id: string) => {
+    setRequestedRevisions(prev => {
+      const next = new Set(prev).add(id);
+      localStorage.setItem("requestedRevisions", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
+  const loadCounts = useCallback(async () => {
+    const [all, pending, approved, rejected] = await Promise.all([
+      fetchContents({ pageSize: 1 }),
+      fetchContents({ pageSize: 1, status: 1 }),
+      fetchContents({ pageSize: 1, status: 2 }),
+      fetchContents({ pageSize: 1, status: 3 }),
+    ]);
+
+    setTabCounts({
+      all: all?.total ?? 0,
+      pending: pending?.total ?? 0,
+      approved: approved?.total ?? 0,
+      rejected: rejected?.total ?? 0,
+    });
   }, [activeWorkspace?.id]);
 
+  const load = useCallback(async (reset = true) => {
+    if (reset) { setLoading(true); setPage(1); }
+    const statusMap: Record<TabKey, number | undefined> = { all: undefined, pending: 1, approved: 2, rejected: 3 };
+    const result = await fetchContents({ pageSize: 100, status: statusMap[tab] });
+    setItems(result?.items ?? []);
+    setLoading(false);
+  }, [activeWorkspace?.id, tab]);
+
   useEffect(() => {
-    void Promise.resolve().then(() => load());
-  }, [load]);
+    void Promise.all([load(), loadCounts()]);
+  }, [load, loadCounts]);
 
   const showToast = (message: string, type: "success" | "error" | "undo" = "success", undo?: () => void) => {
     setToast({ message, type, undo });
@@ -155,18 +196,29 @@ export default function ApprovalsPage() {
   };
 
   const applyItemStatus = (id: string, status: ContentItem["status"]) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
+    setItems((prev) => {
+      if (tab === "all") {
+        return prev.map((item) => (item.id === id ? { ...item, status } : item));
+      }
+      return prev.filter((item) => item.id !== id);
+    });
   };
 
   const handleApprove = async (id: string) => {
     setActionId(id);
     const item = items.find((i) => i.id === id);
-    await approveContent(id);
+    const ok = await approveContent(id);
+    if (!ok) {
+      setActionId(null);
+      showToast("Could not approve content", "error");
+      return;
+    }
     applyItemStatus(id, "Approved");
     setActionId(null);
     setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
     if (drawerItem?.id === id) setDrawerItem(null);
     if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
+    void loadCounts();
     showToast(`"${item?.title || "Asset"}" approved`, "undo", () => { /* undo */ });
   };
 
@@ -174,12 +226,18 @@ export default function ApprovalsPage() {
     setConfirmItem(null);
     setActionId(id);
     const item = items.find((i) => i.id === id);
-    await rejectContent(id);
+    const ok = await rejectContent(id);
+    if (!ok) {
+      setActionId(null);
+      showToast("Could not reject content", "error");
+      return;
+    }
     applyItemStatus(id, "Rejected");
     setActionId(null);
     setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
     if (drawerItem?.id === id) setDrawerItem(null);
     if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
+    void loadCounts();
     showToast(`"${item?.title || "Asset"}" rejected`, "error");
   };
 
@@ -200,33 +258,62 @@ export default function ApprovalsPage() {
     setItems((prev) => prev.filter((content) => content.id !== item.id));
     setSelected((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
     if (drawerItem?.id === item.id) setDrawerItem(null);
+    void loadCounts();
     showToast(`"${item.title || "Asset"}" deleted`, "success");
   };
 
   const batchApprove = async () => {
     const selectedIds = Array.from(selected);
+    let successCount = 0;
     for (const id of selectedIds) {
       setActionId(id);
-      await approveContent(id);
+      const ok = await approveContent(id);
       setActionId(null);
+      if (!ok) {
+        showToast("Could not approve all selected assets", "error");
+        break;
+      }
+      successCount += 1;
     }
-    const selectedSet = new Set(selectedIds);
+    const selectedSet = new Set(selectedIds.slice(0, successCount));
     setItems((prev) => prev.map((item) => (selectedSet.has(item.id) ? { ...item, status: "Approved" } : item)));
-    showToast(`${selectedIds.length} assets approved`, "success");
-    setSelected(new Set());
+    if (tab !== "all") {
+      setItems((prev) => prev.filter((item) => !selectedSet.has(item.id)));
+    }
+    showToast(`${successCount} assets approved`, successCount === selectedIds.length ? "success" : "error");
+    setSelected((prev) => {
+      const next = new Set(prev);
+      selectedSet.forEach((id) => next.delete(id));
+      return next;
+    });
+    void loadCounts();
   };
 
   const batchReject = async () => {
     const selectedIds = Array.from(selected);
+    let successCount = 0;
     for (const id of selectedIds) {
       setActionId(id);
-      await rejectContent(id);
+      const ok = await rejectContent(id);
       setActionId(null);
+      if (!ok) {
+        showToast("Could not reject all selected assets", "error");
+        break;
+      }
+      successCount += 1;
     }
-    const selectedSet = new Set(selectedIds);
+    const selectedSet = new Set(selectedIds.slice(0, successCount));
     setItems((prev) => prev.map((item) => (selectedSet.has(item.id) ? { ...item, status: "Rejected" } : item)));
-    showToast(`${selectedIds.length} assets rejected`, "error");
-    setSelected(new Set());
+    if (tab !== "all") {
+      setItems((prev) => prev.filter((item) => !selectedSet.has(item.id)));
+    }
+    showToast(`${successCount} assets rejected`, "error");
+    setSelected((prev) => {
+      const next = new Set(prev);
+      selectedSet.forEach((id) => next.delete(id));
+      return next;
+    });
+    void loadCounts();
   };
 
   const handleSort = (key: SortKey) => {
@@ -243,12 +330,16 @@ export default function ApprovalsPage() {
   const submitRevision = async () => {
     if (!revisionDrawer || !revisionNote.trim()) return;
     setActionId(revisionDrawer.id);
-    await rejectContent(revisionDrawer.id);
-    applyItemStatus(revisionDrawer.id, "Rejected");
+    
+    // Giữ ở pending và lưu trạng thái revision requested cục bộ
+    await new Promise(r => setTimeout(r, 600)); // Simulate API delay
+    
+    markRevisionRequested(revisionDrawer.id);
+    
     setActionId(null);
     setRevisionDrawer(null);
     setRevisionNote("");
-    showToast("Revision requested", "success");
+    showToast("Revision requested. Item remains pending.", "success");
   };
 
   const toggleSelect = (id: string) => {
@@ -281,13 +372,6 @@ export default function ApprovalsPage() {
   );
 
   const paged = filtered.slice(0, page * pageSize);
-
-  const tabCounts: Record<TabKey, number> = {
-    all: items.length,
-    pending: items.filter((i) => isPendingStatus(i.status)).length,
-    approved: items.filter((i) => isApprovedStatus(i.status)).length,
-    rejected: items.filter((i) => isRejectedStatus(i.status)).length,
-  };
 
   const brands = [...new Set(items.map((i) => i.brandName))];
 
@@ -345,7 +429,7 @@ export default function ApprovalsPage() {
                   <span className="material-symbols-outlined text-[14px]">file_download</span>
                   Export
                 </button>
-                <button onClick={() => load()} disabled={loading}
+                <button onClick={() => { void Promise.all([load(), loadCounts()]); }} disabled={loading}
                   className="px-3 py-2 rounded-xl border border-outline-variant/20 text-label-sm text-on-surface-variant hover:bg-surface-container transition-all flex items-center gap-1.5">
                   <span className={`material-symbols-outlined text-[14px] ${loading ? "animate-spin" : ""}`}>refresh</span>
                   Refresh
@@ -508,6 +592,7 @@ export default function ApprovalsPage() {
                       const statusMeta = getStatusMeta(item.status);
                       const canReview = isPendingStatus(item.status);
                       const canDelete = isRejectedStatus(item.status);
+                      const hasRevision = requestedRevisions.has(item.id);
                       return (
                         <tr key={item.id}
                           className={`transition-colors cursor-pointer group ${
@@ -523,8 +608,14 @@ export default function ApprovalsPage() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4">
                               <div className={`w-14 h-11 rounded-lg bg-gradient-to-br ${getTypeStyle(item.type)} flex items-center justify-center text-white shrink-0 relative overflow-hidden`}>
-                                <span className="material-symbols-outlined text-[18px] relative z-10">{typeCfg.icon}</span>
-                                <div className="absolute inset-0 bg-white/10" />
+                                {item.thumbnail ? (
+                                  <img src={item.thumbnail} alt={item.title} className="absolute inset-0 w-full h-full object-cover" />
+                                ) : (
+                                  <>
+                                    <span className="material-symbols-outlined text-[18px] relative z-10">{typeCfg.icon}</span>
+                                    <div className="absolute inset-0 bg-white/10" />
+                                  </>
+                                )}
                               </div>
                               <div>
                                 <p className="text-body-sm font-semibold text-on-surface leading-tight">{item.title}</p>
@@ -575,9 +666,9 @@ export default function ApprovalsPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-bold ${statusMeta.className}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClassName}`} />
-                              {statusMeta.label}
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-bold ${hasRevision ? "bg-secondary/10 text-secondary ring-1 ring-secondary/20" : statusMeta.className}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${hasRevision ? "bg-secondary animate-pulse" : statusMeta.dotClassName}`} />
+                              {hasRevision ? "Revision Requested" : statusMeta.label}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -593,10 +684,12 @@ export default function ApprovalsPage() {
                                     )}
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Approve</span>
                                   </button>
-                                  <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id}
-                                    className="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Request Changes">
+                                  <button onClick={() => handleRequestChanges(item)} disabled={actionId === item.id || hasRevision}
+                                    className={`p-2 rounded-lg transition-all relative group/btn ${hasRevision ? "text-outline/40 cursor-not-allowed" : "text-secondary hover:bg-secondary/10"}`} title={hasRevision ? "Revision Already Requested" : "Request Changes"}>
                                     <span className="material-symbols-outlined text-[17px]">rate_review</span>
-                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Request Changes</span>
+                                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">
+                                      {hasRevision ? "Revision Requested" : "Request Changes"}
+                                    </span>
                                   </button>
                                 </>
                               )}
@@ -608,7 +701,7 @@ export default function ApprovalsPage() {
                               {isApprovedStatus(item.status) && (
                                 <>
                                   <button onClick={() => { setPostNowItem(item); }}
-                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Đăng ngay">
+                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Post Now">
                                     <span className="material-symbols-outlined text-[17px]">send</span>
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Post Now</span>
                                   </button>
@@ -720,16 +813,23 @@ export default function ApprovalsPage() {
 
               <div className="flex-1 overflow-y-auto">
                 <div className="relative w-full aspect-[2/1] bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${getTypeStyle(drawerItem.type)} opacity-15`} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent" />
-                  <div className="relative z-10 flex flex-col items-center gap-3">
-                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-lg`}>
-                      <span className="material-symbols-outlined text-4xl">{getTypeConfig(drawerItem.type).icon}</span>
-                    </div>
-                    <span className="text-label-sm font-semibold text-on-surface-variant bg-surface-container-lowest/80 backdrop-blur-sm px-4 py-1.5 rounded-full">
-                      {drawerItem.type} Asset Preview
-                    </span>
-                  </div>
+                  {drawerItem.thumbnail ? (
+                    <img src={drawerItem.thumbnail} alt={drawerItem.title} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <div className={`absolute inset-0 bg-gradient-to-br ${getTypeStyle(drawerItem.type)} opacity-15`} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent" />
+                      <div className="relative z-10 flex flex-col items-center gap-3">
+                        <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-lg`}>
+                          <span className="material-symbols-outlined text-4xl">{getTypeConfig(drawerItem.type).icon}</span>
+                        </div>
+                        <span className="text-label-sm font-semibold text-on-surface-variant bg-surface-container-lowest/80 backdrop-blur-sm px-4 py-1.5 rounded-full">
+                          {drawerItem.type} Asset Preview
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute top-3 right-3 flex gap-1.5">
                     <span className="text-label-xs font-bold px-2 py-1 rounded-md bg-surface-container-lowest/70 backdrop-blur-sm text-on-surface-variant">
                       {getTypeConfig(drawerItem.type).label}

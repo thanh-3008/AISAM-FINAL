@@ -49,19 +49,49 @@ public sealed class ActiveProfileMiddleware
         }
 
         var userId = UserClaimsHelper.GetUserIdOrThrow(context.User);
+        Profile? profile = null;
 
-        if (!Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
+        // 1. First, try to get profile from Workspace Membership
+        if (context.Items.TryGetValue(WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey, out var membershipValue) &&
+            membershipValue is WorkspaceMember membership)
+        {
+            profile = await profileRepository.GetByWorkspaceIdAsync(membership.WorkspaceId, context.RequestAborted);
+            if (profile == null)
+            {
+                profile = await profileRepository.CreateAsync(new Profile
+                {
+                    UserId = membership.UserId,
+                    WorkspaceId = membership.WorkspaceId,
+                    Name = string.IsNullOrWhiteSpace(membership.Workspace.Name)
+                        ? "Workspace Profile"
+                        : membership.Workspace.Name,
+                    ProfileType = ProfileTypeEnum.Free,
+                    Status = ProfileStatusEnum.Active
+                }, context.RequestAborted);
+            }
+        }
+        // 2. Fallback: try to get from X-Profile-Id header
+        else if (Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
+        {
+            profile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
+            if (profile != null && profile.UserId != userId)
+            {
+                await WriteErrorAsync(context, HttpStatusCode.Forbidden, "You are not allowed to use this profile.");
+                return;
+            }
+        }
+        // 3. Fallback: find matching profile or create if needed
+        else
         {
             var userProfiles = await profileRepository.GetByUserIdAsync(userId, context.RequestAborted);
             var workspaceHeader = context.Request.Headers["X-Workspace-Id"].FirstOrDefault();
-            Profile? profile = null;
-
+            
             if (Guid.TryParse(workspaceHeader, out var wsId))
             {
-                profile = userProfiles.FirstOrDefault(p => p.Id == wsId);
+                profile = userProfiles.FirstOrDefault(p => p.WorkspaceId == wsId || p.Id == wsId);
             }
-
-            profile ??= userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active);
+            
+            profile ??= userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active) ?? userProfiles.FirstOrDefault();
 
             if (profile == null && Guid.TryParse(workspaceHeader, out var newWsId))
             {
@@ -70,37 +100,21 @@ public sealed class ActiveProfileMiddleware
                 profile = await profileRepository.CreateAsync(new Profile
                 {
                     UserId = userId,
+                    WorkspaceId = newWsId,
                     Name = $"{user?.FullName ?? "User"}'s Profile",
                     ProfileType = ProfileTypeEnum.Free,
                     Status = ProfileStatusEnum.Active
                 }, context.RequestAborted);
             }
-
-            if (profile != null)
-            {
-                context.Items[ProfileContextHelper.ActiveProfileItemKey] = profile.Id;
-                await _next(context);
-                return;
-            }
-
-            await WriteErrorAsync(context, HttpStatusCode.Unauthorized, "Missing or invalid X-Profile-Id header.");
-            return;
         }
 
-        var resolvedProfile = await profileRepository.GetByIdAsync(profileId, context.RequestAborted);
-        if (resolvedProfile == null)
+        if (profile == null)
         {
-            await WriteErrorAsync(context, HttpStatusCode.NotFound, "Profile not found.");
+            await WriteErrorAsync(context, HttpStatusCode.NotFound, "No profile found for this workspace.");
             return;
         }
 
-        if (resolvedProfile.UserId != userId)
-        {
-            await WriteErrorAsync(context, HttpStatusCode.Forbidden, "You are not allowed to use this profile.");
-            return;
-        }
-
-        context.Items[ProfileContextHelper.ActiveProfileItemKey] = resolvedProfile.Id;
+        context.Items[ProfileContextHelper.ActiveProfileItemKey] = profile.Id;
         await _next(context);
     }
 

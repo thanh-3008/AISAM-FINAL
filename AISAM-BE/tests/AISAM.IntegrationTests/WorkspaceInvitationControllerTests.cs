@@ -92,7 +92,9 @@ public class WorkspaceInvitationControllerTests
             Guid workspaceId,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>.CreateSuccess(new List<WorkspaceInvitationResponseDto>()));
+            LastWorkspaceId = workspaceId;
+            IReadOnlyList<WorkspaceInvitationResponseDto> invitations = Array.Empty<WorkspaceInvitationResponseDto>();
+            return Task.FromResult(GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>.CreateSuccess(invitations));
         }
 
         public Task<GenericResponse<bool>> RevokeAsync(
@@ -101,6 +103,8 @@ public class WorkspaceInvitationControllerTests
             Guid invitationId,
             CancellationToken cancellationToken = default)
         {
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
             return Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
         }
     }

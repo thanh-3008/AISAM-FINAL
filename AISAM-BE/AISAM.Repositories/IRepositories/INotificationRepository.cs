@@ -16,4 +16,5 @@ public interface INotificationRepository
     Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default);
     Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task MarkAllAsReadByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default);
 }

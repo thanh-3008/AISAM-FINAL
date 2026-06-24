@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { apiClient } from "../../lib/apiClient";
+import { createBrand, type BrandPayload } from "@/services/brandService";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSuccess: (brand: any) => void;
-  profileId: string;
 }
 
-export default function CreateBrandModal({ open, onClose, onSuccess, profileId }: Props) {
+export default function CreateBrandModal({ open, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,21 +45,20 @@ export default function CreateBrandModal({ open, onClose, onSuccess, profileId }
     setError(null);
 
     try {
-      const body: Record<string, string> = { name: form.name.trim() };
-      if (profileId) body.profileId = profileId;
+      const body: BrandPayload = { name: form.name.trim() };
       if (form.description.trim()) body.description = form.description.trim();
       if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
       if (form.slogan.trim()) body.slogan = form.slogan.trim();
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
 
-      const result = await apiClient("/brands", { method: "POST", data: body });
+      const brand = await createBrand(body);
 
-      if (result?.success && result.data) {
-        onSuccess(result.data);
+      if (brand) {
+        onSuccess(brand);
         handleClose();
       } else {
-        setError(result?.message || "Failed to create brand");
+        setError("Failed to create brand");
       }
     } catch (err: any) {
       setError(err.message || "Network error");
