@@ -106,6 +106,7 @@ export function addWorkspaceToCache(workspace: WorkspaceData) {
   } else {
     cachedWorkspaces = [workspace];
   }
+  notifyCache();
 }
 
 export function useWorkspaces() {

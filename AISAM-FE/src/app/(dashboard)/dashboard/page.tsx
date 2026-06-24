@@ -10,7 +10,6 @@ import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import { apiFetch } from "@/lib/apiClient";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -94,7 +93,6 @@ export default function DashboardPage() {
   const [maxCreditBalance, setMaxCreditBalance] = useState(15000);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [dailyUsage, setDailyUsage] = useState<{ date: string; credits: number }[]>([]);
   const [usageDays, setUsageDays] = useState(7);
   const [dashboardCampaigns, setDashboardCampaigns] = useState<Campaign[]>([]);
@@ -260,13 +258,13 @@ export default function DashboardPage() {
                 <div className="text-center">
                   <p className="text-body-sm text-on-surface font-semibold">{workspaceName}</p>
                   <p className="text-label-sm text-outline mb-2">{activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace"}</p>
-                  <button
-                    onClick={() => setShowCreateModal(true)}
+                  <Link
+                    href="/overview"
                     className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-label-xs font-semibold hover:bg-primary/20 transition-all"
                   >
-                    <span className="material-symbols-outlined text-[14px]">add</span>
-                    Create Workspace
-                  </button>
+                    <span className="material-symbols-outlined text-[14px]">grid_view</span>
+                    Manage Workspaces
+                  </Link>
                 </div>
               </div>
             </div>
@@ -645,8 +643,6 @@ export default function DashboardPage() {
           </div>
         </footer>
       </main>
-
-      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
 }

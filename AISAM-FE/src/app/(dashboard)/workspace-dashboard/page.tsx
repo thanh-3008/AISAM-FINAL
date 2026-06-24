@@ -7,7 +7,6 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { fetchWorkspaceDashboard, fetchCreditWallet, fetchPostQuota } from "@/services/workspaceService";
 import type { WorkspaceDashboard, CreditWallet } from "@/services/workspaceService";
-import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 export default function WorkspaceDashboardPage() {
   const { activeWorkspace } = useWorkspaces();
@@ -16,7 +15,6 @@ export default function WorkspaceDashboardPage() {
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -60,13 +58,13 @@ export default function WorkspaceDashboardPage() {
                   View Plans
                   <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                 </Link>
-                <button
-                  onClick={() => setShowCreateModal(true)}
+                <Link
+                  href="/overview"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-surface-container-high text-on-surface rounded-xl text-label-sm font-bold hover:scale-105 transition-all"
                 >
-                  <span className="material-symbols-outlined text-[16px]">add</span>
-                  Create Workspace
-                </button>
+                  <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                  Manage Workspaces
+                </Link>
               </div>
             </div>
           </div>
@@ -96,13 +94,13 @@ export default function WorkspaceDashboardPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
+            <Link
+              href="/overview"
               className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all shrink-0"
             >
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              Create Workspace
-            </button>
+              <span className="material-symbols-outlined text-[16px]">grid_view</span>
+              Manage Workspaces
+            </Link>
           </div>
 
           {loading ? (
@@ -300,7 +298,7 @@ export default function WorkspaceDashboardPage() {
                     <span className="text-label-sm text-on-surface font-medium">View Posts</span>
                   </Link>
                   <Link
-                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}?section=billing` : "/profiles"}
+                    href={activeWorkspace ? `/profiles/${activeWorkspace.id}?section=billing` : "/overview"}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
                   >
                     <span className="material-symbols-outlined text-emerald-500 text-[28px]">token</span>
@@ -319,8 +317,6 @@ export default function WorkspaceDashboardPage() {
           )}
         </div>
       </main>
-
-      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
 }
