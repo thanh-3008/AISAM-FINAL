@@ -86,10 +86,18 @@ public sealed class ContentController : ControllerBase
         {
             url = await _mediaStorageService.UploadAsync(file, $"content/{workspaceId:N}", fileName, cancellationToken);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
-            return StatusCode((int)HttpStatusCode.ServiceUnavailable,
-                GenericResponse<ContentMediaUploadResponse>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable));
+            var status = ex is ArgumentException ? HttpStatusCode.BadRequest : HttpStatusCode.ServiceUnavailable;
+            return StatusCode((int)status,
+                GenericResponse<ContentMediaUploadResponse>.CreateError(ex.Message, status));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode((int)HttpStatusCode.InternalServerError,
+                GenericResponse<ContentMediaUploadResponse>.CreateError(
+                    $"Upload failed: {ex.GetType().Name} - {ex.Message}",
+                    HttpStatusCode.InternalServerError));
         }
 
         var response = new ContentMediaUploadResponse

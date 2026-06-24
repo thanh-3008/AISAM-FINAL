@@ -112,11 +112,12 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
   const { data, headers: customHeaders, ...customConfig } = options;
   const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
 
+  const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
   const config: RequestInit = {
-    method: data ? "POST" : "GET",
-    body: data ? JSON.stringify(data) : undefined,
+    method: hasJsonBody ? "POST" : "GET",
+    body: hasJsonBody ? JSON.stringify(data) : undefined,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
       ...headers,
     },
     cache: "no-store",
