@@ -51,7 +51,13 @@ export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: M
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(member); }}
-            className="p-1.5 rounded-lg hover:bg-surface-container text-outline hover:text-primary transition-all"
+            disabled={member.status === "Pending"}
+            className={`p-1.5 rounded-lg transition-all ${
+              member.status === "Pending"
+                ? "text-outline/30 cursor-not-allowed"
+                : "hover:bg-surface-container text-outline hover:text-primary"
+            }`}
+            title={member.status === "Pending" ? "Role can be changed after acceptance" : "Edit member"}
           >
             <span className="material-symbols-outlined text-[16px]">edit</span>
           </button>

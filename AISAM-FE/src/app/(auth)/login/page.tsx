@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
@@ -19,9 +19,14 @@ export default function LoginPage() {
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Google Sign-In
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+  const getRedirectUrl = useCallback(() => {
+    return searchParams.get("redirect") || "/overview";
+  }, [searchParams]);
 
   const handleGoogleResponse = useCallback(async (credential: string) => {
     if (!credential) return;
@@ -35,7 +40,7 @@ export default function LoginPage() {
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
         if (result.data.user) setStoredUser(result.data.user);
         setIsSuccess(true);
-        router.push("/overview");
+        router.push(getRedirectUrl());
       } else {
         setError("Google sign-in failed.");
       }
@@ -44,7 +49,7 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, getRedirectUrl]);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,7 +117,7 @@ export default function LoginPage() {
         }
 
         setIsSuccess(true);
-        router.push("/overview");
+        router.push(getRedirectUrl());
       } else {
         setError("Login failed, please try again.");
       }

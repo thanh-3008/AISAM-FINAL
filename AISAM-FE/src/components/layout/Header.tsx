@@ -151,7 +151,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const displayName = mounted ? (user?.name || activeWorkspace?.name || "User") : "User";
   const initials = getInitials(displayName);
   const displayPlan = mounted ? (activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace") : "Loading...";
-  const settingsHref = activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles";
+  const settingsHref = activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/overview";
 
   return (
     <header className="h-16 bg-surface-gray border-b border-outline-variant/30 flex justify-between items-center px-gutter z-40 sticky top-0">

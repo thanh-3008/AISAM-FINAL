@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
@@ -77,28 +77,39 @@ export default function TeamPage() {
     ? featureGate.plan === 4 ? 50 : 10
     : Infinity;
 
+  const loadData = useCallback(async () => {
+    try {
+      const [teamsRes, membersRes] = await Promise.all([fetchTeams(), fetchMembers()]);
+      setTeams(teamsRes.data);
+      setMembers(membersRes.data);
+    } catch {
+      setTeams([]);
+      setMembers([]);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      try {
-        const [teamsRes, membersRes] = await Promise.all([fetchTeams(), fetchMembers()]);
-        if (!cancelled) {
-          setTeams(teamsRes.data);
-          setMembers(membersRes.data);
-        }
-      } catch {
-        if (!cancelled) {
-          setTeams([]);
-          setMembers([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await loadData();
+      if (cancelled) return;
+      setLoading(false);
     };
     load();
     return () => { cancelled = true; };
-  }, [activeWorkspace?.id]);
+  }, [activeWorkspace?.id, loadData]);
+
+  // Auto-refresh when tab gains focus or periodically
+  useEffect(() => {
+    const onFocus = () => { loadData(); };
+    window.addEventListener("focus", onFocus);
+    const interval = setInterval(() => loadData(), 30000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      clearInterval(interval);
+    };
+  }, [loadData]);
 
   useEffect(() => {
     if (toast) {
@@ -142,6 +153,11 @@ export default function TeamPage() {
   };
 
   const handleEditMember = async (id: string, role: MemberRole) => {
+    const member = members.find((m) => m.id === id);
+    if (member?.status === "Pending") {
+      showToast("Cannot change role of a pending invitation", "error");
+      return;
+    }
     setActionLoading("editMember");
     try {
       const updated = await updateMemberRole(id, role);
@@ -166,7 +182,7 @@ export default function TeamPage() {
     setActionLoading("deleteMember");
     try {
       for (const member of deletingMembers) {
-        await removeMember(member.id);
+        await removeMember(member.id, member.status);
       }
       setMembers((prev) => prev.filter((m) => !deletingMembers.some((d) => d.id === m.id)));
       setDeletingMembers([]);
@@ -182,11 +198,15 @@ export default function TeamPage() {
     setActionLoading("invite");
     try {
       const newMember = await inviteMember(data);
-      setMembers((prev) => [newMember, ...prev]);
+      setMembers((prev) => {
+        if (prev.some((m) => m.id === newMember.id)) return prev;
+        return [newMember, ...prev];
+      });
       setShowInviteModal(false);
       showToast(`Invitation sent to ${newMember.email}`);
-    } catch {
-      showToast("Failed to send invitation", "error");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send invitation";
+      showToast(message, "error");
     } finally {
       setActionLoading(null);
     }
@@ -313,10 +333,17 @@ export default function TeamPage() {
               </div>
               <div>
                 <h1 className="text-headline-sm font-bold text-on-surface">Teams &amp; Collaboration</h1>
-                <p className="text-label-sm text-outline">{members.length} members · {teams.length} teams · Manage your organization</p>
+                <p className="text-label-sm text-outline">{activeMemberCount} members · {teams.length} teams · Manage your organization</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => loadData()}
+                className="px-4 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all flex items-center gap-2"
+                title="Refresh data"
+              >
+                <span className="material-symbols-outlined text-[16px]">refresh</span>
+              </button>
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all flex items-center gap-2"
@@ -552,8 +579,13 @@ export default function TeamPage() {
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setEditingMember(member); }}
-                                    className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
-                                    title="Edit member"
+                                    className={`p-1.5 rounded-lg transition-all ${
+                                      member.status === "Pending"
+                                        ? "text-outline/30 cursor-not-allowed"
+                                        : "text-outline hover:text-primary hover:bg-primary/10"
+                                    }`}
+                                    title={member.status === "Pending" ? "Role can be changed after acceptance" : "Edit member"}
+                                    disabled={member.status === "Pending"}
                                   >
                                     <span className="material-symbols-outlined text-[16px]">edit</span>
                                   </button>

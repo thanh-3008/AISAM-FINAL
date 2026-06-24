@@ -68,7 +68,7 @@ export default function ProfileSettingsSidebar({
       {/* Back link */}
       <div className="p-3 border-t border-outline-variant/20">
         <button
-          onClick={() => router.push("/profiles")}
+          onClick={() => router.push("/overview")}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>

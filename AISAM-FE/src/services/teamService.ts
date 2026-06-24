@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
+import { getWorkspaceInvitations, type WorkspaceInvitation } from "./workspaceInvitationService";
 
 export type MemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
 export type MemberStatus = "Active" | "Pending" | "Inactive";
@@ -115,9 +116,9 @@ const DEFAULT_TEAM: Team = {
 
 export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
   try {
-    const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members");
-    const members = res?.data || [];
-    DEFAULT_TEAM.memberIds = members.map((m) => m.id);
+    const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members").catch(() => null);
+    const memberIds = (res?.data || []).map((m: BEWorkspaceMemberDto) => m.id);
+    DEFAULT_TEAM.memberIds = memberIds;
     DEFAULT_TEAM.brandCount = 0;
     return { data: [DEFAULT_TEAM], total: 1 };
   } catch {
@@ -126,12 +127,39 @@ export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
 }
 
 export async function fetchMembers(): Promise<{ data: TeamMember[]; total: number }> {
-  const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members");
-  if (res?.data) {
-    const members = res.data.map(mapMember);
-    return { data: members, total: members.length };
+  const [membersRes, invitations] = await Promise.all([
+    apiClient("/workspace-members").catch(() => null),
+    getWorkspaceInvitations(),
+  ]);
+
+  const activeMembers: TeamMember[] = [];
+  if (membersRes?.data) {
+    activeMembers.push(...membersRes.data.map(mapMember));
   }
-  return { data: [], total: 0 };
+
+  // Only show pending if the email is NOT already an active member (already accepted)
+  const activeEmails = new Set(activeMembers.map((m) => m.email));
+  const pendingMembers: TeamMember[] = invitations
+    .filter((inv) => !activeEmails.has(inv.email))
+    .map((inv: WorkspaceInvitation) => ({
+      id: inv.id,
+      name: inv.email.split("@")[0],
+      email: inv.email,
+      avatar: null,
+      role: inv.role as MemberRole,
+      status: "Pending" as MemberStatus,
+      teamIds: [],
+      lastActive: inv.createdAt,
+      createdAt: inv.createdAt,
+    }));
+
+  const seen = new Set<string>();
+  const allMembers = [...pendingMembers, ...activeMembers].filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+  return { data: allMembers, total: allMembers.length };
 }
 
 export async function createTeam(data: CreateTeamData): Promise<Team> {
@@ -169,22 +197,24 @@ export async function getTeamById(id: string): Promise<Team | null> {
 
 export async function inviteMember(data: InviteMemberData): Promise<TeamMember> {
   const roleValue = ({ Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 } as const)[data.role];
-  await apiClient("/workspace-invitations", {
+  const res: GenericResponse<BEWorkspaceInvitationDto> = await apiClient("/workspace-invitations", {
     method: "POST",
-    data: { email: data.email, role: roleValue },
+    data: { email: data.email, role: roleValue, teamIds: data.teamIds },
   });
 
+  const inv = res?.data;
   const member: TeamMember = {
-    id: `pending_${Date.now()}`,
+    id: inv?.id || `pending_${Date.now()}`,
     name: data.email.split("@")[0],
     email: data.email,
     avatar: null,
     role: data.role,
     status: "Pending",
-    teamIds: [],
-    lastActive: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
+    teamIds: data.teamIds,
+    lastActive: inv?.createdAt || new Date().toISOString(),
+    createdAt: inv?.createdAt || new Date().toISOString(),
   };
+
   return member;
 }
 
@@ -200,8 +230,11 @@ export async function updateMemberRole(id: string, role: MemberRole): Promise<Te
   throw new Error(res?.error?.errorMessage || "Failed to update member role");
 }
 
-export async function removeMember(id: string): Promise<boolean> {
-  const res: GenericResponse<object> = await apiClient(`/workspace-members/${id}`, {
+export async function removeMember(id: string, status?: MemberStatus): Promise<boolean> {
+  const endpoint = status === "Pending"
+    ? `/workspace-invitations/${id}`
+    : `/workspace-members/${id}`;
+  const res: GenericResponse<object> = await apiClient(endpoint, {
     method: "DELETE",
   });
   return res?.success === true || res?.statusCode === 200;

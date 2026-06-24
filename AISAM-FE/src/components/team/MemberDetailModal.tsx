@@ -106,7 +106,13 @@ export default function MemberDetailModal({ member, teams, onClose, onEdit, onDe
             </button>
             <button
               onClick={() => { onEdit(member); onClose(); }}
-              className="px-5 py-2.5 border border-outline-variant/20 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all flex items-center gap-2"
+              disabled={member.status === "Pending"}
+              className={`px-5 py-2.5 border border-outline-variant/20 rounded-xl text-label-sm font-semibold transition-all flex items-center gap-2 ${
+                member.status === "Pending"
+                  ? "text-outline/30 cursor-not-allowed"
+                  : "text-outline hover:text-on-surface hover:bg-surface-container"
+              }`}
+              title={member.status === "Pending" ? "Role can be changed after acceptance" : "Edit Role"}
             >
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Edit Role
