@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
+import { apiFetch } from "@/lib/apiClient";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
@@ -74,6 +75,10 @@ export default function CreateContentPage() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
+  const imageFileRef = useRef<File | null>(null);
+  const videoFileRef = useRef<File | null>(null);
+  const thumbnailFileRef = useRef<File | null>(null);
+
   const handleFileSelect = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
     const input = field === "imageUrl" ? imageInputRef : field === "videoUrl" ? videoInputRef : thumbnailInputRef;
     input.current?.click();
@@ -85,6 +90,9 @@ export default function CreateContentPage() {
       const url = URL.createObjectURL(file);
       update({ [field]: url });
       if (field === "thumbnail") update({ thumbnail: url });
+      if (field === "imageUrl") imageFileRef.current = file;
+      if (field === "videoUrl") videoFileRef.current = file;
+      if (field === "thumbnail") thumbnailFileRef.current = file;
     }
   }, []);
 
@@ -96,12 +104,18 @@ export default function CreateContentPage() {
       const url = URL.createObjectURL(file);
       update({ [field]: url });
       if (field === "thumbnail") update({ thumbnail: url });
+      if (field === "imageUrl") imageFileRef.current = file;
+      if (field === "videoUrl") videoFileRef.current = file;
+      if (field === "thumbnail") thumbnailFileRef.current = file;
     }
   }, []);
 
   const clearFile = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
     update({ [field]: "" });
     if (field === "thumbnail") update({ thumbnail: "" });
+    if (field === "imageUrl") imageFileRef.current = null;
+    if (field === "videoUrl") videoFileRef.current = null;
+    if (field === "thumbnail") thumbnailFileRef.current = null;
   }, []);
 
   const addHashtag = (raw: string) => {
@@ -144,14 +158,43 @@ export default function CreateContentPage() {
       return;
     }
 
+    let imageUrl = form.imageUrl || undefined;
+    let videoUrl = form.videoUrl || undefined;
+    let thumbnailUrl = form.thumbnail || undefined;
+
+    const uploadFile = async (file: File | null): Promise<string | null> => {
+      if (!file) return null;
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await apiFetch("/content/media", { method: "POST", body: formData });
+      if (result?.success && result.data?.url) return result.data.url;
+      throw new Error(result?.message || `Failed to upload ${file.name}`);
+    };
+
+    try {
+      if (imageFileRef.current) {
+        imageUrl = await uploadFile(imageFileRef.current) ?? undefined;
+      }
+      if (videoFileRef.current) {
+        videoUrl = await uploadFile(videoFileRef.current) ?? undefined;
+      }
+      if (thumbnailFileRef.current) {
+        thumbnailUrl = await uploadFile(thumbnailFileRef.current) ?? undefined;
+      }
+    } catch (e: any) {
+      setSaveError(e?.message || "Lỗi upload file.");
+      setSaving(false);
+      return;
+    }
+
     const payload: CreateContentPayload = {
       brandId: form.brandId,
       productId: form.productId || null,
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
       textContent: form.textContent || form.caption || form.description || "",
-      imageUrl: form.imageUrl || undefined,
-      videoUrl: form.videoUrl || undefined,
+      imageUrl,
+      videoUrl,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
       status: form.status === "Awaiting Approval" ? 1 : 0,
