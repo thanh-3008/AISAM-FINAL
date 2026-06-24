@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
-import { fetchWorkspaces as fetchWorkspaceList } from "@/services/workspaceService";
+import { clearActiveProfile } from "@/stores/profile-store";
+import { apiClient } from "@/lib/apiClient";
 
 export interface WorkspaceData {
   id: string;
@@ -45,11 +46,52 @@ function notifyWorkspaceSelected() {
   workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
 }
 
+function getPlanName(profileType: number): string {
+  if (profileType === 0) return "Free";
+  if (profileType === 2) return "Business Plus";
+  return "Personal Pro";
+}
+
 function notifyCache() {
   cacheListeners = cacheListeners.filter((fn) => {
     try { fn(); } catch { /* skip */ }
     return true;
   });
+}
+
+function resolveMemberRole(role: unknown): string | null {
+  if (typeof role !== "number") return "Owner";
+  const roleMap: Record<number, string> = {
+    0: "Owner",
+    1: "Owner",
+    2: "Manager",
+    3: "ContentCreator",
+    4: "Viewer",
+  };
+  return roleMap[role] ?? "Viewer";
+}
+
+function isOwnerRole(role: unknown): boolean {
+  return role === 0 || role === 1;
+}
+
+function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null {
+  if (!userId) return null;
+  const stored = getStoredActiveWorkspace();
+  if (!stored) return null;
+
+  return {
+    id: stored.id,
+    userId,
+    name: stored.name,
+    workspaceType: stored.workspaceType,
+    plan: stored.workspaceType === 2 ? "Business" : "Personal",
+    status: 1,
+    createdAt: "",
+    updatedAt: "",
+    isOwner: true,
+    memberRole: "Owner",
+  };
 }
 
 export function invalidateWorkspaceCache() {
@@ -78,11 +120,11 @@ export function useWorkspaces() {
   }, []);
 
   const [workspaces, setWorkspaces] = useState<WorkspaceData[]>(() => {
-    if (!cachedWorkspaces) return [];
     const userId = getUserIdFromToken();
-    if (userId && cachedWorkspaces.some((p) => p.userId === userId)) return cachedWorkspaces;
-    cachedWorkspaces = null;
-    return [];
+    if (cachedWorkspaces && userId && cachedWorkspaces.some((p) => p.userId === userId)) return cachedWorkspaces;
+    if (cachedWorkspaces) cachedWorkspaces = null;
+    const storedFallback = getStoredWorkspaceFallback(userId);
+    return storedFallback ? [storedFallback] : [];
   });
   const [loading, setLoading] = useState(!cachedWorkspaces);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +156,7 @@ export function useWorkspaces() {
       if (sharedWorkspaces && sharedWorkspaces.some((workspace) => workspace.userId === userId)) {
         setWorkspaces(sharedWorkspaces);
       } else {
-        const fallback = null;
+        const fallback = getStoredWorkspaceFallback(userId);
         setWorkspaces((prev) => prev.length > 0 ? prev : fallback ? [fallback] : []);
       }
       setLoading(false);
@@ -122,29 +164,40 @@ export function useWorkspaces() {
     }
     fetchingWorkspaces = true;
 
+
     let mapped: WorkspaceData[] = [];
+    let fetched = false;
     try {
-      const workspaces = await fetchWorkspaceList();
-      if (Array.isArray(workspaces)) {
-        mapped = workspaces.map((w) => ({
-          id: w.id,
-          userId: w.userId ?? userId,
-          name: w.name,
-          workspaceType: w.workspaceType ?? 1,
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const res = await apiClient("/workspaces", { signal: controller.signal }) as { success: boolean; data?: Record<string, unknown>[] };
+      clearTimeout(timeoutId);
+      if (res?.success && res.data && Array.isArray(res.data)) {
+        fetched = true;
+        mapped = res.data.map((w) => ({
+          id: String(w.id), userId, name: String(w.name),
+          workspaceType: typeof w.workspaceType === "number" ? w.workspaceType : 1,
           plan: w.workspaceType === 2 ? "Business" : "Personal",
-          status: w.status ?? 1,
-          bio: w.bio ?? null,
-          companyName: w.companyName ?? null,
-          createdAt: w.createdAt || new Date().toISOString(),
-          updatedAt: w.updatedAt || new Date().toISOString(),
-          isOwner: w.currentUserRole === 0,
-          memberRole: typeof w.currentUserRole === "number" ? ["Owner", "Manager", "ContentCreator", "Viewer"][w.currentUserRole] ?? "Viewer" : "Owner",
+          status: typeof w.status === "number" ? w.status : 1,
+          createdAt: String(w.createdAt), updatedAt: String(w.updatedAt),
+          isOwner: isOwnerRole(w.currentUserRole),
+          memberRole: resolveMemberRole(w.currentUserRole),
         }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load workspaces");
     } finally {
       fetchingWorkspaces = false;
+    }
+
+    if (!fetched) {
+      const fallback = getStoredWorkspaceFallback(userId);
+      setWorkspaces((prev) => {
+        if (prev.length > 0) return prev;
+        return fallback ? [fallback] : [];
+      });
+      setLoading(false);
+      return;
     }
 
     cachedWorkspaces = mapped;
@@ -169,32 +222,9 @@ export function useWorkspaces() {
   const storedMatch = stored ? workspaces.find((p) => p.id === stored.id) : null;
   const fallbackMatch = workspaces.find((p) => p.status === 1) || workspaces[0] || null;
   const activeWorkspace = storedMatch || fallbackMatch;
-  const storedId = stored?.id ?? null;
-  const storedName = stored?.name ?? null;
-  const storedWorkspaceType = stored?.workspaceType ?? null;
-  const activeWorkspaceId = activeWorkspace?.id ?? null;
-  const activeWorkspaceName = activeWorkspace?.name ?? null;
-  const activeWorkspaceType = activeWorkspace?.workspaceType ?? null;
-
-  useEffect(() => {
-    if (!activeWorkspaceId || !activeWorkspaceName || activeWorkspaceType === null) {
-      return;
-    }
-
-    if (
-      storedId !== activeWorkspaceId ||
-      storedName !== activeWorkspaceName ||
-      storedWorkspaceType !== activeWorkspaceType
-    ) {
-      storeActiveWorkspace({
-        id: activeWorkspaceId,
-        name: activeWorkspaceName,
-        workspaceType: activeWorkspaceType,
-      });
-    }
-  }, [storedId, storedName, storedWorkspaceType, activeWorkspaceId, activeWorkspaceName, activeWorkspaceType]);
 
   const selectWorkspace = useCallback((workspace: WorkspaceData) => {
+    clearActiveProfile();
     storeActiveWorkspace({
       id: workspace.id,
       name: workspace.name,
@@ -212,12 +242,14 @@ export function useWorkspaces() {
   }, []);
 
   const updateWorkspacePlan = useCallback((workspaceId: string, plan: string) => {
-    cachedWorkspaces = (cachedWorkspaces ?? workspaces).map((workspace) =>
+    const source = cachedWorkspaces ?? workspaces;
+    const next = source.map((workspace) =>
       workspace.id === workspaceId ? { ...workspace, plan } : workspace
     );
-    setWorkspaces(cachedWorkspaces);
+    cachedWorkspaces = next;
+    setWorkspaces(next);
     notifyCache();
   }, [workspaces]);
 
-  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, updateWorkspacePlan, refetch: fetchWorkspaces };
+  return { workspaces, loading, error, activeWorkspace, selectWorkspace, clearSelectedWorkspace, refetch: fetchWorkspaces, updateWorkspacePlan };
 }

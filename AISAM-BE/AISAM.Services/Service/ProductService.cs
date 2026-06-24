@@ -5,8 +5,6 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
-using Microsoft.AspNetCore.Http;
-using System.Net;
 using System.Text.Json;
 
 namespace AISAM.Services.Service
@@ -15,24 +13,11 @@ namespace AISAM.Services.Service
     {
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
-        private readonly IMediaStorageService _mediaStorageService;
-        private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif"
-        };
-        private const long MaxImageBytes = 10 * 1024 * 1024;
 
-        public ProductService(
-            IProductRepository productRepository,
-            IBrandRepository brandRepository,
-            IMediaStorageService mediaStorageService)
+        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
-            _mediaStorageService = mediaStorageService;
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -88,20 +73,9 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
             }
 
-            var imageValidation = ValidateImageFiles(request.ImageFiles);
-            if (!imageValidation.Success)
+            if (request.ImageFiles != null && request.ImageFiles.Any())
             {
-                return GenericResponse<ProductResponseDto>.CreateError(imageValidation.Message);
-            }
-
-            List<string> imageUrls;
-            try
-            {
-                imageUrls = await SaveProductImagesAsync(request.BrandId, request.ImageFiles, cancellationToken);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable);
+                return GenericResponse<ProductResponseDto>.CreateError("Product image upload is not enabled in the current MVP backend.");
             }
 
             var product = new Product
@@ -111,7 +85,7 @@ namespace AISAM.Services.Service
                 Description = request.Description,
                 Price = request.Price,
                 Stock = request.Stock,
-                Images = JsonSerializer.Serialize(imageUrls)
+                Images = JsonSerializer.Serialize(new List<string>())
             };
 
             var created = await _productRepository.AddAsync(product, cancellationToken);
@@ -164,26 +138,9 @@ namespace AISAM.Services.Service
                 product.Stock = request.Stock.Value;
             }
 
-            var imageValidation = ValidateImageFiles(request.ImageFiles);
-            if (!imageValidation.Success)
+            if (request.ImageFiles != null && request.ImageFiles.Any())
             {
-                return GenericResponse<ProductResponseDto>.CreateError(imageValidation.Message);
-            }
-
-            List<string> newImageUrls;
-            try
-            {
-                newImageUrls = await SaveProductImagesAsync(product.BrandId, request.ImageFiles, cancellationToken);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable);
-            }
-            if (newImageUrls.Count > 0)
-            {
-                var existingImages = ParseImages(product.Images);
-                existingImages.AddRange(newImageUrls);
-                product.Images = JsonSerializer.Serialize(existingImages);
+                return GenericResponse<ProductResponseDto>.CreateError("Product image upload is not enabled in the current MVP backend.");
             }
 
             await _productRepository.UpdateAsync(product, cancellationToken);
@@ -266,79 +223,12 @@ namespace AISAM.Services.Service
                 Description = product.Description,
                 Price = product.Price,
                 Stock = product.Stock,
-                Images = ParseImages(product.Images),
+                Images = !string.IsNullOrWhiteSpace(product.Images)
+                    ? JsonSerializer.Deserialize<List<string>>(product.Images) ?? new List<string>()
+                    : new List<string>(),
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };
-        }
-
-        private static List<string> ParseImages(string? images)
-        {
-            if (string.IsNullOrWhiteSpace(images))
-            {
-                return new List<string>();
-            }
-
-            try
-            {
-                return JsonSerializer.Deserialize<List<string>>(images) ?? new List<string>();
-            }
-            catch
-            {
-                return new List<string>();
-            }
-        }
-
-        private static (bool Success, string Message) ValidateImageFiles(List<IFormFile>? files)
-        {
-            if (files == null || files.Count == 0)
-            {
-                return (true, string.Empty);
-            }
-
-            foreach (var file in files)
-            {
-                if (file == null) continue;
-
-                if (file.Length <= 0)
-                {
-                    return (false, "Product image file is empty.");
-                }
-
-                if (file.Length > MaxImageBytes)
-                {
-                    return (false, "Product image file must be 10MB or smaller.");
-                }
-
-                if (!AllowedImageContentTypes.Contains(file.ContentType))
-                {
-                    return (false, "Product image must be a JPEG, PNG, WebP, or GIF file.");
-                }
-            }
-
-            return (true, string.Empty);
-        }
-
-        private async Task<List<string>> SaveProductImagesAsync(Guid brandId, List<IFormFile>? files, CancellationToken cancellationToken)
-        {
-            var urls = new List<string>();
-            if (files == null || files.Count == 0)
-            {
-                return urls;
-            }
-
-            foreach (var file in files)
-            {
-                if (file == null) continue;
-
-                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-                var safeExtension = string.IsNullOrWhiteSpace(extension) ? ".jpg" : extension;
-                var fileName = $"{Guid.NewGuid():N}{safeExtension}";
-                var url = await _mediaStorageService.UploadAsync(file, $"products/{brandId:N}", fileName, cancellationToken);
-                urls.Add(url);
-            }
-
-            return urls;
         }
     }
 }

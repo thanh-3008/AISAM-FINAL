@@ -5,12 +5,9 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
+import { apiClient, apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { useToast } from "@/contexts/ToastContext";
 import { PlatformIcon } from "@/lib/contentConstants";
-import { resolveApiMediaUrl } from "@/lib/apiBaseUrl";
-import { deleteBrand, getBrandById, updateBrand, type BrandPayload } from "@/services/brandService";
-import { deleteProduct, fetchProducts } from "@/services/productService";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 
@@ -23,7 +20,7 @@ interface Brand {
   slogan: string | null;
   usp: string | null;
   targetAudience: string | null;
-  workspaceId: string | null;
+  profileId: string | null;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
@@ -56,7 +53,6 @@ export default function BrandDetailPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
-  const { addToast } = useToast();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,9 +86,9 @@ export default function BrandDetailPage() {
       await Promise.all([
         (async () => {
           try {
-            const result = await getBrandById(id);
-            if (result) {
-              const b = result as Brand;
+            const result = await apiFetch(`/brands/${id}`);
+            if (result?.success && result.data) {
+              const b = result.data as Brand;
               setBrand(b);
               setForm({ name: b.name, description: b.description || "", logoUrl: b.logoUrl || "", slogan: b.slogan || "", usp: b.usp || "", targetAudience: b.targetAudience || "" });
               return;
@@ -105,9 +101,11 @@ export default function BrandDetailPage() {
         })(),
         (async () => {
           try {
-            const result = await fetchProducts(id);
-            setProducts(result as Product[]);
-            return;
+            const result = await apiFetch(`/products?brandId=${id}&pageSize=100`);
+            if (result?.success && Array.isArray(result.data?.data)) {
+              setProducts(result.data.data as Product[]);
+              return;
+            }
           } catch { /* ignore */ }
         })(),
         (async () => {
@@ -127,19 +125,18 @@ export default function BrandDetailPage() {
     setError(null);
 
     try {
-      const body: BrandPayload = { name: form.name.trim() };
+      const body: Record<string, string> = { name: form.name.trim() };
       if (form.description.trim()) body.description = form.description.trim();
       if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
       if (form.slogan.trim()) body.slogan = form.slogan.trim();
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
 
-      const result = await updateBrand(id, body);
-      if (result) {
-        setBrand(result as Brand);
-        addToast("Brand updated successfully", "check");
+      const result = await apiClient(`/brands/${id}`, { method: "PUT", data: body });
+      if (result?.success && result.data) {
+        setBrand(result.data);
       } else {
-        setError("Failed to save brand");
+        setError(result?.message || "Failed to save brand");
         return;
       }
     } catch (e: any) {
@@ -154,12 +151,11 @@ export default function BrandDetailPage() {
     setShowDeleteDialog(false);
     setError(null);
     try {
-      const result = await deleteBrand(id);
-      if (result) {
-        addToast("Brand deleted successfully", "check");
+      const result = await apiFetch(`/brands/${id}`, { method: "DELETE" });
+      if (result?.success) {
         router.push("/brands");
       } else {
-        setError("Failed to delete brand");
+        setError(result?.message || "Failed to delete brand");
       }
     } catch (e: any) {
       setError(e?.message || "Failed to delete brand");
@@ -168,12 +164,10 @@ export default function BrandDetailPage() {
 
   const handleAddProduct = (product: Product) => {
     setProducts((prev) => [product, ...prev]);
-    addToast("Product created successfully", "check");
   };
 
   const handleEditProduct = (updated: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    addToast("Product updated successfully", "check");
   };
 
   const handleDeleteProduct = async () => {
@@ -181,18 +175,11 @@ export default function BrandDetailPage() {
     const target = deletingProduct;
     setDeletingProduct(null);
     try {
-      const deleted = await deleteProduct(target.id);
-      if (deleted) {
-        setProducts((prev) => prev.filter((p) => p.id !== target.id));
-        addToast("Product deleted successfully", "check");
-      } else {
-        addToast("Failed to delete product", "error");
-        setDeletingProduct(target);
-      }
-    } catch (err: any) {
-      addToast(err?.message || "Failed to delete product", "error");
-      setDeletingProduct(target);
+      await apiFetch(`/products/${target.id}`, { method: "DELETE" });
+    } catch {
+      // ignore
     }
+    setProducts((prev) => prev.filter((p) => p.id !== target.id));
   };
 
   if (loading) {
@@ -274,8 +261,8 @@ export default function BrandDetailPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="flex items-start gap-6">
                 <div className="w-24 h-24 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant overflow-hidden p-2 shrink-0">
-                  {resolveApiMediaUrl(safeBrand.logoUrl) ? (
-                    <img src={resolveApiMediaUrl(safeBrand.logoUrl)} alt={safeBrand.name} className="w-full h-full object-contain" />
+                  {safeBrand.logoUrl ? (
+                    <img src={safeBrand.logoUrl} alt={safeBrand.name} className="w-full h-full object-contain" />
                   ) : (
                     <span className={`w-full h-full rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
                       <span className="text-headline-lg font-bold text-white">{initials}</span>
@@ -405,7 +392,6 @@ export default function BrandDetailPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredProducts.map((product, i) => {
                       const inStock = (product.stock ?? 0) > 0;
-                      const imageUrl = resolveApiMediaUrl(product.images?.[0]);
                       return (
                         <motion.div key={product.id}
                           initial={{ opacity: 0, y: 16 }}
@@ -415,16 +401,12 @@ export default function BrandDetailPage() {
                           whileHover={{ y: -3, boxShadow: "0 10px 25px -12px rgba(0,0,0,0.15)" }}
                           className="group border border-outline-variant/20 bg-surface-container-lowest rounded-2xl overflow-hidden hover:border-primary/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col">
                           <div className="aspect-video relative overflow-hidden bg-surface-container-low">
-                            {imageUrl ? (
-                              <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                            ) : (
-                              <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
-                            )}
+                            <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
                             <p className="text-on-surface-variant text-body-sm mb-2 line-clamp-2 flex-1">{product.description}</p>
-                            <p className="text-label-lg font-bold text-primary mb-3">${(product.price ?? 0).toFixed(2)}</p>
+                            <p className="text-label-lg font-bold text-primary mb-3">${product.price.toFixed(2)}</p>
                             <div className="flex items-center justify-between mt-auto">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-1.5 text-on-surface-variant">
@@ -653,17 +635,13 @@ export default function BrandDetailPage() {
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
               <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
-                {resolveApiMediaUrl(viewingProduct.images?.[0]) ? (
-                  <img src={resolveApiMediaUrl(viewingProduct.images?.[0])} alt={viewingProduct.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
-                )}
+                <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
               </div>
               <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Price</span>
-                  <p className="text-body-sm font-semibold text-on-surface">${(viewingProduct.price ?? 0).toFixed(2)}</p>
+                  <p className="text-body-sm font-semibold text-on-surface">${viewingProduct.price.toFixed(2)}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Stock</span>

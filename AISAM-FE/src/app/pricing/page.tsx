@@ -128,7 +128,7 @@ function PricingContent() {
     if (!userId) return false;
 
     try {
-      const result = await apiFetch<any>("/workspaces", {
+      const result = await apiFetch("/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -179,11 +179,7 @@ function PricingContent() {
     }
 
     try {
-      // Map frontend PlanType to backend SubscriptionPlanEnum strings
-      let planCode = "Plus";
-      if (plan.planType === 1 || plan.planType === 3) planCode = "Plus";
-      if (plan.planType === 2 || plan.planType === 4) planCode = "Premium";
-      
+      const planCode = PLAN_CODES[plan.planType] || "Plus";
       const payment = await createPayment({
         paymentType: 1,
         planCode,

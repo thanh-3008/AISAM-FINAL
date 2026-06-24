@@ -1,10 +1,8 @@
-using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
-using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using System.Net;
 
@@ -24,7 +22,8 @@ public class ContentScheduleServiceTests
             WorkspaceId = workspaceId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft content", Status = ContentStatusEnum.Approved
+            TextContent = "Draft content",
+            Status = ContentStatusEnum.Draft
         };
         var integration = new SocialIntegration
         {
@@ -74,7 +73,8 @@ public class ContentScheduleServiceTests
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft content", Status = ContentStatusEnum.Approved
+            TextContent = "Draft content",
+            Status = ContentStatusEnum.Draft
         };
         var integration = new SocialIntegration
         {
@@ -149,7 +149,8 @@ public class ContentScheduleServiceTests
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
-            TextContent = "Draft content", Status = ContentStatusEnum.Approved
+            TextContent = "Draft content",
+            Status = ContentStatusEnum.Draft
         };
         var integration = new SocialIntegration
         {
@@ -255,29 +256,7 @@ public class ContentScheduleServiceTests
             contentRepository ?? new FakeContentRepository(),
             socialIntegrationRepository ?? new FakeSocialIntegrationRepository(),
             contentCalendarRepository ?? new FakeContentCalendarRepository(),
-            notificationRepository ?? new FakeNotificationRepository(),
-            new FakeQuotaService());
-    }
-
-    private sealed class FakeQuotaService : IQuotaService
-    {
-        public Task<GenericResponse<QuotaSummaryDto>> GetSummaryAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
-
-        public Task<GenericResponse<QuotaSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<QuotaSummaryDto>.CreateSuccess(new QuotaSummaryDto()));
-
-        public Task<GenericResponse<bool>> EnsurePromptQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
-
-        public Task<GenericResponse<bool>> EnsurePostQuotaAsync(Guid profileId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
-
-        public Task<GenericResponse<bool>> EnsureWorkspacePromptQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
-
-        public Task<GenericResponse<bool>> EnsureWorkspacePostQuotaAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+            notificationRepository ?? new FakeNotificationRepository());
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -409,27 +388,6 @@ public class ContentScheduleServiceTests
         public Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
 
-        public Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default)
-            => GetDueSchedulesAsync(utcNow, limit, cancellationToken);
-
-        public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default)
-            => Task.FromResult(Schedules.Values.Any(s => s.ContentId == contentId && !s.IsDeleted && (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing)));
-
-        public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task<PagedResult<ContentCalendar>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
-            => GetPagedByProfileIdAsync(workspaceId, request, cancellationToken);
-
-        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByWorkspaceIdAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default)
-            => GetUpcomingByProfileIdAsync(workspaceId, limit, cancellationToken);
-
-        public Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default)
-            => CountUpcomingByProfileIdAsync(workspaceId, utcNow, cancellationToken);
-
-        public Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => CountFailedByProfileIdAsync(workspaceId, cancellationToken);
-
         public Task<ContentCalendar> AddAsync(ContentCalendar schedule, CancellationToken cancellationToken = default)
         {
             Schedules[schedule.Id] = schedule;
@@ -473,9 +431,5 @@ public class ContentScheduleServiceTests
 
         public Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
-
-        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
     }
 }
-

@@ -70,8 +70,6 @@ public class ContentSchedulesControllerTests
     {
         public Task<Profile?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
-        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
-        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<Profile?>(null);
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());
         public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());
         public Task<IEnumerable<Profile>> SearchUserProfilesAsync(Guid userId, string? searchTerm = null, bool? isDeleted = null, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Profile>());
@@ -127,30 +125,5 @@ public class ContentSchedulesControllerTests
             LastProfileId = profileId;
             return Task.FromResult(UpcomingResult);
         }
-
-        public Task<GenericResponse<BulkCreateResultDto>> BulkCreateInWorkspaceAsync(Guid workspaceId, Guid profileId, BulkCreateContentScheduleRequest request, CancellationToken cancellationToken = default)
-        {
-            LastProfileId = profileId;
-            var result = new BulkCreateResultDto { TotalRequested = request.Items.Count, SuccessCount = request.Items.Count };
-            return Task.FromResult(GenericResponse<BulkCreateResultDto>.CreateSuccess(result));
-        }
-
-        public Task<GenericResponse<ContentScheduleDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
-            => CreateAsync(profileId, request, cancellationToken);
-
-        public Task<GenericResponse<PagedResult<ContentScheduleDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
-            => GetPagedAsync(workspaceId, request, cancellationToken);
-
-        public Task<GenericResponse<ContentScheduleDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)
-            => GetByIdAsync(workspaceId, scheduleId, cancellationToken);
-
-        public Task<GenericResponse<ContentScheduleDto>> UpdateInWorkspaceAsync(Guid workspaceId, Guid scheduleId, UpdateContentScheduleRequest request, CancellationToken cancellationToken = default)
-            => UpdateAsync(workspaceId, scheduleId, request, cancellationToken);
-
-        public Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)
-            => DeleteAsync(workspaceId, scheduleId, cancellationToken);
-
-        public Task<GenericResponse<IReadOnlyList<ContentScheduleDto>>> GetUpcomingByWorkspaceAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default)
-            => GetUpcomingAsync(workspaceId, limit, cancellationToken);
     }
 }

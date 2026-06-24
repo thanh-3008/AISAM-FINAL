@@ -26,9 +26,7 @@ public class FoundationTests
     {
         var jwtUserId = Guid.NewGuid();
         var routeUserId = Guid.NewGuid();
-#pragma warning disable CS0618 // Profile endpoints are covered as legacy compatibility.
         var controller = new ProfileController(new NoopProfileService(), NullLogger<ProfileController>.Instance);
-#pragma warning restore CS0618
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -189,7 +187,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProductService_SavesImageFiles_WhenProvided()
+    public async Task ProductService_ReturnsError_WhenImageFilesAreProvided()
     {
         var userId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
@@ -205,7 +203,7 @@ public class FoundationTests
         };
 
         var productRepository = new FakeProductRepository(product);
-        var service = new ProductService(productRepository, new FakeBrandRepository(brand), new FakeMediaStorageService());
+        var service = new ProductService(productRepository, new FakeBrandRepository(brand));
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 
@@ -215,33 +213,23 @@ public class FoundationTests
             Name = "New product",
             ImageFiles = new List<IFormFile>
             {
-                new FormFile(createStream, 0, createStream.Length, "ImageFiles", "product.png")
-                {
-                    Headers = new HeaderDictionary(),
-                    ContentType = "image/png"
-                }
+                new FormFile(createStream, 0, createStream.Length, "image", "product.png")
             }
         });
         var updateResult = await service.UpdateAsync(product.Id, workspaceId, userId, new ProductUpdateRequestDto
         {
             ImageFiles = new List<IFormFile>
             {
-                new FormFile(updateStream, 0, updateStream.Length, "ImageFiles", "product.png")
-                {
-                    Headers = new HeaderDictionary(),
-                    ContentType = "image/png"
-                }
+                new FormFile(updateStream, 0, updateStream.Length, "image", "product.png")
             }
         });
 
-        Assert.True(createResult.Success);
-        Assert.True(productRepository.AddCalled);
-        Assert.Single(createResult.Data!.Images!);
-        Assert.StartsWith("https://storage.test/products/", createResult.Data.Images![0]);
-        Assert.True(updateResult.Success);
-        Assert.True(productRepository.UpdateCalled);
-        Assert.Single(updateResult.Data!.Images!);
-        Assert.StartsWith("https://storage.test/products/", updateResult.Data.Images![0]);
+        Assert.False(createResult.Success);
+        Assert.Contains("upload is not enabled", createResult.Message);
+        Assert.False(productRepository.AddCalled);
+        Assert.False(updateResult.Success);
+        Assert.Contains("upload is not enabled", updateResult.Message);
+        Assert.False(productRepository.UpdateCalled);
     }
 
     [Fact]
@@ -286,14 +274,6 @@ public class FoundationTests
             Profile = profile,
             Name = "Owned brand"
         };
-    }
-
-    private sealed class FakeMediaStorageService : IMediaStorageService
-    {
-        public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult($"https://storage.test/{folder}/{fileName}");
-        }
     }
 
     private sealed class NoopProfileService : IProfileService
@@ -352,19 +332,6 @@ public class FoundationTests
         {
             _profiles.TryGetValue(id, out var profile);
             return Task.FromResult(profile);
-        }
-
-        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(_profiles.Values.FirstOrDefault(profile => profile.WorkspaceId == workspaceId));
-        }
-
-        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(_profiles.Values
-                .Where(profile => profile.UserId == userId && profile.Status != ProfileStatusEnum.Cancelled)
-                .OrderBy(profile => profile.CreatedAt)
-                .FirstOrDefault());
         }
 
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)

@@ -1,5 +1,4 @@
 using AISAM.Common;
-using AISAM.Common.Messages;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
@@ -8,7 +7,6 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 
@@ -16,8 +14,6 @@ namespace AISAM.Services.Service;
 
 public sealed class ContentService : IContentService
 {
-    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _publishLocks = new();
-
     private readonly IContentRepository _contentRepository;
     private readonly IBrandRepository _brandRepository;
     private readonly IProductRepository _productRepository;
@@ -27,8 +23,6 @@ public sealed class ContentService : IContentService
     private readonly Dictionary<string, IProviderService> _providers;
     private readonly ISocialTokenProtector _tokenProtector;
     private readonly IQuotaService _quotaService;
-    private readonly IContentCalendarRepository _contentCalendarRepository;
-    private readonly IWorkspaceRepository _workspaceRepository;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -39,9 +33,7 @@ public sealed class ContentService : IContentService
         IPostRepository postRepository,
         IEnumerable<IProviderService> providers,
         ISocialTokenProtector tokenProtector,
-        IQuotaService quotaService,
-        IContentCalendarRepository contentCalendarRepository,
-        IWorkspaceRepository workspaceRepository)
+        IQuotaService quotaService)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -52,8 +44,6 @@ public sealed class ContentService : IContentService
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
         _tokenProtector = tokenProtector;
         _quotaService = quotaService;
-        _contentCalendarRepository = contentCalendarRepository;
-        _workspaceRepository = workspaceRepository;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -87,7 +77,7 @@ public sealed class ContentService : IContentService
         };
 
         await _contentRepository.AddAsync(content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.CreatedSuccess);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content created successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -106,7 +96,7 @@ public sealed class ContentService : IContentService
             RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.PendingApproval
         };
         await _contentRepository.AddAsync(content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.CreatedSuccess);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content created successfully.");
     }
 
     public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
@@ -118,13 +108,13 @@ public sealed class ContentService : IContentService
         }
         var result = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
         return GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>
-        { Data = result.Data.Select(MapToDto).ToList(), TotalCount = result.TotalCount, Page = result.Page, PageSize = result.PageSize }, MessageConstants.Content.ListRetrievedSuccess);
+        { Data = result.Data.Select(MapToDto).ToList(), TotalCount = result.TotalCount, Page = result.Page, PageSize = result.PageSize }, "Contents retrieved successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
-        return content == null || content.WorkspaceId != workspaceId ? NotFound() : GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.RetrievedSuccess);
+        return content == null || content.WorkspaceId != workspaceId ? NotFound() : GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content retrieved successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default)
@@ -149,12 +139,8 @@ public sealed class ContentService : IContentService
                 return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
             content.Status = request.Status.Value;
         }
-        else if (content.Status == ContentStatusEnum.Approved)
-        {
-            content.Status = ContentStatusEnum.Draft;
-        }
         await _contentRepository.UpdateAsync(content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.UpdatedSuccess);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content updated successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
@@ -163,27 +149,7 @@ public sealed class ContentService : IContentService
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
         var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Status = ContentStatusEnum.Draft };
         await _contentRepository.AddAsync(clone, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
-    }
-
-    public Task<GenericResponse<ContentResponseDto>> ApproveInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
-        => ChangeStatusInWorkspaceAsync(id, workspaceId, ContentStatusEnum.Approved, "Content approved successfully.", cancellationToken);
-
-    public Task<GenericResponse<ContentResponseDto>> RejectInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
-        => ChangeStatusInWorkspaceAsync(id, workspaceId, ContentStatusEnum.Rejected, "Content rejected successfully.", cancellationToken);
-
-    private async Task<GenericResponse<ContentResponseDto>> ChangeStatusInWorkspaceAsync(Guid id, Guid workspaceId, ContentStatusEnum status, string message, CancellationToken cancellationToken)
-    {
-        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
-        if (content == null || content.WorkspaceId != workspaceId) return NotFound();
-        if (content.Status == ContentStatusEnum.Published)
-        {
-            return GenericResponse<ContentResponseDto>.CreateError("Published content status cannot be changed.", HttpStatusCode.BadRequest);
-        }
-
-        content.Status = status;
-        await _contentRepository.UpdateAsync(content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), message);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), "Content cloned successfully.");
     }
 
     public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
@@ -195,11 +161,11 @@ public sealed class ContentService : IContentService
     private async Task<GenericResponse<bool>> ChangeDeletedInWorkspaceAsync(Guid id, Guid workspaceId, bool deleted, CancellationToken cancellationToken)
     {
         var content = deleted ? await _contentRepository.GetByIdAsync(id, cancellationToken) : await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
-        if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+        if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
         content.IsDeleted = deleted;
         if (!deleted) content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(content, cancellationToken);
-        return GenericResponse<bool>.CreateSuccess(true, deleted ? MessageConstants.Content.DeletedSuccess : MessageConstants.Content.RestoredSuccess);
+        return GenericResponse<bool>.CreateSuccess(true, deleted ? "Content deleted successfully." : "Content restored successfully.");
     }
 
     public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
@@ -220,7 +186,7 @@ public sealed class ContentService : IContentService
             TotalCount = result.TotalCount,
             Page = result.Page,
             PageSize = result.PageSize
-        }, MessageConstants.Content.ListRetrievedSuccess);
+        }, "Contents retrieved successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
@@ -231,7 +197,7 @@ public sealed class ContentService : IContentService
             return NotFound();
         }
 
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.RetrievedSuccess);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content retrieved successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, UpdateContentRequest request, CancellationToken cancellationToken = default)
@@ -258,13 +224,8 @@ public sealed class ContentService : IContentService
         if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
         if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
 
-        if (content.Status == ContentStatusEnum.Approved)
-        {
-            content.Status = ContentStatusEnum.Draft;
-        }
-
         await _contentRepository.UpdateAsync(content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.UpdatedSuccess);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content updated successfully.");
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
@@ -295,7 +256,7 @@ public sealed class ContentService : IContentService
         };
 
         await _contentRepository.AddAsync(clone, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), "Content cloned successfully.");
     }
 
     public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
@@ -303,12 +264,12 @@ public sealed class ContentService : IContentService
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.ProfileId != profileId)
         {
-            return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+            return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
 
         content.IsDeleted = true;
         await _contentRepository.UpdateAsync(content, cancellationToken);
-        return GenericResponse<bool>.CreateSuccess(true, MessageConstants.Content.DeletedSuccess);
+        return GenericResponse<bool>.CreateSuccess(true, "Content deleted successfully.");
     }
 
     public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
@@ -316,18 +277,18 @@ public sealed class ContentService : IContentService
         var content = await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
         if (content == null || content.ProfileId != profileId)
         {
-            return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+            return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
 
         if (!content.IsDeleted)
         {
-            return GenericResponse<bool>.CreateError(MessageConstants.Content.NotDeleted, HttpStatusCode.BadRequest);
+            return GenericResponse<bool>.CreateError("Content is not deleted.", HttpStatusCode.BadRequest);
         }
 
         content.IsDeleted = false;
         content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(content, cancellationToken);
-        return GenericResponse<bool>.CreateSuccess(true, MessageConstants.Content.RestoredSuccess);
+        return GenericResponse<bool>.CreateSuccess(true, "Content restored successfully.");
     }
 
     public async Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default)
@@ -352,141 +313,88 @@ public sealed class ContentService : IContentService
         Guid? workspaceId,
         CancellationToken cancellationToken)
     {
-        var semaphore = _publishLocks.GetOrAdd(contentId, _ => new SemaphoreSlim(1, 1));
-        await semaphore.WaitAsync(cancellationToken);
-        try
+        var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
+        if (content == null || content.IsDeleted ||
+            (workspaceId.HasValue ? content.WorkspaceId != workspaceId : content.ProfileId != profileId))
         {
-            var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
-            if (content == null || content.IsDeleted ||
-                (workspaceId.HasValue ? content.WorkspaceId != workspaceId : content.ProfileId != profileId))
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
-            }
-
-            if (content.Status == ContentStatusEnum.Published)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.AlreadyPublished, HttpStatusCode.BadRequest);
-            }
-
-            if (content.Status != ContentStatusEnum.Approved)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.MustBeApproved, HttpStatusCode.BadRequest);
-            }
-
-            if (workspaceId.HasValue)
-            {
-                var workspace = await _workspaceRepository.GetByIdAsync(workspaceId.Value, cancellationToken);
-                if (workspace != null)
-                {
-                    WorkspaceLifecyclePolicy.SynchronizeStatus(workspace, DateTime.UtcNow);
-                    if (WorkspaceLifecyclePolicy.IsReadOnly(workspace.Status))
-                    {
-                        return GenericResponse<PublishResultDto>.CreateError(
-                            MessageConstants.Content.WorkspaceExpiredOrInactive, HttpStatusCode.Forbidden);
-                    }
-                }
-            }
-
-            var integration = await _socialIntegrationRepository.GetByIdAsync(integrationId, cancellationToken);
-            if (integration == null || integration.IsDeleted || !integration.IsActive || integration.BrandId != content.BrandId ||
-                (workspaceId.HasValue ? integration.WorkspaceId != workspaceId : integration.ProfileId != profileId))
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialIntegrationNotFoundOrInactive, HttpStatusCode.NotFound);
-            }
-
-            var quotaCheck = workspaceId.HasValue
-                ? await _quotaService.EnsureWorkspacePostQuotaAsync(workspaceId.Value, cancellationToken)
-                : await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
-            if (!quotaCheck.Success)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(
-                    quotaCheck.Message!,
-                    (HttpStatusCode)quotaCheck.StatusCode,
-                    quotaCheck.Error?.ErrorCode);
-            }
-
-            if (!_providers.TryGetValue(integration.Platform.ToString().ToLowerInvariant(), out var provider))
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.PublishingProviderNotSupported, HttpStatusCode.BadRequest);
-            }
-
-            var socialAccount = integration.SocialAccount
-                ?? await _socialAccountRepository.GetByIdAsync(integration.SocialAccountId, cancellationToken);
-            if (socialAccount == null || socialAccount.IsDeleted ||
-                (workspaceId.HasValue ? socialAccount.WorkspaceId != workspaceId : socialAccount.ProfileId != profileId))
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountNotFound, HttpStatusCode.NotFound);
-            }
-
-            if (!socialAccount.IsActive)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountInactive, HttpStatusCode.BadRequest);
-            }
-
-            if (string.IsNullOrWhiteSpace(socialAccount.UserAccessToken))
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountTokenMissing, HttpStatusCode.BadRequest);
-            }
-
-            if (socialAccount.ExpiresAt.HasValue && socialAccount.ExpiresAt.Value <= DateTime.UtcNow)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountTokenExpired, HttpStatusCode.BadRequest);
-            }
-
-            if (string.IsNullOrWhiteSpace(integration.AccessToken))
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.IntegrationTokenMissing, HttpStatusCode.BadRequest);
-            }
-
-            var postDto = BuildPostDto(content);
-            var decryptedAccount = CloneAccountForPublish(socialAccount);
-            var decryptedIntegration = CloneIntegrationForPublish(integration);
-
-            try
-            {
-                decryptedAccount.UserAccessToken = _tokenProtector.Unprotect(socialAccount.UserAccessToken);
-                decryptedIntegration.AccessToken = _tokenProtector.Unprotect(integration.AccessToken);
-            }
-            catch (Exception)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(
-                    MessageConstants.Content.TokenDecryptionFailed, HttpStatusCode.InternalServerError);
-            }
-
-            var publishResult = await provider.PublishAsync(decryptedAccount, decryptedIntegration, postDto, cancellationToken);
-            if (!publishResult.Success)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(
-                    publishResult.ErrorMessage ?? MessageConstants.Content.PublishingFailed,
-                    HttpStatusCode.BadGateway);
-            }
-
-            await _contentCalendarRepository.CancelActiveSchedulesForContentAsync(contentId, cancellationToken);
-
-            await _postRepository.AddAsync(new Post
-            {
-                ContentId = content.Id,
-                IntegrationId = integration.Id,
-                ExternalPostId = publishResult.ProviderPostId,
-                PublishedAt = publishResult.PostedAt ?? DateTime.UtcNow,
-                Status = ContentStatusEnum.Published
-            }, cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(publishResult.RefreshedTargetAccessToken))
-            {
-                integration.AccessToken = _tokenProtector.Protect(publishResult.RefreshedTargetAccessToken);
-                await _socialIntegrationRepository.UpdateAsync(integration, cancellationToken);
-            }
-
-            content.Status = ContentStatusEnum.Published;
-            await _contentRepository.UpdateAsync(content, cancellationToken);
-
-            return GenericResponse<PublishResultDto>.CreateSuccess(publishResult, MessageConstants.Content.PublishedSuccess);
+            return GenericResponse<PublishResultDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
         }
-        finally
+
+        if (content.Status == ContentStatusEnum.Published)
         {
-            semaphore.Release();
+            return GenericResponse<PublishResultDto>.CreateError("Content has already been published.", HttpStatusCode.BadRequest);
         }
+
+        if (content.Status != ContentStatusEnum.Approved)
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Content must be approved before publishing.", HttpStatusCode.BadRequest);
+        }
+
+        var integration = await _socialIntegrationRepository.GetByIdAsync(integrationId, cancellationToken);
+        if (integration == null || integration.IsDeleted || integration.BrandId != content.BrandId ||
+            (workspaceId.HasValue ? integration.WorkspaceId != workspaceId : integration.ProfileId != profileId))
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Social integration not found.", HttpStatusCode.NotFound);
+        }
+
+        var quotaCheck = workspaceId.HasValue
+            ? await _quotaService.EnsureWorkspacePostQuotaAsync(workspaceId.Value, cancellationToken)
+            : await _quotaService.EnsurePostQuotaAsync(profileId, cancellationToken);
+        if (!quotaCheck.Success)
+        {
+            return GenericResponse<PublishResultDto>.CreateError(
+                quotaCheck.Message!,
+                (HttpStatusCode)quotaCheck.StatusCode,
+                quotaCheck.Error?.ErrorCode);
+        }
+
+        if (!_providers.TryGetValue(integration.Platform.ToString().ToLowerInvariant(), out var provider))
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Publishing provider is not supported.", HttpStatusCode.BadRequest);
+        }
+
+        var socialAccount = integration.SocialAccount
+            ?? await _socialAccountRepository.GetByIdAsync(integration.SocialAccountId, cancellationToken);
+        if (socialAccount == null || socialAccount.IsDeleted ||
+            (workspaceId.HasValue ? socialAccount.WorkspaceId != workspaceId : socialAccount.ProfileId != profileId))
+        {
+            return GenericResponse<PublishResultDto>.CreateError("Social account not found.", HttpStatusCode.NotFound);
+        }
+
+        var postDto = BuildPostDto(content);
+        var decryptedAccount = CloneAccountForPublish(socialAccount);
+        var decryptedIntegration = CloneIntegrationForPublish(integration);
+
+        decryptedAccount.UserAccessToken = _tokenProtector.Unprotect(socialAccount.UserAccessToken);
+        decryptedIntegration.AccessToken = _tokenProtector.Unprotect(integration.AccessToken);
+
+        var publishResult = await provider.PublishAsync(decryptedAccount, decryptedIntegration, postDto, cancellationToken);
+        if (!publishResult.Success)
+        {
+            return GenericResponse<PublishResultDto>.CreateError(
+                publishResult.ErrorMessage ?? "Publishing failed.",
+                HttpStatusCode.BadGateway);
+        }
+
+        await _postRepository.AddAsync(new Post
+        {
+            ContentId = content.Id,
+            IntegrationId = integration.Id,
+            ExternalPostId = publishResult.ProviderPostId,
+            PublishedAt = publishResult.PostedAt ?? DateTime.UtcNow,
+            Status = ContentStatusEnum.Published
+        }, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(publishResult.RefreshedTargetAccessToken))
+        {
+            integration.AccessToken = _tokenProtector.Protect(publishResult.RefreshedTargetAccessToken);
+            await _socialIntegrationRepository.UpdateAsync(integration, cancellationToken);
+        }
+
+        content.Status = ContentStatusEnum.Published;
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+
+        return GenericResponse<PublishResultDto>.CreateSuccess(publishResult, "Content published successfully.");
     }
 
     private async Task<GenericResponse<bool>> ValidateBrandAndProductAsync(Guid profileId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
@@ -494,7 +402,7 @@ public sealed class ContentService : IContentService
         var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
         if (brand == null || brand.ProfileId != profileId)
         {
-            return GenericResponse<bool>.CreateError(MessageConstants.Content.BrandNotFound, HttpStatusCode.NotFound);
+            return GenericResponse<bool>.CreateError("Brand not found.", HttpStatusCode.NotFound);
         }
 
         if (productId.HasValue)
@@ -502,12 +410,12 @@ public sealed class ContentService : IContentService
             var product = await _productRepository.GetByIdAsync(productId.Value, cancellationToken);
             if (product == null)
             {
-                return GenericResponse<bool>.CreateError(MessageConstants.Content.ProductNotFound, HttpStatusCode.NotFound);
+                return GenericResponse<bool>.CreateError("Product not found.", HttpStatusCode.NotFound);
             }
 
             if (product.BrandId != brandId)
             {
-                return GenericResponse<bool>.CreateError(MessageConstants.Content.ProductNotInBrand, HttpStatusCode.BadRequest);
+                return GenericResponse<bool>.CreateError("Product does not belong to the selected brand.", HttpStatusCode.BadRequest);
             }
         }
 
@@ -517,12 +425,12 @@ public sealed class ContentService : IContentService
     private async Task<GenericResponse<bool>> ValidateBrandAndProductInWorkspaceAsync(Guid workspaceId, Guid brandId, Guid? productId, CancellationToken cancellationToken)
     {
         var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
-        if (brand == null || brand.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError(MessageConstants.Content.BrandNotFound, HttpStatusCode.NotFound);
+        if (brand == null || brand.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError("Brand not found.", HttpStatusCode.NotFound);
         if (productId.HasValue)
         {
             var product = await _productRepository.GetByIdAsync(productId.Value, cancellationToken);
-            if (product == null) return GenericResponse<bool>.CreateError(MessageConstants.Content.ProductNotFound, HttpStatusCode.NotFound);
-            if (product.BrandId != brandId) return GenericResponse<bool>.CreateError(MessageConstants.Content.ProductNotInBrand, HttpStatusCode.BadRequest);
+            if (product == null) return GenericResponse<bool>.CreateError("Product not found.", HttpStatusCode.NotFound);
+            if (product.BrandId != brandId) return GenericResponse<bool>.CreateError("Product does not belong to the selected brand.", HttpStatusCode.BadRequest);
         }
         return GenericResponse<bool>.CreateSuccess(true);
     }
@@ -533,12 +441,12 @@ public sealed class ContentService : IContentService
 
         if (current == ContentStatusEnum.Published)
         {
-            return GenericResponse<bool>.CreateError(MessageConstants.Content.CannotChangePublished, HttpStatusCode.BadRequest);
+            return GenericResponse<bool>.CreateError("Cannot change status of published content.", HttpStatusCode.BadRequest);
         }
 
         if (next == ContentStatusEnum.Published)
         {
-            return GenericResponse<bool>.CreateError(MessageConstants.Content.UsePublishEndpoint, HttpStatusCode.BadRequest);
+            return GenericResponse<bool>.CreateError("Use the publish endpoint to publish content.", HttpStatusCode.BadRequest);
         }
 
         var allowed = current switch
@@ -553,7 +461,7 @@ public sealed class ContentService : IContentService
         if (!allowed.Contains(next))
         {
             return GenericResponse<bool>.CreateError(
-                string.Format(MessageConstants.Content.InvalidStatusTransition, current, next), HttpStatusCode.BadRequest);
+                $"Cannot transition content from {current} to {next}.", HttpStatusCode.BadRequest);
         }
 
         return GenericResponse<bool>.CreateSuccess(true);
@@ -567,13 +475,13 @@ public sealed class ContentService : IContentService
         }
 
         return GenericResponse<bool>.CreateError(
-            MessageConstants.Content.InvalidSelectedStatus,
+            "Only Draft or PendingApproval status can be selected when creating content.",
             HttpStatusCode.BadRequest);
     }
 
     private static GenericResponse<ContentResponseDto> NotFound()
     {
-        return GenericResponse<ContentResponseDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+        return GenericResponse<ContentResponseDto>.CreateError("Content not found.", HttpStatusCode.NotFound);
     }
 
     private static PostDto BuildPostDto(Content content)

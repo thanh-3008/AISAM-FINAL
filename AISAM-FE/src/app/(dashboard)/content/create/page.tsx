@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
-import { createContent, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
+import { createContent, type CreateContentPayload } from "@/services/contentService";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
-import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 const SAMPLE_AVATARS = [
@@ -18,11 +17,9 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
-  const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [mediaUploading, setMediaUploading] = useState<"imageUrl" | "videoUrl" | "thumbnail" | null>(null);
 
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
   const [productList, setProductList] = useState<{ id: string; name: string; brandId: string }[]>([]);
@@ -82,40 +79,25 @@ export default function CreateContentPage() {
     input.current?.click();
   }, []);
 
-  const uploadSelectedFile = useCallback(async (field: "imageUrl" | "videoUrl" | "thumbnail", file: File) => {
-    setMediaUploading(field);
-    setSaveError(null);
-    try {
-      const uploaded = await uploadContentMedia(file);
-      if (!uploaded?.url) {
-        setSaveError("Không thể upload media. Vui lòng thử lại.");
-        return;
-      }
-      update({ [field]: uploaded.url });
-      if (field === "thumbnail") update({ thumbnail: uploaded.url });
-    } catch (e: any) {
-      setSaveError(e?.message || "Không thể upload media.");
-    } finally {
-      setMediaUploading(null);
-    }
-  }, []);
-
   const handleFileChange = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail", e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      void uploadSelectedFile(field, file);
+      const url = URL.createObjectURL(file);
+      update({ [field]: url });
+      if (field === "thumbnail") update({ thumbnail: url });
     }
-    e.target.value = "";
-  }, [uploadSelectedFile]);
+  }, []);
 
   const handleDrop = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail", e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(null);
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      void uploadSelectedFile(field, file);
+      const url = URL.createObjectURL(file);
+      update({ [field]: url });
+      if (field === "thumbnail") update({ thumbnail: url });
     }
-  }, [uploadSelectedFile]);
+  }, []);
 
   const clearFile = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
     update({ [field]: "" });
@@ -158,16 +140,17 @@ export default function CreateContentPage() {
     const storedWs = getStoredActiveWorkspace();
     if (!storedWs) {
       setSaving(false);
-      setSaveError("Please select a Workspace before creating content.");
+      setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
       return;
     }
+
     const payload: CreateContentPayload = {
       brandId: form.brandId,
       productId: form.productId || null,
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
       textContent: form.textContent || form.caption || form.description || "",
-      imageUrl: form.imageUrl || form.thumbnail || undefined,
+      imageUrl: form.imageUrl || undefined,
       videoUrl: form.videoUrl || undefined,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
@@ -177,21 +160,18 @@ export default function CreateContentPage() {
     try {
       const result = await createContent(payload);
       if (result) {
-        addToast("Content created successfully", "check");
-        router.push("/content");
+        setSaved(true);
+        setTimeout(() => router.push("/content"), 1000);
       } else {
-        setSaveError("Failed to save content. BE returned an error, check console (F12) for details.");
-        addToast("Failed to create content", "error");
+        setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
       }
     } catch (e: any) {
       const msg = e?.message || "";
-      if (msg.includes("Workspace not found") || msg.includes("Profile not found")) {
-        setSaveError("Workspace/Profile not found. Redirecting...");
-        addToast("Workspace/Profile not found, redirecting...", "error");
+      if (msg.includes("Profile not found")) {
+        setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {
-        setSaveError(msg || "Unknown error while saving content.");
-        addToast(msg || "Failed to create content", "error");
+        setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
       }
     } finally {
       setSaving(false);
@@ -237,12 +217,12 @@ export default function CreateContentPage() {
                 className="px-4 py-2 rounded-xl border border-outline-variant/20 text-label-sm text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97]">
                 Cancel
               </button>
-              <button onClick={handleSave} disabled={!isValid || saving || saved || mediaUploading !== null}
+              <button onClick={handleSave} disabled={!isValid || saving || saved}
                 className="px-5 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                {saving || mediaUploading ? (
+                {saving ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {mediaUploading ? "Uploading..." : "Saving..."}
+                    Saving...
                   </span>
                 ) : (
                   <><span className="material-symbols-outlined text-[16px]">check</span> Save Content</>
@@ -327,12 +307,7 @@ export default function CreateContentPage() {
                       className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
                         dragOver === "image" ? "border-primary bg-primary/5" : form.imageUrl ? "border-transparent bg-surface-container" : "border-outline-variant/30 hover:border-primary/40 hover:bg-surface-container/50"
                       }`}>
-                      {mediaUploading === "imageUrl" ? (
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                          <p className="text-label-sm text-primary font-semibold">Uploading image...</p>
-                        </div>
-                      ) : form.imageUrl ? (
+                      {form.imageUrl ? (
                         <div className="relative">
                           <div className="max-h-[300px] overflow-hidden rounded-lg">
                             <img src={form.imageUrl} alt="Uploaded preview" className="w-full h-auto object-contain max-h-[280px]" />
@@ -378,12 +353,7 @@ export default function CreateContentPage() {
                         className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
                           dragOver === "video" ? "border-primary bg-primary/5" : form.videoUrl ? "border-transparent bg-surface-container" : "border-outline-variant/30 hover:border-primary/40 hover:bg-surface-container/50"
                         }`}>
-                        {mediaUploading === "videoUrl" ? (
-                          <div className="flex flex-col items-center gap-2">
-                            <span className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                            <p className="text-label-sm text-primary font-semibold">Uploading video...</p>
-                          </div>
-                        ) : form.videoUrl ? (
+                        {form.videoUrl ? (
                           <div className="relative">
                             <video src={form.videoUrl} className="w-full max-h-[280px] rounded-lg" controls />
                             <div className="absolute top-2 right-2 flex gap-1.5">
@@ -604,12 +574,7 @@ export default function CreateContentPage() {
                     className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
                       dragOver === "thumb" ? "border-primary bg-primary/5" : form.thumbnail ? "border-transparent bg-surface-container" : "border-outline-variant/30 hover:border-primary/40 hover:bg-surface-container/50"
                     }`}>
-                    {mediaUploading === "thumbnail" ? (
-                      <div className="flex items-center gap-3 justify-center">
-                        <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                        <span className="text-body-sm text-primary font-semibold">Uploading thumbnail...</span>
-                      </div>
-                    ) : form.thumbnail ? (
+                    {form.thumbnail ? (
                       <div className="relative inline-block">
                         <div className="w-40 h-24 rounded-lg overflow-hidden">
                           <img src={form.thumbnail} alt="Thumbnail" className="w-full h-full object-cover" />

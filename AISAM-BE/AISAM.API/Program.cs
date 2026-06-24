@@ -13,7 +13,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
@@ -60,14 +59,6 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSett
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_BASE_URL", "PayOSSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
-ApplyEnvironmentOverride(builder.Configuration, "UPLOAD_ROOT_PATH", "MediaStorage:UploadRootPath");
-ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_URL", "MediaStorage:SupabaseUrl");
-ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_KEY", "MediaStorage:SupabaseKey");
-ApplyEnvironmentOverride(builder.Configuration, "SUPABASE_BUCKET", "MediaStorage:SupabaseBucket");
-ApplyEnvironmentOverride(builder.Configuration, "INITIAL_PERSONAL_WORKSPACE_CREDITS", "CreditSettings:InitialPersonalWorkspaceCredits");
-ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
-ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
-ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -86,9 +77,6 @@ builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("Goo
 builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("GeminiSettings"));
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
-builder.Services.Configure<MediaStorageSettings>(builder.Configuration.GetSection("MediaStorage"));
-builder.Services.Configure<CreditSettings>(builder.Configuration.GetSection("CreditSettings"));
-builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 
 var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -157,7 +145,6 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IContentService, ContentService>();
-builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
@@ -177,7 +164,6 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
-builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 
 var controllers = builder.Services
@@ -228,8 +214,6 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1"
     });
 
-    options.OperationFilter<WorkspaceHeaderOperationFilter>();
-
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -256,10 +240,6 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var mediaStorageSettings = builder.Configuration.GetSection("MediaStorage").Get<MediaStorageSettings>() ?? new MediaStorageSettings();
-var uploadRootPath = mediaStorageSettings.ResolveUploadRootPath(builder.Environment.ContentRootPath);
-Directory.CreateDirectory(uploadRootPath);
-
 var app = builder.Build();
 
 app.UseCors("CorsPolicy");
@@ -269,14 +249,9 @@ app.UseSwaggerUI();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadRootPath)
-});
-
 app.UseAuthentication();
-app.UseMiddleware<ActiveWorkspaceMiddleware>();
 app.UseMiddleware<ActiveProfileMiddleware>();
+app.UseMiddleware<ActiveWorkspaceMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -36,21 +36,6 @@ public sealed class CreditUsageController : ControllerBase
         return Ok(GenericResponse<object>.CreateSuccess(new { balance = wallet.Balance, workspaceId }));
     }
 
-    [HttpGet("daily-summary")]
-    public async Task<ActionResult<GenericResponse<IReadOnlyList<DailyCreditUsageDto>>>> GetDailySummary(
-        [FromQuery] int days = 30,
-        CancellationToken cancellationToken = default)
-    {
-        if (days is not 7 and not 30 and not 90)
-        {
-            days = 30;
-        }
-
-        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
-        var result = await _creditUsageRepository.GetDailyUsageAsync(workspaceId, days, cancellationToken);
-        return Ok(GenericResponse<IReadOnlyList<DailyCreditUsageDto>>.CreateSuccess(result));
-    }
-
     [HttpGet]
     public async Task<ActionResult<GenericResponse<PagedResult<CreditUsageRecordDto>>>> GetPaged(
         [FromQuery] int page = 1,

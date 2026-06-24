@@ -649,7 +649,6 @@ public class PaymentServiceTests
         FakeSubscriptionRepository? subscriptionRepository = null,
         FakeProfileRepository? profileRepository = null,
         FakeWorkspaceRepository? workspaceRepository = null,
-        FakeCreditWalletRepository? creditWalletRepository = null,
         FakeCreditService? creditService = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
@@ -659,11 +658,9 @@ public class PaymentServiceTests
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
-            creditWalletRepository ?? new FakeCreditWalletRepository(),
             creditService ?? new FakeCreditService(),
             Options.Create(settings ?? new PayOSSettings()),
-            httpClient ?? new HttpClient(),
-            null);
+            httpClient ?? new HttpClient());
     }
 
     private static PayOSSettings CreateConfiguredSettings()
@@ -833,10 +830,6 @@ public class PaymentServiceTests
         }
 
         public Task<Profile?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
-        public Task<Profile?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult(_profiles.Values.FirstOrDefault(profile => profile.WorkspaceId == workspaceId));
-        public Task<Profile?> GetFirstByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
-            => Task.FromResult(_profiles.Values.Where(profile => profile.UserId == userId).OrderBy(profile => profile.CreatedAt).FirstOrDefault());
         public Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(_profiles.Values.Where(profile => profile.UserId == userId).AsEnumerable());
         public Task<IEnumerable<Profile>> GetByUserIdIncludingDeletedAsync(Guid userId, bool isDeleted, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
         public Task<IEnumerable<Profile>> SearchUserProfilesAsync(Guid userId, string? searchTerm = null, bool? isDeleted = null, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
@@ -1040,15 +1033,5 @@ public class PaymentServiceTests
                 Content = new StringContent(_responseBody, Encoding.UTF8, "application/json")
             });
         }
-    }
-
-    private sealed class FakeCreditWalletRepository : ICreditWalletRepository
-    {
-        public Task<CreditWallet?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-            => Task.FromResult<CreditWallet?>(null);
-        public Task<CreditWallet> AddAsync(CreditWallet wallet, CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
-        public Task UpdateAsync(CreditWallet wallet, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
     }
 }

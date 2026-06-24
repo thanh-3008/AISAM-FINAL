@@ -5,10 +5,6 @@ import { useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import AuthShell from "@/components/auth/AuthShell";
 
-function getErrorMessage(err: unknown, fallback: string) {
-  return err instanceof Error ? err.message : fallback;
-}
-
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -25,8 +21,8 @@ export default function ForgotPasswordPage() {
         data: { email },
       });
       setIsSuccess(true);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "An error occurred, please try again."));
+    } catch (err: any) {
+      setError(err.message || "An error occurred, please try again.");
     } finally {
       setIsLoading(false);
     }

@@ -141,7 +141,7 @@ export async function fetchCampaigns(params?: {
     if (params?.sortDescending !== undefined) query.set("sortDescending", String(params.sortDescending));
 
     const qs = query.toString();
-    const res = await apiClient<any>(`/campaigns${qs ? `?${qs}` : ""}`);
+    const res = await apiClient(`/campaigns${qs ? `?${qs}` : ""}`);
     if (res?.success && res.data) {
       return {
         data: (res.data.data as CampaignApiItem[]).map(mapCampaign),
@@ -155,7 +155,7 @@ export async function fetchCampaigns(params?: {
 }
 
 export async function createCampaign(data: CreateCampaignData): Promise<Campaign> {
-  const res = await apiClient<any>("/campaigns", {
+  const res = await apiClient("/campaigns", {
     data: {
       name: data.name,
       brandId: data.brandId,
@@ -175,7 +175,7 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
 }
 
 export async function updateCampaign(id: string, data: CreateCampaignData): Promise<Campaign> {
-  const res = await apiClient<any>(`/campaigns/${id}`, {
+  const res = await apiClient(`/campaigns/${id}`, {
     method: "PUT",
     data: {
       name: data.name,
@@ -196,7 +196,7 @@ export async function updateCampaign(id: string, data: CreateCampaignData): Prom
 
 export async function updateCampaignStatus(id: string, status: CampaignStatus): Promise<Campaign> {
   const isActive = status === "ACTIVE";
-  const res = await apiClient<any>(`/campaigns/${id}`, {
+  const res = await apiClient(`/campaigns/${id}`, {
     method: "PUT",
     data: { isActive },
   });
@@ -217,13 +217,13 @@ export async function restartCampaign(id: string): Promise<Campaign> {
 }
 
 export async function deleteCampaign(id: string): Promise<boolean> {
-  const res = await apiClient<any>(`/campaigns/${id}`, { method: "DELETE" });
+  const res = await apiClient(`/campaigns/${id}`, { method: "DELETE" });
   return res?.success === true;
 }
 
 export async function getCampaignById(id: string): Promise<Campaign | null> {
   try {
-    const res = await apiClient<any>(`/campaigns/${id}`);
+    const res = await apiClient(`/campaigns/${id}`);
     if (res?.success && res.data) {
       return mapCampaign(res.data as CampaignApiItem);
     }

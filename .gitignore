@@ -24,9 +24,6 @@ appsettings.Production.json
 # ASP.NET local data protection keys
 .keys/
 
-# Uploaded runtime media
-AISAM-BE/AISAM.API/wwwroot/uploads/
-
 # Node / frontend build outputs
 node_modules/
 AISAM-FE/node_modules/

@@ -21,5 +21,4 @@ public interface INotificationService
         => MarkAllReadAsync(workspaceId, cancellationToken);
     Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         => GetUnreadCountAsync(workspaceId, cancellationToken);
-    Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default);
 }

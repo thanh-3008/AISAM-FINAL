@@ -8,7 +8,6 @@ import { fetchContents, createContent, updateContent, deleteContent, type Conten
 import { fetchBrands } from "@/services/brandService";
 import { apiFetch } from "@/lib/apiClient";
 import PostNowModal from "@/components/content/PostNowModal";
-import BulkScheduleModal from "@/components/content/BulkScheduleModal";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -66,7 +65,6 @@ export default function ContentPage() {
   const [deletingItem, setDeletingItem] = useState<ContentItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
-  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
   const [scheduledCount, setScheduledCount] = useState(0);
@@ -97,7 +95,7 @@ export default function ContentPage() {
     setLoading(true);
     const [result, dashRes] = await Promise.all([
       fetchContents({ pageSize: 100 }),
-      apiFetch<any>("/dashboard/summary").catch(() => null),
+      apiFetch("/dashboard/summary").catch(() => null),
     ]);
     if (result) {
       setAllContent(result.items);
@@ -198,20 +196,11 @@ export default function ContentPage() {
     if (!batchStatus) return;
     const ids = Array.from(selectedIds);
     const statusMap: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
-    const results = await Promise.all(ids.map(id =>
-      updateContent(id, { status: statusMap[batchStatus] as any })
-        .then(r => ({ id, ok: r }))
-        .catch(() => ({ id, ok: false }))
-    ));
-    const failed = results.filter(r => !r.ok).length;
+    await Promise.all(ids.map(id => updateContent(id, { status: statusMap[batchStatus] as any })));
     setSelectedIds(new Set());
     setBatchStatus("");
     loadContent();
-    if (failed === 0) {
-      addToast(`Updated ${ids.length} items to ${batchStatus}`, "check_circle");
-    } else {
-      addToast(`${ids.length - failed}/${ids.length} updated to ${batchStatus}`, failed > 0 ? "warning" : "check_circle");
-    }
+    addToast(`Updated ${ids.length} items to ${batchStatus}`, "check_circle");
   };
 
   // Create action
@@ -477,24 +466,6 @@ export default function ContentPage() {
               className="text-label-sm text-outline/50 hover:text-on-surface underline underline-offset-2 decoration-dotted transition-colors">
               Deselect
             </button>
-            {(() => {
-              const selectedItems = Array.from(selectedIds).map(id => allContent.find(c => c.id === id)).filter(Boolean);
-              const allApproved = selectedItems.every(c => c!.status === "Approved");
-              const sameBrand = new Set(selectedItems.map(c => c!.brandId)).size === 1;
-              const canSchedule = allApproved && sameBrand;
-              return (
-                <button onClick={() => canSchedule && setShowBulkSchedule(true)}
-                  className={`px-3 py-1.5 rounded-xl text-label-sm font-semibold transition-all flex items-center gap-1.5 ${
-                    canSchedule
-                      ? "bg-primary text-on-primary hover:shadow-lg active:scale-[0.97]"
-                      : "bg-outline/10 text-outline cursor-not-allowed"
-                  }`}
-                  title={!allApproved ? "Only Approved content can be scheduled" : !sameBrand ? "All items must belong to the same brand" : ""}>
-                  <span className="material-symbols-outlined text-[14px]">calendar_month</span>
-                  Schedule
-                </button>
-              );
-            })()}
             <button onClick={handleBatchDelete}
               className="px-3 py-1.5 rounded-xl border border-danger-red/20 text-danger-red text-label-sm font-semibold hover:bg-danger-red/5 active:scale-[0.97] transition-all flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[14px]">delete</span>
@@ -878,23 +849,6 @@ export default function ContentPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ─── Bulk Schedule Modal ─── */}
-      {showBulkSchedule && (
-        <BulkScheduleModal
-          items={Array.from(selectedIds).map(id => {
-            const item = allContent.find(c => c.id === id);
-            return { id, contentId: id, title: item?.title, brandId: item?.brandId, brandName: item?.brandName };
-          })}
-          onClose={() => setShowBulkSchedule(false)}
-          onSuccess={(msg) => {
-            setShowBulkSchedule(false);
-            setSelectedIds(new Set());
-            addToast(msg, "calendar_month");
-            loadContent();
-          }}
-        />
       )}
 
       {/* ─── Post Now Modal ─── */}
