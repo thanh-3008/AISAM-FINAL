@@ -9,6 +9,7 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 
 namespace AISAM.API.Controllers;
 
@@ -19,11 +20,27 @@ public sealed class ContentController : ControllerBase
 {
     private readonly IContentService _contentService;
     private readonly IProfileRepository _profileRepository;
+    private readonly IMediaStorageService _mediaStorageService;
+    private static readonly HashSet<string> AllowedMediaContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "video/mp4",
+        "video/webm",
+        "video/quicktime"
+    };
+    private const long MaxMediaBytes = 50 * 1024 * 1024;
 
-    public ContentController(IContentService contentService, IProfileRepository profileRepository)
+    public ContentController(
+        IContentService contentService, 
+        IProfileRepository profileRepository,
+        IMediaStorageService? mediaStorageService = null)
     {
         _contentService = contentService;
         _profileRepository = profileRepository;
+        _mediaStorageService = mediaStorageService ?? new UnconfiguredMediaStorageService();
     }
 
     [HttpPost]
@@ -33,6 +50,57 @@ public sealed class ContentController : ControllerBase
     {
         var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("media")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<GenericResponse<ContentMediaUploadResponse>>> UploadMedia(
+        [FromForm] ContentMediaUploadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var file = request.File;
+        if (file == null || file.Length <= 0)
+        {
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file is required."));
+        }
+
+        if (file.Length > MaxMediaBytes)
+        {
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file must be 50MB or smaller."));
+        }
+
+        if (!AllowedMediaContentTypes.Contains(file.ContentType))
+        {
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file must be JPEG, PNG, WebP, GIF, MP4, WebM, or MOV."));
+        }
+
+        var workspaceId = GetWorkspaceId();
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var safeExtension = string.IsNullOrWhiteSpace(extension)
+            ? (file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ? ".mp4" : ".jpg")
+            : extension;
+        var fileName = $"{Guid.NewGuid():N}{safeExtension}";
+
+        string url;
+        try
+        {
+            url = await _mediaStorageService.UploadAsync(file, $"content/{workspaceId:N}", fileName, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode((int)HttpStatusCode.ServiceUnavailable,
+                GenericResponse<ContentMediaUploadResponse>.CreateError(ex.Message, HttpStatusCode.ServiceUnavailable));
+        }
+
+        var response = new ContentMediaUploadResponse
+        {
+            Url = url,
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            Size = file.Length
+        };
+
+        return Ok(GenericResponse<ContentMediaUploadResponse>.CreateSuccess(response, "Media uploaded successfully."));
     }
 
     [HttpGet]
@@ -127,4 +195,10 @@ public sealed class ContentController : ControllerBase
     }
 
     private Guid GetWorkspaceId() => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+
+    private sealed class UnconfiguredMediaStorageService : IMediaStorageService
+    {
+        public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Supabase storage is not configured.");
+    }
 }

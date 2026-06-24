@@ -58,6 +58,23 @@ public sealed class CreditUsageController : ControllerBase
         return Ok(GenericResponse<PagedResult<CreditUsageRecordDto>>.CreateSuccess(mapped));
     }
 
+    [HttpGet("daily-summary")]
+    public async Task<ActionResult<GenericResponse<object>>> GetDailySummary(
+        [FromQuery] int days = 7,
+        CancellationToken cancellationToken = default)
+    {
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var summary = await _creditUsageRepository.GetDailySummaryAsync(workspaceId, days, cancellationToken);
+        
+        var result = summary.Select(kvp => new 
+        {
+            date = kvp.Key.ToString("yyyy-MM-dd"),
+            totalCredits = kvp.Value
+        }).OrderBy(x => x.date).ToList();
+
+        return Ok(GenericResponse<object>.CreateSuccess(result));
+    }
+
     private static CreditUsageRecordDto MapRecord(Data.Model.CreditUsageRecord record)
     {
         return new CreditUsageRecordDto

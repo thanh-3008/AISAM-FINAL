@@ -53,4 +53,29 @@ public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
             PageSize = request.PageSize
         };
     }
+
+    public async Task<Dictionary<DateTime, long>> GetDailySummaryAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+    {
+        var startDate = DateTime.UtcNow.Date.AddDays(-days + 1);
+
+        var records = await _context.CreditUsageRecords
+            .Where(r => r.WorkspaceId == workspaceId && r.CreatedAt >= startDate && r.Credits < 0) // only negative credits (usage)
+            .Select(r => new { r.CreatedAt, r.Credits })
+            .ToListAsync(cancellationToken);
+
+        // Group in memory to avoid EF Core translation issues with Date property across different DB providers
+        var summary = records
+            .GroupBy(r => r.CreatedAt.Date)
+            .ToDictionary(g => g.Key, g => Math.Abs(g.Sum(r => r.Credits)));
+
+        // Fill in missing dates with 0
+        var result = new Dictionary<DateTime, long>();
+        for (int i = 0; i < days; i++)
+        {
+            var date = startDate.AddDays(i);
+            result[date] = summary.TryGetValue(date, out var credits) ? credits : 0;
+        }
+
+        return result;
+    }
 }

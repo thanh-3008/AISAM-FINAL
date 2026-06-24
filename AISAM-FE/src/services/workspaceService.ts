@@ -28,6 +28,9 @@ export interface WorkspaceDashboard {
   creditsRemaining: number;
   postsRemaining: number;
   totalAiUsage: number;
+  publishedPostCount?: number;
+  aiUsageCount?: number;
+  postQuotaLimit: number;
   topMembers: { userId: string; name: string; usage: number }[];
 }
 
@@ -40,12 +43,7 @@ export async function fetchWorkspaces(): Promise<{ id: string; name: string; wor
   }
 }
 
-export async function fetchWorkspaceDashboard(): Promise<{
-  creditsRemaining: number;
-  postsRemaining: number;
-  totalAiUsage: number;
-  topMembers: { userId: string; name: string; usage: number }[];
-} | null> {
+export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | null> {
   try {
     const res = await apiClient("/workspace-dashboard/summary");
     if (res?.data) {
@@ -53,17 +51,22 @@ export async function fetchWorkspaceDashboard(): Promise<{
         creditBalance?: number;
         postsRemaining?: number;
         aiUsageCount?: number;
+        publishedPostCount?: number;
+        postQuotaLimit?: number;
         topMembers?: { userId: string; name: string; creditsUsed: number }[];
       };
       return {
         creditsRemaining: d.creditBalance ?? 0,
         postsRemaining: d.postsRemaining ?? 0,
         totalAiUsage: d.aiUsageCount ?? 0,
-        topMembers: (d.topMembers ?? []).map(m => ({
+        aiUsageCount: d.aiUsageCount ?? 0,
+        publishedPostCount: d.publishedPostCount ?? 0,
+        postQuotaLimit: d.postQuotaLimit ?? 1000,
+        topMembers: d.topMembers?.map(m => ({
           userId: m.userId,
           name: m.name,
-          usage: m.creditsUsed,
-        })),
+          usage: m.creditsUsed
+        })) ?? []
       };
     }
     return null;
