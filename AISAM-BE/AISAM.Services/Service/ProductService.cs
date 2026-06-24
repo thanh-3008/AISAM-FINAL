@@ -13,11 +13,13 @@ namespace AISAM.Services.Service
     {
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
+        private readonly IMediaStorageService _mediaStorageService;
 
-        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository)
+        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository, IMediaStorageService mediaStorageService)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
+            _mediaStorageService = mediaStorageService;
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -73,9 +75,17 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
             }
 
+            var imageUrls = new List<string>();
+
             if (request.ImageFiles != null && request.ImageFiles.Any())
             {
-                return GenericResponse<ProductResponseDto>.CreateError("Product image upload is not enabled in the current MVP backend.");
+                foreach (var file in request.ImageFiles)
+                {
+                    var safeExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                    var fileName = $"{Guid.NewGuid():N}{safeExtension}";
+                    var url = await _mediaStorageService.UploadAsync(file, $"products/{workspaceId:N}", fileName, cancellationToken);
+                    imageUrls.Add(url);
+                }
             }
 
             var product = new Product
@@ -85,7 +95,7 @@ namespace AISAM.Services.Service
                 Description = request.Description,
                 Price = request.Price,
                 Stock = request.Stock,
-                Images = JsonSerializer.Serialize(new List<string>())
+                Images = JsonSerializer.Serialize(imageUrls)
             };
 
             var created = await _productRepository.AddAsync(product, cancellationToken);
@@ -140,7 +150,23 @@ namespace AISAM.Services.Service
 
             if (request.ImageFiles != null && request.ImageFiles.Any())
             {
-                return GenericResponse<ProductResponseDto>.CreateError("Product image upload is not enabled in the current MVP backend.");
+                var imageUrls = new List<string>();
+                foreach (var file in request.ImageFiles)
+                {
+                    var safeExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                    var fileName = $"{Guid.NewGuid():N}{safeExtension}";
+                    var url = await _mediaStorageService.UploadAsync(file, $"products/{workspaceId:N}", fileName, cancellationToken);
+                    imageUrls.Add(url);
+                }
+
+                // Append new images or replace? We'll replace for simplicity, or append if we parse existing.
+                // For MVP let's replace existing or append. Let's append to existing if any.
+                var existingImages = string.IsNullOrEmpty(product.Images) 
+                    ? new List<string>() 
+                    : JsonSerializer.Deserialize<List<string>>(product.Images) ?? new List<string>();
+                
+                existingImages.AddRange(imageUrls);
+                product.Images = JsonSerializer.Serialize(existingImages);
             }
 
             await _productRepository.UpdateAsync(product, cancellationToken);

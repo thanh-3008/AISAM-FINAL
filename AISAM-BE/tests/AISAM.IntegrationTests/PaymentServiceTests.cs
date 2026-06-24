@@ -658,6 +658,7 @@ public class PaymentServiceTests
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
+            null!, // ICreditWalletRepository
             creditService ?? new FakeCreditService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
