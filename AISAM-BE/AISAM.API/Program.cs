@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using AISAM.API.Filters;
 using AISAM.API.Infrastructure;
 using AISAM.API.Middleware;
@@ -112,6 +113,17 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddFixedWindowLimiter("AuthPolicy", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+});
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();
@@ -249,6 +261,8 @@ app.UseSwaggerUI();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseMiddleware<ActiveWorkspaceMiddleware>();
@@ -256,24 +270,27 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
-    var freeSubscriptions = dbContext.Subscriptions.Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free).ToList();
-    foreach (var sub in freeSubscriptions)
+    using (var scope = app.Services.CreateScope())
     {
-        sub.Plan = AISAM.Data.Enumeration.SubscriptionPlanEnum.Premium;
-        sub.QuotaPostsPerMonth = 20000;
-        sub.QuotaAIContentPerDay = 1000;
-        sub.QuotaAIImagesPerDay = 100;
-        sub.QuotaPlatforms = 10;
-        sub.QuotaAccounts = 10;
-        sub.AnalysisLevel = 2;
-        sub.QuotaAdBudgetMonthly = 10000000;
-        sub.QuotaAdCampaigns = 100;
-        sub.EndDate = DateTime.UtcNow.AddYears(1);
+        var dbContext = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
+        var freeSubscriptions = dbContext.Subscriptions.Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free).ToList();
+        foreach (var sub in freeSubscriptions)
+        {
+            sub.Plan = AISAM.Data.Enumeration.SubscriptionPlanEnum.Premium;
+            sub.QuotaPostsPerMonth = 20000;
+            sub.QuotaAIContentPerDay = 1000;
+            sub.QuotaAIImagesPerDay = 100;
+            sub.QuotaPlatforms = 10;
+            sub.QuotaAccounts = 10;
+            sub.AnalysisLevel = 2;
+            sub.QuotaAdBudgetMonthly = 10000000;
+            sub.QuotaAdCampaigns = 100;
+            sub.EndDate = DateTime.UtcNow.AddYears(1);
+        }
+        dbContext.SaveChanges();
     }
-    dbContext.SaveChanges();
 }
 
 app.Run();

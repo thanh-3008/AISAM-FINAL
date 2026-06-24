@@ -63,7 +63,7 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(s => s.WorkspaceId == workspaceId && !s.IsDeleted && (s.Content.Status == AISAM.Data.Enumeration.ContentStatusEnum.Approved || s.Content.Status == AISAM.Data.Enumeration.ContentStatusEnum.Published)).OrderBy(s => s.ScheduledAt ?? s.ScheduledDate);
+        var query = Query().Where(s => s.WorkspaceId == workspaceId && !s.IsDeleted && (s.Status == ScheduleStatusEnum.Failed || s.Content.Status == ContentStatusEnum.Approved || s.Content.Status == ContentStatusEnum.Published)).OrderBy(s => s.ScheduledAt ?? s.ScheduledDate);
         var totalCount = await query.CountAsync(cancellationToken);
         var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return new PagedResult<ContentCalendar> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };

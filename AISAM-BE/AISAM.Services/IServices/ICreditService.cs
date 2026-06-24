@@ -1,6 +1,10 @@
 using AISAM.Common;
+using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
+using AISAM.Repositories.IRepositories;
 
 namespace AISAM.Services.IServices;
 
@@ -43,4 +47,10 @@ public interface ICreditService
         CreditUsageStatusEnum status,
         Guid? aiGenerationId = null,
         CancellationToken cancellationToken = default);
+
+    Task<CreditWallet?> GetWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default);
+
+    Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default);
 }

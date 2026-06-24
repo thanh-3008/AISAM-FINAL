@@ -7,7 +7,6 @@ using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using System.Security.Claims;
 
 namespace AISAM.API.Controllers
 {
@@ -37,7 +36,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.GetPagedByWorkspaceIdAsync(workspaceId, userId, new PaginationRequest
                 {
@@ -66,7 +65,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.GetByIdAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
@@ -87,7 +86,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.CreateAsync(workspaceId, userId, request, cancellationToken);
 
@@ -114,7 +113,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.UpdateAsync(id, workspaceId, userId, request, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
@@ -135,7 +134,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.SoftDeleteAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
@@ -156,7 +155,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.RestoreAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
@@ -172,15 +171,6 @@ namespace AISAM.API.Controllers
             }
         }
 
-        private Guid GetUserIdOrThrow()
-        {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdValue, out var userId))
-            {
-                throw new UnauthorizedAccessException("Invalid token");
-            }
 
-            return userId;
-        }
     }
 }

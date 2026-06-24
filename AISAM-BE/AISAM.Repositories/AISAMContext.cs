@@ -411,7 +411,7 @@ namespace AISAM.Repositories
                 entity.HasKey(ads => ads.Id);
                 entity.HasIndex(ads => ads.CampaignId);
                 entity.HasOne(ads => ads.Campaign)
-                      .WithMany()
+                      .WithMany(ac => ac.AdSets)
                       .HasForeignKey(ads => ads.CampaignId)
                       .OnDelete(DeleteBehavior.Cascade);
             });

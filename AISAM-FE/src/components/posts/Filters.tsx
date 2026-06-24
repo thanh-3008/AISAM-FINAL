@@ -21,7 +21,11 @@ export default function Filters({
   onFilterChange,
   onClearFilters
 }: FiltersProps) {
-  const brands = useMemo(() => [...new Set(posts.map((p) => p.brandName).filter(Boolean))] as string[], [posts]);
+  const brands = useMemo(() => {
+    const map = new Map<string, string>();
+    posts.forEach((p) => { if (p.brandId && p.brandName) map.set(p.brandId, p.brandName); });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [posts]);
 
   const hasActiveFilters = filters.search || filters.brand || filters.status;
 
@@ -56,8 +60,8 @@ export default function Filters({
       >
         <option value="">All Brands</option>
         {brands.map((brand) => (
-          <option key={brand} value={brand}>
-            {brand}
+          <option key={brand.id} value={brand.id}>
+            {brand.name}
           </option>
         ))}
       </select>

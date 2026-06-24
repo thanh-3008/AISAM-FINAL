@@ -68,8 +68,10 @@ export default function PostsPage() {
           setTotalCount(res.totalCount);
           setTotalPages(res.totalPages);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          console.error("Failed to fetch posts:", err);
+          addToast(err instanceof Error ? err.message : "Failed to load posts", "error");
           setPosts([]);
           setTotalCount(0);
           setTotalPages(0);

@@ -60,8 +60,12 @@ export default function CampaignsPage() {
       try {
         const res = await fetchCampaigns();
         if (!cancelled) setCampaigns(res.data);
-      } catch {
-        if (!cancelled) setCampaigns([]);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load campaigns:", err);
+          addToast("Failed to load campaigns", "error");
+          setCampaigns([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

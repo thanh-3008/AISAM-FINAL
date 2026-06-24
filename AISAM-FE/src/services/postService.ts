@@ -10,6 +10,7 @@ export interface PostItem {
   publishedAt: string;
   status: PostStatus;
   contentTitle: string | null;
+  brandId: string | null;
   brandName: string | null;
   platform: string | null;
   type: string | null;

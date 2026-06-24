@@ -93,6 +93,7 @@ public sealed class PostService : IPostService
             PublishedAt = post.PublishedAt,
             Status = post.Status.ToString(),
             ContentTitle = post.Content.Title,
+            BrandId = post.Content.Brand?.Id,
             BrandName = post.Content.Brand?.Name,
             Platform = MapPlatform(post.Integration?.Platform),
             Type = MapAdType(post.Content.AdType),

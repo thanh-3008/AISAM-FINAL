@@ -52,8 +52,12 @@ export default function SocialAccountsPage() {
       try {
         const res = await fetchSocialAccounts();
         if (!cancelled) setAccounts(res.data);
-      } catch {
-        if (!cancelled) setAccounts([]);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load social accounts:", err);
+          showToast("Failed to load social accounts", "error");
+          setAccounts([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,8 +180,8 @@ export default function SocialAccountsPage() {
     try {
       const res = await fetchSocialAccounts();
       setAccounts(res.data);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("Failed to refresh social accounts:", err);
     }
     showToast("Targets linked successfully");
   };

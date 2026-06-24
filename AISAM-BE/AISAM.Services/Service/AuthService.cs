@@ -175,24 +175,26 @@ namespace AISAM.Services.Service
 
         public async Task<TokenResponse> RefreshTokenAsync(string refreshToken, string? userAgent, string? ipAddress)
         {
-            // Get session by refresh token
-            var session = await _sessionRepository.GetByRefreshTokenAsync(refreshToken);
-            if (session == null || !session.IsActive || session.ExpiresAt <= DateTime.UtcNow)
+            var session = await _sessionRepository.FindByRefreshTokenAsync(refreshToken);
+            if (session == null || session.ExpiresAt <= DateTime.UtcNow)
             {
                 throw new UnauthorizedAccessException("Invalid or expired refresh token");
             }
 
-            // Get user
+            if (!session.IsActive)
+            {
+                await _sessionRepository.RevokeAllUserSessionsAsync(session.UserId);
+                throw new UnauthorizedAccessException("Refresh token reuse detected. All sessions have been revoked.");
+            }
+
             var user = await _userRepository.GetByIdAsync(session.UserId);
             if (user == null)
             {
                 throw new UnauthorizedAccessException("User not found");
             }
 
-            // Revoke old session
             await _sessionRepository.RevokeSessionAsync(session.Id);
 
-            // Generate new tokens
             return await GenerateTokensAsync(user, userAgent, ipAddress);
         }
 

@@ -36,8 +36,11 @@ export default function AnalyticsPage() {
       try {
         const res = await fetchAnalytics();
         if (!cancelled) setData(res);
-      } catch {
-        if (!cancelled) setData(null);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load analytics:", err);
+          setData(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

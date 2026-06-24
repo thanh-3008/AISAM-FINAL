@@ -6,6 +6,7 @@ namespace AISAM.Repositories.IRepositories
     {
         Task<Session?> GetByIdAsync(Guid id);
         Task<Session?> GetByRefreshTokenAsync(string refreshToken);
+        Task<Session?> FindByRefreshTokenAsync(string refreshToken);
         Task<List<Session>> GetActiveSessionsByUserIdAsync(Guid userId);
         Task<Session> CreateAsync(Session session);
         Task UpdateAsync(Session session);

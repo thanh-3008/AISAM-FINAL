@@ -1,3 +1,5 @@
+import { API_URL } from "./apiClient";
+
 export const setToken = (token: string) => {
   if (typeof window !== "undefined") {
     localStorage.setItem("aisam_token", token);
@@ -68,8 +70,6 @@ export const removeStoredUser = () => {
     localStorage.removeItem(USER_KEY);
   }
 };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
 
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
