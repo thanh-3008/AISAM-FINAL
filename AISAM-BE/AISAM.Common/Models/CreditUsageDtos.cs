@@ -11,3 +11,9 @@ public sealed class CreditUsageRecordDto
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }
+
+public sealed class DailyCreditUsageDto
+{
+    public DateTime Date { get; set; }
+    public long TotalCredits { get; set; }
+}

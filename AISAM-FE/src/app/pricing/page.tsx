@@ -16,6 +16,7 @@ import { getCurrentSubscription } from "@/services/profileSettingsService";
 
 type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
+const CREATED_WORKSPACE_PAYMENT_KEY = "aisam-created-workspace-payment";
 
 function PricingContent() {
   const router = useRouter();
@@ -79,12 +80,17 @@ function PricingContent() {
 
         if (subscription?.planName) {
           updateWorkspacePlan(activeWorkspace.id, subscription.planName);
+          const createdWorkspaceId = window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY);
+          const returnToOverview = createdWorkspaceId === activeWorkspace.id;
+          if (returnToOverview) {
+            window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
+          }
           showToast({
             type: "success",
             title: "Payment successful",
             message: `${subscription.planName} is now active for this workspace.`,
           });
-          router.replace("/dashboard");
+          router.replace(returnToOverview ? "/overview" : "/dashboard");
           return;
         }
 
@@ -155,6 +161,7 @@ function PricingContent() {
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
+      window.sessionStorage.setItem(CREATED_WORKSPACE_PAYMENT_KEY, wsData.id);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create business workspace.";
@@ -346,7 +353,7 @@ function PricingContent() {
               <span className="text-label-xs text-outline/50">·</span>
               <button
                 onClick={() => {
-                  router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/profiles");
+                  router.push(activeWorkspace ? `/profiles/${activeWorkspace.id}?section=subscription` : "/overview");
                 }}
                 className="text-label-sm font-semibold text-primary hover:underline"
               >

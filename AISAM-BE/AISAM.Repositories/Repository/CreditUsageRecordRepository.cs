@@ -1,5 +1,4 @@
 using AISAM.Common.Dtos;
-using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -55,36 +54,39 @@ public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
         };
     }
 
-    public async Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AISAM.Common.Models.DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
     {
-        var fromDate = DateTime.UtcNow.Date.AddDays(-days);
-
-        var raw = await _context.CreditUsageRecords
-            .Where(record =>
-                record.WorkspaceId == workspaceId &&
-                record.Status == CreditUsageStatusEnum.Success &&
-                record.Action != CreditActionEnum.SubscriptionGrant &&
-                record.Action != CreditActionEnum.CreditPackGrant &&
-                record.CreatedAt >= fromDate)
-            .GroupBy(record => record.CreatedAt.Date)
-            .Select(group => new
+        var summary = await GetDailySummaryAsync(workspaceId, days, cancellationToken);
+        return summary
+            .Select(kvp => new AISAM.Common.Models.DailyCreditUsageDto
             {
-                Date = group.Key,
-                TotalCredits = group.Sum(record => record.Credits)
+                Date = kvp.Key,
+                TotalCredits = kvp.Value
             })
+            .OrderBy(x => x.Date)
+            .ToList();
+    }
+
+    public async Task<Dictionary<DateTime, long>> GetDailySummaryAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+    {
+        var startDate = DateTime.UtcNow.Date.AddDays(-days + 1);
+
+        var records = await _context.CreditUsageRecords
+            .Where(r => r.WorkspaceId == workspaceId && r.CreatedAt >= startDate && r.Credits < 0) // only negative credits (usage)
+            .Select(r => new { r.CreatedAt, r.Credits })
             .ToListAsync(cancellationToken);
 
-        var lookup = raw.ToDictionary(r => DateOnly.FromDateTime(r.Date), r => r.TotalCredits);
+        // Group in memory to avoid EF Core translation issues with Date property across different DB providers
+        var summary = records
+            .GroupBy(r => r.CreatedAt.Date)
+            .ToDictionary(g => g.Key, g => Math.Abs(g.Sum(r => r.Credits)));
 
-        var result = new List<DailyCreditUsageDto>();
-        for (var i = days; i >= 0; i--)
+        // Fill in missing dates with 0
+        var result = new Dictionary<DateTime, long>();
+        for (int i = 0; i < days; i++)
         {
-            var date = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-i));
-            result.Add(new DailyCreditUsageDto
-            {
-                Date = date,
-                TotalCredits = lookup.GetValueOrDefault(date, 0)
-            });
+            var date = startDate.AddDays(i);
+            result[date] = summary.TryGetValue(date, out var credits) ? credits : 0;
         }
 
         return result;

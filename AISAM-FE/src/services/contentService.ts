@@ -134,7 +134,20 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   4: "Published",
 };
 
-function apiItemToContentItem(api: ContentApiItem): ContentItem {
+const parseApiUrl = (url?: string | null): string => {
+  if (!url) return "";
+  if (url.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(url);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+    } catch {
+      return url;
+    }
+  }
+  return url;
+};
+
+export function apiItemToContentItem(api: ContentApiItem): ContentItem {
   return {
     id: api.id,
     title: api.title || "",
@@ -143,7 +156,7 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: api.imageUrl || api.videoUrl || "",
+    thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
     tags: api.tags ? JSON.parse(api.tags) : [],
@@ -152,7 +165,7 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
   };
 }
 
-function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
+export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
   return {
     id: api.id,
     title: api.title || "",
@@ -161,13 +174,13 @@ function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: api.imageUrl || api.videoUrl || "",
+    thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,
     textContent: api.textContent,
-    imageUrl: api.imageUrl || undefined,
-    videoUrl: api.videoUrl || undefined,
+    imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    videoUrl: parseApiUrl(api.videoUrl) || undefined,
     tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
   };
@@ -259,8 +272,7 @@ export async function deleteContent(id: string): Promise<boolean> {
 export async function publishContent(contentId: string, integrationId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<null> = await apiClient(`/content/${contentId}/publish/${integrationId}`, { method: "POST" });
-    if (res?.success) return { success: true };
-    return { success: false, error: res?.error?.errorMessage || res?.message || "Failed to publish. Please try again." };
+    return { success: res?.success === true };
   } catch (e: any) {
     return { success: false, error: e?.message || "Failed to publish. Please try again." };
   }

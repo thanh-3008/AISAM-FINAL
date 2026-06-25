@@ -7,7 +7,6 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { apiClient, apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { useToast } from "@/contexts/ToastContext";
 import { PlatformIcon } from "@/lib/contentConstants";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
@@ -54,7 +53,6 @@ export default function BrandDetailPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
-  const { addToast } = useToast();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,7 +135,6 @@ export default function BrandDetailPage() {
       const result = await apiClient(`/brands/${id}`, { method: "PUT", data: body });
       if (result?.success && result.data) {
         setBrand(result.data);
-        addToast("Brand updated successfully", "check");
       } else {
         setError(result?.message || "Failed to save brand");
         return;
@@ -156,7 +153,6 @@ export default function BrandDetailPage() {
     try {
       const result = await apiFetch(`/brands/${id}`, { method: "DELETE" });
       if (result?.success) {
-        addToast("Brand deleted successfully", "check");
         router.push("/brands");
       } else {
         setError(result?.message || "Failed to delete brand");
@@ -168,12 +164,10 @@ export default function BrandDetailPage() {
 
   const handleAddProduct = (product: Product) => {
     setProducts((prev) => [product, ...prev]);
-    addToast("Product created successfully", "check");
   };
 
   const handleEditProduct = (updated: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    addToast("Product updated successfully", "check");
   };
 
   const handleDeleteProduct = async () => {
@@ -181,18 +175,11 @@ export default function BrandDetailPage() {
     const target = deletingProduct;
     setDeletingProduct(null);
     try {
-      const result = await apiFetch(`/products/${target.id}`, { method: "DELETE" });
-      if (result?.success) {
-        setProducts((prev) => prev.filter((p) => p.id !== target.id));
-        addToast("Product deleted successfully", "check");
-      } else {
-        addToast(result?.message || "Failed to delete product", "error");
-        setDeletingProduct(target);
-      }
+      await apiFetch(`/products/${target.id}`, { method: "DELETE" });
     } catch {
-      addToast("Failed to delete product", "error");
-      setDeletingProduct(target);
+      // ignore
     }
+    setProducts((prev) => prev.filter((p) => p.id !== target.id));
   };
 
   if (loading) {
@@ -405,6 +392,17 @@ export default function BrandDetailPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredProducts.map((product, i) => {
                       const inStock = (product.stock ?? 0) > 0;
+                      let firstImage = null;
+                      if (Array.isArray(product.images) && product.images.length > 0) firstImage = product.images[0];
+                      else if (typeof product.images === "string") {
+                        try {
+                          const parsed = JSON.parse(product.images);
+                          if (Array.isArray(parsed) && parsed.length > 0) firstImage = parsed[0];
+                        } catch {
+                          if ((product.images as string).startsWith("http")) firstImage = product.images;
+                        }
+                      }
+
                       return (
                         <motion.div key={product.id}
                           initial={{ opacity: 0, y: 16 }}
@@ -414,7 +412,11 @@ export default function BrandDetailPage() {
                           whileHover={{ y: -3, boxShadow: "0 10px 25px -12px rgba(0,0,0,0.15)" }}
                           className="group border border-outline-variant/20 bg-surface-container-lowest rounded-2xl overflow-hidden hover:border-primary/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col">
                           <div className="aspect-video relative overflow-hidden bg-surface-container-low">
-                            <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            {firstImage ? (
+                              <img src={firstImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            )}
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
@@ -648,7 +650,23 @@ export default function BrandDetailPage() {
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
               <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
-                <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                {(() => {
+                  let vImage = null;
+                  if (Array.isArray(viewingProduct.images) && viewingProduct.images.length > 0) vImage = viewingProduct.images[0];
+                  else if (typeof viewingProduct.images === "string") {
+                    try {
+                      const parsed = JSON.parse(viewingProduct.images);
+                      if (Array.isArray(parsed) && parsed.length > 0) vImage = parsed[0];
+                    } catch {
+                      if ((viewingProduct.images as string).startsWith("http")) vImage = viewingProduct.images;
+                    }
+                  }
+                  return vImage ? (
+                    <img src={vImage} alt={viewingProduct.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                  );
+                })()}
               </div>
               <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">

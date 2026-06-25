@@ -106,6 +106,7 @@ export function addWorkspaceToCache(workspace: WorkspaceData) {
   } else {
     cachedWorkspaces = [workspace];
   }
+  notifyCache();
 }
 
 export function useWorkspaces() {
@@ -202,6 +203,20 @@ export function useWorkspaces() {
 
     cachedWorkspaces = mapped;
     setWorkspaces(mapped);
+
+    const stored = getStoredActiveWorkspace();
+    if (stored) {
+      const match = mapped.find((w) => w.id === stored.id);
+      if (match && match.workspaceType !== stored.workspaceType) {
+        storeActiveWorkspace({
+          id: match.id,
+          name: match.name,
+          workspaceType: match.workspaceType,
+        });
+        // notifyWorkspaceSelected is not needed since the state update will trigger re-render anyway
+      }
+    }
+
     setLoading(false);
   }, []);
 

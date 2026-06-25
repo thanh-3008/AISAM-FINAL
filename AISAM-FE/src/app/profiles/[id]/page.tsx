@@ -1004,7 +1004,7 @@ export default function ProfileDetailPage() {
                               </span>
                             </div>
                             <div className="space-y-3">
-                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.aiUsageCount.toLocaleString() || 0}</span>
+                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.totalAiUsage.toLocaleString() || 0}</span>
                               <p className="text-label-xs text-outline flex items-center gap-1">
                                 <span className="material-symbols-outlined text-[14px] text-purple-500">insights</span>
                                 Total generations

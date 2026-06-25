@@ -47,7 +47,6 @@ public sealed class CreditUsageController : ControllerBase
         var result = await _creditService.GetDailyUsageAsync(workspaceId, days, cancellationToken);
         return Ok(GenericResponse<IReadOnlyList<DailyCreditUsageDto>>.CreateSuccess(result));
     }
-
     [HttpGet]
     public async Task<ActionResult<GenericResponse<PagedResult<CreditUsageRecordDto>>>> GetPaged(
         [FromQuery] int page = 1,
@@ -61,4 +60,5 @@ public sealed class CreditUsageController : ControllerBase
 
         return Ok(GenericResponse<PagedResult<CreditUsageRecordDto>>.CreateSuccess(result));
     }
+
 }

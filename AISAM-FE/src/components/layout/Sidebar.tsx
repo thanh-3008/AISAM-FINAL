@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
-import { getUserFromToken, logout } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
-import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 type NavItemConfig = {
   label: string;
@@ -93,11 +92,8 @@ function NavItem({ href, icon, label, active, disabled }: NavItemConfig & { acti
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();
-  const [user, setUser] = useState<{ name?: string; email?: string } | null>(() => getUserFromToken());
   const [hoveredWorkspace, setHoveredWorkspace] = useState<string | null>(null);
   const { open, toggle } = useSidebar();
   const featureGate = useFeatureGate();
@@ -226,12 +222,13 @@ export default function Sidebar() {
               {workspaces.length === 0 ? (
                 <div className="px-4 py-3 text-center">
                   <p className="text-label-sm text-on-surface-variant mb-2">No workspaces yet</p>
-                  <button
-                    onClick={() => { setWorkspaceOpen(false); setShowCreateModal(true); }}
+                  <Link
+                    href="/overview"
+                    onClick={() => setWorkspaceOpen(false)}
                     className="text-label-sm text-primary font-semibold hover:text-primary/80"
                   >
-                    Create workspace
-                  </button>
+                    Manage workspaces
+                  </Link>
                 </div>
               ) : (
                 <>
@@ -280,12 +277,21 @@ export default function Sidebar() {
                   })}
                 </>
               )}
+              <div className="border-t border-outline-variant/20 mt-1 pt-1">
+                <Link
+                  href="/overview"
+                  onClick={() => setWorkspaceOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-body-sm font-semibold text-primary hover:bg-primary/5 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">grid_view</span>
+                  <span className="flex-1">View all workspaces</span>
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </Link>
+              </div>
             </div>
           </>
         )}
       </div>
-
-      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </aside>
   );
 }

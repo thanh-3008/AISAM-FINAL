@@ -56,13 +56,14 @@ export default function OverviewPage() {
     if (!userId) return;
 
     try {
+      // 1. Tạo Workspace thật trong DB
       const wsResult = await apiClient("/workspaces", {
         method: "POST",
         data: { name, workspaceType },
       });
 
       if (!wsResult?.success || !wsResult.data) {
-        setCreateError(wsResult?.message || "Failed to create workspace.");
+        setCreateError(wsResult?.message || "Tạo workspace thất bại.");
         return;
       }
 
@@ -83,7 +84,7 @@ export default function OverviewPage() {
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);
     } catch (e: any) {
-      setCreateError(e?.message || "Connection error while creating workspace.");
+      setCreateError(e?.message || "Lỗi kết nối khi tạo workspace.");
       return;
     } finally {
       setCreating(false);
@@ -202,19 +203,30 @@ export default function OverviewPage() {
               : "Create your first workspace to start managing social ads with AI."}
           </p>
 
-          {/* Go to Dashboard Button - Only show when has workspaces */}
-          {hasWorkspaces && (
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {hasWorkspaces && (
+              <motion.button
+                initial={reduceMotion ? false : { opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                onClick={() => router.push("/dashboard")}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-surface-container-lowest border border-outline-variant/30 text-on-surface rounded-xl text-body-sm font-semibold hover:bg-surface-container transition-all"
+              >
+                <span className="material-symbols-outlined text-[18px]">dashboard</span>
+                Go to Dashboard
+              </motion.button>
+            )}
             <motion.button
               initial={reduceMotion ? false : { opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              onClick={() => router.push("/dashboard")}
-              className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+              onClick={() => router.push("/pricing?create=business")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
             >
-              <span className="material-symbols-outlined text-[18px]">dashboard</span>
-              Go to Dashboard
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Create Workspace
             </motion.button>
-          )}
+          </div>
         </MotionDiv>
 
         {/* Error */}

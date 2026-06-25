@@ -30,30 +30,70 @@ async function buildHeaders(customHeaders?: Record<string, string>) {
 }
 
 const ERROR_MAP: Record<string, string> = {
-  "Missing or invalid X-Workspace-Id header.": "Please select a Workspace first (go to Overview).",
-  "Missing or invalid X-Profile-Id header.": "Please select a Profile for this feature.",
-  "You are not a member of this workspace.": "You are not a member of this workspace.",
-  "Profile does not belong to active workspace.": "Profile does not belong to the active workspace.",
+  "Missing or invalid X-Workspace-Id header.": "Chưa chọn Workspace. Vào Overview để chọn workspace.",
+  "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile cho tính năng này.",
+  "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
+  "Profile does not belong to active workspace.": "Profile không thuộc workspace đang chọn.",
 };
 
 async function handleResponse(response: Response) {
-  const result = await response.json().catch(() => null);
+  let result: any = null;
+  let text = "";
+  try {
+    text = await response.text();
+    result = text ? JSON.parse(text) : null;
+  } catch {
+    // If JSON parsing fails, result remains null, but we still have text
+  }
+
   if (!response.ok) {
-    const errorMessage = result?.message || response.statusText || "An error occurred";
-    if (errorMessage === "Authentication is required.") {
+    let errorMessage = "Đã có lỗi xảy ra";
+
+    if (result) {
+      if (typeof result.message === "string") {
+        errorMessage = result.message;
+      } else if (result.errors && typeof result.errors === "object") {
+        // Extract validation errors from ASP.NET Core ProblemDetails
+        errorMessage = Object.values(result.errors).flat().join(", ");
+      } else if (typeof result.title === "string") {
+        errorMessage = result.title;
+      } else if (typeof result === "string") {
+        errorMessage = result;
+      } else if (result.detail && typeof result.detail === "string") {
+        errorMessage = result.detail;
+      } else if (typeof result === "string") {
+        errorMessage = result;
+      }
+    }
+
+    if (!errorMessage || errorMessage === "Đã có lỗi xảy ra") {
+      if (text) {
+        errorMessage = text;
+      } else if (response.statusText) {
+        errorMessage = `${response.statusText} (${response.status} ${response.url})`;
+      }
+    }
+
+    if (errorMessage === "Authentication is required." || response.status === 401) {
       removeToken();
       removeRefreshToken();
       clearActiveWorkspace();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
-    throw new Error(ERROR_MAP[errorMessage] || errorMessage);
+
+    const mappedError = typeof errorMessage === "string" ? ERROR_MAP[errorMessage] : null;
+    throw new Error(mappedError || errorMessage);
   }
+
   return result;
 }
 
 async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<unknown> {
   const newToken = await refreshAccessToken();
   if (!newToken) {
-    throw new Error("Session expired. Please log in again.");
+    throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
   }
   const workspace = getStoredActiveWorkspace();
   const profile = getStoredActiveProfile();
@@ -72,11 +112,12 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
   const { data, headers: customHeaders, ...customConfig } = options;
   const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
 
+  const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
   const config: RequestInit = {
-    method: data ? "POST" : "GET",
-    body: data ? JSON.stringify(data) : undefined,
+    method: hasJsonBody ? "POST" : "GET",
+    body: hasJsonBody ? JSON.stringify(data) : undefined,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
       ...headers,
     },
     cache: "no-store",

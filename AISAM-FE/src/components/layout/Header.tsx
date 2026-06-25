@@ -151,7 +151,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const displayName = mounted ? (user?.name || activeWorkspace?.name || "User") : "User";
   const initials = getInitials(displayName);
   const displayPlan = mounted ? (activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "No Workspace") : "Loading...";
-  const settingsHref = activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/profiles";
+  const settingsHref = activeWorkspace ? `/profiles/${activeWorkspace.id}` : "/overview";
 
   return (
     <header className="h-16 bg-surface-gray border-b border-outline-variant/30 flex justify-between items-center px-gutter z-40 sticky top-0">
@@ -285,7 +285,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="flex items-center gap-3 cursor-pointer group px-2 py-1.5 rounded-full hover:bg-surface-container transition-all"
           >
-            <div className="text-right hidden sm:block" suppressHydrationWarning>
+            <div className="text-right hidden sm:block">
               <p className="text-body-sm font-semibold text-on-surface text-left leading-tight">{displayName}</p>
               <p className="text-label-sm text-outline text-left leading-tight">{displayPlan}</p>
             </div>

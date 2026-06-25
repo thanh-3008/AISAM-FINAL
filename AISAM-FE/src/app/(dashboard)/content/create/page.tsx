@@ -7,8 +7,8 @@ import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
+import { apiFetch } from "@/lib/apiClient";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
-import { useToast } from "@/contexts/ToastContext";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
 const SAMPLE_AVATARS = [
@@ -19,7 +19,6 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
-  const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -76,6 +75,10 @@ export default function CreateContentPage() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
+  const imageFileRef = useRef<File | null>(null);
+  const videoFileRef = useRef<File | null>(null);
+  const thumbnailFileRef = useRef<File | null>(null);
+
   const handleFileSelect = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
     const input = field === "imageUrl" ? imageInputRef : field === "videoUrl" ? videoInputRef : thumbnailInputRef;
     input.current?.click();
@@ -87,6 +90,9 @@ export default function CreateContentPage() {
       const url = URL.createObjectURL(file);
       update({ [field]: url });
       if (field === "thumbnail") update({ thumbnail: url });
+      if (field === "imageUrl") imageFileRef.current = file;
+      if (field === "videoUrl") videoFileRef.current = file;
+      if (field === "thumbnail") thumbnailFileRef.current = file;
     }
   }, []);
 
@@ -98,12 +104,18 @@ export default function CreateContentPage() {
       const url = URL.createObjectURL(file);
       update({ [field]: url });
       if (field === "thumbnail") update({ thumbnail: url });
+      if (field === "imageUrl") imageFileRef.current = file;
+      if (field === "videoUrl") videoFileRef.current = file;
+      if (field === "thumbnail") thumbnailFileRef.current = file;
     }
   }, []);
 
   const clearFile = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
     update({ [field]: "" });
     if (field === "thumbnail") update({ thumbnail: "" });
+    if (field === "imageUrl") imageFileRef.current = null;
+    if (field === "videoUrl") videoFileRef.current = null;
+    if (field === "thumbnail") thumbnailFileRef.current = null;
   }, []);
 
   const addHashtag = (raw: string) => {
@@ -142,7 +154,36 @@ export default function CreateContentPage() {
     const storedWs = getStoredActiveWorkspace();
     if (!storedWs) {
       setSaving(false);
-      setSaveError("Please select a Workspace before creating content.");
+      setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
+      return;
+    }
+
+    let imageUrl = form.imageUrl || undefined;
+    let videoUrl = form.videoUrl || undefined;
+    let thumbnailUrl = form.thumbnail || undefined;
+
+    const uploadFile = async (file: File | null): Promise<string | null> => {
+      if (!file) return null;
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await apiFetch("/content/media", { method: "POST", body: formData });
+      if (result?.success && result.data?.url) return result.data.url;
+      throw new Error(result?.message || `Failed to upload ${file.name}`);
+    };
+
+    try {
+      if (imageFileRef.current) {
+        imageUrl = await uploadFile(imageFileRef.current) ?? undefined;
+      }
+      if (videoFileRef.current) {
+        videoUrl = await uploadFile(videoFileRef.current) ?? undefined;
+      }
+      if (thumbnailFileRef.current) {
+        thumbnailUrl = await uploadFile(thumbnailFileRef.current) ?? undefined;
+      }
+    } catch (e: any) {
+      setSaveError(e?.message || "Lỗi upload file.");
+      setSaving(false);
       return;
     }
 
@@ -152,8 +193,8 @@ export default function CreateContentPage() {
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
       textContent: form.textContent || form.caption || form.description || "",
-      imageUrl: form.imageUrl || undefined,
-      videoUrl: form.videoUrl || undefined,
+      imageUrl,
+      videoUrl,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
       status: form.status === "Awaiting Approval" ? 1 : 0,
@@ -163,20 +204,18 @@ export default function CreateContentPage() {
     try {
       const result = await createContent(payload);
       if (result) {
-        addToast("Content created successfully", "check");
-        router.push("/content");
+        setSaved(true);
+        setTimeout(() => router.push("/content"), 1000);
       } else {
-        setSaveError("Failed to save content. BE returned an error, check console (F12) for details.");
-        addToast("Failed to create content", "error");
+        setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
       }
     } catch (e: any) {
       const msg = e?.message || "";
       if (msg.includes("Profile not found")) {
-        addToast("Workspace not found, redirecting...", "error");
+        setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {
-        setSaveError(msg || "Unknown error while saving content.");
-        addToast(msg || "Failed to create content", "error");
+        setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
       }
     } finally {
       setSaving(false);
