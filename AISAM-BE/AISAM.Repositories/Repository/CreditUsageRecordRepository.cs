@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,12 @@ namespace AISAM.Repositories.Repository;
 
 public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
 {
+    private static readonly CreditActionEnum[] GrantActions = new[]
+    {
+        CreditActionEnum.SubscriptionGrant,
+        CreditActionEnum.CreditPackGrant
+    };
+
     private readonly AisamContext _context;
 
     public CreditUsageRecordRepository(AisamContext context)
@@ -72,14 +79,17 @@ public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
         var startDate = DateTime.UtcNow.Date.AddDays(-days + 1);
 
         var records = await _context.CreditUsageRecords
-            .Where(r => r.WorkspaceId == workspaceId && r.CreatedAt >= startDate && r.Credits < 0) // only negative credits (usage)
+            .Where(r => r.WorkspaceId == workspaceId
+                && r.CreatedAt >= startDate
+                && !GrantActions.Contains(r.Action)
+                && r.Status == CreditUsageStatusEnum.Success)
             .Select(r => new { r.CreatedAt, r.Credits })
             .ToListAsync(cancellationToken);
 
         // Group in memory to avoid EF Core translation issues with Date property across different DB providers
         var summary = records
             .GroupBy(r => r.CreatedAt.Date)
-            .ToDictionary(g => g.Key, g => Math.Abs(g.Sum(r => r.Credits)));
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Credits));
 
         // Fill in missing dates with 0
         var result = new Dictionary<DateTime, long>();

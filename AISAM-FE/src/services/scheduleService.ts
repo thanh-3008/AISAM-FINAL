@@ -134,3 +134,41 @@ export async function fetchScheduleById(id: string): Promise<ScheduleItem | null
   } catch { /* ignore */ }
   return null;
 }
+
+/* ─── Bulk Schedule ─── */
+
+export interface BulkItemResult {
+  contentId: string;
+  success: boolean;
+  error?: string;
+}
+
+interface BulkCreateResult {
+  totalRequested: number;
+  successCount: number;
+  failedCount: number;
+  results: BulkItemResult[];
+}
+
+export async function bulkCreateSchedules(data: {
+  items: { contentId: string; integrationId: string; scheduledAt: string }[];
+}): Promise<{ success: boolean; message?: string; results?: BulkItemResult[] }> {
+  try {
+    const res: GenericResponse<BulkCreateResult> = await apiClient("/content-schedules/bulk", {
+      data,
+      method: "POST",
+    });
+    if (res?.data) {
+      dispatchScheduleChange();
+      const r = res.data;
+      return {
+        success: true,
+        message: `${r.successCount}/${r.totalRequested} schedules created.`,
+        results: r.results,
+      };
+    }
+    return { success: false, message: res?.message || res?.error?.errorMessage || "Failed to bulk schedule." };
+  } catch (err: any) {
+    return { success: false, message: err.message || "Failed to bulk schedule." };
+  }
+}
