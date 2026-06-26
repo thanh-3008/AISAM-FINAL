@@ -90,4 +90,41 @@ public sealed class AdminController : ControllerBase
         var result = await _adminService.GetWorkspaceDetailAsync(id, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("subscriptions")]
+    public async Task<ActionResult<GenericResponse<AdminPagedResult<AdminSubscriptionDto>>>> GetSubscriptions(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null, [FromQuery] string? plan = null,
+        [FromQuery] Guid? workspaceId = null, CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1; if (pageSize > 100) pageSize = 100;
+        var result = await _adminService.GetSubscriptionsAsync(page, pageSize, status, plan, workspaceId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPatch("subscriptions/{id:guid}")]
+    public async Task<ActionResult<GenericResponse<bool>>> UpdateSubscription(
+        Guid id, [FromBody] AdminUpdateSubscriptionRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _adminService.UpdateSubscriptionAsync(id, request.Plan, request.IsActive, request.EndDate, request.Reason, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("payments")]
+    public async Task<ActionResult<GenericResponse<AdminPagedResult<AdminPaymentDto>>>> GetPayments(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null, [FromQuery] Guid? userId = null, CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1; if (pageSize > 100) pageSize = 100;
+        var result = await _adminService.GetPaymentsAsync(page, pageSize, status, userId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPatch("payments/{id:guid}/status")]
+    public async Task<ActionResult<GenericResponse<bool>>> UpdatePaymentStatus(
+        Guid id, [FromBody] AdminUpdatePaymentStatusRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _adminService.UpdatePaymentStatusAsync(id, request.Status, request.Reason, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

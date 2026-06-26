@@ -337,4 +337,84 @@ public class AdminService : IAdminService
 
         return GenericResponse<AdminWorkspaceDetailDto>.CreateSuccess(dto);
     }
+
+    public async Task<GenericResponse<AdminPagedResult<AdminSubscriptionDto>>> GetSubscriptionsAsync(
+        int page, int pageSize, string? status, string? plan, Guid? workspaceId, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Subscriptions.Where(s => !s.IsDeleted).AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status) && bool.TryParse(status, out var isActive))
+            query = query.Where(s => s.IsActive == isActive);
+        if (!string.IsNullOrWhiteSpace(plan) && Enum.TryParse<AISAM.Data.Enumeration.SubscriptionPlanEnum>(plan, true, out var planEnum))
+            query = query.Where(s => s.Plan == planEnum);
+        if (workspaceId.HasValue)
+            query = query.Where(s => s.WorkspaceId == workspaceId.Value);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query.OrderByDescending(s => s.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(s => new AdminSubscriptionDto
+            {
+                Id = s.Id, WorkspaceId = s.WorkspaceId, WorkspaceName = s.Workspace.Name,
+                Plan = s.Plan.ToString(), IsActive = s.IsActive, StartDate = s.StartDate,
+                EndDate = s.EndDate, CreatedAt = s.CreatedAt
+            }).ToListAsync(cancellationToken);
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        return GenericResponse<AdminPagedResult<AdminSubscriptionDto>>.CreateSuccess(new AdminPagedResult<AdminSubscriptionDto>
+        {
+            Data = items, TotalCount = totalCount, Page = page, PageSize = pageSize,
+            TotalPages = totalPages, HasNextPage = page < totalPages, HasPreviousPage = page > 1
+        });
+    }
+
+    public async Task<GenericResponse<bool>> UpdateSubscriptionAsync(
+        Guid subscriptionId, string? plan, bool? isActive, DateTime? endDate, string reason, CancellationToken cancellationToken = default)
+    {
+        var sub = await _context.Subscriptions.FindAsync(new object[] { subscriptionId }, cancellationToken);
+        if (sub == null) return GenericResponse<bool>.CreateError("Subscription not found.", System.Net.HttpStatusCode.NotFound);
+        if (!string.IsNullOrWhiteSpace(plan) && Enum.TryParse<AISAM.Data.Enumeration.SubscriptionPlanEnum>(plan, true, out var planEnum))
+            sub.Plan = planEnum;
+        if (isActive.HasValue) sub.IsActive = isActive.Value;
+        if (endDate.HasValue) sub.EndDate = endDate.Value;
+        sub.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "Subscription updated.");
+    }
+
+    public async Task<GenericResponse<AdminPagedResult<AdminPaymentDto>>> GetPaymentsAsync(
+        int page, int pageSize, string? status, Guid? userId, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Payments.Where(p => !p.IsDeleted).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AISAM.Data.Enumeration.PaymentStatusEnum>(status, true, out var statusEnum))
+            query = query.Where(p => p.Status == statusEnum);
+        if (userId.HasValue) query = query.Where(p => p.UserId == userId.Value);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query.OrderByDescending(p => p.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(p => new AdminPaymentDto
+            {
+                Id = p.Id, UserId = p.UserId, UserEmail = p.User.Email, WorkspaceId = p.WorkspaceId,
+                Amount = p.Amount, Currency = p.Currency ?? "VND", Status = p.Status.ToString(),
+                PaymentMethod = p.PaymentMethod, TransactionId = p.TransactionId, CreatedAt = p.CreatedAt
+            }).ToListAsync(cancellationToken);
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        return GenericResponse<AdminPagedResult<AdminPaymentDto>>.CreateSuccess(new AdminPagedResult<AdminPaymentDto>
+        {
+            Data = items, TotalCount = totalCount, Page = page, PageSize = pageSize,
+            TotalPages = totalPages, HasNextPage = page < totalPages, HasPreviousPage = page > 1
+        });
+    }
+
+    public async Task<GenericResponse<bool>> UpdatePaymentStatusAsync(
+        Guid paymentId, string status, string reason, CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse<AISAM.Data.Enumeration.PaymentStatusEnum>(status, true, out var statusEnum))
+            return GenericResponse<bool>.CreateError($"Invalid payment status: {status}", System.Net.HttpStatusCode.BadRequest);
+        var payment = await _context.Payments.FindAsync(new object[] { paymentId }, cancellationToken);
+        if (payment == null) return GenericResponse<bool>.CreateError("Payment not found.", System.Net.HttpStatusCode.NotFound);
+        payment.Status = statusEnum;
+        await _context.SaveChangesAsync(cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "Payment status updated.");
+    }
 }
