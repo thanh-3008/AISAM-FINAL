@@ -5,7 +5,7 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
-import { getUserFromToken, logout } from "@/lib/auth";
+import { getUserFromToken, logout, isAdmin } from "@/lib/auth";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
   getNotifications,
@@ -321,6 +321,16 @@ export default function Header({ breadcrumbs }: HeaderProps) {
                     <span className="material-symbols-outlined text-[18px] text-outline/60">account_circle</span>
                     Workspace Settings
                   </Link>
+                  {isAdmin() && (
+                    <Link
+                      href="/admin/dashboard"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[18px] text-outline/60">admin_panel_settings</span>
+                      Admin Panel
+                    </Link>
+                  )}
                   <button
                     onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"

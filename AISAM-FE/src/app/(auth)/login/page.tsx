@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { setToken, setRefreshToken, setStoredUser, isAdmin } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
@@ -40,7 +40,11 @@ export default function LoginPage() {
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
         if (result.data.user) setStoredUser(result.data.user);
         setIsSuccess(true);
-        router.push(getRedirectUrl());
+        if (isAdmin()) {
+          router.push("/admin/dashboard");
+        } else {
+          router.push(getRedirectUrl());
+        }
       } else {
         setError("Google sign-in failed.");
       }
@@ -117,7 +121,11 @@ export default function LoginPage() {
         }
 
         setIsSuccess(true);
-        router.push(getRedirectUrl());
+        if (isAdmin()) {
+          router.push("/admin/dashboard");
+        } else {
+          router.push(getRedirectUrl());
+        }
       } else {
         setError("Login failed, please try again.");
       }
