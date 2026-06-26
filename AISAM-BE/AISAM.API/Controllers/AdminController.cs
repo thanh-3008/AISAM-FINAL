@@ -67,4 +67,27 @@ public sealed class AdminController : ControllerBase
         var result = await _adminService.UpdateUserStatusAsync(id, request.IsActive, request.Reason, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("workspaces")]
+    public async Task<ActionResult<GenericResponse<AdminPagedResult<AdminWorkspaceListDto>>>> GetWorkspaces(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? plan = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize > 100) pageSize = 100;
+        var result = await _adminService.GetWorkspacesAsync(page, pageSize, searchTerm, status, plan, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("workspaces/{id:guid}")]
+    public async Task<ActionResult<GenericResponse<AdminWorkspaceDetailDto>>> GetWorkspaceDetail(
+        Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await _adminService.GetWorkspaceDetailAsync(id, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

@@ -229,4 +229,112 @@ public class AdminService : IAdminService
 
         return GenericResponse<bool>.CreateSuccess(true, isActive ? "User activated." : "User deactivated (all sessions revoked).");
     }
+
+    public async Task<GenericResponse<AdminPagedResult<AdminWorkspaceListDto>>> GetWorkspacesAsync(
+        int page, int pageSize, string? searchTerm, string? status, string? plan, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Workspaces.Where(w => w.DeletedAt == null).AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim().ToLower();
+            query = query.Where(w => w.Name.ToLower().Contains(term));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AISAM.Data.Enumeration.WorkspaceStatusEnum>(status, true, out var statusEnum))
+        {
+            query = query.Where(w => w.Status == statusEnum);
+        }
+
+        if (!string.IsNullOrWhiteSpace(plan) && Enum.TryParse<AISAM.Data.Enumeration.SubscriptionPlanEnum>(plan, true, out var planEnum))
+        {
+            query = query.Where(w => w.Subscriptions.Any(s => s.IsActive && !s.IsDeleted && s.Plan == planEnum));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(w => w.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(w => new AdminWorkspaceListDto
+            {
+                Id = w.Id,
+                Name = w.Name,
+                Type = w.WorkspaceType.ToString(),
+                Status = w.Status.ToString(),
+                Plan = w.Subscriptions.Where(s => s.IsActive && !s.IsDeleted).Select(s => s.Plan.ToString()).FirstOrDefault() ?? "Free",
+                MemberCount = w.Members.Count,
+                OwnerEmail = w.Members.Where(m => m.Role == AISAM.Data.Enumeration.WorkspaceMemberRoleEnum.Owner).Select(m => m.User.Email).FirstOrDefault() ?? "N/A",
+                CreditBalance = w.CreditWallet != null ? w.CreditWallet.Balance : 0,
+                CreatedAt = w.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return GenericResponse<AdminPagedResult<AdminWorkspaceListDto>>.CreateSuccess(new AdminPagedResult<AdminWorkspaceListDto>
+        {
+            Data = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = totalPages,
+            HasNextPage = page < totalPages,
+            HasPreviousPage = page > 1
+        });
+    }
+
+    public async Task<GenericResponse<AdminWorkspaceDetailDto>> GetWorkspaceDetailAsync(
+        Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var workspace = await _context.Workspaces
+            .Include(w => w.Members).ThenInclude(m => m.User)
+            .Include(w => w.CreditWallet)
+            .Include(w => w.Subscriptions)
+            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.DeletedAt == null, cancellationToken);
+
+        if (workspace == null)
+        {
+            return GenericResponse<AdminWorkspaceDetailDto>.CreateError("Workspace not found.", System.Net.HttpStatusCode.NotFound);
+        }
+
+        var owner = workspace.Members.FirstOrDefault(m => m.Role == AISAM.Data.Enumeration.WorkspaceMemberRoleEnum.Owner);
+        var activeSub = workspace.Subscriptions.FirstOrDefault(s => s.IsActive && !s.IsDeleted);
+
+        var dto = new AdminWorkspaceDetailDto
+        {
+            Id = workspace.Id,
+            Name = workspace.Name,
+            Description = string.Empty,
+            Type = workspace.WorkspaceType.ToString(),
+            Status = workspace.Status.ToString(),
+            ExpiresAt = workspace.SubscriptionExpiredAt,
+            CreatedAt = workspace.CreatedAt,
+            Owner = owner != null ? new AdminWorkspaceOwnerDto
+            {
+                Id = owner.User.Id,
+                Email = owner.User.Email,
+                FullName = owner.User.FullName
+            } : new AdminWorkspaceOwnerDto(),
+            Members = workspace.Members.Select(m => new AdminWorkspaceMemberDto
+            {
+                UserId = m.UserId,
+                Email = m.User.Email,
+                Role = m.Role.ToString(),
+                JoinedAt = m.JoinedAt
+            }).ToList(),
+            Subscription = activeSub != null ? new AdminWorkspaceSubscriptionDto
+            {
+                Id = activeSub.Id,
+                Plan = activeSub.Plan.ToString(),
+                IsActive = activeSub.IsActive,
+                StartDate = activeSub.StartDate,
+                EndDate = activeSub.EndDate
+            } : null,
+            CreditBalance = workspace.CreditWallet?.Balance ?? 0
+        };
+
+        return GenericResponse<AdminWorkspaceDetailDto>.CreateSuccess(dto);
+    }
 }

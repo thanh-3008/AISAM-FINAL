@@ -10,4 +10,6 @@ public interface IAdminService
     Task<GenericResponse<AdminUserDetailDto>> GetUserDetailAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> UpdateUserRoleAsync(Guid userId, string role, string reason, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> UpdateUserStatusAsync(Guid userId, bool isActive, string reason, CancellationToken cancellationToken = default);
+    Task<GenericResponse<AdminPagedResult<AdminWorkspaceListDto>>> GetWorkspacesAsync(int page, int pageSize, string? searchTerm, string? status, string? plan, CancellationToken cancellationToken = default);
+    Task<GenericResponse<AdminWorkspaceDetailDto>> GetWorkspaceDetailAsync(Guid workspaceId, CancellationToken cancellationToken = default);
 }
