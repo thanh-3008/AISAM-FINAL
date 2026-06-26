@@ -6,6 +6,7 @@ using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace AISAM.API.Controllers;
 
@@ -224,5 +225,37 @@ public sealed class AdminController : ControllerBase
         }
         await _context.SaveChangesAsync(cancellationToken);
         return Ok(GenericResponse<object>.CreateSuccess(new { count = createdIds.Count, ids = createdIds }, $"{createdIds.Count} demo users created."));
+    }
+
+    [HttpGet("config")]
+    public async Task<ActionResult<GenericResponse<AdminSystemConfigDto>>> GetConfig(CancellationToken cancellationToken = default)
+    {
+        var configs = await _context.SystemConfigs.ToListAsync(cancellationToken);
+        var dict = configs.ToDictionary(c => c.Key, c => (object)c.Value);
+        return Ok(GenericResponse<AdminSystemConfigDto>.CreateSuccess(new AdminSystemConfigDto { Config = dict }));
+    }
+
+    [HttpPut("config")]
+    public async Task<ActionResult<GenericResponse<bool>>> UpdateConfig([FromBody] AdminUpdateSystemConfigRequest request, CancellationToken cancellationToken = default)
+    {
+        foreach (var kvp in request.Config)
+        {
+            var existing = await _context.SystemConfigs.FirstOrDefaultAsync(c => c.Key == kvp.Key, cancellationToken);
+            if (existing != null)
+            {
+                existing.Value = JsonSerializer.Serialize(kvp.Value);
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _context.SystemConfigs.Add(new SystemConfig
+                {
+                    Key = kvp.Key,
+                    Value = JsonSerializer.Serialize(kvp.Value)
+                });
+            }
+        }
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(GenericResponse<bool>.CreateSuccess(true, "Configuration updated."));
     }
 }

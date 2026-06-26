@@ -44,6 +44,7 @@ namespace AISAM.Repositories
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
         public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<SystemConfig> SystemConfigs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -610,6 +611,14 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(cm => cm.ContentId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // SystemConfig entity configuration
+            modelBuilder.Entity<SystemConfig>(entity =>
+            {
+                entity.HasKey(sc => sc.Id);
+                entity.HasIndex(sc => sc.Key).IsUnique();
+                entity.Property(sc => sc.Key).HasMaxLength(100).IsRequired();
             });
         }
     }
