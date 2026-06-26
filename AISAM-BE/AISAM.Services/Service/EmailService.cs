@@ -128,9 +128,6 @@ namespace AISAM.Services.Service
                 {
                     From = new MailAddress(_emailSettings.FromEmail, _emailSettings.FromName),
                     Subject = subject,
-                    Body = htmlBody,
-                    IsBodyHtml = true,
-                    BodyEncoding = Encoding.UTF8,
                     SubjectEncoding = Encoding.UTF8,
                     Priority = MailPriority.Normal
                 };
@@ -142,6 +139,9 @@ namespace AISAM.Services.Service
                     var plainView = AlternateView.CreateAlternateViewFromString(plainTextBody, Encoding.UTF8, "text/plain");
                     mailMessage.AlternateViews.Add(plainView);
                 }
+
+                var htmlView = AlternateView.CreateAlternateViewFromString(htmlBody, Encoding.UTF8, "text/html");
+                mailMessage.AlternateViews.Add(htmlView);
 
                 await smtpClient.SendMailAsync(mailMessage);
 
