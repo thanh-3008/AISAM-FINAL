@@ -12,10 +12,12 @@ namespace AISAM.API.Controllers;
 public sealed class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly IPlanService _planService;
 
-    public AdminController(IAdminService adminService)
+    public AdminController(IAdminService adminService, IPlanService planService)
     {
         _adminService = adminService;
+        _planService = planService;
     }
 
     [HttpGet("dashboard")]
@@ -125,6 +127,41 @@ public sealed class AdminController : ControllerBase
         Guid id, [FromBody] AdminUpdatePaymentStatusRequest request, CancellationToken cancellationToken = default)
     {
         var result = await _adminService.UpdatePaymentStatusAsync(id, request.Status, request.Reason, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("plans")]
+    public async Task<ActionResult<GenericResponse<List<AdminPlanDto>>>> GetPlans(CancellationToken cancellationToken = default)
+    {
+        var result = await _planService.GetAllAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("plans/{id:guid}")]
+    public async Task<ActionResult<GenericResponse<AdminPlanDto>>> GetPlan(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await _planService.GetByIdAsync(id, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("plans")]
+    public async Task<ActionResult<GenericResponse<AdminPlanDto>>> CreatePlan([FromBody] AdminCreatePlanRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _planService.CreateAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPut("plans/{id:guid}")]
+    public async Task<ActionResult<GenericResponse<AdminPlanDto>>> UpdatePlan(Guid id, [FromBody] AdminUpdatePlanRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _planService.UpdateAsync(id, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpDelete("plans/{id:guid}")]
+    public async Task<ActionResult<GenericResponse<bool>>> DeletePlan(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await _planService.DeleteAsync(id, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }

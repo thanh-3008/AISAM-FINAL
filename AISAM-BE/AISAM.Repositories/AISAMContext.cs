@@ -43,6 +43,7 @@ namespace AISAM.Repositories
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

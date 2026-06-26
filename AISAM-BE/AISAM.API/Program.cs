@@ -172,6 +172,7 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IPlanService, PlanService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
