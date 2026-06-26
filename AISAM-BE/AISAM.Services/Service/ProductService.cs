@@ -5,6 +5,7 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using System.Net;
 using System.Text.Json;
 
 namespace AISAM.Services.Service
@@ -73,6 +74,11 @@ namespace AISAM.Services.Service
             if (!access.Success)
             {
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
+            }
+
+            if (request.ImageFiles != null && request.ImageFiles.Any() && _mediaStorageService == null)
+            {
+                return GenericResponse<ProductResponseDto>.CreateError("Image upload is not enabled.", HttpStatusCode.BadRequest);
             }
 
             var imageUrls = new List<string>();
@@ -150,6 +156,11 @@ namespace AISAM.Services.Service
 
             if (request.ImageFiles != null && request.ImageFiles.Any())
             {
+                if (_mediaStorageService == null)
+                {
+                    return GenericResponse<ProductResponseDto>.CreateError("Image upload is not enabled.", HttpStatusCode.BadRequest);
+                }
+
                 var imageUrls = new List<string>();
                 foreach (var file in request.ImageFiles)
                 {
