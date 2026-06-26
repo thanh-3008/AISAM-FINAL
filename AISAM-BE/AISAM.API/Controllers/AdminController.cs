@@ -1,8 +1,11 @@
 using AISAM.Common;
 using AISAM.Common.Dtos.Admin;
+using AISAM.Data.Model;
+using AISAM.Repositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.API.Controllers;
 
@@ -13,11 +16,13 @@ public sealed class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
     private readonly IPlanService _planService;
+    private readonly AisamContext _context;
 
-    public AdminController(IAdminService adminService, IPlanService planService)
+    public AdminController(IAdminService adminService, IPlanService planService, AisamContext context)
     {
         _adminService = adminService;
         _planService = planService;
+        _context = context;
     }
 
     [HttpGet("dashboard")]
@@ -163,5 +168,61 @@ public sealed class AdminController : ControllerBase
     {
         var result = await _planService.DeleteAsync(id, cancellationToken);
         return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("audit-logs")]
+    public async Task<ActionResult<GenericResponse<AdminPagedResult<AdminAuditLogDto>>>> GetAuditLogs(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] Guid? actorId = null, [FromQuery] string? targetTable = null,
+        [FromQuery] string? action = null, [FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _adminService.GetAuditLogsAsync(page, pageSize, actorId, targetTable, action, from, to, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("seed/demo-user")]
+    public async Task<ActionResult<GenericResponse<object>>> SeedDemoUser([FromBody] AdminSeedDemoUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var existing = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
+        if (existing != null)
+            return Conflict(GenericResponse<object>.CreateError("Email already exists.", System.Net.HttpStatusCode.Conflict));
+
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        var user = new User
+        {
+            Email = request.Email,
+            FullName = request.FullName,
+            Role = AISAM.Data.Enumeration.UserRoleEnum.User,
+            IsEmailVerified = true,
+            PasswordHash = passwordHash
+        };
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(GenericResponse<object>.CreateSuccess(new { userId = user.Id, email = user.Email }, "Demo user created."));
+    }
+
+    [HttpPost("seed/batch-users")]
+    public async Task<ActionResult<GenericResponse<object>>> SeedBatchUsers([FromBody] AdminSeedBatchUsersRequest request, CancellationToken cancellationToken = default)
+    {
+        var createdIds = new List<Guid>();
+        int count = Math.Min(request.Count, 50);
+        for (int i = 0; i < count; i++)
+        {
+            string email = $"demo-user-{Guid.NewGuid().ToString()[..8]}@aisam.dev";
+            var user = new User
+            {
+                Email = email,
+                FullName = $"Demo User {i + 1}",
+                Role = AISAM.Data.Enumeration.UserRoleEnum.User,
+                IsEmailVerified = true,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Demo@123")
+            };
+            _context.Users.Add(user);
+            createdIds.Add(user.Id);
+        }
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(GenericResponse<object>.CreateSuccess(new { count = createdIds.Count, ids = createdIds }, $"{createdIds.Count} demo users created."));
     }
 }

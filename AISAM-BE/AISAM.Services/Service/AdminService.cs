@@ -417,4 +417,34 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync(cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Payment status updated.");
     }
+
+    public async Task<GenericResponse<AdminPagedResult<AdminAuditLogDto>>> GetAuditLogsAsync(
+        int page, int pageSize, Guid? actorId, string? targetTable, string? action, DateTime? from, DateTime? to, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Set<AISAM.Data.Model.AuditLog>().AsQueryable();
+
+        if (actorId.HasValue) query = query.Where(a => a.ActorId == actorId.Value);
+        if (!string.IsNullOrWhiteSpace(targetTable))
+            query = query.Where(a => a.TargetTable != null && a.TargetTable.Contains(targetTable));
+        if (!string.IsNullOrWhiteSpace(action))
+            query = query.Where(a => a.ActionType != null && a.ActionType.Contains(action));
+        if (from.HasValue) query = query.Where(a => a.CreatedAt >= from.Value);
+        if (to.HasValue) query = query.Where(a => a.CreatedAt <= to.Value);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query.OrderByDescending(a => a.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(a => new AdminAuditLogDto
+            {
+                Id = a.Id, ActorId = a.ActorId,
+                ActorEmail = a.Actor != null ? a.Actor.Email : null,
+                Action = a.ActionType, TargetTable = a.TargetTable,
+                TargetId = a.TargetId, CreatedAt = a.CreatedAt
+            }).ToListAsync(cancellationToken);
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        return GenericResponse<AdminPagedResult<AdminAuditLogDto>>.CreateSuccess(new AdminPagedResult<AdminAuditLogDto>
+        {
+            Data = items, TotalCount = totalCount, Page = page, PageSize = pageSize,
+            TotalPages = totalPages, HasNextPage = page < totalPages, HasPreviousPage = page > 1
+        });
+    }
 }
