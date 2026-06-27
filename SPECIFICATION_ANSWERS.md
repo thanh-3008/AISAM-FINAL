@@ -4,6 +4,12 @@
 
 `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md` thay the cac de xuat cu lien quan den Profile subscription, Team Leader governance va AI quota.
 
+Lifecycle/expiry policy moi nhat duoc chot tai `docs/product/workspace-subscription-expiry-policy.md`:
+
+- Personal paid expiry -> Personal Free; retained Credits chi dung cho Free features.
+- Business khong co Free tier; pending payment/expired Business khong duoc tieu Credits.
+- Business creation khong cap Credits; verified payment/renewal grant phai idempotent.
+
 - Ownership/subscription/credits chuyen sang Workspace.
 - Role dung Owner, Manager, Content Creator, Viewer.
 - Moi Workspace co dung mot Owner va mot Credit Wallet.

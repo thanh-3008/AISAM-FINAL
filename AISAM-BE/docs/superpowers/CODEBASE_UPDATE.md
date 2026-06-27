@@ -1,5 +1,7 @@
 # AISAM Backend Codebase Update Plan
 
+> Superseding policy update 2026-06-24: use `../../../docs/product/workspace-subscription-expiry-policy.md` for current workspace expiry and credit behavior. Personal has Free fallback; Business has no Free tier, creation grants no Credits, and expired Business cannot spend retained Credits. The older profile-based phase notes below are historical baseline.
+
 Last reviewed: 2026-05-30
 
 Tai lieu nay tra loi cau hoi: voi yeu cau do an hien tai, so voi active codebase trong repo moi thi can update nhung gi, theo phase nao, va can bam source cu / guardrails / backend code plan nhu the nao.

@@ -2,6 +2,15 @@
 
 This is a [Next.js](https://nextjs.org) project for the AISAM (AI-Powered Social Media Advertising Manager) Frontend, bootstrapped with `create-next-app` using Next.js 16, React 19, and Tailwind CSS v4.
 
+## Workspace product policy
+
+Canonical policy: `../docs/product/workspace-subscription-expiry-policy.md`.
+
+- `/overview` lists all workspaces and is the only place to start Business Workspace creation.
+- Each account has one Personal Workspace; Personal paid expiry falls back to Personal Free.
+- Business has no Free tier. Pending/expired Business workspaces are payment/read-only states and cannot spend retained credits.
+- Credit balance must never be used by the frontend as proof that a feature is entitled.
+
 ## Getting Started
 
 First, make sure you have installed the dependencies:
@@ -84,12 +93,12 @@ src/
 │   │   └── page.tsx             # Pricing & Subscription Plans (Subscription / Credits tabs)
 │   │
 │   ├── overview/
-│   │   └── page.tsx             # Workspace selector (Personal auto-create / Business modal)
+│   │   └── page.tsx             # All workspace management + Business create entry
 │   │
 │   └── profiles/
-│       ├── page.tsx             # Workspaces listing
+│       ├── page.tsx             # Legacy route; redirects to /overview
 │       ├── new/
-│       │   └── page.tsx         # Create Workspace
+│       │   └── page.tsx         # Legacy route; redirects to /overview
 │       └── [id]/
 │           └── page.tsx         # Workspace Detail (Settings, Team, Billing, Credit Pack...)
 │

@@ -45,7 +45,7 @@ public class WorkspaceServiceTests
         var service = CreateService(context);
 
         await service.CreateAsync(user.Id, new CreateWorkspaceRequest { Name = "One", WorkspaceType = WorkspaceTypeEnum.Personal });
-        await service.CreateAsync(user.Id, new CreateWorkspaceRequest { Name = "Two", WorkspaceType = WorkspaceTypeEnum.Business });
+        AddBusinessWorkspace(context, user, "Two");
 
         var result = await service.GetByUserIdAsync(user.Id);
 
@@ -53,6 +53,25 @@ public class WorkspaceServiceTests
         Assert.Equal(2, result.Data!.Count);
         Assert.All(result.Data, workspace => Assert.Equal(WorkspaceMemberRoleEnum.Owner, workspace.CurrentUserRole));
         Assert.Contains(result.Data, workspace => workspace.MemberLimit == 1);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsBusinessWorkspaceWithoutSuccessfulPayment()
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var service = CreateService(context);
+
+        var result = await service.CreateAsync(user.Id, new CreateWorkspaceRequest
+        {
+            Name = "Unpaid Business",
+            WorkspaceType = WorkspaceTypeEnum.Business
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal("BUSINESS_WORKSPACE_PAYMENT_REQUIRED", result.Error?.ErrorCode);
+        Assert.Empty(context.Workspaces);
     }
 
     [Fact]
@@ -78,13 +97,9 @@ public class WorkspaceServiceTests
         var owner = AddUser(context);
         var nonMember = AddUser(context);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Private",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Private");
 
-        var result = await service.GetByIdAsync(created.Data!.Id, nonMember.Id);
+        var result = await service.GetByIdAsync(created.Id, nonMember.Id);
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.NotFound, result.StatusCode);
@@ -97,20 +112,16 @@ public class WorkspaceServiceTests
         var owner = AddUser(context);
         var manager = AddUser(context);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Business",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Business");
         context.WorkspaceMembers.Add(new WorkspaceMember
         {
-            WorkspaceId = created.Data!.Id,
+            WorkspaceId = created.Id,
             UserId = manager.Id,
             Role = WorkspaceMemberRoleEnum.Manager
         });
         await context.SaveChangesAsync();
 
-        var result = await service.UpdateAsync(created.Data.Id, manager.Id, new UpdateWorkspaceRequest { Name = "Changed" });
+        var result = await service.UpdateAsync(created.Id, manager.Id, new UpdateWorkspaceRequest { Name = "Changed" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
@@ -122,14 +133,10 @@ public class WorkspaceServiceTests
         await using var context = CreateContext();
         var owner = AddUser(context);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Before",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Before");
 
         var result = await service.UpdateAsync(
-            created.Data!.Id,
+            created.Id,
             owner.Id,
             new UpdateWorkspaceRequest { Name = "After" });
 
@@ -144,16 +151,12 @@ public class WorkspaceServiceTests
         await using var context = CreateContext();
         var owner = AddUser(context);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Expired",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Expired");
         var workspace = await context.Workspaces.SingleAsync();
         workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-100);
         await context.SaveChangesAsync();
 
-        var result = await service.GetByIdAsync(created.Data!.Id, owner.Id);
+        var result = await service.GetByIdAsync(created.Id, owner.Id);
 
         Assert.True(result.Success);
         Assert.Equal(WorkspaceStatusEnum.Archived, result.Data!.Status);
@@ -166,16 +169,12 @@ public class WorkspaceServiceTests
         await using var context = CreateContext();
         var owner = AddUser(context);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Expired",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Expired");
         var workspace = await context.Workspaces.SingleAsync();
         workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-1);
         await context.SaveChangesAsync();
 
-        var result = await service.UpdateAsync(created.Data!.Id, owner.Id, new UpdateWorkspaceRequest { Name = "Blocked" });
+        var result = await service.UpdateAsync(created.Id, owner.Id, new UpdateWorkspaceRequest { Name = "Blocked" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
@@ -189,16 +188,12 @@ public class WorkspaceServiceTests
         var owner = AddUser(context);
         var admin = AddUser(context, UserRoleEnum.Admin);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Eligible",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Eligible");
         var workspace = await context.Workspaces.SingleAsync();
         workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-181);
         await context.SaveChangesAsync();
 
-        var result = await service.AdminSoftDeleteAsync(created.Data!.Id, admin.Id);
+        var result = await service.AdminSoftDeleteAsync(created.Id, admin.Id);
 
         Assert.True(result.Success);
         Assert.Equal(WorkspaceStatusEnum.Deleted, workspace.Status);
@@ -214,16 +209,12 @@ public class WorkspaceServiceTests
         var owner = AddUser(context);
         var admin = AddUser(context, UserRoleEnum.Admin);
         var service = CreateService(context);
-        var created = await service.CreateAsync(owner.Id, new CreateWorkspaceRequest
-        {
-            Name = "Archived",
-            WorkspaceType = WorkspaceTypeEnum.Business
-        });
+        var created = AddBusinessWorkspace(context, owner, "Archived");
         var workspace = await context.Workspaces.SingleAsync();
         workspace.SubscriptionExpiredAt = DateTime.UtcNow.AddDays(-179);
         await context.SaveChangesAsync();
 
-        var result = await service.AdminSoftDeleteAsync(created.Data!.Id, admin.Id);
+        var result = await service.AdminSoftDeleteAsync(created.Id, admin.Id);
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.Conflict, result.StatusCode);
@@ -235,6 +226,30 @@ public class WorkspaceServiceTests
         return new WorkspaceService(
             new WorkspaceRepository(context),
             new UserRepository(context));
+    }
+
+    private static Workspace AddBusinessWorkspace(AisamContext context, User owner, string name)
+    {
+        var workspace = new Workspace
+        {
+            Name = name,
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active,
+            MemberLimit = 10,
+            SubscriptionExpiredAt = DateTime.UtcNow.AddDays(30),
+            CreditWallet = new CreditWallet { Balance = 15_000 },
+            Members =
+            [
+                new WorkspaceMember
+                {
+                    UserId = owner.Id,
+                    Role = WorkspaceMemberRoleEnum.Owner
+                }
+            ]
+        };
+        context.Workspaces.Add(workspace);
+        context.SaveChanges();
+        return workspace;
     }
 
     private static AisamContext CreateContext()

@@ -121,6 +121,141 @@ public class PaymentServiceTests
     }
 
     [Fact]
+    public async Task CreateBusinessWorkspaceCheckoutAsync_DoesNotCreateWorkspaceBeforePayment()
+    {
+        var userId = Guid.NewGuid();
+        var paymentRepository = new FakePaymentRepository();
+        var subscriptionRepository = new FakeSubscriptionRepository();
+        var workspaceRepository = new FakeWorkspaceRepository();
+        var service = CreateService(
+            paymentRepository,
+            subscriptionRepository,
+            workspaceRepository: workspaceRepository,
+            settings: CreateConfiguredSettings(),
+            httpClient: new HttpClient(new StubHttpMessageHandler("""
+            {
+              "code": "00",
+              "desc": "success",
+              "data": {
+                "checkoutUrl": "https://pay.payos.vn/web/business",
+                "paymentLinkId": "plink_business",
+                "orderCode": "123456"
+              }
+            }
+            """)));
+
+        var result = await service.CreateBusinessWorkspaceCheckoutAsync(userId, new CreateBusinessWorkspaceCheckoutRequest
+        {
+            WorkspaceName = "Paid Business",
+            PlanCode = "Plus",
+            ReturnUrl = "https://app.test/pricing",
+            CancelUrl = "https://app.test/pricing"
+        });
+
+        Assert.True(result.Success);
+        Assert.Empty(workspaceRepository.Workspaces);
+        Assert.Empty(subscriptionRepository.Subscriptions);
+        var payment = Assert.Single(paymentRepository.Payments);
+        Assert.Null(payment.WorkspaceId);
+        Assert.Equal("Paid Business", payment.PendingWorkspaceName);
+        Assert.Equal(SubscriptionPlanEnum.Plus, payment.RequestedPlan);
+        Assert.Equal(PaymentStatusEnum.Pending, payment.Status);
+    }
+
+    [Fact]
+    public async Task HandleWebhookAsync_CreatesPaidBusinessWorkspaceExactlyOnce()
+    {
+        var userId = Guid.NewGuid();
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            WorkspaceId = null,
+            PendingWorkspaceName = "Paid Business",
+            RequestedPlan = SubscriptionPlanEnum.Plus,
+            Amount = 149_000m,
+            Status = PaymentStatusEnum.Pending,
+            PaymentType = PaymentTypeEnum.Subscription,
+            PaymentMethod = "PayOS",
+            TransactionId = "business-123"
+        };
+        var paymentRepository = new FakePaymentRepository(payment);
+        var subscriptionRepository = new FakeSubscriptionRepository();
+        var workspaceRepository = new FakeWorkspaceRepository();
+        var creditService = new FakeCreditService();
+        var service = CreateService(
+            paymentRepository,
+            subscriptionRepository,
+            workspaceRepository: workspaceRepository,
+            creditService: creditService,
+            settings: CreateConfiguredSettings());
+        var values = new Dictionary<string, string>
+        {
+            ["orderCode"] = "business-123",
+            ["status"] = "PAID"
+        };
+        var payload = $$"""
+        {
+          "signature": "{{CreateSignature(values)}}",
+          "data": {
+            "orderCode": "business-123",
+            "status": "PAID"
+          }
+        }
+        """;
+
+        var first = await service.HandleWebhookAsync(payload);
+        var second = await service.HandleWebhookAsync(payload);
+
+        Assert.True(first.Success);
+        Assert.True(second.Success);
+        var workspace = Assert.Single(workspaceRepository.Workspaces);
+        Assert.Equal(WorkspaceTypeEnum.Business, workspace.WorkspaceType);
+        Assert.Equal(WorkspaceStatusEnum.Active, workspace.Status);
+        Assert.Equal(10, workspace.MemberLimit);
+        var owner = Assert.Single(workspace.Members);
+        Assert.Equal(userId, owner.UserId);
+        Assert.Equal(WorkspaceMemberRoleEnum.Owner, owner.Role);
+        var subscription = Assert.Single(subscriptionRepository.Subscriptions);
+        Assert.Equal(SubscriptionPlanEnum.Plus, subscription.Plan);
+        Assert.True(subscription.IsActive);
+        Assert.Equal(workspace.Id, payment.WorkspaceId);
+        Assert.Equal(subscription.Id, payment.SubscriptionId);
+        Assert.Null(payment.PendingWorkspaceName);
+        Assert.Equal(15_000, creditService.Wallets[workspace.Id].Balance);
+    }
+
+    [Fact]
+    public async Task SynchronizeBusinessWorkspaceCheckoutAsync_IsIdempotentAfterWebhookCompletedPurchase()
+    {
+        var userId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            WorkspaceId = workspaceId,
+            SubscriptionId = subscriptionId,
+            RequestedPlan = SubscriptionPlanEnum.Plus,
+            Status = PaymentStatusEnum.Success,
+            PaymentType = PaymentTypeEnum.Subscription,
+            TransactionId = "business-completed"
+        };
+        var service = CreateService(
+            paymentRepository: new FakePaymentRepository(payment),
+            settings: CreateConfiguredSettings());
+
+        var result = await service.SynchronizeBusinessWorkspaceCheckoutAsync(userId, "business-completed");
+
+        Assert.True(result.Success);
+        Assert.True(result.Data);
+        Assert.Equal(PaymentStatusEnum.Success, payment.Status);
+        Assert.Equal(workspaceId, payment.WorkspaceId);
+        Assert.Equal(subscriptionId, payment.SubscriptionId);
+    }
+
+    [Fact]
     public async Task CreateCheckoutAsync_CreatesCreditPackPaymentWithoutSubscription()
     {
         var workspaceId = Guid.NewGuid();
@@ -649,6 +784,7 @@ public class PaymentServiceTests
         FakeSubscriptionRepository? subscriptionRepository = null,
         FakeProfileRepository? profileRepository = null,
         FakeWorkspaceRepository? workspaceRepository = null,
+        FakeCreditWalletRepository? creditWalletRepository = null,
         FakeCreditService? creditService = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
@@ -658,6 +794,7 @@ public class PaymentServiceTests
             subscriptionRepository ?? new FakeSubscriptionRepository(),
             profileRepository ?? new FakeProfileRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
+            creditWalletRepository ?? new FakeCreditWalletRepository(),
             creditService ?? new FakeCreditService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
@@ -853,6 +990,7 @@ public class PaymentServiceTests
     private sealed class FakeWorkspaceRepository : IWorkspaceRepository
     {
         private readonly Dictionary<Guid, Workspace> _workspaces;
+        public List<Workspace> Workspaces => _workspaces.Values.ToList();
 
         public FakeWorkspaceRepository(params Workspace[] workspaces)
         {
@@ -885,6 +1023,29 @@ public class PaymentServiceTests
 
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspaces.ContainsKey(id));
+    }
+
+    private sealed class FakeCreditWalletRepository : ICreditWalletRepository
+    {
+        private readonly Dictionary<Guid, CreditWallet> _wallets = [];
+
+        public Task<CreditWallet?> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            _wallets.TryGetValue(workspaceId, out var wallet);
+            return Task.FromResult(wallet);
+        }
+
+        public Task<CreditWallet> AddAsync(CreditWallet wallet, CancellationToken cancellationToken = default)
+        {
+            _wallets[wallet.WorkspaceId] = wallet;
+            return Task.FromResult(wallet);
+        }
+
+        public Task UpdateAsync(CreditWallet wallet, CancellationToken cancellationToken = default)
+        {
+            _wallets[wallet.WorkspaceId] = wallet;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeCreditService : ICreditService

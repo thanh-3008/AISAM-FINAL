@@ -72,6 +72,14 @@ public sealed class WorkspaceService : IWorkspaceService
             return GenericResponse<WorkspaceResponseDto>.CreateError("Invalid workspace type.");
         }
 
+        if (request.WorkspaceType == WorkspaceTypeEnum.Business)
+        {
+            return GenericResponse<WorkspaceResponseDto>.CreateError(
+                "Business workspaces are created only after a successful Business Plus or Business Pro payment.",
+                HttpStatusCode.Conflict,
+                "BUSINESS_WORKSPACE_PAYMENT_REQUIRED");
+        }
+
         if (request.WorkspaceType == WorkspaceTypeEnum.Personal)
         {
             var existingWorkspaces = await _workspaceRepository.GetByUserIdAsync(userId, cancellationToken);

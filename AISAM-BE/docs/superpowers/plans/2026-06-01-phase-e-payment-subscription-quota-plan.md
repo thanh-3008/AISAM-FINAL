@@ -1,5 +1,7 @@
 # Phase E Payment, Subscription, Quota Implementation Plan
 
+> Legacy phase notice: this active-profile plan predates Workspace Phase 9. Current policy is `docs/product/workspace-subscription-expiry-policy.md`: entitlement is workspace-based, Personal may fall back to Free, Business has no Free tier, and payment/renewal Credit grants must be idempotent.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Hoan thien payment/subscription APIs MVP, quota summary API va basic quota enforcement cho AI generation va publish flows theo active profile.

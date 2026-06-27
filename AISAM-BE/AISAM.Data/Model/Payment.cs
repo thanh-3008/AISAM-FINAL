@@ -19,7 +19,14 @@ namespace AISAM.Data.Model
         public Guid? SubscriptionId { get; set; }
 
         [Column("workspace_id")]
-        public Guid WorkspaceId { get; set; }
+        public Guid? WorkspaceId { get; set; }
+
+        [MaxLength(255)]
+        [Column("pending_workspace_name")]
+        public string? PendingWorkspaceName { get; set; }
+
+        [Column("requested_plan")]
+        public SubscriptionPlanEnum? RequestedPlan { get; set; }
 
         [Required]
         [Column("amount", TypeName = "decimal(10,2)")]
@@ -69,6 +76,6 @@ namespace AISAM.Data.Model
         public virtual Subscription? Subscription { get; set; }
 
         [ForeignKey("WorkspaceId")]
-        public virtual Workspace Workspace { get; set; } = null!;
+        public virtual Workspace? Workspace { get; set; }
     }
 }

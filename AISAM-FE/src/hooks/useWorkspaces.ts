@@ -120,14 +120,9 @@ export function useWorkspaces() {
     };
   }, []);
 
-  const [workspaces, setWorkspaces] = useState<WorkspaceData[]>(() => {
-    const userId = getUserIdFromToken();
-    if (cachedWorkspaces && userId && cachedWorkspaces.some((p) => p.userId === userId)) return cachedWorkspaces;
-    if (cachedWorkspaces) cachedWorkspaces = null;
-    const storedFallback = getStoredWorkspaceFallback(userId);
-    return storedFallback ? [storedFallback] : [];
-  });
-  const [loading, setLoading] = useState(!cachedWorkspaces);
+  // Keep the server and first client render identical; browser storage is read by fetchWorkspaces.
+  const [workspaces, setWorkspaces] = useState<WorkspaceData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchWorkspaces = useCallback(async () => {

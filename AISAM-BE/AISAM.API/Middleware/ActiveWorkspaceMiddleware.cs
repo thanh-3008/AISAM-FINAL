@@ -48,7 +48,9 @@ public sealed class ActiveWorkspaceMiddleware
         if (context.Request.Method == HttpMethods.Post &&
             (context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase) ||
              context.Request.Path.Equals("/api/payment/callback", StringComparison.OrdinalIgnoreCase) ||
-             context.Request.Path.Equals("/api/payment/webhook", StringComparison.OrdinalIgnoreCase)))
+             context.Request.Path.Equals("/api/payment/webhook", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/api/payment/business-workspace-checkout", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/api/payment/business-workspace-checkout/sync", StringComparison.OrdinalIgnoreCase)))
         {
             await _next(context);
             return;

@@ -30,6 +30,28 @@ public sealed class PaymentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("business-workspace-checkout")]
+    [Authorize]
+    public async Task<ActionResult<GenericResponse<PayOSCheckoutResponse>>> CreateBusinessWorkspaceCheckout(
+        [FromBody] CreateBusinessWorkspaceCheckoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _paymentService.CreateBusinessWorkspaceCheckoutAsync(userId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("business-workspace-checkout/sync")]
+    [Authorize]
+    public async Task<ActionResult<GenericResponse<bool>>> SynchronizeBusinessWorkspaceCheckout(
+        [FromBody] SynchronizeBusinessWorkspaceCheckoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _paymentService.SynchronizeBusinessWorkspaceCheckoutAsync(userId, request.Reference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("callback")]
     [AllowAnonymous]
     public async Task<ActionResult<GenericResponse<bool>>> HandleCallback(CancellationToken cancellationToken = default)

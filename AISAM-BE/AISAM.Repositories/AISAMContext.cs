@@ -519,6 +519,7 @@ namespace AISAM.Repositories
                 entity.Property(p => p.Status).HasConversion<int>().HasDefaultValue(PaymentStatusEnum.Pending);
                 entity.Property(p => p.PaymentType).HasConversion<int>().HasDefaultValue(PaymentTypeEnum.Subscription).HasSentinel((PaymentTypeEnum)0);
                 entity.Property(p => p.CreditPackCode).HasConversion<int>();
+                entity.Property(p => p.RequestedPlan).HasConversion<int>();
                 entity.Property(p => p.Amount).HasPrecision(10, 2);
                 entity.HasIndex(p => p.UserId);
                 entity.HasIndex(p => p.WorkspaceId);

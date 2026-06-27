@@ -19,7 +19,7 @@ public class ActiveProfileMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -31,7 +31,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = "invalid";
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -44,7 +44,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
@@ -63,14 +63,14 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
     }
 
     [Fact]
-    public async Task InvokeAsync_ReturnsForbidden_WhenProfileDoesNotBelongToActiveWorkspace()
+    public async Task InvokeAsync_AllowsOwnedProfile_WhenActiveWorkspaceUsesSeparateIdentity()
     {
         var userId = Guid.NewGuid();
         var profile = CreateProfile(userId);
@@ -82,9 +82,9 @@ public class ActiveProfileMiddlewareTests
         
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.OK, context.Response.StatusCode);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment("Production"));
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment("Production"));
 
         Assert.True(nextCalled);
     }
@@ -114,7 +114,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
     }
@@ -135,7 +135,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
     }

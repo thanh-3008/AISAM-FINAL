@@ -1,5 +1,7 @@
 # Thiết Kế Chuẩn Hóa Profile Và Workspace
 
+> Product policy update 2026-06-24: workspace creation, paid-only Business behavior, expiry, and credit retention are defined by `docs/product/workspace-subscription-expiry-policy.md`. If this normalization spec conflicts with that policy, the product policy wins.
+
 Ngày: 2026-06-16
 Trạng thái: Đã chốt trong trao đổi, chờ người dùng review bản spec đã ghi
 Phạm vi: Chuẩn hóa toàn bộ FE + BE với cơ chế tương thích ngắn hạn trong giai đoạn migration

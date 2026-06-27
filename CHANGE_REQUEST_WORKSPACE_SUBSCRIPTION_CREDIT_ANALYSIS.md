@@ -1,5 +1,20 @@
 # CHANGE REQUEST ANALYSIS
 
+## Product Policy Update - 2026-06-24
+
+Canonical policy: `docs/product/workspace-subscription-expiry-policy.md`.
+
+The following rules supersede any generic statement in this document that an expired Workspace may use Free/basic features:
+
+- Personal Plus/Pro expiry downgrades effective entitlement to Personal Free. Retained credits may be used only for Personal Free AI features.
+- Business has no Free tier. A Business Workspace requires active Business Plus or Business Pro.
+- A new Business Workspace grants no credits and remains `PendingPayment`/unusable until verified payment succeeds.
+- Expired Business Workspaces retain data, members, ownership, and credits, but enter read-only Limited/Archived lifecycle and cannot spend credits until renewal.
+- Subscription controls entitlement; credits only pay for an operation that is already entitled.
+- Payment/renewal credit grants must be idempotent. Workspace creation, callback retry, or webhook replay must never duplicate credits.
+
+Implementation note: this policy is approved product behavior. Existing Phase 9 code must be audited against the acceptance tests in the canonical policy before this update is marked implemented.
+
 ## Workspace-Based Subscription, Credit và Business Workspace MVP
 
 > Trạng thái: **ĐANG TRIỂN KHAI - TASK 9.6 ACTIVE WORKSPACE CONTEXT ĐÃ HOÀN THÀNH**
@@ -165,7 +180,8 @@ Plan kế thừa toàn bộ feature của plan thấp hơn.
   - Subscription quyết định feature, team size và business capability được mở khóa.
   - Credits quyết định số lần sử dụng AI.
 - Khi Subscription hết hạn, Workspace giữ Credits:
-  - Feature Free/basic vẫn có thể dùng Credits.
+  - Personal Workspace hạ entitlement về Personal Free và chỉ được dùng Credits cho feature thuộc Personal Free.
+  - Business Workspace không có Free fallback; Limited/Archived chỉ đọc và không được tiêu Credits cho đến khi gia hạn.
   - Feature bị khóa theo plan không thể dùng dù còn Credits.
 - Khi Business Subscription hết hạn, Workspace đi qua lifecycle Limited Mode -> Archived -> Eligible For Admin Deletion; dữ liệu và team không bị mất trong Limited Mode.
 - Gia hạn cùng gói khi Subscription còn hạn sẽ cộng thêm thời gian từ ngày hết hạn hiện tại, không làm mất số ngày còn lại.
@@ -832,9 +848,10 @@ Workspace mua hoặc gia hạn Paid Plan
   -> cộng Credits mới vào Credit Wallet
   -> không ghi đè Credits còn lại
 
-Subscription hết hạn
+Personal Subscription hết hạn
   -> giữ nguyên Credit balance
-  -> feature Free/basic vẫn có thể dùng Credits
+  -> hạ entitlement về Personal Free
+  -> chỉ feature thuộc Personal Free mới có thể dùng Credits
   -> khóa feature yêu cầu active Subscription
   -> gia hạn để mở lại feature
 ```

@@ -5,6 +5,7 @@
 ## APPROVED CHANGE NOTICE - WORKSPACE SUBSCRIPTION AND CREDITS
 
 Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
+Chinh sach expiry/credit canonical: `docs/product/workspace-subscription-expiry-policy.md`.
 
 - Workspace migration Phase 9 da hoan thanh Task 9.1-9.18.
 - Workspace, member/invitation, ownership transfer, subscription/payment, Credit Wallet, member quota, entitlement, Post Quota va AI Credit charging da co code va automated tests.
@@ -15,6 +16,8 @@ Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 - Business Plus cap 15.000 Credits va toi da 10 members.
 - Business Pro cap 50.000 Credits va toi da 50 members.
 - Expired lifecycle da co code: Limited Mode, Archived, sau 180 ngay Admin co quyen Soft Delete.
+- Personal paid expiry fallback ve Personal Free; Business khong co Free tier va expired Business khong duoc tieu Credits.
+- Tao Business Workspace khong cap Credits; chi verified payment/renewal moi cap Credits va grant phai idempotent.
 
 Workspace Dashboard, regression va tai lieu cuoi Phase 9 da hoan thanh. Phase tiep theo la Phase 10 Admin backend theo Workspace.
 
@@ -445,13 +448,16 @@ Admin frontend da co cac trang quan ly user, payment, subscription va admin tool
 - Credit pack purchase cập nhật wallet balance ngay khi success
 
 ### 10.6. Create Business Workspace Flow
-- **Overview → Business card:** redirect `/pricing?create=business`
+> Status: implemented. Business Workspace creation is materialized only after verified payment, and payment grants are idempotent.
+
+- **Nguon tao duy nhat:** nut `Create Workspace` tai `/overview`, redirect `/pricing?create=business`
 - **Pricing page trong create mode:**
   - Step indicator (1. Overview → 2. Workspace & Plan → 3. Payment)
   - Ẩn Subscription/Credits tabs (chỉ show subscription)
   - Personal tab bị locked với label `· locked`
   - Form inline: Workspace Name + Company Name (optional)
-  - Chọn plan → tạo workspace → QR payment → redirect dashboard
+  - Chọn plan → tạo pending payment (chưa tạo Workspace, 0 Credits) → QR payment
+  - Payment thành công → activate Plus/Pro + grant Credits một lần → redirect `/overview`
 
 ### 10.7. Credit Deduction trên AI Generate
 - **File:** `src/app/(dashboard)/content/ai-generate/page.tsx`
@@ -467,6 +473,9 @@ Admin frontend da co cac trang quan ly user, payment, subscription va admin tool
 - **File:** `src/services/profileSettingsService.ts` — `cancelSubscription()`
 - **File:** `src/app/profiles/[id]/page.tsx` — `handleCancelPlan` dùng ConfirmationModal
 - `handleLoadSubscription` tự động phát hiện expired/ltd/arch plans
+- Personal expiry: hạ entitlement về Personal Free và chỉ cho tiêu Credits trên Free features.
+- Business expiry: read-only Limited/Archived, giữ balance nhưng không cho tiêu Credits đến khi renew.
+- Chỉ backend entitlement/lifecycle guard là authoritative; frontend gate chỉ là UX.
 
 ### 10.10. Header Updates
 - **File:** `src/components/layout/Header.tsx`
