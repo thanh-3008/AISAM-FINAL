@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
@@ -15,6 +15,22 @@ export default function AcceptInvitationPage() {
   const [status, setStatus] = useState<Status>("ready");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [successWorkspace, setSuccessWorkspace] = useState<string>("");
+
+  const [isMounted, setIsMounted] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const loggedIn = !!getToken();
+    setIsLoggedIn(loggedIn);
+    setIsMounted(true);
+    if (!loggedIn) {
+      router.push(`/login?redirect=/invitation/${token}`);
+    }
+  }, [router, token]);
+
+  if (!isMounted || !isLoggedIn) {
+    return null;
+  }
 
   const handleAccept = async () => {
     if (!token) return;
@@ -33,10 +49,14 @@ export default function AcceptInvitationPage() {
       setSuccessWorkspace(result.workspaceId || "");
       if (result.workspaceId) {
         setTimeout(() => {
-          router.push(`/profiles/${result.workspaceId}?section=overview`);
+          router.push(`/overview`);
         }, 2000);
       }
     } else {
+      if (result.message?.includes("Phiên đăng nhập hết hạn") || result.message?.includes("Authentication is required")) {
+        router.push(`/login?redirect=/invitation/${token}`);
+        return;
+      }
       setStatus("error");
       setErrorMessage(result.message || "Failed to accept invitation");
     }

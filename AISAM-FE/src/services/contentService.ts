@@ -129,7 +129,20 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   4: "Published",
 };
 
-function apiItemToContentItem(api: ContentApiItem): ContentItem {
+const parseApiUrl = (url?: string | null): string => {
+  if (!url) return "";
+  if (url.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(url);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+    } catch {
+      return url;
+    }
+  }
+  return url;
+};
+
+export function apiItemToContentItem(api: ContentApiItem): ContentItem {
   return {
     id: api.id,
     title: api.title || "",
@@ -138,7 +151,7 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: api.imageUrl || api.videoUrl || "",
+    thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
     tags: [],
@@ -146,7 +159,7 @@ function apiItemToContentItem(api: ContentApiItem): ContentItem {
   };
 }
 
-function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
+export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
   return {
     id: api.id,
     title: api.title || "",
@@ -155,13 +168,13 @@ function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: api.imageUrl || api.videoUrl || "",
+    thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,
     textContent: api.textContent,
-    imageUrl: api.imageUrl || undefined,
-    videoUrl: api.videoUrl || undefined,
+    imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    videoUrl: parseApiUrl(api.videoUrl) || undefined,
     tags: [],
     hashtags: [],
   };

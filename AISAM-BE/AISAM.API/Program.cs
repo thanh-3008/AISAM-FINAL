@@ -59,6 +59,9 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSett
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_BASE_URL", "PayOSSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
+ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
+ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -77,6 +80,7 @@ builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("Goo
 builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("GeminiSettings"));
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 
 var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -164,6 +168,7 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
 builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
+builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 
 var controllers = builder.Services

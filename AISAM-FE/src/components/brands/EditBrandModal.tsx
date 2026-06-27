@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiClient } from "../../lib/apiClient";
+import { apiClient, apiFetch } from "../../lib/apiClient";
 
 interface Brand {
   id: string;
@@ -38,6 +38,8 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
     usp: brand.usp || "",
     targetAudience: brand.targetAudience || "",
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const updateField = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -66,9 +68,24 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
     };
 
     try {
+      let finalLogoUrl = form.logoUrl.trim() || null;
+
+      if (logoFile) {
+        const formData = new FormData();
+        formData.append("file", logoFile);
+        const uploadResult = await apiFetch("/content/media", { method: "POST", body: formData });
+        if (uploadResult?.success && uploadResult.data?.url) {
+          finalLogoUrl = uploadResult.data.url;
+        } else {
+          setError(uploadResult?.message || "Failed to upload logo file");
+          setLoading(false);
+          return;
+        }
+      }
+
       const body: Record<string, string> = { name: form.name.trim() };
       if (form.description.trim()) body.description = form.description.trim();
-      if (form.logoUrl.trim()) body.logoUrl = form.logoUrl.trim();
+      if (finalLogoUrl) body.logoUrl = finalLogoUrl;
       if (form.slogan.trim()) body.slogan = form.slogan.trim();
       if (form.usp.trim()) body.usp = form.usp.trim();
       if (form.targetAudience.trim()) body.targetAudience = form.targetAudience.trim();
@@ -78,14 +95,16 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
       if (result?.success && result.data) {
         onSuccess(result.data);
       } else {
-        onSuccess(updatedFields);
+        setError(result?.message || "Failed to update brand");
+        return;
       }
-    } catch {
-      onSuccess(updatedFields);
+    } catch (err: any) {
+      setError(err.message || "Network error");
+      return;
     } finally {
       setLoading(false);
-      onClose();
     }
+    handleClose();
   };
 
   if (!open) return null;
@@ -142,8 +161,75 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Brand Logo URL</label>
-            <input className={inputClass} placeholder="https://example.com/logo.png" type="url" value={form.logoUrl} onChange={(e) => updateField("logoUrl", e.target.value)} />
+            <label className={labelClass}>Brand Logo</label>
+            <div className="flex flex-col gap-2">
+              <div 
+                className={`relative border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all ${
+                  isDragging ? "border-primary bg-primary/5" : "border-outline-variant/50 bg-surface-container-lowest hover:bg-surface-container/50"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith("image/")) {
+                    setLogoFile(file);
+                    updateField("logoUrl", "");
+                  }
+                }}
+              >
+                {logoFile ? (
+                  <div className="flex items-center justify-between w-full bg-surface-container p-2 rounded-lg relative z-10">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className="material-symbols-outlined text-primary">image</span>
+                      <span className="text-sm text-on-surface truncate">{logoFile.name}</span>
+                    </div>
+                    <button type="button" onClick={() => setLogoFile(null)} className="p-1 hover:bg-outline-variant/20 rounded-full transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setLogoFile(file);
+                          updateField("logoUrl", "");
+                        }
+                      }}
+                    />
+                    <span className="material-symbols-outlined text-outline text-[32px]">cloud_upload</span>
+                    <div className="text-sm text-on-surface-variant text-center">
+                      <span className="text-primary font-semibold">
+                        Click to upload
+                      </span>
+                      {" "}or drag and drop
+                    </div>
+                    <span className="text-xs text-outline/60">SVG, PNG, JPG or GIF (max. 50MB)</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-px bg-outline-variant/30 flex-1"></div>
+                <span className="text-xs text-on-surface-variant/50 font-medium">OR ENTER URL</span>
+                <div className="h-px bg-outline-variant/30 flex-1"></div>
+              </div>
+              <input 
+                className={inputClass} 
+                placeholder="https://example.com/logo.png" 
+                type="url" 
+                value={form.logoUrl} 
+                onChange={(e) => {
+                  updateField("logoUrl", e.target.value);
+                  setLogoFile(null); // clear file
+                }} 
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

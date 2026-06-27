@@ -392,6 +392,17 @@ export default function BrandDetailPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredProducts.map((product, i) => {
                       const inStock = (product.stock ?? 0) > 0;
+                      let firstImage = null;
+                      if (Array.isArray(product.images) && product.images.length > 0) firstImage = product.images[0];
+                      else if (typeof product.images === "string") {
+                        try {
+                          const parsed = JSON.parse(product.images);
+                          if (Array.isArray(parsed) && parsed.length > 0) firstImage = parsed[0];
+                        } catch {
+                          if ((product.images as string).startsWith("http")) firstImage = product.images;
+                        }
+                      }
+
                       return (
                         <motion.div key={product.id}
                           initial={{ opacity: 0, y: 16 }}
@@ -401,7 +412,11 @@ export default function BrandDetailPage() {
                           whileHover={{ y: -3, boxShadow: "0 10px 25px -12px rgba(0,0,0,0.15)" }}
                           className="group border border-outline-variant/20 bg-surface-container-lowest rounded-2xl overflow-hidden hover:border-primary/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col">
                           <div className="aspect-video relative overflow-hidden bg-surface-container-low">
-                            <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            {firstImage ? (
+                              <img src={firstImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20 group-hover:scale-105 transition-transform duration-500`} />
+                            )}
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
@@ -635,7 +650,23 @@ export default function BrandDetailPage() {
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
               <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
-                <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                {(() => {
+                  let vImage = null;
+                  if (Array.isArray(viewingProduct.images) && viewingProduct.images.length > 0) vImage = viewingProduct.images[0];
+                  else if (typeof viewingProduct.images === "string") {
+                    try {
+                      const parsed = JSON.parse(viewingProduct.images);
+                      if (Array.isArray(parsed) && parsed.length > 0) vImage = parsed[0];
+                    } catch {
+                      if ((viewingProduct.images as string).startsWith("http")) vImage = viewingProduct.images;
+                    }
+                  }
+                  return vImage ? (
+                    <img src={vImage} alt={viewingProduct.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                  );
+                })()}
               </div>
               <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">

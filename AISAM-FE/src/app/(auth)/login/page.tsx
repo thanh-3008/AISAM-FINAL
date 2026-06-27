@@ -122,7 +122,7 @@ export default function LoginPage() {
         setError("Login failed, please try again.");
       }
     } catch (err: any) {
-      setError(err.message || "Invalid email or password.");
+      setError("Tài khoản hoặc mật khẩu không đúng, vui lòng thử lại");
     } finally {
       setIsLoading(false);
     }
