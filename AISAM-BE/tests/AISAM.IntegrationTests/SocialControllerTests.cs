@@ -96,6 +96,25 @@ public class SocialControllerTests
         Assert.Equal((int)HttpStatusCode.NotFound, objectResult.StatusCode);
     }
 
+    [Fact]
+    public async Task LinkTargets_AllowsTikTokProvider()
+    {
+        var profileId = Guid.NewGuid();
+        var controller = CreateAccountsController(new FakeSocialService(), profileId);
+
+        var result = await controller.LinkTargets(Guid.NewGuid(), new LinkSelectedTargetsRequest
+        {
+            BrandId = Guid.NewGuid(),
+            Provider = "tiktok",
+            ProviderTargetIds = new List<string> { "tiktok-open-id" }
+        });
+
+        var objectResult = Assert.IsAssignableFrom<ObjectResult>(result.Result);
+        Assert.Equal((int)HttpStatusCode.OK, objectResult.StatusCode);
+        var response = Assert.IsType<GenericResponse<SocialAccountDto>>(objectResult.Value);
+        Assert.Equal("tiktok", response.Data?.Provider);
+    }
+
     private static SocialAuthController CreateAuthController(ISocialService service, Guid? profileId = null)
     {
         return new SocialAuthController(service, new FakeProfileRepository())

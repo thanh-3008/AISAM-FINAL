@@ -62,7 +62,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
     if (!account || selectedTargetIds.length === 0 || !selectedBrandId) return;
     setLinking(true);
     try {
-      await linkTargets(account.id, selectedTargetIds, selectedBrandId);
+      await linkTargets(account.id, selectedTargetIds, selectedBrandId, account.provider === "tiktok" ? "tiktok" : "facebook");
       onSuccess();
       onClose();
     } catch {
