@@ -55,7 +55,7 @@ Tai lieu nay duoc xay dung theo nguyen tac source code hien tai la baseline trie
 | 2 | Sentiment Analysis & Trend Prediction | Future Enhancement | Long-term |
 | 3 | AI Video Generation | Proposed Feature | Long-term |
 | 4 | AI Strategy & Real-time Optimization | Optional Enterprise | Long-term |
-| 5 | Instagram/TikTok/Twitter Support | Planned Platform | Mid-term |
+| 5 | Instagram/Twitter Support | Planned Platform | Mid-term |
 | 6 | Dynamic Subscription Plans (CRUD) | Planned Admin Feature | Mid-term |
 | 7 | Stripe/VNPay Payment Gateway | Optional Future | Long-term |
 | 8 | Team Leader Single-Owner Governance | Planned Rule | Short-term |
@@ -166,7 +166,8 @@ Khong thuc hien: Tu huan luyen mo hinh AI - chi tich hop API hien co.
 | Facebook | Hoan chinh | Facebook Graph API + Marketing API |
 | Google | OAuth only | Google OAuth |
 | Instagram | Planned | - |
-| TikTok/Twitter | Planned | - |
+| TikTok | OAuth + Direct Post video | TikTok Login Kit, Content Posting API |
+| Twitter | Planned | - |
 
 ### Payment Gateway (Hien tai)
 | Gateway | Trang Thai | Chuc Nang |
@@ -186,7 +187,7 @@ Profile la ngu canh van hanh quan trong cua he thong. Nguoi dung co the lam viec
 ### 2.2. Social Account and Facebook Integration
 He thong da trien khai luong ket noi social account thong qua OAuth URL va callback. Sau khi ket noi, backend luu social account/token, cho phep lay available targets, link/unlink targets, lay linked targets, lay accounts-with-targets va link Facebook ad account cho brand/social integration. FacebookProvider dung Facebook Graph API voi cac quyen nhu pages_manage_posts, pages_read_engagement va pages_show_list.
 
-O trang thai hien tai, Facebook la nen tang duoc ho tro ro nhat cho publishing va ads workflow. GoogleProvider ton tai trong he thong chu yeu cho OAuth/login/provider integration. Instagram Business, TikTok va Twitter chi nen duoc xem la dinh huong mo rong hoac future platform support neu chua co provider/flow hoan chinh tuong ung.
+O trang thai hien tai, Facebook ho tro publishing va ads workflow day du nhat. TikTok ho tro OAuth, lien ket tai khoan va Direct Post video qua Content Posting API; app TikTok chua audit chi dang duoc o che do SELF_ONLY. GoogleProvider ton tai chu yeu cho OAuth/login/provider integration. Instagram Business va Twitter van la dinh huong mo rong.
 
 ### 2.3. Brand Kit Management
 He thong da co CRUD brand, restore brand, list brand theo profile/team, assign brand to team va unassign brand from team. Brand model gom name, description, logo_url, slogan, usp va target_audience. Brand duoc dung lam context cho AI chat/generate content va lien ket voi product, content, social integration, ad campaign va team brand.

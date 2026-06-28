@@ -484,7 +484,7 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 
 > **Flow:** Connect Account → chọn Brand → redirect Facebook/TikTok → callback → auto-link targets → `/social`.
 > Khi test TikTok local, TikTok gọi callback HTTPS qua ngrok; route callback sẽ chuyển tiếp `code/state` về `TIKTOK_LOCAL_CALLBACK_URL` để dùng phiên đăng nhập trên localhost.
-> TikTok hiện hỗ trợ Login Kit + Display API (`user.info.basic`). Đăng video trực tiếp cần TikTok duyệt Content Posting API.
+> TikTok hỗ trợ Login Kit (`user.info.basic`) và Direct Post video (`video.publish`). App chưa audit đăng ở chế độ `SELF_ONLY`; media hiện được chuyển sang TikTok bằng `FILE_UPLOAD` từ host đã cho phép.
 
 ### Service Layer
 

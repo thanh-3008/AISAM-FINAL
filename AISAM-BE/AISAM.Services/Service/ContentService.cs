@@ -8,6 +8,7 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace AISAM.Services.Service;
@@ -365,8 +366,21 @@ public sealed class ContentService : IContentService
         var decryptedAccount = CloneAccountForPublish(socialAccount);
         var decryptedIntegration = CloneIntegrationForPublish(integration);
 
-        decryptedAccount.UserAccessToken = _tokenProtector.Unprotect(socialAccount.UserAccessToken);
-        decryptedIntegration.AccessToken = _tokenProtector.Unprotect(integration.AccessToken);
+        try
+        {
+            decryptedAccount.UserAccessToken = _tokenProtector.Unprotect(socialAccount.UserAccessToken);
+            decryptedAccount.RefreshToken = string.IsNullOrWhiteSpace(socialAccount.RefreshToken)
+                ? null
+                : _tokenProtector.Unprotect(socialAccount.RefreshToken);
+            decryptedIntegration.AccessToken = _tokenProtector.Unprotect(integration.AccessToken);
+        }
+        catch (CryptographicException)
+        {
+            return GenericResponse<PublishResultDto>.CreateError(
+                "Social connection credentials are no longer available. Disconnect and reconnect the social account.",
+                HttpStatusCode.Unauthorized,
+                "SOCIAL_RECONNECT_REQUIRED");
+        }
 
         var publishResult = await provider.PublishAsync(decryptedAccount, decryptedIntegration, postDto, cancellationToken);
         if (!publishResult.Success)
