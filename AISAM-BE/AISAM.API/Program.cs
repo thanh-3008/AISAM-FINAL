@@ -47,6 +47,10 @@ ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokS
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_OAUTH_URL", "TikTokSettings:OAuthUrl");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_API_BASE_URL", "TikTokSettings:ApiBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_DEFAULT_PRIVACY_LEVEL", "TikTokSettings:DefaultPrivacyLevel");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_MAX_UPLOAD_SIZE_MB", "TikTokSettings:MaxUploadSizeMb");
+ApplyCsvEnvironmentOverride(builder.Configuration, "TIKTOK_REQUIRED_SCOPES", "TikTokSettings:RequiredScopes");
+ApplyCsvEnvironmentOverride(builder.Configuration, "TIKTOK_ALLOWED_MEDIA_HOSTS", "TikTokSettings:AllowedMediaHosts");
 ApplyEnvironmentOverride(builder.Configuration, "GOOGLE_CLIENT_ID", "GoogleSettings:ClientId");
 ApplyEnvironmentOverride(builder.Configuration, "GOOGLE_CLIENT_SECRET", "GoogleSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "SMTP_HOST", "EmailSettings:SmtpHost");
@@ -88,8 +92,15 @@ builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gem
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 
-var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
+var configuredKeysPath = Environment.GetEnvironmentVariable("DATA_PROTECTION_KEYS_PATH");
+var dataProtectionKeysPath = Path.GetFullPath(
+    string.IsNullOrWhiteSpace(configuredKeysPath)
+        ? Path.Combine(builder.Environment.ContentRootPath, ".keys")
+        : Path.IsPathRooted(configuredKeysPath)
+            ? configuredKeysPath
+            : Path.Combine(builder.Environment.ContentRootPath, configuredKeysPath));
 Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Information);
 builder.Services
     .AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
@@ -277,5 +288,17 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
     if (!string.IsNullOrWhiteSpace(value))
     {
         configuration[configurationKey] = value;
+    }
+}
+
+static void ApplyCsvEnvironmentOverride(IConfiguration configuration, string environmentKey, string configurationKey)
+{
+    var value = Environment.GetEnvironmentVariable(environmentKey);
+    if (string.IsNullOrWhiteSpace(value)) return;
+
+    var items = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    for (var index = 0; index < items.Length; index++)
+    {
+        configuration[$"{configurationKey}:{index}"] = items[index];
     }
 }

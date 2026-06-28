@@ -4,6 +4,7 @@ using AISAM.Services.IServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -63,6 +64,20 @@ public sealed class TikTokProvider : IProviderService
             throw new InvalidOperationException(GetErrorMessage(content, "TikTok did not return an access token."));
         }
 
+        var grantedScopes = token.Scope
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missingScopes = _settings.RequiredScopes
+            .Where(scope => !grantedScopes.Contains(scope))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (missingScopes.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"TikTok authorization is missing required scope(s): {string.Join(", ", missingScopes)}. " +
+                "Enable the scopes in TikTok Developer Portal, then disconnect and reconnect TikTok.");
+        }
+
         // Validate the token and account identity before persisting it.
         var profile = await GetUserInfoAsync(token.AccessToken, cancellationToken);
         var providerUserId = string.IsNullOrWhiteSpace(profile.OpenId) ? token.OpenId : profile.OpenId;
@@ -114,18 +129,215 @@ public sealed class TikTokProvider : IProviderService
             : new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
-    public Task<PublishResultDto> PublishAsync(
+    public async Task<PublishResultDto> PublishAsync(
         SocialAccount account,
         SocialIntegration integration,
         PostDto post,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("TikTok publishing was requested before Content Posting API was enabled.");
-        return Task.FromResult(new PublishResultDto
+        EnsureConfigured();
+        if (string.IsNullOrWhiteSpace(post.VideoUrl))
         {
-            Success = false,
-            ErrorMessage = "TikTok Content Posting API is not enabled for this application."
-        });
+            return Failure("TikTok Direct Post currently requires a video.");
+        }
+
+        try
+        {
+            var creator = await GetCreatorInfoAsync(integration.AccessToken, cancellationToken);
+            var privacyLevel = _settings.DefaultPrivacyLevel.Trim().ToUpperInvariant();
+            if (!creator.PrivacyLevelOptions.Contains(privacyLevel, StringComparer.Ordinal))
+            {
+                return Failure($"TikTok account does not allow the configured privacy level {privacyLevel}.");
+            }
+
+            var video = await DownloadVideoAsync(post.VideoUrl, cancellationToken);
+            var upload = await InitializeVideoPostAsync(
+                integration.AccessToken,
+                post.Message,
+                privacyLevel,
+                creator,
+                video.Bytes.LongLength,
+                cancellationToken);
+
+            await UploadVideoAsync(upload, video, cancellationToken);
+            _logger.LogInformation("TikTok Direct Post accepted with publish id {PublishId}.", upload.PublishId);
+            return new PublishResultDto
+            {
+                Success = true,
+                ProviderPostId = upload.PublishId,
+                PostedAt = DateTime.UtcNow
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _logger.LogWarning(ex, "TikTok Direct Post failed.");
+            return Failure(ex.Message);
+        }
+    }
+
+    private async Task<TikTokCreatorInfo> GetCreatorInfoAsync(string accessToken, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{_settings.ApiBaseUrl.TrimEnd('/')}/v2/post/publish/creator_info/query/");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        EnsureTikTokSuccess(response, content, "TikTok creator information request failed.");
+        return Deserialize<TikTokCreatorInfoResponse>(content).Data
+            ?? throw new InvalidOperationException("TikTok did not return creator information.");
+    }
+
+    private async Task<TikTokVideo> DownloadVideoAsync(string videoUrl, CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(videoUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new InvalidOperationException("TikTok video URL must be an absolute HTTPS URL.");
+        }
+
+        if (!_settings.AllowedMediaHosts.Any(host => HostMatches(uri.Host, host)))
+        {
+            throw new InvalidOperationException($"TikTok video host '{uri.Host}' is not allowed.");
+        }
+
+        using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var contentType = response.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
+        if (contentType is not ("video/mp4" or "video/quicktime" or "video/webm"))
+        {
+            throw new InvalidOperationException("TikTok only accepts MP4, QuickTime, or WebM video files.");
+        }
+
+        var maxBytes = Math.Max(1, _settings.MaxUploadSizeMb) * 1024L * 1024L;
+        if (response.Content.Headers.ContentLength > maxBytes)
+        {
+            throw new InvalidOperationException($"TikTok video exceeds the configured {_settings.MaxUploadSizeMb} MB limit.");
+        }
+
+        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var destination = new MemoryStream();
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken);
+            if (read == 0) break;
+            if (destination.Length + read > maxBytes)
+            {
+                throw new InvalidOperationException($"TikTok video exceeds the configured {_settings.MaxUploadSizeMb} MB limit.");
+            }
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        if (destination.Length == 0)
+        {
+            throw new InvalidOperationException("TikTok video is empty.");
+        }
+
+        return new TikTokVideo(destination.ToArray(), contentType);
+    }
+
+    private async Task<TikTokUploadSession> InitializeVideoPostAsync(
+        string accessToken,
+        string message,
+        string privacyLevel,
+        TikTokCreatorInfo creator,
+        long videoSize,
+        CancellationToken cancellationToken)
+    {
+        const long maxChunkSize = 64L * 1024L * 1024L;
+        var chunkSize = Math.Min(videoSize, maxChunkSize);
+        var totalChunkCount = Math.Max(1, videoSize / maxChunkSize);
+        var payload = new
+        {
+            post_info = new
+            {
+                title = Truncate(message, 2200),
+                privacy_level = privacyLevel,
+                disable_duet = creator.DuetDisabled,
+                disable_comment = creator.CommentDisabled,
+                disable_stitch = creator.StitchDisabled,
+                brand_content_toggle = false,
+                brand_organic_toggle = false
+            },
+            source_info = new
+            {
+                source = "FILE_UPLOAD",
+                video_size = videoSize,
+                chunk_size = chunkSize,
+                total_chunk_count = totalChunkCount
+            }
+        };
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{_settings.ApiBaseUrl.TrimEnd('/')}/v2/post/publish/video/init/");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        EnsureTikTokSuccess(response, content, "TikTok video initialization failed.");
+        var data = Deserialize<TikTokPublishResponse>(content).Data;
+        if (string.IsNullOrWhiteSpace(data?.PublishId) || string.IsNullOrWhiteSpace(data.UploadUrl))
+        {
+            throw new InvalidOperationException("TikTok did not return a publish id and upload URL.");
+        }
+        return new TikTokUploadSession(data.PublishId, data.UploadUrl, chunkSize, totalChunkCount);
+    }
+
+    private async Task UploadVideoAsync(TikTokUploadSession upload, TikTokVideo video, CancellationToken cancellationToken)
+    {
+        var totalSize = video.Bytes.LongLength;
+        var offset = 0;
+        for (var chunkIndex = 0L; chunkIndex < upload.TotalChunkCount; chunkIndex++)
+        {
+            var remaining = video.Bytes.Length - offset;
+            var length = chunkIndex == upload.TotalChunkCount - 1
+                ? remaining
+                : checked((int)upload.ChunkSize);
+            using var request = new HttpRequestMessage(HttpMethod.Put, upload.UploadUrl);
+            request.Content = new ByteArrayContent(video.Bytes, offset, length);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue(video.ContentType);
+            request.Content.Headers.ContentRange = new ContentRangeHeaderValue(offset, offset + length - 1, totalSize);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new InvalidOperationException(GetErrorMessage(content, "TikTok video upload failed."));
+            }
+            offset += length;
+        }
+    }
+
+    private static bool HostMatches(string actualHost, string allowedHost)
+    {
+        var normalized = allowedHost.Trim().TrimStart('.');
+        return actualHost.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
+               actualHost.EndsWith($".{normalized}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength];
+
+    private static PublishResultDto Failure(string message) => new()
+    {
+        Success = false,
+        ErrorMessage = message
+    };
+
+    private static void EnsureTikTokSuccess(HttpResponseMessage response, string content, string fallback)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(GetErrorMessage(content, fallback));
+        }
+
+        var envelope = Deserialize<TikTokErrorEnvelope>(content);
+        if (!string.IsNullOrWhiteSpace(envelope.Error?.Code) &&
+            !string.Equals(envelope.Error.Code, "ok", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(envelope.Error.Message ?? fallback);
+        }
     }
 
     private async Task<TikTokUser> GetUserInfoAsync(string accessToken, CancellationToken cancellationToken)
@@ -182,6 +394,7 @@ public sealed class TikTokProvider : IProviderService
         [JsonPropertyName("refresh_token")] public string? RefreshToken { get; set; }
         [JsonPropertyName("open_id")] public string OpenId { get; set; } = string.Empty;
         [JsonPropertyName("expires_in")] public long ExpiresIn { get; set; }
+        [JsonPropertyName("scope")] public string Scope { get; set; } = string.Empty;
     }
 
     private sealed class TikTokUserInfoResponse
@@ -191,6 +404,50 @@ public sealed class TikTokProvider : IProviderService
     }
 
     private sealed class TikTokUserData { public TikTokUser? User { get; set; } }
+
+    private sealed class TikTokCreatorInfoResponse
+    {
+        public TikTokCreatorInfo? Data { get; set; }
+        public TikTokApiError? Error { get; set; }
+    }
+
+    private sealed class TikTokCreatorInfo
+    {
+        [JsonPropertyName("privacy_level_options")]
+        public List<string> PrivacyLevelOptions { get; set; } = new();
+
+        [JsonPropertyName("comment_disabled")]
+        public bool CommentDisabled { get; set; }
+
+        [JsonPropertyName("duet_disabled")]
+        public bool DuetDisabled { get; set; }
+
+        [JsonPropertyName("stitch_disabled")]
+        public bool StitchDisabled { get; set; }
+    }
+
+    private sealed class TikTokPublishResponse
+    {
+        public TikTokPublishData? Data { get; set; }
+        public TikTokApiError? Error { get; set; }
+    }
+
+    private sealed class TikTokPublishData
+    {
+        [JsonPropertyName("publish_id")]
+        public string PublishId { get; set; } = string.Empty;
+
+        [JsonPropertyName("upload_url")]
+        public string UploadUrl { get; set; } = string.Empty;
+    }
+
+    private sealed record TikTokVideo(byte[] Bytes, string ContentType);
+    private sealed record TikTokUploadSession(
+        string PublishId,
+        string UploadUrl,
+        long ChunkSize,
+        long TotalChunkCount);
+
     private sealed class TikTokUser
     {
         [JsonPropertyName("open_id")] public string OpenId { get; set; } = string.Empty;
