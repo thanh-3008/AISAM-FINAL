@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { motion } from "motion/react";
 import { useAdminUsers } from "@/hooks/admin/useAdminUsers";
 import AdminDataTable from "@/components/admin/AdminDataTable";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
@@ -22,15 +23,15 @@ export default function AdminUsersPage() {
     { key: "createdAt", header: "Joined", render: (u: AdminUserListItem) => new Date(u.createdAt).toLocaleDateString() },
     {
       key: "actions", header: "", render: (u: AdminUserListItem) => (
-        <Link href={`/admin/users/${u.id}`} className="text-[#004ccd] hover:underline text-sm">View</Link>
+        <Link href={`/admin/users/${u.id}`} className="text-primary hover:underline text-body-sm">View</Link>
       ),
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[#191b24]">Users</h1>
+        <h1 className="text-headline-sm text-on-surface">Users</h1>
       </div>
 
       <input
@@ -38,10 +39,10 @@ export default function AdminUsersPage() {
         placeholder="Search by email or name..."
         value={searchTerm}
         onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-        className="w-full max-w-sm px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#004ccd]"
+        className="w-full max-w-sm px-4 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
       />
 
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl overflow-hidden">
         <AdminDataTable
           columns={columns}
           data={data?.data || []}
@@ -54,6 +55,6 @@ export default function AdminUsersPage() {
           emptyMessage="No users found."
         />
       </div>
-    </div>
+    </motion.div>
   );
 }

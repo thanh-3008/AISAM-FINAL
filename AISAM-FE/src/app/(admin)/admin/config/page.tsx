@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import { apiClient } from "@/lib/apiClient";
 import { useState } from "react";
 
@@ -24,22 +25,22 @@ export default function AdminConfigPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#191b24]">System Configuration</h1>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
+      <h1 className="text-headline-sm text-on-surface">System Configuration</h1>
 
-      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-[#191b24]">AI Provider</h2>
+      <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-sm p-6 space-y-4">
+        <h2 className="text-headline-sm text-on-surface">AI Provider</h2>
         <div>
-          <label className="text-sm font-medium text-[#424656]">AI Provider</label>
+          <label className="text-label-sm font-medium text-on-surface-variant">AI Provider</label>
           <input type="text" value={aiProvider} onChange={(e) => setAiProvider(e.target.value)}
-            placeholder="gemini" className="w-full max-w-sm mt-1 px-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#004ccd]" />
+            placeholder="gemini" className="w-full max-w-sm mt-1 px-4 py-2 rounded-xl border border-outline-variant/30 text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30" />
         </div>
         <button onClick={() => mutation.mutate({ aiProvider })} disabled={mutation.isPending}
-          className="px-4 py-2 rounded-xl bg-[#004ccd] text-white text-sm font-semibold disabled:opacity-50">
+          className="px-4 py-2 rounded-xl bg-primary text-on-primary text-body-sm font-semibold disabled:opacity-50 hover:bg-primary-container transition-colors">
           {mutation.isPending ? "Saving..." : "Save Configuration"}
         </button>
-        {saved && <p className="text-sm text-[#198038]">Configuration saved.</p>}
+        {saved && <p className="text-body-sm text-success-green">Configuration saved.</p>}
       </section>
-    </div>
+    </motion.div>
   );
 }

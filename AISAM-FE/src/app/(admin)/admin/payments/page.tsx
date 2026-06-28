@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import AdminDataTable from "@/components/admin/AdminDataTable";
@@ -28,14 +29,14 @@ export default function AdminPaymentsPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#191b24]">Payments</h1>
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
+      <h1 className="text-headline-sm text-on-surface">Payments</h1>
+      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl overflow-hidden">
         <AdminDataTable columns={columns} data={data?.data || []}
           totalCount={data?.totalCount || 0} page={page} pageSize={10}
           totalPages={data?.totalPages || 1} onPageChange={setPage} isLoading={isLoading}
           emptyMessage="No payments found." />
       </div>
-    </div>
+    </motion.div>
   );
 }
