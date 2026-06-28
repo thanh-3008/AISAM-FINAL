@@ -12,7 +12,7 @@ export default function FacebookCallbackPage() {
   useEffect(() => {
     const code = searchParams.get("code");
     const state = searchParams.get("state");
-    const brandId = sessionStorage.getItem("facebook_connect_brand_id");
+    const brandId = sessionStorage.getItem("social_connect_brand_id") || sessionStorage.getItem("facebook_connect_brand_id");
 
     if (!code || !state) {
       setStatus("Invalid callback parameters");
@@ -29,10 +29,11 @@ export default function FacebookCallbackPage() {
           const targets = await getAvailableTargets(account.id);
           const targetIds = targets.map((t) => t.providerTargetId);
           if (targetIds.length > 0) {
-            await linkTargets(account.id, targetIds, brandId);
+            await linkTargets(account.id, targetIds, brandId, "facebook");
           }
         }
 
+        sessionStorage.removeItem("social_connect_brand_id");
         sessionStorage.removeItem("facebook_connect_brand_id");
         router.push("/social");
       } catch {

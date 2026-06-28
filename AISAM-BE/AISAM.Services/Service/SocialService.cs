@@ -17,6 +17,7 @@ public sealed class SocialService : ISocialService
     private readonly IOAuthStateStore _oauthStateStore;
     private readonly ISocialTokenProtector _tokenProtector;
     private readonly FacebookSettings _facebookSettings;
+    private readonly TikTokSettings _tikTokSettings;
     private readonly Dictionary<string, IProviderService> _providers;
 
     public SocialService(
@@ -26,6 +27,7 @@ public sealed class SocialService : ISocialService
         IOAuthStateStore oauthStateStore,
         ISocialTokenProtector tokenProtector,
         IOptions<FacebookSettings> facebookSettings,
+        IOptions<TikTokSettings> tikTokSettings,
         IEnumerable<IProviderService> providers)
     {
         _socialAccountRepository = socialAccountRepository;
@@ -34,14 +36,15 @@ public sealed class SocialService : ISocialService
         _oauthStateStore = oauthStateStore;
         _tokenProtector = tokenProtector;
         _facebookSettings = facebookSettings.Value;
+        _tikTokSettings = tikTokSettings.Value;
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, CancellationToken cancellationToken = default)
     {
-        var providerService = GetFacebookProvider(provider);
+        var providerService = GetProvider(provider);
         var state = await _oauthStateStore.CreateAsync(profileId, provider, cancellationToken);
-        var authUrl = await providerService.GetAuthUrlAsync(state, _facebookSettings.RedirectUri, cancellationToken);
+        var authUrl = await providerService.GetAuthUrlAsync(state, GetRedirectUri(provider), cancellationToken);
         return new AuthUrlResponse
         {
             AuthUrl = authUrl,
@@ -54,17 +57,18 @@ public sealed class SocialService : ISocialService
 
     private async Task<SocialAccountDto> LinkAccountInternalAsync(string provider, Guid profileId, Guid? workspaceId, SocialCallbackRequest request, CancellationToken cancellationToken)
     {
-        var providerService = GetFacebookProvider(provider);
+        var providerService = GetProvider(provider);
+        var platform = GetPlatform(provider);
         var statePayload = await _oauthStateStore.ConsumeAsync(request.State, profileId, provider, cancellationToken);
         if (statePayload == null)
         {
             throw new InvalidOperationException("OAuth state is invalid or expired.");
         }
 
-        var providerAccount = await providerService.ExchangeCodeAsync(request.Code, _facebookSettings.RedirectUri, cancellationToken);
+        var providerAccount = await providerService.ExchangeCodeAsync(request.Code, GetRedirectUri(provider), cancellationToken);
         var existing = await _socialAccountRepository.GetByProfileIdPlatformAndAccountIdAsync(
             profileId,
-            SocialPlatformEnum.Facebook,
+            platform,
             providerAccount.ProviderUserId,
             cancellationToken);
 
@@ -77,6 +81,9 @@ public sealed class SocialService : ISocialService
 
             existing.WorkspaceId = workspaceId ?? existing.WorkspaceId;
             existing.UserAccessToken = _tokenProtector.Protect(providerAccount.AccessToken);
+            existing.RefreshToken = string.IsNullOrWhiteSpace(providerAccount.RefreshToken)
+                ? null
+                : _tokenProtector.Protect(providerAccount.RefreshToken);
             existing.ExpiresAt = providerAccount.ExpiresAt;
             existing.IsDeleted = false;
             existing.IsActive = true;
@@ -88,9 +95,12 @@ public sealed class SocialService : ISocialService
         {
             ProfileId = profileId,
             WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
-            Platform = SocialPlatformEnum.Facebook,
+            Platform = platform,
             AccountId = providerAccount.ProviderUserId,
             UserAccessToken = _tokenProtector.Protect(providerAccount.AccessToken),
+            RefreshToken = string.IsNullOrWhiteSpace(providerAccount.RefreshToken)
+                ? null
+                : _tokenProtector.Protect(providerAccount.RefreshToken),
             ExpiresAt = providerAccount.ExpiresAt,
             IsActive = true,
             IsDeleted = false
@@ -109,7 +119,7 @@ public sealed class SocialService : ISocialService
     public async Task<IReadOnlyList<AvailableTargetDto>> ListAvailableTargetsForAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
     {
         var account = await RequireOwnedAccountAsync(profileId, socialAccountId, cancellationToken);
-        var provider = GetFacebookProvider(account.Platform.ToString().ToLowerInvariant());
+        var provider = GetProvider(account.Platform.ToString().ToLowerInvariant());
         var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
         return (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
     }
@@ -133,7 +143,13 @@ public sealed class SocialService : ISocialService
         LinkSelectedTargetsRequest request,
         CancellationToken cancellationToken)
     {
-        var provider = GetFacebookProvider(request.Provider);
+        var accountProvider = account.Platform.ToString().ToLowerInvariant();
+        if (!string.Equals(request.Provider, accountProvider, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Provider does not match the selected social account.");
+        }
+
+        var provider = GetProvider(accountProvider);
         var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
         var availableTargets = (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
         var availableById = availableTargets.ToDictionary(target => target.ProviderTargetId, StringComparer.Ordinal);
@@ -150,9 +166,9 @@ public sealed class SocialService : ISocialService
         var targetTokens = await provider.GetTargetAccessTokensAsync(userAccessToken, selectedIds, cancellationToken);
         foreach (var providerTargetId in selectedIds)
         {
-            if (!targetTokens.TryGetValue(providerTargetId, out var pageToken))
+            if (!targetTokens.TryGetValue(providerTargetId, out var targetAccessToken))
             {
-                throw new InvalidOperationException($"Missing page token for target {providerTargetId}.");
+                throw new InvalidOperationException($"Missing access token for target {providerTargetId}.");
             }
 
             var existing = await _socialIntegrationRepository.GetByExternalIdAsync(account.Id, providerTargetId, cancellationToken);
@@ -160,7 +176,7 @@ public sealed class SocialService : ISocialService
             {
                 existing.BrandId = brand.Id;
                 existing.WorkspaceId = account.WorkspaceId;
-                existing.AccessToken = _tokenProtector.Protect(pageToken);
+                existing.AccessToken = _tokenProtector.Protect(targetAccessToken);
                 existing.IsDeleted = false;
                 existing.IsActive = true;
                 await _socialIntegrationRepository.UpdateAsync(existing, cancellationToken);
@@ -179,9 +195,9 @@ public sealed class SocialService : ISocialService
                 WorkspaceId = account.WorkspaceId,
                 BrandId = brand.Id,
                 SocialAccountId = account.Id,
-                Platform = SocialPlatformEnum.Facebook,
+                Platform = account.Platform,
                 ExternalId = providerTargetId,
-                AccessToken = _tokenProtector.Protect(pageToken),
+                AccessToken = _tokenProtector.Protect(targetAccessToken),
                 IsActive = true,
                 IsDeleted = false
             };
@@ -320,19 +336,34 @@ public sealed class SocialService : ISocialService
         return account;
     }
 
-    private IProviderService GetFacebookProvider(string provider)
+    private IProviderService GetProvider(string provider)
     {
-        if (!string.Equals(provider, "facebook", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(provider, "facebook", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(provider, "tiktok", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("Only Facebook is supported in Phase C.");
+            throw new ArgumentException("Only Facebook and TikTok are supported.");
         }
 
-        if (!_providers.TryGetValue("facebook", out var providerService))
+        if (!_providers.TryGetValue(provider, out var providerService))
         {
-            throw new InvalidOperationException("Facebook provider is not registered.");
+            throw new InvalidOperationException($"{provider} provider is not registered.");
         }
 
         return providerService;
+    }
+
+    private string GetRedirectUri(string provider) => GetPlatform(provider) switch
+    {
+        SocialPlatformEnum.Facebook => _facebookSettings.RedirectUri,
+        SocialPlatformEnum.TikTok => _tikTokSettings.RedirectUri,
+        _ => throw new ArgumentException("Unsupported social provider.")
+    };
+
+    private static SocialPlatformEnum GetPlatform(string provider)
+    {
+        if (string.Equals(provider, "facebook", StringComparison.OrdinalIgnoreCase)) return SocialPlatformEnum.Facebook;
+        if (string.Equals(provider, "tiktok", StringComparison.OrdinalIgnoreCase)) return SocialPlatformEnum.TikTok;
+        throw new ArgumentException("Unsupported social provider.");
     }
 
     private static SocialAccountDto MapAccount(SocialAccount account)
@@ -361,7 +392,7 @@ public sealed class SocialService : ISocialService
             Id = integration.Id,
             ProviderTargetId = integration.ExternalId ?? string.Empty,
             Name = integration.ExternalId ?? string.Empty,
-            Type = "page",
+            Type = integration.Platform == SocialPlatformEnum.TikTok ? "tiktok_account" : "page",
             IsActive = integration.IsActive
         };
     }

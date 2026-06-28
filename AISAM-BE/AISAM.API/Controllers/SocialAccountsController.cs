@@ -92,9 +92,10 @@ public sealed class SocialAccountsController : ControllerBase
         [FromBody] LinkSelectedTargetsRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (!string.Equals(request.Provider, "facebook", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(request.Provider, "facebook", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(request.Provider, "tiktok", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest(GenericResponse<SocialAccountDto>.CreateError("Only Facebook is supported in Phase C."));
+            return BadRequest(GenericResponse<SocialAccountDto>.CreateError("Only Facebook and TikTok are supported."));
         }
 
         try

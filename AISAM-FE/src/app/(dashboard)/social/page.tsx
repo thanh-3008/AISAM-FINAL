@@ -5,7 +5,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
 import {
   fetchSocialAccounts,
-  getFacebookAuthUrl,
+  getSocialAuthUrl,
   deleteSocialAccount,
   type SocialAccount,
   type SocialPlatform,
@@ -123,17 +123,17 @@ export default function SocialAccountsPage() {
 
   // Handlers
   const handleConnect = async (platform: SocialPlatform) => {
-    if (platform !== "facebook") {
-      showToast("Only Facebook is supported in Phase C", "error");
+    if (platform === "instagram") {
+      showToast("Instagram integration is not available yet", "error");
       return;
     }
 
     setActionLoading("connect");
     try {
-      const authResponse = await getFacebookAuthUrl();
+      const authResponse = await getSocialAuthUrl(platform);
       window.location.href = authResponse.authUrl;
-    } catch {
-      showToast("Failed to get auth URL", "error");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to get auth URL", "error");
     } finally {
       setActionLoading(null);
     }

@@ -173,27 +173,33 @@ export async function fetchSocialAccounts(): Promise<{ data: SocialAccount[]; to
   return { data: [], total: 0 };
 }
 
-export async function getFacebookAuthUrl(): Promise<AuthUrlResponse> {
-  const res: GenericResponse<BEAuthUrlResponse> = await apiClient("/social-auth/facebook");
+export async function getSocialAuthUrl(platform: "facebook" | "tiktok"): Promise<AuthUrlResponse> {
+  const res: GenericResponse<BEAuthUrlResponse> = await apiClient(`/social-auth/${platform}`);
   if (res?.data) {
     return { authUrl: res.data.authUrl, state: res.data.state };
   }
-  throw new Error(res?.error?.errorMessage || "Failed to get Facebook auth URL");
+  throw new Error(res?.error?.errorMessage || `Failed to get ${platform} auth URL`);
 }
 
-export async function handleFacebookCallback(code: string, state: string): Promise<SocialAccount> {
-  const res: GenericResponse<BESocialAccountDto> = await apiClient("/social-auth/facebook/callback", {
+export async function handleSocialCallback(platform: "facebook" | "tiktok", code: string, state: string): Promise<SocialAccount> {
+  const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social-auth/${platform}/callback`, {
     method: "POST",
     data: { code, state } as BECallbackRequest,
+    signal: AbortSignal.timeout(30000),
   });
   if (res?.data) {
     return mapSocialAccount(res.data);
   }
-  throw new Error(res?.error?.errorMessage || "Failed to link Facebook account");
+  throw new Error(res?.error?.errorMessage || `Failed to link ${platform} account`);
 }
 
+export const getFacebookAuthUrl = () => getSocialAuthUrl("facebook");
+export const handleFacebookCallback = (code: string, state: string) => handleSocialCallback("facebook", code, state);
+
 export async function getAvailableTargets(accountId: string): Promise<AvailableTarget[]> {
-  const res: GenericResponse<BEAvailableTargetDto[]> = await apiClient(`/social/accounts/${accountId}/available-targets`);
+  const res: GenericResponse<BEAvailableTargetDto[]> = await apiClient(`/social/accounts/${accountId}/available-targets`, {
+    signal: AbortSignal.timeout(30000),
+  });
   if (res?.data) {
     return res.data.map(mapAvailableTarget);
   }
@@ -208,10 +214,16 @@ export async function getLinkedTargets(accountId: string): Promise<SocialTarget[
   return [];
 }
 
-export async function linkTargets(accountId: string, targetIds: string[], brandId: string): Promise<SocialAccount> {
+export async function linkTargets(
+  accountId: string,
+  targetIds: string[],
+  brandId: string,
+  provider: "facebook" | "tiktok" = "facebook",
+): Promise<SocialAccount> {
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
     method: "POST",
-    data: { provider: "facebook", providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
+    data: { provider, providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
+    signal: AbortSignal.timeout(30000),
   });
   if (res?.data) {
     return mapSocialAccount(res.data);

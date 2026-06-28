@@ -24,6 +24,7 @@ Copy `.env.example` to `.env.local` and fill in the required values:
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:5027/api      # Backend API base URL
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=                       # Google OAuth client ID (for Google login)
+TIKTOK_LOCAL_CALLBACK_URL=http://localhost:3000/social-callback/tiktok
 ```
 
 Then, run the development server:
@@ -472,6 +473,8 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Social Accounts List** | `/social` | `/social/accounts/me` | GET | — | ✅ PASS — empty list |
 | **Facebook Auth URL** | (connect modal) | `/social-auth/facebook` | GET | — | ✅ PASS — returns auth URL + state |
 | **Facebook Callback** | `/auth/facebook/callback` | `/social-auth/facebook/callback` | POST | `{ code, state }` | ✅ PASS (cần Facebook App) |
+| **TikTok Auth URL** | (connect modal) | `/social-auth/tiktok` | GET | — | ✅ PASS (cần TikTok Login Kit) |
+| **TikTok Callback** | `/social-callback/tiktok` | `/social-auth/tiktok/callback` | POST | `{ code, state }` | ✅ PASS (cần TikTok App) |
 | **Available Targets** | (manage modal) | `/social/accounts/{id}/available-targets` | GET | — | ✅ PASS |
 | **Linked Targets** | (manage modal) | `/social/accounts/{id}/linked-targets` | GET | — | ✅ PASS |
 | **Link Targets** | (manage modal) | `/social/accounts/{id}/link-targets` | POST | `{ provider, providerTargetIds, brandId }` | ✅ PASS |
@@ -479,7 +482,9 @@ Tất cả các trang dưới đây đã kết nối với Backend thật (base 
 | **Integrations by Brand** | (calendar) | `/social/integrations/brand/{brandId}` | GET | — | ✅ PASS — empty list |
 | **Delete Integration** | — | `/social/integrations/{id}` | DELETE | — | ✅ PASS |
 
-> **Flow:** Connect Account → chọn Brand → redirect Facebook → callback → auto-link targets → `/social`
+> **Flow:** Connect Account → chọn Brand → redirect Facebook/TikTok → callback → auto-link targets → `/social`.
+> Khi test TikTok local, TikTok gọi callback HTTPS qua ngrok; route callback sẽ chuyển tiếp `code/state` về `TIKTOK_LOCAL_CALLBACK_URL` để dùng phiên đăng nhập trên localhost.
+> TikTok hiện hỗ trợ Login Kit + Display API (`user.info.basic`). Đăng video trực tiếp cần TikTok duyệt Content Posting API.
 
 ### Service Layer
 
