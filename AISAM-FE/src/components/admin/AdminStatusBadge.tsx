@@ -28,7 +28,7 @@ const variants: Record<string, string> = {
 export default function AdminStatusBadge({ status }: { status: string }) {
   const classes = variants[status] || "bg-on-surface-variant/10 text-on-surface-variant";
   return (
-    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-label-3xs font-semibold ${classes}`}>
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-label-sm font-semibold ${classes}`}>
       {status}
     </span>
   );
