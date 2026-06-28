@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 const navItems = [
   { label: "Dashboard", href: "/admin/dashboard", icon: "space_dashboard" },
@@ -17,48 +18,66 @@ const navItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const { open, toggle } = useSidebar();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[260px] bg-white border-r border-gray-200 flex flex-col z-40">
-      <div className="p-6 border-b border-gray-200">
-        <Link href="/admin/dashboard" className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#731be5] text-2xl">admin_panel_settings</span>
-          <span className="text-xl font-bold text-[#191b24]">AISAM Admin</span>
+    <aside
+      className="fixed left-0 top-0 h-screen z-50 flex flex-col bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 transition-all duration-300 overflow-hidden"
+      style={{ width: open ? "var(--spacing-sidebar-width)" : "72px" }}
+    >
+      <div className="p-4 flex items-center gap-3 border-b border-outline-variant/10">
+        <Link href="/admin/dashboard" className="flex items-center gap-3 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+            <span className="material-symbols-outlined text-white text-xl">admin_panel_settings</span>
+          </div>
+          {open && <span className="text-headline-sm font-bold text-on-surface whitespace-nowrap">AISAM Admin</span>}
         </Link>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              title={open ? undefined : item.label}
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-body-sm font-semibold transition-all duration-200 ${
                 isActive
-                  ? "bg-[#004ccd]/10 text-[#004ccd]"
-                  : "text-[#424656] hover:bg-gray-100 hover:text-[#191b24]"
+                  ? "bg-gradient-to-r from-primary/10 to-transparent text-primary"
+                  : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
               }`}
             >
-              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              {item.label}
+              <span className="material-symbols-outlined text-[20px] shrink-0">{item.icon}</span>
+              {open && <span className="whitespace-nowrap">{item.label}</span>}
               {isActive && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#004ccd]" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-primary" />
               )}
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-200">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-[#424656] hover:bg-gray-100 hover:text-[#191b24] transition-colors"
-        >
-          <span className="material-symbols-outlined text-[20px]">open_in_new</span>
-          User App
-        </Link>
-      </div>
+      {open && (
+        <div className="p-3 border-t border-outline-variant/10">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-body-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+            <span>User App</span>
+          </Link>
+        </div>
+      )}
+
+      <button
+        onClick={toggle}
+        className="absolute bottom-20 right-0 translate-x-1/2 w-6 h-6 rounded-full bg-surface-container-lowest border border-outline-variant/30 shadow-sm flex items-center justify-center hover:bg-surface-container transition-colors"
+      >
+        <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
+          {open ? "chevron_left" : "chevron_right"}
+        </span>
+      </button>
     </aside>
   );
 }

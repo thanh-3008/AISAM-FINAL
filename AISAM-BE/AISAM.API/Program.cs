@@ -284,6 +284,31 @@ using (var scope = app.Services.CreateScope())
         sub.QuotaAdCampaigns = 100;
         sub.EndDate = DateTime.UtcNow.AddYears(1);
     }
+    
+    // Seed Admin User
+    var adminEmail = "admin@aisam.com";
+    var adminUser = dbContext.Users.FirstOrDefault(u => u.Email == adminEmail);
+    if (adminUser == null)
+    {
+        adminUser = new AISAM.Data.Model.User
+        {
+            Id = Guid.NewGuid(),
+            Email = adminEmail,
+            FullName = "Administrator",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+            Role = AISAM.Data.Enumeration.UserRoleEnum.Admin,
+            IsEmailVerified = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.Users.Add(adminUser);
+    }
+    else
+    {
+        adminUser.Role = AISAM.Data.Enumeration.UserRoleEnum.Admin;
+        adminUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123");
+    }
+
     dbContext.SaveChanges();
 }
 
