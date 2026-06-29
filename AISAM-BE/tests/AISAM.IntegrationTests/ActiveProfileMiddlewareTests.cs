@@ -21,7 +21,7 @@ public class ActiveProfileMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -33,7 +33,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = "invalid";
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -46,7 +46,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
@@ -65,7 +65,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
@@ -84,7 +84,7 @@ public class ActiveProfileMiddlewareTests
         
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
@@ -100,7 +100,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment("Production"));
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment("Production"));
 
         Assert.True(nextCalled);
     }
@@ -116,7 +116,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
     }
@@ -137,7 +137,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
     }

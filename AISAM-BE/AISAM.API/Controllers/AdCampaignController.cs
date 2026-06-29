@@ -171,6 +171,69 @@ namespace AISAM.API.Controllers
             }
         }
 
+        [HttpPost("{id}/deploy")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> DeployToFacebook(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.DeployToFacebookAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deploying campaign {CampaignId} to Facebook", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("{id}/sync-insights")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> SyncInsights(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.SyncCampaignInsightsAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing insights for campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("{id}/cleanup")]
+        public async Task<ActionResult<GenericResponse<bool>>> CleanupFailedDeployment(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.CleanupFailedDeploymentAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<bool>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cleaning up deployment for campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
 
     }
 }

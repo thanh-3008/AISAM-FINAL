@@ -295,6 +295,12 @@ public sealed class SocialService : ISocialService
         return integration != null && integration.WorkspaceId == workspaceId && await UnlinkTargetAsync(integration.ProfileId, socialIntegrationId, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
+    {
+        var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);
+        return await GetAdAccountsForSocialAccountAsync(account.ProfileId, socialAccountId, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<SocialIntegrationDto>> GetIntegrationsByBrandInWorkspaceAsync(Guid workspaceId, Guid brandId, CancellationToken cancellationToken = default)
     {
         var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
@@ -320,6 +326,14 @@ public sealed class SocialService : ISocialService
         return account;
     }
 
+    public async Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
+    {
+        var account = await RequireOwnedAccountAsync(profileId, socialAccountId, cancellationToken);
+        var provider = GetFacebookProvider(account.Platform.ToString().ToLowerInvariant());
+        var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
+        return (await provider.GetAdAccountsAsync(userAccessToken, cancellationToken)).ToList();
+    }
+
     private IProviderService GetFacebookProvider(string provider)
     {
         if (!string.Equals(provider, "facebook", StringComparison.OrdinalIgnoreCase))
@@ -335,7 +349,7 @@ public sealed class SocialService : ISocialService
         return providerService;
     }
 
-    private static SocialAccountDto MapAccount(SocialAccount account)
+    private SocialAccountDto MapAccount(SocialAccount account)
     {
         return new SocialAccountDto
         {
@@ -343,6 +357,7 @@ public sealed class SocialService : ISocialService
             ProfileId = account.ProfileId,
             Provider = account.Platform.ToString().ToLowerInvariant(),
             ProviderUserId = account.AccountId ?? string.Empty,
+            AccessToken = account.UserAccessToken != null ? _tokenProtector.Unprotect(account.UserAccessToken) : string.Empty,
             IsActive = account.IsActive,
             ExpiresAt = account.ExpiresAt,
             CreatedAt = account.CreatedAt,

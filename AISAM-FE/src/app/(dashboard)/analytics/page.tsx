@@ -34,7 +34,7 @@ export default function AnalyticsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetchAnalytics();
+        const res = await fetchAnalytics(campaignFilter);
         if (!cancelled) setData(res);
       } catch (err) {
         if (!cancelled) {
@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
   const handleRefresh = () => {
     setData(null);
     setLoading(true);
-    fetchAnalytics().then((res) => {
+    fetchAnalytics(campaignFilter).then((res) => {
       setData(res);
       setLoading(false);
     });

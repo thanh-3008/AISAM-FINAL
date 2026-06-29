@@ -12,6 +12,8 @@ public sealed class FacebookSettings
     {
         "pages_manage_posts",
         "pages_read_engagement",
-        "pages_show_list"
+        "pages_show_list",
+        "ads_management",
+        "ads_read"
     };
 }

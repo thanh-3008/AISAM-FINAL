@@ -21,14 +21,14 @@ export interface BrandOption {
   name: string;
 }
 
-export let cachedBrands: BrandOption[] = [];
+let brandCache: BrandOption[] | null = null;
 
 export function setCachedBrands(brands: BrandOption[]) {
-  cachedBrands = brands;
+  brandCache = brands;
 }
 
 export function getCachedBrands(): BrandOption[] {
-  return cachedBrands;
+  return brandCache ?? [];
 }
 
 export function formatCurrency(amount: number): string {
@@ -77,7 +77,6 @@ export function getCtr(campaign: Campaign): string {
 }
 
 export function getRoas(campaign: Campaign): string {
-  if (campaign.spend === 0) return "—";
-  const revenue = campaign.conversions * 50;
-  return `${(revenue / campaign.spend).toFixed(2)}x`;
+  if (campaign.spend === 0 || campaign.conversions === 0) return "—";
+  return `${(campaign.conversions / campaign.spend).toFixed(2)}x`;
 }

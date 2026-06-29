@@ -290,6 +290,15 @@ public class ContentScheduleServiceTests
             _contents[content.Id] = content;
             return Task.CompletedTask;
         }
+
+        public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class FakeSocialIntegrationRepository : ISocialIntegrationRepository
@@ -399,6 +408,15 @@ public class ContentScheduleServiceTests
             Schedules[schedule.Id] = schedule;
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class FakeNotificationRepository : INotificationRepository
@@ -430,6 +448,9 @@ public class ContentScheduleServiceTests
             => throw new NotImplementedException();
 
         public Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
     }
 }

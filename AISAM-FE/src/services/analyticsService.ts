@@ -105,7 +105,7 @@ function generateDailyChartData(days: number): ChartDataPoint[] {
   return data;
 }
 
-export async function fetchAnalytics(): Promise<AnalyticsData> {
+export async function fetchAnalytics(campaignFilter?: string): Promise<AnalyticsData> {
   let dashboard: BEDashboardSummaryDto | null = null;
   let wsDashboard: BEWorkspaceDashboardSummaryDto | null = null;
 
@@ -125,14 +125,22 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
   let campaignPerformance: CampaignPerformance[] = [];
   try {
     const res = await fetchCampaigns({ pageSize: 50 });
-    campaignPerformance = res.data.map((c) => ({
+    let campaigns = res.data;
+    if (campaignFilter && campaignFilter !== "all") {
+      const statusMap: Record<string, string> = { active: "ACTIVE", paused: "PAUSED", completed: "COMPLETED" };
+      const targetStatus = statusMap[campaignFilter];
+      if (targetStatus) {
+        campaigns = campaigns.filter(c => c.status === targetStatus);
+      }
+    }
+    campaignPerformance = campaigns.map((c) => ({
       id: c.id,
       name: c.name,
       status: c.status === "ACTIVE" ? "active" : c.status === "PAUSED" ? "paused" : "completed",
       reach: c.impressions,
       clicks: c.clicks,
       ctr: c.impressions > 0 ? Math.round((c.clicks / c.impressions) * 10000) / 100 : 0,
-      roas: c.spend > 0 ? Math.round((c.conversions * 10 / c.spend) * 10) / 10 : 0,
+      roas: c.spend > 0 ? Math.round((c.conversions / c.spend) * 10) / 10 : 0,
       spend: c.spend,
       conversions: c.conversions,
     }));

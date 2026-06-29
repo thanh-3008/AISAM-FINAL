@@ -113,6 +113,7 @@ public class AuthRegistrationWorkspaceTests
 
         public Task<Session?> GetByIdAsync(Guid id) => Task.FromResult(_sessions.FirstOrDefault(session => session.Id == id));
         public Task<Session?> GetByRefreshTokenAsync(string refreshToken) => Task.FromResult(_sessions.FirstOrDefault(session => session.RefreshToken == refreshToken));
+        public Task<Session?> FindByRefreshTokenAsync(string refreshToken) => Task.FromResult(_sessions.FirstOrDefault(s => s.RefreshToken == refreshToken));
         public Task<List<Session>> GetActiveSessionsByUserIdAsync(Guid userId) => Task.FromResult(_sessions.Where(session => session.UserId == userId && session.IsActive).ToList());
         public Task UpdateAsync(Session session) => Task.CompletedTask;
         public Task RevokeSessionAsync(Guid sessionId) => Task.CompletedTask;

@@ -25,7 +25,7 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
     if (team) {
       setName(team.name);
       setDescription(team.description);
-      setSelectedBrands([]);
+      setSelectedBrands(team.brandIds || []);
     }
   }, [team]);
 

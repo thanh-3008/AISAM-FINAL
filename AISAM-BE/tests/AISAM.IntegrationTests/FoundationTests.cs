@@ -203,7 +203,7 @@ public class FoundationTests
         };
 
         var productRepository = new FakeProductRepository(product);
-        var service = new ProductService(productRepository, new FakeBrandRepository(brand), null!);
+        var service = new ProductService(productRepository, new FakeBrandRepository(brand));
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 

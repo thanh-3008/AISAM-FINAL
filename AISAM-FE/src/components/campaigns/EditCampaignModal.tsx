@@ -14,21 +14,30 @@ interface EditCampaignModalProps {
 export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoading }: EditCampaignModalProps) {
   const [name, setName] = useState(campaign?.name || "");
   const [brandId, setBrandId] = useState(campaign?.brandId || "");
+  const [adAccountId, setAdAccountId] = useState(campaign?.adAccountId || "");
   const [objective, setObjective] = useState<CampaignObjective>(campaign?.objective || "AWARENESS");
   const [budget, setBudget] = useState(campaign?.budget?.toString() || "");
   const [startDate, setStartDate] = useState(campaign?.startDate ? campaign.startDate.split("T")[0] : "");
   const [endDate, setEndDate] = useState(campaign?.endDate ? campaign.endDate.split("T")[0] : "");
+  const [dateError, setDateError] = useState("");
 
   if (!campaign) return null;
 
   const handleSubmit = () => {
     const brand = getCachedBrands().find((b) => b.id === brandId);
     if (!name.trim() || !brand) return;
+    if (!adAccountId.trim()) return;
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      setDateError("End date must be after start date");
+      return;
+    }
+    setDateError("");
 
     onUpdate(campaign.id, {
       name,
       brandId,
       brandName: brand.name,
+      adAccountId: adAccountId.trim(),
       objective,
       budget: budget ? parseFloat(budget) : null,
       startDate: startDate || null,
@@ -36,7 +45,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
     });
   };
 
-  const isValid = name.trim() && brandId;
+  const isValid = name.trim() && brandId && adAccountId.trim();
 
   return (
     <>
@@ -69,6 +78,18 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Summer Sale 2024"
+                className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
+              />
+            </div>
+
+            {/* Ad Account */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Ad Account ID</label>
+              <input
+                type="text"
+                value={adAccountId}
+                onChange={(e) => setAdAccountId(e.target.value)}
+                placeholder="e.g. act_123456789"
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
               />
             </div>
@@ -145,6 +166,9 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
                 />
               </div>
             </div>
+            {dateError && (
+              <p className="text-label-xs text-red-600 mt-1">{dateError}</p>
+            )}
           </div>
 
           {/* Footer */}

@@ -303,3 +303,18 @@ export async function transferOwnership(targetMemberId: string): Promise<{ succe
     return { success: false, message: err?.message || "Network error" };
   }
 }
+
+export async function updateMemberQuota(
+  memberId: string,
+  data: { mode: string; limit: number }
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res = await apiClient(`/workspace-members/${memberId}/quota`, {
+      method: "PUT",
+      data,
+    });
+    return { success: res?.success === true, message: res?.message };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Network error" };
+  }
+}

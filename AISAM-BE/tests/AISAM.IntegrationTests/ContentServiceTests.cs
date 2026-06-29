@@ -277,6 +277,10 @@ public class ContentServiceTests
             _contents[content.Id] = content;
             return Task.CompletedTask;
         }
+
+        public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeBrandRepository : IBrandRepository

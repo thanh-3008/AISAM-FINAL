@@ -26,7 +26,7 @@ public class SocialControllerTests
         var context = CreateMiddlewareContext(Guid.NewGuid(), "/api/dev/scheduler");
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeWorkspaceRepository(), new FakeUserRepository(), new FakeWebHostEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), new FakeWebHostEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -158,6 +158,9 @@ public class SocialControllerTests
                 State = "state"
             });
         }
+
+        public Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<FacebookAdAccountData>>(new List<FacebookAdAccountData>());
 
         public Task<SocialAccountDto> LinkAccountAsync(string provider, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default)
         {
