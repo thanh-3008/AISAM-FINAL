@@ -23,6 +23,7 @@ interface CampaignCardProps {
   onApply: (campaign: Campaign) => void;
   onRestart: (campaign: Campaign) => void;
   onDelete: (campaign: Campaign) => void;
+  onDeploy?: (campaign: Campaign) => void;
 }
 
 export default function CampaignCard({
@@ -37,6 +38,7 @@ export default function CampaignCard({
   onApply,
   onRestart,
   onDelete,
+  onDeploy,
 }: CampaignCardProps) {
   const objectiveConfig = OBJECTIVE_CONFIG[campaign.objective];
   const statusConfig = STATUS_CONFIG[campaign.status];
@@ -63,6 +65,20 @@ export default function CampaignCard({
           <div className="flex-1 min-w-0">
             <h3 className="text-body-sm font-bold text-on-surface truncate">{campaign.name}</h3>
             <p className="text-[11px] text-outline mt-0.5">{campaign.brandName}</p>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {campaign.productName && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container-high rounded text-[9px] font-medium text-outline">
+                  <span className="material-symbols-outlined text-[10px]">inventory_2</span>
+                  {campaign.productName}
+                </span>
+              )}
+              {campaign.contentTitle && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container-high rounded text-[9px] font-medium text-outline">
+                  <span className="material-symbols-outlined text-[10px]">description</span>
+                  {campaign.contentTitle.length > 20 ? campaign.contentTitle.slice(0, 20) + "…" : campaign.contentTitle}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold border ${statusConfig.bg} ${statusConfig.color}`}>
@@ -161,6 +177,21 @@ export default function CampaignCard({
               <>
                 <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
                 Apply
+              </>
+            )}
+          </button>
+        ) : !campaign.facebookCampaignId && onDeploy ? (
+          <button
+            onClick={() => onDeploy(campaign)}
+            disabled={isLoading}
+            className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-[11px] font-semibold text-indigo-600 transition-all flex items-center gap-1 disabled:opacity-50"
+          >
+            {isLoading ? (
+              <span className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin block" />
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[14px]">ads_click</span>
+                Deploy
               </>
             )}
           </button>

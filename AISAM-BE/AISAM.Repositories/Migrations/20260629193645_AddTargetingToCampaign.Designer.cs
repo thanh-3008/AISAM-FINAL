@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AISAM.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AISAM.Repositories.Migrations
 {
     [DbContext(typeof(AisamContext))]
-    partial class AisamContextModelSnapshot : ModelSnapshot
+    [Migration("20260629193645_AddTargetingToCampaign")]
+    partial class AddTargetingToCampaign
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -86,17 +89,9 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("decimal(10,2)")
                         .HasColumnName("budget");
 
-                    b.Property<long>("Clicks")
-                        .HasColumnType("bigint")
-                        .HasColumnName("clicks");
-
                     b.Property<Guid?>("ContentId")
                         .HasColumnType("uuid")
                         .HasColumnName("content_id");
-
-                    b.Property<long>("Conversions")
-                        .HasColumnType("bigint")
-                        .HasColumnName("conversions");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -118,10 +113,6 @@ namespace AISAM.Repositories.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("facebook_campaign_id");
-
-                    b.Property<long>("Impressions")
-                        .HasColumnType("bigint")
-                        .HasColumnName("impressions");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
@@ -149,10 +140,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<Guid>("ProfileId")
                         .HasColumnType("uuid")
                         .HasColumnName("profile_id");
-
-                    b.Property<decimal>("Spend")
-                        .HasColumnType("decimal(12,2)")
-                        .HasColumnName("spend");
 
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("date")

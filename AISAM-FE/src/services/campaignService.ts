@@ -3,6 +3,15 @@ import { apiClient } from "@/lib/apiClient";
 export type CampaignStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "DRAFT";
 export type CampaignObjective = "AWARENESS" | "TRAFFIC" | "ENGAGEMENT" | "LEADS" | "SALES" | "APP_PROMOTION";
 
+export interface Ad {
+  id: string;
+  adId: string | null;
+  status: string | null;
+  creativeId: string | null;
+  callToAction: string | null;
+  linkUrl: string | null;
+}
+
 export interface AdSet {
   id: string;
   name: string;
@@ -12,7 +21,10 @@ export interface AdSet {
   impressions: number;
   clicks: number;
   spend: number;
+  ads: Ad[];
 }
+
+export type DeploymentStatus = 0 | 1 | 2 | 3;
 
 export interface Campaign {
   id: string;
@@ -20,6 +32,11 @@ export interface Campaign {
   workspaceId: string;
   brandId: string;
   brandName: string;
+  productId: string | null;
+  productName: string | null;
+  contentId: string | null;
+  contentTitle: string | null;
+  targeting: string | null;
   adAccountId: string;
   facebookCampaignId: string | null;
   name: string;
@@ -28,6 +45,8 @@ export interface Campaign {
   startDate: string | null;
   endDate: string | null;
   status: CampaignStatus;
+  deploymentStatus: DeploymentStatus;
+  deploymentStep: number;
   createdAt: string;
   updatedAt: string;
   adSets: AdSet[];
@@ -41,6 +60,10 @@ export interface CreateCampaignData {
   name: string;
   brandId: string;
   brandName: string;
+  productId?: string | null;
+  contentId?: string | null;
+  targeting?: string | null;
+  adAccountId: string;
   objective: CampaignObjective;
   budget: number | null;
   startDate: string | null;
@@ -53,6 +76,11 @@ interface CampaignApiItem {
   workspaceId: string;
   brandId: string;
   brandName: string;
+  productId: string | null;
+  productName: string | null;
+  contentId: string | null;
+  contentTitle: string | null;
+  targeting: string | null;
   adAccountId: string;
   facebookCampaignId: string | null;
   name: string;
@@ -62,6 +90,8 @@ interface CampaignApiItem {
   endDate: string | null;
   isActive: boolean;
   isDeleted: boolean;
+  deploymentStatus: number;
+  deploymentStep: number;
   createdAt: string;
   updatedAt: string;
   adSets: AdSetApiItem[];
@@ -80,6 +110,16 @@ interface AdSetApiItem {
   impressions: number;
   clicks: number;
   spend: number;
+  ads: AdApiItem[];
+}
+
+interface AdApiItem {
+  id: string;
+  adId: string | null;
+  status: string | null;
+  creativeId: string | null;
+  callToAction: string | null;
+  linkUrl: string | null;
 }
 
 function mapCampaign(api: CampaignApiItem): Campaign {
@@ -98,6 +138,11 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     workspaceId: api.workspaceId,
     brandId: api.brandId,
     brandName: api.brandName,
+    productId: api.productId ?? null,
+    productName: api.productName ?? null,
+    contentId: api.contentId ?? null,
+    contentTitle: api.contentTitle ?? null,
+    targeting: api.targeting ?? null,
     adAccountId: api.adAccountId,
     facebookCampaignId: api.facebookCampaignId,
     name: api.name,
@@ -106,6 +151,8 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     startDate: api.startDate,
     endDate: api.endDate,
     status,
+    deploymentStatus: api.deploymentStatus as DeploymentStatus,
+    deploymentStep: api.deploymentStep,
     createdAt: api.createdAt,
     updatedAt: api.updatedAt,
     adSets: (api.adSets || []).map((ads) => ({
@@ -117,6 +164,14 @@ function mapCampaign(api: CampaignApiItem): Campaign {
       impressions: ads.impressions,
       clicks: ads.clicks,
       spend: ads.spend,
+      ads: (ads.ads || []).map((a: AdApiItem) => ({
+        id: a.id,
+        adId: a.adId,
+        status: a.status,
+        creativeId: a.creativeId,
+        callToAction: a.callToAction,
+        linkUrl: a.linkUrl,
+      })),
     })),
     impressions: api.impressions,
     clicks: api.clicks,
@@ -148,18 +203,24 @@ export async function fetchCampaigns(params?: {
         total: res.data.totalCount || 0,
       };
     }
-  } catch {
-    // fallback to empty
+  } catch (err) {
+    console.error("Failed to fetch campaigns:", err);
   }
   return { data: [], total: 0 };
 }
 
 export async function createCampaign(data: CreateCampaignData): Promise<Campaign> {
+  if (!data.adAccountId) {
+    throw new Error("Ad account is required");
+  }
   const res = await apiClient("/campaigns", {
     data: {
       name: data.name,
       brandId: data.brandId,
-      adAccountId: `act_${Date.now()}`,
+      productId: data.productId ?? null,
+      contentId: data.contentId ?? null,
+      targeting: data.targeting ?? null,
+      adAccountId: data.adAccountId,
       objective: data.objective,
       budget: data.budget,
       startDate: data.startDate || null,
@@ -180,6 +241,10 @@ export async function updateCampaign(id: string, data: CreateCampaignData): Prom
     data: {
       name: data.name,
       brandId: data.brandId,
+      productId: data.productId ?? null,
+      contentId: data.contentId ?? null,
+      targeting: data.targeting ?? null,
+      adAccountId: data.adAccountId,
       objective: data.objective,
       budget: data.budget,
       startDate: data.startDate || null,
@@ -218,6 +283,27 @@ export async function restartCampaign(id: string): Promise<Campaign> {
 
 export async function deleteCampaign(id: string): Promise<boolean> {
   const res = await apiClient(`/campaigns/${id}`, { method: "DELETE" });
+  return res?.success === true;
+}
+
+export async function deployCampaignToFacebook(id: string): Promise<Campaign> {
+  const res = await apiClient(`/campaigns/${id}/deploy`, { method: "POST" });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to deploy campaign to Facebook");
+  }
+  return mapCampaign(res.data as CampaignApiItem);
+}
+
+export async function syncCampaignInsights(id: string): Promise<Campaign> {
+  const res = await apiClient(`/campaigns/${id}/sync-insights`, { method: "POST" });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to sync campaign insights");
+  }
+  return mapCampaign(res.data as CampaignApiItem);
+}
+
+export async function cleanupCampaignDeployment(id: string): Promise<boolean> {
+  const res = await apiClient(`/campaigns/${id}/cleanup`, { method: "POST" });
   return res?.success === true;
 }
 

@@ -9,6 +9,12 @@ namespace AISAM.Common.Dtos.Request
 
         public Guid? BrandId { get; set; }
 
+        public Guid? ProductId { get; set; }
+
+        public Guid? ContentId { get; set; }
+
+        public string? Targeting { get; set; }
+
         [MaxLength(255)]
         public string? AdAccountId { get; set; }
 

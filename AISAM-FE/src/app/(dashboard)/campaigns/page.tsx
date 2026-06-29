@@ -12,6 +12,7 @@ import {
   applyCampaign,
   restartCampaign,
   deleteCampaign,
+  deployCampaignToFacebook,
   type Campaign,
   type CampaignStatus,
   type CampaignObjective,
@@ -27,7 +28,7 @@ import EditCampaignModal from "@/components/campaigns/EditCampaignModal";
 import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
 import { fetchBrands } from "@/services/brandService";
-import { setCachedBrands } from "@/components/campaigns/campaignUtils";
+import { setCachedBrands, OBJECTIVE_CONFIG, STATUS_CONFIG } from "@/components/campaigns/campaignUtils";
 
 export default function CampaignsPage() {
   const { activeWorkspace } = useWorkspaces();
@@ -242,6 +243,21 @@ export default function CampaignsPage() {
     setSelectedIds([]);
   };
 
+  const handleDeploy = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      const updated = await deployCampaignToFacebook(campaign.id);
+      if (updated) {
+        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
+        addToast(`Campaign deployed to Facebook`);
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to deploy", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const hasFilters = !!(search || statusFilter || objectiveFilter);
 
   return (
@@ -283,10 +299,8 @@ export default function CampaignsPage() {
             </button>
           </div>
 
-          {/* Stats */}
           <CampaignStatsCards campaigns={campaigns} />
 
-          {/* Filters */}
           <CampaignFilterBar
             search={search}
             onSearchChange={setSearch}
@@ -350,11 +364,13 @@ export default function CampaignsPage() {
                   onToggleStatus={handleToggleStatus}
                   onApply={handleApply}
                   onRestart={handleRestart}
+                  onDeploy={handleDeploy}
                   onDelete={handleDelete}
                 />
               ))}
             </div>
           )}
+
         </div>
 
         {/* Modals */}
