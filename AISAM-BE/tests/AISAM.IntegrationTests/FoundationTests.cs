@@ -591,5 +591,15 @@ public class FoundationTests
             UploadedFiles.Add((folder, fileName));
             return Task.FromResult($"https://media.test/{folder}/{fileName}");
         }
+
+        public Task<string> UploadBytesAsync(
+            byte[] data,
+            string folder,
+            string fileName,
+            CancellationToken cancellationToken = default)
+        {
+            UploadedFiles.Add((folder, fileName));
+            return Task.FromResult($"https://media.test/{folder}/{fileName}");
+        }
     }
 }

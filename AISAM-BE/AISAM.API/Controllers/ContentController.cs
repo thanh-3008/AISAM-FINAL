@@ -208,5 +208,8 @@ public sealed class ContentController : ControllerBase
     {
         public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("Supabase storage is not configured.");
+            
+        public Task<string> UploadBytesAsync(byte[] data, string folder, string fileName, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Supabase storage is not configured.");
     }
 }

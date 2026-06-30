@@ -80,6 +80,36 @@ public sealed class GeminiController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("generate-image")]
+    public async Task<ActionResult> GenerateImage(
+        [FromBody] GenerateImageRequest request, CancellationToken cancellationToken = default)
+    {
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.GenerateImageAsync(
+            membership.WorkspaceId, membership.UserId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("generate-video")]
+    public async Task<ActionResult> GenerateVideo(
+        [FromBody] GenerateVideoRequest request, CancellationToken cancellationToken = default)
+    {
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.StartVideoGenerationAsync(
+            membership.WorkspaceId, membership.UserId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("video-status/{generationId:guid}")]
+    public async Task<ActionResult> VideoStatus(
+        Guid generationId, CancellationToken cancellationToken = default)
+    {
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _aiService.CheckVideoStatusAsync(
+            generationId, membership.WorkspaceId, membership.UserId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     private Guid GetProfileId()
     {
         return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);

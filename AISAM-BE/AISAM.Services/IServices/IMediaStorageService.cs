@@ -9,4 +9,10 @@ public interface IMediaStorageService
         string folder,
         string fileName,
         CancellationToken cancellationToken = default);
+
+    Task<string> UploadBytesAsync(
+        byte[] data,
+        string folder,
+        string fileName,
+        CancellationToken cancellationToken = default);
 }

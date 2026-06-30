@@ -81,7 +81,10 @@ public class PhaseEQuotaIntegrationTests
             new FakeProductRepository(),
             geminiTextClient,
             new FakeConversationRepository(),
-            creditService);
+            creditService,
+            null!,
+            null!,
+            null!);
     }
 
     private sealed class FakeCreditService : ICreditService

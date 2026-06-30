@@ -229,6 +229,37 @@ export async function fetchContentById(id: string): Promise<ContentDetail | null
   }
 }
 
+export async function updateContentDetails(id: string, payload: Partial<CreateContentPayload>): Promise<ContentApiItem | null> {
+  const profileId = getStoredActiveProfile()?.id;
+  if (!profileId) {
+    console.error("No active profile selected");
+    return null;
+  }
+  
+  const token = getToken();
+  if (!token) {
+    console.error("No auth token available");
+    return null;
+  }
+  
+  try {
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, {
+      method: "PUT",
+      data: payload,
+    });
+    
+    if (res?.success && res.data) {
+      return res.data;
+    }
+    
+    console.error("Failed to update content", res?.message || res?.error);
+    return null;
+  } catch (error) {
+    console.error("Error calling updateContentDetails:", error);
+    return null;
+  }
+}
+
 export async function createContent(data: CreateContentPayload): Promise<ContentItem | null> {
   const res: GenericResponse<ContentApiItem> = await apiClient("/content", { data });
   if (res?.success && res.data) {
@@ -325,9 +356,9 @@ export async function chatWithAI(
   productId?: string,
   conversationId?: string,
   _history?: { role: string; text: string }[]
-): Promise<{ text: string; conversationId: string; shouldCreateContent: boolean } | null> {
+): Promise<{ text?: string; conversationId?: string; shouldCreateContent?: boolean; createdContentId?: string; errorMessage?: string } | null> {
   try {
-    const res: GenericResponse<{ response: string; conversationId: string; shouldCreateContent: boolean }> = await apiClient("/ai/chat", {
+    const res: GenericResponse<{ response: string; conversationId: string; shouldCreateContent: boolean; createdContentId?: string }> = await apiClient("/ai/chat", {
       data: { message, adType, brandId, productId, conversationId },
     });
     if (res?.success && res.data?.response) {
@@ -335,11 +366,12 @@ export async function chatWithAI(
         text: res.data.response,
         conversationId: res.data.conversationId,
         shouldCreateContent: res.data.shouldCreateContent === true,
+        createdContentId: res.data.createdContentId,
       };
     }
-    return null;
-  } catch {
-    return null;
+    return { errorMessage: res?.message || "AI service request failed." };
+  } catch (error) {
+    return { errorMessage: error instanceof Error ? error.message : "AI service request failed." };
   }
 }
 

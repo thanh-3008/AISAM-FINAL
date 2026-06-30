@@ -78,6 +78,9 @@ public class AIControllerTests
         public Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, Guid workspaceId, Guid userId, ImproveContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid generationId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<IEnumerable<AiGenerationResponse>>> GetGenerationsAsync(Guid contentId, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AiGenerationResponse>> GenerateImageAsync(Guid workspaceId, Guid userId, GenerateImageRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AiGenerationResponse>> StartVideoGenerationAsync(Guid workspaceId, Guid userId, GenerateVideoRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<AiGenerationResponse>> CheckVideoStatusAsync(Guid generationId, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<GenericResponse<ChatResponse>> ChatAsync(Guid profileId, ChatRequest request, CancellationToken cancellationToken = default)
         {

@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { createContent, generateAIDraft, chatWithAI, getConversationMessages, type CreateContentPayload } from "@/services/contentService";
+import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
@@ -54,6 +55,7 @@ export default function AIGeneratePage() {
   const featureGate = useFeatureGate();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
   const [productList, setProductList] = useState<{ id: string; name: string; brandId: string }[]>([]);
@@ -63,6 +65,7 @@ export default function AIGeneratePage() {
   const [content, setContent] = useState("");
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [platform, setPlatform] = useState(PLATFORMS[0].value);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -116,6 +119,7 @@ export default function AIGeneratePage() {
     setSelectedVariation(null);
     setGeneratedId(null);
     setJustGenerated(false);
+    setImageUrl(null);
     if (!conversationStorageKey) return;
 
     let cancelled = false;
@@ -145,16 +149,22 @@ export default function AIGeneratePage() {
     setIsGenerating(true);
 
     const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, conversationId || undefined, messages.map(m => ({ role: m.role, text: m.text })));
+    if (aiReply?.errorMessage) {
+      setIsGenerating(false);
+      addToast(aiReply.errorMessage);
+      return;
+    }
     if (aiReply) {
       setConversationId(aiReply.conversationId);
-      if (conversationStorageKey) sessionStorage.setItem(conversationStorageKey, aiReply.conversationId);
+      if (conversationStorageKey && aiReply.conversationId) sessionStorage.setItem(conversationStorageKey, aiReply.conversationId);
 
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
+      const canCreate = aiReply.shouldCreateContent || Boolean(aiReply.createdContentId);
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: "assistant",
         text: aiReply.text,
-        canApply: aiReply.shouldCreateContent,
+        canApply: canCreate,
       };
       setMessages((prev) => [...prev, aiMsg]);
 
@@ -163,7 +173,7 @@ export default function AIGeneratePage() {
         prompt: userPrompt,
         result: aiReply.text,
       };
-      if (aiReply.shouldCreateContent) {
+      if (aiReply.shouldCreateContent || aiReply.createdContentId) {
         setVariations((prev) => [variation, ...prev]);
       }
 
@@ -171,7 +181,12 @@ export default function AIGeneratePage() {
 
       setIsGenerating(false);
 
-      if (aiReply.shouldCreateContent) {
+      if (aiReply.createdContentId) {
+        // backend already created/updated content; show View Post immediately
+        setGeneratedId(aiReply.createdContentId);
+        setJustGenerated(true);
+        setSelectedVariation(variation.id);
+      } else if (aiReply.shouldCreateContent) {
         autoSavePost(`AI Generated — ${brandName}`, aiReply.text, generatedHashtags, variation.id);
       }
       return;
@@ -182,22 +197,47 @@ export default function AIGeneratePage() {
   };
 
   const autoSavePost = async (postTitle: string, postContent: string, postHashtags: string[], varId: string) => {
-    const platformKey = platform.split("-")[0];
+    let cleanContent = postContent;
+    let extractedImageUrl = null;
+    const imageMatch = postContent.match(/\[IMAGE:\s*(.+?)\]/);
+    if (imageMatch) {
+      extractedImageUrl = imageMatch[1];
+      cleanContent = postContent.replace(/\[IMAGE:\s*(.+?)\]/g, '').trim();
+    }
+    const videoMatch = postContent.match(/\[VIDEO_JOB:\s*(.+?)\]/);
+    if (videoMatch) {
+      cleanContent = postContent.replace(/\[VIDEO_JOB:\s*(.+?)\]/g, '').trim();
+    }
 
-    const payload: CreateContentPayload = {
+    const payload: Partial<CreateContentPayload> = {
       brandId,
       productId: productId || null,
-      adType: 0,
       title: postTitle || `AI Generated — ${brandName}`,
-      textContent: postContent || "",
+      textContent: cleanContent || "",
     };
 
+    if (extractedImageUrl) {
+      payload.imageUrl = extractedImageUrl;
+      payload.adType = 1;
+    } else if (videoMatch) {
+      payload.adType = 2;
+    } else if (!generatedId) {
+      payload.adType = 0;
+    }
+
     try {
-      const result = await createContent(payload);
+      let result;
+      if (generatedId) {
+        result = await updateContentDetails(generatedId, payload);
+      } else {
+        result = await createContent(payload as CreateContentPayload);
+      }
+      
       if (result) {
-        setTitle(result.title);
-        setContent(postContent);
+        setTitle(result.title || "");
+        setContent(cleanContent);
         setHashtags(postHashtags);
+        if (extractedImageUrl) setImageUrl(extractedImageUrl);
         setGeneratedId(result.id);
         setJustGenerated(true);
         setSelectedVariation(varId);
@@ -322,14 +362,23 @@ export default function AIGeneratePage() {
                   {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              {creditBalance !== null && (
-                <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${
-                  creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"
-                }`}>
-                  <span className="material-symbols-outlined text-[14px]">token</span>
-                  {creditBalance} Credits
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {creditBalance !== null && (
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${
+                    creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"
+                  }`}>
+                    <span className="material-symbols-outlined text-[14px]">token</span>
+                    {creditBalance} Credits
+                  </div>
+                )}
+                <button
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-label-xs font-semibold hover:bg-primary/20 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">history</span>
+                  History
+                </button>
+              </div>
               {insufficientCredits && (
                 <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-danger-red/10 text-danger-red text-label-xs font-semibold">
                   <span className="material-symbols-outlined text-[12px]">error</span>
@@ -394,11 +443,15 @@ export default function AIGeneratePage() {
                           {hashtags.map((h) => `#${h}`).join(" ")}
                         </p>
                       )}
-                      <div className="border-t border-b border-[#e4e6eb] bg-[#f0f2f5] aspect-video flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
-                          <span className="material-symbols-outlined text-4xl">landscape</span>
-                          <span className="text-[11px]">Image placeholder</span>
-                        </div>
+                      <div className="border-t border-b border-[#e4e6eb] bg-[#f0f2f5] aspect-video flex items-center justify-center overflow-hidden">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
+                            <span className="material-symbols-outlined text-4xl">landscape</span>
+                            <span className="text-[11px]">Image placeholder</span>
+                          </div>
+                        )}
                       </div>
                       <div className="px-3.5 py-2 flex items-center gap-1 text-[13px] text-[#65676b]">
                         <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="#65676b"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9.33c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
@@ -423,11 +476,15 @@ export default function AIGeneratePage() {
                         <p className="text-[12px] font-semibold text-[#262626] flex-1">{brandName || "brand"}</p>
                         <span className="material-symbols-outlined text-[18px] text-[#262626]">more_horiz</span>
                       </div>
-                      <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef]">
-                        <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
-                          <span className="material-symbols-outlined text-4xl">landscape</span>
-                          <span className="text-[11px]">Instagram Post</span>
-                        </div>
+                      <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef] overflow-hidden">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
+                            <span className="material-symbols-outlined text-4xl">landscape</span>
+                            <span className="text-[11px]">Instagram Post</span>
+                          </div>
+                        )}
                       </div>
                       <div className="p-3 space-y-1.5">
                         <div className="flex items-center gap-3">
@@ -448,10 +505,14 @@ export default function AIGeneratePage() {
                   {/* TikTok / dark-themed post */}
                   {platform.startsWith("tiktok") && (
                     <div className="font-sans bg-[#111111] text-white relative overflow-hidden">
-                      <div className="aspect-[9/16] flex items-center justify-center relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                          <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z"/></svg>
-                        </div>
+                      <div className="aspect-[9/16] flex items-center justify-center relative overflow-hidden">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-80" />
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z"/></svg>
+                          </div>
+                        )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-label-xs font-bold shrink-0 border border-white/30"
@@ -529,7 +590,22 @@ export default function AIGeneratePage() {
                           <span className="text-label-2xs font-semibold text-primary uppercase tracking-wider">AI</span>
                         </div>
                       )}
-                      <p className="text-[12px] leading-relaxed whitespace-pre-line">{msg.text}</p>
+                      {msg.text.includes("[IMAGE:") || msg.text.includes("[VIDEO_JOB:") ? (
+                        <>
+                          <p className="text-[12px] leading-relaxed whitespace-pre-line">
+                            {msg.text.replace(/\[IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_JOB:\s*.+?\]/g, '').trim()}
+                          </p>
+                          {(() => {
+                            const imgMatch = msg.text.match(/\[IMAGE:\s*(.+?)\]/);
+                            if (imgMatch) return <img src={imgMatch[1]} alt="Generated" className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
+                            const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
+                            if (vidMatch) return <div className="mt-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-1.5"><span className="material-symbols-outlined text-[14px]">movie</span><span>Đang tạo video (Job: {vidMatch[1]}). Vui lòng kiểm tra lại sau tại danh sách Content.</span></div>;
+                            return null;
+                          })()}
+                        </>
+                      ) : (
+                        <p className="text-[12px] leading-relaxed whitespace-pre-line">{msg.text}</p>
+                      )}
                       {msg.role === "assistant" && (
                         <button onClick={() => handleApplyVariation({ id: msg.id, prompt: "", result: msg.text })}
                           className="mt-1.5 text-label-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-0.5">
@@ -570,6 +646,11 @@ export default function AIGeneratePage() {
           </div>
         </div>
       </main>
+
+      <CreditUsageHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+      />
     </>
   );
 }

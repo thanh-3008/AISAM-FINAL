@@ -16,4 +16,13 @@ public interface IAIService
         => ApproveAsync(generationId, workspaceId, cancellationToken);
     Task<GenericResponse<IEnumerable<AiGenerationResponse>>> GetGenerationsInWorkspaceAsync(Guid contentId, Guid workspaceId, CancellationToken cancellationToken = default)
         => GetGenerationsAsync(contentId, workspaceId, cancellationToken);
+    
+    Task<GenericResponse<AiGenerationResponse>> GenerateImageAsync(
+        Guid workspaceId, Guid userId, GenerateImageRequest request, CancellationToken cancellationToken = default);
+        
+    Task<GenericResponse<AiGenerationResponse>> StartVideoGenerationAsync(
+        Guid workspaceId, Guid userId, GenerateVideoRequest request, CancellationToken cancellationToken = default);
+        
+    Task<GenericResponse<AiGenerationResponse>> CheckVideoStatusAsync(
+        Guid generationId, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
+import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { fetchWorkspaceDashboard, fetchCreditWallet, fetchPostQuota } from "@/services/workspaceService";
@@ -15,6 +16,7 @@ export default function WorkspaceDashboardPage() {
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -249,6 +251,13 @@ export default function WorkspaceDashboardPage() {
                       <span className="material-symbols-outlined text-secondary text-[20px]">pie_chart</span>
                       <h3 className="text-headline-sm text-on-surface">Usage Breakdown</h3>
                     </div>
+                    <button
+                      onClick={() => setIsHistoryModalOpen(true)}
+                      className="text-label-sm text-primary font-medium hover:underline flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">history</span>
+                      View History
+                    </button>
                   </div>
                   <div className="space-y-4">
                     {[
@@ -275,6 +284,14 @@ export default function WorkspaceDashboardPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => setIsHistoryModalOpen(true)}
+                      className="px-3 py-2 rounded-xl border border-outline-variant/20 text-label-sm hover:bg-surface-container transition-colors"
+                    >
+                      View History
+                    </button>
                   </div>
                 </div>
               </div>
@@ -317,6 +334,11 @@ export default function WorkspaceDashboardPage() {
           )}
         </div>
       </main>
+
+      <CreditUsageHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+      />
     </>
   );
 }
