@@ -45,6 +45,13 @@ public sealed class ActiveWorkspaceMiddleware
         IWorkspaceMemberRepository workspaceMemberRepository,
         ISubscriptionRepository subscriptionRepository)
     {
+        if (context.Request.Method == HttpMethods.Get &&
+            context.Request.Path.Equals("/api/social-auth/facebook/callback", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         if (context.Request.Method == HttpMethods.Post &&
             (context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase) ||
              context.Request.Path.Equals("/api/payment/callback", StringComparison.OrdinalIgnoreCase) ||
