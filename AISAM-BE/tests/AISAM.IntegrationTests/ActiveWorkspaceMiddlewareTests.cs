@@ -12,6 +12,24 @@ namespace AISAM.IntegrationTests;
 public class ActiveWorkspaceMiddlewareTests
 {
     [Fact]
+    public async Task InvokeAsync_AllowsAnonymousFacebookCallbackRelay()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = "/api/social-auth/facebook/callback";
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ReturnsUnauthorized_WhenWorkspaceHeaderIsMissing()
     {
         var context = CreateContext(Guid.NewGuid());
