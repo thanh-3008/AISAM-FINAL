@@ -15,7 +15,7 @@ public static class WorkspaceContextHelper
             return workspaceId;
         }
 
-        throw new UnauthorizedAccessException("Invalid workspace context.");
+        throw new InvalidOperationException("Invalid workspace context.");
     }
 
     public static WorkspaceMember GetActiveWorkspaceMembershipOrThrow(HttpContext context)
@@ -26,7 +26,7 @@ public static class WorkspaceContextHelper
             return membership;
         }
 
-        throw new UnauthorizedAccessException("Invalid workspace membership context.");
+        throw new InvalidOperationException("Invalid workspace membership context.");
     }
 
 }

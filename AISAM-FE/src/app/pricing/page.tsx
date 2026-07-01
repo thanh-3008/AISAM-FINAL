@@ -53,7 +53,7 @@ function PricingContent() {
   useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
-    if (hasPaymentRedirect) return;
+    if (hasPaymentRedirect || !activeWorkspace?.id) return;
     fetchCreditWallet().then(w => setCreditWallet(w));
   }, [activeWorkspace?.id, hasPaymentRedirect]);
 
