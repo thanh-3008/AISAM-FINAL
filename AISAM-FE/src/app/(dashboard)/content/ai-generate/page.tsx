@@ -76,6 +76,8 @@ export default function AIGeneratePage() {
   const [selectedVariation, setSelectedVariation] = useState<string | null>(null);
   const [generatedId, setGeneratedId] = useState<string | null>(null);
   const [justGenerated, setJustGenerated] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isVideo, setIsVideo] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +122,7 @@ export default function AIGeneratePage() {
     setGeneratedId(null);
     setJustGenerated(false);
     setImageUrl(null);
+    setIsVideo(false);
     if (!conversationStorageKey) return;
 
     let cancelled = false;
@@ -155,7 +158,7 @@ export default function AIGeneratePage() {
       return;
     }
     if (aiReply) {
-      setConversationId(aiReply.conversationId);
+      setConversationId(aiReply.conversationId ?? null);
       if (conversationStorageKey && aiReply.conversationId) sessionStorage.setItem(conversationStorageKey, aiReply.conversationId);
 
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
@@ -163,7 +166,7 @@ export default function AIGeneratePage() {
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: "assistant",
-        text: aiReply.text,
+        text: aiReply.text || "",
         canApply: canCreate,
       };
       setMessages((prev) => [...prev, aiMsg]);
@@ -171,7 +174,7 @@ export default function AIGeneratePage() {
       const variation: Variation = {
         id: `v-${Date.now()}`,
         prompt: userPrompt,
-        result: aiReply.text,
+        result: aiReply.text || "",
       };
       if (aiReply.shouldCreateContent || aiReply.createdContentId) {
         setVariations((prev) => [variation, ...prev]);
@@ -182,12 +185,10 @@ export default function AIGeneratePage() {
       setIsGenerating(false);
 
       if (aiReply.createdContentId) {
-        // backend already created/updated content; show View Post immediately
-        setGeneratedId(aiReply.createdContentId);
-        setJustGenerated(true);
-        setSelectedVariation(variation.id);
-      } else if (aiReply.shouldCreateContent) {
-        autoSavePost(`AI Generated — ${brandName}`, aiReply.text, generatedHashtags, variation.id);
+        setGeneratedId(aiReply.createdContentId ?? null);
+      }
+      if (aiReply.shouldCreateContent || aiReply.createdContentId) {
+        handleApplyVariation(variation);
       }
       return;
     }
@@ -196,32 +197,27 @@ export default function AIGeneratePage() {
     addToast("AI service request failed. Your credit balance was not the cause; restart/check the backend and Gemini connection, then try again.");
   };
 
-  const autoSavePost = async (postTitle: string, postContent: string, postHashtags: string[], varId: string) => {
-    let cleanContent = postContent;
-    let extractedImageUrl = null;
-    const imageMatch = postContent.match(/\[IMAGE:\s*(.+?)\]/);
-    if (imageMatch) {
-      extractedImageUrl = imageMatch[1];
-      cleanContent = postContent.replace(/\[IMAGE:\s*(.+?)\]/g, '').trim();
+  const handleManualSave = async () => {
+    if (!title && !content && !imageUrl) {
+      addToast("Nothing to save.");
+      return;
     }
-    const videoMatch = postContent.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-    if (videoMatch) {
-      cleanContent = postContent.replace(/\[VIDEO_JOB:\s*(.+?)\]/g, '').trim();
-    }
-
+    
+    setIsSaving(true);
     const payload: Partial<CreateContentPayload> = {
       brandId,
       productId: productId || null,
-      title: postTitle || `AI Generated — ${brandName}`,
-      textContent: cleanContent || "",
+      title: title || `AI Generated — ${brandName}`,
+      textContent: content || "",
+      status: 1 // Awaiting Approval
     };
 
-    if (extractedImageUrl) {
-      payload.imageUrl = extractedImageUrl;
+    if (imageUrl) {
+      payload.imageUrl = imageUrl;
       payload.adType = 1;
-    } else if (videoMatch) {
+    } else if (isVideo) {
       payload.adType = 2;
-    } else if (!generatedId) {
+    } else {
       payload.adType = 0;
     }
 
@@ -234,15 +230,15 @@ export default function AIGeneratePage() {
       }
       
       if (result) {
-        setTitle(result.title || "");
-        setContent(cleanContent);
-        setHashtags(postHashtags);
-        if (extractedImageUrl) setImageUrl(extractedImageUrl);
         setGeneratedId(result.id);
         setJustGenerated(true);
-        setSelectedVariation(varId);
+        addToast("Post saved successfully!");
       }
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      addToast(e?.message || "Failed to save post");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSendChat = () => {
@@ -267,7 +263,23 @@ export default function AIGeneratePage() {
 
   const handleApplyVariation = (variation: Variation) => {
     const h = AUTO_HASHTAGS[brandName] || [];
-    autoSavePost("", variation.result, h, variation.id);
+    let cleanContent = variation.result;
+    const imageMatch = cleanContent.match(/\[IMAGE:\s*(.+?)\]/);
+    if (imageMatch) {
+      setImageUrl(imageMatch[1]);
+      cleanContent = cleanContent.replace(/\[IMAGE:\s*(.+?)\]/g, '').trim();
+    }
+    const videoMatch = cleanContent.match(/\[VIDEO_JOB:\s*(.+?)\]/);
+    if (videoMatch) {
+      setIsVideo(true);
+      cleanContent = cleanContent.replace(/\[VIDEO_JOB:\s*(.+?)\]/g, '').trim();
+    } else {
+      setIsVideo(false);
+    }
+    setTitle(`AI Generated — ${brandName}`);
+    setContent(cleanContent);
+    setHashtags(h);
+    setSelectedVariation(variation.id);
   };
 
   return (
@@ -344,7 +356,7 @@ export default function AIGeneratePage() {
           </div>
 
           {/* Center Column: Brand/Product Toolbar + Preview */}
-          <div className="flex-1 min-w-0 flex flex-col gap-gutter">
+          <div className="flex-1 min-w-0 flex flex-col gap-gutter overflow-y-auto pr-1 pb-4">
             {/* Brand & Product Toolbar */}
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-3 flex items-center gap-4 shrink-0">
               <div className="flex items-center gap-2">
@@ -394,8 +406,38 @@ export default function AIGeneratePage() {
               )}
             </div>
 
+            {/* Editable Form for Title & Caption */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-4 shrink-0 flex flex-col gap-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-label-sm font-semibold text-on-surface">Edit Generated Content</span>
+                <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo)}
+                  className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-xs font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
+                  {isSaving ? (
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[14px]">save</span>
+                  )}
+                  Save Post
+                </button>
+              </div>
+              <div className="grid grid-cols-[1fr,2fr] gap-3">
+                <div>
+                  <label className="text-label-xs text-on-surface-variant font-semibold mb-1 block">Title</label>
+                  <input value={title} onChange={(e) => setTitle(e.target.value)}
+                    className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all"
+                    placeholder="Enter title..." />
+                </div>
+                <div>
+                  <label className="text-label-xs text-on-surface-variant font-semibold mb-1 block">Caption</label>
+                  <textarea value={content} onChange={(e) => setContent(e.target.value)}
+                    className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all resize-y min-h-[40px] max-h-[120px]"
+                    placeholder="Generated caption will appear here..." />
+                </div>
+              </div>
+            </div>
+
             {/* Post Preview */}
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex-1 overflow-hidden flex flex-col">
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col shrink-0 min-h-[600px]">
               <div className="p-3 border-b border-outline-variant/10 flex items-center gap-2 shrink-0">
                 <span className="material-symbols-outlined text-[14px] text-outline">visibility</span>
                 <span className="text-label-sm text-on-surface font-semibold mr-auto">Post Preview</span>

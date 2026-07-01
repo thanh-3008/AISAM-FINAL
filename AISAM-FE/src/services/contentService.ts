@@ -175,6 +175,7 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     textContent: api.textContent,
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
+    description: api.contextDescription || undefined,
     tags: [],
     hashtags: [],
   };
@@ -230,18 +231,6 @@ export async function fetchContentById(id: string): Promise<ContentDetail | null
 }
 
 export async function updateContentDetails(id: string, payload: Partial<CreateContentPayload>): Promise<ContentApiItem | null> {
-  const profileId = getStoredActiveProfile()?.id;
-  if (!profileId) {
-    console.error("No active profile selected");
-    return null;
-  }
-  
-  const token = getToken();
-  if (!token) {
-    console.error("No auth token available");
-    return null;
-  }
-  
   try {
     const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, {
       method: "PUT",
@@ -252,11 +241,9 @@ export async function updateContentDetails(id: string, payload: Partial<CreateCo
       return res.data;
     }
     
-    console.error("Failed to update content", res?.message || res?.error);
-    return null;
+    throw new Error(res?.message || "Failed to update content");
   } catch (error) {
-    console.error("Error calling updateContentDetails:", error);
-    return null;
+    throw error;
   }
 }
 
