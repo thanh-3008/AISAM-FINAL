@@ -4,11 +4,13 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 
-import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, ALL_TAGS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, type CreateContentPayload } from "@/services/contentService";
+import TagPicker from "@/components/content/TagPicker";
 import { apiFetch } from "@/lib/apiClient";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
+import { useToast } from "@/contexts/ToastContext";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -18,6 +20,7 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -67,7 +70,6 @@ export default function CreateContentPage() {
   const [hashtagInput, setHashtagInput] = useState("");
 
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
-  const [showTagPicker, setShowTagPicker] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState("facebook");
 
@@ -198,23 +200,28 @@ export default function CreateContentPage() {
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
       status: form.status === "Awaiting Approval" ? 1 : 0,
+      tags: form.tags.length > 0 ? form.tags : undefined,
     };
 
     try {
       const result = await createContent(payload);
       if (result) {
         setSaved(true);
+        addToast("Content created successfully", "check");
         setTimeout(() => router.push("/content"), 1000);
       } else {
         setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
+        addToast("Failed to create content", "error");
       }
     } catch (e: any) {
       const msg = e?.message || "";
       if (msg.includes("Profile not found")) {
+        addToast("Workspace not found, redirecting...", "error");
         setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {
         setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
+        addToast(msg || "Failed to create content", "error");
       }
     } finally {
       setSaving(false);
@@ -528,44 +535,13 @@ export default function CreateContentPage() {
                 </div>
 
                 {/* Tags */}
-                <div className="relative">
+                <div>
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Tags</label>
-                  <button type="button" onClick={() => setShowTagPicker(!showTagPicker)}
-                    className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-left text-on-surface hover:border-primary/40 transition-all flex items-center justify-between">
-                    <span className={form.tags.length === 0 ? "text-outline/40" : ""}>
-                      {form.tags.length === 0 ? "Add tags to categorize" : `${form.tags.length} tag${form.tags.length > 1 ? "s" : ""} selected`}
-                    </span>
-                    <span className={`material-symbols-outlined text-[14px] text-outline transition-transform ${showTagPicker ? "rotate-180" : ""}`}>expand_more</span>
-                  </button>
-                  {showTagPicker && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowTagPicker(false)} />
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-xl z-20 p-2 space-y-0.5 dropdown-enter">
-                        {ALL_TAGS.map((t) => (
-                          <label key={t} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-container cursor-pointer transition-colors">
-                            <input type="checkbox" checked={form.tags.includes(t)} onChange={() => {
-                              update({
-                                tags: form.tags.includes(t) ? form.tags.filter((x) => x !== t) : [...form.tags, t],
-                              });
-                            }} className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/30" />
-                            <span className="text-label-sm text-on-surface">{t}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {form.tags.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      {form.tags.map((t) => (
-                        <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-label-xs font-semibold text-on-surface-variant flex items-center gap-1">
-                          {t}
-                          <button onClick={() => update({ tags: form.tags.filter((x) => x !== t) })} className="hover:opacity-60">
-                            <span className="material-symbols-outlined text-label-xs">close</span>
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <TagPicker
+                    selected={form.tags}
+                    onChange={(tags) => setForm((prev) => ({ ...prev, tags }))}
+                    placeholder="Add tags to categorize"
+                  />
                 </div>
 
                 {/* Hashtags */}

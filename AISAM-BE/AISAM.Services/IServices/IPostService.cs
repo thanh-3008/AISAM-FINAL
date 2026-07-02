@@ -22,4 +22,5 @@ public interface IPostService
         => GetPagedAsync(workspaceId, request, brandId, status, cancellationToken);
     Task<GenericResponse<PostListItemDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid postId, CancellationToken cancellationToken = default)
         => GetByIdAsync(workspaceId, postId, cancellationToken);
+    Task<GenericResponse<bool>> DeleteAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default);
 }

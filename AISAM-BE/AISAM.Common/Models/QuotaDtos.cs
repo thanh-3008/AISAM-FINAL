@@ -12,4 +12,7 @@ public sealed class QuotaSummaryDto
     public int PostQuotaLimit { get; set; }
     public int PostUsage { get; set; }
     public int PostRemaining { get; set; }
+    public int TextContentCount { get; set; }
+    public int ImageContentCount { get; set; }
+    public int VideoContentCount { get; set; }
 }

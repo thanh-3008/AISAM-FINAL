@@ -7,7 +7,6 @@ using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using System.Security.Claims;
 
 namespace AISAM.API.Controllers
 {
@@ -37,7 +36,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.GetPagedByWorkspaceIdAsync(workspaceId, userId, new PaginationRequest
                 {
@@ -66,7 +65,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.GetByIdAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
@@ -87,7 +86,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.CreateAsync(workspaceId, userId, request, cancellationToken);
 
@@ -114,7 +113,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.UpdateAsync(id, workspaceId, userId, request, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
@@ -135,7 +134,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.SoftDeleteAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
@@ -156,7 +155,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _campaignService.RestoreAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
@@ -172,15 +171,69 @@ namespace AISAM.API.Controllers
             }
         }
 
-        private Guid GetUserIdOrThrow()
+        [HttpPost("{id}/deploy")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> DeployToFacebook(Guid id, CancellationToken cancellationToken = default)
         {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdValue, out var userId))
+            try
             {
-                throw new UnauthorizedAccessException("Invalid token");
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.DeployToFacebookAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
             }
-
-            return userId;
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deploying campaign {CampaignId} to Facebook", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
         }
+
+        [HttpPost("{id}/sync-insights")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> SyncInsights(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.SyncCampaignInsightsAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing insights for campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("{id}/cleanup")]
+        public async Task<ActionResult<GenericResponse<bool>>> CleanupFailedDeployment(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.CleanupFailedDeploymentAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<bool>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cleaning up deployment for campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+
     }
 }

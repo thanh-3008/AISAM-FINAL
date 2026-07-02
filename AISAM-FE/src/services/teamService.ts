@@ -21,6 +21,7 @@ export interface Team {
   name: string;
   description: string;
   brandCount: number;
+  brandIds: string[];
   memberIds: string[];
   activity: number;
   createdAt: string;
@@ -108,6 +109,7 @@ const DEFAULT_TEAM: Team = {
   name: "Workspace Team",
   description: "All workspace members",
   brandCount: 0,
+  brandIds: [],
   memberIds: [],
   activity: 100,
   createdAt: new Date().toISOString(),
@@ -119,7 +121,6 @@ export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
     const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members").catch(() => null);
     const memberIds = (res?.data || []).map((m: BEWorkspaceMemberDto) => m.id);
     DEFAULT_TEAM.memberIds = memberIds;
-    DEFAULT_TEAM.brandCount = 0;
     return { data: [DEFAULT_TEAM], total: 1 };
   } catch {
     return { data: [DEFAULT_TEAM], total: 1 };
@@ -168,6 +169,7 @@ export async function createTeam(data: CreateTeamData): Promise<Team> {
     name: data.name,
     description: data.description,
     brandCount: data.brandIds.length,
+    brandIds: data.brandIds,
     memberIds: data.memberIds,
     activity: 0,
     createdAt: new Date().toISOString(),
@@ -178,6 +180,8 @@ export async function createTeam(data: CreateTeamData): Promise<Team> {
 
 export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
   if (id === DEFAULT_TEAM.id) {
+    DEFAULT_TEAM.brandIds = data.brandIds ?? DEFAULT_TEAM.brandIds;
+    DEFAULT_TEAM.brandCount = DEFAULT_TEAM.brandIds.length;
     return {
       ...DEFAULT_TEAM,
       name: data.name || DEFAULT_TEAM.name,

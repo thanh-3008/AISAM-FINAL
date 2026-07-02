@@ -187,7 +187,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProductService_UploadsImages_WhenImageFilesAreProvided()
+    public async Task ProductService_ReturnsError_WhenImageFilesAreProvided()
     {
         var userId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
@@ -203,8 +203,7 @@ public class FoundationTests
         };
 
         var productRepository = new FakeProductRepository(product);
-        var mediaStorage = new FakeMediaStorageService();
-        var service = new ProductService(productRepository, new FakeBrandRepository(brand), mediaStorage);
+        var service = new ProductService(productRepository, new FakeBrandRepository(brand));
         await using var createStream = new MemoryStream(new byte[] { 1 });
         await using var updateStream = new MemoryStream(new byte[] { 2 });
 
@@ -225,12 +224,12 @@ public class FoundationTests
             }
         });
 
-        Assert.True(createResult.Success);
-        Assert.True(productRepository.AddCalled);
-        Assert.True(updateResult.Success);
-        Assert.True(productRepository.UpdateCalled);
-        Assert.Equal(2, mediaStorage.UploadedFiles.Count);
-        Assert.All(mediaStorage.UploadedFiles, upload => Assert.Equal($"products/{workspaceId:N}", upload.Folder));
+        Assert.False(createResult.Success);
+        Assert.Contains("upload is not enabled", createResult.Message);
+        Assert.False(productRepository.AddCalled);
+        Assert.False(updateResult.Success);
+        Assert.Contains("upload is not enabled", updateResult.Message);
+        Assert.False(productRepository.UpdateCalled);
     }
 
     [Fact]
@@ -575,21 +574,6 @@ public class FoundationTests
             UpdateCalled = true;
             _products[product.Id] = product;
             return Task.CompletedTask;
-        }
-    }
-
-    private sealed class FakeMediaStorageService : IMediaStorageService
-    {
-        public List<(string Folder, string FileName)> UploadedFiles { get; } = new();
-
-        public Task<string> UploadAsync(
-            IFormFile file,
-            string folder,
-            string fileName,
-            CancellationToken cancellationToken = default)
-        {
-            UploadedFiles.Add((folder, fileName));
-            return Task.FromResult($"https://media.test/{folder}/{fileName}");
         }
     }
 }

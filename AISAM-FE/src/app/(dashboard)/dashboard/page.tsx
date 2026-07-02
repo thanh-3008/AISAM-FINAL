@@ -10,6 +10,7 @@ import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import { apiFetch } from "@/lib/apiClient";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -87,19 +88,18 @@ const aiSuggestions = [
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspaces();
   const workspaceName = activeWorkspace?.name || "User";
-  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [maxCreditBalance, setMaxCreditBalance] = useState(15000);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [dailyUsage, setDailyUsage] = useState<{ date: string; credits: number }[]>([]);
   const [usageDays, setUsageDays] = useState(7);
   const [dashboardCampaigns, setDashboardCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
-    setMounted(true);
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
@@ -213,16 +213,16 @@ export default function DashboardPage() {
                     <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                     Dashboard Overview
                   </span>
-                  <span className="text-label-sm text-outline">{mounted ? new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : ""}</span>
+                  <span className="text-label-sm text-outline">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</span>
                 </div>
 
                 <h2 className="text-headline-lg text-on-surface tracking-tight mb-2">
-                  {mounted ? (() => {
+                  {(() => {
                     const h = new Date().getHours();
                     if (h < 12) return "Good morning";
                     if (h < 18) return "Good afternoon";
                     return "Good evening";
-                  })() : "Welcome"}, <span className="text-primary">{mounted ? workspaceName : "User"}</span>!
+                  })()}, <span className="text-primary">{workspaceName}</span>!
                 </h2>
                 <p className="text-body-lg text-on-surface-variant max-w-xl mb-6">Here&apos;s your brand performance snapshot. Everything you need is right here.</p>
 
@@ -254,19 +254,19 @@ export default function DashboardPage() {
               <div className="hidden lg:flex flex-col items-center gap-3 shrink-0">
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-outline-variant/30 flex items-center justify-center shadow-sm">
                   <span className="text-[28px] font-bold text-primary">
-                    {mounted ? workspaceName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) : "U"}
+                    {workspaceName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                   </span>
                 </div>
                 <div className="text-center">
-                  <p className="text-body-sm text-on-surface font-semibold">{mounted ? workspaceName : "User"}</p>
-                  <p className="text-label-sm text-outline mb-2">{mounted ? (activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace") : "Workspace"}</p>
-                  <Link
-                    href="/overview"
+                  <p className="text-body-sm text-on-surface font-semibold">{workspaceName}</p>
+                  <p className="text-label-sm text-outline mb-2">{activeWorkspace ? getWorkspaceTypeLabel(activeWorkspace.workspaceType) : "Workspace"}</p>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
                     className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-label-xs font-semibold hover:bg-primary/20 transition-all"
                   >
-                    <span className="material-symbols-outlined text-[14px]">grid_view</span>
-                    Manage Workspaces
-                  </Link>
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    Create Workspace
+                  </button>
                 </div>
               </div>
             </div>
@@ -645,6 +645,8 @@ export default function DashboardPage() {
           </div>
         </footer>
       </main>
+
+      <CreateProfileModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
 }

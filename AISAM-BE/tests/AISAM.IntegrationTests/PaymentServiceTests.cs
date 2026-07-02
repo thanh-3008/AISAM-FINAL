@@ -1176,6 +1176,15 @@ public class PaymentServiceTests
             DateTime? now = null,
             CancellationToken cancellationToken = default)
             => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<CreditWallet?> GetWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Wallets.GetValueOrDefault(workspaceId));
+
+        public Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

@@ -361,6 +361,45 @@ public sealed class TikTokProvider : IProviderService
         return result.Data?.User ?? new TikTokUser();
     }
 
+    public Task<IEnumerable<FacebookAdAccountData>> GetAdAccountsAsync(string userAccessToken, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad account management.");
+
+    public Task<string> CreateCampaignAsync(string adAccountId, string userAccessToken, string name, string objective, decimal? budget, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API campaign creation.");
+
+    public Task<string> CreateAdSetAsync(string adAccountId, string userAccessToken, string campaignId, string name, string objective, decimal? dailyBudget, DateTime? startDate, DateTime? endDate, string targetingJson, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad set creation.");
+
+    public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad creative creation.");
+
+    public Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad creation.");
+
+    public Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API campaign insights.");
+
+    public Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API campaign status updates.");
+
+    public Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad set status updates.");
+
+    public Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad status updates.");
+
+    public Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API campaign deletion.");
+
+    public Task<bool> DeleteAdSetAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad set deletion.");
+
+    public Task<bool> DeleteAdCreativeAsync(string adAccountId, string userAccessToken, string creativeId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad creative deletion.");
+
+    public Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad deletion.");
+
     private void EnsureConfigured()
     {
         if (string.IsNullOrWhiteSpace(_settings.ClientKey) ||

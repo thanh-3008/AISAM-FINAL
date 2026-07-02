@@ -25,4 +25,6 @@ public interface ISocialService
     Task<bool> UnlinkAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default) => UnlinkAccountAsync(workspaceId, socialAccountId, cancellationToken);
     Task<bool> UnlinkTargetInWorkspaceAsync(Guid workspaceId, Guid socialIntegrationId, CancellationToken cancellationToken = default) => UnlinkTargetAsync(workspaceId, socialIntegrationId, cancellationToken);
     Task<IReadOnlyList<SocialIntegrationDto>> GetIntegrationsByBrandInWorkspaceAsync(Guid workspaceId, Guid brandId, CancellationToken cancellationToken = default) => GetIntegrationsByBrandAsync(workspaceId, brandId, cancellationToken);
+    Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default) => GetAdAccountsForSocialAccountAsync(workspaceId, socialAccountId, cancellationToken);
 }

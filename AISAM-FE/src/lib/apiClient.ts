@@ -53,16 +53,14 @@ async function handleResponse(response: Response) {
       if (typeof result.message === "string") {
         errorMessage = result.message;
       } else if (result.errors && typeof result.errors === "object") {
-        // Extract validation errors from ASP.NET Core ProblemDetails
-        errorMessage = Object.values(result.errors).flat().join(", ");
-      } else if (typeof result.title === "string") {
+        const values = Object.values(result.errors).flat().filter(Boolean);
+        if (values.length > 0) {
+          errorMessage = values.join(", ");
+        }
+      } else if (result.title && typeof result.title === "string") {
         errorMessage = result.title;
-      } else if (typeof result === "string") {
-        errorMessage = result;
       } else if (result.detail && typeof result.detail === "string") {
         errorMessage = result.detail;
-      } else if (typeof result === "string") {
-        errorMessage = result;
       }
     }
 
@@ -70,7 +68,9 @@ async function handleResponse(response: Response) {
       if (text) {
         errorMessage = text;
       } else if (response.statusText) {
-        errorMessage = `${response.statusText} (${response.status} ${response.url})`;
+        errorMessage = `${response.status} ${response.statusText}`;
+      } else {
+        errorMessage = `Request failed (${response.status})`;
       }
     }
 
@@ -81,10 +81,11 @@ async function handleResponse(response: Response) {
       if (typeof window !== "undefined" && window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
+      return;
     }
 
-    const mappedError = typeof errorMessage === "string" ? ERROR_MAP[errorMessage] : null;
-    throw new Error(mappedError || errorMessage);
+    const mappedError = ERROR_MAP[errorMessage];
+    throw new Error(mappedError ?? String(errorMessage));
   }
 
   return result;

@@ -26,7 +26,6 @@ public sealed class ActiveProfileMiddleware
     public async Task InvokeAsync(
         HttpContext context,
         IProfileRepository profileRepository,
-        IWorkspaceRepository workspaceRepository,
         IUserRepository userRepository,
         IWebHostEnvironment environment)
     {
@@ -53,19 +52,10 @@ public sealed class ActiveProfileMiddleware
         if (!Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
         {
             var userProfiles = await profileRepository.GetByUserIdAsync(userId, context.RequestAborted);
-            var workspaceHeader = context.Request.Headers["X-Workspace-Id"].FirstOrDefault();
-            Profile? profile = null;
+            var profile = userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active);
 
-            if (Guid.TryParse(workspaceHeader, out var wsId))
+            if (profile == null && !userProfiles.Any())
             {
-                profile = userProfiles.FirstOrDefault(p => p.Id == wsId);
-            }
-
-            profile ??= userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active);
-
-            if (profile == null && Guid.TryParse(workspaceHeader, out var newWsId))
-            {
-                var workspace = await workspaceRepository.GetByIdAsync(newWsId, context.RequestAborted);
                 var user = await userRepository.GetByIdAsync(userId);
                 profile = await profileRepository.CreateAsync(new Profile
                 {

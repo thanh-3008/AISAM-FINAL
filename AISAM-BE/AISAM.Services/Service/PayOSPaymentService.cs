@@ -570,27 +570,35 @@ public sealed class PayOSPaymentService : IPaymentService
     public async Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
         var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
-        if (subscription == null)
-        {
-            return GenericResponse<CurrentSubscriptionDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
-        }
 
-        return GenericResponse<CurrentSubscriptionDto>.CreateSuccess(new CurrentSubscriptionDto
-        {
-            SubscriptionId = subscription.Id,
-            PlanName = subscription.Plan.ToString(),
-            Status = subscription.IsActive ? "Active" : "Inactive",
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            PromptQuota = subscription.QuotaAIContentPerDay,
-            ImageQuota = subscription.QuotaAIImagesPerDay,
-            PostQuota = subscription.QuotaPostsPerMonth,
-            PlatformQuota = subscription.QuotaPlatforms,
-            AccountQuota = subscription.QuotaAccounts,
-            AnalysisLevel = subscription.AnalysisLevel,
-            AdBudgetMonthly = subscription.QuotaAdBudgetMonthly,
-            AdCampaignQuota = subscription.QuotaAdCampaigns
-        });
+        var dto = subscription != null
+            ? new CurrentSubscriptionDto
+            {
+                SubscriptionId = subscription.Id,
+                PlanName = subscription.Plan.ToString(),
+                Status = subscription.IsActive ? "Active" : "Inactive",
+                StartDate = subscription.StartDate,
+                EndDate = subscription.EndDate,
+                PromptQuota = subscription.QuotaAIContentPerDay,
+                ImageQuota = subscription.QuotaAIImagesPerDay,
+                PostQuota = subscription.QuotaPostsPerMonth,
+                PlatformQuota = subscription.QuotaPlatforms,
+                AccountQuota = subscription.QuotaAccounts,
+                AnalysisLevel = subscription.AnalysisLevel,
+                AdBudgetMonthly = subscription.QuotaAdBudgetMonthly,
+                AdCampaignQuota = subscription.QuotaAdCampaigns
+            }
+            : new CurrentSubscriptionDto
+            {
+                PlanName = SubscriptionPlanEnum.Free.ToString(),
+                Status = "Active",
+                StartDate = DateTime.UtcNow.Date,
+                PostQuota = 20,
+                PlatformQuota = 1,
+                AccountQuota = 1
+            };
+
+        return GenericResponse<CurrentSubscriptionDto>.CreateSuccess(dto);
     }
 
     private async Task<GenericResponse<bool>> ApplyPaymentStatusAsync(

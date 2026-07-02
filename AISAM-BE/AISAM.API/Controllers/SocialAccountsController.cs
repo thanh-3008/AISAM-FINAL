@@ -122,6 +122,30 @@ public sealed class SocialAccountsController : ControllerBase
         }
     }
 
+    [HttpGet("{socialAccountId:guid}/ad-accounts")]
+    public async Task<ActionResult<GenericResponse<IReadOnlyList<FacebookAdAccountData>>>> GetAdAccounts(
+        Guid socialAccountId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _socialService.GetAdAccountsForSocialAccountInWorkspaceAsync(GetWorkspaceId(), socialAccountId, cancellationToken);
+            return Ok(GenericResponse<IReadOnlyList<FacebookAdAccountData>>.CreateSuccess(result));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(GenericResponse<IReadOnlyList<FacebookAdAccountData>>.CreateError("Invalid profile context.", HttpStatusCode.Unauthorized));
+        }
+        catch (ArgumentException ex) when (IsNotFoundMessage(ex.Message))
+        {
+            return NotFound(GenericResponse<IReadOnlyList<FacebookAdAccountData>>.CreateError(ex.Message, HttpStatusCode.NotFound));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(GenericResponse<IReadOnlyList<FacebookAdAccountData>>.CreateError(ex.Message));
+        }
+    }
+
     [HttpDelete("{socialAccountId:guid}")]
     public async Task<ActionResult<GenericResponse<bool>>> DeleteAccount(Guid socialAccountId, CancellationToken cancellationToken = default)
     {

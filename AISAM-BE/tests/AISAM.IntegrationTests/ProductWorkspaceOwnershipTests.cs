@@ -57,7 +57,7 @@ public class ProductWorkspaceOwnershipTests
     }
 
     private static ProductService CreateService(AisamContext context)
-        => new(new ProductRepository(context), new BrandRepository(context), null!);
+        => new(new ProductRepository(context), new BrandRepository(context));
 
     private static AisamContext CreateContext()
         => new(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);

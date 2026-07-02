@@ -86,9 +86,29 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("decimal(10,2)")
                         .HasColumnName("budget");
 
+                    b.Property<long>("Clicks")
+                        .HasColumnType("bigint")
+                        .HasColumnName("clicks");
+
+                    b.Property<Guid?>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<long>("Conversions")
+                        .HasColumnType("bigint")
+                        .HasColumnName("conversions");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<int>("DeploymentStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("deployment_status");
+
+                    b.Property<int>("DeploymentStep")
+                        .HasColumnType("integer")
+                        .HasColumnName("deployment_step");
 
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("date")
@@ -99,6 +119,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("facebook_campaign_id");
 
+                    b.Property<long>("Impressions")
+                        .HasColumnType("bigint")
+                        .HasColumnName("impressions");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
@@ -106,6 +130,11 @@ namespace AISAM.Repositories.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
+
+                    b.Property<string>("LandingUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("landing_url");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -118,13 +147,25 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("objective");
 
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
                     b.Property<Guid>("ProfileId")
                         .HasColumnType("uuid")
                         .HasColumnName("profile_id");
 
+                    b.Property<decimal>("Spend")
+                        .HasColumnType("decimal(12,2)")
+                        .HasColumnName("spend");
+
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
+
+                    b.Property<string>("Targeting")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("targeting");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -138,7 +179,11 @@ namespace AISAM.Repositories.Migrations
 
                     b.HasIndex("BrandId");
 
+                    b.HasIndex("ContentId");
+
                     b.HasIndex("Name");
+
+                    b.HasIndex("ProductId");
 
                     b.HasIndex("ProfileId");
 
@@ -206,9 +251,6 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid?>("AdCampaignId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("CampaignId")
                         .HasColumnType("uuid")
                         .HasColumnName("campaign_id");
@@ -254,8 +296,6 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnName("targeting");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AdCampaignId");
 
                     b.HasIndex("CampaignId");
 
@@ -626,6 +666,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("image_url");
 
+                    b.Property<bool>("IsAiGenerated")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_ai_generated");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
@@ -651,6 +695,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<string>("StyleDescription")
                         .HasColumnType("text")
                         .HasColumnName("style_description");
+
+                    b.Property<string>("Tags")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tags");
 
                     b.Property<string>("TextContent")
                         .IsRequired()
@@ -789,7 +837,9 @@ namespace AISAM.Repositories.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ContentId");
+                    b.HasIndex("ContentId")
+                        .IsUnique()
+                        .HasFilter("\"status\" IN (0, 1)");
 
                     b.HasIndex("IntegrationId");
 
@@ -2130,6 +2180,14 @@ namespace AISAM.Repositories.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("AISAM.Data.Model.Content", "Content")
+                        .WithMany()
+                        .HasForeignKey("ContentId");
+
+                    b.HasOne("AISAM.Data.Model.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId");
+
                     b.HasOne("AISAM.Data.Model.Profile", "Profile")
                         .WithMany("AdCampaigns")
                         .HasForeignKey("ProfileId")
@@ -2143,6 +2201,10 @@ namespace AISAM.Repositories.Migrations
                         .IsRequired();
 
                     b.Navigation("Brand");
+
+                    b.Navigation("Content");
+
+                    b.Navigation("Product");
 
                     b.Navigation("Profile");
 
@@ -2161,12 +2223,8 @@ namespace AISAM.Repositories.Migrations
 
             modelBuilder.Entity("AISAM.Data.Model.AdSet", b =>
                 {
-                    b.HasOne("AISAM.Data.Model.AdCampaign", null)
-                        .WithMany("AdSets")
-                        .HasForeignKey("AdCampaignId");
-
                     b.HasOne("AISAM.Data.Model.AdCampaign", "Campaign")
-                        .WithMany()
+                        .WithMany("AdSets")
                         .HasForeignKey("CampaignId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

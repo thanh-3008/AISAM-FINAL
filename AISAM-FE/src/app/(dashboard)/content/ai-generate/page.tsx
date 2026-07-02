@@ -190,6 +190,7 @@ export default function AIGeneratePage() {
       adType: 0,
       title: postTitle || `AI Generated — ${brandName}`,
       textContent: postContent || "",
+      isAiGenerated: true,
     };
 
     try {

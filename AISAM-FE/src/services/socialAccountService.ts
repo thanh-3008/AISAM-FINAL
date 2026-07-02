@@ -259,6 +259,25 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
   return [];
 }
 
+export interface AdAccount {
+  id: string;
+  name: string;
+  accountId: string;
+  accountStatus: number;
+  currency: string;
+  balance: string;
+}
+
+export async function fetchAdAccounts(socialAccountId: string): Promise<AdAccount[]> {
+  try {
+    const res: GenericResponse<AdAccount[]> = await apiClient(`/social/accounts/${socialAccountId}/ad-accounts`);
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.error("Failed to fetch ad accounts:", err);
+  }
+  return [];
+}
+
 export function getAccountStatus(account: SocialAccount): AccountStatus {
   if (!account.isActive) return "error";
   if (!account.expiresAt) return "connected";

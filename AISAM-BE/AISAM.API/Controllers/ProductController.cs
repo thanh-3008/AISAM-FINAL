@@ -7,7 +7,6 @@ using AISAM.API.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using System.Security.Claims;
 
 namespace AISAM.API.Controllers
 {
@@ -38,7 +37,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
                 var result = await _productService.GetPagedAsync(new PaginationRequest
                 {
@@ -58,7 +57,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting products");
-                return StatusCode(500, GenericResponse<PagedResult<ProductResponseDto>>.CreateError(ex.Message, HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<PagedResult<ProductResponseDto>>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -67,7 +66,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _productService.GetByIdAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
             }
@@ -78,7 +77,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting product {ProductId}", id);
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -88,7 +87,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _productService.CreateAsync(WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, request, cancellationToken);
                 if (!result.Success)
                 {
@@ -104,7 +103,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating product");
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -114,7 +113,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _productService.UpdateAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, request, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
             }
@@ -125,7 +124,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating product {ProductId}", id);
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError(ex.Message, HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -134,7 +133,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _productService.SoftDeleteAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
             }
@@ -145,7 +144,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting product {ProductId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError(ex.Message, HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -154,7 +153,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var userId = GetUserIdOrThrow();
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _productService.RestoreAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
             }
@@ -165,19 +164,10 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error restoring product {ProductId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError(ex.Message, HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
-        private Guid GetUserIdOrThrow()
-        {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdValue, out var userId))
-            {
-                throw new UnauthorizedAccessException("Invalid token");
-            }
 
-            return userId;
-        }
     }
 }

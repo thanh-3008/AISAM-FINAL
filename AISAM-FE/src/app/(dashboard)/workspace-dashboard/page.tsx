@@ -171,7 +171,7 @@ export default function WorkspaceDashboardPage() {
                     <span className="text-label-sm text-on-surface-variant font-medium">AI Usage</span>
                   </div>
                   <div className="space-y-2">
-                    <span className="text-kpi-lg text-on-surface">{dashboard?.totalAiUsage.toLocaleString() || 0}</span>
+                    <span className="text-kpi-lg text-on-surface">{dashboard?.aiUsageCount?.toLocaleString() || 0}</span>
                     <p className="text-label-xs text-outline">Total generations this month</p>
                   </div>
                 </div>

@@ -194,5 +194,12 @@ public class NotificationServiceTests
 
             return Task.CompletedTask;
         }
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
+        {
+            if (_notifications.ContainsKey(notification.Id))
+                _notifications[notification.Id].IsDeleted = true;
+            return Task.CompletedTask;
+        }
     }
 }

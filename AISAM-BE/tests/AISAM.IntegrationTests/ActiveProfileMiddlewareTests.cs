@@ -1,5 +1,7 @@
 using AISAM.API.Middleware;
 using AISAM.API.Utils;
+using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -19,7 +21,7 @@ public class ActiveProfileMiddlewareTests
         var context = CreateContext(Guid.NewGuid());
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -31,7 +33,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = "invalid";
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
     }
@@ -44,7 +46,7 @@ public class ActiveProfileMiddlewareTests
         context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
 
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
@@ -63,14 +65,14 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
     }
 
     [Fact]
-    public async Task InvokeAsync_AllowsOwnedProfile_WhenActiveWorkspaceUsesSeparateIdentity()
+    public async Task InvokeAsync_ReturnsForbidden_WhenProfileDoesNotBelongToActiveWorkspace()
     {
         var userId = Guid.NewGuid();
         var profile = CreateProfile(userId);
@@ -82,9 +84,9 @@ public class ActiveProfileMiddlewareTests
         
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.OK, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
 
     [Fact]
@@ -98,7 +100,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment("Production"));
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment("Production"));
 
         Assert.True(nextCalled);
     }
@@ -114,7 +116,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
     }
@@ -135,7 +137,7 @@ public class ActiveProfileMiddlewareTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(context, new FakeProfileRepository(), new EmptyWorkspaceRepository(), new EmptyUserRepository(), CreateEnvironment());
+        await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
         Assert.True(nextCalled);
     }
@@ -244,5 +246,26 @@ public class ActiveProfileMiddlewareTests
         public string EnvironmentName { get; set; } = "Development";
         public string ContentRootPath { get; set; } = string.Empty;
         public IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Workspace>>(Array.Empty<Workspace>());
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    }
+
+    private sealed class FakeUserRepository : IUserRepository
+    {
+        public Task<User?> GetByIdAsync(Guid id) => Task.FromResult<User?>(null);
+        public Task<User?> GetByEmailAsync(string email) => Task.FromResult<User?>(null);
+        public Task<User> CreateAsync(User user) => throw new NotImplementedException();
+        public Task<User> UpdateAsync(User user) => throw new NotImplementedException();
+        public Task<User?> GetByPasswordResetTokenAsync(string token) => Task.FromResult<User?>(null);
+        public Task<User?> GetByEmailVerificationTokenAsync(string token) => Task.FromResult<User?>(null);
+        public Task<PagedResult<UserListDto>> GetPagedUsersAsync(PaginationRequest request) => throw new NotImplementedException();
     }
 }
