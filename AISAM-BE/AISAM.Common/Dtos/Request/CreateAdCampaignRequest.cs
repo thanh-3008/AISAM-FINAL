@@ -29,5 +29,8 @@ namespace AISAM.Common.Dtos.Request
         public DateTime? StartDate { get; set; }
 
         public DateTime? EndDate { get; set; }
+
+        [MaxLength(500)]
+        public string? LandingUrl { get; set; }
     }
 }

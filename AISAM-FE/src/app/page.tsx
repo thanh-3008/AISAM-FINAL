@@ -813,9 +813,11 @@ export default function LandingPage() {
             <div>
               <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Company</h4>
               <ul className="space-y-4">
-                {["About Us", "Careers", "Terms of Service", "Privacy Policy", "Contact Support"].map((item) => (
-                  <li key={item}><span className="text-body-sm text-outline-variant cursor-default inline-block hover:pl-1 transition-all">{item}</span></li>
-                ))}
+                <li><span className="text-body-sm text-outline-variant cursor-default inline-block">About Us</span></li>
+                <li><span className="text-body-sm text-outline-variant cursor-default inline-block">Careers</span></li>
+                <li><Link href="/terms" className="text-body-sm text-outline-variant inline-block hover:pl-1 hover:text-white transition-all">Terms of Service</Link></li>
+                <li><Link href="/privacy" className="text-body-sm text-outline-variant inline-block hover:pl-1 hover:text-white transition-all">Privacy Policy</Link></li>
+                <li><span className="text-body-sm text-outline-variant cursor-default inline-block">Contact Support</span></li>
               </ul>
             </div>
 
@@ -836,8 +838,8 @@ export default function LandingPage() {
             <div className="max-w-7xl mx-auto px-6 lg:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-label-sm text-outline-variant">&copy; 2026 AISAM Intelligence. All rights reserved.</p>
             <div className="flex gap-6">
-              <span className="text-label-sm text-outline-variant cursor-default">Privacy</span>
-              <span className="text-label-sm text-outline-variant cursor-default">Terms</span>
+              <Link href="/privacy" className="text-label-sm text-outline-variant hover:text-white">Privacy</Link>
+              <Link href="/terms" className="text-label-sm text-outline-variant hover:text-white">Terms</Link>
               <span className="text-label-sm text-outline-variant cursor-default">Cookies</span>
             </div>
           </div>

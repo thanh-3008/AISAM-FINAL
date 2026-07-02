@@ -27,6 +27,27 @@ namespace AISAM.Repositories.Migrations
                 name: "AdCampaignId",
                 table: "ad_sets");
 
+            migrationBuilder.Sql("""
+                WITH ranked AS (
+                    SELECT
+                        id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY content_id
+                            ORDER BY updated_at DESC, created_at DESC, id DESC
+                        ) AS rn
+                    FROM content_calendar
+                    WHERE status IN (0, 1)
+                )
+                UPDATE content_calendar AS cc
+                SET
+                    status = 3,
+                    last_error = COALESCE(cc.last_error, 'Superseded by a newer active schedule during migration.'),
+                    updated_at = NOW()
+                FROM ranked
+                WHERE cc.id = ranked.id
+                  AND ranked.rn > 1;
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_content_calendar_content_id",
                 table: "content_calendar",

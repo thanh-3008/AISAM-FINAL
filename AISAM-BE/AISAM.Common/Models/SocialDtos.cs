@@ -16,6 +16,8 @@ namespace AISAM.Common.Models
         public string ProviderUserId { get; set; } = string.Empty;
         [JsonIgnore]
         public string AccessToken { get; set; } = string.Empty;
+        [JsonIgnore]
+        public string? RefreshToken { get; set; }
         public bool IsActive { get; set; }
         public DateTime? ExpiresAt { get; set; }
         public DateTime CreatedAt { get; set; }

@@ -10,6 +10,7 @@ import TagPicker from "@/components/content/TagPicker";
 import { apiFetch } from "@/lib/apiClient";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
+import { useToast } from "@/contexts/ToastContext";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -19,6 +20,7 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -205,17 +207,21 @@ export default function CreateContentPage() {
       const result = await createContent(payload);
       if (result) {
         setSaved(true);
+        addToast("Content created successfully", "check");
         setTimeout(() => router.push("/content"), 1000);
       } else {
         setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
+        addToast("Failed to create content", "error");
       }
     } catch (e: any) {
       const msg = e?.message || "";
       if (msg.includes("Profile not found")) {
+        addToast("Workspace not found, redirecting...", "error");
         setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {
         setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
+        addToast(msg || "Failed to create content", "error");
       }
     } finally {
       setSaving(false);

@@ -10,19 +10,19 @@ namespace AISAM.Repositories.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "targeting",
-                table: "ad_campaigns",
-                type: "jsonb",
-                nullable: true);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS targeting jsonb;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "targeting",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS targeting;
+                """);
         }
     }
 }

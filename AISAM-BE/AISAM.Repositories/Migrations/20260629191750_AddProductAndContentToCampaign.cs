@@ -11,69 +11,85 @@ namespace AISAM.Repositories.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<Guid>(
-                name: "content_id",
-                table: "ad_campaigns",
-                type: "uuid",
-                nullable: true);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS content_id uuid;
+                """);
 
-            migrationBuilder.AddColumn<Guid>(
-                name: "product_id",
-                table: "ad_campaigns",
-                type: "uuid",
-                nullable: true);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS product_id uuid;
+                """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ad_campaigns_content_id",
-                table: "ad_campaigns",
-                column: "content_id");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_ad_campaigns_content_id"
+                ON ad_campaigns (content_id);
+                """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ad_campaigns_product_id",
-                table: "ad_campaigns",
-                column: "product_id");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_ad_campaigns_product_id"
+                ON ad_campaigns (product_id);
+                """);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_ad_campaigns_contents_content_id",
-                table: "ad_campaigns",
-                column: "content_id",
-                principalTable: "contents",
-                principalColumn: "id");
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'FK_ad_campaigns_contents_content_id'
+                    ) THEN
+                        ALTER TABLE ad_campaigns
+                        ADD CONSTRAINT "FK_ad_campaigns_contents_content_id"
+                        FOREIGN KEY (content_id) REFERENCES contents(id);
+                    END IF;
+                END $$;
+                """);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_ad_campaigns_products_product_id",
-                table: "ad_campaigns",
-                column: "product_id",
-                principalTable: "products",
-                principalColumn: "id");
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'FK_ad_campaigns_products_product_id'
+                    ) THEN
+                        ALTER TABLE ad_campaigns
+                        ADD CONSTRAINT "FK_ad_campaigns_products_product_id"
+                        FOREIGN KEY (product_id) REFERENCES products(id);
+                    END IF;
+                END $$;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_ad_campaigns_contents_content_id",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP CONSTRAINT IF EXISTS "FK_ad_campaigns_contents_content_id";
+                """);
 
-            migrationBuilder.DropForeignKey(
-                name: "FK_ad_campaigns_products_product_id",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP CONSTRAINT IF EXISTS "FK_ad_campaigns_products_product_id";
+                """);
 
-            migrationBuilder.DropIndex(
-                name: "IX_ad_campaigns_content_id",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                DROP INDEX IF EXISTS "IX_ad_campaigns_content_id";
+                """);
 
-            migrationBuilder.DropIndex(
-                name: "IX_ad_campaigns_product_id",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                DROP INDEX IF EXISTS "IX_ad_campaigns_product_id";
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "content_id",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS content_id;
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "product_id",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS product_id;
+                """);
         }
     }
 }

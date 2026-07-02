@@ -57,15 +57,17 @@ export function onScheduleChange(callback: () => void) {
 export async function fetchSchedules(params?: {
   page?: number;
   pageSize?: number;
-}): Promise<PagedResult<ScheduleItem>> {
+}): Promise<{ data: PagedResult<ScheduleItem>; error?: string }> {
   try {
     const query = new URLSearchParams();
     if (params?.page) query.set("page", String(params.page));
     if (params?.pageSize) query.set("pageSize", String(params.pageSize));
     const res: GenericResponse<PagedResult<ScheduleItem>> = await apiClient(`/content-schedules?${query.toString()}`);
-    if (res?.data) return res.data;
-  } catch { /* ignore */ }
-  return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false };
+    if (res?.data) return { data: res.data };
+    return { data: { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false }, error: res?.error?.errorMessage || res?.message || "Failed to fetch schedules" };
+  } catch (err: any) {
+    return { data: { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false }, error: err.message || "Failed to fetch schedules" };
+  }
 }
 
 export async function fetchUpcomingSchedules(limit = 10): Promise<ScheduleItem[]> {
@@ -102,7 +104,7 @@ export async function createSchedule(data: {
 export async function updateSchedule(id: string, data: {
   integrationId?: string;
   scheduledAt?: string;
-}): Promise<boolean> {
+}): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient(`/content-schedules/${id}`, {
       data,
@@ -110,21 +112,25 @@ export async function updateSchedule(id: string, data: {
     });
     if (res?.success) {
       dispatchScheduleChange();
-      return true;
+      return { success: true };
     }
-  } catch { /* ignore */ }
-  return false;
+    return { success: false, error: res?.error?.errorMessage || res?.message || "Failed to update schedule" };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to update schedule" };
+  }
 }
 
-export async function deleteSchedule(id: string): Promise<boolean> {
+export async function deleteSchedule(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<boolean> = await apiClient(`/content-schedules/${id}`, { method: "DELETE" });
     if (res?.success) {
       dispatchScheduleChange();
-      return true;
+      return { success: true };
     }
-  } catch { /* ignore */ }
-  return false;
+    return { success: false, error: res?.error?.errorMessage || res?.message || "Failed to delete schedule" };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to delete schedule" };
+  }
 }
 
 export async function fetchScheduleById(id: string): Promise<ScheduleItem | null> {

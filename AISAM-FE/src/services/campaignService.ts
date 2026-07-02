@@ -44,6 +44,7 @@ export interface Campaign {
   budget: number | null;
   startDate: string | null;
   endDate: string | null;
+  landingUrl: string | null;
   status: CampaignStatus;
   deploymentStatus: DeploymentStatus;
   deploymentStep: number;
@@ -68,6 +69,7 @@ export interface CreateCampaignData {
   budget: number | null;
   startDate: string | null;
   endDate: string | null;
+  landingUrl?: string | null;
 }
 
 interface CampaignApiItem {
@@ -88,6 +90,7 @@ interface CampaignApiItem {
   budget: number | null;
   startDate: string | null;
   endDate: string | null;
+  landingUrl: string | null;
   isActive: boolean;
   isDeleted: boolean;
   deploymentStatus: number;
@@ -128,7 +131,7 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     status = "ACTIVE";
   } else if (api.endDate && new Date(api.endDate) < new Date()) {
     status = "COMPLETED";
-  } else if (!api.isActive && api.startDate) {
+  } else if (!api.isActive && api.startDate && api.facebookCampaignId) {
     status = "PAUSED";
   }
 
@@ -150,6 +153,7 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     budget: api.budget,
     startDate: api.startDate,
     endDate: api.endDate,
+    landingUrl: api.landingUrl ?? null,
     status,
     deploymentStatus: api.deploymentStatus as DeploymentStatus,
     deploymentStep: api.deploymentStep,
@@ -225,6 +229,7 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
       budget: data.budget,
       startDate: data.startDate || null,
       endDate: data.endDate || null,
+      landingUrl: data.landingUrl || null,
     },
   });
 
@@ -249,6 +254,7 @@ export async function updateCampaign(id: string, data: CreateCampaignData): Prom
       budget: data.budget,
       startDate: data.startDate || null,
       endDate: data.endDate || null,
+      landingUrl: data.landingUrl || null,
     },
   });
 
@@ -304,6 +310,11 @@ export async function syncCampaignInsights(id: string): Promise<Campaign> {
 
 export async function cleanupCampaignDeployment(id: string): Promise<boolean> {
   const res = await apiClient(`/campaigns/${id}/cleanup`, { method: "POST" });
+  return res?.success === true;
+}
+
+export async function restoreCampaign(id: string): Promise<boolean> {
+  const res = await apiClient(`/campaigns/${id}/restore`, { method: "POST" });
   return res?.success === true;
 }
 

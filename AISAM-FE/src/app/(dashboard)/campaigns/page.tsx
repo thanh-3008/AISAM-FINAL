@@ -12,6 +12,7 @@ import {
   applyCampaign,
   restartCampaign,
   deleteCampaign,
+  restoreCampaign,
   deployCampaignToFacebook,
   type Campaign,
   type CampaignStatus,
@@ -27,6 +28,7 @@ import CreateCampaignModal from "@/components/campaigns/CreateCampaignModal";
 import EditCampaignModal from "@/components/campaigns/EditCampaignModal";
 import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
+import StartConfirmModal from "@/components/campaigns/StartConfirmModal";
 import { fetchBrands } from "@/services/brandService";
 import { setCachedBrands, OBJECTIVE_CONFIG, STATUS_CONFIG } from "@/components/campaigns/campaignUtils";
 
@@ -49,6 +51,7 @@ export default function CampaignsPage() {
   const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null);
   const [deletingCampaigns, setDeletingCampaigns] = useState<Campaign[]>([]);
+  const [startingCampaign, setStartingCampaign] = useState<Campaign | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const { addToast } = useToast();
@@ -59,7 +62,7 @@ export default function CampaignsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetchCampaigns();
+        const res = await fetchCampaigns({ pageSize: 100 });
         if (!cancelled) setCampaigns(res.data);
       } catch (err) {
         if (!cancelled) {
@@ -161,9 +164,16 @@ export default function CampaignsPage() {
   };
 
   const handleToggleStatus = async (campaign: Campaign) => {
+    if (campaign.status === "PAUSED" && campaign.facebookCampaignId) {
+      setStartingCampaign(campaign);
+      return;
+    }
+    await doToggleStatus(campaign, "PAUSED");
+  };
+
+  const doToggleStatus = async (campaign: Campaign, newStatus: CampaignStatus) => {
     setActionLoading(campaign.id);
     try {
-      const newStatus: CampaignStatus = campaign.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
       const updated = await updateCampaignStatus(campaign.id, newStatus);
       if (updated) {
         setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
@@ -237,6 +247,11 @@ export default function CampaignsPage() {
     setSelectedIds((prev) =>
       selected ? [...prev, id] : prev.filter((x) => x !== id)
     );
+  };
+
+  const handleConfirmStart = async (campaign: Campaign) => {
+    setStartingCampaign(null);
+    await doToggleStatus(campaign, "ACTIVE");
   };
 
   const handleClearSelection = () => {
@@ -392,9 +407,16 @@ export default function CampaignsPage() {
         <CampaignDetailModal
           campaign={detailCampaign}
           onClose={() => setDetailCampaign(null)}
-          onApply={handleApply}
+          onDeploy={handleDeploy}
           onRestart={handleRestart}
           isLoading={actionLoading === detailCampaign?.id}
+        />
+
+        <StartConfirmModal
+          campaign={startingCampaign}
+          isLoading={actionLoading === startingCampaign?.id}
+          onConfirm={handleConfirmStart}
+          onCancel={() => setStartingCampaign(null)}
         />
 
         <DeleteConfirmModal

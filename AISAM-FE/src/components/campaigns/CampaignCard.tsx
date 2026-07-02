@@ -165,22 +165,7 @@ export default function CampaignCard({
             <span className="material-symbols-outlined text-[14px]">edit</span>
           </button>
         )}
-        {campaign.status === "DRAFT" ? (
-          <button
-            onClick={() => onApply(campaign)}
-            disabled={isLoading}
-            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[11px] font-semibold text-emerald-600 transition-all flex items-center gap-1 disabled:opacity-50"
-          >
-            {isLoading ? (
-              <span className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin block" />
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
-                Apply
-              </>
-            )}
-          </button>
-        ) : !campaign.facebookCampaignId && onDeploy ? (
+        {campaign.status === "DRAFT" && !campaign.facebookCampaignId && onDeploy ? (
           <button
             onClick={() => onDeploy(campaign)}
             disabled={isLoading}
@@ -195,7 +180,22 @@ export default function CampaignCard({
               </>
             )}
           </button>
-        ) : (campaign.status === "ACTIVE" || campaign.status === "PAUSED") ? (
+        ) : campaign.status === "PAUSED" && campaign.facebookCampaignId ? (
+          <button
+            onClick={() => onToggleStatus(campaign)}
+            disabled={isLoading}
+            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[11px] font-semibold text-emerald-600 transition-all flex items-center gap-1 disabled:opacity-50"
+          >
+            {isLoading ? (
+              <span className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin block" />
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[14px]">play_arrow</span>
+                Start
+              </>
+            )}
+          </button>
+        ) : campaign.status === "ACTIVE" ? (
           <button
             onClick={() => onToggleStatus(campaign)}
             disabled={isLoading}
@@ -203,10 +203,8 @@ export default function CampaignCard({
           >
             {isLoading ? (
               <span className="w-3.5 h-3.5 border-2 border-outline/30 border-t-outline rounded-full animate-spin block" />
-            ) : campaign.status === "ACTIVE" ? (
-              <span className="material-symbols-outlined text-[14px]">pause</span>
             ) : (
-              <span className="material-symbols-outlined text-[14px]">play_arrow</span>
+              <span className="material-symbols-outlined text-[14px]">pause</span>
             )}
           </button>
         ) : null}

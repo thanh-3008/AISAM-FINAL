@@ -27,7 +27,7 @@ export default function ConnectAccountModal({ open, onClose, onConnect, isLoadin
 
   const handleConnect = () => {
     if (selectedBrandId) {
-      sessionStorage.setItem("facebook_connect_brand_id", selectedBrandId);
+      sessionStorage.setItem("social_connect_brand_id", selectedBrandId);
     }
     onConnect(selectedPlatform);
   };

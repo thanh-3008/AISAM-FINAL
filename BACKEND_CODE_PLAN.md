@@ -4,6 +4,13 @@
 
 Nguon ke hoach chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
+Policy bo sung da duoc phe duyet ngay 2026-06-24: `docs/product/workspace-subscription-expiry-policy.md`.
+
+- Personal paid expiry fallback ve Personal Free va chi duoc tieu Credits cho Free-entitled operations.
+- Business khong co Free tier; PendingPayment/Limited/Archived Business khong duoc tieu Credits.
+- Tao Business Workspace khong cap Credits; verified payment/renewal grant phai idempotent.
+- Day la follow-up policy can audit implementation; khong duoc suy ra la da hoan thanh chi vi Task 9.14/9.15 cu da DONE.
+
 Trang thai: **implementation in progress**. Phase 9 dang chuyen tung ownership boundary tu Profile sang Workspace; cac module chua migrate van giu Profile-based lam baseline.
 
 Thu tu code tiep theo:
@@ -3197,6 +3204,7 @@ Mục tiêu phase:
 | 9.16 | Chuyển ownership từng domain sang Workspace | DONE - 2026-06-13 | 9.6, 9.13 |
 | 9.17 | Backfill dữ liệu cũ và khóa schema Workspace | DONE - 2026-06-13 | 9.9-9.16 |
 | 9.18 | Workspace Dashboard, regression và tài liệu cuối Phase 9 | DONE - 2026-06-13 | 9.17 |
+| 9.19 | Audit Personal Free fallback va Business paid-only lifecycle | PLANNED - policy 2026-06-24 | 9.9-9.18 |
 
 ### Task 9.1 - Thêm Workspace domain foundation
 
@@ -4631,6 +4639,7 @@ Kết quả đã có:
 - Chỉ generation thành công mới trừ `1` Credit và lưu `CreditUsageRecord`.
 - Provider thất bại và AI Chat không trừ Credits.
 - Generate Text/Basic Analytics là feature Free/basic, không bắt buộc active subscription nếu Workspace vẫn còn Credits.
+- Policy correction 2026-06-24: dong tren chi duoc ap dung cho Personal Workspace voi effective plan Personal Free. Business Workspace khong co active Plus/Pro phai bi chan truoc khi credit check.
 - Loại bỏ dependency AutoMapper không sử dụng có cảnh báo lỗ hổng mức High.
 
 Kiểm tra đã chạy:
@@ -4689,6 +4698,7 @@ Kết quả đã có:
 - PayOS renewal khôi phục Workspace về `Active`.
 - Scheduled posting không chạy qua Workspace đã hết hạn.
 - Automated tests xác minh mốc 90/180 ngày, read-only, renew và Admin Soft Delete.
+- Follow-up audit 2026-06-24: Limited/Archived Business phai giu balance de hien thi/renew nhung khong duoc consume Credits; khong duoc fallback sang Free/basic entitlement.
 
 Kiểm tra đã chạy:
 
@@ -4826,6 +4836,30 @@ test(workspace): complete workspace migration regression
 - Build, test, migration và API regression pass.
 
 Không bắt đầu Phase 10 hoặc Phase 11 nếu Phase 9 chưa hoàn thành.
+
+### Task 9.19 - Audit Personal Free fallback va Business paid-only lifecycle
+
+Trang thai: **PLANNED - policy approved 2026-06-24**
+
+Nguon: `docs/product/workspace-subscription-expiry-policy.md`.
+
+Muc tieu:
+
+- Tach effective entitlement theo `WorkspaceType` khi subscription khong active.
+- Personal fallback ve Personal Free; Business chuyen read-only va khong co Free fallback.
+- Business creation khong grant Credits va chi active sau verified Business Plus/Pro payment.
+- Credit grant cua payment/callback/webhook/renewal phai idempotent.
+
+Backend acceptance:
+
+1. Personal expired + con Credits dung duoc Generate Text neu Free matrix cho phep.
+2. Personal expired khong dung duoc Plus/Pro-only feature.
+3. Business PendingPayment/Limited/Archived + con Credits van bi chan AI/write operations.
+4. Business creation khong tao `SubscriptionGrant` hoac Free recurring grant.
+5. Replay callback/webhook khong grant Credits lan hai.
+6. Renewal restore Active, giu balance cu va grant renewal Credits dung mot lan.
+
+Khong danh dau DONE neu chua co service tests, API integration tests va payment replay regression.
 
 ## Phase 11 - Facebook Ads Campaign MVP
 

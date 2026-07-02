@@ -4,6 +4,14 @@
 
 Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
+Policy lifecycle/credit moi nhat: `docs/product/workspace-subscription-expiry-policy.md`.
+
+- `/overview` la noi duy nhat bat dau tao Business Workspace.
+- Dashboard cua active Workspace chi co action `Manage Workspaces`, khong co create modal.
+- Personal expiry hien Free entitlements va cho dung retained Credits tren Free features.
+- Business PendingPayment/Limited/Archived hien read-only/payment state; khong hien action AI/write chi vi wallet con balance.
+- Sau create-and-pay Business thanh cong, quay ve `/overview`.
+
 - Planned, chi trien khai sau khi backend Workspace API san sang.
 - Active context muc tieu chuyen tu Profile Store sang Workspace Store.
 - Request ownership se gui `X-Workspace-Id`.

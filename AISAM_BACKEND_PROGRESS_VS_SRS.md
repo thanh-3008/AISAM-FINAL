@@ -4,6 +4,15 @@
 
 Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
 
+Policy update 2026-06-24: `docs/product/workspace-subscription-expiry-policy.md`.
+
+Implementation follow-up dang mo:
+
+- Audit de Free/basic fallback chi ap dung cho Personal Workspace.
+- Chan Business PendingPayment/Limited/Archived consume Credits.
+- Xac minh Business creation grant 0 Credits va payment/renewal grant idempotent.
+- Bo sung regression tests chong tao nhieu Business Workspace de farm Free Credits.
+
 Bao cao chi tiet ben duoi duoc lap tu snapshot cu ngay 2026-05-26. Trang thai Workspace hien tai da tien xa hon snapshot do:
 
 - Task 9.1-9.18 da hoan thanh va automated tests pass.
@@ -21,6 +30,7 @@ Do do, cac ty le tien do ben duoi khong duoc hieu la da hoan thanh Workspace Cha
 | Workspace entities/migration/API | DONE - Task 9.1-9.18 |
 | Subscription/Credits migration | DONE cho payment/subscription/wallet/AI text charging |
 | Ownership backfill va regression | DONE |
+| Personal-vs-Business expiry policy audit | PLANNED - policy approved 2026-06-24 |
 
 Ngày đánh giá: 2026-05-26  
 Tài liệu yêu cầu: `D:\final\AISAM-FINAL\README.md`, `D:\final\AISAM-FINAL\SPECIFICATION_ANSWERS.md`  

@@ -3,6 +3,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AISAM.Repositories.Repository;
 
@@ -141,7 +142,14 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
                   AND (
                       (status = {1} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2}))
                       OR
-                      (status = {3} AND attempt_count < {4} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2}))
+                      (status = {3} AND attempt_count < {4} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2})
+                       AND NOT EXISTS (
+                           SELECT 1 FROM content_calendar cc2
+                           WHERE cc2.content_id = content_calendar.content_id
+                             AND cc2.is_deleted = false
+                             AND cc2.status IN ({1}, {0})
+                             AND cc2.id != content_calendar.id
+                       ))
                   )
                 ORDER BY scheduled_at
                 LIMIT {5}
@@ -206,7 +214,21 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
     public async Task UpdateAsync(ContentCalendar schedule, CancellationToken cancellationToken = default)
     {
         schedule.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateContentCalendarError(ex))
+        {
+            _context.ChangeTracker.Clear();
+        }
+    }
+
+    private static bool IsDuplicateContentCalendarError(DbUpdateException ex)
+    {
+        return ex.InnerException is PostgresException pgEx
+               && pgEx.SqlState == "23505"
+               && pgEx.ConstraintName?.Contains("ix_content_calendar_content_id", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private IQueryable<ContentCalendar> Query()

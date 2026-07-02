@@ -18,10 +18,11 @@ interface CampaignDetailModalProps {
   onClose: () => void;
   onApply?: (campaign: Campaign) => void;
   onRestart?: (campaign: Campaign) => void;
+  onDeploy?: (campaign: Campaign) => void;
   isLoading?: boolean;
 }
 
-export default function CampaignDetailModal({ campaign, onClose, onApply, onRestart, isLoading }: CampaignDetailModalProps) {
+export default function CampaignDetailModal({ campaign, onClose, onApply, onRestart, onDeploy, isLoading }: CampaignDetailModalProps) {
   if (!campaign) return null;
 
   const objectiveConfig = OBJECTIVE_CONFIG[campaign.objective];
@@ -305,18 +306,18 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
 
           {/* Footer */}
           <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 sticky bottom-0 bg-surface-container-lowest">
-            {campaign.status === "DRAFT" && onApply && (
+            {campaign.status === "DRAFT" && onDeploy && (
               <button
-                onClick={() => onApply(campaign)}
+                onClick={() => onDeploy(campaign)}
                 disabled={isLoading}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+                className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
               >
                 {isLoading ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <span className="material-symbols-outlined text-[16px]">rocket_launch</span>
+                  <span className="material-symbols-outlined text-[16px]">ads_click</span>
                 )}
-                Apply Campaign
+                Deploy to Facebook
               </button>
             )}
             {campaign.status === "COMPLETED" && onRestart && (

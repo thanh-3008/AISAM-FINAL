@@ -46,8 +46,8 @@ export const PLAN_PRICING: PlanPricing[] = [
   {
     planType: PlanType.PersonalPlus,
     name: PLAN_NAMES[PlanType.PersonalPlus],
-    price: 29,
-    priceFormatted: "$29",
+    price: 2000,
+    priceFormatted: "2,000₫",
     period: "/month",
     credits: 500,
     postQuota: "300 posts/month",
@@ -67,8 +67,8 @@ export const PLAN_PRICING: PlanPricing[] = [
   {
     planType: PlanType.PersonalPro,
     name: PLAN_NAMES[PlanType.PersonalPro],
-    price: 79,
-    priceFormatted: "$79",
+    price: 3000,
+    priceFormatted: "3,000₫",
     period: "/month",
     credits: 2000,
     postQuota: "1,000 posts/month",
@@ -88,8 +88,8 @@ export const PLAN_PRICING: PlanPricing[] = [
   {
     planType: PlanType.BusinessPlus,
     name: PLAN_NAMES[PlanType.BusinessPlus],
-    price: 149,
-    priceFormatted: "$149",
+    price: 4000,
+    priceFormatted: "4,000₫",
     period: "/month",
     credits: 15000,
     postQuota: "5,000 posts/month",
@@ -109,8 +109,8 @@ export const PLAN_PRICING: PlanPricing[] = [
   {
     planType: PlanType.BusinessPro,
     name: PLAN_NAMES[PlanType.BusinessPro],
-    price: 299,
-    priceFormatted: "$299",
+    price: 5000,
+    priceFormatted: "5,000₫",
     period: "/month",
     credits: 50000,
     postQuota: "20,000 posts/month",
@@ -130,10 +130,10 @@ export const PLAN_PRICING: PlanPricing[] = [
 ];
 
 export const CREDIT_PACK_PRICING: CreditPackPricing[] = [
-  { id: "starter", name: "Starter", credits: 100, price: 29000, priceFormatted: "29,000₫", icon: "bolt" },
-  { id: "standard", name: "Standard", credits: 500, price: 99000, priceFormatted: "99,000₫", icon: "electric_bolt", popular: true },
-  { id: "growth", name: "Growth", credits: 1500, price: 249000, priceFormatted: "249,000₫", icon: "local_fire_department" },
-  { id: "business", name: "Business", credits: 5000, price: 699000, priceFormatted: "699,000₫", icon: "whatshot" },
+  { id: "starter", name: "Starter", credits: 100, price: 2000, priceFormatted: "2,000₫", icon: "bolt" },
+  { id: "standard", name: "Standard", credits: 500, price: 3000, priceFormatted: "3,000₫", icon: "electric_bolt", popular: true },
+  { id: "growth", name: "Growth", credits: 1500, price: 4000, priceFormatted: "4,000₫", icon: "local_fire_department" },
+  { id: "business", name: "Business", credits: 5000, price: 5000, priceFormatted: "5,000₫", icon: "whatshot" },
 ];
 
 export function getPlanByType(planType: PlanType): PlanPricing | undefined {

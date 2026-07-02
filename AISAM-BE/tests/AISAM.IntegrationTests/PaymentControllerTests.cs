@@ -119,6 +119,18 @@ public class PaymentControllerTests
             return Task.FromResult(CheckoutResult);
         }
 
+        public Task<GenericResponse<PayOSCheckoutResponse>> CreateBusinessWorkspaceCheckoutAsync(Guid userId, CreateBusinessWorkspaceCheckoutRequest request, CancellationToken cancellationToken = default)
+        {
+            LastUserId = userId;
+            return Task.FromResult(CheckoutResult);
+        }
+
+        public Task<GenericResponse<bool>> SynchronizeBusinessWorkspaceCheckoutAsync(Guid userId, string reference, CancellationToken cancellationToken = default)
+        {
+            LastUserId = userId;
+            return Task.FromResult(CallbackResult);
+        }
+
         public Task<GenericResponse<bool>> HandleCallbackAsync(IQueryCollection query, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(CallbackResult);

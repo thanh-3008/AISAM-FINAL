@@ -17,7 +17,7 @@ public class RemainingWorkspaceOwnershipTests
         {
             typeof(Brand), typeof(Content), typeof(SocialAccount), typeof(SocialIntegration),
             typeof(ContentCalendar), typeof(Conversation), typeof(Notification), typeof(AdCampaign),
-            typeof(Subscription), typeof(Payment)
+            typeof(Subscription)
         };
 
         foreach (var ownershipType in ownershipTypes)
@@ -25,6 +25,9 @@ public class RemainingWorkspaceOwnershipTests
             var property = context.Model.FindEntityType(ownershipType)!.FindProperty("WorkspaceId")!;
             Assert.False(property.IsNullable, $"{ownershipType.Name}.WorkspaceId must be required.");
         }
+
+        var paymentWorkspace = context.Model.FindEntityType(typeof(Payment))!.FindProperty("WorkspaceId")!;
+        Assert.True(paymentWorkspace.IsNullable, "Payment.WorkspaceId must remain nullable until a Business workspace payment succeeds.");
     }
 
     [Fact]

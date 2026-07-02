@@ -10,53 +10,49 @@ namespace AISAM.Repositories.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<long>(
-                name: "clicks",
-                table: "ad_campaigns",
-                type: "bigint",
-                nullable: false,
-                defaultValue: 0L);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS clicks bigint NOT NULL DEFAULT 0;
+                """);
 
-            migrationBuilder.AddColumn<long>(
-                name: "conversions",
-                table: "ad_campaigns",
-                type: "bigint",
-                nullable: false,
-                defaultValue: 0L);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS conversions bigint NOT NULL DEFAULT 0;
+                """);
 
-            migrationBuilder.AddColumn<long>(
-                name: "impressions",
-                table: "ad_campaigns",
-                type: "bigint",
-                nullable: false,
-                defaultValue: 0L);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS impressions bigint NOT NULL DEFAULT 0;
+                """);
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "spend",
-                table: "ad_campaigns",
-                type: "numeric(12,2)",
-                nullable: false,
-                defaultValue: 0m);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS spend numeric(12,2) NOT NULL DEFAULT 0;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "clicks",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS clicks;
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "conversions",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS conversions;
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "impressions",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS impressions;
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "spend",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS spend;
+                """);
         }
     }
 }

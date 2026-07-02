@@ -4,6 +4,9 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace AISAM.Services.Service;
 
@@ -36,7 +39,16 @@ public sealed class ScheduledPostingService : IScheduledPostingService
 
     public async Task<SchedulerRunResultDto> RunDueSchedulesAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var schedules = await _contentCalendarRepository.ClaimDueSchedulesAtomicallyAsync(DateTime.UtcNow, batchSize, MaxRetryAttempts, cancellationToken);
+        IReadOnlyList<ContentCalendar> schedules;
+        try
+        {
+            schedules = await _contentCalendarRepository.ClaimDueSchedulesAtomicallyAsync(DateTime.UtcNow, batchSize, MaxRetryAttempts, cancellationToken);
+        }
+        catch (Exception ex) when (IsDuplicateKeyError(ex))
+        {
+            schedules = Array.Empty<ContentCalendar>();
+        }
+
         var result = new SchedulerRunResultDto
         {
             ScannedCount = schedules.Count
@@ -161,5 +173,16 @@ public sealed class ScheduledPostingService : IScheduledPostingService
             TargetType = "content_schedule",
             IsRead = false
         }, cancellationToken);
+    }
+
+    private static bool IsDuplicateKeyError(Exception ex)
+    {
+        while (ex != null)
+        {
+            if (ex is PostgresException pg && pg.SqlState == "23505")
+                return true;
+            ex = ex.InnerException;
+        }
+        return false;
     }
 }

@@ -1,5 +1,7 @@
 # CHANGE REQUEST ANALYSIS
 
+> Legacy duplicate notice (2026-06-24): this file is retained for history. Use `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md` and `docs/product/workspace-subscription-expiry-policy.md` as the authoritative sources. In particular, Personal may fall back to Free after paid expiry, while Business has no Free tier and cannot spend retained Credits without an active Business subscription.
+
 ## Workspace-Based Subscription, Credit và Business Workspace MVP
 
 > Trạng thái: **CÁC QUYẾT ĐỊNH KIẾN TRÚC ĐÃ ĐƯỢC XÁC NHẬN - CHƯA BẮT ĐẦU CODE**

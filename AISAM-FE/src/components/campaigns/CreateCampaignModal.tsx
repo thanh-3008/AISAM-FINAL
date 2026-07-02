@@ -28,6 +28,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
   const [selectedProductId, setSelectedProductId] = useState("");
   const [contents, setContents] = useState<{ id: string; title: string; brandId: string }[]>([]);
   const [selectedContentId, setSelectedContentId] = useState("");
+  const [landingUrl, setLandingUrl] = useState("");
 
   // Targeting
   const TARGETING_PRESETS: { label: string; value: string }[] = [
@@ -61,6 +62,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       setDateError("");
       setSelectedTargeting(TARGETING_PRESETS[0].value);
       setCustomTargeting("");
+      setLandingUrl("");
 
       fetchSocialAccounts().then((res) => {
         setSocialAccounts(res.data.filter((a) => a.provider === "facebook"));
@@ -123,6 +125,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       budget: budget ? parseFloat(budget) : null,
       startDate: startDate || null,
       endDate: endDate || null,
+      landingUrl: landingUrl || null,
     });
   };
 
@@ -255,6 +258,19 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
               </select>
             </div>
 
+            {/* Landing URL */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Landing URL (optional)</label>
+              <input
+                type="url"
+                value={landingUrl}
+                onChange={(e) => setLandingUrl(e.target.value)}
+                placeholder="https://example.com/product-page"
+                className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
+              />
+              <p className="text-label-3xs text-outline mt-1">Default: Facebook page URL</p>
+            </div>
+
             {/* Targeting */}
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Targeting</label>
@@ -308,7 +324,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
             {/* Budget */}
             <div>
-              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Budget (USD)</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Total Budget (VND)</label>
               <input
                 type="number"
                 value={budget}

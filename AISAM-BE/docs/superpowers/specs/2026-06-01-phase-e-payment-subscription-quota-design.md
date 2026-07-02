@@ -1,5 +1,7 @@
 # Phase E - Payment, Subscription, Quota Design
 
+> Legacy design notice: this document predates Workspace ownership. Current policy is `docs/product/workspace-subscription-expiry-policy.md`; it supersedes profile-based or generic expired-workspace assumptions in this design.
+
 Last updated: 2026-06-01
 
 ## 1. Muc tieu

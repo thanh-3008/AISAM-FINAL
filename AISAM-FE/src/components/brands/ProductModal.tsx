@@ -99,7 +99,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
   const labelClass = "text-label-md font-bold text-on-surface-variant uppercase";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto py-8">
       <div className="bg-surface rounded-2xl border border-outline-variant/20 shadow-xl w-full max-w-lg mx-4 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-outline-variant/20">
           <h3 className="text-headline-sm text-on-surface font-bold">{mode === "edit" ? "Edit Product" : "Create New Product"}</h3>

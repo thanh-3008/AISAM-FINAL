@@ -2621,7 +2621,7 @@ export default function ProfileDetailPage() {
                                     : nextPaymentDate}
                                 </p>
                                 <p className="text-label-xs text-outline mt-1">
-                                  {subscriptionPlanLabel === "Free" ? "Free" : "$29.00 USD"}
+                                  {subscriptionPlanLabel === "Free" ? "Free" : "Test pricing"}
                                 </p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
@@ -2659,7 +2659,7 @@ export default function ProfileDetailPage() {
                           {
                             name: isBusinessWorkspace ? "Business Plus" : "Personal Plus",
                             planType: 1,
-                            price: isBusinessWorkspace ? "$149" : "$29",
+                            price: isBusinessWorkspace ? "4,000₫" : "2,000₫",
                             period: "/month",
                             current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus"),
                             popular: true,
@@ -2671,7 +2671,7 @@ export default function ProfileDetailPage() {
                           {
                             name: isBusinessWorkspace ? "Business Pro" : "Personal Pro",
                             planType: 2,
-                            price: isBusinessWorkspace ? "$299" : "$79",
+                            price: isBusinessWorkspace ? "5,000₫" : "3,000₫",
                             period: "/month",
                             current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro"),
                             features: isBusinessWorkspace
@@ -2755,10 +2755,10 @@ export default function ProfileDetailPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
-                          { name: "Starter", credits: 100, price: "29,000₫", icon: "bolt" },
-                          { name: "Standard", credits: 500, price: "99,000₫", icon: "electric_bolt", popular: true },
-                          { name: "Growth", credits: 1500, price: "249,000₫", icon: "local_fire_department" },
-                          { name: "Business", credits: 5000, price: "699,000₫", icon: "whatshot" },
+                          { name: "Starter", credits: 100, price: "2,000₫", icon: "bolt" },
+                          { name: "Standard", credits: 500, price: "3,000₫", icon: "electric_bolt", popular: true },
+                          { name: "Growth", credits: 1500, price: "4,000₫", icon: "local_fire_department" },
+                          { name: "Business", credits: 5000, price: "5,000₫", icon: "whatshot" },
                         ].map((pack) => (
                           <div
                             key={pack.name}

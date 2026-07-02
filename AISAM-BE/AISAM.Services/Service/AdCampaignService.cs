@@ -24,7 +24,6 @@ namespace AISAM.Services.Service
         private readonly IContentRepository _contentRepository;
         private readonly ISocialService _socialService;
         private readonly IProviderService _facebookProvider;
-        private readonly IQuotaService _quotaService;
         private readonly ILogger<AdCampaignService> _logger;
 
         public AdCampaignService(
@@ -33,7 +32,6 @@ namespace AISAM.Services.Service
             IBrandRepository brandRepository,
             IContentRepository contentRepository,
             ISocialService socialService,
-            IQuotaService quotaService,
             IEnumerable<IProviderService> providers,
             ILogger<AdCampaignService> logger)
         {
@@ -42,7 +40,6 @@ namespace AISAM.Services.Service
             _brandRepository = brandRepository;
             _contentRepository = contentRepository;
             _socialService = socialService;
-            _quotaService = quotaService;
             _facebookProvider = providers.First(p => p.ProviderName == "facebook");
             _logger = logger;
         }
@@ -130,7 +127,8 @@ namespace AISAM.Services.Service
                 Budget = request.Budget,
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
-                IsActive = true
+                LandingUrl = request.LandingUrl,
+                IsActive = false
             };
 
             var created = await _campaignRepository.AddAsync(campaign, cancellationToken);
@@ -154,6 +152,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
             }
 
+            var isDeployed = campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId);
+
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
                 campaign.Name = request.Name;
@@ -172,42 +172,63 @@ namespace AISAM.Services.Service
 
             if (!string.IsNullOrWhiteSpace(request.AdAccountId))
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Ad account cannot be changed after deployment. Stop the campaign first.");
                 campaign.AdAccountId = request.AdAccountId;
             }
 
             if (request.Objective != null)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Objective cannot be changed after deployment. Stop the campaign first.");
                 campaign.Objective = request.Objective;
             }
 
             if (request.ProductId.HasValue)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Product cannot be changed after deployment. Stop the campaign first.");
                 campaign.ProductId = request.ProductId.Value;
             }
 
             if (request.ContentId.HasValue)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Content cannot be changed after deployment. Stop the campaign first.");
                 campaign.ContentId = request.ContentId.Value;
             }
 
             if (request.Targeting != null)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Targeting cannot be changed after deployment. Stop the campaign first.");
                 campaign.Targeting = request.Targeting;
             }
 
             if (request.Budget.HasValue)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Budget cannot be changed after deployment. Stop the campaign first.");
                 campaign.Budget = request.Budget.Value;
             }
 
             if (request.StartDate.HasValue)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("Start date cannot be changed after deployment. Stop the campaign first.");
                 campaign.StartDate = request.StartDate.Value;
             }
 
             if (request.EndDate.HasValue)
             {
+                if (isDeployed)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("End date cannot be changed after deployment. Stop the campaign first.");
                 campaign.EndDate = request.EndDate.Value;
+            }
+
+            if (request.LandingUrl != null)
+            {
+                campaign.LandingUrl = request.LandingUrl;
             }
 
             var wasActivated = false;
@@ -286,7 +307,37 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError(access.Message);
             }
 
+            // Pause on Facebook if already deployed
+            if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
+            {
+                try
+                {
+                    var (account, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
+                    await _facebookProvider.UpdateCampaignStatusAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, "PAUSED", cancellationToken);
+
+                    var adSets = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
+                    foreach (var adSet in adSets)
+                    {
+                        if (!string.IsNullOrWhiteSpace(adSet.FacebookAdSetId))
+                            await _facebookProvider.UpdateAdSetStatusAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, "PAUSED", cancellationToken);
+                        var ads = await _campaignRepository.GetAdsByAdSetIdAsync(adSet.Id, cancellationToken);
+                        foreach (var ad in ads)
+                        {
+                            if (!string.IsNullOrWhiteSpace(ad.AdId))
+                                await _facebookProvider.UpdateAdStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, "PAUSED", cancellationToken);
+                        }
+                    }
+
+                    _logger.LogInformation("Paused campaign {CampaignId} on Facebook before deletion", campaign.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to pause campaign {CampaignId} on Facebook during deletion", campaign.Id);
+                }
+            }
+
             campaign.IsDeleted = true;
+            campaign.IsActive = false;
             await _campaignRepository.UpdateAsync(campaign, cancellationToken);
 
             return GenericResponse<bool>.CreateSuccess(true, "Campaign deleted successfully");
@@ -509,7 +560,7 @@ namespace AISAM.Services.Service
                     campaign.FacebookCampaignId!,
                     adSetName,
                     campaign.Objective ?? "AWARENESS",
-                    campaign.Budget.HasValue ? campaign.Budget.Value / 30 : null,
+                    campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
                     campaign.StartDate,
                     campaign.EndDate,
                     campaign.Targeting ?? "{\"geo_locations\":{\"countries\":[\"VN\"]}}",
@@ -521,8 +572,8 @@ namespace AISAM.Services.Service
                     CampaignId = campaign.Id,
                     Name = adSetName,
                     FacebookAdSetId = fbAdSetId,
-                    DailyBudget = campaign.Budget.HasValue ? campaign.Budget.Value / 30 : null,
-                    Status = "ACTIVE",
+                    DailyBudget = campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
+                    Status = "PAUSED",
                     StartDate = campaign.StartDate,
                     EndDate = campaign.EndDate
                 };
@@ -577,7 +628,7 @@ namespace AISAM.Services.Service
                 }
 
                 var message = content?.TextContent ?? campaign.Name;
-                var linkUrl = $"https://facebook.com/{pageId}";
+                var linkUrl = campaign.LandingUrl ?? $"https://www.facebook.com/{pageId}";
                 var imageUrl = content?.ImageUrl;
 
                 var fbCreativeId = await _facebookProvider.CreateAdCreativeAsync(
@@ -599,6 +650,8 @@ namespace AISAM.Services.Service
                     CallToAction = "LEARN_MORE",
                     LinkUrl = linkUrl
                 };
+
+                campaign.LandingUrl = linkUrl;
                 await _campaignRepository.AddAdCreativeAsync(creative, cancellationToken);
                 campaign.DeploymentStep = StepAdCreativeCreated;
                 await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.InProgress, StepAdCreativeCreated, cancellationToken);
@@ -619,7 +672,7 @@ namespace AISAM.Services.Service
                     adSet.FacebookAdSetId!,
                     creative!.CreativeId!,
                     adName,
-                    "ACTIVE",
+                    "PAUSED",
                     cancellationToken
                 );
 
@@ -628,7 +681,7 @@ namespace AISAM.Services.Service
                     AdSetId = adSet.Id,
                     CreativeId = creative.Id,
                     AdId = fbAdId,
-                    Status = "ACTIVE"
+                    Status = "PAUSED"
                 };
                 await _campaignRepository.AddAdAsync(ad, cancellationToken);
 
@@ -649,7 +702,7 @@ namespace AISAM.Services.Service
         private async Task<(SocialAccountDto Account, SocialIntegrationDto Integration, string PageId)> ResolveSocialContextAsync(AdCampaign campaign, CancellationToken cancellationToken)
         {
             var integrations = await _socialService.GetIntegrationsByBrandAsync(campaign.ProfileId, campaign.BrandId, cancellationToken);
-            var integration = integrations.FirstOrDefault();
+            var integration = integrations.OrderByDescending(i => i.CreatedAt).FirstOrDefault();
             if (integration == null)
             {
                 throw new InvalidOperationException("No social integration found for this brand. Please connect a Facebook page first.");
@@ -671,6 +724,16 @@ namespace AISAM.Services.Service
             return membership == null
                 ? (false, "You are not allowed to access this workspace")
                 : (true, string.Empty);
+        }
+
+        private static decimal CalculateDailyBudget(decimal totalBudget, DateTime? startDate, DateTime? endDate)
+        {
+            if (startDate.HasValue && endDate.HasValue && endDate.Value > startDate.Value)
+            {
+                var days = (int)Math.Max(1, (endDate.Value - startDate.Value).TotalDays);
+                return totalBudget / days;
+            }
+            return totalBudget / 30;
         }
 
         private static AdCampaignResponseDto MapToDto(AdCampaign campaign)
@@ -696,6 +759,7 @@ namespace AISAM.Services.Service
                 EndDate = campaign.EndDate,
                 IsActive = campaign.IsActive,
                 IsDeleted = campaign.IsDeleted,
+                LandingUrl = campaign.LandingUrl,
                 CreatedAt = campaign.CreatedAt,
                 UpdatedAt = campaign.UpdatedAt,
                 DeploymentStatus = campaign.DeploymentStatus,

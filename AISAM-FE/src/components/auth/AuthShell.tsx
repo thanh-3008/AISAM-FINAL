@@ -153,8 +153,8 @@ export default function AuthShell({
             © 2026 AISAM. All rights reserved.
           </p>
           <div className="flex gap-4">
-            <span className="font-label-sm text-label-sm cursor-default">Terms</span>
-            <span className="font-label-sm text-label-sm cursor-default">Privacy</span>
+            <Link href="/terms" className="font-label-sm text-label-sm hover:text-on-surface">Terms</Link>
+            <Link href="/privacy" className="font-label-sm text-label-sm hover:text-on-surface">Privacy</Link>
           </div>
         </footer>
       </section>

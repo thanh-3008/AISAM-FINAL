@@ -5,6 +5,8 @@
 
 Nguon quyet dinh: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`. Day la requirement muc tieu da phe duyet, **chua phai trang thai code hien tai**.
 
+Chinh sach lifecycle moi nhat: `docs/product/workspace-subscription-expiry-policy.md` (approved 2026-06-24).
+
 - Chuyen ownership boundary tu Profile sang Workspace.
 - Profile chi con la thong tin ca nhan/doanh nghiep.
 - Moi Workspace co dung mot Owner va mot Credit Wallet.
@@ -22,6 +24,10 @@ Nguon quyet dinh: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`. Da
 
 - Maximum Credit Balance: Personal 15.000; Business 500.000.
 - Giao dich lam vuot maximum balance bi tu choi toan bo.
+- Moi account co dung mot Personal Workspace; account co the so huu/tham gia nhieu Business Workspace.
+- Personal Plus/Pro het han thi ha entitlement ve Personal Free; Credits con lai chi dung duoc cho feature Free.
+- Business khong co Free tier. Workspace moi khong duoc cap Credits va chua duoc su dung cho den khi Business Plus/Pro thanh toan thanh cong.
+- Business het han giu du lieu/members/Credits nhung Read-only va khong duoc tieu Credits cho den khi gia han.
 - Het han duoi 90 ngay: Limited Mode.
 - Het han 90-180 ngay: Archived; Owner View/Export/Renew, Member View Only.
 - Het han tren 180 ngay: Admin co quyen Soft Delete.
@@ -180,10 +186,16 @@ He thong phai ho tro:
 - Chan publish neu Workspace het Post Quota.
 - Quan ly Credit Wallet duy nhat cua Workspace va tu choi giao dich lam vuot Maximum Credit Balance.
 - Ap dung Plan Feature Gate, Member Limit va Permission Matrix da phe duyet.
+- Tach entitlement khoi Credit balance: co Credits khong tu dong mo khoa feature.
+- Personal het paid plan phai fallback ve Personal Free; Business het paid plan phai Read-only, khong fallback ve Free.
+- Credit grant khi payment/renewal phai idempotent va khong duoc cap khi chi tao Business Workspace.
 
 ### 6.3 Workspace, Business Profile and Brand Kit
 He thong muc tieu phai ho tro:
 - Tao Personal Workspace mac dinh khi register.
+- Moi account chi co mot Personal Workspace.
+- Chi tao moi Business Workspace tu man hinh `/overview`; khong tao Workspace trong dashboard cua Workspace dang active.
+- Business Workspace moi phai qua Business Plus/Pro payment; khong ton tai Business Free.
 - Chon Active Workspace.
 - Moi Workspace co dung mot Owner va mot Credit Wallet.
 - Invite/accept member theo Member Limit.

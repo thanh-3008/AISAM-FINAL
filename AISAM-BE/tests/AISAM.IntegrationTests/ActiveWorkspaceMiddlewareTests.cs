@@ -12,6 +12,24 @@ namespace AISAM.IntegrationTests;
 public class ActiveWorkspaceMiddlewareTests
 {
     [Fact]
+    public async Task InvokeAsync_AllowsAnonymousFacebookCallbackRelay()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = "/api/social-auth/facebook/callback";
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ReturnsUnauthorized_WhenWorkspaceHeaderIsMissing()
     {
         var context = CreateContext(Guid.NewGuid());
@@ -259,7 +277,7 @@ public class ActiveWorkspaceMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ReturnsForbidden_WhenPersonalPlusUsesWorkspaceDashboardFeature()
+    public async Task InvokeAsync_AllowsPersonalPlusWorkspaceDashboardFeature()
     {
         var userId = Guid.NewGuid();
         var membership = CreateMembership(
@@ -270,7 +288,12 @@ public class ActiveWorkspaceMiddlewareTests
         var context = CreateContext(userId, "/api/workspace-dashboard/summary");
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
-        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
 
         await middleware.InvokeAsync(
             context,
@@ -285,7 +308,7 @@ public class ActiveWorkspaceMiddlewareTests
                     EndDate = DateTime.UtcNow.Date.AddDays(30)
                 }));
 
-        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+        Assert.True(nextCalled);
     }
 
     [Fact]

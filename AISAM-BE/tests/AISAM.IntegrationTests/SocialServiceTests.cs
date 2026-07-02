@@ -74,6 +74,43 @@ public class SocialServiceTests
     }
 
     [Fact]
+    public async Task LinkAccountInWorkspaceAsync_CreatesTikTokAccountWithProtectedRefreshToken()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var accountRepository = new FakeSocialAccountRepository();
+        var provider = new FakeProviderService
+        {
+            ProviderName = "tiktok",
+            ExchangeAccount = new SocialAccountDto
+            {
+                Provider = "tiktok",
+                ProviderUserId = "tiktok-open-id",
+                AccessToken = "tiktok-access-token",
+                RefreshToken = "tiktok-refresh-token",
+                ExpiresAt = DateTime.UtcNow.AddHours(24)
+            }
+        };
+        var service = CreateService(
+            accountRepository: accountRepository,
+            providerService: provider,
+            oauthStateStore: new FakeOAuthStateStore("valid-state", profileId, "tiktok"));
+
+        var result = await service.LinkAccountInWorkspaceAsync("tiktok", workspaceId, profileId, new SocialCallbackRequest
+        {
+            Code = "oauth-code",
+            State = "valid-state"
+        });
+
+        var account = Assert.Single(accountRepository.Accounts.Values);
+        Assert.Equal(SocialPlatformEnum.TikTok, account.Platform);
+        Assert.Equal(workspaceId, account.WorkspaceId);
+        Assert.Equal("protected:tiktok-access-token", account.UserAccessToken);
+        Assert.Equal("protected:tiktok-refresh-token", account.RefreshToken);
+        Assert.Equal("tiktok", result.Provider);
+    }
+
+    [Fact]
     public async Task LinkAccountInWorkspaceAsync_DoesNotMoveExistingAccountToAnotherWorkspace()
     {
         var profileId = Guid.NewGuid();
@@ -215,6 +252,69 @@ public class SocialServiceTests
     }
 
     [Fact]
+    public async Task LinkSelectedTargetsInWorkspaceAsync_CreatesTikTokIntegration()
+    {
+        var workspaceId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var brand = new Brand
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            Name = "TikTok brand"
+        };
+        var account = new SocialAccount
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            Platform = SocialPlatformEnum.TikTok,
+            AccountId = "tiktok-open-id",
+            UserAccessToken = "protected:tiktok-user-token",
+            IsActive = true
+        };
+        var provider = new FakeProviderService
+        {
+            ProviderName = "tiktok",
+            Targets = new[]
+            {
+                new AvailableTargetDto
+                {
+                    ProviderTargetId = "tiktok-open-id",
+                    Name = "TikTok user",
+                    Type = "tiktok_account"
+                }
+            },
+            TargetAccessTokens = new Dictionary<string, string>
+            {
+                ["tiktok-open-id"] = "tiktok-user-token"
+            }
+        };
+        var integrations = new FakeSocialIntegrationRepository();
+        var service = CreateService(
+            accountRepository: new FakeSocialAccountRepository(account),
+            integrationRepository: integrations,
+            brandRepository: new FakeBrandRepository(brand),
+            providerService: provider);
+
+        var result = await service.LinkSelectedTargetsInWorkspaceAsync(
+            workspaceId,
+            profileId,
+            account.Id,
+            new LinkSelectedTargetsRequest
+            {
+                BrandId = brand.Id,
+                Provider = "tiktok",
+                ProviderTargetIds = new List<string> { "tiktok-open-id" }
+            });
+
+        var integration = Assert.Single(integrations.Integrations.Values);
+        Assert.Equal(SocialPlatformEnum.TikTok, integration.Platform);
+        Assert.Equal("protected:tiktok-user-token", integration.AccessToken);
+        Assert.Single(result.Targets);
+    }
+
+    [Fact]
     public async Task UnlinkAccountAsync_SoftDeletesAccountAndIntegrations()
     {
         var profileId = Guid.NewGuid();
@@ -274,6 +374,10 @@ public class SocialServiceTests
             Options.Create(new FacebookSettings
             {
                 RedirectUri = "https://server/callback"
+            }),
+            Options.Create(new TikTokSettings
+            {
+                RedirectUri = "https://client/social-callback/tiktok"
             }),
             new IProviderService[] { providerService ?? new FakeProviderService() });
     }
@@ -426,7 +530,7 @@ public class SocialServiceTests
 
     private sealed class FakeProviderService : IProviderService
     {
-        public string ProviderName => "facebook";
+        public string ProviderName { get; set; } = "facebook";
         public string AuthUrl { get; set; } = "https://facebook.example/auth";
         public SocialAccountDto ExchangeAccount { get; set; } = new()
         {

@@ -29,6 +29,13 @@ export interface CreateCheckoutRequest {
   cancelUrl: string;
 }
 
+export interface CreateBusinessWorkspaceCheckoutRequest {
+  workspaceName: string;
+  planCode: string;
+  returnUrl: string;
+  cancelUrl: string;
+}
+
 /** Plan codes understood by BE SubscriptionPlanEnum */
 export const PLAN_CODES: Record<number, string> = {
   0: "Free",
@@ -61,9 +68,27 @@ export async function createPayment(data: CreateCheckoutRequest): Promise<Checko
   }
 }
 
+export async function createBusinessWorkspacePayment(
+  data: CreateBusinessWorkspaceCheckoutRequest,
+): Promise<CheckoutResponse | null> {
+  const res: GenericResponse<CheckoutResponse> = await apiClient("/payment/business-workspace-checkout", {
+    data,
+    method: "POST",
+  });
+  return res?.data ?? null;
+}
+
+export async function synchronizeBusinessWorkspacePayment(reference: string): Promise<boolean> {
+  const res: GenericResponse<boolean> = await apiClient("/payment/business-workspace-checkout/sync", {
+    data: { reference },
+    method: "POST",
+  });
+  return res?.success === true && res.data === true;
+}
+
 export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<boolean> {
   try {
-    const PAYOS_PARAMS = ["id", "orderCode", "amount", "description", "cancelUrl", "returnUrl", "status", "signature"];
+    const PAYOS_PARAMS = ["id", "orderCode", "amount", "description", "cancelUrl", "returnUrl", "status", "code", "cancel", "signature"];
     const params = new URLSearchParams();
     for (const [key, value] of searchParams.entries()) {
       if (PAYOS_PARAMS.includes(key)) {

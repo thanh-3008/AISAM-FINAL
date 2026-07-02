@@ -9,6 +9,7 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using System.Net;
+using System.Security.Cryptography;
 
 namespace AISAM.IntegrationTests;
 
@@ -27,7 +28,7 @@ public class ContentServicePublishTests
             AdType = AdTypeEnum.ImageText,
             TextContent = "Publish me",
             ImageUrl = "[\"https://example.com/image-1.png\",\"https://example.com/image-2.png\"]",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -97,7 +98,7 @@ public class ContentServicePublishTests
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -140,8 +141,54 @@ public class ContentServicePublishTests
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.BadGateway, result.StatusCode);
-        Assert.Equal(ContentStatusEnum.Draft, content.Status);
+        Assert.Equal(ContentStatusEnum.Approved, content.Status);
         Assert.Empty(postRepository.Added);
+    }
+
+    [Fact]
+    public async Task PublishAsync_ReturnsReconnectRequired_WhenTokenKeyIsUnavailable()
+    {
+        var profileId = Guid.NewGuid();
+        var brandId = Guid.NewGuid();
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = brandId,
+            Status = ContentStatusEnum.Approved
+        };
+        var account = new SocialAccount
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            Platform = SocialPlatformEnum.TikTok,
+            UserAccessToken = "unreadable-token"
+        };
+        var integration = new SocialIntegration
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            BrandId = brandId,
+            SocialAccountId = account.Id,
+            SocialAccount = account,
+            Platform = SocialPlatformEnum.TikTok,
+            AccessToken = "unreadable-token"
+        };
+        var provider = new FakeProviderService { ProviderName = "tiktok" };
+        var service = CreateService(
+            new FakeContentRepository(content),
+            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
+            socialAccountRepository: new FakeSocialAccountRepository(account),
+            providerService: provider,
+            tokenProtector: new FakeSocialTokenProtector { ThrowOnUnprotect = true });
+
+        var result = await service.PublishAsync(content.Id, integration.Id, profileId);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.Unauthorized, result.StatusCode);
+        Assert.Equal("SOCIAL_RECONNECT_REQUIRED", result.Error?.ErrorCode);
+        Assert.Contains("Disconnect and reconnect", result.Message);
+        Assert.Null(provider.LastPublishedPost);
     }
 
     [Fact]
@@ -179,7 +226,7 @@ public class ContentServicePublishTests
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -232,7 +279,7 @@ public class ContentServicePublishTests
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.Forbidden, result.StatusCode);
         Assert.Equal("POST_QUOTA_EXCEEDED", result.Error?.ErrorCode);
-        Assert.Equal(ContentStatusEnum.Draft, content.Status);
+        Assert.Equal(ContentStatusEnum.Approved, content.Status);
         Assert.Empty(postRepository.Added);
         Assert.Null(provider.LastPublishedPost);
     }
@@ -251,7 +298,7 @@ public class ContentServicePublishTests
             BrandId = brandId,
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var account = new SocialAccount
         {
@@ -300,7 +347,7 @@ public class ContentServicePublishTests
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
             TextContent = "Publish me",
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Approved
         };
         var integration = new SocialIntegration
         {
@@ -506,7 +553,7 @@ public class ContentServicePublishTests
 
     private sealed class FakeProviderService : IProviderService
     {
-        public string ProviderName => "facebook";
+        public string ProviderName { get; set; } = "facebook";
         public PublishResultDto PublishResult { get; set; } = new() { Success = true, ProviderPostId = "provider-post-id", PostedAt = DateTime.UtcNow };
         public SocialAccount? LastPublishedAccount { get; private set; }
         public SocialIntegration? LastPublishedIntegration { get; private set; }
@@ -563,6 +610,7 @@ public class ContentServicePublishTests
     private sealed class FakeSocialTokenProtector : ISocialTokenProtector
     {
         public string? LastProtectedPlaintext { get; private set; }
+        public bool ThrowOnUnprotect { get; set; }
 
         public string Protect(string plaintext)
         {
@@ -572,6 +620,11 @@ public class ContentServicePublishTests
 
         public string Unprotect(string ciphertext)
         {
+            if (ThrowOnUnprotect)
+            {
+                throw new CryptographicException("Missing key.");
+            }
+
             return ciphertext.StartsWith("protected:", StringComparison.Ordinal)
                 ? ciphertext["protected:".Length..]
                 : ciphertext;

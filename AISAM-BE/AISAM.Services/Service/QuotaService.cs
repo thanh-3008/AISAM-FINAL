@@ -32,7 +32,14 @@ public sealed class QuotaService : IQuotaService
         var subscription = await _subscriptionRepository.GetCurrentActiveByProfileIdAsync(profileId, cancellationToken);
         if (subscription == null)
         {
-            return GenericResponse<QuotaSummaryDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
+            subscription = new Subscription
+            {
+                Plan = SubscriptionPlanEnum.Free,
+                QuotaPostsPerMonth = 20,
+                StartDate = DateTime.UtcNow.Date,
+                EndDate = null,
+                IsActive = true
+            };
         }
 
         var windowStart = subscription.StartDate;
@@ -70,7 +77,14 @@ public sealed class QuotaService : IQuotaService
         var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
         if (subscription == null)
         {
-            return GenericResponse<QuotaSummaryDto>.CreateError("Active workspace subscription not found.", HttpStatusCode.NotFound);
+            subscription = new Subscription
+            {
+                Plan = SubscriptionPlanEnum.Free,
+                QuotaPostsPerMonth = 20,
+                StartDate = DateTime.UtcNow.Date,
+                EndDate = null,
+                IsActive = true
+            };
         }
 
         var (windowStart, windowEnd) = ResolvePostQuotaWindow(subscription, DateTime.UtcNow.Date);

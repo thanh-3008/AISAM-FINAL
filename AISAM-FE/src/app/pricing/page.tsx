@@ -1,17 +1,15 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { useWorkspaces, addWorkspaceToCache } from "@/hooks/useWorkspaces";
+import { invalidateWorkspaceCache, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, syncPayOSCallback, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
+import { createBusinessWorkspacePayment, createPayment, synchronizeBusinessWorkspacePayment, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
-import { apiFetch } from "@/lib/apiClient";
-import { getUserIdFromToken } from "@/lib/auth";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
 
 type TabType = "subscription" | "credits";
@@ -21,8 +19,9 @@ const CREATED_WORKSPACE_PAYMENT_KEY = "aisam-created-workspace-payment";
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeWorkspace, selectWorkspace, updateWorkspacePlan } = useWorkspaces();
-  const featureGate = useFeatureGate();
+  const { activeWorkspace, updateWorkspacePlan } = useWorkspaces();
+  const hasPaymentRedirect = searchParams.has("orderCode") || searchParams.has("id");
+  const featureGate = useFeatureGate(!hasPaymentRedirect);
   const { showToast } = useToast();
   const reduceMotion = useReducedMotion();
 
@@ -41,7 +40,6 @@ function PricingContent() {
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
-  const [wsCompany, setWsCompany] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Payment state
@@ -50,24 +48,58 @@ function PricingContent() {
   const [qrStatus, setQrStatus] = useState<"pending" | "completed" | "failed">("pending");
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const paymentSyncStartedRef = useRef(false);
 
   useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
+    if (hasPaymentRedirect) return;
     fetchCreditWallet().then(w => setCreditWallet(w));
-  }, [activeWorkspace?.id]);
+  }, [activeWorkspace?.id, hasPaymentRedirect]);
 
   useEffect(() => {
-    const isPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id");
-    if (!isPayOSRedirect || !activeWorkspace?.id) return;
+    const pendingBusinessReference = window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY);
+    const isBusinessCreation = Boolean(pendingBusinessReference);
+    const redirectStatus = searchParams.get("status")?.toUpperCase();
+    const redirectPaid = searchParams.get("cancel") !== "true" &&
+      (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+    if (!hasPaymentRedirect || (!activeWorkspace?.id && !isBusinessCreation)) return;
+    if (paymentSyncStartedRef.current) return;
 
+    paymentSyncStartedRef.current = true;
     setSyncingPayment(true);
-    let cancelled = false;
     const synchronizePayment = async () => {
       try {
-        const success = await syncPayOSCallback(searchParams);
-        if (cancelled) return;
+        if (!redirectPaid) {
+          if (isBusinessCreation) {
+            window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
+          }
+          showToast({ type: "info", title: "Payment not completed", message: "No workspace or subscription was activated." });
+          router.replace(isBusinessCreation ? "/pricing?create=business" : "/pricing");
+          return;
+        }
 
+        if (isBusinessCreation) {
+          const reference = pendingBusinessReference || searchParams.get("orderCode");
+          const success = reference ? await synchronizeBusinessWorkspacePayment(reference) : false;
+          if (!success) {
+            showToast({ type: "error", title: "Payment verification failed", message: "PayOS has not confirmed this payment yet. Please retry from the workspace overview." });
+            paymentSyncStartedRef.current = false;
+            return;
+          }
+          window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
+          invalidateWorkspaceCache();
+          showToast({
+            type: "success",
+            title: "Workspace created",
+            message: "Your paid Business workspace is now active.",
+          });
+          window.location.replace("/overview");
+          return;
+        }
+
+        const reference = searchParams.get("orderCode") || searchParams.get("id");
+        const success = reference ? await synchronizeBusinessWorkspacePayment(reference) : false;
         if (!success) {
           showToast({ type: "error", title: "Payment sync failed", message: "Payment was received but could not be synchronized. Please contact support." });
           router.replace("/pricing");
@@ -76,39 +108,36 @@ function PricingContent() {
 
         const subscription = await getCurrentSubscription();
         const wallet = await fetchCreditWallet();
-        if (cancelled) return;
 
         if (subscription?.planName) {
           updateWorkspacePlan(activeWorkspace.id, subscription.planName);
-          const createdWorkspaceId = window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY);
-          const returnToOverview = createdWorkspaceId === activeWorkspace.id;
-          if (returnToOverview) {
-            window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
-          }
           showToast({
             type: "success",
             title: "Payment successful",
             message: `${subscription.planName} is now active for this workspace.`,
           });
-          router.replace(returnToOverview ? "/overview" : "/dashboard");
+          router.replace("/dashboard");
           return;
         }
 
         if (wallet) setCreditWallet(wallet);
+        showToast({
+          type: "success",
+          title: "Payment successful",
+          message: "Your credit balance has been updated.",
+        });
+        router.replace("/pricing");
       } catch (error) {
-        if (cancelled) return;
+        paymentSyncStartedRef.current = false;
         const message = error instanceof Error ? error.message : "Payment was received, but subscription refresh failed.";
         showToast({ type: "error", title: "Subscription refresh failed", message });
       } finally {
-        if (!cancelled) setSyncingPayment(false);
+        setSyncingPayment(false);
       }
     };
 
     synchronizePayment();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeWorkspace?.id, router, searchParams, showToast, updateWorkspacePlan]);
+  }, [activeWorkspace?.id, hasPaymentRedirect, router, searchParams, showToast, updateWorkspacePlan]);
 
   useEffect(() => {
     if (createMode || categoryParam === "business") {
@@ -124,65 +153,43 @@ function PricingContent() {
 
   const filteredPlans = PLAN_PRICING.filter(p => p.category === planCategory);
 
-  const handleCreateWorkspace = async (planType: PlanType) => {
-    if (!wsName.trim()) {
-      showToast({ type: "error", title: "Missing name", message: "Please enter a workspace name." });
-      return false;
-    }
-    setCreating(true);
-    const userId = getUserIdFromToken();
-    if (!userId) return false;
-
-    try {
-      const result = await apiFetch("/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: wsName.trim(),
-          workspaceType: 2,
-        }),
-      });
-
-      if (!result?.success || !result.data) {
-        throw new Error(result?.message || "Failed to create business workspace.");
-      }
-
-      const wsData = {
-        id: String(result.data.id),
-        userId,
-        name: String(result.data.name || wsName.trim()),
-        workspaceType: typeof result.data.workspaceType === "number" ? result.data.workspaceType : 2,
-        plan: "Business",
-        status: typeof result.data.status === "number" ? result.data.status : 1,
-        createdAt: String(result.data.createdAt || new Date().toISOString()),
-        updatedAt: String(result.data.updatedAt || new Date().toISOString()),
-        isOwner: result.data.currentUserRole === 0 || result.data.currentUserRole === 1 || typeof result.data.currentUserRole !== "number",
-        memberRole: "Owner",
-      };
-      addWorkspaceToCache(wsData);
-      selectWorkspace(wsData);
-      window.sessionStorage.setItem(CREATED_WORKSPACE_PAYMENT_KEY, wsData.id);
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create business workspace.";
-      showToast({ type: "error", title: "Workspace creation failed", message });
-      return false;
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const handleUpgrade = async (plan: PlanPricing) => {
     if (isCurrentPlan(plan.planType)) return;
     setProcessing(plan.planType);
 
     if (createMode) {
-      const ok = await handleCreateWorkspace(plan.planType);
-      if (!ok) {
+      if (!wsName.trim()) {
+        showToast({ type: "error", title: "Missing name", message: "Please enter a workspace name." });
         setProcessing(null);
         return;
       }
-      router.replace("/pricing", undefined);
+
+      setCreating(true);
+      try {
+        const planCode = PLAN_CODES[plan.planType];
+        const payment = await createBusinessWorkspacePayment({
+          workspaceName: wsName.trim(),
+          planCode,
+          returnUrl: window.location.origin + "/pricing",
+          cancelUrl: window.location.origin + "/pricing?create=business",
+        });
+        if (!payment?.checkoutUrl) {
+          throw new Error("PayOS checkout URL was not returned.");
+        }
+        const paymentReference = payment.orderCode || payment.paymentLinkId;
+        if (!paymentReference) {
+          throw new Error("PayOS payment reference was not returned.");
+        }
+        window.sessionStorage.setItem(CREATED_WORKSPACE_PAYMENT_KEY, paymentReference);
+        window.location.href = payment.checkoutUrl;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to start Business workspace checkout.";
+        showToast({ type: "error", title: "Checkout failed", message });
+      } finally {
+        setCreating(false);
+        setProcessing(null);
+      }
+      return;
     }
 
     try {
@@ -390,15 +397,6 @@ function PricingContent() {
                         autoFocus
                       />
                     </div>
-                    <div>
-                      <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">Company Name <span className="text-label-xs text-outline font-normal">(optional)</span></label>
-                      <input
-                        className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
-                        placeholder="e.g. Acme Inc."
-                        value={wsCompany}
-                        onChange={(e) => setWsCompany(e.target.value)}
-                      />
-                    </div>
                   </div>
                 </motion.div>
               )}
@@ -484,13 +482,13 @@ function PricingContent() {
                       <div className="mb-4">
                         <div className="flex items-baseline gap-1">
                           <span className="text-3xl font-bold text-on-surface">
-                            {yearly ? `$${plan.price * 10}` : plan.priceFormatted}
+                            {yearly ? `${(plan.price * 10).toLocaleString("vi-VN")}₫` : plan.priceFormatted}
                           </span>
                           <span className="text-label-sm text-outline">{yearly ? "/year" : plan.period}</span>
                         </div>
                         {yearly && plan.price > 0 && (
                           <p className="text-label-xs text-emerald-600 mt-0.5">
-                            ${(plan.price * 10 / 12).toFixed(0)}/mo billed yearly
+                            {(plan.price * 10 / 12).toLocaleString("vi-VN", { maximumFractionDigits: 0 })}₫/mo billed yearly
                           </p>
                         )}
                       </div>

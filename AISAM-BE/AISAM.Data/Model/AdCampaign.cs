@@ -58,6 +58,10 @@ namespace AISAM.Data.Model
         [Column("end_date", TypeName = "date")]
         public DateTime? EndDate { get; set; }
 
+        [MaxLength(500)]
+        [Column("landing_url")]
+        public string? LandingUrl { get; set; }
+
         [Column("is_active")]
         public bool IsActive { get; set; } = true;
 

@@ -82,6 +82,182 @@ public sealed class PayOSPaymentService : IPaymentService
         };
     }
 
+    public async Task<GenericResponse<PayOSCheckoutResponse>> CreateBusinessWorkspaceCheckoutAsync(
+        Guid userId,
+        CreateBusinessWorkspaceCheckoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasPayOsConfig())
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "PayOS is not configured.",
+                HttpStatusCode.ServiceUnavailable,
+                "PAYOS_NOT_CONFIGURED");
+        }
+
+        var workspaceName = request.WorkspaceName?.Trim();
+        if (string.IsNullOrWhiteSpace(workspaceName) || workspaceName.Length > 255)
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "Workspace name is required and must not exceed 255 characters.",
+                HttpStatusCode.BadRequest,
+                "INVALID_WORKSPACE_NAME");
+        }
+
+        var plan = ResolvePlan(request.PlanCode);
+        if (plan is not (SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "Business workspaces require Business Plus or Business Pro.",
+                HttpStatusCode.BadRequest,
+                "BUSINESS_PLAN_REQUIRED");
+        }
+
+        var planDefinition = GetPlanDefinition(WorkspaceTypeEnum.Business, plan.Value);
+        var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
+        var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
+        if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "PayOS return/cancel URL is not configured.",
+                HttpStatusCode.ServiceUnavailable,
+                "PAYOS_URL_NOT_CONFIGURED");
+        }
+
+        var orderCode = GenerateOrderCode();
+        var description = plan == SubscriptionPlanEnum.Premium ? "AISAM Business Pro" : "AISAM Business Plus";
+        var payment = await _paymentRepository.AddAsync(new Payment
+        {
+            UserId = userId,
+            WorkspaceId = null,
+            PendingWorkspaceName = workspaceName,
+            RequestedPlan = plan,
+            Amount = planDefinition.Amount,
+            Currency = "VND",
+            Status = PaymentStatusEnum.Pending,
+            PaymentType = PaymentTypeEnum.Subscription,
+            PaymentMethod = PaymentMethod,
+            TransactionId = orderCode.ToString(CultureInfo.InvariantCulture)
+        }, cancellationToken);
+
+        var checkoutPayload = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["amount"] = ((long)planDefinition.Amount).ToString(CultureInfo.InvariantCulture),
+            ["cancelUrl"] = cancelUrl,
+            ["description"] = description,
+            ["orderCode"] = orderCode.ToString(CultureInfo.InvariantCulture),
+            ["returnUrl"] = returnUrl
+        };
+
+        var payOsRequest = new
+        {
+            orderCode,
+            amount = (long)planDefinition.Amount,
+            description,
+            returnUrl,
+            cancelUrl,
+            signature = CreateSignature(checkoutPayload)
+        };
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildPayOsUri("/v2/payment-requests"))
+        {
+            Content = JsonContent.Create(payOsRequest)
+        };
+        httpRequest.Headers.Add("x-client-id", _settings.ClientId);
+        httpRequest.Headers.Add("x-api-key", _settings.ApiKey);
+
+        using var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+        if (!httpResponse.IsSuccessStatusCode)
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                $"PayOS checkout creation failed with status {(int)httpResponse.StatusCode}.",
+                HttpStatusCode.BadGateway,
+                "PAYOS_CHECKOUT_FAILED");
+        }
+
+        var payOsResponse = ParseCreatePaymentResponse(responseBody);
+        if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "PayOS response did not contain a checkout URL.",
+                HttpStatusCode.BadGateway,
+                "PAYOS_CHECKOUT_URL_MISSING");
+        }
+
+        payment.InvoiceUrl = payOsResponse.CheckoutUrl;
+        await _paymentRepository.UpdateAsync(payment, cancellationToken);
+        return GenericResponse<PayOSCheckoutResponse>.CreateSuccess(payOsResponse, "Business workspace checkout created.");
+    }
+
+    public async Task<GenericResponse<bool>> SynchronizeBusinessWorkspaceCheckoutAsync(
+        Guid userId,
+        string reference,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasPayOsConfig())
+        {
+            return GenericResponse<bool>.CreateError(
+                "PayOS is not configured.",
+                HttpStatusCode.ServiceUnavailable,
+                "PAYOS_NOT_CONFIGURED");
+        }
+
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return GenericResponse<bool>.CreateError(
+                "Payment reference is required.",
+                HttpStatusCode.BadRequest,
+                "PAYOS_REFERENCE_MISSING");
+        }
+
+        var payment = await _paymentRepository.GetByReferenceAsync(reference.Trim(), cancellationToken);
+        if (payment == null || payment.UserId != userId)
+        {
+            return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
+        }
+
+        // The webhook often completes the purchase before the browser returns from PayOS.
+        // Treat repeated browser synchronization as successful without creating a second workspace.
+        if (payment.Status == PaymentStatusEnum.Success && payment.WorkspaceId.HasValue)
+        {
+            return GenericResponse<bool>.CreateSuccess(true, "Payment is already synchronized.");
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            BuildPayOsUri($"/v2/payment-requests/{Uri.EscapeDataString(reference.Trim())}"));
+        request.Headers.Add("x-client-id", _settings.ClientId);
+        request.Headers.Add("x-api-key", _settings.ApiKey);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return GenericResponse<bool>.CreateError(
+                "Unable to verify the payment with PayOS.",
+                HttpStatusCode.BadGateway,
+                "PAYOS_STATUS_CHECK_FAILED");
+        }
+
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var document = JsonDocument.Parse(responseBody);
+        var root = document.RootElement;
+        var data = root.TryGetProperty("data", out var dataElement) ? dataElement : root;
+        var status = FirstNonEmpty(TryGetString(data, "status"), TryGetString(root, "status"), TryGetString(root, "code"));
+        var transactionId = FirstNonEmpty(TryGetString(data, "id"), TryGetString(data, "reference"));
+
+        return await ApplyPaymentStatusAsync(
+            reference.Trim(),
+            status,
+            transactionId,
+            acknowledgeMissingPayment: false,
+            cancellationToken);
+    }
+
     private async Task<GenericResponse<PayOSCheckoutResponse>> CreateSubscriptionCheckoutAsync(
         Guid workspaceId,
         Guid userId,
@@ -394,27 +570,35 @@ public sealed class PayOSPaymentService : IPaymentService
     public async Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
         var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
-        if (subscription == null)
-        {
-            return GenericResponse<CurrentSubscriptionDto>.CreateError("Active subscription not found.", HttpStatusCode.NotFound);
-        }
 
-        return GenericResponse<CurrentSubscriptionDto>.CreateSuccess(new CurrentSubscriptionDto
-        {
-            SubscriptionId = subscription.Id,
-            PlanName = subscription.Plan.ToString(),
-            Status = subscription.IsActive ? "Active" : "Inactive",
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            PromptQuota = subscription.QuotaAIContentPerDay,
-            ImageQuota = subscription.QuotaAIImagesPerDay,
-            PostQuota = subscription.QuotaPostsPerMonth,
-            PlatformQuota = subscription.QuotaPlatforms,
-            AccountQuota = subscription.QuotaAccounts,
-            AnalysisLevel = subscription.AnalysisLevel,
-            AdBudgetMonthly = subscription.QuotaAdBudgetMonthly,
-            AdCampaignQuota = subscription.QuotaAdCampaigns
-        });
+        var dto = subscription != null
+            ? new CurrentSubscriptionDto
+            {
+                SubscriptionId = subscription.Id,
+                PlanName = subscription.Plan.ToString(),
+                Status = subscription.IsActive ? "Active" : "Inactive",
+                StartDate = subscription.StartDate,
+                EndDate = subscription.EndDate,
+                PromptQuota = subscription.QuotaAIContentPerDay,
+                ImageQuota = subscription.QuotaAIImagesPerDay,
+                PostQuota = subscription.QuotaPostsPerMonth,
+                PlatformQuota = subscription.QuotaPlatforms,
+                AccountQuota = subscription.QuotaAccounts,
+                AnalysisLevel = subscription.AnalysisLevel,
+                AdBudgetMonthly = subscription.QuotaAdBudgetMonthly,
+                AdCampaignQuota = subscription.QuotaAdCampaigns
+            }
+            : new CurrentSubscriptionDto
+            {
+                PlanName = SubscriptionPlanEnum.Free.ToString(),
+                Status = "Active",
+                StartDate = DateTime.UtcNow.Date,
+                PostQuota = 20,
+                PlatformQuota = 1,
+                AccountQuota = 1
+            };
+
+        return GenericResponse<CurrentSubscriptionDto>.CreateSuccess(dto);
     }
 
     private async Task<GenericResponse<bool>> ApplyPaymentStatusAsync(
@@ -435,6 +619,11 @@ public sealed class PayOSPaymentService : IPaymentService
         try
         {
             var result = await ApplyPaymentStatusCoreAsync(reference, status, transactionId, acknowledgeMissingPayment, cancellationToken);
+            if (!result.Success)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return result;
+            }
             await transaction.CommitAsync(cancellationToken);
             return result;
         }
@@ -463,7 +652,7 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
         }
 
-        if (!string.IsNullOrWhiteSpace(transactionId))
+        if (!string.IsNullOrWhiteSpace(transactionId) && string.IsNullOrWhiteSpace(payment.TransactionId))
         {
             payment.TransactionId = transactionId;
         }
@@ -477,9 +666,28 @@ public sealed class PayOSPaymentService : IPaymentService
             }
 
             payment.Status = PaymentStatusEnum.Success;
-            if (payment.PaymentType == PaymentTypeEnum.CreditPack)
+            if (!string.IsNullOrWhiteSpace(payment.PendingWorkspaceName) && !payment.WorkspaceId.HasValue)
             {
-                var workspace = await _workspaceRepository.GetByIdAsync(payment.WorkspaceId, cancellationToken);
+                var creationResult = await CompleteBusinessWorkspacePurchaseAsync(
+                    payment,
+                    reference,
+                    cancellationToken);
+                if (!creationResult.Success)
+                {
+                    return creationResult;
+                }
+            }
+            else if (payment.PaymentType == PaymentTypeEnum.CreditPack)
+            {
+                if (!payment.WorkspaceId.HasValue)
+                {
+                    return GenericResponse<bool>.CreateError(
+                        "Credit pack payment is missing its workspace.",
+                        HttpStatusCode.Conflict,
+                        "PAYMENT_WORKSPACE_REQUIRED");
+                }
+
+                var workspace = await _workspaceRepository.GetByIdAsync(payment.WorkspaceId.Value, cancellationToken);
                 if (workspace == null)
                 {
                     payment.Status = PaymentStatusEnum.Failed;
@@ -596,6 +804,79 @@ public sealed class PayOSPaymentService : IPaymentService
         return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
     }
 
+    private async Task<GenericResponse<bool>> CompleteBusinessWorkspacePurchaseAsync(
+        Payment payment,
+        string paymentReference,
+        CancellationToken cancellationToken)
+    {
+        if (payment.RequestedPlan is not (SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium))
+        {
+            return GenericResponse<bool>.CreateError(
+                "Pending Business workspace payment has an invalid plan.",
+                HttpStatusCode.Conflict,
+                "BUSINESS_PLAN_REQUIRED");
+        }
+
+        var plan = payment.RequestedPlan.Value;
+        var today = DateTime.UtcNow.Date;
+        var planDefinition = GetPlanDefinition(WorkspaceTypeEnum.Business, plan);
+        var workspace = await _workspaceRepository.AddAsync(new Workspace
+        {
+            Name = payment.PendingWorkspaceName!.Trim(),
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Status = WorkspaceStatusEnum.Active,
+            MemberLimit = ResolveMemberLimit(WorkspaceTypeEnum.Business, plan),
+            SubscriptionExpiredAt = today.AddDays(30),
+            CreditWallet = new CreditWallet { Balance = 0 },
+            Members =
+            [
+                new WorkspaceMember
+                {
+                    UserId = payment.UserId,
+                    Role = WorkspaceMemberRoleEnum.Owner
+                }
+            ]
+        }, cancellationToken);
+
+        var subscription = await _subscriptionRepository.AddAsync(new Subscription
+        {
+            WorkspaceId = workspace.Id,
+            Plan = plan,
+            QuotaPostsPerMonth = planDefinition.PostQuota,
+            QuotaAIContentPerDay = planDefinition.PromptQuota,
+            QuotaAIImagesPerDay = planDefinition.ImageQuota,
+            QuotaPlatforms = planDefinition.PlatformQuota,
+            QuotaAccounts = planDefinition.AccountQuota,
+            AnalysisLevel = planDefinition.AnalysisLevel,
+            QuotaAdBudgetMonthly = planDefinition.AdBudgetMonthly,
+            QuotaAdCampaigns = planDefinition.AdCampaignQuota,
+            StartDate = today,
+            EndDate = today.AddDays(30),
+            IsActive = true,
+            PayOSOrderCode = paymentReference
+        }, cancellationToken);
+
+        payment.WorkspaceId = workspace.Id;
+        payment.SubscriptionId = subscription.Id;
+        payment.PendingWorkspaceName = null;
+
+        var creditGrant = await _creditService.GrantSubscriptionCreditsAsync(
+            workspace.Id,
+            payment.UserId,
+            WorkspaceTypeEnum.Business,
+            plan,
+            cancellationToken);
+        if (!creditGrant.Success)
+        {
+            return GenericResponse<bool>.CreateError(
+                creditGrant.Message ?? "Unable to grant subscription credits.",
+                (HttpStatusCode)creditGrant.StatusCode,
+                creditGrant.Error?.ErrorCode);
+        }
+
+        return GenericResponse<bool>.CreateSuccess(true, "Business workspace created after successful payment.");
+    }
+
     private bool HasPayOsConfig()
     {
         return !string.IsNullOrWhiteSpace(_settings.ClientId)
@@ -651,12 +932,12 @@ public sealed class PayOSPaymentService : IPaymentService
     {
         return (workspaceType, plan) switch
         {
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(99_000m, 300, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(199_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(2_000m, 300, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(3_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(499_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(999_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(4_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(5_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 1_000, 10, 3, 1, 1, 1, 0m, 1),
             _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
         };
@@ -666,10 +947,10 @@ public sealed class PayOSPaymentService : IPaymentService
     {
         return packCode switch
         {
-            CreditPackCodeEnum.Starter => new CreditPackDefinition(29_000m, 100),
-            CreditPackCodeEnum.Standard => new CreditPackDefinition(99_000m, 500),
-            CreditPackCodeEnum.Growth => new CreditPackDefinition(249_000m, 1_500),
-            CreditPackCodeEnum.Business => new CreditPackDefinition(699_000m, 5_000),
+            CreditPackCodeEnum.Starter => new CreditPackDefinition(2_000m, 100),
+            CreditPackCodeEnum.Standard => new CreditPackDefinition(3_000m, 500),
+            CreditPackCodeEnum.Growth => new CreditPackDefinition(4_000m, 1_500),
+            CreditPackCodeEnum.Business => new CreditPackDefinition(5_000m, 5_000),
             _ => throw new InvalidOperationException("Unsupported credit pack.")
         };
     }

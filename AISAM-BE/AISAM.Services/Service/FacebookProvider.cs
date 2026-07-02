@@ -270,7 +270,7 @@ public sealed class FacebookProvider : IProviderService
         {
             ["name"] = name,
             ["campaign_id"] = campaignId,
-            ["daily_budget"] = dailyBudget.HasValue ? $"{(long)Math.Max(dailyBudget.Value, 300000)}" : "300000",
+            ["daily_budget"] = dailyBudget.HasValue ? $"{(long)Math.Max(dailyBudget.Value, 30000)}" : "30000",
             ["billing_event"] = adSetSettings.BillingEvent,
             ["optimization_goal"] = adSetSettings.OptimizationGoal,
             ["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP",
@@ -328,27 +328,47 @@ public sealed class FacebookProvider : IProviderService
 
         var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
 
-        var creativeObject = new Dictionary<string, object?>
+        var isExternalLink = !string.IsNullOrWhiteSpace(linkUrl)
+            && !linkUrl.Contains("facebook.com", StringComparison.OrdinalIgnoreCase)
+            && !linkUrl.Contains("fb.com", StringComparison.OrdinalIgnoreCase);
+
+        Dictionary<string, object?> creativeObject;
+
+        if (isExternalLink)
         {
-            ["object_story_spec"] = new Dictionary<string, object?>
+            var linkData = new Dictionary<string, object?>
+            {
+                ["link"] = linkUrl,
+                ["message"] = message,
+                ["call_to_action"] = new Dictionary<string, object?>
+                {
+                    ["type"] = MapCallToAction(callToAction)
+                }
+            };
+
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+            {
+                var parsed = ParseImageUrl(imageUrl);
+                if (!string.IsNullOrWhiteSpace(parsed))
+                    linkData["picture"] = parsed;
+            }
+
+            creativeObject = new Dictionary<string, object?>
             {
                 ["page_id"] = pageId,
-                ["link_data"] = new Dictionary<string, object?>
-                {
-                    ["link"] = linkUrl ?? "https://example.com",
-                    ["message"] = message,
-                    ["call_to_action"] = new Dictionary<string, object?>
-                    {
-                        ["type"] = MapCallToAction(callToAction)
-                    }
-                }
-            }
-        };
-
-        if (!string.IsNullOrWhiteSpace(imageUrl))
+                ["link_data"] = linkData
+            };
+        }
+        else
         {
-            var linkData = (Dictionary<string, object?>)((Dictionary<string, object?>)creativeObject["object_story_spec"]!)["link_data"]!;
-            linkData["attachment_hash"] = imageUrl;
+            // No external link: create page post first, then use as creative
+            var postId = await CreatePagePostAsync(pageId, userAccessToken, message, imageUrl, cancellationToken);
+
+            creativeObject = new Dictionary<string, object?>
+            {
+                ["page_id"] = pageId,
+                ["object_story_id"] = postId
+            };
         }
 
         var jsonPayload = JsonSerializer.Serialize(creativeObject, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
@@ -358,6 +378,9 @@ public sealed class FacebookProvider : IProviderService
             ["object_story_spec"] = jsonPayload
         };
 
+        _logger.LogInformation("Creating ad creative: link={Link} messageLen={MsgLen} image={HasImage} cta={Cta}",
+            linkUrl, message?.Length ?? 0, !string.IsNullOrWhiteSpace(imageUrl), MapCallToAction(callToAction));
+
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/adcreatives";
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
@@ -366,6 +389,7 @@ public sealed class FacebookProvider : IProviderService
         };
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        _logger.LogInformation("Ad creative response: {Response}", content);
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Failed to create Facebook ad creative: {GetErrorMessage(content)}");
@@ -429,8 +453,7 @@ public sealed class FacebookProvider : IProviderService
     {
         EnsureConfigured();
 
-        var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
-        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/campaigns?fields=id,name,insights{{impressions,clicks,spend,actions,ctr,cpc}}";
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{campaignId}/insights?fields=impressions,clicks,spend,actions,ctr,cpc";
         var request = new HttpRequestMessage(HttpMethod.Get, url)
         {
             Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
@@ -509,6 +532,58 @@ public sealed class FacebookProvider : IProviderService
     public async Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
     {
         return await DeleteFacebookObjectAsync($"{adAccountId}/ads/{adId}", userAccessToken, "ad", cancellationToken);
+    }
+
+    private async Task<string> CreatePagePostAsync(string pageId, string accessToken, string message, string? imageUrl, CancellationToken cancellationToken)
+    {
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{pageId}/feed";
+        var fields = new Dictionary<string, string>
+        {
+            ["message"] = message
+        };
+
+        if (!string.IsNullOrWhiteSpace(imageUrl))
+        {
+            var parsed = ParseImageUrl(imageUrl);
+            if (!string.IsNullOrWhiteSpace(parsed))
+                fields["link"] = parsed;
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(fields),
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (content.Contains("pages_read_engagement") || content.Contains("pages_manage_posts") || content.Contains("sufficient administrative permission"))
+                throw new InvalidOperationException("Facebook permissions insufficient. Please disconnect and reconnect your Facebook account to grant all required permissions.");
+            throw new InvalidOperationException($"Failed to create page post: {GetErrorMessage(content)}");
+        }
+
+        var result = Deserialize<FacebookPostResponse>(content);
+        if (string.IsNullOrWhiteSpace(result?.Id))
+            throw new InvalidOperationException("Facebook returned empty post ID.");
+
+        return result.Id;
+    }
+
+    private static string? ParseImageUrl(string imageUrl)
+    {
+        var parsed = imageUrl.Trim();
+        if (parsed.StartsWith('[') && parsed.EndsWith(']'))
+        {
+            var urls = JsonSerializer.Deserialize<List<string>>(parsed);
+            parsed = urls?.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u)) ?? string.Empty;
+        }
+        return string.IsNullOrWhiteSpace(parsed) ? null : parsed;
+    }
+
+    internal sealed class FacebookPostResponse
+    {
+        public string? Id { get; set; }
     }
 
     private async Task<bool> DeleteFacebookObjectAsync(string relativePath, string accessToken, string label, CancellationToken cancellationToken)

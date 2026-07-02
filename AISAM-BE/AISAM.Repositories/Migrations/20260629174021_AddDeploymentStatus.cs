@@ -10,41 +10,39 @@ namespace AISAM.Repositories.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "tags",
-                table: "contents",
-                type: "jsonb",
-                nullable: true);
+            migrationBuilder.Sql("""
+                ALTER TABLE contents
+                ADD COLUMN IF NOT EXISTS tags jsonb;
+                """);
 
-            migrationBuilder.AddColumn<int>(
-                name: "deployment_status",
-                table: "ad_campaigns",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS deployment_status integer NOT NULL DEFAULT 0;
+                """);
 
-            migrationBuilder.AddColumn<int>(
-                name: "deployment_step",
-                table: "ad_campaigns",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                ADD COLUMN IF NOT EXISTS deployment_step integer NOT NULL DEFAULT 0;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "tags",
-                table: "contents");
+            migrationBuilder.Sql("""
+                ALTER TABLE contents
+                DROP COLUMN IF EXISTS tags;
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "deployment_status",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS deployment_status;
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "deployment_step",
-                table: "ad_campaigns");
+            migrationBuilder.Sql("""
+                ALTER TABLE ad_campaigns
+                DROP COLUMN IF EXISTS deployment_step;
+                """);
         }
     }
 }

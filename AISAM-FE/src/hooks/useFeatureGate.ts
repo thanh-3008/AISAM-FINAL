@@ -16,14 +16,15 @@ import {
   type WorkspaceRole,
 } from "@/lib/featureConfig";
 
-export function useFeatureGate() {
+export function useFeatureGate(enabled = true) {
   const { activeWorkspace, updateWorkspacePlan } = useWorkspaces();
   const [syncedPlanName, setSyncedPlanName] = useState<string | null>(null);
   const [isResolvingPlan, setIsResolvingPlan] = useState(false);
 
   useEffect(() => {
-    if (!activeWorkspace?.id) {
+    if (!enabled || !activeWorkspace?.id) {
       setSyncedPlanName(null);
+      setIsResolvingPlan(false);
       return;
     }
 
@@ -52,7 +53,7 @@ export function useFeatureGate() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace?.id, activeWorkspace?.plan, updateWorkspacePlan]);
+  }, [activeWorkspace?.id, activeWorkspace?.plan, enabled, updateWorkspacePlan]);
 
   const plan = useMemo(() => {
     if (!activeWorkspace) return PlanType.Free;

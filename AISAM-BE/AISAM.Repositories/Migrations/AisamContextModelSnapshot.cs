@@ -131,6 +131,11 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
 
+                    b.Property<string>("LandingUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("landing_url");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -1170,6 +1175,15 @@ namespace AISAM.Repositories.Migrations
                         .HasDefaultValue(1)
                         .HasColumnName("payment_type");
 
+                    b.Property<string>("PendingWorkspaceName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("pending_workspace_name");
+
+                    b.Property<int?>("RequestedPlan")
+                        .HasColumnType("integer")
+                        .HasColumnName("requested_plan");
+
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -1189,7 +1203,7 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.Property<Guid>("WorkspaceId")
+                    b.Property<Guid?>("WorkspaceId")
                         .HasColumnType("uuid")
                         .HasColumnName("workspace_id");
 
@@ -2504,8 +2518,7 @@ namespace AISAM.Repositories.Migrations
                     b.HasOne("AISAM.Data.Model.Workspace", "Workspace")
                         .WithMany("Payments")
                         .HasForeignKey("WorkspaceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Subscription");
 

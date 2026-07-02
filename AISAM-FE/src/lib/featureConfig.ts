@@ -127,10 +127,13 @@ export const CREDIT_COST: Record<string, number> = {
 
 export function getPlanType(planName: string): PlanType {
   const normalized = planName.toLowerCase().replace(/\s+/g, "");
-  if (normalized.includes("businesspro") || normalized === "premium") return PlanType.BusinessPro;
-  if (normalized.includes("businessplus") || normalized === "plus") return PlanType.BusinessPlus;
+  if (normalized.includes("businesspro")) return PlanType.BusinessPro;
+  if (normalized.includes("businessplus")) return PlanType.BusinessPlus;
   if (normalized.includes("personalpro")) return PlanType.PersonalPro;
   if (normalized.includes("personalplus")) return PlanType.PersonalPlus;
+  // BE may return "Premium" or "Pro" without workspace prefix
+  if (normalized === "premium" || normalized === "pro") return PlanType.PersonalPro;
+  if (normalized === "plus") return PlanType.PersonalPlus;
   return PlanType.Free;
 }
 
@@ -138,13 +141,17 @@ export function getWorkspacePlanType(planName: string, workspaceType?: number | 
   const normalized = planName.toLowerCase().replace(/\s+/g, "");
 
   if (workspaceType === 2) {
-    if (normalized.includes("businesspro") || normalized === "premium") return PlanType.BusinessPro;
+    if (normalized.includes("businesspro") || normalized === "premium" || normalized === "pro") return PlanType.BusinessPro;
     if (normalized.includes("businessplus") || normalized === "plus") return PlanType.BusinessPlus;
+    // Generic "business" name from workspace fetch — preserve current tier if subscription API resolves later
+    if (normalized === "business") return PlanType.BusinessPlus;
   }
 
   if (workspaceType === 1) {
-    if (normalized.includes("personalpro") || normalized === "premium") return PlanType.PersonalPro;
+    if (normalized.includes("personalpro") || normalized === "premium" || normalized === "pro") return PlanType.PersonalPro;
     if (normalized.includes("personalplus") || normalized === "plus") return PlanType.PersonalPlus;
+    // Generic "personal" name from workspace fetch — treat as at least Plus so paid features aren't locked during plan resolution
+    if (normalized === "personal") return PlanType.PersonalPlus;
   }
 
   return getPlanType(planName);

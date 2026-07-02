@@ -6,6 +6,8 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using System.Net;
 using System.Text.Json;
 
@@ -69,7 +71,15 @@ public sealed class ContentScheduleService : IContentScheduleService
             IsDeleted = false
         };
 
-        await _contentCalendarRepository.AddAsync(schedule, cancellationToken);
+        try
+        {
+            await _contentCalendarRepository.AddAsync(schedule, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateKeyError(ex))
+        {
+            return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.Conflict);
+        }
+
         await CreateNotificationAsync(
             profileId,
             "Schedule created",
@@ -305,8 +315,22 @@ public sealed class ContentScheduleService : IContentScheduleService
         if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, cancellationToken))
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.BadRequest);
         var schedule = new ContentCalendar { WorkspaceId = workspaceId, ProfileId = profileId, ContentId = content.Id, Content = content, IntegrationId = integration.Id, Integration = integration, ScheduledAt = scheduledAt, ScheduledDate = scheduledAt, ScheduledTime = scheduledAt.TimeOfDay, Status = ScheduleStatusEnum.Pending };
-        await _contentCalendarRepository.AddAsync(schedule, cancellationToken);
+        try
+        {
+            await _contentCalendarRepository.AddAsync(schedule, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateKeyError(ex))
+        {
+            return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.Conflict);
+        }
+
         return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), MessageConstants.Schedule.CreatedSuccess);
+    }
+
+    private static bool IsDuplicateKeyError(DbUpdateException ex)
+    {
+        return ex.InnerException is Npgsql.PostgresException pgEx
+               && pgEx.SqlState == "23505";
     }
 
     private async Task<(bool Success, Content? Content, SocialIntegration? Integration, GenericResponse<ContentScheduleDto>? Error)> ValidateContentAndIntegrationAsync(

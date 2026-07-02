@@ -63,6 +63,9 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettin
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -82,6 +85,7 @@ builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("F
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("GeminiSettings"));
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
+builder.Services.Configure<TikTokSettings>(builder.Configuration.GetSection("TikTokSettings"));
 
 var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -166,9 +170,11 @@ builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.AddHttpClient<FacebookProvider>();
 builder.Services.AddHttpClient<GoogleProvider>();
+builder.Services.AddHttpClient<TikTokProvider>();
 builder.Services.AddHttpClient<IPaymentService, PayOSPaymentService>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<FacebookProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
+builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
 builder.Services.AddHttpClient<IGeminiTextClient, GeminiTextClient>();
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
@@ -280,20 +286,35 @@ if (app.Environment.IsDevelopment())
     using (var scope = app.Services.CreateScope())
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
-        var freeSubscriptions = dbContext.Subscriptions.Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free).ToList();
-        foreach (var sub in freeSubscriptions)
+
+        var freeSubs = dbContext.Subscriptions
+            .Include(s => s.Workspace)
+            .Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free && s.Workspace != null)
+            .ToList();
+
+        foreach (var sub in freeSubs)
         {
+            var wsType = sub.Workspace!.WorkspaceType;
+
             sub.Plan = AISAM.Data.Enumeration.SubscriptionPlanEnum.Premium;
-            sub.QuotaPostsPerMonth = 20000;
-            sub.QuotaAIContentPerDay = 1000;
-            sub.QuotaAIImagesPerDay = 100;
-            sub.QuotaPlatforms = 10;
-            sub.QuotaAccounts = 10;
+            sub.QuotaPostsPerMonth = wsType == AISAM.Data.Enumeration.WorkspaceTypeEnum.Personal ? 1_000 : 20_000;
+            sub.QuotaAIContentPerDay = 200;
+            sub.QuotaAIImagesPerDay = 30;
+            sub.QuotaPlatforms = 3;
+            sub.QuotaAccounts = 5;
             sub.AnalysisLevel = 2;
-            sub.QuotaAdBudgetMonthly = 10000000;
-            sub.QuotaAdCampaigns = 100;
+            sub.QuotaAdBudgetMonthly = 10_000_000m;
+            sub.QuotaAdCampaigns = 10;
             sub.EndDate = DateTime.UtcNow.AddYears(1);
+
+            var wallet = dbContext.CreditWallets.FirstOrDefault(w => w.WorkspaceId == sub.WorkspaceId);
+            if (wallet != null)
+            {
+                var credits = wsType == AISAM.Data.Enumeration.WorkspaceTypeEnum.Personal ? 2_000L : 50_000L;
+                wallet.Balance = credits;
+            }
         }
+
         dbContext.SaveChanges();
     }
 }

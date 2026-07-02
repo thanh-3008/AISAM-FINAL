@@ -15,6 +15,9 @@ Nguon: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`. Cac story duo
 - US-77: Plan Feature Gate, Credits va Post Quota theo plan.
 - US-78: Limited Mode, Archived va Admin Soft Delete lifecycle.
 - US-79: Workspace Dashboard va Credit Usage metadata.
+- US-80: Personal Free fallback, Business paid-only expiry, PendingPayment va idempotent Credit grant audit.
+
+US-80 policy source: `docs/product/workspace-subscription-expiry-policy.md`. Trang thai: approved policy, implementation/test audit required.
 
 US-44 den US-50 ve payment/quota Profile la current baseline va se duoc migration sang Workspace, khong xoa lich su.
 

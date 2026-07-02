@@ -1,5 +1,7 @@
 # Profile Workspace Normalization Implementation Plan
 
+> Product policy update 2026-06-24: use `docs/product/workspace-subscription-expiry-policy.md` for Personal Free fallback, Business paid-only lifecycle, credit retention, and creation flow. This plan covers context normalization and does not override that policy.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Chuẩn hóa triệt để context `workspace` và `profile` trên cả frontend và backend để loại bỏ hoàn toàn các fallback sai kiểu `profile.id == workspace.id`, đồng thời giữ migration tương thích ngắn hạn cho user đang có local state cũ.

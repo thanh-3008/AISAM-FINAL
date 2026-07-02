@@ -78,7 +78,7 @@ async function handleResponse(response: Response) {
       removeToken();
       removeRefreshToken();
       clearActiveWorkspace();
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
       return;
