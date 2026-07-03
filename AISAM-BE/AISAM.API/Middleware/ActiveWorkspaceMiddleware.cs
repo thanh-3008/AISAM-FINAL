@@ -78,7 +78,7 @@ public sealed class ActiveWorkspaceMiddleware
 
         if (!Guid.TryParse(context.Request.Headers["X-Workspace-Id"], out var workspaceId))
         {
-            await WriteErrorAsync(context, HttpStatusCode.Unauthorized, "Missing or invalid X-Workspace-Id header.");
+            await WriteErrorAsync(context, HttpStatusCode.BadRequest, "Missing or invalid X-Workspace-Id header.");
             return;
         }
 

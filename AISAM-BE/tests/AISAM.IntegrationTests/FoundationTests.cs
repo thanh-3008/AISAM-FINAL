@@ -576,4 +576,28 @@ public class FoundationTests
             return Task.CompletedTask;
         }
     }
+    private sealed class FakeMediaStorageService : IMediaStorageService
+    {
+        public List<(string Folder, string FileName)> UploadedFiles { get; } = new();
+
+        public Task<string> UploadAsync(
+            IFormFile file,
+            string folder,
+            string fileName,
+            CancellationToken cancellationToken = default)
+        {
+            UploadedFiles.Add((folder, fileName));
+            return Task.FromResult($"https://media.test/{folder}/{fileName}");
+        }
+
+        public Task<string> UploadBytesAsync(
+            byte[] data,
+            string folder,
+            string fileName,
+            CancellationToken cancellationToken = default)
+        {
+            UploadedFiles.Add((folder, fileName));
+            return Task.FromResult($"https://media.test/{folder}/{fileName}");
+        }
+    }
 }

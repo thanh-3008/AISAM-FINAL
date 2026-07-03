@@ -54,6 +54,9 @@ ApplyEnvironmentOverride(builder.Configuration, "GEMINI_API_KEY", "GeminiSetting
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_MODEL", "GeminiSettings:Model");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_MAX_TOKENS", "GeminiSettings:MaxTokens");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_TEMPERATURE", "GeminiSettings:Temperature");
+ApplyEnvironmentOverride(builder.Configuration, "TEXT_OPENROUTER_KEY", "GeminiSettings:OpenRouterApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "TEXT_OPENROUTER_MODEL", "GeminiSettings:OpenRouterModel");
+ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY", "GeminiSettings:FallbackApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CLIENT_ID", "PayOSSettings:ClientId");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_API_KEY", "PayOSSettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSettings:ChecksumKey");
@@ -66,6 +69,23 @@ ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "Cloudi
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
+
+// === AI Image (Gemini primary + OpenRouter fallback) ===
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_KEY", "ImageProviderSettings:GeminiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_MODEL", "ImageProviderSettings:GeminiModel");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_TIMEOUT", "ImageProviderSettings:GeminiTimeoutSeconds");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_KEY", "ImageProviderSettings:OpenRouterApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_MODEL", "ImageProviderSettings:OpenRouterModel");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_BASE_URL", "ImageProviderSettings:OpenRouterBaseUrl");
+
+// === AI Video (Gemini Veo primary + OpenRouter fallback) ===
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_ENABLED", "VideoProviderSettings:Enabled");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_KEY", "VideoProviderSettings:GeminiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_MODEL", "VideoProviderSettings:GeminiModel");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_TIMEOUT", "VideoProviderSettings:GeminiTimeoutSeconds");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_KEY", "VideoProviderSettings:OpenRouterApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_MODEL", "VideoProviderSettings:OpenRouterModel");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_BASE_URL", "VideoProviderSettings:OpenRouterBaseUrl");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -174,8 +194,11 @@ builder.Services.AddHttpClient<TikTokProvider>();
 builder.Services.AddHttpClient<IPaymentService, PayOSPaymentService>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<FacebookProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
+builder.Services.AddHttpClient<GeminiTextClient>();
+builder.Services.AddHttpClient<FallbackGeminiTextClient>();
+builder.Services.AddHttpClient<OpenRouterTextClient>();
+builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
-builder.Services.AddHttpClient<IGeminiTextClient, GeminiTextClient>();
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IPostService, PostService>();
@@ -188,6 +211,28 @@ builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
+
+builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSection("ImageProviderSettings"));
+builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
+
+// Clients (HttpClient)
+builder.Services.AddHttpClient<GeminiImageClient>();
+builder.Services.AddHttpClient<OpenRouterImageClient>();
+builder.Services.AddHttpClient<GeminiVideoClient>();
+builder.Services.AddHttpClient<OpenRouterVideoClient>();
+
+// Providers
+builder.Services.AddScoped<FallbackImageProvider>();
+builder.Services.AddScoped<FallbackVideoProvider>();
+builder.Services.AddScoped<NullVideoProvider>();
+
+// Factories
+builder.Services.AddScoped<AIImageProviderFactory>();
+builder.Services.AddScoped<AIVideoProviderFactory>();
+
+// Interface -> Factory resolution
+builder.Services.AddScoped<IAIImageProvider>(sp => sp.GetRequiredService<AIImageProviderFactory>().Create());
+builder.Services.AddScoped<IAIVideoProvider>(sp => sp.GetRequiredService<AIVideoProviderFactory>().Create());
 
 var controllers = builder.Services
     .AddControllers(options =>

@@ -131,4 +131,74 @@ public class CloudinaryMediaStorageService : IMediaStorageService
             return uploadResult.SecureUrl.ToString();
         }
     }
+
+    public async Task<string> UploadBytesAsync(
+        byte[] data,
+        string folder,
+        string fileName,
+        CancellationToken cancellationToken = default)
+    {
+        if (data == null || data.Length == 0)
+        {
+            throw new ArgumentException("Data is empty", nameof(data));
+        }
+
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" || extension == ".mkv";
+        
+        using (var stream = new MemoryStream(data))
+        {
+            RawUploadParams uploadParams;
+
+            if (isVideo)
+            {
+                uploadParams = new VideoUploadParams
+                {
+                    File = new FileDescription(fileName, stream),
+                    Folder = folder,
+                    PublicId = Path.GetFileNameWithoutExtension(fileName),
+                    Overwrite = true,
+                };
+            }
+            else
+            {
+                uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(fileName, stream),
+                    Folder = folder,
+                    PublicId = Path.GetFileNameWithoutExtension(fileName),
+                    Overwrite = true,
+                };
+            }
+
+            RawUploadResult uploadResult;
+            try
+            {
+                if (isVideo)
+                {
+                    uploadResult = await _cloudinary.UploadLargeAsync((VideoUploadParams)uploadParams, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    uploadResult = await _cloudinary.UploadAsync((ImageUploadParams)uploadParams, cancellationToken: cancellationToken);
+                }
+            }
+            catch (Exception ex) when (ex is not InvalidOperationException)
+            {
+                throw new InvalidOperationException($"Cloudinary byte upload failed: {ex.Message}", ex);
+            }
+
+            if (uploadResult.Error != null)
+            {
+                throw new InvalidOperationException($"Cloudinary byte upload failed: {uploadResult.Error.Message}");
+            }
+
+            if (uploadResult.SecureUrl == null)
+            {
+                throw new InvalidOperationException("Cloudinary byte upload returned no URL.");
+            }
+
+            return uploadResult.SecureUrl.ToString();
+        }
+    }
 }

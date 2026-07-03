@@ -12,6 +12,6 @@ public static class ProfileContextHelper
             return profileId;
         }
 
-        throw new UnauthorizedAccessException("Invalid profile context.");
+        throw new InvalidOperationException("Invalid profile context.");
     }
 }

@@ -43,15 +43,18 @@ export default function ContentDetailPage() {
   }, [params.id]);
 
   useEffect(() => {
-    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] });
+    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] });
   }, [item?.id]);
 
   const handleSave = async () => {
     setSaving(true);
+    const STATUS_TO_API: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
     const ok = await updateContent(params.id as string, {
       title: form.title,
       adType: item ? CONTENTTYPE_TO_ADTYPE[item.type] : undefined,
       textContent: form.caption,
+      contextDescription: form.description,
+      status: STATUS_TO_API[form.status] as any,
     });
     if (ok && item) {
       setItem({
@@ -61,6 +64,7 @@ export default function ContentDetailPage() {
         description: form.description || undefined,
         platforms: form.platforms,
         caption: form.caption || undefined,
+        textContent: form.caption || undefined,
         ctaLink: form.ctaLink || undefined,
         scheduledAt: form.scheduledAt || undefined,
         internalNotes: form.internalNotes || undefined,
@@ -377,10 +381,16 @@ export default function ContentDetailPage() {
                 )}
 
                 {/* Caption */}
-                {item.caption && (
+                {(item.caption || item.textContent || editing) && (
                   <div>
                     <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
-                    <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption}</p>
+                    {editing ? (
+                      <textarea value={form.caption} onChange={(e) => setForm((p) => ({ ...p, caption: e.target.value }))}
+                        className="w-full bg-surface-container border border-outline-variant/20 rounded-xl p-3 text-body-sm text-on-surface placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[120px] resize-y"
+                        placeholder="Write a caption..." />
+                    ) : (
+                      <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption || item.textContent}</p>
+                    )}
                   </div>
                 )}
 

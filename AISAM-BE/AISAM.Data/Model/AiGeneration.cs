@@ -30,6 +30,14 @@ namespace AISAM.Data.Model
         [Column("generated_video_url")]
         public string? GeneratedVideoUrl { get; set; }
 
+        [MaxLength(500)]
+        [Column("video_job_id")]
+        public string? VideoJobId { get; set; }
+
+        [MaxLength(100)]
+        [Column("provider_name")]
+        public string? ProviderName { get; set; }
+
         [Required]
         [Column("status")]
         public AiStatusEnum Status { get; set; } = AiStatusEnum.Pending;

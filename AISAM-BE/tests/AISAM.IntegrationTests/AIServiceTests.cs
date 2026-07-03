@@ -397,8 +397,8 @@ public class AIServiceTests
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.StatusCode);
-        Assert.Contains("AI chat is temporarily unavailable.", result.Message);
-        Assert.Equal("AI chat is temporarily unavailable.", conversations.Messages.Last().Message);
+        Assert.Equal("Gemini API key is not configured.", result.Message);
+        Assert.Equal("Gemini API key is not configured.", conversations.Messages.Last().Message);
         Assert.Equal(0, credits.ConsumeCallCount);
     }
 
@@ -441,7 +441,10 @@ public class AIServiceTests
             productRepository ?? new FakeProductRepository(),
             geminiTextClient,
             conversationRepository ?? new FakeConversationRepository(),
-            creditService ?? new FakeCreditService());
+            creditService ?? new FakeCreditService(),
+            null!,
+            null!,
+            null!);
     }
 
     private static Brand CreateBrand(Guid profileId)
