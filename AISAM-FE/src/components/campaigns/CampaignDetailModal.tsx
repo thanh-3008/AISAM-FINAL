@@ -18,10 +18,11 @@ interface CampaignDetailModalProps {
   onClose: () => void;
   onApply?: (campaign: Campaign) => void;
   onRestart?: (campaign: Campaign) => void;
+  onDeploy?: (campaign: Campaign) => void;
   isLoading?: boolean;
 }
 
-export default function CampaignDetailModal({ campaign, onClose, onApply, onRestart, isLoading }: CampaignDetailModalProps) {
+export default function CampaignDetailModal({ campaign, onClose, onApply, onRestart, onDeploy, isLoading }: CampaignDetailModalProps) {
   if (!campaign) return null;
 
   const objectiveConfig = OBJECTIVE_CONFIG[campaign.objective];
@@ -44,6 +45,20 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
               <div>
                 <h2 className="text-headline-sm font-bold text-on-surface">{campaign.name}</h2>
                 <p className="text-[11px] text-outline">{campaign.brandName}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {campaign.productName && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container-high rounded text-[9px] font-medium text-outline">
+                      <span className="material-symbols-outlined text-[10px]">inventory_2</span>
+                      {campaign.productName}
+                    </span>
+                  )}
+                  {campaign.contentTitle && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container-high rounded text-[9px] font-medium text-outline">
+                      <span className="material-symbols-outlined text-[10px]">description</span>
+                      {campaign.contentTitle.length > 30 ? campaign.contentTitle.slice(0, 30) + "…" : campaign.contentTitle}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-full transition-colors">
@@ -170,6 +185,24 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
                     <span className="text-[11px] text-on-surface font-medium font-mono">{campaign.facebookCampaignId}</span>
                   </div>
                 )}
+                {campaign.productName && (
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-[11px] text-outline flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                      Product
+                    </span>
+                    <span className="text-[11px] text-on-surface font-medium">{campaign.productName}</span>
+                  </div>
+                )}
+                {campaign.contentTitle && (
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-[11px] text-outline flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[14px]">description</span>
+                      Content
+                    </span>
+                    <span className="text-[11px] text-on-surface font-medium">{campaign.contentTitle}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between px-4 py-3">
                   <span className="text-[11px] text-outline flex items-center gap-2">
                     <span className="material-symbols-outlined text-[14px]">schedule</span>
@@ -224,6 +257,46 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
                           </div>
                         )}
                       </div>
+                      {/* Ads inside Ad Set */}
+                      {adSet.ads.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-outline-variant/10 space-y-2">
+                          <span className="text-label-2xs font-semibold text-outline uppercase tracking-wider">
+                            Ads ({adSet.ads.length})
+                          </span>
+                          {adSet.ads.map((ad) => (
+                            <div key={ad.id} className="bg-surface-container-high rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[10px] font-medium text-on-surface">Ad</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  ad.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                                }`}>
+                                  {ad.status ?? "—"}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-label-2xs">
+                                {ad.adId && (
+                                  <div>
+                                    <span className="text-outline">Facebook Ad ID</span>
+                                    <p className="font-medium text-on-surface truncate font-mono">{ad.adId}</p>
+                                  </div>
+                                )}
+                                {ad.callToAction && (
+                                  <div>
+                                    <span className="text-outline">CTA</span>
+                                    <p className="font-medium text-on-surface">{ad.callToAction}</p>
+                                  </div>
+                                )}
+                                {ad.linkUrl && (
+                                  <div className="col-span-3">
+                                    <span className="text-outline">Link URL</span>
+                                    <p className="font-medium text-on-surface truncate">{ad.linkUrl}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -233,18 +306,18 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
 
           {/* Footer */}
           <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 sticky bottom-0 bg-surface-container-lowest">
-            {campaign.status === "DRAFT" && onApply && (
+            {campaign.status === "DRAFT" && onDeploy && (
               <button
-                onClick={() => onApply(campaign)}
+                onClick={() => onDeploy(campaign)}
                 disabled={isLoading}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+                className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
               >
                 {isLoading ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <span className="material-symbols-outlined text-[16px]">rocket_launch</span>
+                  <span className="material-symbols-outlined text-[16px]">ads_click</span>
                 )}
-                Apply Campaign
+                Deploy to Facebook
               </button>
             )}
             {campaign.status === "COMPLETED" && onRestart && (

@@ -24,6 +24,7 @@ import {
   fetchWorkspaceDashboard,
   fetchPostQuota,
   transferOwnership,
+  updateMemberQuota,
   type WorkspaceMember,
   type WorkspaceMemberRole,
   type CreditUsageRecord,
@@ -31,6 +32,7 @@ import {
   type WorkspaceDashboard,
 } from "@/services/workspaceService";
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
+import { updateMemberRole, removeMember } from "@/services/teamService";
 
 interface Workspace {
   id: string;
@@ -124,6 +126,7 @@ export default function ProfileDetailPage() {
   // Security section state
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   
   // Billing section state
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
@@ -543,15 +546,10 @@ export default function ProfileDetailPage() {
     if (!selectedMember) return;
     setChangingRole(true);
     try {
-      // TODO: Call API to change role when BE is ready
-      // await updateMemberRole(selectedMember.id, newRole);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
-      
-      // Update local state
+      await updateMemberRole(selectedMember.id, newRole);
       setMembers(prev => prev.map(m => 
         m.id === selectedMember.id ? { ...m, role: newRole } : m
       ));
-      
       setShowRoleModal(false);
       setSelectedMember(null);
       showToast({ type: "success", title: "Role updated", message: `Role updated to ${newRole} successfully!` });
@@ -569,10 +567,15 @@ export default function ProfileDetailPage() {
       message: `Are you sure you want to remove ${member.name} from the workspace? This action cannot be undone.`,
       type: "danger",
       confirmText: "Remove",
-      onConfirm: () => {
-        setMembers(prev => prev.filter(m => m.id !== member.id));
-        setMemberActionMenu(null);
-        showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+      onConfirm: async () => {
+        try {
+          await removeMember(member.id);
+          setMembers(prev => prev.filter(m => m.id !== member.id));
+          setMemberActionMenu(null);
+          showToast({ type: "success", title: "Member removed", message: `${member.name} has been removed from the workspace.` });
+        } catch {
+          showToast({ type: "error", title: "Error", message: "Failed to remove member." });
+        }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       },
     });
@@ -621,14 +624,18 @@ export default function ProfileDetailPage() {
     if (!quotaMember) return;
     setSavingQuota(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      showToast({ 
-        type: "success", 
-        title: "Quota updated", 
-        message: `Quota updated for ${quotaMember.name}: ${quotaMode}${quotaMode !== "SharedPool" ? ` - ${quotaLimit} credits` : ""}` 
-      });
-      setShowQuotaModal(false);
-      setQuotaMember(null);
+      const result = await updateMemberQuota(quotaMember.id, { mode: quotaMode, limit: quotaLimit });
+      if (result.success) {
+        showToast({ 
+          type: "success", 
+          title: "Quota updated", 
+          message: `Quota updated for ${quotaMember.name}: ${quotaMode}${quotaMode !== "SharedPool" ? ` - ${quotaLimit} credits` : ""}` 
+        });
+        setShowQuotaModal(false);
+        setQuotaMember(null);
+      } else {
+        showToast({ type: "error", title: "Update failed", message: result.message || "Failed to update quota." });
+      }
     } catch {
       showToast({ type: "error", title: "Update failed", message: "Failed to update quota. Please try again." });
     } finally {
@@ -1004,7 +1011,7 @@ export default function ProfileDetailPage() {
                               </span>
                             </div>
                             <div className="space-y-3">
-                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.totalAiUsage.toLocaleString() || 0}</span>
+                              <span className="text-3xl font-bold text-on-surface tabular-nums">{dashboardData?.aiUsageCount?.toLocaleString() || 0}</span>
                               <p className="text-label-xs text-outline flex items-center gap-1">
                                 <span className="material-symbols-outlined text-[14px] text-purple-500">insights</span>
                                 Total generations
@@ -1373,7 +1380,7 @@ export default function ProfileDetailPage() {
                       {[
                         { label: "Total Members", value: String(members.length), icon: "group", color: "text-primary", bg: "bg-primary/5" },
                         { label: "Active", value: String(members.length), icon: "check_circle", color: "text-emerald-600", bg: "bg-emerald-50" },
-                        { label: "Pending Invites", value: "0", icon: "schedule", color: "text-amber-600", bg: "bg-amber-50" },
+                        { label: "Pending Invites", value: String(invitations.length), icon: "schedule", color: "text-amber-600", bg: "bg-amber-50" },
                       ].map((stat) => (
                         <motion.div
                           key={stat.label}
@@ -1399,7 +1406,7 @@ export default function ProfileDetailPage() {
                         {[
                           { key: "all" as const, label: "All", count: members.length },
                           { key: "active" as const, label: "Active", count: members.length },
-                          { key: "pending" as const, label: "Pending", count: 0 },
+                          { key: "pending" as const, label: "Pending", count: invitations.length },
                         ].map((f) => (
                           <button
                             key={f.key}
@@ -1460,7 +1467,7 @@ export default function ProfileDetailPage() {
                             ))}
                           </div>
                         ) : members.filter(m => {
-                          const matchesFilter = memberFilter === "all" || memberFilter === "active";
+                          const matchesFilter = memberFilter === "all" || memberFilter === "active" || memberFilter === "pending";
                           const matchesSearch = !memberSearch || 
                             m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
                             m.email.toLowerCase().includes(memberSearch.toLowerCase());
@@ -1471,12 +1478,14 @@ export default function ProfileDetailPage() {
                               <span className="material-symbols-outlined text-outline/40 text-4xl">group_off</span>
                             </div>
                             <h4 className="text-body-md font-semibold text-on-surface mb-2">
-                              {memberSearch ? "No members match your search" : "No members found"}
+                              {memberFilter === "pending" ? "No pending invitations" : (memberSearch ? "No members match your search" : "No members found")}
                             </h4>
                             <p className="text-body-sm text-on-surface-variant max-w-sm mx-auto mb-4">
-                              {memberSearch 
-                                ? "Try adjusting your search terms or filters to find what you're looking for."
-                                : "Start building your team by inviting members to collaborate on this workspace."}
+                              {memberFilter === "pending" 
+                                ? "Pending invitations will appear here once you invite new members."
+                                : (memberSearch 
+                                  ? "Try adjusting your search terms or filters to find what you're looking for."
+                                  : "Start building your team by inviting members to collaborate on this workspace.")}
                             </p>
                             {memberSearch ? (
                               <button
@@ -1715,11 +1724,17 @@ export default function ProfileDetailPage() {
                           message: `Are you sure you want to remove ${selectedMembers.size} member${selectedMembers.size > 1 ? "s" : ""}? This action cannot be undone.`,
                           type: "danger",
                           confirmText: "Remove All",
-                          onConfirm: () => {
-                            setMembers(prev => prev.filter(m => !selectedMembers.has(m.id)));
-                            setSelectedMembers(new Set());
-                            setShowBulkActions(false);
-                            showToast({ type: "success", title: "Members removed", message: `${selectedMembers.size} member${selectedMembers.size > 1 ? "s" : ""} removed successfully.` });
+                          onConfirm: async () => {
+                            try {
+                              await Promise.all(Array.from(selectedMembers).map(id => removeMember(id)));
+                              setMembers(prev => prev.filter(m => !selectedMembers.has(m.id)));
+                              const count = selectedMembers.size;
+                              setSelectedMembers(new Set());
+                              setShowBulkActions(false);
+                              showToast({ type: "success", title: "Members removed", message: `${count} member${count > 1 ? "s" : ""} removed successfully.` });
+                            } catch {
+                              showToast({ type: "error", title: "Error", message: "Failed to remove some members." });
+                            }
                             setConfirmModal(prev => ({ ...prev, isOpen: false }));
                           },
                         });
@@ -1802,15 +1817,6 @@ export default function ProfileDetailPage() {
                           {new Date(selectedMemberDetail.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </span>
                       </div>
-
-                      {selectedMemberDetail.joinedAt && (
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
-                          <span className="text-body-sm text-on-surface-variant">Last Active</span>
-                          <span className="text-body-sm text-on-surface">
-                            {new Date(selectedMemberDetail.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </span>
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex gap-3 mt-6">
@@ -1914,13 +1920,13 @@ export default function ProfileDetailPage() {
                           <div className="relative">
                             <input 
                               className={`${inputClass} pr-12`} 
-                              type="password" 
+                              type={showPasswords.current ? "text" : "password"} 
                               placeholder="Enter current password"
                               value={passwordForm.currentPassword}
                               onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                             />
-                            <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
-                              <span className="material-symbols-outlined text-[20px]">visibility</span>
+                            <button type="button" onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))} className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
+                              <span className="material-symbols-outlined text-[20px]">{showPasswords.current ? "visibility_off" : "visibility"}</span>
                             </button>
                           </div>
                         </div>
@@ -1930,13 +1936,13 @@ export default function ProfileDetailPage() {
                           <div className="relative">
                             <input 
                               className={`${inputClass} pr-12`} 
-                              type="password" 
+                              type={showPasswords.new ? "text" : "password"} 
                               placeholder="Enter new password"
                               value={passwordForm.newPassword}
                               onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                             />
-                            <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
-                              <span className="material-symbols-outlined text-[20px]">visibility</span>
+                            <button type="button" onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))} className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
+                              <span className="material-symbols-outlined text-[20px]">{showPasswords.new ? "visibility_off" : "visibility"}</span>
                             </button>
                           </div>
                           <div className="flex items-center gap-2 mt-2">
@@ -1966,13 +1972,13 @@ export default function ProfileDetailPage() {
                           <div className="relative">
                             <input 
                               className={`${inputClass} pr-12`} 
-                              type="password" 
+                              type={showPasswords.confirm ? "text" : "password"} 
                               placeholder="Confirm new password"
                               value={passwordForm.confirmPassword}
                               onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                             />
-                            <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
-                              <span className="material-symbols-outlined text-[20px]">visibility</span>
+                            <button type="button" onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))} className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
+                              <span className="material-symbols-outlined text-[20px]">{showPasswords.confirm ? "visibility_off" : "visibility"}</span>
                             </button>
                           </div>
                           {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (

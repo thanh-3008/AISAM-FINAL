@@ -82,7 +82,9 @@ export default function TeamPage() {
       const [teamsRes, membersRes] = await Promise.all([fetchTeams(), fetchMembers()]);
       setTeams(teamsRes.data);
       setMembers(membersRes.data);
-    } catch {
+    } catch (err) {
+      console.error("Failed to load teams:", err);
+      showToast("Failed to load teams", "error");
       setTeams([]);
       setMembers([]);
     }

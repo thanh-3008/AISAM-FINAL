@@ -127,7 +127,7 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         var utcWindowStart = NormalizeUtc(windowStart);
         var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
 
-        var query = _context.AiGenerations
+        var aiGenQuery = _context.AiGenerations
             .Include(generation => generation.Content)
             .Where(generation =>
                 !generation.IsDeleted &&
@@ -137,10 +137,26 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
 
         if (utcWindowEndExclusive.HasValue)
         {
-            query = query.Where(generation => generation.CreatedAt < utcWindowEndExclusive.Value);
+            aiGenQuery = aiGenQuery.Where(generation => generation.CreatedAt < utcWindowEndExclusive.Value);
         }
 
-        return await query.CountAsync(cancellationToken);
+        var aiGenCount = await aiGenQuery.CountAsync(cancellationToken);
+
+        var contentQuery = _context.Contents
+            .Where(content =>
+                content.WorkspaceId == workspaceId &&
+                content.IsAiGenerated &&
+                !content.IsDeleted &&
+                content.CreatedAt >= utcWindowStart);
+
+        if (utcWindowEndExclusive.HasValue)
+        {
+            contentQuery = contentQuery.Where(content => content.CreatedAt < utcWindowEndExclusive.Value);
+        }
+
+        var contentCount = await contentQuery.CountAsync(cancellationToken);
+
+        return aiGenCount + contentCount;
     }
 
     public async Task<int> CountSuccessfulPostUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)

@@ -34,10 +34,13 @@ export default function AnalyticsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetchAnalytics();
+        const res = await fetchAnalytics(campaignFilter);
         if (!cancelled) setData(res);
-      } catch {
-        if (!cancelled) setData(null);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load analytics:", err);
+          setData(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -49,7 +52,7 @@ export default function AnalyticsPage() {
   const handleRefresh = () => {
     setData(null);
     setLoading(true);
-    fetchAnalytics().then((res) => {
+    fetchAnalytics(campaignFilter).then((res) => {
       setData(res);
       setLoading(false);
     });

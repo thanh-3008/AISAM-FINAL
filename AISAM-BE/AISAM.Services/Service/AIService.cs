@@ -77,7 +77,8 @@ public sealed class AIService : IAIService
             AdType = request.AdType,
             Title = request.Title,
             TextContent = string.Empty,
-            Status = ContentStatusEnum.Draft
+            Status = ContentStatusEnum.Draft,
+            IsAiGenerated = true
         }, cancellationToken);
 
         var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
@@ -799,6 +800,7 @@ Latest user message:
             StyleDescription = content.StyleDescription,
             ContextDescription = content.ContextDescription,
             RepresentativeCharacter = content.RepresentativeCharacter,
+            IsAiGenerated = content.IsAiGenerated,
             Status = content.Status,
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt

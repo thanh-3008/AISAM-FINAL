@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using AISAM.Data.Enumeration;
 
 namespace AISAM.Data.Model
 {
@@ -26,9 +27,18 @@ namespace AISAM.Data.Model
         [Column("ad_account_id")]
         public string AdAccountId { get; set; } = string.Empty;
 
+        [Column("product_id")]
+        public Guid? ProductId { get; set; }
+
+        [Column("content_id")]
+        public Guid? ContentId { get; set; }
+
+        [Column("targeting", TypeName = "jsonb")]
+        public string? Targeting { get; set; }
+
         [MaxLength(255)]
         [Column("facebook_campaign_id")]
-        public string? FacebookCampaignId { get; set; } // Facebook Campaign ID from Marketing API
+        public string? FacebookCampaignId { get; set; }
 
         [Required]
         [MaxLength(255)]
@@ -48,6 +58,10 @@ namespace AISAM.Data.Model
         [Column("end_date", TypeName = "date")]
         public DateTime? EndDate { get; set; }
 
+        [MaxLength(500)]
+        [Column("landing_url")]
+        public string? LandingUrl { get; set; }
+
         [Column("is_active")]
         public bool IsActive { get; set; } = true;
 
@@ -60,6 +74,25 @@ namespace AISAM.Data.Model
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        [Column("deployment_status")]
+        public DeploymentStatusEnum DeploymentStatus { get; set; } = DeploymentStatusEnum.None;
+
+        [Column("deployment_step")]
+        public int DeploymentStep { get; set; }
+
+        // Insights
+        [Column("impressions")]
+        public long Impressions { get; set; }
+
+        [Column("clicks")]
+        public long Clicks { get; set; }
+
+        [Column("spend", TypeName = "decimal(12,2)")]
+        public decimal Spend { get; set; }
+
+        [Column("conversions")]
+        public long Conversions { get; set; }
+
         // Navigation properties
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
@@ -67,6 +100,12 @@ namespace AISAM.Data.Model
 
         [ForeignKey("BrandId")]
         public virtual Brand Brand { get; set; } = null!;
+
+        [ForeignKey("ProductId")]
+        public virtual Product? Product { get; set; }
+
+        [ForeignKey("ContentId")]
+        public virtual Content? Content { get; set; }
 
         public virtual ICollection<AdSet> AdSets { get; set; } = new List<AdSet>();
     }

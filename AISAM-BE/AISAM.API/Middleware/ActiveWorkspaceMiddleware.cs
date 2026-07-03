@@ -30,7 +30,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/conversations"),
         new("/api/notifications"),
         new("/api/credit-usage"),
-        new("/api/campaigns")
+        new("/api/campaigns"),
+        new("/api/tags")
     };
 
     private readonly RequestDelegate _next;
@@ -45,6 +46,13 @@ public sealed class ActiveWorkspaceMiddleware
         IWorkspaceMemberRepository workspaceMemberRepository,
         ISubscriptionRepository subscriptionRepository)
     {
+        if (context.Request.Method == HttpMethods.Get &&
+            context.Request.Path.Equals("/api/social-auth/facebook/callback", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         if (context.Request.Method == HttpMethods.Post &&
             (context.Request.Path.Equals("/api/workspace-invitations/accept", StringComparison.OrdinalIgnoreCase) ||
              context.Request.Path.Equals("/api/payment/callback", StringComparison.OrdinalIgnoreCase) ||
@@ -347,13 +355,12 @@ public sealed class ActiveWorkspaceMiddleware
         WorkspaceTypeEnum workspaceType,
         WorkspaceFeatureEnum feature)
     {
-        var subscription = await subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId);
-        if (subscription == null)
-        {
-            return feature is WorkspaceFeatureEnum.GenerateText or WorkspaceFeatureEnum.BasicAnalytics
-                ? null
-                : (HttpStatusCode.Forbidden, "Active subscription is required for this feature.", "WORKSPACE_SUBSCRIPTION_REQUIRED");
-        }
+        var subscription = await subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId)
+                           ?? new Subscription
+                           {
+                               Plan = SubscriptionPlanEnum.Free,
+                               IsActive = true
+                           };
 
         var enabled = feature switch
         {

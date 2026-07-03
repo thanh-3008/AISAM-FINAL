@@ -32,4 +32,5 @@ public interface IContentService
         => SoftDeleteAsync(id, workspaceId, cancellationToken);
     Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => RestoreAsync(id, workspaceId, cancellationToken);
+    Task<GenericResponse<List<string>>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default);
 }

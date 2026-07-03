@@ -3,11 +3,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, ALL_TAGS, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContent, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
 import { apiFetch } from "@/lib/apiClient";
+import { fetchContentQuota } from "@/services/workspaceService";
 import PostNowModal from "@/components/content/PostNowModal";
+import BulkScheduleModal from "@/components/content/BulkScheduleModal";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -65,9 +68,11 @@ export default function ContentPage() {
   const [deletingItem, setDeletingItem] = useState<ContentItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
+  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [quota, setQuota] = useState<{ promptUsage: number; promptQuotaLimit: number; postUsage: number; postQuotaLimit: number; textContentCount: number; imageContentCount: number; videoContentCount: number } | null>(null);
   const [brandNameList, setBrandNameList] = useState<string[]>([]);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
@@ -93,15 +98,19 @@ export default function ContentPage() {
 
   const loadContent = useCallback(async () => {
     setLoading(true);
-    const [result, dashRes] = await Promise.all([
+    const [result, dashRes, quotaRes] = await Promise.all([
       fetchContents({ pageSize: 100 }),
       apiFetch("/dashboard/summary").catch(() => null),
+      fetchContentQuota(),
     ]);
     if (result) {
       setAllContent(result.items);
     }
     if (dashRes?.success && dashRes.data) {
       setScheduledCount((dashRes.data as { upcomingScheduleCount?: number }).upcomingScheduleCount ?? 0);
+    }
+    if (quotaRes) {
+      setQuota(quotaRes);
     }
     setLoading(false);
   }, []);
@@ -196,11 +205,20 @@ export default function ContentPage() {
     if (!batchStatus) return;
     const ids = Array.from(selectedIds);
     const statusMap: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
-    await Promise.all(ids.map(id => updateContent(id, { status: statusMap[batchStatus] as any })));
+    const results = await Promise.all(ids.map(id =>
+      updateContent(id, { status: statusMap[batchStatus] as any })
+        .then(r => ({ id, ok: r }))
+        .catch(() => ({ id, ok: false }))
+    ));
+    const failed = results.filter(r => !r.ok).length;
     setSelectedIds(new Set());
     setBatchStatus("");
     loadContent();
-    addToast(`Updated ${ids.length} items to ${batchStatus}`, "check_circle");
+    if (failed === 0) {
+      addToast(`Updated ${ids.length} items to ${batchStatus}`, "check_circle");
+    } else {
+      addToast(`${ids.length - failed}/${ids.length} updated to ${batchStatus}`, failed > 0 ? "warning" : "check_circle");
+    }
   };
 
   // Create action
@@ -381,11 +399,7 @@ export default function ContentPage() {
           </div>
 
           {/* Tags filter */}
-          <select value={tagFilter} onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
-            className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[100px]">
-            <option value="">Tags</option>
-            {ALL_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <TagFilterSelect value={tagFilter} onChange={(v) => { setTagFilter(v); setPage(1); }} />
 
           {/* Date range */}
           <div className="flex items-center gap-1.5">
@@ -466,6 +480,24 @@ export default function ContentPage() {
               className="text-label-sm text-outline/50 hover:text-on-surface underline underline-offset-2 decoration-dotted transition-colors">
               Deselect
             </button>
+            {(() => {
+              const selectedItems = Array.from(selectedIds).map(id => allContent.find(c => c.id === id)).filter(Boolean);
+              const allApproved = selectedItems.every(c => c!.status === "Approved");
+              const sameBrand = new Set(selectedItems.map(c => c!.brandId)).size === 1;
+              const canSchedule = allApproved && sameBrand;
+              return (
+                <button onClick={() => canSchedule && setShowBulkSchedule(true)}
+                  className={`px-3 py-1.5 rounded-xl text-label-sm font-semibold transition-all flex items-center gap-1.5 ${
+                    canSchedule
+                      ? "bg-primary text-on-primary hover:shadow-lg active:scale-[0.97]"
+                      : "bg-outline/10 text-outline cursor-not-allowed"
+                  }`}
+                  title={!allApproved ? "Only Approved content can be scheduled" : !sameBrand ? "All items must belong to the same brand" : ""}>
+                  <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+                  Schedule
+                </button>
+              );
+            })()}
             <button onClick={handleBatchDelete}
               className="px-3 py-1.5 rounded-xl border border-danger-red/20 text-danger-red text-label-sm font-semibold hover:bg-danger-red/5 active:scale-[0.97] transition-all flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[14px]">delete</span>
@@ -641,27 +673,27 @@ export default function ContentPage() {
                     </div>
                     <h3 className="text-label-md text-on-surface font-semibold">Content Quota</h3>
                   </div>
-                  <span className="text-label-sm text-primary font-semibold">--/--</span>
+                  <span className="text-label-sm text-primary font-semibold">{quota ? `${quota.textContentCount + quota.imageContentCount + quota.videoContentCount}/${quota.postQuotaLimit}` : "--/--"}</span>
                 </div>
                 <div className="h-2 bg-outline-variant/10 rounded-full overflow-hidden mb-2">
-                  <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000" style={{ width: `0%` }} />
+                  <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000" style={{ width: `${quota && quota.postQuotaLimit > 0 ? Math.min(100, ((quota.textContentCount + quota.imageContentCount + quota.videoContentCount) / quota.postQuotaLimit) * 100) : 0}%` }} />
                 </div>
-                <p className="text-label-xs text-on-surface-variant">-- used this month</p>
+                <p className="text-label-xs text-on-surface-variant">{quota ? `${quota.textContentCount + quota.imageContentCount + quota.videoContentCount} used this month` : "-- used this month"}</p>
                 <div className="mt-4 flex items-center justify-between text-label-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="text-on-surface-variant">Images</span>
-                    <span className="text-on-surface font-semibold ml-1">342</span>
+                    <span className="text-on-surface-variant">Text</span>
+                    <span className="text-on-surface font-semibold ml-1">{quota?.textContentCount ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-purple-500" />
-                    <span className="text-on-surface-variant">Text</span>
-                    <span className="text-on-surface font-semibold ml-1">267</span>
+                    <span className="text-on-surface-variant">Image</span>
+                    <span className="text-on-surface font-semibold ml-1">{quota?.imageContentCount ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
                     <span className="text-on-surface-variant">Video</span>
-                    <span className="text-on-surface font-semibold ml-1">175</span>
+                    <span className="text-on-surface font-semibold ml-1">{quota?.videoContentCount ?? 0}</span>
                   </div>
                 </div>
               </div>
@@ -851,6 +883,23 @@ export default function ContentPage() {
         </div>
       )}
 
+      {/* ─── Bulk Schedule Modal ─── */}
+      {showBulkSchedule && (
+        <BulkScheduleModal
+          items={Array.from(selectedIds).map(id => {
+            const item = allContent.find(c => c.id === id);
+            return { id, contentId: id, title: item?.title, brandId: item?.brandId, brandName: item?.brandName };
+          })}
+          onClose={() => setShowBulkSchedule(false)}
+          onSuccess={(msg) => {
+            setShowBulkSchedule(false);
+            setSelectedIds(new Set());
+            addToast(msg, "calendar_month");
+            loadContent();
+          }}
+        />
+      )}
+
       {/* ─── Post Now Modal ─── */}
       {postNowItem && (
         <PostNowModal
@@ -890,6 +939,20 @@ function FilterChip({ label, color, onRemove }: { label: string; color?: string;
       {label}
       <button onClick={onRemove} className="hover:opacity-60 active:scale-[0.97]"><span className="material-symbols-outlined text-label-xs">close</span></button>
     </span>
+  );
+}
+
+import { fetchTags } from "@/services/tagService";
+
+function TagFilterSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [tags, setTags] = useState<string[]>([]);
+  useEffect(() => { fetchTags().then(setTags); }, []);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}
+      className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[100px]">
+      <option value="">Tags</option>
+      {tags.map((t) => <option key={t} value={t}>{t}</option>)}
+    </select>
   );
 }
 
@@ -1026,7 +1089,7 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
     thumbnail: item?.thumbnail || "",
   });
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
-  const [showTagPicker, setShowTagPicker] = useState(false);
+
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1162,43 +1225,13 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
           </div>
 
           {/* Tags */}
-          <div className="relative">
+          <div>
             <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Tags</label>
-            <button type="button" onClick={() => setShowTagPicker(!showTagPicker)}
-              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-body-sm text-left text-on-surface hover:border-primary/40 transition-all flex items-center justify-between">
-              <span>{form.tags.length === 0 ? "Select tags" : `${form.tags.length} selected`}</span>
-              <span className="material-symbols-outlined text-[14px] text-outline">expand_more</span>
-            </button>
-            {showTagPicker && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowTagPicker(false)} />
-                <div className="absolute left-0 right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-xl z-20 p-2 space-y-0.5 dropdown-enter">
-                  {ALL_TAGS.map((t) => (
-                    <label key={t} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-container cursor-pointer transition-colors">
-                      <input type="checkbox" checked={form.tags.includes(t)} onChange={() => {
-                        setForm((prev) => ({
-                          ...prev,
-                          tags: prev.tags.includes(t) ? prev.tags.filter((x) => x !== t) : [...prev.tags, t],
-                        }));
-                      }} className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/30" />
-                      <span className="text-label-sm text-on-surface">{t}</span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-            {form.tags.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                {form.tags.map((t) => (
-                  <span key={t} className="px-2 py-0.5 rounded-md bg-surface-container text-label-xs font-semibold text-on-surface-variant flex items-center gap-1">
-                    {t}
-                    <button onClick={() => setForm((prev) => ({ ...prev, tags: prev.tags.filter((x) => x !== t) }))} className="hover:opacity-60">
-                      <span className="material-symbols-outlined text-label-xs">close</span>
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <TagPicker
+              selected={form.tags}
+              onChange={(tags) => setForm((prev) => ({ ...prev, tags }))}
+              placeholder="Select tags"
+            />
           </div>
 
           {/* Thumbnail */}

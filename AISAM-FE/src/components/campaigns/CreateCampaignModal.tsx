@@ -1,8 +1,11 @@
 "use client";
-
-import { useState } from "react";
+ 
+import { useState, useEffect } from "react";
 import { type CampaignObjective, type CreateCampaignData } from "@/services/campaignService";
 import { OBJECTIVE_CONFIG, getCachedBrands } from "./campaignUtils";
+import { fetchSocialAccounts, fetchAdAccounts, type SocialAccount, type AdAccount } from "@/services/socialAccountService";
+import { fetchProducts } from "@/services/brandService";
+import { fetchContents } from "@/services/contentService";
 
 interface CreateCampaignModalProps {
   open: boolean;
@@ -18,32 +21,115 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
   const [budget, setBudget] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [dateError, setDateError] = useState("");
+
+  // Product & Content
+  const [products, setProducts] = useState<{ id: string; name: string; brandId: string }[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [contents, setContents] = useState<{ id: string; title: string; brandId: string }[]>([]);
+  const [selectedContentId, setSelectedContentId] = useState("");
+  const [landingUrl, setLandingUrl] = useState("");
+
+  // Targeting
+  const TARGETING_PRESETS: { label: string; value: string }[] = [
+    { label: "Vietnam", value: '{"geo_locations":{"countries":["VN"]}}' },
+    { label: "United States", value: '{"geo_locations":{"countries":["US"]}}' },
+    { label: "Worldwide", value: '{"geo_locations":{"countries":[]}}' },
+    { label: "Custom", value: "custom" },
+  ];
+  const [selectedTargeting, setSelectedTargeting] = useState(TARGETING_PRESETS[0].value);
+  const [customTargeting, setCustomTargeting] = useState("");
+
+  // Facebook account & ad account selection
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [selectedSocialAccountId, setSelectedSocialAccountId] = useState("");
+  const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
+  const [selectedAdAccount, setSelectedAdAccount] = useState("");
+  const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setSocialAccounts([]);
+      setSelectedSocialAccountId("");
+      setAdAccounts([]);
+      setSelectedAdAccount("");
+      setName("");
+      setBrandId("");
+      setObjective("AWARENESS");
+      setBudget("");
+      setStartDate("");
+      setEndDate("");
+      setDateError("");
+      setSelectedTargeting(TARGETING_PRESETS[0].value);
+      setCustomTargeting("");
+      setLandingUrl("");
+
+      fetchSocialAccounts().then((res) => {
+        setSocialAccounts(res.data.filter((a) => a.provider === "facebook"));
+      });
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!selectedSocialAccountId) {
+      setAdAccounts([]);
+      setSelectedAdAccount("");
+      return;
+    }
+    setLoadingAdAccounts(true);
+    setAdAccounts([]);
+    setSelectedAdAccount("");
+    fetchAdAccounts(selectedSocialAccountId).then((accounts) => {
+      setAdAccounts(accounts);
+      setLoadingAdAccounts(false);
+    });
+  }, [selectedSocialAccountId]);
+
+  useEffect(() => {
+    if (!brandId) {
+      setProducts([]);
+      setSelectedProductId("");
+      setContents([]);
+      setSelectedContentId("");
+      return;
+    }
+    fetchProducts(brandId).then(setProducts);
+    fetchContents({ brandId, pageSize: 100 }).then((res) => {
+      if (res) {
+        setContents(res.items.map((c) => ({ id: c.id, title: c.title, brandId: c.brandId })));
+      }
+    });
+  }, [brandId]);
 
   if (!open) return null;
 
   const handleSubmit = () => {
     const brand = getCachedBrands().find((b) => b.id === brandId);
     if (!name.trim() || !brand) return;
+    if (!selectedAdAccount) return;
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      setDateError("End date must be after start date");
+      return;
+    }
+    setDateError("");
 
     onCreate({
       name,
       brandId,
       brandName: brand.name,
+      productId: selectedProductId || null,
+      contentId: selectedContentId || null,
+      targeting: selectedTargeting === "custom" ? customTargeting || null : selectedTargeting,
+      adAccountId: selectedAdAccount,
       objective,
       budget: budget ? parseFloat(budget) : null,
       startDate: startDate || null,
       endDate: endDate || null,
+      landingUrl: landingUrl || null,
     });
-
-    setName("");
-    setBrandId("");
-    setObjective("AWARENESS");
-    setBudget("");
-    setStartDate("");
-    setEndDate("");
   };
 
-  const isValid = name.trim() && brandId;
+  const isValid = name.trim() && brandId && selectedAdAccount;
 
   return (
     <>
@@ -80,6 +166,53 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
               />
             </div>
 
+            {/* Facebook Account */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Facebook Account</label>
+              <select
+                value={selectedSocialAccountId}
+                onChange={(e) => setSelectedSocialAccountId(e.target.value)}
+                className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10"
+              >
+                <option value="">Select Facebook account...</option>
+                {socialAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>{acc.accountName}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Ad Account */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Ad Account</label>
+              {selectedSocialAccountId ? (
+                <select
+                  value={selectedAdAccount}
+                  onChange={(e) => setSelectedAdAccount(e.target.value)}
+                  disabled={loadingAdAccounts}
+                  className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 disabled:opacity-50"
+                >
+                  {loadingAdAccounts ? (
+                    <option value="">Loading...</option>
+                  ) : adAccounts.length === 0 ? (
+                    <option value="">No ad accounts found</option>
+                  ) : (
+                    <>
+                      <option value="">Select ad account...</option>
+                      {adAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.id}) — {acc.currency}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              ) : (
+                <div className="w-full p-3 bg-surface-container-high border border-outline-variant/20 rounded-xl text-body-sm text-outline">
+                  Select a Facebook account first
+                </div>
+              )}
+            </div>
+
             {/* Brand */}
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Brand</label>
@@ -93,6 +226,77 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Product */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Product (optional)</label>
+              <select
+                value={selectedProductId}
+                onChange={(e) => setSelectedProductId(e.target.value)}
+                className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10"
+              >
+                <option value="">Select product...</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Content/Post */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Content (optional)</label>
+              <select
+                value={selectedContentId}
+                onChange={(e) => setSelectedContentId(e.target.value)}
+                className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10"
+              >
+                <option value="">Select content...</option>
+                {contents.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title || "(untitled)"}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Landing URL */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Landing URL (optional)</label>
+              <input
+                type="url"
+                value={landingUrl}
+                onChange={(e) => setLandingUrl(e.target.value)}
+                placeholder="https://example.com/product-page"
+                className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
+              />
+              <p className="text-label-3xs text-outline mt-1">Default: Facebook page URL</p>
+            </div>
+
+            {/* Targeting */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Targeting</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {TARGETING_PRESETS.map((p) => (
+                  <button key={p.label}
+                    onClick={() => setSelectedTargeting(p.value)}
+                    className={`px-3 py-1.5 rounded-lg text-label-xs font-semibold transition-all border ${
+                      selectedTargeting === p.value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-outline-variant/20 text-outline hover:text-on-surface"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {selectedTargeting === "custom" && (
+                <textarea
+                  value={customTargeting}
+                  onChange={(e) => setCustomTargeting(e.target.value)}
+                  placeholder='{"geo_locations":{"countries":["US","VN"]},"age_min":18,"age_max":65}'
+                  rows={3}
+                  className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-[11px] font-mono text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
+                />
+              )}
             </div>
 
             {/* Objective */}
@@ -120,7 +324,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
             {/* Budget */}
             <div>
-              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Budget (USD)</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Total Budget (VND)</label>
               <input
                 type="number"
                 value={budget}
@@ -152,6 +356,9 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                 />
               </div>
             </div>
+            {dateError && (
+              <p className="text-label-xs text-red-600 mt-1">{dateError}</p>
+            )}
           </div>
 
           {/* Footer */}

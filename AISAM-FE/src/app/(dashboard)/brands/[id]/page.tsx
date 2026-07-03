@@ -10,6 +10,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { PlatformIcon } from "@/lib/contentConstants";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
+import { useToast } from "@/contexts/ToastContext";
 
 interface Brand {
   id: string;
@@ -53,6 +54,7 @@ export default function BrandDetailPage() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
+  const { addToast } = useToast();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -135,6 +137,7 @@ export default function BrandDetailPage() {
       const result = await apiClient(`/brands/${id}`, { method: "PUT", data: body });
       if (result?.success && result.data) {
         setBrand(result.data);
+        addToast("Brand updated successfully", "check");
       } else {
         setError(result?.message || "Failed to save brand");
         return;
@@ -153,6 +156,7 @@ export default function BrandDetailPage() {
     try {
       const result = await apiFetch(`/brands/${id}`, { method: "DELETE" });
       if (result?.success) {
+        addToast("Brand deleted successfully", "check");
         router.push("/brands");
       } else {
         setError(result?.message || "Failed to delete brand");
@@ -164,10 +168,12 @@ export default function BrandDetailPage() {
 
   const handleAddProduct = (product: Product) => {
     setProducts((prev) => [product, ...prev]);
+    addToast("Product created successfully", "check");
   };
 
   const handleEditProduct = (updated: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    addToast("Product updated successfully", "check");
   };
 
   const handleDeleteProduct = async () => {
@@ -175,11 +181,18 @@ export default function BrandDetailPage() {
     const target = deletingProduct;
     setDeletingProduct(null);
     try {
-      await apiFetch(`/products/${target.id}`, { method: "DELETE" });
+      const result = await apiFetch(`/products/${target.id}`, { method: "DELETE" });
+      if (result?.success) {
+        setProducts((prev) => prev.filter((p) => p.id !== target.id));
+        addToast("Product deleted successfully", "check");
+      } else {
+        addToast(result?.message || "Failed to delete product", "error");
+        setDeletingProduct(target);
+      }
     } catch {
-      // ignore
+      addToast("Failed to delete product", "error");
+      setDeletingProduct(target);
     }
-    setProducts((prev) => prev.filter((p) => p.id !== target.id));
   };
 
   if (loading) {

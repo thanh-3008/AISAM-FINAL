@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,11 @@ namespace AISAM.Repositories.Repository
             return await _context.AdCampaigns
                 .AsSplitQuery()
                 .Include(ac => ac.Brand)
+                .Include(ac => ac.Product)
+                .Include(ac => ac.Content)
                 .Include(ac => ac.AdSets.Where(ads => !ads.IsDeleted))
+                    .ThenInclude(ads => ads.Ads.Where(a => !a.IsDeleted))
+                        .ThenInclude(a => a.Creative)
                 .FirstOrDefaultAsync(ac => ac.Id == id && !ac.IsDeleted, cancellationToken);
         }
 
@@ -28,6 +33,8 @@ namespace AISAM.Repositories.Repository
             return await _context.AdCampaigns
                 .AsSplitQuery()
                 .Include(ac => ac.Brand)
+                .Include(ac => ac.Product)
+                .Include(ac => ac.Content)
                 .Include(ac => ac.AdSets)
                 .FirstOrDefaultAsync(ac => ac.Id == id, cancellationToken);
         }
@@ -44,7 +51,11 @@ namespace AISAM.Repositories.Repository
             var query = _context.AdCampaigns
                 .AsSplitQuery()
                 .Include(ac => ac.Brand)
+                .Include(ac => ac.Product)
+                .Include(ac => ac.Content)
                 .Include(ac => ac.AdSets.Where(ads => !ads.IsDeleted))
+                    .ThenInclude(ads => ads.Ads.Where(a => !a.IsDeleted))
+                        .ThenInclude(a => a.Creative)
                 .Where(ac => ac.WorkspaceId == workspaceId);
 
             if (!includeDeleted)
@@ -93,8 +104,177 @@ namespace AISAM.Repositories.Repository
         public async Task UpdateAsync(AdCampaign campaign, CancellationToken cancellationToken = default)
         {
             campaign.UpdatedAt = DateTime.UtcNow;
-            _context.AdCampaigns.Update(campaign);
+            try
+            {
+                var entry = _context.Entry(campaign);
+                if (entry.State == EntityState.Detached)
+                {
+                    _context.AdCampaigns.Update(campaign);
+                }
+            }
+            catch
+            {
+                _context.AdCampaigns.Update(campaign);
+            }
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task SetFacebookCampaignIdAsync(Guid campaignId, string facebookCampaignId, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _context.AdCampaigns
+                .FirstOrDefaultAsync(ac => ac.Id == campaignId, cancellationToken);
+            if (campaign != null)
+            {
+                campaign.FacebookCampaignId = facebookCampaignId;
+                campaign.UpdatedAt = DateTime.UtcNow;
+                _context.Entry(campaign).Property(e => e.FacebookCampaignId).IsModified = true;
+                _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task AddAdSetAsync(AdSet adSet, CancellationToken cancellationToken = default)
+        {
+            _context.AdSets.Add(adSet);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task AddAdCreativeAsync(AdCreative creative, CancellationToken cancellationToken = default)
+        {
+            _context.AdCreatives.Add(creative);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task AddAdAsync(Ad ad, CancellationToken cancellationToken = default)
+        {
+            _context.Ads.Add(ad);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // ─── Deployment step tracking ───
+
+        public async Task UpdateDeploymentStatusAsync(Guid campaignId, DeploymentStatusEnum status, int step, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _context.AdCampaigns
+                .FirstOrDefaultAsync(ac => ac.Id == campaignId, cancellationToken);
+            if (campaign != null)
+            {
+                campaign.DeploymentStatus = status;
+                campaign.DeploymentStep = step;
+                campaign.UpdatedAt = DateTime.UtcNow;
+                _context.Entry(campaign).Property(e => e.DeploymentStatus).IsModified = true;
+                _context.Entry(campaign).Property(e => e.DeploymentStep).IsModified = true;
+                _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task UpdateCampaignInsightsAsync(Guid campaignId, long impressions, long clicks, decimal spend, long conversions, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _context.AdCampaigns
+                .FirstOrDefaultAsync(ac => ac.Id == campaignId, cancellationToken);
+            if (campaign != null)
+            {
+                campaign.Impressions = impressions;
+                campaign.Clicks = clicks;
+                campaign.Spend = spend;
+                campaign.Conversions = conversions;
+                campaign.UpdatedAt = DateTime.UtcNow;
+                _context.Entry(campaign).Property(e => e.Impressions).IsModified = true;
+                _context.Entry(campaign).Property(e => e.Clicks).IsModified = true;
+                _context.Entry(campaign).Property(e => e.Spend).IsModified = true;
+                _context.Entry(campaign).Property(e => e.Conversions).IsModified = true;
+                _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task<AdSet?> GetAdSetByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdSets
+                .Where(ads => ads.CampaignId == campaignId && !ads.IsDeleted)
+                .OrderByDescending(ads => ads.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<Ad?> GetAdByAdSetIdAsync(Guid adSetId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Ads
+                .Where(a => a.AdSetId == adSetId && !a.IsDeleted)
+                .OrderByDescending(a => a.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<AdCreative?> GetCreativeByIdAsync(Guid creativeId, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdCreatives
+                .FirstOrDefaultAsync(ac => ac.Id == creativeId && !ac.IsDeleted, cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<AdSet>> GetAdSetsByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdSets
+                .Where(ads => ads.CampaignId == campaignId && !ads.IsDeleted)
+                .OrderByDescending(ads => ads.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Ad>> GetAdsByAdSetIdAsync(Guid adSetId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Ads
+                .Where(a => a.AdSetId == adSetId && !a.IsDeleted)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        // ─── Cleanup ───
+
+        public async Task HardDeleteAdAsync(Guid adId, CancellationToken cancellationToken = default)
+        {
+            var ad = await _context.Ads.FindAsync(new object[] { adId }, cancellationToken);
+            if (ad != null)
+            {
+                _context.Ads.Remove(ad);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task HardDeleteAdCreativeAsync(Guid creativeId, CancellationToken cancellationToken = default)
+        {
+            var creative = await _context.AdCreatives.FindAsync(new object[] { creativeId }, cancellationToken);
+            if (creative != null)
+            {
+                _context.AdCreatives.Remove(creative);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task HardDeleteAdSetAsync(Guid adSetId, CancellationToken cancellationToken = default)
+        {
+            var adSet = await _context.AdSets.FindAsync(new object[] { adSetId }, cancellationToken);
+            if (adSet != null)
+            {
+                _context.AdSets.Remove(adSet);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task ClearFacebookIdsAsync(Guid campaignId, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _context.AdCampaigns
+                .FirstOrDefaultAsync(ac => ac.Id == campaignId, cancellationToken);
+            if (campaign != null)
+            {
+                campaign.FacebookCampaignId = null;
+                campaign.DeploymentStatus = DeploymentStatusEnum.None;
+                campaign.DeploymentStep = 0;
+                campaign.UpdatedAt = DateTime.UtcNow;
+                _context.Entry(campaign).Property(e => e.FacebookCampaignId).IsModified = true;
+                _context.Entry(campaign).Property(e => e.DeploymentStatus).IsModified = true;
+                _context.Entry(campaign).Property(e => e.DeploymentStep).IsModified = true;
+                _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
     }
 }

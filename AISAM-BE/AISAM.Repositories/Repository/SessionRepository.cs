@@ -27,6 +27,12 @@ namespace AISAM.Repositories.Repository
                 .FirstOrDefaultAsync(s => s.RefreshToken == refreshToken && s.IsActive);
         }
 
+        public async Task<Session?> FindByRefreshTokenAsync(string refreshToken)
+        {
+            return await _context.Sessions.Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.RefreshToken == refreshToken);
+        }
+
         public async Task<List<Session>> GetActiveSessionsByUserIdAsync(Guid userId)
         {
             return await _context.Sessions

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using AISAM.API.Filters;
 using AISAM.API.Infrastructure;
 using AISAM.API.Middleware;
@@ -42,15 +43,6 @@ ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_REDIRECT_URI", "Facebo
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_GRAPH_API_VERSION", "FacebookSettings:GraphApiVersion");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_BASE_URL", "FacebookSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_OAUTH_URL", "FacebookSettings:OAuthUrl");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_OAUTH_URL", "TikTokSettings:OAuthUrl");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_API_BASE_URL", "TikTokSettings:ApiBaseUrl");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_DEFAULT_PRIVACY_LEVEL", "TikTokSettings:DefaultPrivacyLevel");
-ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_MAX_UPLOAD_SIZE_MB", "TikTokSettings:MaxUploadSizeMb");
-ApplyCsvEnvironmentOverride(builder.Configuration, "TIKTOK_REQUIRED_SCOPES", "TikTokSettings:RequiredScopes");
-ApplyCsvEnvironmentOverride(builder.Configuration, "TIKTOK_ALLOWED_MEDIA_HOSTS", "TikTokSettings:AllowedMediaHosts");
 ApplyEnvironmentOverride(builder.Configuration, "GOOGLE_CLIENT_ID", "GoogleSettings:ClientId");
 ApplyEnvironmentOverride(builder.Configuration, "GOOGLE_CLIENT_SECRET", "GoogleSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "SMTP_HOST", "EmailSettings:SmtpHost");
@@ -74,6 +66,9 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettin
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
 
 // === AI Image (Gemini primary + OpenRouter fallback) ===
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_KEY", "ImageProviderSettings:GeminiApiKey");
@@ -105,22 +100,15 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<FacebookSettings>(builder.Configuration.GetSection("FacebookSettings"));
-builder.Services.Configure<TikTokSettings>(builder.Configuration.GetSection("TikTokSettings"));
 builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("GoogleSettings"));
 builder.Services.Configure<FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("GeminiSettings"));
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
+builder.Services.Configure<TikTokSettings>(builder.Configuration.GetSection("TikTokSettings"));
 
-var configuredKeysPath = Environment.GetEnvironmentVariable("DATA_PROTECTION_KEYS_PATH");
-var dataProtectionKeysPath = Path.GetFullPath(
-    string.IsNullOrWhiteSpace(configuredKeysPath)
-        ? Path.Combine(builder.Environment.ContentRootPath, ".keys")
-        : Path.IsPathRooted(configuredKeysPath)
-            ? configuredKeysPath
-            : Path.Combine(builder.Environment.ContentRootPath, configuredKeysPath));
+var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionKeysPath);
-builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Information);
 builder.Services
     .AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
@@ -153,6 +141,17 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddFixedWindowLimiter("AuthPolicy", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 3;
+    });
+});
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();
@@ -190,16 +189,16 @@ builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.AddHttpClient<FacebookProvider>();
-builder.Services.AddHttpClient<TikTokProvider>();
 builder.Services.AddHttpClient<GoogleProvider>();
+builder.Services.AddHttpClient<TikTokProvider>();
 builder.Services.AddHttpClient<IPaymentService, PayOSPaymentService>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<FacebookProvider>());
-builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
 builder.Services.AddHttpClient<GeminiTextClient>();
 builder.Services.AddHttpClient<FallbackGeminiTextClient>();
 builder.Services.AddHttpClient<OpenRouterTextClient>();
 builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
+builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IPostService, PostService>();
@@ -318,12 +317,52 @@ app.UseSwaggerUI();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseMiddleware<ActiveWorkspaceMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
+
+        var freeSubs = dbContext.Subscriptions
+            .Include(s => s.Workspace)
+            .Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free && s.Workspace != null)
+            .ToList();
+
+        foreach (var sub in freeSubs)
+        {
+            var wsType = sub.Workspace!.WorkspaceType;
+
+            sub.Plan = AISAM.Data.Enumeration.SubscriptionPlanEnum.Premium;
+            sub.QuotaPostsPerMonth = wsType == AISAM.Data.Enumeration.WorkspaceTypeEnum.Personal ? 1_000 : 20_000;
+            sub.QuotaAIContentPerDay = 200;
+            sub.QuotaAIImagesPerDay = 30;
+            sub.QuotaPlatforms = 3;
+            sub.QuotaAccounts = 5;
+            sub.AnalysisLevel = 2;
+            sub.QuotaAdBudgetMonthly = 10_000_000m;
+            sub.QuotaAdCampaigns = 10;
+            sub.EndDate = DateTime.UtcNow.AddYears(1);
+
+            var wallet = dbContext.CreditWallets.FirstOrDefault(w => w.WorkspaceId == sub.WorkspaceId);
+            if (wallet != null)
+            {
+                var credits = wsType == AISAM.Data.Enumeration.WorkspaceTypeEnum.Personal ? 2_000L : 50_000L;
+                wallet.Balance = credits;
+            }
+        }
+
+        dbContext.SaveChanges();
+    }
+}
 
 app.Run();
 
@@ -333,17 +372,5 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
     if (!string.IsNullOrWhiteSpace(value))
     {
         configuration[configurationKey] = value;
-    }
-}
-
-static void ApplyCsvEnvironmentOverride(IConfiguration configuration, string environmentKey, string configurationKey)
-{
-    var value = Environment.GetEnvironmentVariable(environmentKey);
-    if (string.IsNullOrWhiteSpace(value)) return;
-
-    var items = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    for (var index = 0; index < items.Length; index++)
-    {
-        configuration[$"{configurationKey}:{index}"] = items[index];
     }
 }

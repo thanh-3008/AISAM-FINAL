@@ -97,6 +97,8 @@ public class ContentControllerPublishTests
             LastProfileId = profileId;
             return Task.FromResult(PublishResult);
         }
+
+        public Task<GenericResponse<List<string>>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeProfileRepository : IProfileRepository

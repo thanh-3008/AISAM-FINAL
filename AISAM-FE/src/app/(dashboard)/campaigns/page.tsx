@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useToast } from "@/contexts/ToastContext";
 import Header from "@/components/layout/Header";
 import {
   fetchCampaigns,
@@ -11,6 +12,8 @@ import {
   applyCampaign,
   restartCampaign,
   deleteCampaign,
+  restoreCampaign,
+  deployCampaignToFacebook,
   type Campaign,
   type CampaignStatus,
   type CampaignObjective,
@@ -25,8 +28,9 @@ import CreateCampaignModal from "@/components/campaigns/CreateCampaignModal";
 import EditCampaignModal from "@/components/campaigns/EditCampaignModal";
 import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
+import StartConfirmModal from "@/components/campaigns/StartConfirmModal";
 import { fetchBrands } from "@/services/brandService";
-import { setCachedBrands } from "@/components/campaigns/campaignUtils";
+import { setCachedBrands, OBJECTIVE_CONFIG, STATUS_CONFIG } from "@/components/campaigns/campaignUtils";
 
 export default function CampaignsPage() {
   const { activeWorkspace } = useWorkspaces();
@@ -47,10 +51,10 @@ export default function CampaignsPage() {
   const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null);
   const [deletingCampaigns, setDeletingCampaigns] = useState<Campaign[]>([]);
+  const [startingCampaign, setStartingCampaign] = useState<Campaign | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Toast
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const { addToast } = useToast();
 
   // Load campaigns
   useEffect(() => {
@@ -58,10 +62,14 @@ export default function CampaignsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetchCampaigns();
+        const res = await fetchCampaigns({ pageSize: 100 });
         if (!cancelled) setCampaigns(res.data);
-      } catch {
-        if (!cancelled) setCampaigns([]);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load campaigns:", err);
+          addToast("Failed to load campaigns", "error");
+          setCampaigns([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -75,18 +83,6 @@ export default function CampaignsPage() {
       setCachedBrands(brands.map(b => ({ id: b.id, name: b.name })));
     });
   }, [activeWorkspace?.id]);
-
-  // Toast auto-dismiss
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
-  };
 
   // Filter and sort campaigns
   const filteredCampaigns = useMemo(() => {
@@ -143,9 +139,9 @@ export default function CampaignsPage() {
       const campaign = await createCampaign(data);
       setCampaigns((prev) => [campaign, ...prev]);
       setShowCreateModal(false);
-      showToast(`Campaign "${campaign.name}" created successfully`);
+      addToast(`Campaign "${campaign.name}" created successfully`);
     } catch {
-      showToast("Failed to create campaign", "error");
+      addToast("Failed to create campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -158,26 +154,33 @@ export default function CampaignsPage() {
       if (updated) {
         setCampaigns((prev) => prev.map((c) => (c.id === id ? updated : c)));
         setEditCampaign(null);
-        showToast(`Campaign "${updated.name}" updated successfully`);
+        addToast(`Campaign "${updated.name}" updated successfully`);
       }
     } catch {
-      showToast("Failed to update campaign", "error");
+      addToast("Failed to update campaign", "error");
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleToggleStatus = async (campaign: Campaign) => {
+    if (campaign.status === "PAUSED" && campaign.facebookCampaignId) {
+      setStartingCampaign(campaign);
+      return;
+    }
+    await doToggleStatus(campaign, "PAUSED");
+  };
+
+  const doToggleStatus = async (campaign: Campaign, newStatus: CampaignStatus) => {
     setActionLoading(campaign.id);
     try {
-      const newStatus: CampaignStatus = campaign.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
       const updated = await updateCampaignStatus(campaign.id, newStatus);
       if (updated) {
         setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
-        showToast(`Campaign ${newStatus === "ACTIVE" ? "activated" : "paused"}`);
+        addToast(`Campaign ${newStatus === "ACTIVE" ? "activated" : "paused"}`);
       }
     } catch {
-      showToast("Failed to update campaign status", "error");
+      addToast("Failed to update campaign status", "error");
     } finally {
       setActionLoading(null);
     }
@@ -189,10 +192,10 @@ export default function CampaignsPage() {
       const updated = await applyCampaign(campaign.id);
       if (updated) {
         setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
-        showToast(`Campaign "${updated.name}" applied and is now active`);
+        addToast(`Campaign "${updated.name}" applied and is now active`);
       }
     } catch {
-      showToast("Failed to apply campaign", "error");
+      addToast("Failed to apply campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -204,10 +207,10 @@ export default function CampaignsPage() {
       const updated = await restartCampaign(campaign.id);
       if (updated) {
         setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
-        showToast(`Campaign "${updated.name}" restarted successfully`);
+        addToast(`Campaign "${updated.name}" restarted successfully`);
       }
     } catch {
-      showToast("Failed to restart campaign", "error");
+      addToast("Failed to restart campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -232,9 +235,9 @@ export default function CampaignsPage() {
       setCampaigns((prev) => prev.filter((c) => !deletingCampaigns.some((d) => d.id === c.id)));
       setSelectedIds((prev) => prev.filter((id) => !deletingCampaigns.some((d) => d.id === id)));
       setDeletingCampaigns([]);
-      showToast(`${deletingCampaigns.length} campaign(s) deleted`);
+      addToast(`${deletingCampaigns.length} campaign(s) deleted`);
     } catch {
-      showToast("Failed to delete campaign(s)", "error");
+      addToast("Failed to delete campaign(s)", "error");
     } finally {
       setActionLoading(null);
     }
@@ -246,8 +249,28 @@ export default function CampaignsPage() {
     );
   };
 
+  const handleConfirmStart = async (campaign: Campaign) => {
+    setStartingCampaign(null);
+    await doToggleStatus(campaign, "ACTIVE");
+  };
+
   const handleClearSelection = () => {
     setSelectedIds([]);
+  };
+
+  const handleDeploy = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      const updated = await deployCampaignToFacebook(campaign.id);
+      if (updated) {
+        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
+        addToast(`Campaign deployed to Facebook`);
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to deploy", "error");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const hasFilters = !!(search || statusFilter || objectiveFilter);
@@ -291,10 +314,8 @@ export default function CampaignsPage() {
             </button>
           </div>
 
-          {/* Stats */}
           <CampaignStatsCards campaigns={campaigns} />
 
-          {/* Filters */}
           <CampaignFilterBar
             search={search}
             onSearchChange={setSearch}
@@ -358,11 +379,13 @@ export default function CampaignsPage() {
                   onToggleStatus={handleToggleStatus}
                   onApply={handleApply}
                   onRestart={handleRestart}
+                  onDeploy={handleDeploy}
                   onDelete={handleDelete}
                 />
               ))}
             </div>
           )}
+
         </div>
 
         {/* Modals */}
@@ -384,9 +407,16 @@ export default function CampaignsPage() {
         <CampaignDetailModal
           campaign={detailCampaign}
           onClose={() => setDetailCampaign(null)}
-          onApply={handleApply}
+          onDeploy={handleDeploy}
           onRestart={handleRestart}
           isLoading={actionLoading === detailCampaign?.id}
+        />
+
+        <StartConfirmModal
+          campaign={startingCampaign}
+          isLoading={actionLoading === startingCampaign?.id}
+          onConfirm={handleConfirmStart}
+          onCancel={() => setStartingCampaign(null)}
         />
 
         <DeleteConfirmModal
@@ -396,18 +426,6 @@ export default function CampaignsPage() {
           onCancel={() => setDeletingCampaigns([])}
         />
 
-        {/* Toast */}
-        {toast && (
-          <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-right-2 duration-200 ${
-            toast.type === "success" ? "bg-emerald-600 text-white" : "bg-danger-red text-white"
-          }`}>
-            <span className="material-symbols-outlined text-[18px]">{toast.type === "success" ? "check_circle" : "error"}</span>
-            <p className="text-label-sm font-bold">{toast.msg}</p>
-            <button onClick={() => setToast(null)} className="ml-2 p-0.5 hover:bg-white/20 rounded-full transition-colors">
-              <span className="material-symbols-outlined text-[14px]">close</span>
-            </button>
-          </div>
-        )}
       </main>
     </>
   );

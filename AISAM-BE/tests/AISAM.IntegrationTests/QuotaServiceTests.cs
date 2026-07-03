@@ -1,4 +1,5 @@
 using AISAM.Common;
+using AISAM.Common.Dtos;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
@@ -28,7 +29,7 @@ public class QuotaServiceTests
             promptUsage: 1,
             postUsage: 2),
             new FakeWorkspaceRepository(),
-            new FakeProfileRepository());
+            new FakeProfileRepository(), new FakeContentRepository());
 
         var result = await service.GetSummaryAsync(profileId);
 
@@ -59,7 +60,7 @@ public class QuotaServiceTests
             promptUsage: 1,
             postUsage: 0),
             new FakeWorkspaceRepository(),
-            new FakeProfileRepository());
+            new FakeProfileRepository(), new FakeContentRepository());
 
         var result = await service.EnsurePromptQuotaAsync(profileId);
 
@@ -87,7 +88,7 @@ public class QuotaServiceTests
             promptUsage: 0,
             postUsage: 1),
             new FakeWorkspaceRepository(),
-            new FakeProfileRepository());
+            new FakeProfileRepository(), new FakeContentRepository());
 
         var result = await service.EnsurePostQuotaAsync(profileId);
 
@@ -113,7 +114,7 @@ public class QuotaServiceTests
             },
             promptUsage: 0,
             postUsage: 0);
-        var service = new QuotaService(repository, new FakeWorkspaceRepository(), new FakeProfileRepository());
+        var service = new QuotaService(repository, new FakeWorkspaceRepository(), new FakeProfileRepository(), new FakeContentRepository());
 
         await service.GetSummaryAsync(profileId);
 
@@ -156,7 +157,8 @@ public class QuotaServiceTests
             }),
             new FakeProfileRepository(
                 new Profile { Id = ownerProfileId, UserId = ownerUserId, Name = "Owner", ProfileType = ProfileTypeEnum.Basic },
-                new Profile { Id = memberProfileId, UserId = memberUserId, Name = "Member", ProfileType = ProfileTypeEnum.Basic }));
+                new Profile { Id = memberProfileId, UserId = memberUserId, Name = "Member", ProfileType = ProfileTypeEnum.Basic }),
+            new FakeContentRepository());
 
         var result = await service.GetWorkspaceSummaryAsync(workspaceId);
 
@@ -195,7 +197,8 @@ public class QuotaServiceTests
                 Members = [new WorkspaceMember { WorkspaceId = workspaceId, UserId = userId, IsActive = true }]
             }),
             new FakeProfileRepository(
-                new Profile { Id = profileId, UserId = userId, Name = "Owner", ProfileType = ProfileTypeEnum.Basic }));
+                new Profile { Id = profileId, UserId = userId, Name = "Owner", ProfileType = ProfileTypeEnum.Basic }),
+            new FakeContentRepository());
 
         var result = await service.EnsureWorkspacePostQuotaAsync(workspaceId);
 
@@ -338,5 +341,17 @@ public class QuotaServiceTests
         public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task RestoreAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeContentRepository : IContentRepository
+    {
+        public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Content>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

@@ -1,3 +1,4 @@
+using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
@@ -5,7 +6,6 @@ using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using System.Security.Claims;
 
 namespace AISAM.API.Controllers
 {
@@ -32,7 +32,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdOrThrow();
+                var currentUserId = UserClaimsHelper.GetUserIdOrThrow(User);
                 if (userId != currentUserId)
                 {
                     return StatusCode((int)HttpStatusCode.Forbidden,
@@ -58,7 +58,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdOrThrow();
+                var currentUserId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _profileService.GetProfileByIdAsync(id, currentUserId, cancellationToken);
                 if (!result.Success)
                 {
@@ -87,7 +87,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdOrThrow();
+                var currentUserId = UserClaimsHelper.GetUserIdOrThrow(User);
                 if (userId != currentUserId)
                 {
                     return StatusCode((int)HttpStatusCode.Forbidden,
@@ -122,7 +122,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdOrThrow();
+                var currentUserId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _profileService.UpdateProfileAsync(id, currentUserId, request, cancellationToken);
                 if (!result.Success)
                 {
@@ -147,7 +147,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdOrThrow();
+                var currentUserId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _profileService.DeleteProfileAsync(id, currentUserId, cancellationToken);
                 if (!result.Success)
                 {
@@ -172,7 +172,7 @@ namespace AISAM.API.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdOrThrow();
+                var currentUserId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var result = await _profileService.RestoreProfileAsync(id, currentUserId, cancellationToken);
                 if (!result.Success)
                 {
@@ -192,15 +192,5 @@ namespace AISAM.API.Controllers
             }
         }
 
-        private Guid GetUserIdOrThrow()
-        {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdValue, out var userId))
-            {
-                throw new UnauthorizedAccessException("Invalid token");
-            }
-
-            return userId;
-        }
     }
 }

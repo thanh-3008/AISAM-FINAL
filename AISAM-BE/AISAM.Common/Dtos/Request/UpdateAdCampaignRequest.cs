@@ -9,6 +9,12 @@ namespace AISAM.Common.Dtos.Request
 
         public Guid? BrandId { get; set; }
 
+        public Guid? ProductId { get; set; }
+
+        public Guid? ContentId { get; set; }
+
+        public string? Targeting { get; set; }
+
         [MaxLength(255)]
         public string? AdAccountId { get; set; }
 
@@ -22,5 +28,8 @@ namespace AISAM.Common.Dtos.Request
         public DateTime? EndDate { get; set; }
 
         public bool? IsActive { get; set; }
+
+        [MaxLength(500)]
+        public string? LandingUrl { get; set; }
     }
 }

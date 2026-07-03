@@ -543,10 +543,21 @@ export default function ApprovalsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white text-label-3xs font-bold shrink-0">
-                                <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
-                              </div>
-                              <span className="text-[11px] font-semibold text-on-surface bg-primary/5 px-1.5 py-0.5 rounded">AI</span>
+                              {item.isAiGenerated ? (
+                                <>
+                                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white text-label-3xs font-bold shrink-0">
+                                    <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-on-surface bg-primary/5 px-1.5 py-0.5 rounded">AI</span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant text-label-3xs font-bold shrink-0">
+                                    <span className="material-symbols-outlined text-[12px]">person</span>
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-on-surface">Manual</span>
+                                </>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
@@ -608,7 +619,7 @@ export default function ApprovalsPage() {
                               {isApprovedStatus(item.status) && (
                                 <>
                                   <button onClick={() => { setPostNowItem(item); }}
-                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Đăng ngay">
+                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Post Now">
                                     <span className="material-symbols-outlined text-[17px]">send</span>
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Post Now</span>
                                   </button>
@@ -764,7 +775,7 @@ export default function ApprovalsPage() {
                       {[
                         { icon: "article", label: "Headline", value: drawerItem.title, full: true },
                         { icon: "calendar_today", label: "Created", value: new Date(drawerItem.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
-                        { icon: "person", label: "Requester", value: "AISAM · AI Generated", badge: true },
+                        { icon: "person", label: "Requester", value: drawerItem.isAiGenerated ? "AI Generated" : "Manual", badge: true },
                         { icon: "business", label: "Brand", value: `${drawerItem.brandName} · ${drawerItem.productName}`, color: getBrandColor(drawerItem.brandName) || "#6366f1" },
                         { icon: "flag", label: "Priority", value: getPriority(drawerItem).label, chip: getPriority(drawerItem).color },
                       ].map((f, i) => (
@@ -845,7 +856,7 @@ export default function ApprovalsPage() {
                     </h4>
                     <div className="space-y-0">
                       {[
-                        { icon: "auto_awesome", color: "bg-primary/10 text-primary", label: "AISAM generated content", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: "AI-generated marketing asset created" },
+                        { icon: drawerItem.isAiGenerated ? "auto_awesome" : "edit_note", color: drawerItem.isAiGenerated ? "bg-primary/10 text-primary" : "bg-surface-container-high text-on-surface-variant", label: drawerItem.isAiGenerated ? "AI generated content" : "Manual content", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: drawerItem.isAiGenerated ? "AI-generated marketing asset created" : "Content created manually" },
                         { icon: "assignment", color: "bg-sky-500/10 text-sky-500", label: "Content review assigned", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: `Assigned to ${TEAM.map((t) => t.name).join(", ")}` },
                         { icon: "flag", color: "bg-warning-amber/15 text-warning-amber", label: "Submitted for approval", time: "Pending", desc: "Awaiting review decision" },
                       ].map((step, i) => (

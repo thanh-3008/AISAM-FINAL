@@ -207,9 +207,11 @@ export default function AIGeneratePage() {
     const payload: Partial<CreateContentPayload> = {
       brandId,
       productId: productId || null,
+      adType: 0,
       title: title || `AI Generated — ${brandName}`,
       textContent: content || "",
-      status: 1 // Awaiting Approval
+      status: 1, // Awaiting Approval
+      isAiGenerated: true,
     };
 
     if (imageUrl) {

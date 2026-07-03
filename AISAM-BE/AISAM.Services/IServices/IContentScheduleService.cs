@@ -14,6 +14,7 @@ public interface IContentScheduleService
     Task<GenericResponse<IReadOnlyList<ContentScheduleDto>>> GetUpcomingAsync(Guid profileId, int limit, CancellationToken cancellationToken = default);
     Task<GenericResponse<ContentScheduleDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
         => CreateAsync(profileId, request, cancellationToken);
+    Task<GenericResponse<BulkCreateResultDto>> BulkCreateInWorkspaceAsync(Guid workspaceId, Guid profileId, BulkCreateContentScheduleRequest request, CancellationToken cancellationToken = default);
     Task<GenericResponse<PagedResult<ContentScheduleDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
         => GetPagedAsync(workspaceId, request, cancellationToken);
     Task<GenericResponse<ContentScheduleDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)

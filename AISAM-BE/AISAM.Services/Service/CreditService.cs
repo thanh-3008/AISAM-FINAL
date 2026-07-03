@@ -1,5 +1,8 @@
 using System.Net;
 using AISAM.Common;
+using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -490,4 +493,67 @@ public sealed class CreditService : ICreditService
         member.CreditUsed = 0;
         member.CreditPeriodStart = currentMonthStart;
     }
+
+    public async Task<CreditWallet?> GetWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        return await _creditWalletRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
+    {
+        return await _creditUsageRecordRepository.GetDailyUsageAsync(workspaceId, days, cancellationToken);
+    }
+
+    public async Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _creditUsageRecordRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, cancellationToken);
+        return new PagedResult<CreditUsageRecordDto>
+        {
+            Data = result.Data.Select(MapRecord).ToList(),
+            TotalCount = result.TotalCount,
+            Page = result.Page,
+            PageSize = result.PageSize
+        };
+    }
+
+    private static CreditUsageRecordDto MapRecord(Data.Model.CreditUsageRecord record)
+    {
+        return new CreditUsageRecordDto
+        {
+            Id = record.Id,
+            UserId = record.UserId,
+            UserName = record.User?.FullName ?? record.User?.Email ?? "Unknown",
+            Action = MapActionName(record.Action),
+            FeatureUsed = MapFeatureUsed(record.Action),
+            Credits = record.Credits,
+            Status = record.Status == CreditUsageStatusEnum.Success ? "Success" : "Failed",
+            CreatedAt = record.CreatedAt
+        };
+    }
+
+    private static string MapActionName(CreditActionEnum action) => action switch
+    {
+        CreditActionEnum.SubscriptionGrant => "Subscription Grant",
+        CreditActionEnum.CreditPackGrant => "Credit Pack Purchase",
+        CreditActionEnum.GenerateText => "Generate Text",
+        CreditActionEnum.RegenerateText => "Regenerate Text",
+        CreditActionEnum.GenerateImage => "Generate Image",
+        CreditActionEnum.GenerateVideo => "Generate Video",
+        CreditActionEnum.TrendAnalysis => "Trend Analysis",
+        CreditActionEnum.CampaignRecommendation => "Campaign Recommendation",
+        _ => action.ToString()
+    };
+
+    private static string MapFeatureUsed(CreditActionEnum action) => action switch
+    {
+        CreditActionEnum.SubscriptionGrant => "Subscription",
+        CreditActionEnum.CreditPackGrant => "Credit Pack",
+        CreditActionEnum.GenerateText => "AI Content",
+        CreditActionEnum.RegenerateText => "AI Content",
+        CreditActionEnum.GenerateImage => "AI Image",
+        CreditActionEnum.GenerateVideo => "AI Video",
+        CreditActionEnum.TrendAnalysis => "Analytics",
+        CreditActionEnum.CampaignRecommendation => "Campaign",
+        _ => "Other"
+    };
 }

@@ -411,7 +411,7 @@ namespace AISAM.Repositories
                 entity.HasKey(ads => ads.Id);
                 entity.HasIndex(ads => ads.CampaignId);
                 entity.HasOne(ads => ads.Campaign)
-                      .WithMany()
+                      .WithMany(ac => ac.AdSets)
                       .HasForeignKey(ads => ads.CampaignId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
@@ -459,7 +459,9 @@ namespace AISAM.Repositories
             modelBuilder.Entity<ContentCalendar>(entity =>
             {
                 entity.HasKey(cc => cc.Id);
-                entity.HasIndex(cc => cc.ContentId);
+                entity.HasIndex(cc => cc.ContentId)
+                      .IsUnique()
+                      .HasFilter("\"status\" IN (0, 1)");
                 entity.HasIndex(cc => cc.ProfileId);
                 entity.HasIndex(cc => cc.WorkspaceId);
                 entity.HasIndex(cc => cc.ScheduledDate);

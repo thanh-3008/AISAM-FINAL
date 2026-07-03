@@ -132,6 +132,54 @@ public class FacebookProviderTests
     }
 
     [Fact]
+    public async Task CreateAdSetAsync_TrafficObjective_UsesLinkClicksOptimization()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.OK, """{"id":"adset-1"}""");
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var result = await provider.CreateAdSetAsync(
+            "123",
+            "user-token",
+            "campaign-1",
+            "Traffic Ad Set",
+            "TRAFFIC",
+            500000,
+            new DateTime(2026, 06, 29, 10, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 07, 01, 10, 0, 0, DateTimeKind.Utc),
+            """{"geo_locations":{"countries":["US"]}}""");
+
+        Assert.Equal("adset-1", result);
+        Assert.Contains("/act_123/adsets", handler.Requests[0].Url);
+        Assert.Contains("optimization_goal=LINK_CLICKS", handler.Requests[0].Body);
+        Assert.Contains("billing_event=IMPRESSIONS", handler.Requests[0].Body);
+        Assert.Contains("bid_strategy=LOWEST_COST_WITHOUT_CAP", handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task CreateAdSetAsync_AwarenessObjective_UsesReachOptimization()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.OK, """{"id":"adset-1"}""");
+        var provider = CreateProvider(handler, CreateSettings());
+
+        await provider.CreateAdSetAsync(
+            "act_123",
+            "user-token",
+            "campaign-1",
+            "Awareness Ad Set",
+            "AWARENESS",
+            500000,
+            null,
+            null,
+            """{"geo_locations":{"countries":["US"]}}""");
+
+        Assert.Contains("/act_123/adsets", handler.Requests[0].Url);
+        Assert.Contains("optimization_goal=REACH", handler.Requests[0].Body);
+        Assert.Contains("bid_strategy=LOWEST_COST_WITHOUT_CAP", handler.Requests[0].Body);
+    }
+
+    [Fact]
     public async Task PublishAsync_RetriesWithFreshPageToken_WhenInitialPageTokenFails()
     {
         var handler = new RecordingHandler();

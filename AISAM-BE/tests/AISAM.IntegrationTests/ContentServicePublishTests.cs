@@ -379,7 +379,7 @@ public class ContentServicePublishTests
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.NotFound, result.StatusCode);
-        Assert.Equal("Social integration not found.", result.Message);
+        Assert.Equal("Social integration not found or inactive.", result.Message);
     }
 
     private static ContentService CreateService(
@@ -391,7 +391,9 @@ public class ContentServicePublishTests
         IPostRepository? postRepository = null,
         IProviderService? providerService = null,
         ISocialTokenProtector? tokenProtector = null,
-        IQuotaService? quotaService = null)
+        IQuotaService? quotaService = null,
+        IContentCalendarRepository? contentCalendarRepository = null,
+        IWorkspaceRepository? workspaceRepository = null)
     {
         return new ContentService(
             contentRepository ?? new FakeContentRepository(),
@@ -402,7 +404,28 @@ public class ContentServicePublishTests
             postRepository ?? new FakePostRepository(),
             providerService is null ? Array.Empty<IProviderService>() : new[] { providerService },
             tokenProtector ?? new FakeSocialTokenProtector(),
-            quotaService ?? new FakeQuotaService());
+            quotaService ?? new FakeQuotaService(),
+            contentCalendarRepository ?? new FakeContentCalendarRepository(),
+            workspaceRepository ?? new FakeWorkspaceRepository());
+    }
+
+    private sealed class FakeContentCalendarRepository : IContentCalendarRepository
+    {
+        public Task<ContentCalendar?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<ContentCalendar?>(null);
+        public Task<PagedResult<ContentCalendar>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default) => Task.FromResult(new PagedResult<ContentCalendar>());
+        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByProfileIdAsync(Guid profileId, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ContentCalendar>>([]);
+        public Task<int> CountUpcomingByProfileIdAsync(Guid profileId, DateTime utcNow, CancellationToken cancellationToken = default) => Task.FromResult(0);
+        public Task<int> CountFailedByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default) => Task.FromResult(0);
+        public Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ContentCalendar>>([]);
+        public Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ContentCalendar>>([]);
+        public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<ContentCalendar> AddAsync(ContentCalendar schedule, CancellationToken cancellationToken = default) => Task.FromResult(schedule);
+        public Task UpdateAsync(ContentCalendar schedule, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<PagedResult<ContentCalendar>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ContentCalendar>> GetUpcomingByWorkspaceIdAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeContentRepository : IContentRepository
@@ -436,6 +459,10 @@ public class ContentServicePublishTests
             _contents[content.Id] = content;
             return Task.CompletedTask;
         }
+
+        public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeBrandRepository : IBrandRepository
@@ -520,6 +547,8 @@ public class ContentServicePublishTests
         }
 
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task DeleteAsync(Post post, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeProviderService : IProviderService
@@ -534,6 +563,20 @@ public class ContentServicePublishTests
         public Task<SocialAccountDto> ExchangeCodeAsync(string code, string redirectUri, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IEnumerable<AvailableTargetDto>> GetTargetsAsync(string accessToken, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<string, string>> GetTargetAccessTokensAsync(string userAccessToken, IEnumerable<string> providerTargetIds, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<IEnumerable<FacebookAdAccountData>> GetAdAccountsAsync(string userAccessToken, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<string> CreateCampaignAsync(string adAccountId, string userAccessToken, string name, string objective, decimal? budget, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<string> CreateAdSetAsync(string adAccountId, string userAccessToken, string campaignId, string name, string objective, decimal? dailyBudget, DateTime? startDate, DateTime? endDate, string targetingJson, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> DeleteAdSetAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> DeleteAdCreativeAsync(string adAccountId, string userAccessToken, string creativeId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<PublishResultDto> PublishAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken = default)
         {
@@ -615,5 +658,15 @@ public class ContentServicePublishTests
             LastWorkspaceId = workspaceId;
             return Task.FromResult(WorkspacePostQuotaResult);
         }
+    }
+
+    private sealed class FakeWorkspaceRepository : IWorkspaceRepository
+    {
+        public Task<Workspace?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task<Workspace?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<Workspace>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

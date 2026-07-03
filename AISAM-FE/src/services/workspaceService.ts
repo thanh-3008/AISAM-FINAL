@@ -25,12 +25,13 @@ export interface CreditWallet {
 }
 
 export interface WorkspaceDashboard {
-  creditsRemaining: number;
-  postsRemaining: number;
-  totalAiUsage: number;
-  publishedPostCount?: number;
-  aiUsageCount?: number;
+  creditBalance: number;
+  creditsUsed: number;
+  publishedPostCount: number;
   postQuotaLimit: number;
+  postsRemaining: number;
+  aiUsageCount: number;
+  activeMemberCount: number;
   topMembers: { userId: string; name: string; usage: number }[];
 }
 
@@ -49,24 +50,27 @@ export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | nu
     if (res?.data) {
       const d = res.data as {
         creditBalance?: number;
-        postsRemaining?: number;
-        aiUsageCount?: number;
+        creditsUsed?: number;
         publishedPostCount?: number;
         postQuotaLimit?: number;
+        postsRemaining?: number;
+        aiUsageCount?: number;
+        activeMemberCount?: number;
         topMembers?: { userId: string; name: string; creditsUsed: number }[];
       };
       return {
-        creditsRemaining: d.creditBalance ?? 0,
-        postsRemaining: d.postsRemaining ?? 0,
-        totalAiUsage: d.aiUsageCount ?? 0,
-        aiUsageCount: d.aiUsageCount ?? 0,
+        creditBalance: d.creditBalance ?? 0,
+        creditsUsed: d.creditsUsed ?? 0,
         publishedPostCount: d.publishedPostCount ?? 0,
-        postQuotaLimit: d.postQuotaLimit ?? 1000,
-        topMembers: d.topMembers?.map(m => ({
+        postQuotaLimit: d.postQuotaLimit ?? 0,
+        postsRemaining: d.postsRemaining ?? 0,
+        aiUsageCount: d.aiUsageCount ?? 0,
+        activeMemberCount: d.activeMemberCount ?? 0,
+        topMembers: (d.topMembers ?? []).map(m => ({
           userId: m.userId,
           name: m.name,
-          usage: m.creditsUsed
-        })) ?? []
+          usage: m.creditsUsed,
+        })),
       };
     }
     return null;
@@ -142,12 +146,43 @@ export async function fetchCreditWallet(): Promise<{
   }
 }
 
+export interface QuotaSummary {
+  promptUsage: number;
+  promptQuotaLimit: number;
+  postUsage: number;
+  postQuotaLimit: number;
+  textContentCount: number;
+  imageContentCount: number;
+  videoContentCount: number;
+}
+
 export async function fetchPostQuota(): Promise<{ used: number; total: number } | null> {
   try {
     const res = await apiClient("/quota/workspace/current");
     if (res?.data) {
       const q = res.data as { postUsage?: number; postQuotaLimit?: number };
       return { used: q.postUsage ?? 0, total: q.postQuotaLimit ?? 0 };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchContentQuota(): Promise<QuotaSummary | null> {
+  try {
+    const res = await apiClient("/quota/workspace/current");
+    if (res?.data) {
+      const q = res.data as { promptUsage?: number; promptQuotaLimit?: number; postUsage?: number; postQuotaLimit?: number; textContentCount?: number; imageContentCount?: number; videoContentCount?: number };
+      return {
+        promptUsage: q.promptUsage ?? 0,
+        promptQuotaLimit: q.promptQuotaLimit ?? 0,
+        postUsage: q.postUsage ?? 0,
+        postQuotaLimit: q.postQuotaLimit ?? 0,
+        textContentCount: q.textContentCount ?? 0,
+        imageContentCount: q.imageContentCount ?? 0,
+        videoContentCount: q.videoContentCount ?? 0,
+      };
     }
     return null;
   } catch {
@@ -262,6 +297,21 @@ export async function transferOwnership(targetMemberId: string): Promise<{ succe
     const res = await apiClient("/workspace-members/ownership-transfer", {
       method: "POST",
       data: { targetMemberId },
+    });
+    return { success: res?.success === true, message: res?.message };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Network error" };
+  }
+}
+
+export async function updateMemberQuota(
+  memberId: string,
+  data: { mode: string; limit: number }
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res = await apiClient(`/workspace-members/${memberId}/quota`, {
+      method: "PUT",
+      data,
     });
     return { success: res?.success === true, message: res?.message };
   } catch (err: any) {
