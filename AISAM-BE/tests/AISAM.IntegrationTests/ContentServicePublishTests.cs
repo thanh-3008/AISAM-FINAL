@@ -192,7 +192,7 @@ public class ContentServicePublishTests
     }
 
     [Fact]
-    public async Task PublishAsync_ReturnsBadRequest_WhenContentAlreadyPublished()
+    public async Task PublishAsync_AllowsAlreadyPublishedContentToUseAnotherIntegration()
     {
         var profileId = Guid.NewGuid();
         var content = new Content
@@ -200,16 +200,38 @@ public class ContentServicePublishTests
             Id = Guid.NewGuid(),
             ProfileId = profileId,
             BrandId = Guid.NewGuid(),
-            TextContent = "Already done",
+            TextContent = "Publish on another platform",
             Status = ContentStatusEnum.Published
         };
-        var service = CreateService(new FakeContentRepository(content));
+        var account = new SocialAccount
+        {
+            Id = Guid.NewGuid(), ProfileId = profileId, Platform = SocialPlatformEnum.Facebook,
+            UserAccessToken = "protected:user-token"
+        };
+        var integration = new SocialIntegration
+        {
+            Id = Guid.NewGuid(), ProfileId = profileId, BrandId = content.BrandId,
+            SocialAccountId = account.Id, SocialAccount = account,
+            Platform = SocialPlatformEnum.Facebook, ExternalId = "page-1", AccessToken = "protected:page-token"
+        };
+        var posts = new FakePostRepository();
+        var service = CreateService(
+            new FakeContentRepository(content),
+            socialIntegrationRepository: new FakeSocialIntegrationRepository(integration),
+            socialAccountRepository: new FakeSocialAccountRepository(account),
+            postRepository: posts,
+            providerService: new FakeProviderService
+            {
+                ProviderName = "facebook",
+                PublishResult = new PublishResultDto { Success = true, ProviderPostId = "post-2" }
+            },
+            tokenProtector: new FakeSocialTokenProtector());
 
-        var result = await service.PublishAsync(content.Id, Guid.NewGuid(), profileId);
+        var result = await service.PublishAsync(content.Id, integration.Id, profileId);
 
-        Assert.False(result.Success);
-        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
-        Assert.Equal("Content has already been published.", result.Message);
+        Assert.True(result.Success);
+        Assert.Single(posts.Added);
+        Assert.Equal("post-2", posts.Added[0].ExternalPostId);
     }
 
     [Fact]

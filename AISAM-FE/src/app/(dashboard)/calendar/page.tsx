@@ -115,6 +115,7 @@ function CalendarContent() {
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [integrations, setIntegrations] = useState<SocialIntegration[]>([]);
   const [form, setForm] = useState({ contentId: "", integrationId: "", date: "", time: "" });
+  const [createIntegrationIds, setCreateIntegrationIds] = useState<string[]>([]);
   const [actionId, setActionId] = useState<string | null>(null);
   const [deletedItem, setDeletedItem] = useState<ScheduleItem | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
@@ -127,6 +128,8 @@ function CalendarContent() {
   const pendingCount = schedules.filter((s) => s.status === "Pending" || s.status === "Processing").length;
   const completedCount = schedules.filter((s) => s.status === "Completed").length;
   const failedCount = schedules.filter((s) => s.status === "Failed").length;
+  const selectedCreateContent = contents.find((content) => content.id === form.contentId);
+  const tiktokUnavailableForCreate = Boolean(selectedCreateContent && selectedCreateContent.type !== "VIDEO");
 
   const filteredSchedules = schedules.filter((s) => {
     if (filterBrand && s.brandName !== filterBrand) return false;
@@ -183,7 +186,7 @@ function CalendarContent() {
   useEffect(() => {
     const contentId = searchParams.get("contentId");
     if (contentId && contents.length > 0) {
-      const match = contents.find((c) => c.id === contentId && c.status !== "Published");
+      const match = contents.find((c) => c.id === contentId);
       if (match) {
         const now = new Date();
         const date = now.toISOString().slice(0, 10);
@@ -227,17 +230,23 @@ function CalendarContent() {
   };
 
   const handleCreate = async () => {
-    if (!form.contentId || !form.integrationId || !form.date || !form.time) return;
+    if (!form.contentId || createIntegrationIds.length === 0 || !form.date || !form.time) return;
     setActionId("create");
     const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
-    const result = await createSchedule({ contentId: form.contentId, integrationId: form.integrationId, scheduledAt });
-    if (result.data) {
-      setSchedules((prev) => [result.data!, ...prev]);
-      setToast("Schedule created");
+    const results = await Promise.all(createIntegrationIds.map((integrationId) =>
+      createSchedule({ contentId: form.contentId, integrationId, scheduledAt })));
+    const created = results.flatMap((result) => result.data ? [result.data] : []);
+    const errors = results.flatMap((result) => result.error ? [result.error] : []);
+    if (created.length > 0) {
+      setSchedules((prev) => [...created, ...prev]);
+      setToast(errors.length === 0
+        ? `${created.length} schedules created`
+        : `${created.length}/${results.length} schedules created. ${errors[0]}`);
+      setCreateIntegrationIds([]);
       setShowCreate(false);
       setForm({ contentId: "", integrationId: "", date: "", time: "" });
     } else {
-      setToast(result.error || "Failed to create schedule");
+      setToast(errors[0] || "Failed to create schedules");
     }
     setActionId(null);
   };
@@ -845,25 +854,41 @@ function CalendarContent() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Content</label>
-                    <select value={form.contentId} onChange={(e) => setForm((f) => ({ ...f, contentId: e.target.value }))}
+                    <select value={form.contentId} onChange={(e) => {
+                      setForm((f) => ({ ...f, contentId: e.target.value }));
+                      setCreateIntegrationIds([]);
+                    }}
                       className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
                       <option value="">Select content...</option>
-                      {contents.filter((c) => c.status !== "Published").map((c) => (
+                      {contents.map((c) => (
                         <option key={c.id} value={c.id}>{c.title} ({c.brandName})</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Account</label>
-                    <select value={form.integrationId} onChange={(e) => setForm((f) => ({ ...f, integrationId: e.target.value }))}
-                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
-                      <option value="">Select social account...</option>
-                      {integrations.filter((i) => i.isActive && (!form.contentId || i.brandId === contents.find(c => c.id === form.contentId)?.brandId)).map((i) => (
-                        <option key={i.id} value={i.id}>{i.accountName} - {i.targetName} ({i.provider})</option>
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Accounts</label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {integrations.filter((i) => i.isActive &&
+                        (!form.contentId || i.brandId === selectedCreateContent?.brandId) &&
+                        !(tiktokUnavailableForCreate && i.provider === "tiktok")).map((i) => (
+                        <label key={i.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${createIntegrationIds.includes(i.id) ? "border-primary bg-primary/5" : "border-outline-variant/20 bg-surface-container-low"}`}>
+                          <input type="checkbox" checked={createIntegrationIds.includes(i.id)}
+                            onChange={() => setCreateIntegrationIds((current) => current.includes(i.id)
+                              ? current.filter((id) => id !== i.id)
+                              : [...current, i.id])}
+                            className="w-4 h-4 rounded text-primary" />
+                          <span className="text-body-sm text-on-surface">{i.accountName} - {i.targetName} ({i.provider})</span>
+                        </label>
                       ))}
-                    </select>
+                    </div>
                     {integrations.length === 0 && (
                       <p className="text-label-xs text-outline mt-2">No social accounts connected. Please connect accounts in Social page.</p>
+                    )}
+                    {tiktokUnavailableForCreate && integrations.some((integration) => integration.isActive && integration.provider === "tiktok") && (
+                      <div className="mt-2 px-3 py-2 rounded-lg bg-amber-500/10 text-amber-700 text-label-xs flex items-start gap-2">
+                        <span className="material-symbols-outlined text-[15px]">warning</span>
+                        TikTok is unavailable because this content does not contain a video.
+                      </div>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -882,14 +907,14 @@ function CalendarContent() {
                 <div className="flex items-center gap-3 mt-6">
                   <button onClick={() => setShowCreate(false)}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
-                  <button onClick={handleCreate} disabled={!form.contentId || !form.integrationId || !form.date || !form.time || actionId === "create"}
+                  <button onClick={handleCreate} disabled={!form.contentId || createIntegrationIds.length === 0 || !form.date || !form.time || actionId === "create"}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
                     {actionId === "create" ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <span className="material-symbols-outlined text-[16px]">add</span>
                     )}
-                    Create Schedule
+                    Create {createIntegrationIds.length || ""} Schedule{createIntegrationIds.length === 1 ? "" : "s"}
                   </button>
                 </div>
               </div>

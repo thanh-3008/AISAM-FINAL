@@ -888,7 +888,7 @@ export default function ContentPage() {
         <BulkScheduleModal
           items={Array.from(selectedIds).map(id => {
             const item = allContent.find(c => c.id === id);
-            return { id, contentId: id, title: item?.title, brandId: item?.brandId, brandName: item?.brandName };
+            return { id, contentId: id, title: item?.title, brandId: item?.brandId, brandName: item?.brandName, type: item?.type };
           })}
           onClose={() => setShowBulkSchedule(false)}
           onSuccess={(msg) => {

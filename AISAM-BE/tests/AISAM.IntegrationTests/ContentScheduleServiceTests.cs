@@ -67,10 +67,12 @@ public class ContentScheduleServiceTests
     public async Task CreateAsync_ReturnsNotFound_WhenIntegrationBelongsToAnotherProfile()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Draft content",
@@ -102,13 +104,15 @@ public class ContentScheduleServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_ReturnsBadRequest_WhenContentAlreadyPublished()
+    public async Task CreateAsync_AllowsPublishedContentToBeScheduledForAnotherIntegration()
     {
         var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Published content",
@@ -118,6 +122,7 @@ public class ContentScheduleServiceTests
         {
             Id = Guid.NewGuid(),
             ProfileId = profileId,
+            WorkspaceId = workspaceId,
             BrandId = content.BrandId,
             SocialAccountId = Guid.NewGuid(),
             Platform = SocialPlatformEnum.Facebook,
@@ -127,16 +132,16 @@ public class ContentScheduleServiceTests
             contentRepository: new FakeContentRepository(content),
             socialIntegrationRepository: new FakeSocialIntegrationRepository(integration));
 
-        var result = await service.CreateAsync(profileId, new CreateContentScheduleRequest
+        var result = await service.CreateInWorkspaceAsync(workspaceId, profileId, new CreateContentScheduleRequest
         {
             ContentId = content.Id,
             IntegrationId = integration.Id,
             ScheduledAt = DateTime.UtcNow.AddHours(2)
         });
 
-        Assert.False(result.Success);
-        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
-        Assert.Equal("Published content cannot be scheduled again.", result.Message);
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(integration.Id, result.Data.IntegrationId);
     }
 
     [Fact]
@@ -413,7 +418,14 @@ public class ContentScheduleServiceTests
             => throw new NotImplementedException();
 
         public Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
+            => Task.FromResult(Schedules.Values.Any(schedule =>
+                schedule.ContentId == contentId && !schedule.IsDeleted &&
+                (schedule.Status == ScheduleStatusEnum.Pending || schedule.Status == ScheduleStatusEnum.Processing)));
+
+        public Task<bool> HasActiveScheduleAsync(Guid contentId, Guid integrationId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Schedules.Values.Any(schedule =>
+                schedule.ContentId == contentId && schedule.IntegrationId == integrationId && !schedule.IsDeleted &&
+                (schedule.Status == ScheduleStatusEnum.Pending || schedule.Status == ScheduleStatusEnum.Processing)));
 
         public Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();

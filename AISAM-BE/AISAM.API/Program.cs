@@ -21,6 +21,14 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The media endpoint accepts files up to 50 MB. Keep transport/form limits a
+// little higher to account for multipart headers, otherwise Kestrel can reset
+// the connection before the controller returns a useful validation response.
+const long mediaRequestLimit = 55L * 1024 * 1024;
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = mediaRequestLimit);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+    options.MultipartBodyLengthLimit = mediaRequestLimit);
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 

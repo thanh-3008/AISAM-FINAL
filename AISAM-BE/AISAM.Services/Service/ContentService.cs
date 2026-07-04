@@ -325,7 +325,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default)
     {
-        return await PublishInternalAsync(contentId, integrationId, profileId, null, cancellationToken);
+        return await PublishInternalAsync(contentId, integrationId, profileId, null, true, cancellationToken);
     }
 
     public async Task<GenericResponse<PublishResultDto>> PublishAsync(
@@ -335,14 +335,20 @@ public sealed class ContentService : IContentService
         Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
-        return await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, cancellationToken);
+        return await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, true, cancellationToken);
     }
+
+    public async Task<GenericResponse<PublishResultDto>> PublishScheduledAsync(
+        Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId,
+        CancellationToken cancellationToken = default)
+        => await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, false, cancellationToken);
 
     private async Task<GenericResponse<PublishResultDto>> PublishInternalAsync(
         Guid contentId,
         Guid integrationId,
         Guid profileId,
         Guid? workspaceId,
+        bool cancelActiveSchedules,
         CancellationToken cancellationToken)
     {
         var semaphore = _publishLocks.GetOrAdd(contentId, _ => new SemaphoreSlim(1, 1));
@@ -356,12 +362,10 @@ public sealed class ContentService : IContentService
                 return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
             }
 
-            if (content.Status == ContentStatusEnum.Published)
-            {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.AlreadyPublished, HttpStatusCode.BadRequest);
-            }
-
-            if (content.Status != ContentStatusEnum.Approved)
+            // A content item may be published to more than one social integration.
+            // The first successful post marks it Published; later integrations must
+            // still be allowed to publish the same content.
+            if (content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)
             {
                 return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.MustBeApproved, HttpStatusCode.BadRequest);
             }
@@ -456,7 +460,10 @@ public sealed class ContentService : IContentService
                     HttpStatusCode.BadGateway);
             }
 
-            await _contentCalendarRepository.CancelActiveSchedulesForContentAsync(contentId, cancellationToken);
+            if (cancelActiveSchedules)
+            {
+                await _contentCalendarRepository.CancelActiveSchedulesForContentAsync(contentId, cancellationToken);
+            }
 
             await _postRepository.AddAsync(new Post
             {
