@@ -13,6 +13,8 @@ public interface IContentCalendarRepository
     Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ContentCalendar>> ClaimDueSchedulesAtomicallyAsync(DateTime utcNow, int limit, int maxAttemptCount, CancellationToken cancellationToken = default);
     Task<bool> HasActiveScheduleAsync(Guid contentId, CancellationToken cancellationToken = default);
+    Task<bool> HasActiveScheduleAsync(Guid contentId, Guid integrationId, CancellationToken cancellationToken = default)
+        => HasActiveScheduleAsync(contentId, cancellationToken);
     Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default);
     Task<ContentCalendar> AddAsync(ContentCalendar schedule, CancellationToken cancellationToken = default);
     Task UpdateAsync(ContentCalendar schedule, CancellationToken cancellationToken = default);

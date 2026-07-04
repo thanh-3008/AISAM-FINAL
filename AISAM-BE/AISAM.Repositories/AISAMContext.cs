@@ -459,7 +459,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<ContentCalendar>(entity =>
             {
                 entity.HasKey(cc => cc.Id);
-                entity.HasIndex(cc => cc.ContentId)
+                entity.HasIndex(cc => new { cc.ContentId, cc.IntegrationId })
                       .IsUnique()
                       .HasFilter("\"status\" IN (0, 1)");
                 entity.HasIndex(cc => cc.ProfileId);

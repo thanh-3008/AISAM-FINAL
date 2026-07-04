@@ -49,7 +49,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         {
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeMustBeFuture, HttpStatusCode.BadRequest);
         }
-        if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, cancellationToken))
+        if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, request.IntegrationId, cancellationToken))
         {
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.BadRequest);
         }
@@ -306,13 +306,13 @@ public sealed class ContentScheduleService : IContentScheduleService
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ContentNotFound, HttpStatusCode.NotFound);
         if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != content.BrandId || integration.IsDeleted)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.SocialIntegrationNotFound, HttpStatusCode.NotFound);
-        if (content.Status != ContentStatusEnum.Approved)
+        if (content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)
             return GenericResponse<ContentScheduleDto>.CreateError("Content must be approved before scheduling.", HttpStatusCode.BadRequest);
         var scheduledAt = NormalizeScheduledAt(request.ScheduledAt);
         if (scheduledAt == default) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeInvalid, HttpStatusCode.BadRequest);
         if (scheduledAt <= DateTime.UtcNow)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeMustBeFuture, HttpStatusCode.BadRequest);
-        if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, cancellationToken))
+        if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, request.IntegrationId, cancellationToken))
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.BadRequest);
         var schedule = new ContentCalendar { WorkspaceId = workspaceId, ProfileId = profileId, ContentId = content.Id, Content = content, IntegrationId = integration.Id, Integration = integration, ScheduledAt = scheduledAt, ScheduledDate = scheduledAt, ScheduledTime = scheduledAt.TimeOfDay, Status = ScheduleStatusEnum.Pending };
         try
@@ -345,12 +345,7 @@ public sealed class ContentScheduleService : IContentScheduleService
             return (false, null, null, GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ContentNotFound, HttpStatusCode.NotFound));
         }
 
-        if (content.Status == ContentStatusEnum.Published)
-        {
-            return (false, null, null, GenericResponse<ContentScheduleDto>.CreateError("Published content cannot be scheduled again.", HttpStatusCode.BadRequest));
-        }
-
-        if (content.Status != ContentStatusEnum.Approved)
+        if (content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)
         {
             return (false, null, null, GenericResponse<ContentScheduleDto>.CreateError("Content must be approved before scheduling.", HttpStatusCode.BadRequest));
         }

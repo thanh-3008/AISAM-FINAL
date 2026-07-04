@@ -184,6 +184,16 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
                 cancellationToken);
     }
 
+    public async Task<bool> HasActiveScheduleAsync(Guid contentId, Guid integrationId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ContentCalendars.AnyAsync(s =>
+            s.ContentId == contentId &&
+            s.IntegrationId == integrationId &&
+            !s.IsDeleted &&
+            (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing),
+            cancellationToken);
+    }
+
     public async Task CancelActiveSchedulesForContentAsync(Guid contentId, CancellationToken cancellationToken = default)
     {
         var active = await _context.ContentCalendars

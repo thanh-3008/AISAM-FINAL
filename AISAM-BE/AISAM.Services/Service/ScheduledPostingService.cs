@@ -68,7 +68,7 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                 }
 
                 var integrationId = schedule.IntegrationId ?? Guid.Empty;
-                var publishResult = await _contentService.PublishAsync(
+                var publishResult = await _contentService.PublishScheduledAsync(
                     schedule.ContentId,
                     integrationId,
                     schedule.ProfileId,

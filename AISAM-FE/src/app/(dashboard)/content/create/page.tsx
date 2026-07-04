@@ -166,6 +166,10 @@ export default function CreateContentPage() {
 
     const uploadFile = async (file: File | null): Promise<string | null> => {
       if (!file) return null;
+      const maxMediaBytes = 50 * 1024 * 1024;
+      if (file.size > maxMediaBytes) {
+        throw new Error(`${file.name} is larger than 50 MB. Please compress the video before uploading.`);
+      }
       const formData = new FormData();
       formData.append("file", file);
       const result = await apiFetch("/content/media", { method: "POST", body: formData });

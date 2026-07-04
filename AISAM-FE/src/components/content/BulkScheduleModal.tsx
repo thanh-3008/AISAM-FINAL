@@ -6,7 +6,7 @@ import { fetchSocialIntegrations, type SocialIntegration } from "@/services/soci
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 
 interface BulkScheduleModalProps {
-  items: { id: string; contentId: string; title?: string; brandId?: string; brandName?: string }[];
+  items: { id: string; contentId: string; title?: string; brandId?: string; brandName?: string; type?: string }[];
   onClose: () => void;
   onSuccess: (message: string) => void;
 }
@@ -14,7 +14,7 @@ interface BulkScheduleModalProps {
 export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkScheduleModalProps) {
   const [scheduledAt, setScheduledAt] = useState("");
   const [integrations, setIntegrations] = useState<SocialIntegration[]>([]);
-  const [selectedIntegrationId, setSelectedIntegrationId] = useState("");
+  const [selectedIntegrationIds, setSelectedIntegrationIds] = useState<string[]>([]);
   const [scheduling, setScheduling] = useState(false);
   const [error, setError] = useState("");
   const [itemResults, setItemResults] = useState<BulkItemResult[] | null>(null);
@@ -25,6 +25,7 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
   const uniqueBrandIds = [...new Set(items.map(i => i.brandId).filter(Boolean))];
   const singleBrand = uniqueBrandIds.length === 1;
   const brandName = items[0]?.brandName;
+  const tiktokUnavailable = items.some((item) => item.type && item.type !== "VIDEO");
 
   useEffect(() => {
     if (singleBrand && uniqueBrandIds[0]) {
@@ -34,20 +35,20 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
 
   const handleSchedule = async () => {
     if (!scheduledAt) { setError("Please select a date and time."); return; }
-    if (!selectedIntegrationId) { setError("Please select a social account."); return; }
+    if (selectedIntegrationIds.length === 0) { setError("Please select at least one social account."); return; }
     setScheduling(true);
     setError("");
 
     const base = new Date(scheduledAt);
     const result = await bulkCreateSchedules({
-      items: items.map((i, idx) => {
+      items: items.flatMap((i, idx) => {
         const time = new Date(base);
         if (stagger) time.setMinutes(time.getMinutes() + idx * intervalMinutes);
-        return {
+        return selectedIntegrationIds.map((integrationId) => ({
           contentId: i.contentId,
-          integrationId: selectedIntegrationId,
+          integrationId,
           scheduledAt: time.toISOString(),
-        };
+        }));
       }),
     });
 
@@ -57,7 +58,7 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
     if (result.success && successCount === 0) {
       setError(result.message || "All items failed. Check that each content is Approved.");
     } else if (result.success && failedCount > 0) {
-      setError(`${successCount}/${items.length} created. ${failedCount} failed.`);
+      setError(`${successCount}/${items.length * selectedIntegrationIds.length} created. ${failedCount} failed.`);
     } else if (result.success) {
       onSuccess(result.message || "Schedules created.");
     } else {
@@ -145,22 +146,25 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
 
             {brandName && (
               <div>
-                <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">Social Account</label>
+                <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">Social Accounts</label>
                 {integrations.length === 0 ? (
                   <div className="py-4 text-center text-body-sm text-outline">No social accounts linked to {brandName}.</div>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {integrations.filter(i => i.isActive).map((int) => {
+                    {integrations.filter(i => i.isActive && !(tiktokUnavailable && i.provider === "tiktok")).map((int) => {
                       const cfg = PLATFORM_CONFIG[int.provider];
                       return (
                         <label key={int.id}
                           className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            selectedIntegrationId === int.id
+                            selectedIntegrationIds.includes(int.id)
                               ? "border-primary bg-primary/5"
                               : "border-outline-variant/20 hover:border-primary/30 bg-surface-container"
                           }`}>
-                          <input type="radio" name="bulk-integration" value={int.id} checked={selectedIntegrationId === int.id}
-                            onChange={() => setSelectedIntegrationId(int.id)} className="w-4 h-4 text-primary focus:ring-primary/30" />
+                          <input type="checkbox" value={int.id} checked={selectedIntegrationIds.includes(int.id)}
+                            onChange={() => setSelectedIntegrationIds((current) => current.includes(int.id)
+                              ? current.filter((id) => id !== int.id)
+                              : [...current, int.id])}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary/30" />
                           <PlatformIcon platform={cfg?.icon || "default"} className="w-7 h-7" />
                           <div className="flex-1 min-w-0">
                             <p className="text-label-sm font-semibold text-on-surface">{int.accountName}</p>
@@ -169,6 +173,12 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
                         </label>
                       );
                     })}
+                  </div>
+                )}
+                {tiktokUnavailable && integrations.some((integration) => integration.isActive && integration.provider === "tiktok") && (
+                  <div className="mt-2 px-3 py-2 rounded-lg bg-amber-500/10 text-amber-700 text-label-xs flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[15px]">warning</span>
+                    TikTok is hidden because every selected content item must contain a video.
                   </div>
                 )}
               </div>
@@ -189,8 +199,8 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
               </button>
               {showAllErrors && (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {itemResults.filter(r => !r.success).map(r => (
-                    <div key={r.contentId} className="flex items-start gap-1.5">
+                  {itemResults.filter(r => !r.success).map((r, index) => (
+                    <div key={`${r.contentId}-${index}`} className="flex items-start gap-1.5">
                       <span className="material-symbols-outlined text-[12px] mt-0.5 shrink-0">chevron_right</span>
                       <span className="truncate">{r.contentId.slice(0, 8)}... — {r.error}</span>
                     </div>
@@ -205,12 +215,12 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
               className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all">
               Cancel
             </button>
-            <button onClick={handleSchedule} disabled={!scheduledAt || !selectedIntegrationId || scheduling}
+            <button onClick={handleSchedule} disabled={!scheduledAt || selectedIntegrationIds.length === 0 || scheduling}
               className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold hover:shadow-lg active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
               {scheduling ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <><span className="material-symbols-outlined text-[16px]">calendar_month</span> Schedule</>
+                <><span className="material-symbols-outlined text-[16px]">calendar_month</span> Schedule ({selectedIntegrationIds.length})</>
               )}
             </button>
           </div>
