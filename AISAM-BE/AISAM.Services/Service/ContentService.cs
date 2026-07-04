@@ -443,7 +443,9 @@ public sealed class ContentService : IContentService
             catch (Exception)
             {
                 return GenericResponse<PublishResultDto>.CreateError(
-                    MessageConstants.Content.TokenDecryptionFailed, HttpStatusCode.InternalServerError);
+                    "Stored social credentials can no longer be decrypted. Disconnect and reconnect the account.",
+                    HttpStatusCode.Unauthorized,
+                    "SOCIAL_RECONNECT_REQUIRED");
             }
 
             var publishResult = await provider.PublishAsync(decryptedAccount, decryptedIntegration, postDto, cancellationToken);
