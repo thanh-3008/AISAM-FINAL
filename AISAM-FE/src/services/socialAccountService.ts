@@ -173,7 +173,7 @@ export async function fetchSocialAccounts(): Promise<{ data: SocialAccount[]; to
   return { data: [], total: 0 };
 }
 
-export async function getSocialAuthUrl(platform: "facebook" | "tiktok"): Promise<AuthUrlResponse> {
+export async function getSocialAuthUrl(platform: SocialPlatform): Promise<AuthUrlResponse> {
   const res: GenericResponse<BEAuthUrlResponse> = await apiClient(`/social-auth/${platform}`);
   if (res?.data) {
     return { authUrl: res.data.authUrl, state: res.data.state };
@@ -181,7 +181,7 @@ export async function getSocialAuthUrl(platform: "facebook" | "tiktok"): Promise
   throw new Error(res?.error?.errorMessage || `Failed to get ${platform} auth URL`);
 }
 
-export async function handleSocialCallback(platform: "facebook" | "tiktok", code: string, state: string): Promise<SocialAccount> {
+export async function handleSocialCallback(platform: SocialPlatform, code: string, state: string): Promise<SocialAccount> {
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social-auth/${platform}/callback`, {
     method: "POST",
     data: { code, state } as BECallbackRequest,
@@ -195,6 +195,7 @@ export async function handleSocialCallback(platform: "facebook" | "tiktok", code
 
 export const getFacebookAuthUrl = () => getSocialAuthUrl("facebook");
 export const handleFacebookCallback = (code: string, state: string) => handleSocialCallback("facebook", code, state);
+export const handleInstagramCallback = (code: string, state: string) => handleSocialCallback("instagram", code, state);
 
 export async function getAvailableTargets(accountId: string): Promise<AvailableTarget[]> {
   const res: GenericResponse<BEAvailableTargetDto[]> = await apiClient(`/social/accounts/${accountId}/available-targets`, {
@@ -218,7 +219,7 @@ export async function linkTargets(
   accountId: string,
   targetIds: string[],
   brandId: string,
-  provider: "facebook" | "tiktok" = "facebook",
+  provider: SocialPlatform = "facebook",
 ): Promise<SocialAccount> {
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
     method: "POST",

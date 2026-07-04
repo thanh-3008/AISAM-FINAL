@@ -363,7 +363,7 @@ public class SocialServiceTests
         FakeBrandRepository? brandRepository = null,
         FakeProviderService? providerService = null,
         FakeOAuthStateStore? oauthStateStore = null,
-        FakeSocialTokenProtector? tokenProtector = null)
+        ISocialTokenProtector? tokenProtector = null)
     {
         return new SocialService(
             accountRepository ?? new FakeSocialAccountRepository(),
@@ -375,11 +375,34 @@ public class SocialServiceTests
             {
                 RedirectUri = "https://server/callback"
             }),
+            Options.Create(new InstagramSettings
+            {
+                RedirectUri = "https://client/auth/instagram/callback"
+            }),
             Options.Create(new TikTokSettings
             {
                 RedirectUri = "https://client/social-callback/tiktok"
             }),
             new IProviderService[] { providerService ?? new FakeProviderService() });
+    }
+
+    [Fact]
+    public async Task GetWorkspaceAccountsAsync_DoesNotDecryptStoredTokens()
+    {
+        var workspaceId = Guid.NewGuid();
+        var account = CreateAccount(Guid.NewGuid());
+        account.WorkspaceId = workspaceId;
+        account.UserAccessToken = "token-encrypted-with-an-old-key";
+
+        var service = CreateService(
+            accountRepository: new FakeSocialAccountRepository(account),
+            tokenProtector: new ThrowingUnprotectSocialTokenProtector());
+
+        var result = await service.GetWorkspaceAccountsAsync(workspaceId);
+
+        var dto = Assert.Single(result);
+        Assert.Equal(account.Id, dto.Id);
+        Assert.Equal(string.Empty, dto.AccessToken);
     }
 
     private static SocialAccount CreateAccount(Guid profileId)
@@ -447,6 +470,11 @@ public class SocialServiceTests
         public Task<IReadOnlyList<SocialAccount>> GetByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<SocialAccount>>(Accounts.Values.Where(account => account.ProfileId == profileId && !account.IsDeleted).ToList());
+        }
+
+        public Task<IReadOnlyList<SocialAccount>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SocialAccount>>(Accounts.Values.Where(account => account.WorkspaceId == workspaceId && !account.IsDeleted).ToList());
         }
 
         public Task<SocialAccount> AddAsync(SocialAccount account, CancellationToken cancellationToken = default)
@@ -634,5 +662,11 @@ public class SocialServiceTests
                 ? ciphertext["protected:".Length..]
                 : ciphertext;
         }
+    }
+
+    private sealed class ThrowingUnprotectSocialTokenProtector : ISocialTokenProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+        public string Unprotect(string ciphertext) => throw new InvalidOperationException("Token cannot be decrypted.");
     }
 }

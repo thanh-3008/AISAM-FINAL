@@ -127,11 +127,6 @@ export default function SocialAccountsPage() {
 
   // Handlers
   const handleConnect = async (platform: SocialPlatform) => {
-    if (platform === "instagram") {
-      showToast("Instagram integration is not available yet", "error");
-      return;
-    }
-
     setActionLoading("connect");
     try {
       const authResponse = await getSocialAuthUrl(platform);

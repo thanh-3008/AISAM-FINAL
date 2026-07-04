@@ -93,9 +93,10 @@ public sealed class SocialAccountsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         if (!string.Equals(request.Provider, "facebook", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(request.Provider, "instagram", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(request.Provider, "tiktok", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest(GenericResponse<SocialAccountDto>.CreateError("Only Facebook and TikTok are supported."));
+            return BadRequest(GenericResponse<SocialAccountDto>.CreateError("Only Facebook, Instagram and TikTok are supported."));
         }
 
         try
