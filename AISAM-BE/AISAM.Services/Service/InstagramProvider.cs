@@ -79,8 +79,126 @@ public sealed class InstagramProvider : IProviderService
             .ToDictionary(page => page.InstagramBusinessAccount!.Id!, page => page.AccessToken!, StringComparer.Ordinal);
     }
 
-    public Task<PublishResultDto> PublishAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken = default)
-        => Task.FromResult(new PublishResultDto { Success = false, ErrorMessage = "Instagram publishing is not enabled yet." });
+    public async Task<PublishResultDto> PublishAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        if (string.IsNullOrWhiteSpace(integration.ExternalId) || string.IsNullOrWhiteSpace(integration.AccessToken))
+            return Failed("Instagram account is not linked correctly. Please reconnect it.");
+
+        var images = (post.ImageUrls ?? new List<string>())
+            .Where(url => !string.IsNullOrWhiteSpace(url)).Distinct().ToList();
+        if (!string.IsNullOrWhiteSpace(post.ImageUrl) && images.Count == 0)
+            images.Add(post.ImageUrl);
+
+        if (!string.IsNullOrWhiteSpace(post.VideoUrl) && images.Count > 0)
+            return Failed("An Instagram post cannot mix a Reel video with images.");
+        if (string.IsNullOrWhiteSpace(post.VideoUrl) && images.Count == 0)
+            return Failed("Instagram requires an image, carousel, or video.");
+        if (images.Count > 10)
+            return Failed("An Instagram carousel supports at most 10 images.");
+
+        if (!string.IsNullOrWhiteSpace(post.VideoUrl))
+            return await PublishReelAsync(integration, post, cancellationToken);
+        if (images.Count > 1)
+            return await PublishCarouselAsync(integration, post.Message, images, cancellationToken);
+        return await PublishImageAsync(integration, post.Message, images[0], cancellationToken);
+    }
+
+    private async Task<PublishResultDto> PublishImageAsync(SocialIntegration integration, string caption, string imageUrl, CancellationToken cancellationToken)
+    {
+        var container = await CreateContainerAsync(integration, new Dictionary<string, string>
+        {
+            ["image_url"] = imageUrl,
+            ["caption"] = caption
+        }, cancellationToken);
+        return container.Success
+            ? await PublishContainerAsync(integration, container.Id!, cancellationToken)
+            : Failed(container.Error!);
+    }
+
+    private async Task<PublishResultDto> PublishReelAsync(SocialIntegration integration, PostDto post, CancellationToken cancellationToken)
+    {
+        var container = await CreateContainerAsync(integration, new Dictionary<string, string>
+        {
+            ["media_type"] = "REELS",
+            ["video_url"] = post.VideoUrl!,
+            ["caption"] = post.Message,
+            ["share_to_feed"] = "true"
+        }, cancellationToken);
+        if (!container.Success) return Failed(container.Error!);
+
+        var ready = await WaitForContainerAsync(integration, container.Id!, cancellationToken);
+        return ready.Success
+            ? await PublishContainerAsync(integration, container.Id!, cancellationToken)
+            : Failed(ready.Error!);
+    }
+
+    private async Task<PublishResultDto> PublishCarouselAsync(SocialIntegration integration, string caption, IReadOnlyList<string> imageUrls, CancellationToken cancellationToken)
+    {
+        var children = new List<string>();
+        foreach (var imageUrl in imageUrls)
+        {
+            var child = await CreateContainerAsync(integration, new Dictionary<string, string>
+            {
+                ["image_url"] = imageUrl,
+                ["is_carousel_item"] = "true"
+            }, cancellationToken);
+            if (!child.Success) return Failed(child.Error!);
+            children.Add(child.Id!);
+        }
+
+        var parent = await CreateContainerAsync(integration, new Dictionary<string, string>
+        {
+            ["media_type"] = "CAROUSEL",
+            ["children"] = string.Join(',', children),
+            ["caption"] = caption
+        }, cancellationToken);
+        return parent.Success
+            ? await PublishContainerAsync(integration, parent.Id!, cancellationToken)
+            : Failed(parent.Error!);
+    }
+
+    private async Task<ApiResult> CreateContainerAsync(SocialIntegration integration, Dictionary<string, string> fields, CancellationToken cancellationToken)
+    {
+        fields["access_token"] = integration.AccessToken;
+        return await PostAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{integration.ExternalId}/media", fields, cancellationToken);
+    }
+
+    private async Task<PublishResultDto> PublishContainerAsync(SocialIntegration integration, string creationId, CancellationToken cancellationToken)
+    {
+        var result = await PostAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{integration.ExternalId}/media_publish",
+            new Dictionary<string, string> { ["creation_id"] = creationId, ["access_token"] = integration.AccessToken }, cancellationToken);
+        return result.Success
+            ? new PublishResultDto { Success = true, ProviderPostId = result.Id, PostedAt = DateTime.UtcNow }
+            : Failed(result.Error!);
+    }
+
+    private async Task<ApiResult> WaitForContainerAsync(SocialIntegration integration, string containerId, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            var status = await GetAsync<ContainerStatus>($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{containerId}" +
+                $"?fields=status_code,status&access_token={Uri.EscapeDataString(integration.AccessToken)}", cancellationToken);
+            if (string.Equals(status.StatusCode, "FINISHED", StringComparison.OrdinalIgnoreCase)) return ApiResult.Ok(containerId);
+            if (string.Equals(status.StatusCode, "ERROR", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status.StatusCode, "EXPIRED", StringComparison.OrdinalIgnoreCase))
+                return ApiResult.Fail(status.Status ?? $"Instagram container status is {status.StatusCode}.");
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+        return ApiResult.Fail("Instagram timed out while processing the video. Please try again.");
+    }
+
+    private async Task<ApiResult> PostAsync(string url, Dictionary<string, string> fields, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsync(url, new FormUrlEncodedContent(fields), cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return ApiResult.Fail(TryDeserialize<ErrorResponse>(json)?.Error?.Message ?? "Instagram request failed.");
+        var data = TryDeserialize<IdResponse>(json);
+        return string.IsNullOrWhiteSpace(data?.Id) ? ApiResult.Fail("Instagram returned an invalid response.") : ApiResult.Ok(data.Id);
+    }
+
+    private static PublishResultDto Failed(string message) => new() { Success = false, ErrorMessage = message };
 
     private async Task<List<PageData>> GetPagesAsync(string token, CancellationToken cancellationToken)
     {
@@ -133,4 +251,11 @@ public sealed class InstagramProvider : IProviderService
     private sealed class InstagramAccount { public string? Id { get; set; } public string? Username { get; set; } [JsonPropertyName("profile_picture_url")] public string? ProfilePictureUrl { get; set; } }
     private sealed class ErrorResponse { public ErrorData? Error { get; set; } }
     private sealed class ErrorData { public string? Message { get; set; } }
+    private sealed class IdResponse { public string? Id { get; set; } }
+    private sealed class ContainerStatus { [JsonPropertyName("status_code")] public string? StatusCode { get; set; } public string? Status { get; set; } }
+    private sealed record ApiResult(bool Success, string? Id, string? Error)
+    {
+        public static ApiResult Ok(string id) => new(true, id, null);
+        public static ApiResult Fail(string error) => new(false, null, error);
+    }
 }
