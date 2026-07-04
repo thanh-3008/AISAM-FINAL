@@ -84,6 +84,65 @@ public sealed class SocialAuthController : ControllerBase
         }
     }
 
+    [HttpGet("instagram")]
+    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetInstagramAuthUrl(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
+            var result = await _socialService.GetAuthUrlAsync("instagram", profileId, cancellationToken);
+            return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(GenericResponse<AuthUrlResponse>.CreateError("Invalid profile context.", HttpStatusCode.Unauthorized));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(GenericResponse<AuthUrlResponse>.CreateError(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            var status = ex.Message == "Instagram integration is not configured."
+                ? HttpStatusCode.ServiceUnavailable
+                : HttpStatusCode.BadRequest;
+            return StatusCode((int)status, GenericResponse<AuthUrlResponse>.CreateError(ex.Message, status));
+        }
+    }
+
+    [HttpPost("instagram/callback")]
+    public async Task<ActionResult<GenericResponse<SocialAccountDto>>> HandleInstagramCallback(
+        [FromBody] SocialCallbackRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
+            var result = await _socialService.LinkAccountInWorkspaceAsync(
+                "instagram",
+                WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+                profileId,
+                request,
+                cancellationToken);
+            return Ok(GenericResponse<SocialAccountDto>.CreateSuccess(result));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(GenericResponse<SocialAccountDto>.CreateError("Invalid profile context.", HttpStatusCode.Unauthorized));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(GenericResponse<SocialAccountDto>.CreateError(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            var status = ex.Message == "Instagram integration is not configured."
+                ? HttpStatusCode.ServiceUnavailable
+                : HttpStatusCode.BadRequest;
+            return StatusCode((int)status, GenericResponse<SocialAccountDto>.CreateError(ex.Message, status));
+        }
+    }
+
     [HttpGet("tiktok")]
     public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetTikTokAuthUrl(CancellationToken cancellationToken = default)
     {

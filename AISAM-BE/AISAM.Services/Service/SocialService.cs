@@ -17,6 +17,7 @@ public sealed class SocialService : ISocialService
     private readonly IOAuthStateStore _oauthStateStore;
     private readonly ISocialTokenProtector _tokenProtector;
     private readonly FacebookSettings _facebookSettings;
+    private readonly InstagramSettings _instagramSettings;
     private readonly TikTokSettings _tikTokSettings;
     private readonly Dictionary<string, IProviderService> _providers;
 
@@ -27,6 +28,7 @@ public sealed class SocialService : ISocialService
         IOAuthStateStore oauthStateStore,
         ISocialTokenProtector tokenProtector,
         IOptions<FacebookSettings> facebookSettings,
+        IOptions<InstagramSettings> instagramSettings,
         IOptions<TikTokSettings> tikTokSettings,
         IEnumerable<IProviderService> providers)
     {
@@ -36,6 +38,7 @@ public sealed class SocialService : ISocialService
         _oauthStateStore = oauthStateStore;
         _tokenProtector = tokenProtector;
         _facebookSettings = facebookSettings.Value;
+        _instagramSettings = instagramSettings.Value;
         _tikTokSettings = tikTokSettings.Value;
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
     }
@@ -113,7 +116,7 @@ public sealed class SocialService : ISocialService
     public async Task<IReadOnlyList<SocialAccountDto>> GetProfileAccountsAsync(Guid profileId, CancellationToken cancellationToken = default)
     {
         var accounts = await _socialAccountRepository.GetByProfileIdAsync(profileId, cancellationToken);
-        return accounts.Select(MapAccount).ToList();
+        return accounts.Select(account => MapAccount(account)).ToList();
     }
 
     public async Task<IReadOnlyList<AvailableTargetDto>> ListAvailableTargetsForAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
@@ -270,14 +273,16 @@ public sealed class SocialService : ISocialService
     public async Task<SocialAccountDto?> GetSocialAccountByIdAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
     {
         var account = await _socialAccountRepository.GetByIdWithIntegrationsAsync(socialAccountId, cancellationToken);
-        return account == null || account.ProfileId != profileId ? null : MapAccount(account);
+        return account == null || account.ProfileId != profileId ? null : MapAccount(account, includeCredentials: true);
     }
 
     public async Task<SocialAccountDto> LinkAccountInWorkspaceAsync(string provider, Guid workspaceId, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default)
         => await LinkAccountInternalAsync(provider, profileId, workspaceId, request, cancellationToken);
 
     public async Task<IReadOnlyList<SocialAccountDto>> GetWorkspaceAccountsAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-        => (await _socialAccountRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken)).Select(MapAccount).ToList();
+        => (await _socialAccountRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken))
+            .Select(account => MapAccount(account))
+            .ToList();
 
     public async Task<IReadOnlyList<AvailableTargetDto>> ListAvailableTargetsInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
     {
@@ -355,9 +360,10 @@ public sealed class SocialService : ISocialService
     private IProviderService GetProvider(string provider)
     {
         if (!string.Equals(provider, "facebook", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(provider, "instagram", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(provider, "tiktok", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("Only Facebook and TikTok are supported.");
+            throw new ArgumentException("Only Facebook, Instagram and TikTok are supported.");
         }
 
         if (!_providers.TryGetValue(provider, out var providerService))
@@ -371,6 +377,7 @@ public sealed class SocialService : ISocialService
     private string GetRedirectUri(string provider) => GetPlatform(provider) switch
     {
         SocialPlatformEnum.Facebook => _facebookSettings.RedirectUri,
+        SocialPlatformEnum.Instagram => _instagramSettings.RedirectUri,
         SocialPlatformEnum.TikTok => _tikTokSettings.RedirectUri,
         _ => throw new ArgumentException("Unsupported social provider.")
     };
@@ -378,11 +385,12 @@ public sealed class SocialService : ISocialService
     private static SocialPlatformEnum GetPlatform(string provider)
     {
         if (string.Equals(provider, "facebook", StringComparison.OrdinalIgnoreCase)) return SocialPlatformEnum.Facebook;
+        if (string.Equals(provider, "instagram", StringComparison.OrdinalIgnoreCase)) return SocialPlatformEnum.Instagram;
         if (string.Equals(provider, "tiktok", StringComparison.OrdinalIgnoreCase)) return SocialPlatformEnum.TikTok;
         throw new ArgumentException("Unsupported social provider.");
     }
 
-    private SocialAccountDto MapAccount(SocialAccount account)
+    private SocialAccountDto MapAccount(SocialAccount account, bool includeCredentials = false)
     {
         return new SocialAccountDto
         {
@@ -390,8 +398,12 @@ public sealed class SocialService : ISocialService
             ProfileId = account.ProfileId,
             Provider = account.Platform.ToString().ToLowerInvariant(),
             ProviderUserId = account.AccountId ?? string.Empty,
-            AccessToken = account.UserAccessToken != null ? _tokenProtector.Unprotect(account.UserAccessToken) : string.Empty,
-            RefreshToken = string.IsNullOrWhiteSpace(account.RefreshToken) ? null : _tokenProtector.Unprotect(account.RefreshToken),
+            AccessToken = includeCredentials && !string.IsNullOrWhiteSpace(account.UserAccessToken)
+                ? _tokenProtector.Unprotect(account.UserAccessToken)
+                : string.Empty,
+            RefreshToken = includeCredentials && !string.IsNullOrWhiteSpace(account.RefreshToken)
+                ? _tokenProtector.Unprotect(account.RefreshToken)
+                : null,
             IsActive = account.IsActive,
             ExpiresAt = account.ExpiresAt,
             CreatedAt = account.CreatedAt,
@@ -410,7 +422,12 @@ public sealed class SocialService : ISocialService
             Id = integration.Id,
             ProviderTargetId = integration.ExternalId ?? string.Empty,
             Name = integration.ExternalId ?? string.Empty,
-            Type = integration.Platform == SocialPlatformEnum.TikTok ? "tiktok_account" : "page",
+            Type = integration.Platform switch
+            {
+                SocialPlatformEnum.TikTok => "tiktok_account",
+                SocialPlatformEnum.Instagram => "instagram_business_account",
+                _ => "page"
+            },
             IsActive = integration.IsActive
         };
     }
