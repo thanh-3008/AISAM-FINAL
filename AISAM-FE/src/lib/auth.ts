@@ -178,7 +178,6 @@ export function getUserFromToken(): { name?: string; email?: string } | null {
 }
 
 export function getUserRoleFromToken(): string | null {
-  if (typeof window === "undefined") return null;
   try {
     const token = getToken();
     if (!token) return null;
@@ -186,7 +185,6 @@ export function getUserRoleFromToken(): string | null {
     return (
       decoded[CLAIM_ROLE] ||
       decoded["role"] ||
-      decoded["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
       null
     );
   } catch {
