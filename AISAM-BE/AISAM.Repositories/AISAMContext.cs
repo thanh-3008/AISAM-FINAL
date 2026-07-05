@@ -43,6 +43,7 @@ namespace AISAM.Repositories
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<SystemSetting> SystemSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -612,6 +613,12 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(cm => cm.ContentId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<SystemSetting>(entity =>
+            {
+                entity.HasKey(ss => ss.Id);
+                entity.HasIndex(ss => ss.Key).IsUnique();
             });
         }
     }
