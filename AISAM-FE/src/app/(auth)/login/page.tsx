@@ -111,6 +111,12 @@ export default function LoginPage() {
             if (meResult.data.refreshToken) {
               setRefreshToken(meResult.data.refreshToken);
             }
+
+            if (meResult.data.role === "Admin") {
+              setIsSuccess(true);
+              router.push("/admin/dashboard");
+              return;
+            }
           }
         } catch {
           // /auth/me is optional — continue regardless
