@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos;
 using AISAM.Data.Model;
 
 namespace AISAM.Repositories.IRepositories;
@@ -10,4 +11,6 @@ public interface IWorkspaceRepository
     Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default);
     Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

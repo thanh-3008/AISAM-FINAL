@@ -294,11 +294,10 @@ export default function DashboardPage() {
                     <span className="material-symbols-outlined text-[22px]">{kpi.icon}</span>
                   </div>
                   {kpi.delta !== null && (
-                    <span className={`flex items-center gap-1 text-label-sm px-2 py-1 rounded-full font-semibold ${
-                      kpi.deltaUp === true ? "bg-emerald-50 text-emerald-600" :
-                      kpi.deltaUp === false ? "bg-red-50 text-red-500" :
-                      "bg-surface-container-high text-on-surface-variant"
-                    }`}>
+                    <span className={`flex items-center gap-1 text-label-sm px-2 py-1 rounded-full font-semibold ${kpi.deltaUp === true ? "bg-emerald-50 text-emerald-600" :
+                        kpi.deltaUp === false ? "bg-red-50 text-red-500" :
+                          "bg-surface-container-high text-on-surface-variant"
+                      }`}>
                       {kpi.deltaUp === true && <span className="material-symbols-outlined text-[14px]">trending_up</span>}
                       {kpi.deltaUp === false && <span className="material-symbols-outlined text-[14px]">trending_down</span>}
                       {kpi.delta}
@@ -413,11 +412,10 @@ export default function DashboardPage() {
                       <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title || "Untitled"}</p>
                       <p className="text-label-sm text-outline">{formatScheduleDate(post.scheduledAt)}</p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-label-2xs font-semibold tracking-wide ${
-                      post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
-                      post.status === "Failed" ? "bg-red-50 text-red-500" :
-                      "bg-amber-50 text-amber-600"
-                    }`}>
+                    <span className={`px-2 py-0.5 rounded text-label-2xs font-semibold tracking-wide ${post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
+                        post.status === "Failed" ? "bg-red-50 text-red-500" :
+                          "bg-amber-50 text-amber-600"
+                      }`}>
                       {post.status}
                     </span>
                   </div>
@@ -484,13 +482,12 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform ${
-                        row.objective === "SALES" ? "bg-blue-50 text-blue-600" :
-                        row.objective === "AWARENESS" ? "bg-purple-50 text-purple-600" :
-                        row.objective === "TRAFFIC" ? "bg-orange-50 text-orange-600" :
-                        row.objective === "LEADS" ? "bg-emerald-50 text-emerald-600" :
-                        "bg-surface-container-high text-on-surface-variant"
-                      }`}>{row.objective}</span>
+                      <span className={`px-2.5 py-1 rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform ${row.objective === "SALES" ? "bg-blue-50 text-blue-600" :
+                          row.objective === "AWARENESS" ? "bg-purple-50 text-purple-600" :
+                            row.objective === "TRAFFIC" ? "bg-orange-50 text-orange-600" :
+                              row.objective === "LEADS" ? "bg-emerald-50 text-emerald-600" :
+                                "bg-surface-container-high text-on-surface-variant"
+                        }`}>{row.objective}</span>
                     </td>
                     <td className="px-6 py-4 text-body-sm text-on-surface font-medium">${row.budget?.toLocaleString() || "0"}</td>
                     <td className="px-6 py-4">
@@ -502,11 +499,10 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                        row.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" :
-                        row.status === "COMPLETED" ? "bg-blue-50 text-blue-600" :
-                        "bg-surface-container-high text-on-surface-variant"
-                      }`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${row.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" :
+                          row.status === "COMPLETED" ? "bg-blue-50 text-blue-600" :
+                            "bg-surface-container-high text-on-surface-variant"
+                        }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${row.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : "bg-outline"}`} />
                         {row.status === "ACTIVE" ? "Active" : row.status === "COMPLETED" ? "Completed" : row.status === "PAUSED" ? "Paused" : "Draft"}
                       </span>
@@ -521,17 +517,23 @@ export default function DashboardPage() {
         {/* ===== BOTTOM GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
           {[
-            { title: "Geographic Distribution", icon: "map", color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", type: "geo", data: [
-              { label: "United States", value: 38 }, { label: "United Kingdom", value: 22 }, { label: "Germany", value: 15 }, { label: "Japan", value: 12 }, { label: "Others", value: 13 }
-            ] },
-            { title: "Top Demographics", icon: "pie_chart", color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", type: "demographics", data: [
-              { label: "18-24", value: 28 }, { label: "25-34", value: 42 }, { label: "35-44", value: 20 }, { label: "45+", value: 10 }
-            ] },
-            { title: "Device Breakdown", icon: "devices", color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", type: "devices", data: [
-              { label: "Mobile", value: 72, color: "bg-gradient-to-r from-blue-500 to-blue-400" },
-              { label: "Desktop", value: 24, color: "bg-gradient-to-r from-purple-500 to-purple-400" },
-              { label: "Tablet", value: 4, color: "bg-gradient-to-r from-amber-500 to-amber-400" },
-            ] },
+            {
+              title: "Geographic Distribution", icon: "map", color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", type: "geo", data: [
+                { label: "United States", value: 38 }, { label: "United Kingdom", value: 22 }, { label: "Germany", value: 15 }, { label: "Japan", value: 12 }, { label: "Others", value: 13 }
+              ]
+            },
+            {
+              title: "Top Demographics", icon: "pie_chart", color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", type: "demographics", data: [
+                { label: "18-24", value: 28 }, { label: "25-34", value: 42 }, { label: "35-44", value: 20 }, { label: "45+", value: 10 }
+              ]
+            },
+            {
+              title: "Device Breakdown", icon: "devices", color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", type: "devices", data: [
+                { label: "Mobile", value: 72, color: "bg-gradient-to-r from-blue-500 to-blue-400" },
+                { label: "Desktop", value: 24, color: "bg-gradient-to-r from-purple-500 to-purple-400" },
+                { label: "Tablet", value: 4, color: "bg-gradient-to-r from-amber-500 to-amber-400" },
+              ]
+            },
           ].map((item, i) => (
             <div
               key={item.title}

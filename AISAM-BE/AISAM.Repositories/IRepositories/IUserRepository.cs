@@ -14,5 +14,8 @@ namespace AISAM.Repositories.IRepositories
         Task<User?> GetByPasswordResetTokenAsync(string token);
         Task<User?> GetByEmailVerificationTokenAsync(string token);
         Task<PagedResult<UserListDto>> GetPagedUsersAsync(PaginationRequest request);
+        Task<int> GetCountAsync(CancellationToken cancellationToken = default);
+        Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<PagedResult<UserListDto>> GetPagedUsersWithRoleFilterAsync(PaginationRequest request, int? role, bool? isEmailVerified, string? search, CancellationToken cancellationToken = default);
     }
 }

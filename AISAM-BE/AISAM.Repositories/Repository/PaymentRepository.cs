@@ -102,6 +102,18 @@ public sealed class PaymentRepository : IPaymentRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Payments.AsNoTracking();
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+        return new PagedResult<Payment> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
+    }
+
     private IQueryable<Payment> Query()
     {
         return _context.Payments
