@@ -144,6 +144,8 @@ public sealed class CampaignAnalyticsItemDto
 {
     public Guid CampaignId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string CampaignName { get; set; } = string.Empty;
+    public string BrandName { get; set; } = string.Empty;
     public string? Platform { get; set; }
     public string? Objective { get; set; }
     public string? Status { get; set; }
@@ -155,6 +157,33 @@ public sealed class CampaignAnalyticsItemDto
     public decimal Ctr { get; set; }
     public decimal Spend { get; set; }
     public decimal EstimatedRevenue { get; set; }
+    public long Conversions { get; set; }
+    public decimal Cpa { get; set; }
+    public decimal Roas { get; set; }
+}
+
+public class WorkspaceAnalyticsItemDto
+{
+    public Guid WorkspaceId { get; set; }
+    public string WorkspaceName { get; set; } = string.Empty;
+    public int PublishedPosts { get; set; }
+    public int ActiveCampaigns { get; set; }
+    public long Impressions { get; set; }
+    public long Clicks { get; set; }
+    public decimal Spend { get; set; }
+    public long Engagement { get; set; }
+    public decimal Ctr { get; set; }
+    public decimal EstimatedRevenue { get; set; }
+    public decimal Roas { get; set; }
+}
+
+public class AdminAnalyticsOverviewDto
+{
+    public AnalyticsTotals Totals { get; set; } = new();
+    public AnalyticsSparklines Sparklines { get; set; } = new();
+    public IReadOnlyList<WorkspaceAnalyticsItemDto> TopWorkspaces { get; set; } = Array.Empty<WorkspaceAnalyticsItemDto>();
+    public IReadOnlyList<CampaignAnalyticsItemDto> TopCampaigns { get; set; } = Array.Empty<CampaignAnalyticsItemDto>();
+    public UsageBreakdownDto UsageBreakdown { get; set; } = new();
 }
 
 public sealed class AnalyticsTopPostsDto

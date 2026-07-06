@@ -13,4 +13,7 @@ public interface IPerformanceReportRepository
     Task<IReadOnlyList<AnalyticsChannelBreakdownDto>> GetChannelBreakdownAsync(Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null, CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<CampaignAnalyticsItemDto> Items, int TotalCount)> GetCampaignBreakdownPagedAsync(Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null, string? platform = null, int page = 1, int pageSize = 20, string? sortBy = "impressions", bool sortDescending = true, CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<TopPostItemDto> Items, int TotalCount)> GetTopPostsPagedAsync(Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null, string? platform = null, string? metric = "engagement", int page = 1, int pageSize = 10, bool sortDescending = true, CancellationToken cancellationToken = default);
+    Task<AnalyticsTotals> GetAllWorkspaceTotalsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WorkspaceAnalyticsItemDto>> GetWorkspaceComparisonAsync(DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CampaignAnalyticsItemDto>> GetTopCampaignsAllWorkspacesAsync(DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default);
 }

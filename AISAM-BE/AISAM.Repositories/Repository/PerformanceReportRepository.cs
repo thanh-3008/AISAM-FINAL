@@ -418,4 +418,149 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             _ => SocialPlatformEnum.Facebook
         };
     }
+
+    public async Task<AnalyticsTotals> GetAllWorkspaceTotalsAsync(
+        DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        var campaignsQuery = _context.AdCampaigns
+            .Where(c => !c.IsDeleted);
+
+        var postsQuery = _context.Posts
+            .Where(p => !p.IsDeleted
+                && p.PublishedAt >= from && p.PublishedAt <= to
+                && p.Content != null && !p.Content.IsDeleted);
+
+        var publishedPosts = await postsQuery.CountAsync(cancellationToken);
+        var activeCampaigns = await campaignsQuery
+            .Where(c => c.IsActive && c.DeploymentStatus == DeploymentStatusEnum.None && (c.EndDate == null || c.EndDate >= from))
+            .CountAsync(cancellationToken);
+
+        var campaignAgg = await campaignsQuery
+            .Where(c => c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Impressions = g.Sum(c => c.Impressions),
+                Clicks = g.Sum(c => c.Clicks),
+                Spend = g.Sum(c => c.Spend),
+                Conversions = g.Sum(c => c.Conversions)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var perfAgg = await _context.PerformanceReports
+            .Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Engagement = g.Sum(pr => pr.Engagement),
+                EstimatedRevenue = g.Sum(pr => pr.EstimatedRevenue)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var impressions = campaignAgg?.Impressions ?? 0;
+        var clicks = campaignAgg?.Clicks ?? 0;
+        var ctr = impressions > 0 ? (decimal)clicks / impressions * 100 : 0;
+
+        return new AnalyticsTotals
+        {
+            Impressions = impressions,
+            Clicks = clicks,
+            Ctr = ctr,
+            Spend = campaignAgg?.Spend ?? 0,
+            Conversions = campaignAgg?.Conversions ?? 0,
+            Engagement = perfAgg?.Engagement ?? 0,
+            EstimatedRevenue = perfAgg?.EstimatedRevenue ?? 0,
+            PublishedPosts = publishedPosts,
+            ActiveCampaigns = activeCampaigns
+        };
+    }
+
+    public async Task<IReadOnlyList<WorkspaceAnalyticsItemDto>> GetWorkspaceComparisonAsync(
+        DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default)
+    {
+        var workspaces = await _context.Workspaces
+            .AsNoTracking()
+            .Where(w => w.Status == WorkspaceStatusEnum.Active)
+            .Select(w => new { w.Id, w.Name })
+            .ToListAsync(cancellationToken);
+
+        var result = new List<WorkspaceAnalyticsItemDto>();
+
+        foreach (var ws in workspaces)
+        {
+            var posts = await _context.Posts
+                .CountAsync(p => !p.IsDeleted && p.PublishedAt >= from && p.PublishedAt <= to && p.Content != null && p.Content.WorkspaceId == ws.Id, cancellationToken);
+
+            var campaigns = await _context.AdCampaigns
+                .CountAsync(c => !c.IsDeleted && c.WorkspaceId == ws.Id && c.IsActive && (c.EndDate == null || c.EndDate >= from), cancellationToken);
+
+            var campAgg = await _context.AdCampaigns
+                .Where(c => !c.IsDeleted && c.WorkspaceId == ws.Id && (c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from))
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Impressions = g.Sum(c => c.Impressions),
+                    Clicks = g.Sum(c => c.Clicks),
+                    Spend = g.Sum(c => c.Spend)
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var perfAgg = await _context.PerformanceReports
+                .Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to && pr.Post != null && pr.Post.Content != null && pr.Post.Content.WorkspaceId == ws.Id)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Engagement = g.Sum(pr => pr.Engagement),
+                    EstimatedRevenue = g.Sum(pr => pr.EstimatedRevenue)
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var impressions = campAgg?.Impressions ?? 0;
+            var clicks = campAgg?.Clicks ?? 0;
+
+            result.Add(new WorkspaceAnalyticsItemDto
+            {
+                WorkspaceId = ws.Id,
+                WorkspaceName = ws.Name,
+                PublishedPosts = posts,
+                ActiveCampaigns = campaigns,
+                Impressions = impressions,
+                Clicks = clicks,
+                Spend = campAgg?.Spend ?? 0,
+                Engagement = perfAgg?.Engagement ?? 0,
+                Ctr = impressions > 0 ? (decimal)clicks / impressions * 100 : 0,
+                EstimatedRevenue = perfAgg?.EstimatedRevenue ?? 0,
+                Roas = (campAgg?.Spend ?? 0) > 0 ? (perfAgg?.EstimatedRevenue ?? 0) / (campAgg?.Spend ?? 1) : 0
+            });
+        }
+
+        return result.OrderByDescending(w => w.EstimatedRevenue).Take(top).ToList();
+    }
+
+    public async Task<IReadOnlyList<CampaignAnalyticsItemDto>> GetTopCampaignsAllWorkspacesAsync(
+        DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default)
+    {
+        var campaigns = await _context.AdCampaigns
+            .AsNoTracking()
+            .Where(c => !c.IsDeleted && (c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from))
+            .Include(c => c.Workspace)
+            .OrderByDescending(c => c.Impressions)
+            .Take(top)
+            .Select(c => new CampaignAnalyticsItemDto
+            {
+                CampaignName = c.Name,
+                BrandName = "",
+                Status = c.IsActive ? "active" : (c.EndDate != null && c.EndDate < DateTime.UtcNow ? "completed" : "paused"),
+                Impressions = c.Impressions,
+                Clicks = c.Clicks,
+                Spend = c.Spend,
+                Conversions = c.Conversions,
+                Ctr = c.Impressions > 0 ? (decimal)c.Clicks / c.Impressions * 100 : 0,
+                Cpa = c.Conversions > 0 ? c.Spend / c.Conversions : 0,
+                Roas = c.Spend > 0 ? c.Conversions * 50 / c.Spend : 0
+            })
+            .ToListAsync(cancellationToken);
+
+        return campaigns;
+    }
 }
