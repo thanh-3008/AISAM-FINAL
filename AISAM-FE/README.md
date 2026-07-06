@@ -4,7 +4,7 @@ This is a [Next.js](https://nextjs.org) project for the AISAM (AI-Powered Social
 
 ## Workspace product policy
 
-Canonical policy: `../docs/product/workspace-subscription-expiry-policy.md`.
+Canonical policy: `../docs/main/workspace-subscription-expiry-policy.md`.
 
 - `/overview` lists all workspaces and is the only place to start Business Workspace creation.
 - Each account has one Personal Workspace; Personal paid expiry falls back to Personal Free.
