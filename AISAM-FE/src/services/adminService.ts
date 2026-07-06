@@ -180,3 +180,93 @@ export async function saveAdminSettings(settings: Record<string, string>): Promi
     return res?.success ?? false;
   } catch { return false; }
 }
+
+export interface AdminAnalyticsOverview {
+  totals: {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    spend: number;
+    conversions: number;
+    engagement: number;
+    estimatedRevenue: number;
+    publishedPosts: number;
+    activeCampaigns: number;
+  };
+  topWorkspaces: {
+    workspaceId: string;
+    workspaceName: string;
+    publishedPosts: number;
+    activeCampaigns: number;
+    impressions: number;
+    clicks: number;
+    spend: number;
+    engagement: number;
+    ctr: number;
+    estimatedRevenue: number;
+    roas: number;
+  }[];
+  topCampaigns: {
+    campaignName: string;
+    brandName: string;
+    status: string;
+    impressions: number;
+    clicks: number;
+    spend: number;
+    conversions: number;
+    ctr: number;
+    cpa: number;
+    roas: number;
+  }[];
+  systemStats: {
+    totalUsers: number;
+    totalWorkspaces: number;
+    totalContent: number;
+    totalRevenue: number;
+  };
+  period: { from: string; to: string };
+}
+
+export interface WorkspaceComparisonItem {
+  workspaceId: string;
+  workspaceName: string;
+  publishedPosts: number;
+  activeCampaigns: number;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  engagement: number;
+  ctr: number;
+  estimatedRevenue: number;
+  roas: number;
+}
+
+export async function fetchAdminAnalyticsOverview(from?: string, to?: string): Promise<AdminAnalyticsOverview | null> {
+  try {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString();
+    const res: GenericResponse<AdminAnalyticsOverview> = await apiClient(`/admin/analytics/overview${qs ? "?" + qs : ""}`);
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function fetchAdminWorkspaceComparison(from?: string, to?: string, top = 20): Promise<WorkspaceComparisonItem[] | null> {
+  try {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("top", String(top));
+    const res: GenericResponse<WorkspaceComparisonItem[]> = await apiClient(`/admin/analytics/workspace-comparison?${params.toString()}`);
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export function getAdminExportUrl(from?: string, to?: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return `${baseUrl}/admin/analytics/export${params.toString() ? "?" + params.toString() : ""}`;
+}
