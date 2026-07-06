@@ -97,9 +97,20 @@ export default function LoginPage() {
 
         if (result.data.user) {
           setStoredUser(result.data.user);
+
+          // Admin redirect — check role from login response (more reliable than /auth/me)
+          if (result.data.user.role === 2 || result.data.user.role === "Admin") {
+            // Also set a cookie so middleware can detect admin
+            if (typeof document !== "undefined") {
+              document.cookie = "aisam_role=Admin; path=/; max-age=86400";
+            }
+            setIsSuccess(true);
+            router.push("/admin/dashboard");
+            return;
+          }
         }
 
-        // fetch full user info
+        // fetch full user info for non-admin users
         try {
           const meResult = await apiClient("/auth/me");
           if (meResult.success && meResult.data) {
@@ -110,12 +121,6 @@ export default function LoginPage() {
             });
             if (meResult.data.refreshToken) {
               setRefreshToken(meResult.data.refreshToken);
-            }
-
-            if (meResult.data.role === "Admin") {
-              setIsSuccess(true);
-              router.push("/admin/dashboard");
-              return;
             }
           }
         } catch {
