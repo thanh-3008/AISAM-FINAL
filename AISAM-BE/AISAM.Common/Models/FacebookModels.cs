@@ -162,3 +162,38 @@ public sealed class FacebookActionData
     [JsonPropertyName("value")]
     public string? Value { get; set; }
 }
+
+// ─── Page Insights Models ───
+
+public sealed class FacebookPageInsightsResponse
+{
+    [JsonPropertyName("data")]
+    public List<FacebookPageInsightValue>? Data { get; set; }
+}
+
+public sealed class FacebookPageInsightValue
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("period")]
+    public string? Period { get; set; }
+
+    [JsonPropertyName("values")]
+    public List<FacebookInsightPeriodValue>? Values { get; set; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+public sealed class FacebookInsightPeriodValue
+{
+    [JsonPropertyName("value")]
+    public object? Value { get; set; }
+
+    [JsonPropertyName("end_time")]
+    public string? EndTime { get; set; }
+}

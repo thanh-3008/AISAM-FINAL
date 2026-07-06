@@ -1,7 +1,18 @@
 "use client";
 
 import { type DateRange } from "@/services/analyticsService";
-import { DATE_RANGE_OPTIONS, CAMPAIGN_OPTIONS, BRAND_OPTIONS, PLATFORM_OPTIONS } from "./analyticsUtils";
+import { DATE_RANGE_OPTIONS, CAMPAIGN_OPTIONS } from "./analyticsUtils";
+
+interface BrandOption {
+  label: string;
+  value: string;
+}
+
+interface PlatformOption {
+  label: string;
+  value: string;
+  color?: string;
+}
 
 interface AnalyticsFilterBarProps {
   dateRange: DateRange;
@@ -12,8 +23,17 @@ interface AnalyticsFilterBarProps {
   onBrandFilterChange: (value: string) => void;
   platformFilter: string;
   onPlatformFilterChange: (value: string) => void;
+  brandOptions?: BrandOption[];
+  platformOptions?: PlatformOption[];
   onRefresh: () => void;
 }
+
+const DEFAULT_PLATFORM_OPTIONS: PlatformOption[] = [
+  { value: "all", label: "All Platforms" },
+  { value: "facebook", label: "Facebook", color: "#1877F2" },
+  { value: "instagram", label: "Instagram", color: "#DD2A7B" },
+  { value: "tiktok", label: "TikTok", color: "#111111" },
+];
 
 export default function AnalyticsFilterBar({
   dateRange,
@@ -24,9 +44,17 @@ export default function AnalyticsFilterBar({
   onBrandFilterChange,
   platformFilter,
   onPlatformFilterChange,
+  brandOptions,
+  platformOptions,
   onRefresh,
 }: AnalyticsFilterBarProps) {
-  const selectedPlatform = PLATFORM_OPTIONS.find((p) => p.value === platformFilter);
+  const brands = brandOptions && brandOptions.length > 0
+    ? brandOptions
+    : [{ label: "All Brands", value: "all" }];
+  const platforms = platformOptions && platformOptions.length > 0
+    ? platformOptions
+    : DEFAULT_PLATFORM_OPTIONS;
+  const selectedPlatform = platforms.find((p) => p.value === platformFilter);
 
   return (
     <div className="bg-surface-container-lowest/80 backdrop-blur-xl rounded-2xl border border-outline-variant/30 px-6 py-4 shadow-lg animate-fade-up" style={{ animationDelay: "0.15s" }}>
@@ -69,7 +97,7 @@ export default function AnalyticsFilterBar({
           onChange={(e) => onBrandFilterChange(e.target.value)}
           className="bg-surface-container-low border border-outline-variant/30 rounded-xl px-4 py-2.5 text-label-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-300 cursor-pointer hover:bg-surface-container-high"
         >
-          {BRAND_OPTIONS.map((opt) => (
+          {brands.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -86,7 +114,7 @@ export default function AnalyticsFilterBar({
               : "bg-surface-container-low border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
           }`}
         >
-          {PLATFORM_OPTIONS.map((opt) => (
+          {platforms.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
