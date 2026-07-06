@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -112,6 +113,16 @@ public sealed class PaymentRepository : IPaymentRepository
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
         return new PagedResult<Payment> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
+    }
+
+    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Payments.CountAsync(cancellationToken);
+    }
+
+    public async Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Payments.Where(p => p.Status == PaymentStatusEnum.Success).SumAsync(p => p.Amount, cancellationToken);
     }
 
     private IQueryable<Payment> Query()

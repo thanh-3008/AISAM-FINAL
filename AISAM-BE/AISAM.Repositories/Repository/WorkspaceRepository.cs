@@ -89,6 +89,11 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
         }
     }
 
+    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Workspaces.CountAsync(cancellationToken);
+    }
+
     private IQueryable<Workspace> Query()
     {
         return _context.Workspaces

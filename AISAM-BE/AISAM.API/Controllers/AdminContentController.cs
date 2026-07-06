@@ -40,6 +40,14 @@ public sealed class AdminContentController : ControllerBase
         var result = await _adminService.SetContentStatusAsync(adminUserId, id, request.Status, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult<GenericResponse<bool>>> DeleteContent(Guid id, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _adminService.DeleteContentAsync(adminUserId, id, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }
 
 public class SetContentStatusRequest

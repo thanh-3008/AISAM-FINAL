@@ -2,6 +2,7 @@ using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
+using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using System.Net;
@@ -14,17 +15,20 @@ namespace AISAM.Services.Service
         private readonly IWorkspaceRepository _workspaceRepository;
         private readonly IPaymentRepository _paymentRepository;
         private readonly IContentRepository _contentRepository;
+        private readonly IAuditLogRepository _auditLogRepository;
 
         public AdminService(
             IUserRepository userRepository,
             IWorkspaceRepository workspaceRepository,
             IPaymentRepository paymentRepository,
-            IContentRepository contentRepository)
+            IContentRepository contentRepository,
+            IAuditLogRepository auditLogRepository)
         {
             _userRepository = userRepository;
             _workspaceRepository = workspaceRepository;
             _paymentRepository = paymentRepository;
             _contentRepository = contentRepository;
+            _auditLogRepository = auditLogRepository;
         }
 
         public async Task<GenericResponse<PagedResult<UserListDto>>> GetUsersAsync(
@@ -77,6 +81,7 @@ namespace AISAM.Services.Service
 
             user.IsEmailVerified = isActive;
             await _userRepository.UpdateAsync(user);
+            await LogAuditAsync(adminUserId, isActive ? "ACTIVATE_USER" : "DEACTIVATE_USER", "users", userId);
             return GenericResponse<bool>.CreateSuccess(true, isActive ? "User activated." : "User deactivated.");
         }
 
@@ -96,6 +101,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Cannot delete an admin user.", HttpStatusCode.Forbidden);
 
             await _userRepository.DeleteAsync(userId, cancellationToken);
+            await LogAuditAsync(adminUserId, "DELETE_USER", "users", userId);
             return GenericResponse<bool>.CreateSuccess(true, "User deleted.");
         }
 
@@ -140,6 +146,7 @@ namespace AISAM.Services.Service
 
             ws.Status = (WorkspaceStatusEnum)status;
             await _workspaceRepository.UpdateAsync(ws, cancellationToken);
+            await LogAuditAsync(adminUserId, "UPDATE_WORKSPACE_STATUS", "workspaces", workspaceId);
             return GenericResponse<bool>.CreateSuccess(true, "Workspace status updated.");
         }
 
@@ -152,6 +159,7 @@ namespace AISAM.Services.Service
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
             await _workspaceRepository.DeleteAsync(workspaceId, cancellationToken);
+            await LogAuditAsync(adminUserId, "DELETE_WORKSPACE", "workspaces", workspaceId);
             return GenericResponse<bool>.CreateSuccess(true, "Workspace deleted.");
         }
 
@@ -193,7 +201,31 @@ namespace AISAM.Services.Service
 
             content.Status = (ContentStatusEnum)status;
             await _contentRepository.UpdateAsync(content, cancellationToken);
+            await LogAuditAsync(adminUserId, "UPDATE_CONTENT_STATUS", "contents", contentId);
             return GenericResponse<bool>.CreateSuccess(true, "Content status updated.");
+        }
+
+        public async Task<GenericResponse<bool>> DeleteContentAsync(Guid adminUserId, Guid contentId, CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin)
+                return GenericResponse<bool>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
+
+            await _contentRepository.DeleteAsync(contentId, cancellationToken);
+            await LogAuditAsync(adminUserId, "DELETE_CONTENT", "contents", contentId);
+            return GenericResponse<bool>.CreateSuccess(true, "Content deleted.");
+        }
+
+        private async Task LogAuditAsync(Guid actorId, string actionType, string targetTable, Guid targetId, string? notes = null)
+        {
+            await _auditLogRepository.AddAsync(new AuditLog
+            {
+                ActorId = actorId,
+                ActionType = actionType,
+                TargetTable = targetTable,
+                TargetId = targetId,
+                Notes = notes
+            });
         }
     }
 }

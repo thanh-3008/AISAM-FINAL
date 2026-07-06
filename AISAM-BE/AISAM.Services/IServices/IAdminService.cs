@@ -17,5 +17,6 @@ namespace AISAM.Services.IServices
         Task<GenericResponse<object>> GetPaymentsAsync(Guid adminUserId, PaginationRequest request, CancellationToken cancellationToken = default);
         Task<GenericResponse<object>> GetAllContentAsync(Guid adminUserId, PaginationRequest request, CancellationToken cancellationToken = default);
         Task<GenericResponse<bool>> SetContentStatusAsync(Guid adminUserId, Guid contentId, int status, CancellationToken cancellationToken = default);
+        Task<GenericResponse<bool>> DeleteContentAsync(Guid adminUserId, Guid contentId, CancellationToken cancellationToken = default);
     }
 }

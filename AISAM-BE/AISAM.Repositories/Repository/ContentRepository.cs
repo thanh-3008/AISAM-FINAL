@@ -189,6 +189,11 @@ public sealed class ContentRepository : IContentRepository
         }
     }
 
+    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Contents.CountAsync(cancellationToken);
+    }
+
     private IQueryable<Content> Query()
     {
         return _context.Contents

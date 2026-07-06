@@ -258,6 +258,7 @@ public class ActiveProfileMiddlewareTests
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeUserRepository : IUserRepository

@@ -12,4 +12,6 @@ public interface IPaymentRepository
     Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default);
     Task<Payment> AddAsync(Payment payment, CancellationToken cancellationToken = default);
     Task UpdateAsync(Payment payment, CancellationToken cancellationToken = default);
+    Task<int> GetCountAsync(CancellationToken cancellationToken = default);
+    Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default);
 }
