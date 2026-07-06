@@ -2,10 +2,12 @@
 ## AI-POWERED SOCIAL MEDIA ADVERTISING MANAGER (AISAM)
 ### BAN HOP NHAT GIUA SOURCE CODE HIEN TAI VA DINH HUONG PHAT TRIEN TUONG LAI
 
+> Mục lục tài liệu: [`docs/README.md`](docs/README.md). Tài liệu hiện hành nằm trong `docs/main`; tài liệu đã đóng nằm trong `docs/archive`.
+
 ## APPROVED CHANGE NOTICE - WORKSPACE SUBSCRIPTION AND CREDITS
 
-Tai lieu chi tiet: `CHANGE_REQUEST_WORKSPACE_SUBSCRIPTION_CREDIT_ANALYSIS.md`.
-Chinh sach expiry/credit canonical: `docs/product/workspace-subscription-expiry-policy.md`.
+Tai lieu chi tiet: `docs/reference/workspace-subscription-credit-analysis.md`.
+Chinh sach expiry/credit canonical: `docs/main/workspace-subscription-expiry-policy.md`.
 
 - Workspace migration Phase 9 da hoan thanh Task 9.1-9.18.
 - Workspace, member/invitation, ownership transfer, subscription/payment, Credit Wallet, member quota, entitlement, Post Quota va AI Credit charging da co code va automated tests.
