@@ -189,6 +189,10 @@ public class DashboardServiceTests
             var data = query.ToList();
             return Task.FromResult(new PagedResult<Content> { Data = data, TotalCount = data.Count, Page = request.Page, PageSize = request.PageSize });
         }
+
+        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeSocialAccountRepository : ISocialAccountRepository
