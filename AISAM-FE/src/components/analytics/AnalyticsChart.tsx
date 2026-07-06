@@ -30,8 +30,8 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
     }
   }, [view, data]);
 
-  const maxSpend = Math.max(...displayData.map((d) => d.spend));
-  const maxConversions = Math.max(...displayData.map((d) => d.conversions));
+  const maxSpend = Math.max(...displayData.map((d) => d.spend), 1);
+  const maxConversions = Math.max(...displayData.map((d) => d.engagement), 1);
 
   const width = 800;
   const height = 400;
@@ -41,6 +41,7 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
 
   // Generate smooth bezier curve path
   const generateSmoothPath = useCallback((dataPoints: number[], maxValue: number) => {
+    if (dataPoints.length < 2 || maxValue <= 0) return "";
     return dataPoints
       .map((point, i) => {
         const x = padding.left + (i / (dataPoints.length - 1)) * chartWidth;
@@ -64,7 +65,7 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
   }, [displayData, maxSpend, generateSmoothPath]);
 
   const conversionsPath = useMemo(() => {
-    return generateSmoothPath(displayData.map((d) => d.conversions), maxConversions);
+    return generateSmoothPath(displayData.map((d) => d.engagement), maxConversions);
   }, [displayData, maxConversions, generateSmoothPath]);
 
   // Generate area paths
@@ -98,7 +99,7 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
       <div className="flex justify-between items-start mb-8">
         <div>
           <h4 className="text-headline-sm text-on-surface mb-2">
-            Spend vs. Conversions
+            Spend vs. Engagement
           </h4>
           <p className="text-on-surface-variant text-body-sm">
             {view === "daily" ? "Daily" : "Weekly"} performance metrics with trend analysis
@@ -245,7 +246,7 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
             const point = displayData[hoveredIndex];
             const x = padding.left + (hoveredIndex / (displayData.length - 1)) * chartWidth;
             const spendY = padding.top + chartHeight - (point.spend / maxSpend) * chartHeight;
-            const conversionY = padding.top + chartHeight - (point.conversions / maxConversions) * chartHeight;
+            const engagementY = padding.top + chartHeight - (point.engagement / maxConversions) * chartHeight;
 
             return (
               <g className="animate-fade-in-fast">
@@ -266,10 +267,10 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
                 <circle cx={x} cy={spendY} r="8" fill="#3b82f6" filter="url(#shadow)" />
                 <circle cx={x} cy={spendY} r="4" fill="white" />
 
-                {/* Conversions point with pulse */}
-                <circle cx={x} cy={conversionY} r="12" fill="#8b5cf6" opacity="0.2" className="animate-pulse-ring" />
-                <circle cx={x} cy={conversionY} r="8" fill="#8b5cf6" filter="url(#shadow)" />
-                <circle cx={x} cy={conversionY} r="4" fill="white" />
+                {/* Engagement point with pulse */}
+                <circle cx={x} cy={engagementY} r="12" fill="#8b5cf6" opacity="0.2" className="animate-pulse-ring" />
+                <circle cx={x} cy={engagementY} r="8" fill="#8b5cf6" filter="url(#shadow)" />
+                <circle cx={x} cy={engagementY} r="4" fill="white" />
 
                 {/* Premium tooltip */}
                 <g transform={`translate(${Math.min(x + 20, width - 200)}, ${Math.max(spendY - 100, padding.top)})`}>
@@ -287,9 +288,9 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
                   </text>
                   
                   <circle cx="15" cy="70" r="4" fill="#8b5cf6" />
-                  <text x="25" y="75" fill="rgba(255,255,255,0.7)" fontSize="11">Conversions</text>
-                  <text x="165" y="75" fill="white" fontSize="12" fontWeight="bold" textAnchor="end">
-                    {point.conversions}
+                  <text x="25" y="75" fill="rgba(255,255,255,0.7)" fontSize="11">Engagement</text>
+                  <text x="25" y="95" fill="rgba(255,255,255,0.9)" fontSize="14" fontWeight="bold" fillOpacity={0.85}>
+                    {point.engagement}
                   </text>
                   
                   <line x1="15" y1="85" x2="165" y2="85" stroke="rgba(255,255,255,0.1)" />
@@ -321,7 +322,7 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
             <span className="absolute inset-0 w-4 h-4 rounded-full bg-purple-500 animate-ping opacity-20" style={{ animationDelay: "0.5s" }} />
           </div>
           <span className="font-semibold text-label-sm text-on-surface group-hover:text-secondary transition-colors">
-            Conversions
+            Engagement
           </span>
         </div>
       </div>
@@ -376,14 +377,19 @@ function aggregateWeekly(data: ChartDataPoint[]): ChartDataPoint[] {
     if (weekData.length === 0) continue;
 
     const totalSpend = weekData.reduce((sum, d) => sum + d.spend, 0);
-    const totalConversions = weekData.reduce((sum, d) => sum + d.conversions, 0);
+    const totalEngagement = weekData.reduce((sum, d) => sum + (d.engagement || 0), 0);
     const avgCpc = weekData.reduce((sum, d) => sum + d.cpc, 0) / weekData.length;
 
     weeks.push({
       date: `Week ${Math.floor(i / 7) + 1}`,
       spend: totalSpend,
-      conversions: totalConversions,
+      conversions: totalEngagement,
       cpc: avgCpc,
+      impressions: weekData.reduce((sum, d) => sum + (d.impressions || 0), 0),
+      engagement: weekData.reduce((sum, d) => sum + (d.engagement || 0), 0),
+      clicks: weekData.reduce((sum, d) => sum + (d.clicks || 0), 0),
+      ctr: weekData.length > 0 ? weekData.reduce((sum, d) => sum + (d.ctr || 0), 0) / weekData.length : 0,
+      publishedPosts: weekData.reduce((sum, d) => sum + (d.publishedPosts || 0), 0),
     });
   }
   return weeks;

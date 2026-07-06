@@ -45,6 +45,14 @@ public sealed class SocialIntegrationRepository : ISocialIntegrationRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SocialIntegration>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .Where(integration => integration.WorkspaceId == workspaceId && !integration.IsDeleted)
+            .OrderByDescending(integration => integration.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<SocialIntegration> AddAsync(SocialIntegration integration, CancellationToken cancellationToken = default)
     {
         integration.CreatedAt = DateTime.UtcNow;
