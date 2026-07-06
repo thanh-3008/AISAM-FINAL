@@ -7,12 +7,19 @@ export type ChartView = "daily" | "weekly";
 export interface KpiData {
   totalAdSpend: number;
   totalAdSpendTrend: number;
-  conversionRate: number;
-  conversionRateTrend: number;
+  engagementRate: number;
+  engagementRateTrend: number;
   avgCpa: number;
   avgCpaTrend: number;
   roas: number;
   roasTrend: number;
+  sparklines: {
+    spend: number[];
+    engagement: number[];
+    impressions: number[];
+    clicks: number[];
+    conversions: number[];
+  };
 }
 
 export interface ChartDataPoint {
@@ -20,6 +27,11 @@ export interface ChartDataPoint {
   spend: number;
   conversions: number;
   cpc: number;
+  impressions: number;
+  engagement: number;
+  clicks: number;
+  ctr: number;
+  publishedPosts: number;
 }
 
 export interface CampaignPerformance {
@@ -48,10 +60,46 @@ export interface EfficiencyMetric {
   color: string;
 }
 
+export interface ChannelBreakdownItem {
+  platform: string;
+  integrationId?: string;
+  displayName?: string;
+  impressions: number;
+  reach: number;
+  engagement: number;
+  clicks: number;
+  ctr: number;
+  spend: number;
+  publishedPosts: number;
+  lastSyncedAt?: string | null;
+}
+
+export interface UsageBreakdownItem {
+  category: string;
+  count: number;
+  percentage: number;
+}
+
+export interface TopPostItem {
+  postId: string;
+  contentId?: string;
+  contentTitle?: string;
+  brandName?: string;
+  platform: string;
+  publishedAt?: string;
+  externalPostId?: string;
+  impressions: number;
+  reach: number;
+  engagement: number;
+  clicks: number;
+  ctr: number;
+}
+
 export interface AnalyticsData {
   kpi: KpiData;
   chartData: ChartDataPoint[];
   campaignPerformance: CampaignPerformance[];
+  channelBreakdown: ChannelBreakdownItem[];
   aiInsights: AiInsight[];
   efficiency: EfficiencyMetric[];
 }
@@ -65,132 +113,374 @@ interface GenericResponse<T> {
   timestamp?: string;
 }
 
-// BE DTOs
-interface BEDashboardSummaryDto {
-  draftContentCount: number;
-  publishedContentCount: number;
-  pendingApprovalContentCount: number;
-  upcomingScheduleCount: number;
-  failedScheduleCount: number;
-  activeSocialIntegrationCount: number;
-  publishedPostCount: number;
-  unreadNotificationCount: number;
+interface AnalyticsTotals {
+  impressions: number;
+  reach: number;
+  engagement: number;
+  clicks: number;
+  conversions: number;
+  ctr: number;
+  spend: number;
+  estimatedRevenue: number;
+  publishedPosts: number;
+  activeCampaigns: number;
 }
 
-interface BEWorkspaceDashboardSummaryDto {
-  workspaceId: string;
-  creditBalance: number;
-  creditsUsed: number;
-  publishedPostCount: number;
-  postQuotaLimit: number;
-  postsRemaining: number;
-  aiUsageCount: number;
-  activeMemberCount: number;
-  topMembers: { userId: string; name: string; email: string; creditsUsed: number; aiUsageCount: number }[];
+interface AnalyticsSparklines {
+  impressions: number[];
+  engagement: number[];
+  clicks: number[];
+  conversions: number[];
+  ctr: number[];
+  spend: number[];
 }
 
-function generateDailyChartData(days: number): ChartDataPoint[] {
-  const data: ChartDataPoint[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    data.push({
-      date: date.toISOString().split("T")[0],
-      spend: Math.round(Math.random() * 500 + 200),
-      conversions: Math.round(Math.random() * 30 + 10),
-      cpc: Math.round((Math.random() * 0.8 + 0.8) * 100) / 100,
-    });
+interface AnalyticsOverviewResponse {
+  dateRange: { from: string; to: string };
+  totals: AnalyticsTotals;
+  changes: {
+    impressionsPct: number;
+    engagementPct: number;
+    ctrPct: number;
+    spendPct: number;
+    clicksPct: number;
+    conversionRatePct: number;
+    cpaPct: number;
+    roasPct: number;
+  };
+  sparklines: AnalyticsSparklines;
+  dataFreshness: {
+    lastSyncedAt: string | null;
+    isPartial: boolean;
+  };
+}
+
+interface AnalyticsPoint {
+  date: string;
+  impressions: number;
+  reach: number;
+  engagement: number;
+  clicks: number;
+  conversions: number;
+  ctr: number;
+  spend: number;
+  estimatedRevenue: number;
+  publishedPosts: number;
+  activeCampaigns: number;
+}
+
+interface TimeSeriesResponse {
+  granularity: string;
+  points: AnalyticsPoint[];
+}
+
+interface PaginatedResponse {
+  items: unknown[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+function getDateRange(range: DateRange): { from: string; to: string } {
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  const from = new Date();
+
+  switch (range) {
+    case "7d":
+      from.setDate(from.getDate() - 7);
+      break;
+    case "30d":
+      from.setDate(from.getDate() - 30);
+      break;
+    case "90d":
+      from.setDate(from.getDate() - 90);
+      break;
+    case "custom":
+    default:
+      from.setDate(from.getDate() - 30);
+      break;
   }
-  return data;
+  from.setHours(0, 0, 0, 0);
+
+  return {
+    from: from.toISOString().split("T")[0],
+    to: to.toISOString().split("T")[0],
+  };
 }
 
-export async function fetchAnalytics(campaignFilter?: string): Promise<AnalyticsData> {
-  let dashboard: BEDashboardSummaryDto | null = null;
-  let wsDashboard: BEWorkspaceDashboardSummaryDto | null = null;
+function buildFilterQuery(
+  from: string,
+  to: string,
+  params: { brandId?: string; platform?: string; campaignId?: string }
+): string {
+  let query = `from=${from}&to=${to}`;
+  if (params.brandId) query += `&brandId=${params.brandId}`;
+  if (params.platform) query += `&platform=${params.platform}`;
+  if (params.campaignId) query += `&campaignId=${params.campaignId}`;
+  return query;
+}
+
+export async function fetchChannelBreakdown(
+  dateRange?: DateRange,
+  brandId?: string
+): Promise<ChannelBreakdownItem[]> {
+  const { from, to } = getDateRange(dateRange || "30d");
+  const query = buildFilterQuery(from, to, { brandId });
+  try {
+    const res: GenericResponse<ChannelBreakdownItem[]> = await apiClient(
+      `/analytics/channel-breakdown?${query}`
+    );
+    return res?.data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchUsageBreakdown(): Promise<UsageBreakdownItem[]> {
+  try {
+    const res: GenericResponse<{ items: UsageBreakdownItem[] }> =
+      await apiClient("/analytics/usage-breakdown");
+    return res?.data?.items || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTopPosts(
+  dateRange?: DateRange,
+  metric?: string,
+  platform?: string
+): Promise<TopPostItem[]> {
+  const { from, to } = getDateRange(dateRange || "30d");
+  let query = `from=${from}&to=${to}&metric=${metric || "engagement"}&pageSize=5`;
+  if (platform) query += `&platform=${platform}`;
+  try {
+    const res: GenericResponse<PaginatedResponse> = await apiClient(
+      `/analytics/top-posts?${query}`
+    );
+    return ((res?.data?.items || []) as TopPostItem[]);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAiRecommendations(
+  dateRange?: DateRange
+): Promise<string> {
+  const { from, to } = getDateRange(dateRange || "30d");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  try {
+    const res: GenericResponse<string> = await apiClient(
+      `/analytics/ai-recommendations?from=${from}&to=${to}`,
+      { signal: controller.signal } as RequestInit
+    );
+    return res?.data || "";
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export interface GeographicItem {
+  country: string;
+  percentage: number;
+  count: number;
+}
+
+export interface DemographicItem {
+  group: string;
+  percentage: number;
+  count: number;
+}
+
+export interface DeviceItem {
+  device: string;
+  percentage: number;
+}
+
+export interface AudienceBreakdown {
+  geographic: GeographicItem[];
+  demographics: DemographicItem[];
+  devices: DeviceItem[];
+}
+
+export async function fetchAudienceBreakdown(): Promise<AudienceBreakdown> {
+  try {
+    const res: GenericResponse<AudienceBreakdown> = await apiClient("/analytics/audience");
+    return res?.data || { geographic: [], demographics: [], devices: [] };
+  } catch {
+    return { geographic: [], demographics: [], devices: [] };
+  }
+}
+
+export async function fetchAnalytics(
+  options?: {
+    dateRange?: DateRange;
+    campaignFilter?: string;
+    brandId?: string;
+    platform?: string;
+  }
+): Promise<AnalyticsData> {
+  const range = options?.dateRange || "30d";
+  const { from, to } = getDateRange(range);
+  const platform = options?.platform && options.platform !== "all" ? options.platform : undefined;
+  const brandId = options?.brandId && options.brandId !== "all" ? options.brandId : undefined;
+
+  const filterQuery = buildFilterQuery(from, to, { brandId, platform });
+
+  let overview: AnalyticsOverviewResponse | null = null;
+  let timeSeries: TimeSeriesResponse | null = null;
+  let channelBreakdown: ChannelBreakdownItem[] = [];
 
   try {
-    const res1: GenericResponse<BEDashboardSummaryDto> = await apiClient("/dashboard/summary");
-    if (res1?.data) dashboard = res1.data;
-  } catch { /* ignore */ }
+    const res1: GenericResponse<AnalyticsOverviewResponse> = await apiClient(
+      `/analytics/overview?${filterQuery}`
+    );
+    if (res1?.data) overview = res1.data;
+  } catch {
+    /* graceful fallback */
+  }
 
   try {
-    const res2: GenericResponse<BEWorkspaceDashboardSummaryDto> = await apiClient("/workspace-dashboard/summary");
-    if (res2?.data) wsDashboard = res2.data;
-  } catch { /* ignore */ }
+    const res2: GenericResponse<TimeSeriesResponse> = await apiClient(
+      `/analytics/time-series?${filterQuery}&granularity=day`
+    );
+    if (res2?.data) timeSeries = res2.data;
+  } catch {
+    /* graceful fallback */
+  }
 
-  const totalContent = (dashboard?.draftContentCount || 0) + (dashboard?.publishedContentCount || 0);
-  const conversionRate = totalContent > 0 ? ((dashboard?.publishedContentCount || 0) / totalContent) * 100 : 0;
+  try {
+    channelBreakdown = await fetchChannelBreakdown(range, brandId);
+  } catch {
+    /* ignore */
+  }
+
+  const totals = overview?.totals;
+  const changes = overview?.changes;
+  const sparklines = overview?.sparklines;
 
   let campaignPerformance: CampaignPerformance[] = [];
   try {
     const res = await fetchCampaigns({ pageSize: 50 });
     let campaigns = res.data;
+    const campaignFilter = options?.campaignFilter;
     if (campaignFilter && campaignFilter !== "all") {
-      const statusMap: Record<string, string> = { active: "ACTIVE", paused: "PAUSED", completed: "COMPLETED" };
+      const statusMap: Record<string, string> = {
+        active: "ACTIVE",
+        paused: "PAUSED",
+        completed: "COMPLETED",
+      };
       const targetStatus = statusMap[campaignFilter];
       if (targetStatus) {
-        campaigns = campaigns.filter(c => c.status === targetStatus);
+        campaigns = campaigns.filter((c) => c.status === targetStatus);
       }
     }
     campaignPerformance = campaigns.map((c) => ({
       id: c.id,
       name: c.name,
-      status: c.status === "ACTIVE" ? "active" : c.status === "PAUSED" ? "paused" : "completed",
+      status:
+        c.status === "ACTIVE"
+          ? "active"
+          : c.status === "PAUSED"
+            ? "paused"
+            : "completed",
       reach: c.impressions,
       clicks: c.clicks,
-      ctr: c.impressions > 0 ? Math.round((c.clicks / c.impressions) * 10000) / 100 : 0,
+      ctr:
+        c.impressions > 0
+          ? Math.round((c.clicks / c.impressions) * 10000) / 100
+          : 0,
       roas: c.spend > 0 ? Math.round((c.conversions / c.spend) * 10) / 10 : 0,
       spend: c.spend,
       conversions: c.conversions,
     }));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
+
+  const chartData: ChartDataPoint[] = timeSeries?.points?.length
+    ? timeSeries.points.map((p) => ({
+        date: p.date,
+        spend: p.spend || 0,
+        conversions: p.conversions || 0,
+        cpc:
+          p.clicks > 0
+            ? Math.round((p.spend / p.clicks) * 100) / 100
+            : 0,
+        impressions: p.impressions || 0,
+        engagement: p.engagement || 0,
+        clicks: p.clicks || 0,
+        ctr: p.ctr || 0,
+        publishedPosts: p.publishedPosts || 0,
+      }))
+    : [];
+
+  const engagementRate =
+    (totals?.publishedPosts || 0) > 0
+      ? Math.round(((totals?.engagement || 0) / totals!.publishedPosts) * 1000) / 10
+      : 0;
 
   return {
     kpi: {
-      totalAdSpend: wsDashboard?.creditsUsed || 0,
-      totalAdSpendTrend: 0,
-      conversionRate: Math.round(conversionRate * 10) / 10,
-      conversionRateTrend: 0,
-      avgCpa: 0,
-      avgCpaTrend: 0,
-      roas: 0,
-      roasTrend: 0,
+      totalAdSpend: totals?.spend || 0,
+      totalAdSpendTrend: changes?.spendPct || 0,
+      engagementRate,
+      engagementRateTrend: changes?.engagementPct || 0,
+      avgCpa:
+        totals?.clicks && totals.clicks > 0
+          ? Math.round((totals.spend / totals.clicks) * 100) / 100
+          : 0,
+      avgCpaTrend: changes?.cpaPct || 0,
+      roas:
+        totals?.spend && totals.spend > 0
+          ? Math.round((totals.estimatedRevenue / totals.spend) * 100) / 100
+          : 0,
+      roasTrend: changes?.roasPct || 0,
+      sparklines: {
+        spend: sparklines?.spend || [],
+        engagement: sparklines?.engagement || [],
+        impressions: sparklines?.impressions || [],
+        clicks: sparklines?.clicks || [],
+        conversions: sparklines?.conversions || [],
+      },
     },
-    chartData: generateDailyChartData(30),
+    chartData,
     campaignPerformance,
-    aiInsights: dashboard
-      ? [
-          {
-            id: "insight-1",
-            type: "recommendation",
-            title: "Content Overview",
-            message: `${dashboard.draftContentCount} drafts, ${dashboard.publishedContentCount} published, ${dashboard.pendingApprovalContentCount} pending approval.`,
-            highlight: `${dashboard.publishedContentCount} published`,
-          },
-          {
-            id: "insight-2",
-            type: "trend",
-            title: "Schedule Status",
-            message: `${dashboard.upcomingScheduleCount} upcoming schedules, ${dashboard.failedScheduleCount} failed.`,
-            highlight: `${dashboard.upcomingScheduleCount} upcoming`,
-          },
-        ]
-      : [],
-    efficiency: wsDashboard
-      ? [
-          { label: "Credit Usage", value: wsDashboard.postQuotaLimit > 0 ? Math.round((wsDashboard.creditsUsed / wsDashboard.postQuotaLimit) * 100) : 0, color: "bg-primary" },
-          { label: "Posts Remaining", value: wsDashboard.postsRemaining > 0 ? Math.round((wsDashboard.postsRemaining / wsDashboard.postQuotaLimit) * 100) : 0, color: "bg-secondary" },
-        ]
-      : [],
+    channelBreakdown,
+    aiInsights: [
+      {
+        id: "insight-1",
+        type: "recommendation" as const,
+        title: "Performance Overview",
+        message: `${totals?.impressions?.toLocaleString() || 0} impressions, ${totals?.clicks?.toLocaleString() || 0} clicks, CTR ${totals?.ctr || 0}%`,
+        highlight: `${totals?.publishedPosts || 0} posts`,
+      },
+      {
+        id: "insight-2",
+        type: "trend" as const,
+        title: "Campaign Status",
+        message: `${totals?.activeCampaigns || 0} active campaigns, ${totals?.estimatedRevenue?.toLocaleString() || 0} VND estimated revenue`,
+        highlight: `${totals?.activeCampaigns || 0} active`,
+      },
+    ],
+    efficiency: [
+      {
+        label: "Engagement Rate",
+        value: totals?.engagement
+          ? Math.round(totals.engagement)
+          : 0,
+        color: "bg-primary",
+      },
+      {
+        label: "CTR",
+        value: totals?.ctr ? Math.round(totals.ctr * 100) / 100 : 0,
+        color: "bg-secondary",
+      },
+    ],
   };
-}
-
-export async function exportReport(): Promise<Blob> {
-  const csvContent = [
-    "Metric,Value",
-    ...(await fetchAnalytics()).aiInsights.map((i) => `${i.title},${i.message}`),
-  ].join("\n");
-
-  return new Blob([csvContent], { type: "text/csv" });
 }

@@ -13,6 +13,7 @@ public sealed class ActiveWorkspaceMiddleware
     private static readonly PathString[] ProtectedPrefixes =
     {
         new("/api/ai"),
+        new("/api/analytics"),
         new("/api/brands"),
         new("/api/content"),
         new("/api/content-schedules"),
@@ -276,6 +277,11 @@ public sealed class ActiveWorkspaceMiddleware
         if (path.StartsWithSegments("/api/workspace-dashboard"))
         {
             return WorkspaceFeatureEnum.WorkspaceDashboard;
+        }
+
+        if (path.StartsWithSegments("/api/analytics"))
+        {
+            return WorkspaceFeatureEnum.BasicAnalytics;
         }
 
         if (path.StartsWithSegments("/api/dashboard"))

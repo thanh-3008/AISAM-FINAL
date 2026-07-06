@@ -5,10 +5,11 @@ import { formatNumber, formatPercent, getRoasColor, getStatusColor } from "./ana
 
 interface AnalyticsPerformanceTableProps {
   campaigns: CampaignPerformance[];
+  onViewFullReport?: () => void;
 }
 
-export default function AnalyticsPerformanceTable({ campaigns }: AnalyticsPerformanceTableProps) {
-  const maxReach = Math.max(...campaigns.map((c) => c.reach));
+export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport }: AnalyticsPerformanceTableProps) {
+  const maxReach = Math.max(...campaigns.map((c) => c.reach), 1);
 
   return (
     <div className="bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/50 overflow-hidden shadow-xl animate-fade-up" style={{ animationDelay: "0.4s" }}>
@@ -19,7 +20,10 @@ export default function AnalyticsPerformanceTable({ campaigns }: AnalyticsPerfor
           </h4>
           <p className="text-body-sm text-outline mt-1">Campaign metrics and ROI analysis</p>
         </div>
-        <button className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-label-xs transition-all duration-300 hover:scale-105">
+        <button
+          onClick={onViewFullReport}
+          className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-label-xs transition-all duration-300 hover:scale-105"
+        >
           View Full Report
           <span className="material-symbols-outlined text-label-xs transition-transform group-hover:translate-x-1">
             arrow_outward
