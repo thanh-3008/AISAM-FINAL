@@ -62,8 +62,9 @@ export async function fetchAdminDashboardSummary(): Promise<AdminDashboardSummar
 
 export async function fetchAdminUsers(page = 1, pageSize = 20): Promise<{ items: AdminUser[]; total: number } | null> {
   try {
-    const res: GenericResponse<{ items: AdminUser[]; total: number }> = await apiClient(`/admin/users?page=${page}&pageSize=${pageSize}`);
-    return res?.data ?? null;
+    const res: GenericResponse<any> = await apiClient(`/admin/users?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
@@ -90,22 +91,25 @@ export async function deleteUser(id: string): Promise<boolean> {
 
 export async function fetchAdminWorkspaces(page = 1, pageSize = 20): Promise<{ items: AdminWorkspace[]; total: number } | null> {
   try {
-    const res: GenericResponse<{ items: AdminWorkspace[]; total: number }> = await apiClient(`/admin/workspaces?page=${page}&pageSize=${pageSize}`);
-    return res?.data ?? null;
+    const res: GenericResponse<any> = await apiClient(`/admin/workspaces?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
 export async function fetchAdminPayments(page = 1, pageSize = 20): Promise<{ items: AdminPayment[]; total: number } | null> {
   try {
-    const res: GenericResponse<{ items: AdminPayment[]; total: number }> = await apiClient(`/admin/payments?page=${page}&pageSize=${pageSize}`);
-    return res?.data ?? null;
+    const res: GenericResponse<any> = await apiClient(`/admin/payments?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
 export async function fetchAdminContent(page = 1, pageSize = 20): Promise<{ items: AdminContent[]; total: number } | null> {
   try {
-    const res: GenericResponse<{ items: AdminContent[]; total: number }> = await apiClient(`/admin/content?page=${page}&pageSize=${pageSize}`);
-    return res?.data ?? null;
+    const res: GenericResponse<any> = await apiClient(`/admin/content?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
@@ -157,8 +161,9 @@ export async function fetchAdminAnalyticsCharts(): Promise<{ userRegistrations: 
 
 export async function fetchAdminAuditLogs(page = 1, pageSize = 20): Promise<{ items: AdminAuditLog[]; total: number } | null> {
   try {
-    const res: GenericResponse<{ items: AdminAuditLog[]; total: number }> = await apiClient(`/admin/audit-logs?page=${page}&pageSize=${pageSize}`);
-    return res?.data ?? null;
+    const res: GenericResponse<any> = await apiClient(`/admin/audit-logs?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
