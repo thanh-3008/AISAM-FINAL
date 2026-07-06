@@ -108,3 +108,70 @@ export async function fetchAdminContent(page = 1, pageSize = 20): Promise<{ item
     return res?.data ?? null;
   } catch { return null; }
 }
+
+export interface AdminAuditLog {
+  id: string;
+  actorId: string;
+  actionType: string;
+  targetTable: string;
+  targetId: string;
+  notes?: string;
+  actorEmail?: string;
+  createdAt: string;
+}
+
+export async function setWorkspaceStatus(id: string, status: number): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/workspaces/${id}/status`, { data: { status }, method: "PATCH" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function deleteWorkspace(id: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/workspaces/${id}`, { method: "DELETE" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function setContentStatus(id: string, status: number): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/content/${id}/status`, { data: { status }, method: "PATCH" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function deleteContent(id: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/content/${id}`, { method: "DELETE" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function fetchAdminAnalyticsCharts(): Promise<{ userRegistrations: any[]; revenue: any[] } | null> {
+  try {
+    const res: GenericResponse<{ userRegistrations: any[]; revenue: any[] }> = await apiClient("/admin/dashboard/charts");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function fetchAdminAuditLogs(page = 1, pageSize = 20): Promise<{ items: AdminAuditLog[]; total: number } | null> {
+  try {
+    const res: GenericResponse<{ items: AdminAuditLog[]; total: number }> = await apiClient(`/admin/audit-logs?page=${page}&pageSize=${pageSize}`);
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function fetchAdminSettings(): Promise<any[] | null> {
+  try {
+    const res: GenericResponse<any[]> = await apiClient("/admin/settings");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function saveAdminSettings(settings: Record<string, string>): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/admin/settings", { data: settings, method: "PATCH" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
