@@ -7,5 +7,6 @@ namespace AISAM.Repositories.IRepositories
     {
         Task<PagedResult<AuditLog>> GetPagedAsync(PaginationRequest request, CancellationToken cancellationToken = default);
         Task<AuditLog> AddAsync(AuditLog auditLog, CancellationToken cancellationToken = default);
+        Task<AuditLog?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

@@ -79,9 +79,12 @@ namespace AISAM.Services.Service
             if (user == null)
                 return GenericResponse<bool>.CreateError("User not found.", HttpStatusCode.NotFound);
 
+            var oldStatus = user.IsEmailVerified;
             user.IsEmailVerified = isActive;
             await _userRepository.UpdateAsync(user);
-            await LogAuditAsync(adminUserId, isActive ? "ACTIVATE_USER" : "DEACTIVATE_USER", "users", userId);
+            await LogAuditAsync(adminUserId, isActive ? "ACTIVATE_USER" : "DEACTIVATE_USER", "users", userId,
+                oldValues: $"{{\"isEmailVerified\": {oldStatus.ToString().ToLower()}}}",
+                newValues: $"{{\"isEmailVerified\": {isActive.ToString().ToLower()}}}");
             return GenericResponse<bool>.CreateSuccess(true, isActive ? "User activated." : "User deactivated.");
         }
 
@@ -101,7 +104,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Cannot delete an admin user.", HttpStatusCode.Forbidden);
 
             await _userRepository.DeleteAsync(userId, cancellationToken);
-            await LogAuditAsync(adminUserId, "DELETE_USER", "users", userId);
+            await LogAuditAsync(adminUserId, "DELETE_USER", "users", userId,
+                notes: $"Deleted user: {user.Email}");
             return GenericResponse<bool>.CreateSuccess(true, "User deleted.");
         }
 
@@ -144,9 +148,12 @@ namespace AISAM.Services.Service
             if (ws == null)
                 return GenericResponse<bool>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
 
+            var oldStatus = ws.Status;
             ws.Status = (WorkspaceStatusEnum)status;
             await _workspaceRepository.UpdateAsync(ws, cancellationToken);
-            await LogAuditAsync(adminUserId, "UPDATE_WORKSPACE_STATUS", "workspaces", workspaceId);
+            await LogAuditAsync(adminUserId, "UPDATE_WORKSPACE_STATUS", "workspaces", workspaceId,
+                oldValues: $"{{\"status\": {(int)oldStatus}}}",
+                newValues: $"{{\"status\": {status}}}");
             return GenericResponse<bool>.CreateSuccess(true, "Workspace status updated.");
         }
 
@@ -159,7 +166,8 @@ namespace AISAM.Services.Service
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
             await _workspaceRepository.DeleteAsync(workspaceId, cancellationToken);
-            await LogAuditAsync(adminUserId, "DELETE_WORKSPACE", "workspaces", workspaceId);
+            await LogAuditAsync(adminUserId, "DELETE_WORKSPACE", "workspaces", workspaceId,
+                notes: "Workspace permanently deleted");
             return GenericResponse<bool>.CreateSuccess(true, "Workspace deleted.");
         }
 
@@ -199,9 +207,12 @@ namespace AISAM.Services.Service
             if (content == null)
                 return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
 
+            var oldStatus = content.Status;
             content.Status = (ContentStatusEnum)status;
             await _contentRepository.UpdateAsync(content, cancellationToken);
-            await LogAuditAsync(adminUserId, "UPDATE_CONTENT_STATUS", "contents", contentId);
+            await LogAuditAsync(adminUserId, "UPDATE_CONTENT_STATUS", "contents", contentId,
+                oldValues: $"{{\"status\": {(int)oldStatus}}}",
+                newValues: $"{{\"status\": {status}}}");
             return GenericResponse<bool>.CreateSuccess(true, "Content status updated.");
         }
 
@@ -212,11 +223,12 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
             await _contentRepository.DeleteAsync(contentId, cancellationToken);
-            await LogAuditAsync(adminUserId, "DELETE_CONTENT", "contents", contentId);
+            await LogAuditAsync(adminUserId, "DELETE_CONTENT", "contents", contentId,
+                notes: "Content deleted");
             return GenericResponse<bool>.CreateSuccess(true, "Content deleted.");
         }
 
-        private async Task LogAuditAsync(Guid actorId, string actionType, string targetTable, Guid targetId, string? notes = null)
+        private async Task LogAuditAsync(Guid actorId, string actionType, string targetTable, Guid targetId, string? notes = null, string? oldValues = null, string? newValues = null)
         {
             await _auditLogRepository.AddAsync(new AuditLog
             {
@@ -224,7 +236,9 @@ namespace AISAM.Services.Service
                 ActionType = actionType,
                 TargetTable = targetTable,
                 TargetId = targetId,
-                Notes = notes
+                Notes = notes,
+                OldValues = oldValues,
+                NewValues = newValues
             });
         }
     }

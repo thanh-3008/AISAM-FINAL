@@ -121,6 +121,7 @@ export interface AdminAuditLog {
   targetId: string;
   notes?: string;
   actorEmail?: string;
+  hasDiff?: boolean;
   createdAt: string;
 }
 

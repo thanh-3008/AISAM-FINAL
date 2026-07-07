@@ -32,5 +32,13 @@ namespace AISAM.Repositories.Repository
             await _context.SaveChangesAsync(cancellationToken);
             return auditLog;
         }
+
+        public async Task<AuditLog?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.AuditLogs
+                .AsNoTracking()
+                .Include(al => al.Actor)
+                .FirstOrDefaultAsync(al => al.Id == id, cancellationToken);
+        }
     }
 }
