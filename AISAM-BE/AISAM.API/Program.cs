@@ -302,10 +302,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", corsBuilder =>
     {
+        var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
         corsBuilder
-            .AllowAnyOrigin()
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
