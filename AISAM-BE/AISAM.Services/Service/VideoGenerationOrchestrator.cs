@@ -53,8 +53,31 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         _dbContext.VideoGenerationJobs.Add(job);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // 1. Try Primary Provider (Pollen / OpenRouter)
-        _logger.LogInformation("Attempting primary video provider for job {JobId}", job.Id);
+        bool colabFailed = false;
+
+        // 1. Try Colab first if enabled (Free ngrok/session)
+        if (_settings.EnableColabFallback)
+        {
+            _logger.LogInformation("Attempting Colab video strategy for job {JobId}", job.Id);
+            var colabResult = await _colabStrategy.StartVideoGenerationAsync(prompt, null, cancellationToken);
+            if (colabResult.Success && !string.IsNullOrWhiteSpace(colabResult.JobId))
+            {
+                job.Provider = colabResult.ProviderName;
+                job.ExternalJobId = colabResult.JobId;
+                job.IsFallback = false;
+                job.Status = AISAM.Data.Enumeration.AiStatusEnum.Processing;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                
+                return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started with Colab.");
+            }
+            
+            _logger.LogError("Colab failed or is unreachable. Reason: {Error}. DEVELOPER ACTION REQUIRED: Ngrok or Colab session might be dead. Please restart Colab and update VIDEO_COLAB_BASE_URL.", colabResult.ErrorMessage);
+            job.ErrorMessage = colabResult.ErrorMessage;
+            colabFailed = true;
+        }
+
+        // 2. Fallback to Primary Provider (Pollen / OpenRouter)
+        _logger.LogInformation("Attempting Pollen API (OpenRouter/DeAPI) fallback for job {JobId}", job.Id);
         
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (_settings.PollenTimeoutSeconds > 0)
@@ -69,57 +92,37 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
             {
                 job.Provider = primaryResult.ProviderName;
                 job.ExternalJobId = primaryResult.JobId;
-                job.IsFallback = false;
+                job.IsFallback = colabFailed;
                 job.Status = AISAM.Data.Enumeration.AiStatusEnum.Processing;
                 await _dbContext.SaveChangesAsync(cancellationToken);
                 
-                return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started with primary provider.");
+                return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started with Pollen API.");
             }
             
-            _logger.LogWarning("Primary provider failed. Reason: {Error}", primaryResult.ErrorMessage);
-            job.ErrorMessage = primaryResult.ErrorMessage;
+            _logger.LogWarning("Pollen API failed. Reason: {Error}", primaryResult.ErrorMessage);
+            job.ErrorMessage = colabFailed 
+                ? $"{job.ErrorMessage} | Pollen Error: {primaryResult.ErrorMessage}"
+                : primaryResult.ErrorMessage;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogWarning("Primary provider timed out after {Seconds} seconds.", _settings.PollenTimeoutSeconds);
-            job.ErrorMessage = "Primary provider timed out.";
+            _logger.LogWarning("Pollen API timed out after {Seconds} seconds.", _settings.PollenTimeoutSeconds);
+            job.ErrorMessage = colabFailed 
+                ? $"{job.ErrorMessage} | Pollen Error: Timed out."
+                : "Pollen API timed out.";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception while calling primary provider.");
-            job.ErrorMessage = ex.Message;
-        }
-
-        // 2. Fallback to Colab if enabled
-        if (!_settings.EnableColabFallback)
-        {
-            job.Status = AISAM.Data.Enumeration.AiStatusEnum.Failed;
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return GenericResponse<VideoGenerationJob>.CreateError("Primary provider failed and fallback is disabled.", HttpStatusCode.BadGateway);
-        }
-
-        _logger.LogInformation("Falling back to Colab video strategy for job {JobId}", job.Id);
-        
-        var fallbackResult = await _colabStrategy.StartVideoGenerationAsync(prompt, null, cancellationToken);
-        if (fallbackResult.Success && !string.IsNullOrWhiteSpace(fallbackResult.JobId))
-        {
-            job.Provider = fallbackResult.ProviderName;
-            job.ExternalJobId = fallbackResult.JobId;
-            job.IsFallback = true;
-            job.Status = AISAM.Data.Enumeration.AiStatusEnum.Processing;
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            
-            return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started with fallback Colab provider.");
+            _logger.LogError(ex, "Exception while calling Pollen API.");
+            job.ErrorMessage = colabFailed 
+                ? $"{job.ErrorMessage} | Pollen Exception: {ex.Message}"
+                : ex.Message;
         }
 
         job.Status = AISAM.Data.Enumeration.AiStatusEnum.Failed;
-        job.ErrorMessage = string.IsNullOrEmpty(job.ErrorMessage) 
-            ? fallbackResult.ErrorMessage 
-            : $"{job.ErrorMessage} | Fallback Error: {fallbackResult.ErrorMessage}";
-            
         await _dbContext.SaveChangesAsync(cancellationToken);
         return GenericResponse<VideoGenerationJob>.CreateError(
-            $"Dịch vụ sinh video đang tạm gián đoạn. {fallbackResult.ErrorMessage}", 
+            $"Dịch vụ sinh video đang tạm gián đoạn. {job.ErrorMessage}", 
             HttpStatusCode.BadGateway);
     }
 
