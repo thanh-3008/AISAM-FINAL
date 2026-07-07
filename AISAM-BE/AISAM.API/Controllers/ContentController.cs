@@ -185,7 +185,8 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.SoftDeleteInWorkspaceAsync(contentId, GetWorkspaceId(), cancellationToken);
+        var member = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _contentService.SoftDeleteInWorkspaceAsync(contentId, member.WorkspaceId, member.Role, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

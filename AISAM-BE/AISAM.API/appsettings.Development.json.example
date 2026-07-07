@@ -1,0 +1,25 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=aws-1-ap-northeast-1.pooler.supabase.com;Database=postgres;Username=postgres;Password=YOUR_SUPABASE_PASSWORD_HERE;SSL Mode=Require;Trust Server Certificate=true"
+  },
+  "AllowedOrigins": [
+    "http://localhost:3000"
+  ],
+  "CloudinarySettings": {
+    "CloudName": "YOUR_CLOUDINARY_NAME_HERE",
+    "ApiKey": "YOUR_CLOUDINARY_API_KEY_HERE",
+    "ApiSecret": "YOUR_CLOUDINARY_API_SECRET_HERE"
+  },
+  "GeminiSettings": {
+    "ApiKey": "YOUR_GEMINI_API_KEY_HERE",
+    "Model": "gemini-2.5-flash",
+    "MaxTokens": 2048,
+    "Temperature": 0.7
+  }
+}

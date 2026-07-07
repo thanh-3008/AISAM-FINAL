@@ -1006,13 +1006,14 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
   const tc = getTypeConfig(item.type);
   const typeGradient = getTypeStyle(item.type);
   const typeBadgeColor = getTypeBadgeStyle(item.type);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <>
       <div className="cursor-pointer" onClick={() => onAction("View Details", item)}>
         <div className="relative aspect-[4/3] bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden">
-          {item.thumbnail ? (
-            <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          {item.thumbnail && !imgError ? (
+            <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={() => setImgError(true)} />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg`}>

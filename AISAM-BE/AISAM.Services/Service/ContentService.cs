@@ -177,18 +177,46 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
     }
 
-    public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
-        => ChangeDeletedInWorkspaceAsync(id, workspaceId, true, cancellationToken);
+    public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, WorkspaceMemberRoleEnum role, CancellationToken cancellationToken = default)
+        => ChangeDeletedInWorkspaceAsync(id, workspaceId, true, role, cancellationToken);
 
     public Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
-        => ChangeDeletedInWorkspaceAsync(id, workspaceId, false, cancellationToken);
+        => ChangeDeletedInWorkspaceAsync(id, workspaceId, false, null, cancellationToken);
 
-    private async Task<GenericResponse<bool>> ChangeDeletedInWorkspaceAsync(Guid id, Guid workspaceId, bool deleted, CancellationToken cancellationToken)
+    private async Task<GenericResponse<bool>> ChangeDeletedInWorkspaceAsync(Guid id, Guid workspaceId, bool deleted, WorkspaceMemberRoleEnum? role, CancellationToken cancellationToken)
     {
         var content = deleted ? await _contentRepository.GetByIdAsync(id, cancellationToken) : await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+
+        // Role-based deletion logic for Workspaces
+        if (deleted && role.HasValue)
+        {
+            if (role.Value == WorkspaceMemberRoleEnum.ContentCreator)
+            {
+                if (content.Status == ContentStatusEnum.Approved || content.Status == ContentStatusEnum.Published)
+                {
+                    return GenericResponse<bool>.CreateError("Content creators cannot delete accepted or published content. Only owners can.", HttpStatusCode.Forbidden);
+                }
+            }
+        }
+
         content.IsDeleted = deleted;
-        if (!deleted) content.Status = ContentStatusEnum.Draft;
+        if (!deleted) 
+        {
+            content.Status = ContentStatusEnum.Draft;
+        }
+        else
+        {
+            // Cascade soft-delete to approvals
+            if (content.Approvals != null)
+            {
+                foreach (var approval in content.Approvals)
+                {
+                    approval.IsDeleted = true;
+                }
+            }
+        }
+
         await _contentRepository.UpdateAsync(content, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, deleted ? MessageConstants.Content.DeletedSuccess : MessageConstants.Content.RestoredSuccess);
     }

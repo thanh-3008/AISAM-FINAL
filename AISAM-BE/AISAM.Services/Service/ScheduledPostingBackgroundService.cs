@@ -23,11 +23,13 @@ public sealed class ScheduledPostingBackgroundService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            var hasJobs = false;
             try
             {
                 using var scope = _serviceScopeFactory.CreateScope();
                 var scheduledPostingService = scope.ServiceProvider.GetRequiredService<IScheduledPostingService>();
-                await scheduledPostingService.RunDueSchedulesAsync(20, stoppingToken);
+                var result = await scheduledPostingService.RunDueSchedulesAsync(20, stoppingToken);
+                hasJobs = result.ScannedCount > 0;
             }
             catch (Exception ex)
             {
@@ -36,7 +38,8 @@ public sealed class ScheduledPostingBackgroundService : BackgroundService
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                var delaySeconds = hasJobs ? 15 : 60; // Backoff to 60s when idle
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
             }
             catch (OperationCanceledException)
             {

@@ -527,6 +527,11 @@ public class SocialServiceTests
             return Task.FromResult<IReadOnlyList<SocialIntegration>>(Integrations.Values.Where(integration => integration.BrandId == brandId && !integration.IsDeleted).ToList());
         }
 
+        public Task<IReadOnlyList<SocialIntegration>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SocialIntegration>>(Integrations.Values.Where(integration => integration.WorkspaceId == workspaceId && !integration.IsDeleted).ToList());
+        }
+
         public Task<SocialIntegration> AddAsync(SocialIntegration integration, CancellationToken cancellationToken = default)
         {
             Integrations[integration.Id] = integration;

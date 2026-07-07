@@ -3,7 +3,7 @@ namespace AISAM.Services.IServices;
 public class VideoGenerationOptions
 {
     public int DurationSeconds { get; set; } = 4;
-    public string AspectRatio { get; set; } = "16:9";
+    public string AspectRatio { get; set; } = "9:16";
 }
 
 public enum VideoGenerationStatus

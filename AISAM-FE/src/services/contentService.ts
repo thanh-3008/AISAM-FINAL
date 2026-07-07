@@ -403,3 +403,20 @@ export async function resolveProductName(productId: string): Promise<string> {
   } catch { /* fallback */ }
   return productId;
 }
+
+export interface AiGenerationResponse {
+  id: string;
+  status: number; // 0: Pending, 1: Processing, 2: Completed, 3: Failed
+  errorMessage?: string;
+  createdAt: string;
+}
+
+export async function fetchContentGenerations(contentId: string): Promise<AiGenerationResponse[]> {
+  try {
+    const res: GenericResponse<AiGenerationResponse[]> = await apiClient(`/ai/generations/${contentId}`);
+    if (res?.success && res.data) return res.data;
+    return [];
+  } catch {
+    return [];
+  }
+}
