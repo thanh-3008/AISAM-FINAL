@@ -8,4 +8,6 @@ public interface IAiGenerationRepository
     Task<IEnumerable<AiGeneration>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default);
     Task<AiGeneration> AddAsync(AiGeneration generation, CancellationToken cancellationToken = default);
     Task UpdateAsync(AiGeneration generation, CancellationToken cancellationToken = default);
+    Task<Dictionary<DateTime, int>> GetDailyGenerationCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
+    Task<int> GetTotalGenerationCountAsync(CancellationToken cancellationToken = default);
 }

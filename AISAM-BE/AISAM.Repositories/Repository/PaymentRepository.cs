@@ -125,6 +125,24 @@ public sealed class PaymentRepository : IPaymentRepository
         return await _context.Payments.Where(p => p.Status == PaymentStatusEnum.Success).SumAsync(p => p.Amount, cancellationToken);
     }
 
+    public async Task<Dictionary<DateTime, decimal>> GetDailyRevenueAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        return await _context.Payments
+            .Where(p => p.CreatedAt >= from && p.CreatedAt <= to && p.Status == PaymentStatusEnum.Success)
+            .GroupBy(p => p.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Total = g.Sum(p => p.Amount) })
+            .ToDictionaryAsync(x => x.Date, x => x.Total, cancellationToken);
+    }
+
+    public async Task<Dictionary<DateTime, int>> GetDailyTransactionCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        return await _context.Payments
+            .Where(p => p.CreatedAt >= from && p.CreatedAt <= to)
+            .GroupBy(p => p.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+    }
+
     private IQueryable<Payment> Query()
     {
         return _context.Payments

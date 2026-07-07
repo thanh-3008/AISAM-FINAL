@@ -194,6 +194,15 @@ public sealed class ContentRepository : IContentRepository
         return await _context.Contents.CountAsync(cancellationToken);
     }
 
+    public async Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        return await _context.Contents
+            .Where(c => c.CreatedAt >= from && c.CreatedAt <= to && !c.IsDeleted)
+            .GroupBy(c => c.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+    }
+
     private IQueryable<Content> Query()
     {
         return _context.Contents

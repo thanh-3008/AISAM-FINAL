@@ -148,5 +148,13 @@ namespace AISAM.Repositories.Repository
 
             return new PagedResult<UserListDto> { Data = dtos, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
         }
+        public async Task<Dictionary<DateTime, int>> GetDailyRegistrationsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+        {
+            return await _context.Users
+                .Where(u => u.CreatedAt >= from && u.CreatedAt <= to)
+                .GroupBy(u => u.CreatedAt.Date)
+                .Select(g => new { Date = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+        }
     }
 }

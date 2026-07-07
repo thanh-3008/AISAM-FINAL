@@ -14,4 +14,6 @@ public interface IPaymentRepository
     Task UpdateAsync(Payment payment, CancellationToken cancellationToken = default);
     Task<int> GetCountAsync(CancellationToken cancellationToken = default);
     Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default);
+    Task<Dictionary<DateTime, decimal>> GetDailyRevenueAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
+    Task<Dictionary<DateTime, int>> GetDailyTransactionCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
 }

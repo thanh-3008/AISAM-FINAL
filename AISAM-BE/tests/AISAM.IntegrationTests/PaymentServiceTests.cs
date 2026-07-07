@@ -886,6 +886,8 @@ public class PaymentServiceTests
         public Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Dictionary<DateTime, decimal>> GetDailyRevenueAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Dictionary<DateTime, int>> GetDailyTransactionCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeSubscriptionRepository : ISubscriptionRepository
