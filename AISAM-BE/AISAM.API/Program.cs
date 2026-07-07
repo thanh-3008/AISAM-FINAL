@@ -361,6 +361,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
+app.UseMiddleware<MaintenanceModeMiddleware>();
 
 app.UseRateLimiter();
 
