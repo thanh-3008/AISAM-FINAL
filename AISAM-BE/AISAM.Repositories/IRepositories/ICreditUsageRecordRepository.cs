@@ -10,4 +10,6 @@ public interface ICreditUsageRecordRepository
     Task<PagedResult<CreditUsageRecord>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default);
     Task<Dictionary<DateTime, long>> GetDailySummaryAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AISAM.Common.Models.DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default);
+    Task<int> GetTotalCreditsUsedAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CreditUsageRecord>> GetAllAsync(CancellationToken cancellationToken = default);
 }

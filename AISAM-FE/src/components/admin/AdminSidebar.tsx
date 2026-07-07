@@ -16,9 +16,11 @@ const adminNavItems: NavItem[] = [
   { label: "Payments", href: "/admin/payments", icon: "payments" },
   { label: "Subscriptions", href: "/admin/subscriptions", icon: "subscriptions" },
   { label: "Content", href: "/admin/content", icon: "description" },
+  { label: "AI & Credit", href: "/admin/credit-oversight", icon: "smart_toy" },
   { label: "Analytics", href: "/admin/analytics", icon: "bar_chart" },
   { label: "Audit Logs", href: "/admin/audit-logs", icon: "history" },
   { label: "Service Health", href: "/admin/service-health", icon: "monitoring" },
+  { label: "System Health", href: "/admin/system-health", icon: "health_and_safety" },
   { label: "Settings", href: "/admin/settings", icon: "settings" },
 ];
 

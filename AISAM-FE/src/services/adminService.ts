@@ -320,3 +320,37 @@ export async function updateSubscription(id: string, data: { plan?: number; endD
     return res?.success ?? false;
   } catch { return false; }
 }
+
+export interface AiCreditSummary {
+  totalAiGenerations: number;
+  weeklyAiGenerations: number;
+  dailyAiData: { name: string; generations: number }[];
+  estimatedCreditSpent: number;
+  estimatedRevenue: number;
+}
+
+export interface SystemHealthCheck {
+  name: string;
+  status: string;
+  detail: string;
+}
+
+export interface SystemHealth {
+  overallStatus: string;
+  checks: SystemHealthCheck[];
+  checkedAt: string;
+}
+
+export async function fetchAiCreditSummary(): Promise<AiCreditSummary | null> {
+  try {
+    const res: GenericResponse<AiCreditSummary> = await apiClient("/admin/credit-oversight/summary");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function fetchSystemHealth(): Promise<SystemHealth | null> {
+  try {
+    const res: GenericResponse<SystemHealth> = await apiClient("/admin/system-health");
+    return res?.data ?? null;
+  } catch { return null; }
+}
