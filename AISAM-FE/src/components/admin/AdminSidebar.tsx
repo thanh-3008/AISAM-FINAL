@@ -14,6 +14,7 @@ const adminNavItems: NavItem[] = [
   { label: "Users", href: "/admin/users", icon: "group" },
   { label: "Workspaces", href: "/admin/workspaces", icon: "apartment" },
   { label: "Payments", href: "/admin/payments", icon: "payments" },
+  { label: "Subscriptions", href: "/admin/subscriptions", icon: "subscriptions" },
   { label: "Content", href: "/admin/content", icon: "description" },
   { label: "Analytics", href: "/admin/analytics", icon: "bar_chart" },
   { label: "Audit Logs", href: "/admin/audit-logs", icon: "history" },

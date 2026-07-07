@@ -270,6 +270,11 @@ public class QuotaServiceTests
             throw new NotImplementedException();
         }
 
+        public Task<PagedResult<Subscription>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
         {
             LastPromptWindowStart = windowStart;

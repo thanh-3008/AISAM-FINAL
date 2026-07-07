@@ -293,3 +293,29 @@ export async function fetchServiceHealth(): Promise<AdminServiceHealth | null> {
     return res?.data ?? null;
   } catch { return null; }
 }
+
+export interface AdminSubscription {
+  id: string;
+  plan: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+  workspaceName: string;
+  workspaceId: string;
+}
+
+export async function fetchAdminSubscriptions(page = 1, pageSize = 20): Promise<{ items: AdminSubscription[]; total: number } | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/payments/subscriptions?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.items ?? [], total: paged.total ?? 0 } : null;
+  } catch { return null; }
+}
+
+export async function updateSubscription(id: string, data: { plan?: number; endDate?: string; isActive?: boolean }): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/payments/subscriptions/${id}`, { data, method: "PATCH" });
+    return res?.success ?? false;
+  } catch { return false; }
+}

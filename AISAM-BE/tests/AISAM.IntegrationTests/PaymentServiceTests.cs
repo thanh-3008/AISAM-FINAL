@@ -936,6 +936,8 @@ public class PaymentServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<PagedResult<Subscription>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
         public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(0);

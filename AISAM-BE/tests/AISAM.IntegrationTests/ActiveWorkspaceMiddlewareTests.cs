@@ -1,5 +1,6 @@
 using AISAM.API.Middleware;
 using AISAM.API.Utils;
+using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -511,6 +512,7 @@ public class ActiveWorkspaceMiddlewareTests
         public Task<Subscription?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Subscription> AddAsync(Subscription subscription, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Subscription subscription, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Subscription>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountSuccessfulPostUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountSuccessfulPromptUsageByWorkspaceIdAsync(Guid workspaceId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default) => throw new NotImplementedException();
