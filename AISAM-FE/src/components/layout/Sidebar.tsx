@@ -30,6 +30,7 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
       { label: "Approvals", href: "/approvals", icon: "task_alt" },
       { label: "Posts", href: "/posts", icon: "send" },
       { label: "Calendar", href: "/calendar", icon: "calendar_month" },
+      { label: "AI Automation", href: "/automation", icon: "auto_awesome_motion" },
     ],
   },
   {

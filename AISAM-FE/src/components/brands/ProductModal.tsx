@@ -42,6 +42,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    if (files.length + selected.length > 5) { setError("A product can contain at most 5 images"); e.target.value = ""; return; }
+    const invalid = selected.find((file) => !allowed.has(file.type) || file.size > 10 * 1024 * 1024);
+    if (invalid) { setError(`${invalid.name} must be JPEG, PNG, WEBP, or GIF and no larger than 10 MB`); e.target.value = ""; return; }
     setFiles((prev) => [...prev, ...selected]);
     if (error) setError(null);
   };
@@ -135,7 +139,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
               </div>
               <div className="space-y-1">
                 <label className={labelClass}>Product Media</label>
-                <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileChange} />
+                <input ref={fileInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleFileChange} />
                 <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-outline-variant/50 rounded-xl p-4 flex flex-col items-center justify-center gap-1 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer min-h-[52px]">
                   {files.length > 0 ? (
                     <div className="text-center w-full">

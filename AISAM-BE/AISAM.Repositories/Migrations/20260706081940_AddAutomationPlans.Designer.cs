@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AISAM.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AISAM.Repositories.Migrations
 {
     [DbContext(typeof(AisamContext))]
-    partial class AisamContextModelSnapshot : ModelSnapshot
+    [Migration("20260706081940_AddAutomationPlans")]
+    partial class AddAutomationPlans
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -549,10 +552,6 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("brand_id");
 
-                    b.Property<Guid?>("ContentCalendarId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("content_calendar_id");
-
                     b.Property<Guid?>("ContentId")
                         .HasColumnType("uuid")
                         .HasColumnName("content_id");
@@ -647,23 +646,9 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("validation_errors");
 
-                    b.Property<string>("VideoJobId")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("video_job_id");
-
-                    b.Property<string>("VideoProvider")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("video_provider");
-
                     b.HasKey("Id");
 
                     b.HasIndex("BrandId");
-
-                    b.HasIndex("ContentCalendarId")
-                        .IsUnique()
-                        .HasFilter("content_calendar_id IS NOT NULL");
 
                     b.HasIndex("ContentId");
 
@@ -688,10 +673,6 @@ namespace AISAM.Repositories.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
-
-                    b.Property<bool>("AutoApprove")
-                        .HasColumnType("boolean")
-                        .HasColumnName("auto_approve");
 
                     b.Property<DateTime?>("ConfirmedAt")
                         .HasColumnType("timestamp with time zone")
@@ -739,10 +720,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
-
-                    b.Property<Guid?>("TemplateSourcePlanId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("template_source_plan_id");
 
                     b.Property<string>("Timezone")
                         .IsRequired()
@@ -1297,10 +1274,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
-
-                    b.Property<long>("ReservedBalance")
-                        .HasColumnType("bigint")
-                        .HasColumnName("reserved_balance");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2563,11 +2536,6 @@ namespace AISAM.Repositories.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AISAM.Data.Model.ContentCalendar", "ContentCalendar")
-                        .WithMany()
-                        .HasForeignKey("ContentCalendarId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("AISAM.Data.Model.Content", "Content")
                         .WithMany()
                         .HasForeignKey("ContentId")
@@ -2583,8 +2551,6 @@ namespace AISAM.Repositories.Migrations
                     b.Navigation("Brand");
 
                     b.Navigation("Content");
-
-                    b.Navigation("ContentCalendar");
 
                     b.Navigation("Product");
                 });

@@ -83,6 +83,7 @@ namespace AISAM.API.Controllers
 
         [HttpPost]
         [Consumes("multipart/form-data")]
+        [RequestSizeLimit(55 * 1024 * 1024)]
         public async Task<ActionResult<GenericResponse<ProductResponseDto>>> Create([FromForm] ProductCreateRequest request, CancellationToken cancellationToken = default)
         {
             try
@@ -109,6 +110,7 @@ namespace AISAM.API.Controllers
 
         [HttpPut("{id}")]
         [Consumes("multipart/form-data")]
+        [RequestSizeLimit(55 * 1024 * 1024)]
         public async Task<ActionResult<GenericResponse<ProductResponseDto>>> Update(Guid id, [FromForm] ProductUpdateRequestDto request, CancellationToken cancellationToken = default)
         {
             try

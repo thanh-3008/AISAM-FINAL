@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AISAM.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AISAM.Repositories.Migrations
 {
     [DbContext(typeof(AisamContext))]
-    partial class AisamContextModelSnapshot : ModelSnapshot
+    [Migration("20260707020157_AddAutomationVideoAndScheduleLinks")]
+    partial class AddAutomationVideoAndScheduleLinks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -689,10 +692,6 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<bool>("AutoApprove")
-                        .HasColumnType("boolean")
-                        .HasColumnName("auto_approve");
-
                     b.Property<DateTime?>("ConfirmedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("confirmed_at");
@@ -739,10 +738,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
-
-                    b.Property<Guid?>("TemplateSourcePlanId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("template_source_plan_id");
 
                     b.Property<string>("Timezone")
                         .IsRequired()
@@ -1297,10 +1292,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
-
-                    b.Property<long>("ReservedBalance")
-                        .HasColumnType("bigint")
-                        .HasColumnName("reserved_balance");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

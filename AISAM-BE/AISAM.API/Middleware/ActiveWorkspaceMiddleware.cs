@@ -31,7 +31,8 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/notifications"),
         new("/api/credit-usage"),
         new("/api/campaigns"),
-        new("/api/tags")
+        new("/api/tags"),
+        new("/api/automation-plans")
     };
 
     private readonly RequestDelegate _next;
@@ -147,6 +148,12 @@ public sealed class ActiveWorkspaceMiddleware
         if (path.StartsWithSegments("/api/ai"))
         {
             return EnsurePermission(membership.Role, WorkspacePermissionEnum.GenerateAiContent);
+        }
+
+        if (path.StartsWithSegments("/api/automation-plans"))
+        {
+            if (method == HttpMethods.Get) return null;
+            return EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageSchedules);
         }
 
         if (path.StartsWithSegments("/api/brands"))
@@ -286,6 +293,11 @@ public sealed class ActiveWorkspaceMiddleware
         if (path.StartsWithSegments("/api/content-schedules"))
         {
             return WorkspaceFeatureEnum.SchedulePost;
+        }
+
+        if (path.StartsWithSegments("/api/automation-plans"))
+        {
+            return WorkspaceFeatureEnum.GenerateText;
         }
 
         if (path.StartsWithSegments("/api/content") &&
