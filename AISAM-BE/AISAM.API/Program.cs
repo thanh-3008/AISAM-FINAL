@@ -245,6 +245,7 @@ builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
+builder.Services.AddSingleton<IBackgroundJobHealthService, BackgroundJobHealthService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 builder.Services.AddHostedService<AutomationGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationOperationsBackgroundService>();

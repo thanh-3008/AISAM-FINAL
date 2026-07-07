@@ -270,3 +270,26 @@ export function getAdminExportUrl(from?: string, to?: string): string {
   if (to) params.set("to", to);
   return `${baseUrl}/admin/analytics/export${params.toString() ? "?" + params.toString() : ""}`;
 }
+
+export interface ServiceHealthItem {
+  name: string;
+  status: string;
+  lastHeartbeat: string;
+  successCount: number;
+  failureCount: number;
+  lastError?: string;
+  lastErrorTime?: string;
+  isStale: boolean;
+}
+
+export interface AdminServiceHealth {
+  services: ServiceHealthItem[];
+  overallStatus: string;
+}
+
+export async function fetchServiceHealth(): Promise<AdminServiceHealth | null> {
+  try {
+    const res: GenericResponse<AdminServiceHealth> = await apiClient("/admin/service-health");
+    return res?.data ?? null;
+  } catch { return null; }
+}

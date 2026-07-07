@@ -17,6 +17,7 @@ const adminNavItems: NavItem[] = [
   { label: "Content", href: "/admin/content", icon: "description" },
   { label: "Analytics", href: "/admin/analytics", icon: "bar_chart" },
   { label: "Audit Logs", href: "/admin/audit-logs", icon: "history" },
+  { label: "Service Health", href: "/admin/service-health", icon: "monitoring" },
   { label: "Settings", href: "/admin/settings", icon: "settings" },
 ];
 
