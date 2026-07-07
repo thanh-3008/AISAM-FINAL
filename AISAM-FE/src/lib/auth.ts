@@ -176,3 +176,22 @@ export function getUserFromToken(): { name?: string; email?: string } | null {
     return null;
   }
 }
+
+export function getUserRoleFromToken(): string | null {
+  try {
+    const token = getToken();
+    if (!token) return null;
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    return (
+      decoded[CLAIM_ROLE] ||
+      decoded["role"] ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function isAdmin(): boolean {
+  return getUserRoleFromToken() === "Admin";
+}

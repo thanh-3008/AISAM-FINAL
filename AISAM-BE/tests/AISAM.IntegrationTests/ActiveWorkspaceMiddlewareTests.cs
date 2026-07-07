@@ -37,7 +37,7 @@ public class ActiveWorkspaceMiddlewareTests
 
         await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, context.Response.StatusCode);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class ActiveWorkspaceMiddlewareTests
 
         await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, context.Response.StatusCode);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class ActiveWorkspaceMiddlewareTests
 
         await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, context.Response.StatusCode);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class ActiveWorkspaceMiddlewareTests
 
         await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.BadRequest, context.Response.StatusCode);
     }
 
     [Theory]

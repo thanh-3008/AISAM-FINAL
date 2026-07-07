@@ -78,7 +78,7 @@ public class RemainingWorkspaceOwnershipTests
         var firstCampaign = Campaign(profile, firstWorkspace, firstBrand);
         var secondCampaign = Campaign(profile, secondWorkspace, secondBrand);
         var legacyBrand = new Brand { Profile = profile, ProfileId = profile.Id, Name = "Legacy brand" };
-        var legacyContent = new Content { Profile = profile, ProfileId = profile.Id, Brand = legacyBrand, BrandId = legacyBrand.Id, AdType = AdTypeEnum.TextOnly, TextContent = "Legacy content" };
+        var legacyContent = new Content { Profile = profile, ProfileId = profile.Id, Brand = legacyBrand, BrandId = legacyBrand.Id, AdType = AdTypeEnum.TextOnly, TextContent = "Legacy content", Status = ContentStatusEnum.Approved };
         var legacyAccount = new SocialAccount { Profile = profile, ProfileId = profile.Id, Platform = SocialPlatformEnum.Facebook, UserAccessToken = "legacy-token" };
 
         context.AddRange(
@@ -105,7 +105,7 @@ public class RemainingWorkspaceOwnershipTests
     private static Brand Brand(Profile profile, Workspace workspace, string name)
         => new() { Profile = profile, ProfileId = profile.Id, Workspace = workspace, WorkspaceId = workspace.Id, Name = name };
     private static Content Content(Profile profile, Workspace workspace, Brand brand, string text)
-        => new() { Profile = profile, ProfileId = profile.Id, Workspace = workspace, WorkspaceId = workspace.Id, Brand = brand, BrandId = brand.Id, AdType = AdTypeEnum.TextOnly, TextContent = text };
+        => new() { Profile = profile, ProfileId = profile.Id, Workspace = workspace, WorkspaceId = workspace.Id, Brand = brand, BrandId = brand.Id, AdType = AdTypeEnum.TextOnly, TextContent = text, Status = ContentStatusEnum.Approved };
     private static SocialAccount Account(Profile profile, Workspace workspace)
         => new() { Profile = profile, ProfileId = profile.Id, Workspace = workspace, WorkspaceId = workspace.Id, Platform = SocialPlatformEnum.Facebook, UserAccessToken = "token" };
     private static SocialIntegration Integration(Profile profile, Workspace workspace, Brand brand, SocialAccount account)

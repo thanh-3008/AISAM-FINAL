@@ -16,26 +16,28 @@ namespace AISAM.IntegrationTests;
 public class ActiveProfileMiddlewareTests
 {
     [Fact]
-    public async Task InvokeAsync_ReturnsUnauthorized_WhenProfileHeaderIsMissing()
+    public async Task InvokeAsync_AutoCreatesProfile_WhenProfileHeaderIsMissing()
     {
-        var context = CreateContext(Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var context = CreateContext(userId);
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.OK, context.Response.StatusCode);
     }
 
     [Fact]
-    public async Task InvokeAsync_ReturnsUnauthorized_WhenProfileHeaderIsInvalid()
+    public async Task InvokeAsync_AutoCreatesProfile_WhenProfileHeaderIsInvalid()
     {
-        var context = CreateContext(Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var context = CreateContext(userId);
         context.Request.Headers["X-Profile-Id"] = "invalid";
         var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, new FakeProfileRepository(), new FakeUserRepository(), CreateEnvironment());
 
-        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+        Assert.Equal((int)HttpStatusCode.OK, context.Response.StatusCode);
     }
 
     [Fact]
@@ -71,23 +73,8 @@ public class ActiveProfileMiddlewareTests
         Assert.Equal(profile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
     }
 
-    [Fact]
-    public async Task InvokeAsync_ReturnsForbidden_WhenProfileDoesNotBelongToActiveWorkspace()
-    {
-        var userId = Guid.NewGuid();
-        var profile = CreateProfile(userId);
-        var activeWorkspaceId = Guid.NewGuid(); // Different from profile.Id
-        
-        var context = CreateContext(userId);
-        context.Request.Headers["X-Profile-Id"] = profile.Id.ToString();
-        context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = activeWorkspaceId;
-        
-        var middleware = new ActiveProfileMiddleware(_ => Task.CompletedTask);
-
-        await middleware.InvokeAsync(context, new FakeProfileRepository(profile), new FakeUserRepository(), CreateEnvironment());
-
-        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
-    }
+    // Removed InvokeAsync_ReturnsForbidden_WhenProfileDoesNotBelongToActiveWorkspace 
+    // because profiles belong to users globally, not workspaces.
 
     [Fact]
     public async Task InvokeAsync_SkipsDevSchedulerPrefix_WhenEnvironmentIsNotDevelopment()
@@ -256,6 +243,9 @@ public class ActiveProfileMiddlewareTests
         public Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeUserRepository : IUserRepository
@@ -267,5 +257,8 @@ public class ActiveProfileMiddlewareTests
         public Task<User?> GetByPasswordResetTokenAsync(string token) => Task.FromResult<User?>(null);
         public Task<User?> GetByEmailVerificationTokenAsync(string token) => Task.FromResult<User?>(null);
         public Task<PagedResult<UserListDto>> GetPagedUsersAsync(PaginationRequest request) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<UserListDto>> GetPagedUsersWithRoleFilterAsync(PaginationRequest request, int? role, bool? isEmailVerified, string? search, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

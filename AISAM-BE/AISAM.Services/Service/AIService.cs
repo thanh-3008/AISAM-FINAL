@@ -205,7 +205,7 @@ public sealed class AIService : IAIService
                 ProductId = request.ProductId,
                 AdType = request.AdType,
                 Title = userMessage[..Math.Min(userMessage.Length, 255)]
-            }, cancellationToken);
+            }, CancellationToken.None);
         }
 
         await _conversationRepository.AddMessageAsync(new ChatMessage
@@ -213,7 +213,7 @@ public sealed class AIService : IAIService
             ConversationId = conversation.Id,
             SenderType = ChatSenderType.User,
             Message = userMessage
-        }, cancellationToken);
+        }, CancellationToken.None);
 
         Console.WriteLine($"[AIService.ChatInternalAsync] User message saved. ConversationId={conversation.Id}");
 
@@ -235,7 +235,7 @@ public sealed class AIService : IAIService
                     userId.Value,
                     CreditActionEnum.GenerateText,
                     TextGenerationCredits,
-                    cancellationToken: cancellationToken);
+                    cancellationToken: CancellationToken.None);
                 Console.WriteLine($"[AIService.ChatInternalAsync] Credit deduction result: success={chargeResult.Success}, message={chargeResult.Message}");
 
                 if (!chargeResult.Success)
@@ -262,7 +262,7 @@ public sealed class AIService : IAIService
                 }
                 else
                 {
-                    var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateImage, ImageGenerationCredits, cancellationToken: cancellationToken);
+                    var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateImage, ImageGenerationCredits, cancellationToken: CancellationToken.None);
                     if (!chargeResult.Success)
                     {
                         responseText += "\n\n(Không thể tạo ảnh do không đủ Credits)";
@@ -279,19 +279,19 @@ public sealed class AIService : IAIService
                             Title = "Chat Generation",
                             TextContent = prompt,
                             Status = ContentStatusEnum.Draft
-                        }, cancellationToken);
-                        var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Pending }, cancellationToken);
+                        }, CancellationToken.None);
+                        var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Pending }, CancellationToken.None);
                         var imgResult = await _imageProvider.GenerateImageAsync(prompt, cancellationToken: cancellationToken);
                         if (imgResult.Success && imgResult.MediaBytes != null)
                         {
-                            var url = await _mediaStorage.UploadBytesAsync(imgResult.MediaBytes, "ai-images", $"ai-image-{generation.Id}.png", cancellationToken);
+                            var url = await _mediaStorage.UploadBytesAsync(imgResult.MediaBytes, "ai-images", $"ai-image-{generation.Id}.png", CancellationToken.None);
                             generation.GeneratedImageUrl = url;
                             generation.Status = AiStatusEnum.Completed;
                             generation.ProviderName = imgResult.ProviderName;
-                            await _generationRepository.UpdateAsync(generation, cancellationToken);
+                            await _generationRepository.UpdateAsync(generation, CancellationToken.None);
                             // attach generated image to the dummy content so frontend can link to the created post
                             dummyContent.ImageUrl = $"[\"{url}\"]";
-                            await _contentRepository.UpdateAsync(dummyContent, cancellationToken);
+                            await _contentRepository.UpdateAsync(dummyContent, CancellationToken.None);
                             createdContentId = dummyContent.Id;
                             responseText += $"\n\n[IMAGE: {url}]";
                         }
@@ -299,7 +299,7 @@ public sealed class AIService : IAIService
                         {
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = imgResult.ErrorMessage;
-                            await _generationRepository.UpdateAsync(generation, cancellationToken);
+                            await _generationRepository.UpdateAsync(generation, CancellationToken.None);
                             responseText += $"\n\n(Lỗi tạo ảnh: {imgResult.ErrorMessage})";
                         }
                     }
@@ -314,8 +314,9 @@ public sealed class AIService : IAIService
                 }
                 else
                 {
-                    var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateVideo, VideoGenerationCredits, cancellationToken: cancellationToken);
-                    if (!chargeResult.Success)
+                    // Check credit availability first WITHOUT deducting yet
+                    var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId.Value, userId.Value, VideoGenerationCredits, cancellationToken: cancellationToken);
+                    if (!creditCheck.Success)
                     {
                         responseText += "\n\n(Không thể tạo video do không đủ Credits)";
                     }
@@ -330,15 +331,24 @@ public sealed class AIService : IAIService
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
                             Title = "Chat Generation",
                             TextContent = prompt,
-                            Status = ContentStatusEnum.Draft
-                        }, cancellationToken);
-                        var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Processing }, cancellationToken);
+                            Status = ContentStatusEnum.Draft,
+                            IsAiGenerated = true
+                        }, CancellationToken.None);
+                        var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Processing }, CancellationToken.None);
                         var vidResult = await _videoProvider.StartVideoGenerationAsync(prompt, cancellationToken: cancellationToken);
                         if (vidResult.Success && !string.IsNullOrEmpty(vidResult.JobId))
                         {
                             generation.VideoJobId = vidResult.JobId;
                             generation.ProviderName = vidResult.ProviderName;
-                            await _generationRepository.UpdateAsync(generation, cancellationToken);
+                            await _generationRepository.UpdateAsync(generation, CancellationToken.None);
+
+                            // Deduct credits ONLY after the video job was accepted successfully
+                            var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateVideo, VideoGenerationCredits, generation.Id, cancellationToken: CancellationToken.None);
+                            if (!chargeResult.Success)
+                            {
+                                Console.WriteLine($"[AIService] Warning: video job started but credit deduction failed: {chargeResult.Message}");
+                            }
+
                             // mark created content id so frontend can show the post immediately
                             createdContentId = dummyContent.Id;
                             responseText += $"\n\n[VIDEO_JOB: {vidResult.JobId}]";
@@ -347,7 +357,7 @@ public sealed class AIService : IAIService
                         {
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = vidResult.ErrorMessage;
-                            await _generationRepository.UpdateAsync(generation, cancellationToken);
+                            await _generationRepository.UpdateAsync(generation, CancellationToken.None);
                             responseText += $"\n\n(Lỗi bắt đầu tạo video: {vidResult.ErrorMessage})";
                         }
                     }
@@ -359,7 +369,7 @@ public sealed class AIService : IAIService
                 ConversationId = conversation.Id,
                 SenderType = ChatSenderType.AI,
                 Message = responseText
-            }, cancellationToken);
+            }, CancellationToken.None);
 
             return GenericResponse<ChatResponse>.CreateSuccess(new ChatResponse
             {
@@ -368,6 +378,18 @@ public sealed class AIService : IAIService
                 ShouldCreateContent = parsedResponse.ShouldCreateContent,
                 CreatedContentId = createdContentId
             });
+        }
+        catch (OperationCanceledException ex)
+        {
+            Console.WriteLine($"[AIService.ChatInternalAsync] Task canceled (Timeout or Client Disconnect): {ex.Message}");
+            await _conversationRepository.AddMessageAsync(new ChatMessage
+            {
+                ConversationId = conversation.Id,
+                SenderType = ChatSenderType.AI,
+                Message = "(Quá trình xử lý bị hủy do timeout hoặc mất kết nối. Vui lòng thử lại.)"
+            }, CancellationToken.None);
+
+            return GenericResponse<ChatResponse>.CreateError("Request timed out or was canceled.", HttpStatusCode.RequestTimeout);
         }
         catch (Exception ex)
         {
@@ -378,7 +400,7 @@ public sealed class AIService : IAIService
                 ConversationId = conversation.Id,
                 SenderType = ChatSenderType.AI,
                 Message = errorMessage
-            }, cancellationToken);
+            }, CancellationToken.None);
 
             return GenericResponse<ChatResponse>.CreateError(errorMessage, HttpStatusCode.ServiceUnavailable);
         }
@@ -569,6 +591,10 @@ public sealed class AIService : IAIService
                 generation.GeneratedVideoUrl = url;
                 generation.Status = AiStatusEnum.Completed;
                 await _generationRepository.UpdateAsync(generation, cancellationToken);
+
+                // Update the associated Content so it shows up in the frontend
+                generation.Content.VideoUrl = url;
+                await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
 
                 // Deduct credits now that it's completed
                 await _creditService.ConsumeCreditsAsync(workspaceId, userId, CreditActionEnum.GenerateVideo, VideoGenerationCredits, generation.Id, cancellationToken: cancellationToken);

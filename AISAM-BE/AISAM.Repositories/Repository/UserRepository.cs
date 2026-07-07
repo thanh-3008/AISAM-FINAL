@@ -100,5 +100,53 @@ namespace AISAM.Repositories.Repository
                 PageSize = request.PageSize
             };
         }
+
+        public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Users.CountAsync(cancellationToken);
+        }
+
+        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
+            if (user != null)
+            {
+                _context.Users.Remove(user);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task<PagedResult<UserListDto>> GetPagedUsersWithRoleFilterAsync(
+            PaginationRequest request, int? role, bool? isEmailVerified, string? search, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Users.AsNoTracking();
+
+            if (role.HasValue)
+                query = query.Where(u => (int)u.Role == role.Value);
+            if (isEmailVerified.HasValue)
+                query = query.Where(u => u.IsEmailVerified == isEmailVerified.Value);
+            if (!string.IsNullOrWhiteSpace(search))
+                query = query.Where(u => u.Email.Contains(search) || (u.FullName != null && u.FullName.Contains(search)));
+
+            var total = await query.CountAsync(cancellationToken);
+            var users = await query
+                .OrderByDescending(u => u.CreatedAt)
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .ToListAsync(cancellationToken);
+
+            var dtos = users.Select(u => new UserListDto
+            {
+                Id = u.Id,
+                Email = u.Email,
+                FullName = u.FullName,
+                Role = (int)u.Role,
+                RoleName = u.Role.ToString(),
+                IsEmailVerified = u.IsEmailVerified,
+                CreatedAt = u.CreatedAt
+            }).ToList();
+
+            return new PagedResult<UserListDto> { Data = dtos, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
+        }
     }
 }

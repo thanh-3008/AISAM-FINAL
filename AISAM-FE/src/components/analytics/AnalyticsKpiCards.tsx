@@ -8,6 +8,8 @@ interface AnalyticsKpiCardsProps {
 }
 
 export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
+  const sparkData = kpi.sparklines || { spend: [], engagement: [], impressions: [], clicks: [], conversions: [] };  
+
   const stats = [
     {
       label: "Total Ad Spend",
@@ -17,17 +19,17 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
       icon: "payments",
       gradient: "from-blue-500 via-blue-600 to-indigo-600",
       bgGlow: "bg-blue-500/10",
-      sparkline: [40, 45, 42, 50, 48, 55, 52, 58, 55, 60],
+      sparkline: sparkData.spend.length > 0 ? sparkData.spend : [0],
     },
     {
-      label: "Conversion Rate",
-      value: kpi.conversionRate,
+      label: "Engagement Rate",
+      value: kpi.engagementRate,
       format: (v: number) => `${v}%`,
-      trend: kpi.conversionRateTrend,
+      trend: kpi.engagementRateTrend,
       icon: "ads_click",
       gradient: "from-purple-500 via-purple-600 to-pink-600",
       bgGlow: "bg-purple-500/10",
-      sparkline: [2.8, 2.9, 3.0, 3.1, 3.0, 3.2, 3.1, 3.3, 3.2, 3.2],
+      sparkline: sparkData.engagement.length > 0 ? sparkData.engagement : [0],
     },
     {
       label: "Avg. CPA",
@@ -37,7 +39,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
       icon: "shopping_cart",
       gradient: "from-orange-500 via-orange-600 to-red-600",
       bgGlow: "bg-orange-500/10",
-      sparkline: [5.2, 5.0, 4.8, 4.6, 4.5, 4.3, 4.2, 4.1, 4.2, 4.15],
+      sparkline: sparkData.clicks.length > 0 ? sparkData.clicks : [0],
     },
     {
       label: "ROAS",
@@ -47,7 +49,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
       icon: "rocket_launch",
       gradient: "from-emerald-500 via-emerald-600 to-teal-600",
       bgGlow: "bg-emerald-500/10",
-      sparkline: [3.8, 4.0, 4.2, 4.3, 4.5, 4.6, 4.7, 4.8, 4.7, 4.8],
+      sparkline: sparkData.spend.length > 0 ? sparkData.spend : [0],
     },
   ];
 
@@ -85,6 +87,10 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
 
             {/* Sparkline */}
             <div className="mb-3">
+              {(() => {
+                const maxVal = Math.max(...stat.sparkline);
+                if (maxVal <= 0 || stat.sparkline.length < 2) return <div className="h-8" />;
+                return (
               <svg viewBox="0 0 100 30" className="w-full h-8" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id={`sparkline-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
@@ -93,15 +99,15 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
                   </linearGradient>
                 </defs>
                 <path
-                  d={`M 0 ${30 - (stat.sparkline[0] / Math.max(...stat.sparkline)) * 30} ${stat.sparkline
-                    .map((val, i) => `L ${(i / (stat.sparkline.length - 1)) * 100} ${30 - (val / Math.max(...stat.sparkline)) * 30}`)
+                  d={`M 0 ${30 - (stat.sparkline[0] / maxVal) * 30} ${stat.sparkline
+                    .map((val, i) => `L ${(i / (stat.sparkline.length - 1)) * 100} ${30 - (val / maxVal) * 30}`)
                     .join(" ")} L 100 30 L 0 30 Z`}
                   fill={`url(#sparkline-${index})`}
                   className={stat.trend >= 0 ? "text-success-green" : "text-danger-red"}
                 />
                 <path
-                  d={`M 0 ${30 - (stat.sparkline[0] / Math.max(...stat.sparkline)) * 30} ${stat.sparkline
-                    .map((val, i) => `L ${(i / (stat.sparkline.length - 1)) * 100} ${30 - (val / Math.max(...stat.sparkline)) * 30}`)
+                  d={`M 0 ${30 - (stat.sparkline[0] / maxVal) * 30} ${stat.sparkline
+                    .map((val, i) => `L ${(i / (stat.sparkline.length - 1)) * 100} ${30 - (val / maxVal) * 30}`)
                     .join(" ")}`}
                   fill="none"
                   stroke="currentColor"
@@ -109,6 +115,8 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
                   className={stat.trend >= 0 ? "text-success-green" : "text-danger-red"}
                 />
               </svg>
+                );
+              })()}
             </div>
 
             {/* Trend */}

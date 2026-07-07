@@ -67,13 +67,10 @@ export const CAMPAIGN_OPTIONS = [
 
 export const BRAND_OPTIONS = [
   { value: "all", label: "All Brands" },
-  { value: "meta", label: "Meta Brand" },
-  { value: "lumina", label: "Lumina Tech" },
-  { value: "summit", label: "Summit Outdoor" },
-  { value: "heritage", label: "Heritage Motors" },
 ] as const;
 
 export const PLATFORM_OPTIONS = [
+  { value: "all", label: "All Platforms" },
   { value: "facebook", label: "Facebook", color: "#1877F2" },
   { value: "instagram", label: "Instagram", color: "#DD2A7B" },
   { value: "tiktok", label: "TikTok", color: "#111111" },

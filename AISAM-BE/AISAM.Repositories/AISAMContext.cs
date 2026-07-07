@@ -45,6 +45,8 @@ namespace AISAM.Repositories
         public DbSet<ChatMessage> ChatMessages { get; set; }
         public DbSet<AutomationPlan> AutomationPlans { get; set; }
         public DbSet<AutomationItem> AutomationItems { get; set; }
+        public DbSet<VideoGenerationJob> VideoGenerationJobs { get; set; }
+        public DbSet<SystemSetting> SystemSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -642,6 +644,31 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(cm => cm.ContentId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // VideoGenerationJob entity configuration
+            modelBuilder.Entity<VideoGenerationJob>(entity =>
+            {
+                entity.HasKey(j => j.Id);
+                entity.Property(j => j.Status).HasConversion<int>().HasDefaultValue(AiStatusEnum.Pending);
+                entity.HasIndex(j => j.WorkspaceId);
+                entity.HasIndex(j => j.UserId);
+                entity.HasIndex(j => j.Status);
+                entity.HasIndex(j => j.IsFallback);
+                entity.HasOne(j => j.Workspace)
+                      .WithMany()
+                      .HasForeignKey(j => j.WorkspaceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(j => j.User)
+                      .WithMany()
+                      .HasForeignKey(j => j.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<SystemSetting>(entity =>
+            {
+                entity.HasKey(ss => ss.Id);
+                entity.HasIndex(ss => ss.Key).IsUnique();
             });
         }
     }

@@ -66,6 +66,7 @@ public class ScheduledPostingServiceTests
     public async Task RunDueSchedulesAsync_MarksFailedAndCreatesNotification_WhenPublishFails()
     {
         var schedule = CreateDueSchedule();
+        schedule.AttemptCount = 2; // Setup for permanent failure
         var notificationRepository = new FakeNotificationRepository();
         var contentService = new FakeContentService
         {
@@ -86,7 +87,7 @@ public class ScheduledPostingServiceTests
         Assert.Equal(0, result.SuccessCount);
         Assert.Equal(1, result.FailedCount);
         Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
-        Assert.Equal(1, schedule.AttemptCount);
+        Assert.Equal(3, schedule.AttemptCount);
         Assert.Equal("Facebook rejected the request.", schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
         Assert.Equal("Scheduled publish failed", notificationRepository.Notifications.Values.Single().Title);
@@ -96,6 +97,7 @@ public class ScheduledPostingServiceTests
     public async Task RunDueSchedulesAsync_MarksFailed_WhenPublishIsBlockedByPostQuota()
     {
         var schedule = CreateDueSchedule();
+        schedule.AttemptCount = 2; // Setup for permanent failure
         var notificationRepository = new FakeNotificationRepository();
         var contentService = new FakeContentService
         {
@@ -119,7 +121,7 @@ public class ScheduledPostingServiceTests
         Assert.Equal(0, result.SuccessCount);
         Assert.Equal(1, result.FailedCount);
         Assert.Equal(ScheduleStatusEnum.Failed, schedule.Status);
-        Assert.Equal(1, schedule.AttemptCount);
+        Assert.Equal(3, schedule.AttemptCount);
         Assert.Equal("Post quota has been exceeded for the current subscription.", schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
         Assert.Equal("Scheduled publish failed", notificationRepository.Notifications.Values.Single().Title);
@@ -143,16 +145,17 @@ public class ScheduledPostingServiceTests
 
         var result = await service.RunDueSchedulesAsync(20);
 
-        Assert.Equal(1, result.ScannedCount);
+        Assert.Equal(0, result.ScannedCount);
         Assert.Equal(0, result.SuccessCount);
-        Assert.Equal(1, result.FailedCount);
-        Assert.Equal(ScheduleStatusEnum.Failed, completed.Status);
+        Assert.Equal(0, result.FailedCount);
+        Assert.Equal(ScheduleStatusEnum.Completed, completed.Status);
     }
 
     [Fact]
     public async Task RunDueSchedulesAsync_BlocksExpiredWorkspaceWithoutFallingBackToLegacyProfilePublish()
     {
         var schedule = CreateDueSchedule();
+        schedule.AttemptCount = 2; // Setup for permanent failure
         var userId = Guid.NewGuid();
         var profileRepository = new FakeProfileRepository(new Profile
         {
@@ -320,6 +323,7 @@ public class ScheduledPostingServiceTests
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, AISAM.Common.Dtos.Request.UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, WorkspaceMemberRoleEnum memberRole, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<List<string>>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
@@ -401,5 +405,8 @@ public class ScheduledPostingServiceTests
         public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

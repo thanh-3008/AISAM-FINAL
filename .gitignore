@@ -17,6 +17,7 @@ obj/
 *.env
 .env.local
 appsettings.Production.json
+appsettings.Development.json
 
 # Local runtime logs
 *.log
