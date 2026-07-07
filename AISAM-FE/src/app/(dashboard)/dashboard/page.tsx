@@ -9,6 +9,7 @@ import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/servic
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import { apiFetch } from "@/lib/apiClient";
+import { fetchChannelBreakdown, fetchAudienceBreakdown, type ChannelBreakdownItem, type AudienceBreakdown } from "@/services/analyticsService";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import CreateProfileModal from "@/components/profiles/CreateProfileModal";
 
@@ -98,6 +99,8 @@ export default function DashboardPage() {
   const [dailyUsage, setDailyUsage] = useState<{ date: string; credits: number }[]>([]);
   const [usageDays, setUsageDays] = useState(7);
   const [dashboardCampaigns, setDashboardCampaigns] = useState<Campaign[]>([]);
+  const [platformBreakdown, setPlatformBreakdown] = useState<ChannelBreakdownItem[]>([]);
+  const [audience, setAudience] = useState<AudienceBreakdown | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
@@ -121,6 +124,8 @@ export default function DashboardPage() {
     fetchCampaigns({ pageSize: 5 }).then((res) => {
       if (res) setDashboardCampaigns(res.data.slice(0, 5));
     });
+    fetchChannelBreakdown("30d").then(setPlatformBreakdown);
+    fetchAudienceBreakdown().then(setAudience);
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
@@ -294,11 +299,10 @@ export default function DashboardPage() {
                     <span className="material-symbols-outlined text-[22px]">{kpi.icon}</span>
                   </div>
                   {kpi.delta !== null && (
-                    <span className={`flex items-center gap-1 text-label-sm px-2 py-1 rounded-full font-semibold ${
-                      kpi.deltaUp === true ? "bg-emerald-50 text-emerald-600" :
-                      kpi.deltaUp === false ? "bg-red-50 text-red-500" :
-                      "bg-surface-container-high text-on-surface-variant"
-                    }`}>
+                    <span className={`flex items-center gap-1 text-label-sm px-2 py-1 rounded-full font-semibold ${kpi.deltaUp === true ? "bg-emerald-50 text-emerald-600" :
+                        kpi.deltaUp === false ? "bg-red-50 text-red-500" :
+                          "bg-surface-container-high text-on-surface-variant"
+                      }`}>
                       {kpi.deltaUp === true && <span className="material-symbols-outlined text-[14px]">trending_up</span>}
                       {kpi.deltaUp === false && <span className="material-symbols-outlined text-[14px]">trending_down</span>}
                       {kpi.delta}
@@ -413,11 +417,10 @@ export default function DashboardPage() {
                       <p className="text-body-sm font-medium text-on-surface truncate group-hover:text-primary transition-colors">{post.title || "Untitled"}</p>
                       <p className="text-label-sm text-outline">{formatScheduleDate(post.scheduledAt)}</p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-label-2xs font-semibold tracking-wide ${
-                      post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
-                      post.status === "Failed" ? "bg-red-50 text-red-500" :
-                      "bg-amber-50 text-amber-600"
-                    }`}>
+                    <span className={`px-2 py-0.5 rounded text-label-2xs font-semibold tracking-wide ${post.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
+                        post.status === "Failed" ? "bg-red-50 text-red-500" :
+                          "bg-amber-50 text-amber-600"
+                      }`}>
                       {post.status}
                     </span>
                   </div>
@@ -484,13 +487,12 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform ${
-                        row.objective === "SALES" ? "bg-blue-50 text-blue-600" :
-                        row.objective === "AWARENESS" ? "bg-purple-50 text-purple-600" :
-                        row.objective === "TRAFFIC" ? "bg-orange-50 text-orange-600" :
-                        row.objective === "LEADS" ? "bg-emerald-50 text-emerald-600" :
-                        "bg-surface-container-high text-on-surface-variant"
-                      }`}>{row.objective}</span>
+                      <span className={`px-2.5 py-1 rounded-lg text-label-xs font-bold tracking-wide inline-block hover:scale-105 transition-transform ${row.objective === "SALES" ? "bg-blue-50 text-blue-600" :
+                          row.objective === "AWARENESS" ? "bg-purple-50 text-purple-600" :
+                            row.objective === "TRAFFIC" ? "bg-orange-50 text-orange-600" :
+                              row.objective === "LEADS" ? "bg-emerald-50 text-emerald-600" :
+                                "bg-surface-container-high text-on-surface-variant"
+                        }`}>{row.objective}</span>
                     </td>
                     <td className="px-6 py-4 text-body-sm text-on-surface font-medium">${row.budget?.toLocaleString() || "0"}</td>
                     <td className="px-6 py-4">
@@ -502,11 +504,10 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                        row.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" :
-                        row.status === "COMPLETED" ? "bg-blue-50 text-blue-600" :
-                        "bg-surface-container-high text-on-surface-variant"
-                      }`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${row.status === "ACTIVE" ? "bg-emerald-50 text-emerald-600" :
+                          row.status === "COMPLETED" ? "bg-blue-50 text-blue-600" :
+                            "bg-surface-container-high text-on-surface-variant"
+                        }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${row.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : "bg-outline"}`} />
                         {row.status === "ACTIVE" ? "Active" : row.status === "COMPLETED" ? "Completed" : row.status === "PAUSED" ? "Paused" : "Draft"}
                       </span>
@@ -520,19 +521,22 @@ export default function DashboardPage() {
 
         {/* ===== BOTTOM GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
-          {[
-            { title: "Geographic Distribution", icon: "map", color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", type: "geo", data: [
-              { label: "United States", value: 38 }, { label: "United Kingdom", value: 22 }, { label: "Germany", value: 15 }, { label: "Japan", value: 12 }, { label: "Others", value: 13 }
-            ] },
-            { title: "Top Demographics", icon: "pie_chart", color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", type: "demographics", data: [
-              { label: "18-24", value: 28 }, { label: "25-34", value: 42 }, { label: "35-44", value: 20 }, { label: "45+", value: 10 }
-            ] },
-            { title: "Device Breakdown", icon: "devices", color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", type: "devices", data: [
-              { label: "Mobile", value: 72, color: "bg-gradient-to-r from-blue-500 to-blue-400" },
-              { label: "Desktop", value: 24, color: "bg-gradient-to-r from-purple-500 to-purple-400" },
-              { label: "Tablet", value: 4, color: "bg-gradient-to-r from-amber-500 to-amber-400" },
-            ] },
-          ].map((item, i) => (
+          {(() => {
+            const geo = audience?.geographic?.length ? audience.geographic : [
+              { country: "United States", percentage: 38 }, { country: "United Kingdom", percentage: 22 }, { country: "Germany", percentage: 15 }, { country: "Japan", percentage: 12 }, { country: "Others", percentage: 13 }
+            ];
+            const demo = audience?.demographics?.length ? audience.demographics : [
+              { group: "18-24", percentage: 28 }, { group: "25-34", percentage: 42 }, { group: "35-44", percentage: 20 }, { group: "45+", percentage: 10 }
+            ];
+            const dev = audience?.devices?.length ? audience.devices : [
+              { device: "Desktop", percentage: 52 }, { device: "Mobile", percentage: 38 }, { device: "Tablet", percentage: 10 }
+            ];
+            const cards = [
+              { title: "Geographic Distribution", icon: "map", color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", data: geo.map(g => ({ label: g.country, value: Math.round(g.percentage) })) },
+              { title: "Top Demographics", icon: "pie_chart", color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", data: demo.map(d => ({ label: d.group, value: Math.round(d.percentage) })) },
+              { title: "Device Breakdown", icon: "devices", color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", data: dev.map(d => ({ label: d.device, value: Math.round(d.percentage), color: "bg-gradient-to-r from-blue-500 to-blue-400" })) },
+            ];
+            return cards.map((item, i) => (
             <div
               key={item.title}
               className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""} card-hover`}
@@ -553,14 +557,15 @@ export default function DashboardPage() {
                     </div>
                     <AnimatedBar
                       value={d.value}
-                      color={(d as any).color || (item.type === "geo" ? "bg-gradient-to-r from-blue-500 to-blue-400" : "bg-gradient-to-r from-purple-500 to-purple-400")}
+                      color={(d as any).color || "bg-gradient-to-r from-blue-500 to-blue-400"}
                       delay={900 + i * 100 + j * 50}
                     />
                   </div>
                 ))}
               </div>
             </div>
-          ))}
+            ));
+          })()}
         </div>
 
         {/* ===== AI SUGGESTIONS ===== */}
@@ -605,27 +610,44 @@ export default function DashboardPage() {
         <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.96s" }}>
           <div className="flex items-center gap-2 mb-6">
             <h4 className="text-headline-sm text-on-surface">Platform Distribution</h4>
-            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">TOTAL 4</span>
+            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">TOTAL {platformBreakdown.filter(p => p.publishedPosts > 0).length || 0}</span>
           </div>
-          <div className="h-56 flex items-end gap-6 px-4 pb-2 border-b border-outline-variant/20">
-            {[
-              { label: "Facebook", height: "85%", color: "bg-gradient-to-t from-blue-500 to-blue-400", value: "45%" },
-              { label: "Instagram", height: "65%", color: "bg-gradient-to-t from-purple-500 to-purple-400", value: "28%" },
-              { label: "TikTok", height: "40%", color: "bg-gradient-to-t from-amber-500 to-amber-400", value: "18%" },
-              { label: "Others", height: "25%", color: "bg-gradient-to-t from-outline to-outline-variant", value: "9%" },
-            ].map((item, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                <span className="text-label-xs text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</span>
-                <div
-                  className={`w-full ${item.color} rounded-t-lg transition-all duration-700 group-hover:rounded-t-xl`}
-                  style={{
-                    height: "0%",
-                    animation: visible ? `bar-grow 0.8s ease-out ${1.0 + i * 0.15}s forwards` : "none",
-                  }}
-                />
-                <span className="text-label-sm text-outline font-medium group-hover:text-on-surface transition-colors">{item.label}</span>
-              </div>
-            ))}
+          <div className="h-72 flex items-end justify-evenly gap-10 px-4 pb-2 border-b border-outline-variant/20">
+            {(() => {
+              const barColor: Record<string, string> = {
+                facebook: "from-blue-500 to-blue-400",
+                instagram: "from-purple-500 to-purple-400",
+                tiktok: "from-amber-500 to-amber-400",
+                twitter: "from-cyan-500 to-cyan-400",
+                google: "from-red-500 to-red-400",
+                youtube: "from-red-600 to-red-500",
+              };
+              const defaultPlatforms = ["facebook", "instagram", "tiktok"];
+              const items = platformBreakdown.length > 0
+                ? defaultPlatforms.map(p => platformBreakdown.find(b => b.platform === p) || { platform: p, publishedPosts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 })
+                : [
+                    { platform: "facebook", publishedPosts: 45, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 },
+                    { platform: "instagram", publishedPosts: 28, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 },
+                    { platform: "tiktok", publishedPosts: 18, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 },
+                  ];
+              const maxPosts = Math.max(...items.map(p => p.publishedPosts), 1);
+              return items.map((item, i) => (
+                <div key={i} className="w-14 flex flex-col items-center gap-2 group" style={{ height: "100%" }}>
+                  <span className="text-label-xs text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.publishedPosts} posts</span>
+                  <div className="w-full flex-1 flex flex-col justify-end">
+                    <div
+                      className={`w-full bg-gradient-to-t ${barColor[item.platform] || "from-outline to-outline-variant"} rounded-t-lg transition-all duration-1000 group-hover:rounded-t-xl`}
+                      style={{
+                        height: visible ? `${Math.round((item.publishedPosts / maxPosts) * 100)}%` : "0%",
+                        minHeight: item.publishedPosts > 0 ? "4px" : "0px",
+                        opacity: item.publishedPosts > 0 ? 1 : 0.2,
+                      }}
+                    />
+                  </div>
+                  <span className="text-label-sm text-outline font-medium group-hover:text-on-surface transition-colors capitalize">{item.platform}</span>
+                </div>
+              ));
+            })()}
           </div>
         </div>
 

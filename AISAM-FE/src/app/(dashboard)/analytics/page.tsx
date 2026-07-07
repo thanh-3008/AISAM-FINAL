@@ -7,10 +7,10 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import {
   fetchAnalytics,
-  exportReport,
   type AnalyticsData,
   type DateRange,
 } from "@/services/analyticsService";
+import { fetchBrands } from "@/services/brandService";
 import AnalyticsKpiCards from "@/components/analytics/AnalyticsKpiCards";
 import AnalyticsFilterBar from "@/components/analytics/AnalyticsFilterBar";
 import AnalyticsChart from "@/components/analytics/AnalyticsChart";
@@ -26,15 +26,30 @@ export default function AnalyticsPage() {
 
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [campaignFilter, setCampaignFilter] = useState("all");
-  const [brandFilter, setBrandFilter] = useState("meta");
-  const [platformFilter, setPlatformFilter] = useState("facebook");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [brandOptions, setBrandOptions] = useState<{ label: string; value: string }[]>([{ label: "All Brands", value: "all" }]);
+
+  useEffect(() => {
+    fetchBrands().then((brands) => {
+      setBrandOptions([
+        { label: "All Brands", value: "all" },
+        ...brands.map((b) => ({ label: b.name, value: b.id })),
+      ]);
+    });
+  }, [activeWorkspace?.id]);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetchAnalytics(campaignFilter);
+        const res = await fetchAnalytics({
+          dateRange,
+          campaignFilter,
+          brandId: brandFilter,
+          platform: platformFilter,
+        });
         if (!cancelled) setData(res);
       } catch (err) {
         if (!cancelled) {
@@ -52,14 +67,23 @@ export default function AnalyticsPage() {
   const handleRefresh = () => {
     setData(null);
     setLoading(true);
-    fetchAnalytics(campaignFilter).then((res) => {
+    fetchAnalytics({ dateRange, campaignFilter, brandId: brandFilter, platform: platformFilter }).then((res) => {
       setData(res);
       setLoading(false);
     });
   };
 
   const handleExport = async () => {
-    const blob = await exportReport();
+    if (!data) return;
+    const headers = [
+      "Date,Spend,CPC,Impressions,Engagement,Clicks,CTR,Published Posts",
+    ];
+    const rows = data.chartData.map(
+      (d) =>
+        `${d.date},${d.spend},${d.cpc},${d.impressions},${d.engagement},${d.clicks},${d.ctr},${d.publishedPosts}`
+    );
+    const csvContent = [...headers, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -154,6 +178,7 @@ export default function AnalyticsPage() {
                 onBrandFilterChange={setBrandFilter}
                 platformFilter={platformFilter}
                 onPlatformFilterChange={setPlatformFilter}
+                brandOptions={brandOptions}
                 onRefresh={handleRefresh}
               />
 
@@ -162,13 +187,13 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-12 gap-6">
                 <div className="col-span-12 lg:col-span-8 space-y-6">
                   <AnalyticsChart data={data.chartData} />
-                  <AnalyticsPerformanceTable campaigns={data.campaignPerformance} />
+                  <AnalyticsPerformanceTable campaigns={data.campaignPerformance} onViewFullReport={handleExport} />
                 </div>
 
                 <aside className="col-span-12 lg:col-span-4 space-y-6">
                   {featureGate.canAccess("advancedAnalytics") ? (
                     <>
-                      <AnalyticsAiInsights insights={data.aiInsights} />
+                      <AnalyticsAiInsights insights={data.aiInsights} dateRange={dateRange} />
                       <AnalyticsEfficiencyCard metrics={data.efficiency} />
                     </>
                   ) : (

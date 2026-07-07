@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -64,6 +65,33 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
                 workspace.Id == id &&
                 workspace.Status != WorkspaceStatusEnum.Deleted,
                 cancellationToken);
+    }
+
+    public async Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Workspaces.AsNoTracking();
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(w => w.CreatedAt)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+        return new PagedResult<Workspace> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var ws = await _context.Workspaces.FindAsync(new object[] { id }, cancellationToken);
+        if (ws != null)
+        {
+            _context.Workspaces.Remove(ws);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Workspaces.CountAsync(cancellationToken);
     }
 
     private IQueryable<Workspace> Query()

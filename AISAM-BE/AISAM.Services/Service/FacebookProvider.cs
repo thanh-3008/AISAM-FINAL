@@ -471,6 +471,28 @@ public sealed class FacebookProvider : IProviderService
     }
 
     // ──────────────────────────────────────────────
+    //  Page Insights — Audience Analytics
+    // ──────────────────────────────────────────────
+
+    public async Task<FacebookPageInsightsResponse?> GetPageInsightsAsync(string pageId, string accessToken, string metrics, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{pageId}/insights?metric={metrics}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get page insights for {PageId}: {Error}", pageId, GetErrorMessage(content));
+            return null;
+        }
+        return Deserialize<FacebookPageInsightsResponse>(content);
+    }
+
+    // ──────────────────────────────────────────────
     //  Marketing API — Status Update
     // ──────────────────────────────────────────────
 

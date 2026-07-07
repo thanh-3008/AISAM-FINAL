@@ -8,6 +8,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { fetchWorkspaceDashboard, fetchCreditWallet, fetchPostQuota } from "@/services/workspaceService";
 import type { WorkspaceDashboard, CreditWallet } from "@/services/workspaceService";
+import { fetchUsageBreakdown, type UsageBreakdownItem } from "@/services/analyticsService";
 
 export default function WorkspaceDashboardPage() {
   const { activeWorkspace } = useWorkspaces();
@@ -17,19 +18,22 @@ export default function WorkspaceDashboardPage() {
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [usageBreakdown, setUsageBreakdown] = useState<UsageBreakdownItem[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [dashData, walletData, quotaData] = await Promise.all([
+        const [dashData, walletData, quotaData, usageData] = await Promise.all([
           fetchWorkspaceDashboard(),
           fetchCreditWallet(),
           fetchPostQuota(),
+          fetchUsageBreakdown(),
         ]);
         setDashboard(dashData);
         setCreditWallet(walletData);
         setPostQuota(quotaData);
+        setUsageBreakdown(usageData);
       } catch (error) {
         console.error("Failed to load workspace dashboard:", error);
       } finally {
@@ -260,30 +264,46 @@ export default function WorkspaceDashboardPage() {
                     </button>
                   </div>
                   <div className="space-y-4">
-                    {[
-                      { label: "Text Generation", value: 45, color: "from-blue-400 to-blue-500", icon: "text_fields" },
-                      { label: "Image Generation", value: 30, color: "from-purple-400 to-purple-500", icon: "image" },
-                      { label: "Video Generation", value: 15, color: "from-pink-400 to-pink-500", icon: "videocam" },
-                      { label: "Other", value: 10, color: "from-gray-400 to-gray-500", icon: "more_horiz" },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center">
-                          <span className="material-symbols-outlined text-on-surface-variant text-[16px]">{item.icon}</span>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-body-sm text-on-surface">{item.label}</span>
-                            <span className="text-label-sm text-outline">{item.value}%</span>
+                    {(usageBreakdown.length > 0 ? usageBreakdown : [
+                      { category: "Text Generation", count: 45, percentage: 45 },
+                      { category: "Image Generation", count: 30, percentage: 30 },
+                      { category: "Video Generation", count: 15, percentage: 15 },
+                      { category: "Other", count: 10, percentage: 10 },
+                    ]).map((item) => {
+                      const colors: Record<string, string> = {
+                        "Text Generation": "from-blue-400 to-blue-500",
+                        "Image Generation": "from-purple-400 to-purple-500",
+                        "Video Generation": "from-pink-400 to-pink-500",
+                        "Other": "from-gray-400 to-gray-500",
+                      };
+                      const icons: Record<string, string> = {
+                        "Text Generation": "text_fields",
+                        "Image Generation": "image",
+                        "Video Generation": "videocam",
+                        "Other": "more_horiz",
+                      };
+                      const color = colors[item.category] || colors["Other"];
+                      const icon = icons[item.category] || icons["Other"];
+                      return (
+                        <div key={item.category} className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center">
+                            <span className="material-symbols-outlined text-on-surface-variant text-[16px]">{icon}</span>
                           </div>
-                          <div className="h-1.5 bg-surface-container rounded-full overflow-hidden">
-                            <div
-                              className={`h-full bg-gradient-to-r ${item.color} rounded-full transition-all duration-500`}
-                              style={{ width: `${item.value}%` }}
-                            />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-body-sm text-on-surface">{item.category}</span>
+                              <span className="text-label-sm text-outline">{item.percentage}%</span>
+                            </div>
+                            <div className="h-1.5 bg-surface-container rounded-full overflow-hidden">
+                              <div
+                                className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-500`}
+                                style={{ width: `${item.percentage}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="mt-4 flex justify-end">
                     <button

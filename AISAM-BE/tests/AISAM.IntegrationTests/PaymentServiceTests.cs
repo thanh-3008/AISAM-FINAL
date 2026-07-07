@@ -882,6 +882,10 @@ public class PaymentServiceTests
             _payments[payment.Id] = payment;
             return Task.CompletedTask;
         }
+
+        public Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeSubscriptionRepository : ISubscriptionRepository
@@ -1023,6 +1027,10 @@ public class PaymentServiceTests
 
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspaces.ContainsKey(id));
+
+        public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeCreditWalletRepository : ICreditWalletRepository

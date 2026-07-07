@@ -465,6 +465,10 @@ public class FoundationTests
                 PageSize = request.PageSize
             });
         }
+
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => Task.FromResult(_users.Count);
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<PagedResult<UserListDto>> GetPagedUsersWithRoleFilterAsync(PaginationRequest request, int? role, bool? isEmailVerified, string? search, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeBrandRepository : IBrandRepository

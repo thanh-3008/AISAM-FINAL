@@ -44,6 +44,7 @@ namespace AISAM.Repositories
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
         public DbSet<VideoGenerationJob> VideoGenerationJobs { get; set; }
+        public DbSet<SystemSetting> SystemSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -632,6 +633,12 @@ namespace AISAM.Repositories
                       .WithMany()
                       .HasForeignKey(j => j.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<SystemSetting>(entity =>
+            {
+                entity.HasKey(ss => ss.Id);
+                entity.HasIndex(ss => ss.Key).IsUnique();
             });
         }
     }
