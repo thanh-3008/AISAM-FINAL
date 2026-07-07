@@ -363,42 +363,9 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.MapGet("/", () => Results.Redirect("/swagger/index.html"));
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("SEED_DEV_DATA") == "true")
 {
-    using (var scope = app.Services.CreateScope())
-    {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
-
-        var freeSubs = dbContext.Subscriptions
-            .Include(s => s.Workspace)
-            .Where(s => s.Plan == AISAM.Data.Enumeration.SubscriptionPlanEnum.Free && s.Workspace != null)
-            .ToList();
-
-        foreach (var sub in freeSubs)
-        {
-            var wsType = sub.Workspace!.WorkspaceType;
-
-            sub.Plan = AISAM.Data.Enumeration.SubscriptionPlanEnum.Premium;
-            sub.QuotaPostsPerMonth = wsType == AISAM.Data.Enumeration.WorkspaceTypeEnum.Personal ? 1_000 : 20_000;
-            sub.QuotaAIContentPerDay = 200;
-            sub.QuotaAIImagesPerDay = 30;
-            sub.QuotaPlatforms = 3;
-            sub.QuotaAccounts = 5;
-            sub.AnalysisLevel = 2;
-            sub.QuotaAdBudgetMonthly = 10_000_000m;
-            sub.QuotaAdCampaigns = 10;
-            sub.EndDate = DateTime.UtcNow.AddYears(1);
-
-            var wallet = dbContext.CreditWallets.FirstOrDefault(w => w.WorkspaceId == sub.WorkspaceId);
-            if (wallet != null)
-            {
-                var credits = wsType == AISAM.Data.Enumeration.WorkspaceTypeEnum.Personal ? 2_000L : 50_000L;
-                wallet.Balance = credits;
-            }
-        }
-
-        dbContext.SaveChanges();
-    }
+    AISAM.API.Infrastructure.DevDataSeeder.SeedDevData(app.Services);
 }
 
 app.Run();

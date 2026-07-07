@@ -10,3 +10,4 @@ obj/
 .env
 .keys/
 docs/
+appsettings.Development.json
