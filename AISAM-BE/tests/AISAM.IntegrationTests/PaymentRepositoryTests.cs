@@ -199,8 +199,8 @@ public class PaymentRepositoryTests
             Plan = SubscriptionPlanEnum.Plus,
             QuotaPostsPerMonth = 5,
             QuotaAIContentPerDay = 3,
-            StartDate = new DateTime(2026, 6, 1),
-            EndDate = new DateTime(2026, 6, 30),
+            StartDate = DateTime.UtcNow.AddDays(-10),
+            EndDate = DateTime.UtcNow.AddDays(20),
             IsActive = true
         };
         var inactiveSubscription = new Subscription
@@ -208,8 +208,8 @@ public class PaymentRepositoryTests
             Id = Guid.NewGuid(),
             ProfileId = ownerProfile.Id,
             Plan = SubscriptionPlanEnum.Free,
-            StartDate = new DateTime(2026, 5, 1),
-            EndDate = new DateTime(2026, 5, 31),
+            StartDate = DateTime.UtcNow.AddDays(-40),
+            EndDate = DateTime.UtcNow.AddDays(-10),
             IsActive = false
         };
         var otherSubscription = new Subscription
@@ -218,8 +218,8 @@ public class PaymentRepositoryTests
             ProfileId = otherProfile.Id,
             WorkspaceId = otherWorkspace.Id,
             Plan = SubscriptionPlanEnum.Premium,
-            StartDate = new DateTime(2026, 6, 1),
-            EndDate = new DateTime(2026, 6, 30),
+            StartDate = DateTime.UtcNow.AddDays(-5),
+            EndDate = DateTime.UtcNow.AddDays(25),
             IsActive = true
         };
 
@@ -248,7 +248,7 @@ public class PaymentRepositoryTests
             Status = PaymentStatusEnum.Success,
             PaymentMethod = "PayOS",
             TransactionId = "txn-owner-new",
-            CreatedAt = new DateTime(2026, 6, 2, 8, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-4)
         };
         var otherProfilePayment = new Payment
         {
@@ -260,7 +260,7 @@ public class PaymentRepositoryTests
             Status = PaymentStatusEnum.Success,
             PaymentMethod = "PayOS",
             TransactionId = "txn-other",
-            CreatedAt = new DateTime(2026, 6, 2, 9, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-4)
         };
         var userOnlyPayment = new Payment
         {
@@ -271,7 +271,7 @@ public class PaymentRepositoryTests
             Status = PaymentStatusEnum.Pending,
             PaymentMethod = "PayOS",
             TransactionId = "txn-owner-null-sub",
-            CreatedAt = new DateTime(2026, 6, 2, 10, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-4)
         };
 
         var brand = new Brand
@@ -317,7 +317,7 @@ public class PaymentRepositoryTests
             AiPrompt = "inside",
             GeneratedText = "ok",
             Status = AiStatusEnum.Completed,
-            CreatedAt = new DateTime(2026, 6, 2, 7, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-3)
         };
         var promptOutsideWindow = new AiGeneration
         {
@@ -326,7 +326,7 @@ public class PaymentRepositoryTests
             AiPrompt = "outside",
             GeneratedText = "old",
             Status = AiStatusEnum.Completed,
-            CreatedAt = new DateTime(2026, 5, 20, 7, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-15)
         };
         var promptFailedInsideWindow = new AiGeneration
         {
@@ -386,34 +386,34 @@ public class PaymentRepositoryTests
             Id = Guid.NewGuid(),
             ContentId = ownerContent.Id,
             IntegrationId = ownerIntegration.Id,
-            PublishedAt = new DateTime(2026, 6, 3, 8, 0, 0, DateTimeKind.Utc),
+            PublishedAt = DateTime.UtcNow.AddDays(-3),
             Status = ContentStatusEnum.Published,
-            CreatedAt = new DateTime(2026, 6, 3, 8, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-3)
         };
         var publishedOutsideWindow = new Post
         {
             Id = Guid.NewGuid(),
             ContentId = ownerContent.Id,
             IntegrationId = ownerIntegration.Id,
-            PublishedAt = new DateTime(2026, 5, 21, 8, 0, 0, DateTimeKind.Utc),
+            PublishedAt = DateTime.UtcNow.AddDays(-15),
             Status = ContentStatusEnum.Published,
-            CreatedAt = new DateTime(2026, 5, 21, 8, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-15)
         };
         var draftInsideWindow = new Post
         {
             Id = Guid.NewGuid(),
             ContentId = ownerContent.Id,
             IntegrationId = ownerIntegration.Id,
-            PublishedAt = new DateTime(2026, 6, 4, 8, 0, 0, DateTimeKind.Utc),
+            PublishedAt = DateTime.UtcNow.AddDays(-2),
             Status = ContentStatusEnum.Draft,
-            CreatedAt = new DateTime(2026, 6, 4, 8, 0, 0, DateTimeKind.Utc)
+            CreatedAt = DateTime.UtcNow.AddDays(-2)
         };
         var otherPublishedInsideWindow = new Post
         {
             Id = Guid.NewGuid(),
             ContentId = otherContent.Id,
             IntegrationId = otherIntegration.Id,
-            PublishedAt = new DateTime(2026, 6, 3, 10, 0, 0, DateTimeKind.Utc),
+            PublishedAt = DateTime.UtcNow.AddDays(-3),
             Status = ContentStatusEnum.Published,
             CreatedAt = new DateTime(2026, 6, 3, 10, 0, 0, DateTimeKind.Utc)
         };

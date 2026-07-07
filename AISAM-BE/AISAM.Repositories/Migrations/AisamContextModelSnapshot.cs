@@ -534,6 +534,251 @@ namespace AISAM.Repositories.Migrations
                     b.ToTable("audit_logs");
                 });
 
+            modelBuilder.Entity("AISAM.Data.Model.AutomationItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AutomationPlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("automation_plan_id");
+
+                    b.Property<Guid>("BrandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("brand_id");
+
+                    b.Property<Guid?>("ContentCalendarId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_calendar_id");
+
+                    b.Property<Guid?>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Cta")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("cta");
+
+                    b.Property<int>("EstimatedCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("estimated_credits");
+
+                    b.Property<int>("GenerationAttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("generation_attempt_count");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Objective")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("objective");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("platform");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("RequestedContentType")
+                        .HasColumnType("integer")
+                        .HasColumnName("requested_content_type");
+
+                    b.Property<int>("RowIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("row_index");
+
+                    b.Property<DateTime>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scheduled_at");
+
+                    b.Property<string>("SourceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("source_json");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Tone")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("tone");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("topic");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("UsedCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("used_credits");
+
+                    b.Property<string>("ValidationErrors")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("validation_errors");
+
+                    b.Property<string>("VideoJobId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("video_job_id");
+
+                    b.Property<string>("VideoProvider")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("video_provider");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BrandId");
+
+                    b.HasIndex("ContentCalendarId")
+                        .IsUnique()
+                        .HasFilter("content_calendar_id IS NOT NULL");
+
+                    b.HasIndex("ContentId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ScheduledAt");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("AutomationPlanId", "RowIndex", "Platform")
+                        .IsUnique();
+
+                    b.ToTable("automation_items");
+                });
+
+            modelBuilder.Entity("AISAM.Data.Model.AutomationPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AutoApprove")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_approve");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("EstimatedCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("estimated_credits");
+
+                    b.Property<int>("FailedItems")
+                        .HasColumnType("integer")
+                        .HasColumnName("failed_items");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("profile_id");
+
+                    b.Property<int>("ReleasedCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("released_credits");
+
+                    b.Property<int>("ReservedCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("reserved_credits");
+
+                    b.Property<string>("SourceFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("source_file_name");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("TemplateSourcePlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_source_plan_id");
+
+                    b.Property<string>("Timezone")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("timezone");
+
+                    b.Property<int>("TotalItems")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_items");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("UsedCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("used_credits");
+
+                    b.Property<int>("ValidItems")
+                        .HasColumnType("integer")
+                        .HasColumnName("valid_items");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "CreatedAt");
+
+                    b.ToTable("automation_plans");
+                });
+
             modelBuilder.Entity("AISAM.Data.Model.Brand", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1052,6 +1297,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<long>("ReservedBalance")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reserved_balance");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2006,6 +2255,89 @@ namespace AISAM.Repositories.Migrations
                     b.ToTable("users");
                 });
 
+            modelBuilder.Entity("AISAM.Data.Model.VideoGenerationJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("CurrentSegment")
+                        .HasColumnType("integer")
+                        .HasColumnName("current_segment");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("ExternalJobId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("external_job_id");
+
+                    b.Property<bool>("IsFallback")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_fallback");
+
+                    b.Property<string>("OriginalPrompt")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("original_prompt");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("provider");
+
+                    b.Property<int?>("SegmentsCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("segments_count");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("VideoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("video_url");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsFallback");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.ToTable("video_generation_jobs");
+                });
+
             modelBuilder.Entity("AISAM.Data.Model.Workspace", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2339,6 +2671,46 @@ namespace AISAM.Repositories.Migrations
                         .IsRequired();
 
                     b.Navigation("Actor");
+                });
+
+            modelBuilder.Entity("AISAM.Data.Model.AutomationItem", b =>
+                {
+                    b.HasOne("AISAM.Data.Model.AutomationPlan", "AutomationPlan")
+                        .WithMany("Items")
+                        .HasForeignKey("AutomationPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AISAM.Data.Model.Brand", "Brand")
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AISAM.Data.Model.ContentCalendar", "ContentCalendar")
+                        .WithMany()
+                        .HasForeignKey("ContentCalendarId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AISAM.Data.Model.Content", "Content")
+                        .WithMany()
+                        .HasForeignKey("ContentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AISAM.Data.Model.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AutomationPlan");
+
+                    b.Navigation("Brand");
+
+                    b.Navigation("Content");
+
+                    b.Navigation("ContentCalendar");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("AISAM.Data.Model.Brand", b =>
@@ -2783,6 +3155,25 @@ namespace AISAM.Repositories.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("AISAM.Data.Model.VideoGenerationJob", b =>
+                {
+                    b.HasOne("AISAM.Data.Model.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AISAM.Data.Model.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("AISAM.Data.Model.WorkspaceInvitation", b =>
                 {
                     b.HasOne("AISAM.Data.Model.User", "InvitedByUser")
@@ -2834,6 +3225,11 @@ namespace AISAM.Repositories.Migrations
             modelBuilder.Entity("AISAM.Data.Model.AdSet", b =>
                 {
                     b.Navigation("Ads");
+                });
+
+            modelBuilder.Entity("AISAM.Data.Model.AutomationPlan", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("AISAM.Data.Model.Brand", b =>

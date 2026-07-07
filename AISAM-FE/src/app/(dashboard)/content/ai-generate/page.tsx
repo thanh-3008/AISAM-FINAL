@@ -186,6 +186,7 @@ export default function AIGeneratePage() {
 
       if (aiReply.createdContentId) {
         setGeneratedId(aiReply.createdContentId ?? null);
+        setJustGenerated(true); // Automatically show "View Post" so the user can navigate to see the processing status
       }
       if (aiReply.shouldCreateContent || aiReply.createdContentId) {
         handleApplyVariation(variation);

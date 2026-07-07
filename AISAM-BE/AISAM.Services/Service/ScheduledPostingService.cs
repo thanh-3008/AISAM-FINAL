@@ -177,11 +177,12 @@ public sealed class ScheduledPostingService : IScheduledPostingService
 
     private static bool IsDuplicateKeyError(Exception ex)
     {
-        while (ex != null)
+        Exception? current = ex;
+        while (current != null)
         {
-            if (ex is PostgresException pg && pg.SqlState == "23505")
+            if (current is PostgresException pg && pg.SqlState == "23505")
                 return true;
-            ex = ex.InnerException;
+            current = current.InnerException;
         }
         return false;
     }

@@ -23,38 +23,26 @@ public sealed class OpenRouterVideoClient
         _logger = logger;
     }
 
-    public async Task<VideoGenerationResult> StartAsync(string prompt, CancellationToken cancellationToken)
+    public async Task<VideoGenerationResult> StartAsync(string prompt, VideoGenerationOptions? options, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_settings.OpenRouterApiKey))
-            return VideoGenerationResult.Fail("OpenRouter Video API Key is missing.", "OpenRouter");
+            return VideoGenerationResult.Fail("Pollo API Key is missing.", "Pollo");
 
-        var model = _settings.OpenRouterModel ?? "minimax/video-01";
-        var url = _settings.OpenRouterBaseUrl ?? "https://openrouter.ai/api/v1/videos";
+        var baseUrl = _settings.OpenRouterBaseUrl ?? "https://pollo.ai/api/platform";
+        var url = $"{baseUrl.TrimEnd('/')}/generation/pollo/pollo-v1-5";
 
-        object payload;
-        if (url.Contains("seedance"))
+        var payload = new
         {
-            payload = new
+            input = new
             {
-                mode = "text-to-video",
-                quality_tier = "standard",
                 prompt = prompt,
-                aspect_ratio = "16:9",
-                duration = "5",
-                resolution = "720p"
-            };
-        }
-        else
-        {
-            payload = new
-            {
-                model = model,
-                prompt = prompt
-            };
-        }
+                aspectRatio = options?.AspectRatio ?? "9:16"
+            }
+        };
 
         var request = new HttpRequestMessage(HttpMethod.Post, url);
-        request.Headers.Add("Authorization", $"Bearer {_settings.OpenRouterApiKey}");
+        // Pollo uses x-api-key for authentication
+        request.Headers.Add("x-api-key", _settings.OpenRouterApiKey);
         request.Content = JsonContent.Create(payload);
 
         try
@@ -63,93 +51,144 @@ public sealed class OpenRouterVideoClient
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                return VideoGenerationResult.Fail($"HTTP {(int)response.StatusCode}: {errorBody}", "OpenRouter");
+                return VideoGenerationResult.Fail($"HTTP {(int)response.StatusCode}: {errorBody}", "Pollo");
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             using var document = JsonDocument.Parse(json);
-
-            // OpenRouter may return an id and a polling_url. DeAPI returns request_id.
             var root = document.RootElement;
-            string? id = null;
-            if (root.TryGetProperty("id", out var idElement)) id = idElement.GetString();
-            else if (root.TryGetProperty("request_id", out var reqIdElement)) id = reqIdElement.GetString();
 
-            if (!string.IsNullOrEmpty(id))
+            var targetNode = root;
+            if (root.TryGetProperty("data", out var dataNode) && dataNode.ValueKind == JsonValueKind.Object)
             {
-                string? pollingUrl = null;
-                if (root.TryGetProperty("polling_url", out var pollElement)) pollingUrl = pollElement.GetString();
-
-                // Prefer returning polling URL if provided, otherwise a namespaced id
-                return VideoGenerationResult.Queued(pollingUrl ?? $"openrouter:{id}", "OpenRouter");
+                targetNode = dataNode;
             }
 
-            return VideoGenerationResult.Fail("Did not receive job ID from OpenRouter.", "OpenRouter");
+            if (targetNode.TryGetProperty("taskId", out var taskIdElement))
+            {
+                var taskId = taskIdElement.GetString();
+                if (!string.IsNullOrEmpty(taskId))
+                {
+                    // Keep the 'openrouter:' prefix so FallbackVideoProvider still forwards the poll to this client.
+                    return VideoGenerationResult.Queued($"openrouter:{taskId}", "Pollo");
+                }
+            }
+
+            return VideoGenerationResult.Fail("Did not receive taskId from Pollo.", "Pollo");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "OpenRouter video start exception.");
-            return VideoGenerationResult.Fail(ex.Message, "OpenRouter");
+            _logger.LogError(ex, "Pollo video start exception.");
+            return VideoGenerationResult.Fail(ex.Message, "Pollo");
         }
     }
 
     public async Task<VideoGenerationResult> PollAsync(string id, CancellationToken cancellationToken)
     {
-        // Allow passing either a full polling URL or an id. If the id looks like a URL, use it directly.
-        var baseUrl = _settings.OpenRouterBaseUrl ?? "https://openrouter.ai/api/v1/videos";
-        // If the URL ends with /generations or /txt2video, we might need to strip it or replace it, 
-        // but typically appending /id works or using the correct status endpoint.
-        // For deapi, it is usually /request-status/{id}
-        // For seedance2ai, it is /api/v1/tasks/{id}
-        var requestUrl = id.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? id
-            : baseUrl.Contains("deapi") ? baseUrl.Replace("txt2video", "request-status").Replace("generations", "request-status") + $"/{id}" 
-            : baseUrl.Contains("seedance") ? baseUrl.Replace("video/seedance2", "tasks") + $"/{id.Replace("openrouter:", "")}"
-            : $"{baseUrl}/{id}";
+        var baseUrl = _settings.OpenRouterBaseUrl ?? "https://pollo.ai/api/platform";
+        var taskId = id.Replace("openrouter:", "");
+        
+        var requestUrl = taskId.StartsWith("http", StringComparison.OrdinalIgnoreCase) 
+            ? taskId 
+            : $"{baseUrl.TrimEnd('/')}/generation/tasks/{taskId}";
 
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("Authorization", $"Bearer {_settings.OpenRouterApiKey}");
+        request.Headers.Add("x-api-key", _settings.OpenRouterApiKey);
 
         try
         {
             var response = await _httpClient.SendAsync(request, cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            
+            _logger.LogInformation("[Pollo Poll] TaskId={TaskId} Status={HttpStatus} Body={Body}", taskId, (int)response.StatusCode, json);
+            
             if (!response.IsSuccessStatusCode)
             {
-                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                return VideoGenerationResult.Fail($"HTTP {(int)response.StatusCode}: {errorBody}", "OpenRouter");
+                return VideoGenerationResult.Fail($"HTTP {(int)response.StatusCode}: {json}", "Pollo");
             }
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
-
-            if (root.TryGetProperty("status", out var statusElement))
+            
+            // Navigate to data node if present
+            var targetNode = root;
+            if (root.TryGetProperty("data", out var dataNode) && dataNode.ValueKind == JsonValueKind.Object)
             {
-                var status = statusElement.GetString();
-                if (status == "completed")
+                targetNode = dataNode;
+            }
+
+            if (targetNode.TryGetProperty("status", out var statusElement))
+            {
+                var status = statusElement.GetString()?.ToLower();
+                _logger.LogInformation("[Pollo Poll] TaskId={TaskId} PolloStatus={Status}", taskId, status);
+                
+                if (status == "succeed" || status == "success" || status == "completed" || status == "done")
                 {
-                    if (root.TryGetProperty("video_url", out var urlElement)) 
+                    // Try various possible URL field names Pollo might return
+                    string? videoUrl = null;
+                    
+                    // Check direct fields
+                    foreach (var field in new[] { "videoUrl", "video_url", "resultUrl", "result_url", "url", "outputUrl", "output_url" })
                     {
-                        return VideoGenerationResult.Done(urlElement.GetString()!, "OpenRouter");
+                        if (targetNode.TryGetProperty(field, out var urlEl) && urlEl.ValueKind == JsonValueKind.String)
+                        {
+                            videoUrl = urlEl.GetString();
+                            if (!string.IsNullOrEmpty(videoUrl)) break;
+                        }
                     }
-                    if (root.TryGetProperty("output", out var outputObj) && outputObj.TryGetProperty("video_url", out var outputUrl))
+                    
+                    // Check outputs array: outputs[0].url or outputs[0].video_url
+                    if (string.IsNullOrEmpty(videoUrl) && targetNode.TryGetProperty("outputs", out var outputsEl) && outputsEl.ValueKind == JsonValueKind.Array && outputsEl.GetArrayLength() > 0)
                     {
-                        return VideoGenerationResult.Done(outputUrl.GetString()!, "OpenRouter");
+                        var first = outputsEl[0];
+                        foreach (var field in new[] { "url", "videoUrl", "video_url", "resultUrl" })
+                        {
+                            if (first.TryGetProperty(field, out var urlEl) && urlEl.ValueKind == JsonValueKind.String)
+                            {
+                                videoUrl = urlEl.GetString();
+                                if (!string.IsNullOrEmpty(videoUrl)) break;
+                            }
+                        }
                     }
-                    return VideoGenerationResult.Fail("Job completed but video URL missing.", "OpenRouter");
+                    
+                    // Check result object
+                    if (string.IsNullOrEmpty(videoUrl) && targetNode.TryGetProperty("result", out var resultEl) && resultEl.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var field in new[] { "url", "videoUrl", "video_url" })
+                        {
+                            if (resultEl.TryGetProperty(field, out var urlEl) && urlEl.ValueKind == JsonValueKind.String)
+                            {
+                                videoUrl = urlEl.GetString();
+                                if (!string.IsNullOrEmpty(videoUrl)) break;
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(videoUrl))
+                    {
+                        _logger.LogInformation("[Pollo Poll] TaskId={TaskId} Done. VideoUrl={VideoUrl}", taskId, videoUrl);
+                        return VideoGenerationResult.Done(videoUrl, "Pollo");
+                    }
+                    
+                    _logger.LogWarning("[Pollo Poll] TaskId={TaskId} Status=succeed but no video URL found. Full JSON: {JSON}", taskId, json);
+                    return VideoGenerationResult.Fail("Job completed but video URL missing from response. JSON: " + json, "Pollo");
                 }
-                else if (status == "failed")
+                else if (status == "failed" || status == "error" || status == "fail")
                 {
-                    return VideoGenerationResult.Fail("OpenRouter job failed.", "OpenRouter");
+                    var errMsg = targetNode.TryGetProperty("errorMessage", out var errEl) ? errEl.GetString() : 
+                                 targetNode.TryGetProperty("error_message", out var errEl2) ? errEl2.GetString() : "Pollo job failed.";
+                    _logger.LogError("[Pollo Poll] TaskId={TaskId} Failed: {Error}", taskId, errMsg);
+                    return VideoGenerationResult.Fail(errMsg ?? "Pollo job failed.", "Pollo");
                 }
             }
 
-            return VideoGenerationResult.InProgress($"openrouter:{id}", "OpenRouter");
+            _logger.LogInformation("[Pollo Poll] TaskId={TaskId} still processing. JSON: {JSON}", taskId, json);
+            return VideoGenerationResult.InProgress($"openrouter:{taskId}", "Pollo");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "OpenRouter video poll exception.");
-            return VideoGenerationResult.Fail(ex.Message, "OpenRouter");
+            _logger.LogError(ex, "Pollo video poll exception.");
+            return VideoGenerationResult.Fail(ex.Message, "Pollo");
         }
     }
 }

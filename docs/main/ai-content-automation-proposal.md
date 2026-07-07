@@ -1,5 +1,7 @@
 # Đề xuất tính năng AI Content Automation cho AISAM
 
+> Trạng thái triển khai: Phase 1 đã bắt đầu. Đã có schema `AutomationPlan`/`AutomationItem`, import CSV, validation, idempotency key, API danh sách/chi tiết/xác nhận và trang `/automation`. Background generation, credit reservation/settlement, approval và tự động tạo lịch thuộc các phase tiếp theo.
+
 ## 1. Mục tiêu
 
 Người dùng tải lên hoặc nhập một bảng lịch trình nội dung. AISAM phân tích lịch, tự tạo nội dung, ảnh/video, đề xuất nền tảng và thời gian đăng, sau đó đưa toàn bộ kết quả vào hàng chờ duyệt. Chỉ nội dung được người dùng duyệt mới được đưa vào lịch đăng thật.
@@ -50,6 +52,12 @@ Các cột đề xuất:
 | CTA | Không | Hành động mong muốn |
 | Notes | Không | Yêu cầu bổ sung cho AI |
 
+Trong CSV mẫu, người dùng nhập riêng `Date` và `Time`:
+
+- `Date`: ưu tiên `dd/MM/yyyy`, ví dụ `10/08/2026`; cũng chấp nhận `yyyy-MM-dd`.
+- `Time`: định dạng 24 giờ `HH:mm`, ví dụ `09:00` hoặc `19:30`.
+- Hệ thống ghép hai cột theo múi giờ được chọn khi import. Cột `ScheduledAt` cũ vẫn được hỗ trợ để tương thích file đã tạo trước đây.
+
 Nếu `ContentType = Auto`, AI đề xuất định dạng dựa trên chủ đề và nền tảng. TikTok chỉ được chọn khi đầu ra có video.
 
 ## 4. Các giai đoạn xử lý
@@ -62,6 +70,7 @@ Nếu `ContentType = Auto`, AI đề xuất định dạng dựa trên chủ đ�
 - Phát hiện trùng lịch hoặc cùng một integration đã có lịch hoạt động.
 - Ước tính số credit cần dùng cho text, image và video.
 - Không gọi AI trước khi người dùng xác nhận kế hoạch và chi phí.
+- Trước khi xác nhận, mỗi item có thể mở form **Sửa yêu cầu** để chọn lại Brand/Product, sửa chủ đề, nền tảng, loại nội dung, ngày giờ, tone, CTA và ghi chú. Sau khi lưu, backend chạy lại toàn bộ validation và cập nhật số item hợp lệ.
 
 ### Giai đoạn B — Lập kế hoạch AI
 
@@ -111,6 +120,7 @@ Approval Queue nên hỗ trợ:
 - So sánh phiên bản cũ và mới.
 - Từ chối kèm ghi chú để AI tạo lại.
 - Preview bài theo Facebook, Instagram và TikTok.
+- Nếu Brand chỉ có một Page/target đang hoạt động trên nền tảng, hệ thống tự chọn. Nếu có nhiều Page, màn hình duyệt bắt buộc hiển thị checkbox để người dùng chọn một hoặc nhiều Page; mỗi Page được chọn tạo một ContentCalendar riêng và retry không tạo trùng.
 
 Khi duyệt, hệ thống tạo hoặc cập nhật `Content`, sau đó tạo `ContentCalendar` cho từng integration được chọn.
 
@@ -143,12 +153,13 @@ Trạng thái phụ: `NeedsAttention`, `Rejected`, `GenerationFailed`, `PublishF
 - Id, WorkspaceId, ProfileId
 - FileName, SourceType, Timezone
 - Status, TotalItems, SuccessItems, FailedItems
-- EstimatedCredits, UsedCredits
+- EstimatedCredits, ReservedCredits, UsedCredits, ReleasedCredits
 - CreatedAt, StartedAt, CompletedAt
 
 ### AutomationItem
 
 - AutomationJobId, ContentId, BrandId, ProductId
+- RowIndex, Platform, IdempotencyKey
 - Topic, Objective, Platforms, RequestedContentType
 - GeneratedCaption, Hashtags, CTA
 - ImageUrl, VideoUrl, MediaPrompt
@@ -179,10 +190,80 @@ Không nên xử lý toàn bộ file trong một HTTP request. API chỉ tạo j
 - Mặc định bắt buộc duyệt trước khi tạo lịch.
 - Tùy chọn auto-approve chỉ nên dành cho workspace có quyền cao và template đã được phê duyệt.
 - Hiển thị ước tính credit trước khi generate.
+- Khi người dùng xác nhận kế hoạch, tạm giữ `EstimatedCredits` trong Credit Wallet thay vì trừ ngay.
+- Khi từng item hoàn thành, chỉ quyết toán `UsedCredits` thực tế của item đó.
+- Khi item lỗi do hệ thống, job bị hủy hoặc không sử dụng hết dự toán, giải phóng phần credit chưa dùng.
 - Đặt giới hạn số video/job và số job chạy đồng thời.
 - Không trừ credit lần nữa khi retry do lỗi hệ thống.
 - Lưu lịch sử prompt, model, người duyệt và phiên bản nội dung.
 - Cho phép dừng job; item đã hoàn thành vẫn được giữ lại.
+
+### Cơ chế giữ và quyết toán Credit
+
+Credit của Automation Job nên đi qua ba bước:
+
+```text
+Available Credit
+      ↓ reserve khi xác nhận kế hoạch
+Reserved Credit
+      ↓ settle theo chi phí generate thực tế
+Used Credit + Released Credit
+```
+
+Các giá trị cần theo dõi:
+
+- `EstimatedCredits`: tổng chi phí dự kiến được hiển thị trước khi xác nhận.
+- `ReservedCredits`: số credit đang bị khóa cho job và chưa thể dùng cho tác vụ khác.
+- `UsedCredits`: chi phí thực tế đã quyết toán thành công.
+- `ReleasedCredits`: phần dự toán không sử dụng được trả lại số dư khả dụng.
+
+Quy tắc quyết toán:
+
+1. Khi xác nhận kế hoạch, thực hiện transaction nguyên tử để kiểm tra số dư và tạo reservation.
+2. Mỗi item chỉ được settle một lần sau khi provider trả kết quả thành công.
+3. Retry do timeout hoặc lỗi hệ thống sử dụng lại reservation hiện có và không tạo giao dịch trừ credit mới.
+4. Lỗi do dữ liệu người dùng cần được phân loại riêng; chỉ charge nếu provider thực sự đã hoàn thành tác vụ có tính phí.
+5. Khi cancel job, item đang chạy được yêu cầu dừng; phần chưa settle được release sau khi worker xác nhận trạng thái cuối.
+6. Khi job hoàn tất, hệ thống release toàn bộ số reserved còn dư.
+
+Nên bổ sung loại giao dịch Credit Wallet như `AutomationReserve`, `AutomationSettle` và `AutomationRelease`. Mỗi giao dịch phải có `AutomationJobId`, `AutomationItemId` nếu có, `IdempotencyKey` và số dư trước/sau để audit.
+
+Không nên cập nhật số dư bằng nhiều thao tác rời. Reserve, settle và release phải dùng database transaction hoặc cơ chế atomic update để hai job chạy đồng thời không tiêu vượt số dư.
+
+### Idempotency và khả năng resume
+
+Mỗi đơn vị công việc theo nền tảng cần một idempotency key ổn định:
+
+```text
+SHA256(AutomationPlanId + ":" + RowIndex + ":" + Platform)
+```
+
+Trong đó:
+
+- `AutomationPlanId` xác định lần import/kế hoạch.
+- `RowIndex` xác định dòng gốc trong bảng lịch trình.
+- `Platform` phân biệt Facebook, Instagram và TikTok.
+
+Không đưa attempt number hoặc timestamp vào key vì retry phải tái sử dụng đúng key cũ.
+
+Các ràng buộc đề xuất:
+
+- Unique index trên `AutomationItem.IdempotencyKey`.
+- Unique index trên `(AutomationItemId, IntegrationId)` của lịch đăng hoặc bảng liên kết tương ứng.
+- Credit transaction có unique index trên `(IdempotencyKey, TransactionType)`.
+- Provider generation request lưu `ProviderRequestId` để truy vấn lại kết quả nếu worker mất kết nối.
+
+Khi retry hoặc resume:
+
+1. Tìm `AutomationItem` bằng idempotency key trước khi tạo mới.
+2. Nếu text/media đã hoàn thành, bỏ qua bước generate tương ứng.
+3. Nếu Content đã tồn tại, cập nhật hoặc tái sử dụng thay vì tạo Content thứ hai.
+4. Trước khi tạo `ContentCalendar`, tìm theo `AutomationItemId + IntegrationId`.
+5. Nếu lịch Pending/Processing/Scheduled đã tồn tại, trả lại chính bản ghi đó như một kết quả thành công idempotent.
+6. Nếu lịch đã Published, không đăng lại trừ khi người dùng chủ động chọn thao tác Republish tạo idempotency key mới.
+7. Nếu worker chết giữa chừng, job có thể resume từ trạng thái bền vững gần nhất mà không sinh nội dung, trừ credit hoặc tạo lịch trùng.
+
+API confirm, retry, approve và schedule nên nhận header `Idempotency-Key`. Backend vẫn phải tự tính và kiểm tra key chuẩn từ dữ liệu nội bộ; không tin hoàn toàn giá trị do client gửi lên.
 
 ## 9. MVP nên làm trước
 
@@ -320,3 +401,41 @@ Trạng thái tổng của item được suy ra:
 - Automation Plan là nơi quản lý tổng thể và là màn hình mặc định sau khi import.
 
 Sau khi người dùng xác nhận file, hệ thống chuyển thẳng đến `/automation/{planId}` và cập nhật tiến độ theo thời gian thực. Đây sẽ là nơi họ làm việc chính; Content, Calendar và Posts chỉ còn là các màn hình chuyên sâu khi cần.
+
+## 13. Tiến độ triển khai
+
+### Phase 1 — Hoàn thành
+
+- Import/validate CSV, tạo Automation Plan và Automation Item.
+- Idempotency key theo plan, dòng và nền tảng.
+- API danh sách/chi tiết/xác nhận cùng màn hình `/automation`.
+
+### Phase 2 — Hoàn thành phần sinh text và ảnh
+
+- Background worker xử lý từng item độc lập.
+- Sinh caption riêng theo nền tảng và lưu thành Content nháp.
+- Sinh ảnh, upload Cloudinary và ghi nhận credit thực dùng.
+- Retry không sinh/trừ lại phần đã hoàn thành; hỗ trợ hủy plan.
+- Giao diện tự cập nhật tiến độ, hiển thị caption, ảnh và lỗi từng item.
+- Video được đánh dấu `NeedsAttention` và sẽ triển khai trong Phase 3.
+
+### Phase 3 — Hoàn thành video, duyệt và lên lịch
+
+- Video chạy bất đồng bộ theo cơ chế start/poll và tiếp tục được sau khi restart BE.
+- Video hoàn tất được tải về, lưu trên Cloudinary rồi mới ghi vào Content.
+- Chỉ trừ credit video sau khi provider trả kết quả thành công.
+- Hỗ trợ duyệt từng item hoặc duyệt hàng loạt toàn bộ plan.
+- Khi duyệt, hệ thống tự tìm social integration đúng Brand và nền tảng rồi tạo lịch đăng.
+- `AutomationItem.ContentCalendarId` liên kết trực tiếp item với lịch đăng và ngăn tạo lịch trùng khi retry.
+- Lưu audit Approval; hỗ trợ từ chối từng item kèm lý do.
+- Trang Automation có preview video, nút duyệt/lên lịch, từ chối và trạng thái lịch.
+
+### Phase 4 — Hoàn thành vận hành nâng cao
+
+- Import Google Sheets công khai qua CSV export, chỉ chấp nhận HTTPS từ `docs.google.com`.
+- Clone một plan làm template và dịch toàn bộ lịch theo số ngày được chọn.
+- Auto-approve chỉ cho Owner/Manager; worker tự duyệt và tạo lịch sau khi generate xong.
+- Worker đồng bộ `Scheduled → Published/PublishFailed` từ kết quả ContentCalendar.
+- Báo cáo theo plan gồm số bài, impressions, engagement, CTR và doanh thu ước tính từ PerformanceReport.
+- Credit được giữ thật trong `CreditWallet.ReservedBalance`, quyết toán theo text/image/video và giải phóng phần chưa dùng khi hoàn tất, lỗi hoặc hủy.
+- Các bước retry dùng trạng thái credit đã quyết toán để không trừ lại phần đã thành công.
