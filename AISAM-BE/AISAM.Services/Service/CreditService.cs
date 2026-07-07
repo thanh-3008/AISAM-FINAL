@@ -225,7 +225,7 @@ public sealed class CreditService : ICreditService
             }
         }
 
-        if (wallet.Balance < credits)
+        if (wallet.Balance - wallet.ReservedBalance < credits)
         {
             await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
             {
@@ -316,7 +316,7 @@ public sealed class CreditService : ICreditService
         }
 
         var wallet = await EnsureCurrentFreeCreditsAsync(workspaceId, now, cancellationToken);
-        return wallet.Balance < credits
+        return wallet.Balance - wallet.ReservedBalance < credits
             ? GenericResponse<bool>.CreateError(
                 "Workspace does not have enough credits.",
                 HttpStatusCode.BadRequest,

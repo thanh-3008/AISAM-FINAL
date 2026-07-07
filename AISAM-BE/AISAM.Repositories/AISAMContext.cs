@@ -43,6 +43,8 @@ namespace AISAM.Repositories
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<AutomationPlan> AutomationPlans { get; set; }
+        public DbSet<AutomationItem> AutomationItems { get; set; }
         public DbSet<VideoGenerationJob> VideoGenerationJobs { get; set; }
         public DbSet<SystemSetting> SystemSettings { get; set; }
 
@@ -59,6 +61,34 @@ namespace AISAM.Repositories
                 entity.Property(u => u.Role).HasConversion<int>().HasDefaultValue(UserRoleEnum.User);
                 entity.HasIndex(u => u.Role);
                 entity.HasIndex(u => u.CreatedAt);
+            });
+
+            modelBuilder.Entity<AutomationPlan>(entity =>
+            {
+                entity.HasKey(plan => plan.Id);
+                entity.HasIndex(plan => plan.WorkspaceId);
+                entity.HasIndex(plan => new { plan.WorkspaceId, plan.CreatedAt });
+                entity.Property(plan => plan.Status).HasConversion<int>();
+                entity.HasMany(plan => plan.Items)
+                    .WithOne(item => item.AutomationPlan)
+                    .HasForeignKey(item => item.AutomationPlanId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AutomationItem>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.HasIndex(item => item.IdempotencyKey).IsUnique();
+                entity.HasIndex(item => new { item.AutomationPlanId, item.RowIndex, item.Platform }).IsUnique();
+                entity.HasIndex(item => item.ContentCalendarId).IsUnique().HasFilter("content_calendar_id IS NOT NULL");
+                entity.HasIndex(item => item.ScheduledAt);
+                entity.HasIndex(item => item.Status);
+                entity.Property(item => item.Status).HasConversion<int>();
+                entity.Property(item => item.RequestedContentType).HasConversion<int>();
+                entity.HasOne(item => item.Brand).WithMany().HasForeignKey(item => item.BrandId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(item => item.Content).WithMany().HasForeignKey(item => item.ContentId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(item => item.ContentCalendar).WithMany().HasForeignKey(item => item.ContentCalendarId).OnDelete(DeleteBehavior.SetNull);
             });
 
             // Session entity configuration

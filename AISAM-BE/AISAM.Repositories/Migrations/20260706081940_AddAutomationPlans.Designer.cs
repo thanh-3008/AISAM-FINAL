@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AISAM.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AISAM.Repositories.Migrations
 {
     [DbContext(typeof(AisamContext))]
-    partial class AisamContextModelSnapshot : ModelSnapshot
+    [Migration("20260706081940_AddAutomationPlans")]
+    partial class AddAutomationPlans
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -549,10 +552,6 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("brand_id");
 
-                    b.Property<Guid?>("ContentCalendarId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("content_calendar_id");
-
                     b.Property<Guid?>("ContentId")
                         .HasColumnType("uuid")
                         .HasColumnName("content_id");
@@ -647,23 +646,9 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("validation_errors");
 
-                    b.Property<string>("VideoJobId")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("video_job_id");
-
-                    b.Property<string>("VideoProvider")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("video_provider");
-
                     b.HasKey("Id");
 
                     b.HasIndex("BrandId");
-
-                    b.HasIndex("ContentCalendarId")
-                        .IsUnique()
-                        .HasFilter("content_calendar_id IS NOT NULL");
 
                     b.HasIndex("ContentId");
 
@@ -688,10 +673,6 @@ namespace AISAM.Repositories.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
-
-                    b.Property<bool>("AutoApprove")
-                        .HasColumnType("boolean")
-                        .HasColumnName("auto_approve");
 
                     b.Property<DateTime?>("ConfirmedAt")
                         .HasColumnType("timestamp with time zone")
@@ -739,10 +720,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
-
-                    b.Property<Guid?>("TemplateSourcePlanId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("template_source_plan_id");
 
                     b.Property<string>("Timezone")
                         .IsRequired()
@@ -1297,10 +1274,6 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
-
-                    b.Property<long>("ReservedBalance")
-                        .HasColumnType("bigint")
-                        .HasColumnName("reserved_balance");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2004,47 +1977,6 @@ namespace AISAM.Repositories.Migrations
                     b.ToTable("subscriptions");
                 });
 
-            modelBuilder.Entity("AISAM.Data.Model.SystemSetting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("value");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Key")
-                        .IsUnique();
-
-                    b.HasIndex("UpdatedBy");
-
-                    b.ToTable("system_settings");
-                });
-
             modelBuilder.Entity("AISAM.Data.Model.Team", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2253,89 +2185,6 @@ namespace AISAM.Repositories.Migrations
                     b.HasIndex("Role");
 
                     b.ToTable("users");
-                });
-
-            modelBuilder.Entity("AISAM.Data.Model.VideoGenerationJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int?>("CurrentSegment")
-                        .HasColumnType("integer")
-                        .HasColumnName("current_segment");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text")
-                        .HasColumnName("error_message");
-
-                    b.Property<string>("ExternalJobId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("external_job_id");
-
-                    b.Property<bool>("IsFallback")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_fallback");
-
-                    b.Property<string>("OriginalPrompt")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("original_prompt");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("provider");
-
-                    b.Property<int?>("SegmentsCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("segments_count");
-
-                    b.Property<int>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("status");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<string>("VideoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("video_url");
-
-                    b.Property<Guid>("WorkspaceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("workspace_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsFallback");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("WorkspaceId");
-
-                    b.ToTable("video_generation_jobs");
                 });
 
             modelBuilder.Entity("AISAM.Data.Model.Workspace", b =>
@@ -2687,11 +2536,6 @@ namespace AISAM.Repositories.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AISAM.Data.Model.ContentCalendar", "ContentCalendar")
-                        .WithMany()
-                        .HasForeignKey("ContentCalendarId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("AISAM.Data.Model.Content", "Content")
                         .WithMany()
                         .HasForeignKey("ContentId")
@@ -2707,8 +2551,6 @@ namespace AISAM.Repositories.Migrations
                     b.Navigation("Brand");
 
                     b.Navigation("Content");
-
-                    b.Navigation("ContentCalendar");
 
                     b.Navigation("Product");
                 });
@@ -3097,15 +2939,6 @@ namespace AISAM.Repositories.Migrations
                     b.Navigation("Workspace");
                 });
 
-            modelBuilder.Entity("AISAM.Data.Model.SystemSetting", b =>
-                {
-                    b.HasOne("AISAM.Data.Model.User", "UpdatedByUser")
-                        .WithMany()
-                        .HasForeignKey("UpdatedBy");
-
-                    b.Navigation("UpdatedByUser");
-                });
-
             modelBuilder.Entity("AISAM.Data.Model.Team", b =>
                 {
                     b.HasOne("AISAM.Data.Model.Profile", "Profile")
@@ -3153,25 +2986,6 @@ namespace AISAM.Repositories.Migrations
                     b.Navigation("Team");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AISAM.Data.Model.VideoGenerationJob", b =>
-                {
-                    b.HasOne("AISAM.Data.Model.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AISAM.Data.Model.Workspace", "Workspace")
-                        .WithMany()
-                        .HasForeignKey("WorkspaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-
-                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("AISAM.Data.Model.WorkspaceInvitation", b =>

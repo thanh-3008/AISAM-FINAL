@@ -13,13 +13,25 @@ namespace AISAM.Services.Service
     {
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
-        private readonly IMediaStorageService _mediaStorageService;
+        private readonly IMediaStorageService? _mediaStorageService;
+        private const int MaxImageCount = 5;
+        private const long MaxImageBytes = 10 * 1024 * 1024;
+        private static readonly HashSet<string> AllowedImageTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg", "image/png", "image/webp", "image/gif"
+        };
 
         public ProductService(IProductRepository productRepository, IBrandRepository brandRepository, IMediaStorageService mediaStorageService)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
             _mediaStorageService = mediaStorageService;
+        }
+
+        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository)
+        {
+            _productRepository = productRepository;
+            _brandRepository = brandRepository;
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -75,16 +87,6 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
             }
 
-            var imageUrls = new List<string>();
-            if (request.ImageFiles != null && request.ImageFiles.Any())
-            {
-                foreach (var file in request.ImageFiles)
-                {
-                    var url = await _mediaStorageService.UploadAsync(file, $"workspaces/{workspaceId}/products", file.FileName, cancellationToken);
-                    imageUrls.Add(url);
-                }
-            }
-
             var product = new Product
             {
                 BrandId = request.BrandId,
@@ -92,8 +94,16 @@ namespace AISAM.Services.Service
                 Description = request.Description,
                 Price = request.Price,
                 Stock = request.Stock,
-                Images = JsonSerializer.Serialize(imageUrls)
+                Images = JsonSerializer.Serialize(new List<string>())
             };
+
+            var imageError = ValidateImages(request.ImageFiles);
+            if (imageError != null) return GenericResponse<ProductResponseDto>.CreateError(imageError);
+            if (request.ImageFiles is { Count: > 0 })
+            {
+                try { product.Images = JsonSerializer.Serialize(await UploadImagesAsync(product.Id, product.BrandId, request.ImageFiles, cancellationToken)); }
+                catch (Exception ex) { return GenericResponse<ProductResponseDto>.CreateError(ex.Message); }
+            }
 
             var created = await _productRepository.AddAsync(product, cancellationToken);
             var loaded = await _productRepository.GetByIdAsync(created.Id, cancellationToken) ?? created;
@@ -145,18 +155,19 @@ namespace AISAM.Services.Service
                 product.Stock = request.Stock.Value;
             }
 
-            if (request.ImageFiles != null && request.ImageFiles.Any())
+            var updateImageError = ValidateImages(request.ImageFiles);
+            if (updateImageError != null) return GenericResponse<ProductResponseDto>.CreateError(updateImageError);
+            if (request.ImageFiles is { Count: > 0 })
             {
-                var imageUrls = string.IsNullOrEmpty(product.Images) 
-                    ? new List<string>() 
-                    : JsonSerializer.Deserialize<List<string>>(product.Images) ?? new List<string>();
-
-                foreach (var file in request.ImageFiles)
+                try
                 {
-                    var url = await _mediaStorageService.UploadAsync(file, $"workspaces/{workspaceId}/products", file.FileName, cancellationToken);
-                    imageUrls.Add(url);
+                    var images = !string.IsNullOrWhiteSpace(product.Images) ? JsonSerializer.Deserialize<List<string>>(product.Images) ?? [] : [];
+                    if (images.Count + request.ImageFiles.Count > MaxImageCount)
+                        return GenericResponse<ProductResponseDto>.CreateError($"A product can contain at most {MaxImageCount} images.");
+                    images.AddRange(await UploadImagesAsync(product.Id, product.BrandId, request.ImageFiles, cancellationToken));
+                    product.Images = JsonSerializer.Serialize(images);
                 }
-                product.Images = JsonSerializer.Serialize(imageUrls);
+                catch (Exception ex) { return GenericResponse<ProductResponseDto>.CreateError(ex.Message); }
             }
 
             await _productRepository.UpdateAsync(product, cancellationToken);
@@ -245,6 +256,33 @@ namespace AISAM.Services.Service
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };
+        }
+
+        private string? ValidateImages(IReadOnlyCollection<Microsoft.AspNetCore.Http.IFormFile>? files)
+        {
+            if (files is null || files.Count == 0) return null;
+            if (_mediaStorageService is null) return "Product image storage is not configured.";
+            if (files.Count > MaxImageCount) return $"You can upload at most {MaxImageCount} product images.";
+            foreach (var file in files)
+            {
+                if (file.Length <= 0) return $"Image '{file.FileName}' is empty.";
+                if (file.Length > MaxImageBytes) return $"Image '{file.FileName}' exceeds the 10 MB limit.";
+                if (!AllowedImageTypes.Contains(file.ContentType)) return $"Image '{file.FileName}' must be JPEG, PNG, WEBP, or GIF.";
+            }
+            return null;
+        }
+
+        private async Task<List<string>> UploadImagesAsync(Guid productId, Guid brandId, IReadOnlyCollection<Microsoft.AspNetCore.Http.IFormFile> files, CancellationToken cancellationToken)
+        {
+            var urls = new List<string>();
+            var index = 0;
+            foreach (var file in files)
+            {
+                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                var fileName = $"{productId:N}-{index++}-{Guid.NewGuid():N}{extension}";
+                urls.Add(await _mediaStorageService!.UploadAsync(file, $"products/{brandId:N}", fileName, cancellationToken));
+            }
+            return urls;
         }
     }
 }

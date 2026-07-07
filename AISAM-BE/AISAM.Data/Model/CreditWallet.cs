@@ -18,6 +18,9 @@ namespace AISAM.Data.Model
         [Column("balance")]
         public long Balance { get; set; }
 
+        [Column("reserved_balance")]
+        public long ReservedBalance { get; set; }
+
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
