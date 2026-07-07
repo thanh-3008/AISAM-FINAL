@@ -161,26 +161,34 @@ export default function ApprovalsPage() {
   const handleApprove = async (id: string) => {
     setActionId(id);
     const item = items.find((i) => i.id === id);
-    await approveContent(id);
-    applyItemStatus(id, "Approved");
+    const success = await approveContent(id);
+    if (success) {
+      applyItemStatus(id, "Approved");
+      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      if (drawerItem?.id === id) setDrawerItem(null);
+      if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
+      showToast(`"${item?.title || "Asset"}" approved`, "success");
+    } else {
+      showToast("Failed to approve content", "error");
+    }
     setActionId(null);
-    setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
-    if (drawerItem?.id === id) setDrawerItem(null);
-    if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
-    showToast(`"${item?.title || "Asset"}" approved`, "undo", () => { /* undo */ });
   };
 
   const handleReject = async (id: string) => {
     setConfirmItem(null);
     setActionId(id);
     const item = items.find((i) => i.id === id);
-    await rejectContent(id);
-    applyItemStatus(id, "Rejected");
+    const success = await rejectContent(id);
+    if (success) {
+      applyItemStatus(id, "Rejected");
+      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      if (drawerItem?.id === id) setDrawerItem(null);
+      if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
+      showToast(`"${item?.title || "Asset"}" rejected`, "error");
+    } else {
+      showToast("Failed to reject content", "error");
+    }
     setActionId(null);
-    setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
-    if (drawerItem?.id === id) setDrawerItem(null);
-    if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
-    showToast(`"${item?.title || "Asset"}" rejected`, "error");
   };
 
   const handleDeleteRejected = async (item: ContentItem) => {
@@ -205,27 +213,33 @@ export default function ApprovalsPage() {
 
   const batchApprove = async () => {
     const selectedIds = Array.from(selected);
+    let successCount = 0;
     for (const id of selectedIds) {
       setActionId(id);
-      await approveContent(id);
+      const success = await approveContent(id);
+      if (success) {
+        setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status: "Approved" } : item)));
+        successCount++;
+      }
       setActionId(null);
     }
-    const selectedSet = new Set(selectedIds);
-    setItems((prev) => prev.map((item) => (selectedSet.has(item.id) ? { ...item, status: "Approved" } : item)));
-    showToast(`${selectedIds.length} assets approved`, "success");
+    showToast(`${successCount} assets approved`, "success");
     setSelected(new Set());
   };
 
   const batchReject = async () => {
     const selectedIds = Array.from(selected);
+    let successCount = 0;
     for (const id of selectedIds) {
       setActionId(id);
-      await rejectContent(id);
+      const success = await rejectContent(id);
+      if (success) {
+        setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status: "Rejected" } : item)));
+        successCount++;
+      }
       setActionId(null);
     }
-    const selectedSet = new Set(selectedIds);
-    setItems((prev) => prev.map((item) => (selectedSet.has(item.id) ? { ...item, status: "Rejected" } : item)));
-    showToast(`${selectedIds.length} assets rejected`, "error");
+    showToast(`${successCount} assets rejected`, "error");
     setSelected(new Set());
   };
 
@@ -243,12 +257,16 @@ export default function ApprovalsPage() {
   const submitRevision = async () => {
     if (!revisionDrawer || !revisionNote.trim()) return;
     setActionId(revisionDrawer.id);
-    await rejectContent(revisionDrawer.id);
-    applyItemStatus(revisionDrawer.id, "Rejected");
+    const success = await rejectContent(revisionDrawer.id);
+    if (success) {
+      applyItemStatus(revisionDrawer.id, "Rejected");
+      showToast("Revision requested", "success");
+    } else {
+      showToast("Failed to request revision", "error");
+    }
     setActionId(null);
     setRevisionDrawer(null);
     setRevisionNote("");
-    showToast("Revision requested", "success");
   };
 
   const toggleSelect = (id: string) => {
@@ -265,7 +283,7 @@ export default function ApprovalsPage() {
   };
 
   const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
-    all: () => true,
+    all: (i) => isPendingStatus(i.status) || isApprovedStatus(i.status) || isRejectedStatus(i.status),
     pending: (i) => isPendingStatus(i.status),
     approved: (i) => isApprovedStatus(i.status),
     rejected: (i) => isRejectedStatus(i.status),

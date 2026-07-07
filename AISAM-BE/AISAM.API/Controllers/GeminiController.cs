@@ -114,4 +114,27 @@ public sealed class GeminiController : ControllerBase
     {
         return ProfileContextHelper.GetActiveProfileIdOrThrow(HttpContext);
     }
+
+    [AllowAnonymous]
+    [HttpGet("debug-generations")]
+    public async Task<ActionResult> DebugGenerations([FromServices] AISAM.Repositories.AisamContext db)
+    {
+        var gens = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            System.Linq.Queryable.Take(
+                System.Linq.Queryable.OrderByDescending(
+                    System.Linq.Queryable.Select(db.AiGenerations, g => new {
+                        g.Id,
+                        g.Status,
+                        g.VideoJobId,
+                        g.ErrorMessage,
+                        g.GeneratedVideoUrl,
+                        ContentVideoUrl = g.Content.VideoUrl
+                    }),
+                    g => g.Id
+                ),
+                10
+            )
+        );
+        return Ok(gens);
+    }
 }

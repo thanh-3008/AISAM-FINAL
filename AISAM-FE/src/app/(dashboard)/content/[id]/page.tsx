@@ -7,7 +7,7 @@ import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE } from "@/services/contentService";
+import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, AiGenerationResponse } from "@/services/contentService";
 
 export default function ContentDetailPage() {
   const params = useParams();
@@ -22,6 +22,7 @@ export default function ContentDetailPage() {
 
   const [item, setItem] = useState<ContentDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
 
   const [form, setForm] = useState<{
     title: string; status: ContentStatus; description: string; platforms: string[];
@@ -37,6 +38,8 @@ export default function ContentDetailPage() {
       setLoading(true);
       const result = await fetchContentById(params.id as string);
       setItem(result as any);
+      const gens = await fetchContentGenerations(params.id as string);
+      setGenerations(gens);
       setLoading(false);
     };
     load();
@@ -232,10 +235,14 @@ export default function ContentDetailPage() {
                 {item.type === "VIDEO" && (
                   <div className="w-full max-w-2xl mx-auto">
                     <div className="aspect-video bg-gradient-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden">
-                      <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-110 transition-transform`}>
-                        <span className="material-symbols-outlined text-4xl">play_arrow</span>
-                      </div>
-                      {item.duration && (
+                      {item.videoUrl ? (
+                        <video src={item.videoUrl} controls className="w-full h-full object-contain bg-black rounded-xl" />
+                      ) : (
+                        <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-110 transition-transform`}>
+                          <span className="material-symbols-outlined text-4xl">play_arrow</span>
+                        </div>
+                      )}
+                      {!item.videoUrl && item.duration && (
                         <span className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 text-white text-label-xs rounded-md font-semibold">
                           {item.duration}
                         </span>
@@ -269,6 +276,37 @@ export default function ContentDetailPage() {
 
           {/* Sidebar Metadata */}
           <div className="w-full xl:w-80 shrink-0 space-y-gutter">
+            {/* AI Generation Status */}
+            {generations.length > 0 && (
+              <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.10s" }}>
+                <div className="p-5 space-y-3">
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider">AI Generation Status</p>
+                  {generations.map((gen, idx) => (
+                    <div key={gen.id || idx} className="p-3 rounded-lg border border-outline-variant/20 bg-surface-container-high/30">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-label-sm font-semibold text-on-surface">Job #{idx + 1}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          gen.status === 2 ? "bg-emerald-100 text-emerald-700" :
+                          gen.status === 3 ? "bg-red-100 text-red-700" :
+                          "bg-blue-100 text-blue-700 animate-pulse"
+                        }`}>
+                          {gen.status === 0 ? "Pending" : gen.status === 1 ? "Processing" : gen.status === 2 ? "Completed" : "Failed"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-outline">
+                        Started: {new Date(gen.createdAt).toLocaleString()}
+                      </p>
+                      {gen.errorMessage && (
+                        <p className="mt-2 text-[11px] text-red-600 font-medium p-1.5 bg-red-50 rounded">
+                          {gen.errorMessage}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.12s" }}>
               <div className="p-5 space-y-5">
                 {/* Title */}

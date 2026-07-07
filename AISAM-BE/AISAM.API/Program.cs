@@ -85,21 +85,28 @@ ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokS
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
 
 // === AI Image (Gemini primary + OpenRouter fallback) ===
-ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_KEY", "ImageProviderSettings:GeminiApiKey");
-ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_MODEL", "ImageProviderSettings:GeminiModel");
-ApplyEnvironmentOverride(builder.Configuration, "IMAGE_GEMINI_TIMEOUT", "ImageProviderSettings:GeminiTimeoutSeconds");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_KEY", "ImageProviderSettings:OpenRouterApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_MODEL", "ImageProviderSettings:OpenRouterModel");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_BASE_URL", "ImageProviderSettings:OpenRouterBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_HUGGINGFACE_KEY", "ImageProviderSettings:HuggingFaceApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_HUGGINGFACE_MODEL", "ImageProviderSettings:HuggingFaceModel");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_HUGGINGFACE_BASE_URL", "ImageProviderSettings:HuggingFaceBaseUrl");
 
-// === AI Video (Gemini Veo primary + OpenRouter fallback) ===
+// === AI Video (OpenRouter primary + DeAPI fallback + Colab) ===
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_ENABLED", "VideoProviderSettings:Enabled");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_KEY", "VideoProviderSettings:GeminiApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_MODEL", "VideoProviderSettings:GeminiModel");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_TIMEOUT", "VideoProviderSettings:GeminiTimeoutSeconds");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_KEY", "VideoProviderSettings:DeApiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_MODEL", "VideoProviderSettings:DeApiModel");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_BASE_URL", "VideoProviderSettings:DeApiBaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_KEY", "VideoProviderSettings:OpenRouterApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_MODEL", "VideoProviderSettings:OpenRouterModel");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_BASE_URL", "VideoProviderSettings:OpenRouterBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_BASE_URL", "VideoProviderSettings:ColabBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TOKEN", "VideoProviderSettings:ColabToken");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TIMEOUT", "VideoProviderSettings:ColabTimeout");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_FALLBACK_ENABLED", "VideoProviderSettings:EnableColabFallback");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -228,20 +235,26 @@ builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
+builder.Services.AddHostedService<VideoPollingBackgroundService>();
+builder.Services.AddHostedService<VideoGenerationBackgroundService>();
 
 builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSection("ImageProviderSettings"));
 builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
 
 // Clients (HttpClient)
-builder.Services.AddHttpClient<GeminiImageClient>();
 builder.Services.AddHttpClient<OpenRouterImageClient>();
+builder.Services.AddHttpClient<HuggingFaceImageClient>();
 builder.Services.AddHttpClient<GeminiVideoClient>();
+builder.Services.AddHttpClient<DeApiVideoClient>();
 builder.Services.AddHttpClient<OpenRouterVideoClient>();
+builder.Services.AddHttpClient<ColabVideoStrategy>();
 
 // Providers
 builder.Services.AddScoped<FallbackImageProvider>();
 builder.Services.AddScoped<FallbackVideoProvider>();
 builder.Services.AddScoped<NullVideoProvider>();
+builder.Services.AddScoped<ColabVideoStrategy>();
+builder.Services.AddScoped<IVideoGenerationOrchestrator, VideoGenerationOrchestrator>();
 
 // Factories
 builder.Services.AddScoped<AIImageProviderFactory>();
@@ -343,6 +356,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapGet("/", () => Results.Redirect("/swagger/index.html"));
 if (app.Environment.IsDevelopment())
 {
     using (var scope = app.Services.CreateScope())

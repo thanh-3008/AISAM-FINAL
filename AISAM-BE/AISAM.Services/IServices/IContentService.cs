@@ -30,8 +30,7 @@ public interface IContentService
         => UpdateAsync(id, workspaceId, request, cancellationToken);
     Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => CloneAsync(id, workspaceId, cancellationToken);
-    Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
-        => SoftDeleteAsync(id, workspaceId, cancellationToken);
+    Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, WorkspaceMemberRoleEnum role, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => RestoreAsync(id, workspaceId, cancellationToken);
     Task<GenericResponse<List<string>>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default);

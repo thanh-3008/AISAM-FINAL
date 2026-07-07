@@ -171,6 +171,7 @@ public sealed class ContentRepository : IContentRepository
     {
         return _context.Contents
             .Include(content => content.Brand)
-            .Include(content => content.Product);
+            .Include(content => content.Product)
+            .Include(content => content.Approvals);
     }
 }
