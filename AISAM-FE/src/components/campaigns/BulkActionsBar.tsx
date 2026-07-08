@@ -4,6 +4,7 @@ interface BulkActionsBarProps {
   selectedCount: number;
   onClearSelection: () => void;
   onBulkDelete: () => void;
+  onBulkDuplicate?: () => void;
   isLoading: boolean;
 }
 
@@ -11,6 +12,7 @@ export default function BulkActionsBar({
   selectedCount,
   onClearSelection,
   onBulkDelete,
+  onBulkDuplicate,
   isLoading,
 }: BulkActionsBarProps) {
   if (selectedCount === 0) return null;
@@ -31,6 +33,16 @@ export default function BulkActionsBar({
         </div>
 
         <div className="flex items-center gap-2">
+          {onBulkDuplicate && (
+            <button
+              onClick={onBulkDuplicate}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-600 rounded-xl text-[11px] font-semibold transition-all disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[14px]">content_copy</span>
+              Duplicate Selected
+            </button>
+          )}
           <button
             onClick={onBulkDelete}
             disabled={isLoading}

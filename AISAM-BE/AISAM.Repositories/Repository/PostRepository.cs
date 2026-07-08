@@ -81,6 +81,13 @@ public sealed class PostRepository : IPostRepository
         return new PagedResult<Post> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
     }
 
+    public async Task<List<Post>> GetPublishedByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .Where(p => p.ContentId == contentId && !p.IsDeleted && p.ExternalPostId != null)
+            .ToListAsync(cancellationToken);
+    }
+
     private IQueryable<Post> Query()
     {
         return _context.Posts

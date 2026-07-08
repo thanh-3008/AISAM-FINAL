@@ -32,5 +32,8 @@ namespace AISAM.Common.Dtos.Request
 
         [MaxLength(500)]
         public string? LandingUrl { get; set; }
+
+        [MaxLength(20)]
+        public string Platform { get; set; } = "facebook";
     }
 }

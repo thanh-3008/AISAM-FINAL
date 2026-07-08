@@ -40,6 +40,10 @@ namespace AISAM.Data.Model
         [Column("facebook_campaign_id")]
         public string? FacebookCampaignId { get; set; }
 
+        [MaxLength(20)]
+        [Column("platform")]
+        public string Platform { get; set; } = "facebook";
+
         [Required]
         [MaxLength(255)]
         [Column("name")]

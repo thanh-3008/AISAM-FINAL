@@ -58,7 +58,6 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
   useEffect(() => {
     if (!selectedSocialAccountId) {
       setAdAccounts([]);
-      setSelectedAdAccount("");
       return;
     }
     setLoadingAdAccounts(true);
@@ -107,6 +106,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
       name,
       brandId,
       brandName: brand.name,
+      platform: campaign.platform || "facebook",
       productId: selectedProductId || null,
       contentId: selectedContentId || null,
       targeting: finalTargeting || null,

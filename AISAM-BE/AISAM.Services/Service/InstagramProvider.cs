@@ -2,6 +2,7 @@ using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -229,20 +230,234 @@ public sealed class InstagramProvider : IProviderService
         catch (JsonException) { return default; }
     }
 
-    private static Task<T> AdsNotSupported<T>() => Task.FromException<T>(new NotSupportedException("Instagram does not support Facebook Marketing API operations."));
-    public Task<IEnumerable<FacebookAdAccountData>> GetAdAccountsAsync(string userAccessToken, CancellationToken cancellationToken = default) => AdsNotSupported<IEnumerable<FacebookAdAccountData>>();
-    public Task<string> CreateCampaignAsync(string adAccountId, string userAccessToken, string name, string objective, decimal? budget, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken = default) => AdsNotSupported<string>();
-    public Task<string> CreateAdSetAsync(string adAccountId, string userAccessToken, string campaignId, string name, string objective, decimal? dailyBudget, DateTime? startDate, DateTime? endDate, string targetingJson, CancellationToken cancellationToken = default) => AdsNotSupported<string>();
-    public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, CancellationToken cancellationToken = default) => AdsNotSupported<string>();
-    public Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default) => AdsNotSupported<string>();
-    public Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => AdsNotSupported<FacebookInsightData?>();
-    public Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
-    public Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
-    public Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
-    public Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
-    public Task<bool> DeleteAdSetAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
-    public Task<bool> DeleteAdCreativeAsync(string adAccountId, string userAccessToken, string creativeId, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
-    public Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default) => AdsNotSupported<bool>();
+    public async Task<IEnumerable<FacebookAdAccountData>> GetAdAccountsAsync(string userAccessToken, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/me/adaccounts?fields=id,name,account_id,account_status,currency,balance";
+        using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken);
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(TryDeserialize<ErrorResponse>(content)?.Error?.Message ?? "Failed to fetch ad accounts.");
+        return TryDeserialize<FacebookAdAccountResponse>(content)?.Data ?? new List<FacebookAdAccountData>();
+    }
+
+    public async Task<string> CreateCampaignAsync(string adAccountId, string userAccessToken, string name, string objective, decimal? budget, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var mapped = MapMetaObjective(objective);
+        var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
+        var fields = new Dictionary<string, string>
+        {
+            ["name"] = name, ["objective"] = mapped, ["status"] = "PAUSED",
+            ["buying_type"] = "AUCTION", ["special_ad_categories"] = "[]",
+            ["is_adset_budget_sharing_enabled"] = "false"
+        };
+        var result = await PostMarketingAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/campaigns", fields, userAccessToken, cancellationToken);
+        return result;
+    }
+
+    public async Task<string> CreateAdSetAsync(string adAccountId, string userAccessToken, string campaignId, string name, string objective, decimal? dailyBudget, DateTime? startDate, DateTime? endDate, string targetingJson, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
+        var settings = MapMetaAdSetSettings(objective);
+        var fields = new Dictionary<string, string>
+        {
+            ["name"] = name, ["campaign_id"] = campaignId,
+            ["daily_budget"] = dailyBudget.HasValue ? $"{(long)Math.Max(dailyBudget.Value, 30000)}" : "30000",
+            ["billing_event"] = settings.BillingEvent, ["optimization_goal"] = settings.OptimizationGoal,
+            ["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP", ["status"] = "PAUSED"
+        };
+        var utcNow = DateTime.UtcNow;
+        var startUtc = startDate.HasValue ? startDate.Value.ToUniversalTime() : utcNow;
+        fields["start_time"] = FormatMetaDate(startUtc);
+        if (endDate.HasValue)
+        {
+            var endUtc = endDate.Value.ToUniversalTime();
+            if ((endUtc - startUtc).TotalHours >= 24) fields["end_time"] = FormatMetaDate(endUtc);
+        }
+        fields["targeting"] = targetingJson ?? "{\"geo_locations\":{\"countries\":[\"VN\"]}}";
+        fields["publisher_platforms"] = "[\"instagram\"]";
+        fields["instagram_positions"] = "[\"stream\",\"story\",\"explore\",\"reels\"]";
+        var result = await PostMarketingAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/adsets", fields, userAccessToken, cancellationToken);
+        return result;
+    }
+
+    public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
+
+        Dictionary<string, object?> creativeObject;
+
+        if (!string.IsNullOrWhiteSpace(instagramMediaId) && !string.IsNullOrWhiteSpace(instagramActorId))
+        {
+            creativeObject = new Dictionary<string, object?>
+            {
+                ["instagram_actor_id"] = instagramActorId,
+                ["instagram_media_id"] = instagramMediaId
+            };
+        }
+        else
+        {
+            var link = string.IsNullOrWhiteSpace(linkUrl) ? $"https://www.facebook.com/{pageId}" : linkUrl;
+            creativeObject = new Dictionary<string, object?>
+            {
+                ["page_id"] = pageId,
+                ["link_data"] = new Dictionary<string, object?>
+                {
+                    ["link"] = link,
+                    ["message"] = string.IsNullOrWhiteSpace(message) ? "Learn more" : message
+                }
+            };
+            if (!string.IsNullOrWhiteSpace(instagramActorId))
+                creativeObject["instagram_actor_id"] = instagramActorId;
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+            {
+                var pic = InstagramImageUrl(imageUrl);
+                if (!string.IsNullOrWhiteSpace(pic) && creativeObject["link_data"] is Dictionary<string, object?> ld)
+                    ld["picture"] = pic;
+            }
+        }
+
+        var jsonPayload = System.Text.Json.JsonSerializer.Serialize(creativeObject, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower });
+        var fields = new Dictionary<string, string> { ["object_story_spec"] = jsonPayload };
+        var result = await PostMarketingAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/adcreatives", fields, userAccessToken, cancellationToken);
+        return result;
+    }
+
+    public async Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
+        var fields = new Dictionary<string, string>
+        {
+            ["name"] = name, ["adset_id"] = adSetId,
+            ["creative"] = System.Text.Json.JsonSerializer.Serialize(new { creative_id = creativeId }), ["status"] = status
+        };
+        var result = await PostMarketingAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/ads", fields, userAccessToken, cancellationToken);
+        return result;
+    }
+
+    public async Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        try
+        {
+            var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{campaignId}/insights?fields=impressions,clicks,spend,actions,ctr,cpc";
+            using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode) return null;
+            var result = TryDeserialize<FacebookCampaignInsightsResponse>(content);
+            return result?.Data?.FirstOrDefault(i => !string.IsNullOrWhiteSpace(i.Impressions));
+        }
+        catch { return null; }
+    }
+
+    public async Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default)
+        => await UpdateMetaObjectStatusAsync($"{adAccountId}/campaigns/{campaignId}", userAccessToken, status, cancellationToken);
+
+    public async Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default)
+        => await UpdateMetaObjectStatusAsync($"{adAccountId}/adsets/{adSetId}", userAccessToken, status, cancellationToken);
+
+    public async Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default)
+        => await UpdateMetaObjectStatusAsync($"{adAccountId}/ads/{adId}", userAccessToken, status, cancellationToken);
+
+    public async Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
+        => await DeleteMetaObjectAsync($"{adAccountId}/campaigns/{campaignId}", userAccessToken, cancellationToken);
+
+    public async Task<bool> DeleteAdSetAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default)
+        => await DeleteMetaObjectAsync($"{adAccountId}/adsets/{adSetId}", userAccessToken, cancellationToken);
+
+    public async Task<bool> DeleteAdCreativeAsync(string adAccountId, string userAccessToken, string creativeId, CancellationToken cancellationToken = default)
+        => await DeleteMetaObjectAsync($"{adAccountId}/adcreatives/{creativeId}", userAccessToken, cancellationToken);
+
+    public async Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
+        => await DeleteMetaObjectAsync($"{adAccountId}/ads/{adId}", userAccessToken, cancellationToken);
+
+    private static string? InstagramImageUrl(string imageUrl)
+    {
+        var parsed = imageUrl.Trim();
+        if (parsed.StartsWith('[') && parsed.EndsWith(']'))
+        {
+            try { var urls = JsonSerializer.Deserialize<List<string>>(parsed); parsed = urls?.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u)) ?? string.Empty; }
+            catch { parsed = string.Empty; }
+        }
+        return string.IsNullOrWhiteSpace(parsed) ? null : parsed;
+    }
+
+    private async Task<string> PostMarketingAsync(string url, Dictionary<string, string> fields, string accessToken, CancellationToken cancellationToken)
+    {
+        var bodyStr = string.Join("&", fields.Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
+        using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(fields)
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var fbErr = TryDeserialize<ErrorResponse>(json);
+            var msg = fbErr?.Error?.Message ?? json;
+            throw new InvalidOperationException($"Marketing API failed [POST {url}]: {msg} (body: {bodyStr[..Math.Min(bodyStr.Length, 200)]})");
+        }
+        var data = TryDeserialize<IdResponse>(json);
+        if (string.IsNullOrWhiteSpace(data?.Id)) throw new InvalidOperationException("Marketing API returned empty ID.");
+        return data.Id;
+    }
+
+    private async Task<bool> UpdateMetaObjectStatusAsync(string relativePath, string accessToken, string status, CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{relativePath}";
+        using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["status"] = status })
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    private async Task<bool> DeleteMetaObjectAsync(string relativePath, string accessToken, CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{relativePath}";
+        using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Delete, url);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    private static string MapMetaObjective(string objective) => objective.ToUpperInvariant() switch
+    {
+        "AWARENESS" => "OUTCOME_AWARENESS", "TRAFFIC" => "OUTCOME_TRAFFIC",
+        "ENGAGEMENT" => "OUTCOME_ENGAGEMENT", "LEADS" => "OUTCOME_LEADS",
+        "SALES" => "OUTCOME_SALES", "APP_PROMOTION" => "OUTCOME_APP_PROMOTION",
+        _ => "OUTCOME_AWARENESS"
+    };
+
+    private static (string OptimizationGoal, string BillingEvent) MapMetaAdSetSettings(string objective) => objective.ToUpperInvariant() switch
+    {
+        "TRAFFIC" => ("LINK_CLICKS", "IMPRESSIONS"), "ENGAGEMENT" => ("POST_ENGAGEMENT", "IMPRESSIONS"),
+        "LEADS" => ("LEAD_GENERATION", "IMPRESSIONS"), "SALES" => ("LINK_CLICKS", "IMPRESSIONS"),
+        "APP_PROMOTION" => ("LINK_CLICKS", "IMPRESSIONS"), _ => ("REACH", "IMPRESSIONS")
+    };
+
+    private static string MapMetaCallToAction(string? cta) => (cta?.ToUpperInvariant()) switch
+    {
+        "LEARN_MORE" or "SHOP_NOW" or "SIGN_UP" or "DOWNLOAD" or "CONTACT_US"
+            or "BOOK_NOW" or "GET_OFFER" or "GET_QUOTE" or "SUBSCRIBE"
+            or "PLAY_NOW" or "INSTALL_APP" or "USE_APP" or "WATCH_MORE" => cta!.ToUpperInvariant(),
+        _ => "LEARN_MORE"
+    };
+
+    private static string FormatMetaDate(DateTime utcDateTime) => utcDateTime.ToString("yyyy-MM-ddTHH:mm:ss") + "+0000";
 
     private sealed class TokenResponse { [JsonPropertyName("access_token")] public string? AccessToken { get; set; } [JsonPropertyName("expires_in")] public int? ExpiresIn { get; set; } }
     private sealed class UserResponse { public string? Id { get; set; } }

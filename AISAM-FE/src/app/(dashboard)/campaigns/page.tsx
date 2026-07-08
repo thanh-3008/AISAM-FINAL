@@ -14,6 +14,7 @@ import {
   deleteCampaign,
   restoreCampaign,
   deployCampaignToFacebook,
+  duplicateCampaign,
   type Campaign,
   type CampaignStatus,
   type CampaignObjective,
@@ -225,6 +226,26 @@ export default function CampaignsPage() {
     setDeletingCampaigns(selected);
   };
 
+  const handleBulkDuplicate = async () => {
+    const selected = campaigns.filter((c) => selectedIds.includes(c.id));
+    if (selected.length === 0) return;
+    setActionLoading("duplicate");
+    try {
+      const duplicated: Campaign[] = [];
+      for (const campaign of selected) {
+        const dup = await duplicateCampaign(campaign.id);
+        if (dup) duplicated.push(dup);
+      }
+      setCampaigns((prev) => [...duplicated, ...prev]);
+      setSelectedIds([]);
+      addToast(`${duplicated.length} campaign(s) duplicated`);
+    } catch (err: any) {
+      addToast(err?.message || "Failed to duplicate", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (deletingCampaigns.length === 0) return;
     setActionLoading("delete");
@@ -268,6 +289,21 @@ export default function CampaignsPage() {
       }
     } catch (err: any) {
       addToast(err?.message || "Failed to deploy", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDuplicate = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      const dup = await duplicateCampaign(campaign.id);
+      if (dup) {
+        setCampaigns((prev) => [dup, ...prev]);
+        addToast("Campaign duplicated");
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to duplicate", "error");
     } finally {
       setActionLoading(null);
     }
@@ -330,12 +366,13 @@ export default function CampaignsPage() {
           />
 
           {/* Bulk Actions */}
-          <BulkActionsBar
-            selectedCount={selectedIds.length}
-            onClearSelection={handleClearSelection}
-            onBulkDelete={handleBulkDelete}
-            isLoading={actionLoading === "delete"}
-          />
+            <BulkActionsBar
+              selectedCount={selectedIds.length}
+              onClearSelection={handleClearSelection}
+              onBulkDelete={handleBulkDelete}
+              onBulkDuplicate={handleBulkDuplicate}
+              isLoading={actionLoading === "delete" || actionLoading === "duplicate"}
+            />
 
           {/* Content */}
           {loading ? (

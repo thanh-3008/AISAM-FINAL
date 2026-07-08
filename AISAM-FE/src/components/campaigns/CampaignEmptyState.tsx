@@ -43,7 +43,7 @@ export default function CampaignEmptyState({ hasFilters, onCreate }: CampaignEmp
             <span className="text-[11px] text-on-surface font-medium text-center">Set objectives & targeting</span>
           </div>
           <div className="flex flex-col items-center gap-2 p-4 bg-surface-container-low rounded-xl">
-            <span className="material-symbols-outlined text-primary text-2xl">budget</span>
+            <span className="material-symbols-outlined text-primary text-2xl">paid</span>
             <span className="text-[11px] text-on-surface font-medium text-center">Manage budgets & spend</span>
           </div>
           <div className="flex flex-col items-center gap-2 p-4 bg-surface-container-low rounded-xl">
