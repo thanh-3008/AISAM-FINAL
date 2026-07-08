@@ -172,5 +172,10 @@ namespace AISAM.Repositories.Repository
                 .Take(10)
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Users.AsNoTracking().ToListAsync(cancellationToken);
+        }
     }
 }

@@ -21,6 +21,8 @@ const adminNavItems: NavItem[] = [
   { label: "Audit Logs", href: "/admin/audit-logs", icon: "history" },
   { label: "Service Health", href: "/admin/service-health", icon: "monitoring" },
   { label: "System Health", href: "/admin/system-health", icon: "health_and_safety" },
+  { label: "Broadcast", href: "/admin/broadcast", icon: "campaign" },
+  { label: "Dev Tools", href: "/admin/tools", icon: "build" },
   { label: "Settings", href: "/admin/settings", icon: "settings" },
 ];
 

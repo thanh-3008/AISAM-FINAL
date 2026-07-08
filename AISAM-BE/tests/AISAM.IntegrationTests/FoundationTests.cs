@@ -470,6 +470,7 @@ public class FoundationTests
         public Task<Dictionary<DateTime, int>> GetDailyRegistrationsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
         public Task<IReadOnlyList<User>> GetAdminsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<User>>(Array.Empty<User>());
         public Task<IReadOnlyList<Session>> GetSessionsAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Session>>(Array.Empty<Session>());
+        public Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<User>>(_users.Values.ToList());
     }
 
     private sealed class FakeBrandRepository : IBrandRepository

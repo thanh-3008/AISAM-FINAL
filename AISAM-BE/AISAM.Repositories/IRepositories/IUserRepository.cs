@@ -20,5 +20,6 @@ namespace AISAM.Repositories.IRepositories
         Task<Dictionary<DateTime, int>> GetDailyRegistrationsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
         Task<IReadOnlyList<User>> GetAdminsAsync(CancellationToken cancellationToken = default);
         Task<IReadOnlyList<Session>> GetSessionsAsync(Guid userId, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default);
     }
 }

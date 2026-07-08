@@ -361,3 +361,24 @@ export async function fetchSystemHealth(): Promise<SystemHealth | null> {
     return res?.data ?? null;
   } catch { return null; }
 }
+
+export async function broadcastNotification(title: string, message: string, excludeAdmins: boolean): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/admin/notifications/broadcast", { data: { title, message, excludeAdmins }, method: "POST" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function seedDemoUsers(count = 5): Promise<any | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/tools/seed-demo-users?count=${count}`, { method: "POST" });
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function seedDemoContent(count = 10): Promise<any | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/tools/seed-demo-content?count=${count}`, { method: "POST" });
+    return res?.data ?? null;
+  } catch { return null; }
+}
