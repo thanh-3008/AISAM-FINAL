@@ -1,5 +1,6 @@
 ﻿using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Response;
+using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
 using AISAM.Data.Model;
@@ -155,6 +156,21 @@ namespace AISAM.Repositories.Repository
                 .GroupBy(u => u.CreatedAt.Date)
                 .Select(g => new { Date = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<User>> GetAdminsAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Users.AsNoTracking().Where(u => u.Role == UserRoleEnum.Admin).ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Session>> GetSessionsAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Sessions
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .OrderByDescending(s => s.CreatedAt)
+                .Take(10)
+                .ToListAsync(cancellationToken);
         }
     }
 }

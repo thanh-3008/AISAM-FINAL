@@ -68,9 +68,9 @@ export async function fetchAdminUsers(page = 1, pageSize = 20): Promise<{ items:
   } catch { return null; }
 }
 
-export async function fetchAdminUserDetail(id: string): Promise<AdminUser | null> {
+export async function fetchAdminUserDetail(id: string): Promise<any | null> {
   try {
-    const res: GenericResponse<AdminUser> = await apiClient(`/admin/users/${id}`);
+    const res: GenericResponse<any> = await apiClient(`/admin/users/${id}`);
     return res?.data ?? null;
   } catch { return null; }
 }
@@ -85,6 +85,13 @@ export async function setUserStatus(id: string, isActive: boolean): Promise<bool
 export async function deleteUser(id: string): Promise<boolean> {
   try {
     const res: GenericResponse<boolean> = await apiClient(`/admin/users/${id}`, { method: "DELETE" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function setUserRole(id: string, role: number): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/users/${id}/role`, { data: { role }, method: "PATCH" });
     return res?.success ?? false;
   } catch { return false; }
 }
