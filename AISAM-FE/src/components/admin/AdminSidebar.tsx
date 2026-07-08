@@ -15,6 +15,7 @@ const adminNavItems: NavItem[] = [
   { label: "Workspaces", href: "/admin/workspaces", icon: "apartment" },
   { label: "Payments", href: "/admin/payments", icon: "payments" },
   { label: "Subscriptions", href: "/admin/subscriptions", icon: "subscriptions" },
+  { label: "Plans", href: "/admin/plans", icon: "sell" },
   { label: "Content", href: "/admin/content", icon: "description" },
   { label: "AI & Credit", href: "/admin/credit-oversight", icon: "smart_toy" },
   { label: "Analytics", href: "/admin/analytics", icon: "bar_chart" },

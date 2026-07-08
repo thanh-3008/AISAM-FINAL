@@ -384,3 +384,28 @@ export async function seedDemoContent(count = 10): Promise<any | null> {
     return res?.data ?? null;
   } catch { return null; }
 }
+
+export interface SubscriptionPlanDto {
+  id: string;
+  name: string;
+  price: number;
+  credits: number;
+  postsPerMonth: number;
+  members: number;
+  features: string[];
+  isActive: boolean;
+}
+
+export async function fetchAdminPlans(): Promise<SubscriptionPlanDto[] | null> {
+  try {
+    const res: GenericResponse<{ plans: SubscriptionPlanDto[] }> = await apiClient("/admin/plans");
+    return res?.data?.plans ?? null;
+  } catch { return null; }
+}
+
+export async function saveAdminPlans(plans: SubscriptionPlanDto[]): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/admin/plans", { data: { plans }, method: "PUT" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
