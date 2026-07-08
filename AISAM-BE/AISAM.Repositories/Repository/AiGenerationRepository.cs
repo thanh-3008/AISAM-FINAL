@@ -44,4 +44,18 @@ public sealed class AiGenerationRepository : IAiGenerationRepository
         _context.AiGenerations.Update(generation);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<Dictionary<DateTime, int>> GetDailyGenerationCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        return await _context.AiGenerations
+            .Where(g => g.CreatedAt >= from && g.CreatedAt <= to)
+            .GroupBy(g => g.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+    }
+
+    public async Task<int> GetTotalGenerationCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.AiGenerations.CountAsync(cancellationToken);
+    }
 }

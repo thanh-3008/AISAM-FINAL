@@ -10,6 +10,8 @@ namespace AISAM.Services.IServices
         Task<GenericResponse<object>> GetUserDetailAsync(Guid adminUserId, Guid userId, CancellationToken cancellationToken = default);
         Task<GenericResponse<bool>> SetUserStatusAsync(Guid adminUserId, Guid userId, bool isActive, CancellationToken cancellationToken = default);
         Task<GenericResponse<bool>> DeleteUserAsync(Guid adminUserId, Guid userId, CancellationToken cancellationToken = default);
+        Task<GenericResponse<bool>> SetUserRoleAsync(Guid adminUserId, Guid userId, int role, CancellationToken cancellationToken = default);
+        Task<GenericResponse<object>> GetAdminsAsync(Guid adminUserId, CancellationToken cancellationToken = default);
         Task<GenericResponse<object>> GetWorkspacesAsync(Guid adminUserId, PaginationRequest request, CancellationToken cancellationToken = default);
         Task<GenericResponse<object>> GetWorkspaceDetailAsync(Guid adminUserId, Guid workspaceId, CancellationToken cancellationToken = default);
         Task<GenericResponse<bool>> SetWorkspaceStatusAsync(Guid adminUserId, Guid workspaceId, int status, CancellationToken cancellationToken = default);

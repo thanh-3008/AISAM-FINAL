@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminDataTable from "@/components/admin/AdminDataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { fetchAdminUsers, setUserStatus, deleteUser, AdminUser } from "@/services/adminService";
+import { fetchAdminUsers, setUserStatus, deleteUser, setUserRole, AdminUser } from "@/services/adminService";
 
 export default function AdminUsersPage() {
   const router = useRouter();
@@ -37,6 +37,14 @@ export default function AdminUsersPage() {
     if (ok) loadUsers();
   };
 
+  const handleRoleChange = async (userId: string, currentRole: number) => {
+    const newRole = currentRole === 2 ? 0 : 2;
+    const label = newRole === 2 ? "Admin" : "User";
+    if (!confirm(`Change this user's role to ${label}?`)) return;
+    const ok = await setUserRole(userId, newRole);
+    if (ok) loadUsers();
+  };
+
   const columns = [
     { key: "email", header: "Email" },
     { key: "fullName", header: "Name" },
@@ -62,6 +70,12 @@ export default function AdminUsersPage() {
             className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
           >
             {u.isEmailVerified ? "Deactivate" : "Activate"}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRoleChange(u.id, u.role); }}
+            className="text-xs px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+          >
+            {u.role === 2 ? "Demote" : "Promote"}
           </button>
           {u.role !== 2 && (
             <button

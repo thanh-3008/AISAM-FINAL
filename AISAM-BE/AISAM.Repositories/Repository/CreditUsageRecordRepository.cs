@@ -74,6 +74,16 @@ public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
             .ToList();
     }
 
+    public async Task<int> GetTotalCreditsUsedAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.CreditUsageRecords.CountAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CreditUsageRecord>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.CreditUsageRecords.AsNoTracking().ToListAsync(cancellationToken);
+    }
+
     public async Task<Dictionary<DateTime, long>> GetDailySummaryAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
     {
         var startDate = DateTime.UtcNow.Date.AddDays(-days + 1);

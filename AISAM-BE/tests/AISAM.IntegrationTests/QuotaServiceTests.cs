@@ -270,6 +270,11 @@ public class QuotaServiceTests
             throw new NotImplementedException();
         }
 
+        public Task<PagedResult<Subscription>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
         {
             LastPromptWindowStart = windowStart;
@@ -313,6 +318,8 @@ public class QuotaServiceTests
         public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.Where(w => w.Status == Data.Enumeration.WorkspaceStatusEnum.Active).ToList());
     }
 
     private sealed class FakeProfileRepository : IProfileRepository
@@ -359,5 +366,6 @@ public class QuotaServiceTests
         public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
     }
 }

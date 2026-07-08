@@ -11,6 +11,7 @@ export default function AdminPaymentsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
@@ -59,6 +60,15 @@ export default function AdminPaymentsPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Payments</h2>
           <p className="text-gray-500 mt-1">{total} total transactions</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm rounded-lg border border-gray-300 px-3 py-2">
+            <option value="all">All Status</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="failed">Failed</option>
+          </select>
         </div>
 
         {loading ? (

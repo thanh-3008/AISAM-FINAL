@@ -61,9 +61,22 @@ public sealed class AdminUsersController : ControllerBase
         var result = await _adminService.DeleteUserAsync(adminUserId, id, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpPatch("{id:guid}/role")]
+    public async Task<ActionResult<GenericResponse<bool>>> SetUserRole(Guid id, [FromBody] SetRoleRequest request, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _adminService.SetUserRoleAsync(adminUserId, id, request.Role, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }
 
 public class SetStatusRequest
 {
     public bool IsActive { get; set; }
+}
+
+public class SetRoleRequest
+{
+    public int Role { get; set; }
 }

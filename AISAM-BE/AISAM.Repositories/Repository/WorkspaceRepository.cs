@@ -94,6 +94,11 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
         return await _context.Workspaces.CountAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Workspaces.AsNoTracking().Where(w => w.Status == WorkspaceStatusEnum.Active).Take(100).ToListAsync(cancellationToken);
+    }
+
     private IQueryable<Workspace> Query()
     {
         return _context.Workspaces

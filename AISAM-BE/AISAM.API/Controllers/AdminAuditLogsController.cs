@@ -36,9 +36,33 @@ public sealed class AdminAuditLogsController : ControllerBase
             log.TargetId,
             log.Notes,
             log.CreatedAt,
-            ActorEmail = log.Actor?.Email ?? "Unknown"
+            ActorEmail = log.Actor?.Email ?? "Unknown",
+            HasDiff = log.OldValues != null || log.NewValues != null
         }).ToList();
 
-        return Ok(GenericResponse<object>.CreateSuccess(new { Items = items, Total = result.TotalCount }));
+        return Ok(GenericResponse<object>.CreateSuccess(new { Data = items, TotalCount = result.TotalCount }));
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<GenericResponse<object>>> GetAuditLogDetail(
+        Guid id, CancellationToken cancellationToken = default)
+    {
+        var log = await _auditLogRepository.GetByIdAsync(id, cancellationToken);
+        if (log == null)
+            return NotFound(GenericResponse<object>.CreateError("Audit log not found.", System.Net.HttpStatusCode.NotFound));
+
+        return Ok(GenericResponse<object>.CreateSuccess(new
+        {
+            log.Id,
+            log.ActorId,
+            log.ActionType,
+            log.TargetTable,
+            log.TargetId,
+            log.Notes,
+            log.OldValues,
+            log.NewValues,
+            log.CreatedAt,
+            ActorEmail = log.Actor?.Email ?? "Unknown"
+        }));
     }
 }

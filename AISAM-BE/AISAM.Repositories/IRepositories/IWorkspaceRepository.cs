@@ -14,4 +14,5 @@ public interface IWorkspaceRepository
     Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<int> GetCountAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default);
 }

@@ -886,6 +886,8 @@ public class PaymentServiceTests
         public Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Dictionary<DateTime, decimal>> GetDailyRevenueAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Dictionary<DateTime, int>> GetDailyTransactionCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeSubscriptionRepository : ISubscriptionRepository
@@ -933,6 +935,8 @@ public class PaymentServiceTests
             _subscriptions[subscription.Id] = subscription;
             return Task.CompletedTask;
         }
+
+        public Task<PagedResult<Subscription>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
         {
@@ -1031,6 +1035,8 @@ public class PaymentServiceTests
         public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Workspace>>(_workspaces.Values.Where(w => w.Status == Data.Enumeration.WorkspaceStatusEnum.Active).ToList());
     }
 
     private sealed class FakeCreditWalletRepository : ICreditWalletRepository

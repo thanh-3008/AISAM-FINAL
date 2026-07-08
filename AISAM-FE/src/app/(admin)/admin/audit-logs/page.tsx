@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminDataTable from "@/components/admin/AdminDataTable";
 import { fetchAdminAuditLogs, AdminAuditLog } from "@/services/adminService";
 
 export default function AdminAuditLogsPage() {
+  const router = useRouter();
   const [logs, setLogs] = useState<AdminAuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -58,7 +60,7 @@ export default function AdminAuditLogsPage() {
           <div className="space-y-3">{[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>
         ) : (
           <>
-            <AdminDataTable columns={columns} data={logs} keyField="id" />
+            <AdminDataTable columns={columns} data={logs} keyField="id" onRowClick={(log) => router.push(`/admin/audit-logs/${log.id}`)} />
             <div className="flex items-center justify-between">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm rounded-lg border border-gray-200 disabled:opacity-50">Previous</button>
               <span className="text-sm text-gray-500">Page {page}</span>

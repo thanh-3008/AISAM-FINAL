@@ -68,9 +68,9 @@ export async function fetchAdminUsers(page = 1, pageSize = 20): Promise<{ items:
   } catch { return null; }
 }
 
-export async function fetchAdminUserDetail(id: string): Promise<AdminUser | null> {
+export async function fetchAdminUserDetail(id: string): Promise<any | null> {
   try {
-    const res: GenericResponse<AdminUser> = await apiClient(`/admin/users/${id}`);
+    const res: GenericResponse<any> = await apiClient(`/admin/users/${id}`);
     return res?.data ?? null;
   } catch { return null; }
 }
@@ -85,6 +85,13 @@ export async function setUserStatus(id: string, isActive: boolean): Promise<bool
 export async function deleteUser(id: string): Promise<boolean> {
   try {
     const res: GenericResponse<boolean> = await apiClient(`/admin/users/${id}`, { method: "DELETE" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function setUserRole(id: string, role: number): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/users/${id}/role`, { data: { role }, method: "PATCH" });
     return res?.success ?? false;
   } catch { return false; }
 }
@@ -105,9 +112,11 @@ export async function fetchAdminPayments(page = 1, pageSize = 20): Promise<{ ite
   } catch { return null; }
 }
 
-export async function fetchAdminContent(page = 1, pageSize = 20): Promise<{ items: AdminContent[]; total: number } | null> {
+export async function fetchAdminContent(page = 1, pageSize = 20, search?: string): Promise<{ items: AdminContent[]; total: number } | null> {
   try {
-    const res: GenericResponse<any> = await apiClient(`/admin/content?page=${page}&pageSize=${pageSize}`);
+    let url = `/admin/content?page=${page}&pageSize=${pageSize}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
@@ -121,6 +130,7 @@ export interface AdminAuditLog {
   targetId: string;
   notes?: string;
   actorEmail?: string;
+  hasDiff?: boolean;
   createdAt: string;
 }
 
@@ -269,4 +279,133 @@ export function getAdminExportUrl(from?: string, to?: string): string {
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   return `${baseUrl}/admin/analytics/export${params.toString() ? "?" + params.toString() : ""}`;
+}
+
+export interface ServiceHealthItem {
+  name: string;
+  status: string;
+  lastHeartbeat: string;
+  successCount: number;
+  failureCount: number;
+  lastError?: string;
+  lastErrorTime?: string;
+  isStale: boolean;
+}
+
+export interface AdminServiceHealth {
+  services: ServiceHealthItem[];
+  overallStatus: string;
+}
+
+export async function fetchServiceHealth(): Promise<AdminServiceHealth | null> {
+  try {
+    const res: GenericResponse<AdminServiceHealth> = await apiClient("/admin/service-health");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export interface AdminSubscription {
+  id: string;
+  plan: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+  workspaceName: string;
+  workspaceId: string;
+}
+
+export async function fetchAdminSubscriptions(page = 1, pageSize = 20): Promise<{ items: AdminSubscription[]; total: number } | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/payments/subscriptions?page=${page}&pageSize=${pageSize}`);
+    const paged = res?.data;
+    return paged ? { items: paged.items ?? [], total: paged.total ?? 0 } : null;
+  } catch { return null; }
+}
+
+export async function updateSubscription(id: string, data: { plan?: number; endDate?: string; isActive?: boolean }): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/payments/subscriptions/${id}`, { data, method: "PATCH" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export interface AiCreditSummary {
+  totalAiGenerations: number;
+  weeklyAiGenerations: number;
+  dailyAiData: { name: string; generations: number }[];
+  estimatedCreditSpent: number;
+  estimatedRevenue: number;
+}
+
+export interface SystemHealthCheck {
+  name: string;
+  status: string;
+  detail: string;
+}
+
+export interface SystemHealth {
+  overallStatus: string;
+  checks: SystemHealthCheck[];
+  checkedAt: string;
+}
+
+export async function fetchAiCreditSummary(): Promise<AiCreditSummary | null> {
+  try {
+    const res: GenericResponse<AiCreditSummary> = await apiClient("/admin/credit-oversight/summary");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function fetchSystemHealth(): Promise<SystemHealth | null> {
+  try {
+    const res: GenericResponse<SystemHealth> = await apiClient("/admin/system-health");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function broadcastNotification(title: string, message: string, excludeAdmins: boolean): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/admin/notifications/broadcast", { data: { title, message, excludeAdmins }, method: "POST" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export async function seedDemoUsers(count = 5): Promise<any | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/tools/seed-demo-users?count=${count}`, { method: "POST" });
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function seedDemoContent(count = 10): Promise<any | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/tools/seed-demo-content?count=${count}`, { method: "POST" });
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export interface SubscriptionPlanDto {
+  id: string;
+  name: string;
+  price: number;
+  credits: number;
+  postsPerMonth: number;
+  members: number;
+  features: string[];
+  isActive: boolean;
+}
+
+export async function fetchAdminPlans(): Promise<SubscriptionPlanDto[] | null> {
+  try {
+    const res: GenericResponse<{ plans: SubscriptionPlanDto[] }> = await apiClient("/admin/plans");
+    return res?.data?.plans ?? null;
+  } catch { return null; }
+}
+
+export async function saveAdminPlans(plans: SubscriptionPlanDto[]): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/admin/plans", { data: { plans }, method: "PUT" });
+    return res?.success ?? false;
+  } catch { return false; }
 }

@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -78,6 +79,18 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         subscription.UpdatedAt = DateTime.UtcNow;
         _context.Subscriptions.Update(subscription);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<PagedResult<Subscription>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Subscriptions.AsNoTracking().Include(s => s.Workspace);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(s => s.CreatedAt)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+        return new PagedResult<Subscription> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
     }
 
     public async Task<int> CountSuccessfulPromptUsageAsync(Guid profileId, DateTime windowStart, DateTime? windowEnd, CancellationToken cancellationToken = default)
