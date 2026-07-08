@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminDataTable from "@/components/admin/AdminDataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -10,6 +11,7 @@ const workspaceTypeLabels: Record<number, string> = { 1: "Personal", 2: "Busines
 const workspaceStatusLabels: Record<number, string> = { 0: "Active", 1: "Limited", 2: "Archived", 3: "Deleted" };
 
 export default function AdminWorkspacesPage() {
+  const router = useRouter();
   const [workspaces, setWorkspaces] = useState<AdminWorkspace[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -96,7 +98,7 @@ export default function AdminWorkspacesPage() {
           <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>
         ) : (
           <>
-            <AdminDataTable columns={columns} data={workspaces} keyField="id" />
+            <AdminDataTable columns={columns} data={workspaces} keyField="id" onRowClick={(ws) => router.push(`/admin/workspaces/${ws.id}`)} />
             <div className="flex items-center justify-between">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm rounded-lg border border-gray-200 disabled:opacity-50">Previous</button>
               <span className="text-sm text-gray-500">Page {page}</span>

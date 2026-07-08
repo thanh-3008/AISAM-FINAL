@@ -112,9 +112,11 @@ export async function fetchAdminPayments(page = 1, pageSize = 20): Promise<{ ite
   } catch { return null; }
 }
 
-export async function fetchAdminContent(page = 1, pageSize = 20): Promise<{ items: AdminContent[]; total: number } | null> {
+export async function fetchAdminContent(page = 1, pageSize = 20, search?: string): Promise<{ items: AdminContent[]; total: number } | null> {
   try {
-    const res: GenericResponse<any> = await apiClient(`/admin/content?page=${page}&pageSize=${pageSize}`);
+    let url = `/admin/content?page=${page}&pageSize=${pageSize}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }

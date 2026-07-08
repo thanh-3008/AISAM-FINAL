@@ -13,16 +13,17 @@ export default function AdminContentPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const loadContent = useCallback(async () => {
     setLoading(true);
-    const data = await fetchAdminContent(page);
+    const data = await fetchAdminContent(page, 20, search || undefined);
     if (data) {
       setContents(data.items);
       setTotal(data.total);
     }
     setLoading(false);
-  }, [page]);
+  }, [page, search]);
 
   useEffect(() => { loadContent(); }, [loadContent]);
 
@@ -89,6 +90,11 @@ export default function AdminContentPage() {
           <h2 className="text-2xl font-bold text-gray-900">Content</h2>
           <p className="text-gray-500 mt-1">{total} total content items</p>
         </div>
+        <div className="flex items-center gap-3">
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") loadContent(); }} placeholder="Search content..." className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <button onClick={loadContent} className="px-3 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200">Search</button>
+        </div>
+
         {loading ? (
           <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>
         ) : (

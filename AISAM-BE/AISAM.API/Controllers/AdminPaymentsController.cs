@@ -34,15 +34,17 @@ public sealed class AdminPaymentsController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<GenericResponse<object>>> GetPayments(
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
-    {
-        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
-        var request = new PaginationRequest { Page = page, PageSize = pageSize };
-        var result = await _adminService.GetPaymentsAsync(adminUserId, request, cancellationToken);
-        return StatusCode(result.StatusCode, result);
-    }
+        [HttpGet]
+        public async Task<ActionResult<GenericResponse<object>>> GetPayments(
+            [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+            [FromQuery] int? status = null,
+            CancellationToken cancellationToken = default)
+        {
+            var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+            var request = new PaginationRequest { Page = page, PageSize = pageSize };
+            var result = await _adminService.GetPaymentsAsync(adminUserId, request, cancellationToken);
+            return StatusCode(result.StatusCode, result);
+        }
 
     [HttpGet("revenue/stats")]
     public async Task<ActionResult<GenericResponse<object>>> GetRevenueStats(

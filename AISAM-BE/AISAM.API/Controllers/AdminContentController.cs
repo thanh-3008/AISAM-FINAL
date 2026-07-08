@@ -22,10 +22,13 @@ public sealed class AdminContentController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<GenericResponse<object>>> GetAllContent(
-        [FromQuery] PaginationRequest request,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] int? status = null,
         CancellationToken cancellationToken = default)
     {
         var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var request = new PaginationRequest { Page = page, PageSize = pageSize, SearchTerm = search };
         var result = await _adminService.GetAllContentAsync(adminUserId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
