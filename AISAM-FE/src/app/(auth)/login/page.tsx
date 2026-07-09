@@ -38,7 +38,25 @@ export default function LoginPage() {
         invalidateWorkspaceCache();
         setToken(result.data.accessToken);
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
-        if (result.data.user) setStoredUser(result.data.user);
+        if (result.data.user) {
+          setStoredUser(result.data.user);
+
+          const roleMap: Record<number, string> = { 0: "User", 1: "Vendor", 2: "Admin" };
+          const roleStr =
+            typeof result.data.user.role === "number"
+              ? roleMap[result.data.user.role] || "User"
+              : String(result.data.user.role || "User");
+
+          if (typeof document !== "undefined") {
+            document.cookie = `aisam_role=${roleStr}; path=/; max-age=86400`;
+          }
+
+          if (roleStr === "Admin") {
+            setIsSuccess(true);
+            router.push("/admin/dashboard");
+            return;
+          }
+        }
         setIsSuccess(true);
         router.push(getRedirectUrl());
       } else {
@@ -98,12 +116,17 @@ export default function LoginPage() {
         if (result.data.user) {
           setStoredUser(result.data.user);
 
-          // Admin redirect — check role from login response (more reliable than /auth/me)
-          if (result.data.user.role === 2 || result.data.user.role === "Admin") {
-            // Also set a cookie so middleware can detect admin
-            if (typeof document !== "undefined") {
-              document.cookie = "aisam_role=Admin; path=/; max-age=86400";
-            }
+          const roleMap: Record<number, string> = { 0: "User", 1: "Vendor", 2: "Admin" };
+          const roleStr =
+            typeof result.data.user.role === "number"
+              ? roleMap[result.data.user.role] || "User"
+              : String(result.data.user.role || "User");
+
+          if (typeof document !== "undefined") {
+            document.cookie = `aisam_role=${roleStr}; path=/; max-age=86400`;
+          }
+
+          if (roleStr === "Admin") {
             setIsSuccess(true);
             router.push("/admin/dashboard");
             return;

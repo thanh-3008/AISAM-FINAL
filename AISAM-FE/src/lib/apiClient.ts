@@ -74,12 +74,16 @@ async function handleResponse(response: Response) {
       }
     }
 
-    if (errorMessage === "Authentication is required." || response.status === 401) {
-      removeToken();
-      removeRefreshToken();
-      clearActiveWorkspace();
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-        window.location.href = "/login";
+    if (response.status === 401 || errorMessage === "Authentication is required.") {
+      const isOnLoginPage = typeof window !== "undefined" && window.location.pathname === "/login";
+      if (!isOnLoginPage) {
+        removeToken();
+        removeRefreshToken();
+        clearActiveWorkspace();
+        if (typeof window !== "undefined") {
+          document.cookie = "aisam_role=; path=/; max-age=0";
+          window.location.href = "/login";
+        }
       }
       return;
     }
