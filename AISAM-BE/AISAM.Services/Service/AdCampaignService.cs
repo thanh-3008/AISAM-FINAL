@@ -777,10 +777,11 @@ namespace AISAM.Services.Service
         private async Task<(SocialAccountDto Account, SocialIntegrationDto Integration, string PageId, string? InstagramActorId)> ResolveSocialContextAsync(AdCampaign campaign, CancellationToken cancellationToken)
         {
             var integrations = await _socialService.GetIntegrationsByBrandAsync(campaign.ProfileId, campaign.BrandId, cancellationToken);
-            var integration = integrations.OrderByDescending(i => i.CreatedAt).FirstOrDefault();
-            if (integration == null)
+
+            var fbIntegration = integrations.FirstOrDefault(i => string.Equals(i.Platform, "facebook", StringComparison.OrdinalIgnoreCase));
+            if (fbIntegration == null)
             {
-                throw new InvalidOperationException("No social integration found for this brand. Please connect a Facebook page first.");
+                throw new InvalidOperationException("No Facebook page connected for this brand. Please connect a Facebook page in Social Accounts first.");
             }
 
             var accounts = await _socialService.GetProfileAccountsAsync(campaign.ProfileId, cancellationToken);
@@ -796,13 +797,17 @@ namespace AISAM.Services.Service
             string? instagramActorId = null;
             if (campaign.Platform == "instagram")
             {
-                var igIntegration = integrations.FirstOrDefault(i => i.Platform == "instagram");
+                var igIntegration = integrations.FirstOrDefault(i => string.Equals(i.Platform, "instagram", StringComparison.OrdinalIgnoreCase));
                 if (igIntegration == null)
                     throw new InvalidOperationException("No Instagram account connected. Please connect your Instagram Business account in Social Accounts first.");
+
+                if (string.IsNullOrWhiteSpace(igIntegration.ExternalId))
+                    throw new InvalidOperationException("Instagram account is not properly linked. Please reconnect your Instagram Business account in Social Accounts.");
+
                 instagramActorId = igIntegration.ExternalId;
             }
 
-            return (account, integration, integration.ExternalId ?? string.Empty, instagramActorId);
+            return (account, fbIntegration, fbIntegration.ExternalId ?? string.Empty, instagramActorId);
         }
 
         private async Task<(bool Success, string Message)> EnsureWorkspaceMemberAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken)
