@@ -138,6 +138,9 @@ export async function logout(): Promise<void> {
     removeToken();
     removeRefreshToken();
     removeStoredUser();
+    if (typeof document !== "undefined") {
+      document.cookie = "aisam_role=; path=/; max-age=0";
+    }
     try {
       const { invalidateWorkspaceCache } = await import("@/hooks/useWorkspaces");
       invalidateWorkspaceCache();
