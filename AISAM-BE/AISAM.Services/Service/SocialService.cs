@@ -349,6 +349,14 @@ public sealed class SocialService : ISocialService
         return (await provider.GetAdAccountsAsync(userAccessToken, cancellationToken)).ToList();
     }
 
+    public async Task<string?> GetFacebookUserAccessTokenAsync(Guid profileId, CancellationToken cancellationToken = default)
+    {
+        var accounts = await _socialAccountRepository.GetByProfileIdAsync(profileId, cancellationToken);
+        var fbAccount = accounts.FirstOrDefault(a => a.Platform == SocialPlatformEnum.Facebook && a.IsActive);
+        if (fbAccount == null || string.IsNullOrWhiteSpace(fbAccount.UserAccessToken)) return null;
+        return _tokenProtector.Unprotect(fbAccount.UserAccessToken);
+    }
+
     public async Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
     {
         var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);

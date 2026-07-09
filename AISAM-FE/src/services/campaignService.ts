@@ -39,6 +39,7 @@ export interface Campaign {
   targeting: string | null;
   adAccountId: string;
   facebookCampaignId: string | null;
+  platform: string;
   name: string;
   objective: CampaignObjective;
   budget: number | null;
@@ -61,6 +62,7 @@ export interface CreateCampaignData {
   name: string;
   brandId: string;
   brandName: string;
+  platform: string;
   productId?: string | null;
   contentId?: string | null;
   targeting?: string | null;
@@ -85,6 +87,7 @@ interface CampaignApiItem {
   targeting: string | null;
   adAccountId: string;
   facebookCampaignId: string | null;
+  platform: string;
   name: string;
   objective: string | null;
   budget: number | null;
@@ -148,6 +151,7 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     targeting: api.targeting ?? null,
     adAccountId: api.adAccountId,
     facebookCampaignId: api.facebookCampaignId,
+    platform: api.platform || "facebook",
     name: api.name,
     objective: (api.objective as CampaignObjective) || "AWARENESS",
     budget: api.budget,
@@ -225,6 +229,7 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
       contentId: data.contentId ?? null,
       targeting: data.targeting ?? null,
       adAccountId: data.adAccountId,
+      platform: data.platform || "facebook",
       objective: data.objective,
       budget: data.budget,
       startDate: data.startDate || null,
@@ -250,6 +255,7 @@ export async function updateCampaign(id: string, data: CreateCampaignData): Prom
       contentId: data.contentId ?? null,
       targeting: data.targeting ?? null,
       adAccountId: data.adAccountId,
+      platform: data.platform || "facebook",
       objective: data.objective,
       budget: data.budget,
       startDate: data.startDate || null,
@@ -295,7 +301,7 @@ export async function deleteCampaign(id: string): Promise<boolean> {
 export async function deployCampaignToFacebook(id: string): Promise<Campaign> {
   const res = await apiClient(`/campaigns/${id}/deploy`, { method: "POST" });
   if (!res?.success || !res.data) {
-    throw new Error(res?.message || "Failed to deploy campaign to Facebook");
+    throw new Error(res?.message || "Failed to deploy campaign");
   }
   return mapCampaign(res.data as CampaignApiItem);
 }
@@ -316,6 +322,14 @@ export async function cleanupCampaignDeployment(id: string): Promise<boolean> {
 export async function restoreCampaign(id: string): Promise<boolean> {
   const res = await apiClient(`/campaigns/${id}/restore`, { method: "POST" });
   return res?.success === true;
+}
+
+export async function duplicateCampaign(id: string): Promise<Campaign> {
+  const res = await apiClient(`/campaigns/${id}/duplicate`, { method: "POST" });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to duplicate campaign");
+  }
+  return mapCampaign(res.data as CampaignApiItem);
 }
 
 export async function getCampaignById(id: string): Promise<Campaign | null> {

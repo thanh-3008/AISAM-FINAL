@@ -8,6 +8,7 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace AISAM.Services.Service
 {
@@ -23,7 +24,8 @@ namespace AISAM.Services.Service
         private readonly IBrandRepository _brandRepository;
         private readonly IContentRepository _contentRepository;
         private readonly ISocialService _socialService;
-        private readonly IProviderService _facebookProvider;
+        private readonly IPostRepository _postRepository;
+        private readonly Dictionary<string, IProviderService> _providers;
         private readonly ILogger<AdCampaignService> _logger;
 
         public AdCampaignService(
@@ -32,6 +34,7 @@ namespace AISAM.Services.Service
             IBrandRepository brandRepository,
             IContentRepository contentRepository,
             ISocialService socialService,
+            IPostRepository postRepository,
             IEnumerable<IProviderService> providers,
             ILogger<AdCampaignService> logger)
         {
@@ -40,8 +43,18 @@ namespace AISAM.Services.Service
             _brandRepository = brandRepository;
             _contentRepository = contentRepository;
             _socialService = socialService;
-            _facebookProvider = providers.First(p => p.ProviderName == "facebook");
+            _postRepository = postRepository;
+            _providers = providers.Where(p => p.ProviderName == "facebook" || p.ProviderName == "instagram")
+                .ToDictionary(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
             _logger = logger;
+        }
+
+        private IProviderService GetProvider(string platform)
+        {
+            var key = platform?.ToLowerInvariant() ?? "facebook";
+            if (_providers.TryGetValue(key, out var provider)) return provider;
+            if (_providers.TryGetValue("facebook", out provider)) return provider;
+            throw new InvalidOperationException("No ad provider available.");
         }
 
         public async Task<GenericResponse<PagedResult<AdCampaignResponseDto>>> GetPagedByWorkspaceIdAsync(
@@ -122,6 +135,7 @@ namespace AISAM.Services.Service
                 ContentId = request.ContentId,
                 Targeting = request.Targeting,
                 AdAccountId = request.AdAccountId,
+                Platform = string.IsNullOrWhiteSpace(request.Platform) ? "facebook" : request.Platform.ToLowerInvariant(),
                 Name = request.Name,
                 Objective = request.Objective,
                 Budget = request.Budget,
@@ -133,7 +147,6 @@ namespace AISAM.Services.Service
 
             var created = await _campaignRepository.AddAsync(campaign, cancellationToken);
 
-            // Re-fetch to get up-to-date navigation properties
             var refreshed = await _campaignRepository.GetByIdAsync(created.Id, cancellationToken);
             return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(refreshed ?? created), "Campaign created successfully");
         }
@@ -153,6 +166,7 @@ namespace AISAM.Services.Service
             }
 
             var isDeployed = campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId);
+            var provider = GetProvider(campaign.Platform);
 
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
@@ -245,47 +259,44 @@ namespace AISAM.Services.Service
 
             await _campaignRepository.UpdateAsync(campaign, cancellationToken);
 
-            // Sync status to Facebook if already deployed
             if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
             {
                 try
                 {
-                    var (account, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
-                    var fbStatus = campaign.IsActive ? "ACTIVE" : "PAUSED";
-                    await _facebookProvider.UpdateCampaignStatusAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, fbStatus, cancellationToken);
+                    var (account, _, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
+                    var adStatus = campaign.IsActive ? "ACTIVE" : "PAUSED";
+                    await provider.UpdateCampaignStatusAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, adStatus, cancellationToken);
 
-                    // Also update ad set and ad status
                     var adSets = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
                     foreach (var adSet in adSets)
                     {
                         if (!string.IsNullOrWhiteSpace(adSet.FacebookAdSetId))
-                            await _facebookProvider.UpdateAdSetStatusAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, fbStatus, cancellationToken);
+                            await provider.UpdateAdSetStatusAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, adStatus, cancellationToken);
                         var ads = await _campaignRepository.GetAdsByAdSetIdAsync(adSet.Id, cancellationToken);
                         foreach (var ad in ads)
                         {
                             if (!string.IsNullOrWhiteSpace(ad.AdId))
-                                await _facebookProvider.UpdateAdStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, fbStatus, cancellationToken);
+                                await provider.UpdateAdStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, adStatus, cancellationToken);
                         }
                     }
 
-                    _logger.LogInformation("Synced campaign {CampaignId} status to {Status} on Facebook", campaign.Id, fbStatus);
+                    _logger.LogInformation("Synced campaign {CampaignId} status to {Status} on {Platform}", campaign.Id, adStatus, campaign.Platform);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to sync status to Facebook for campaign {CampaignId}", campaign.Id);
+                    _logger.LogWarning(ex, "Failed to sync status to {Platform} for campaign {CampaignId}", campaign.Platform, campaign.Id);
                 }
             }
 
-            // Deploy to Facebook if just activated and not yet completed
             if (wasActivated && campaign.DeploymentStatus != DeploymentStatusEnum.Completed)
             {
                 try
                 {
-                    await DeployCampaignToFacebookAsync(campaign, cancellationToken);
+                    await DeployCampaignAsync(campaign, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Auto-deploy to Facebook failed during activation for campaign {CampaignId}", campaign.Id);
+                    _logger.LogWarning(ex, "Auto-deploy to {Platform} failed during activation for campaign {CampaignId}", campaign.Platform, campaign.Id);
                 }
             }
 
@@ -307,32 +318,32 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError(access.Message);
             }
 
-            // Pause on Facebook if already deployed
             if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
             {
                 try
                 {
-                    var (account, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
-                    await _facebookProvider.UpdateCampaignStatusAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, "PAUSED", cancellationToken);
+                    var provider = GetProvider(campaign.Platform);
+                    var (account, _, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
+                    await provider.UpdateCampaignStatusAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, "PAUSED", cancellationToken);
 
                     var adSets = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
                     foreach (var adSet in adSets)
                     {
                         if (!string.IsNullOrWhiteSpace(adSet.FacebookAdSetId))
-                            await _facebookProvider.UpdateAdSetStatusAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, "PAUSED", cancellationToken);
+                            await provider.UpdateAdSetStatusAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, "PAUSED", cancellationToken);
                         var ads = await _campaignRepository.GetAdsByAdSetIdAsync(adSet.Id, cancellationToken);
                         foreach (var ad in ads)
                         {
                             if (!string.IsNullOrWhiteSpace(ad.AdId))
-                                await _facebookProvider.UpdateAdStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, "PAUSED", cancellationToken);
+                                await provider.UpdateAdStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, "PAUSED", cancellationToken);
                         }
                     }
 
-                    _logger.LogInformation("Paused campaign {CampaignId} on Facebook before deletion", campaign.Id);
+                    _logger.LogInformation("Paused campaign {CampaignId} on {Platform} before deletion", campaign.Id, campaign.Platform);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to pause campaign {CampaignId} on Facebook during deletion", campaign.Id);
+                    _logger.LogWarning(ex, "Failed to pause campaign {CampaignId} on {Platform} during deletion", campaign.Id, campaign.Platform);
                 }
             }
 
@@ -368,7 +379,7 @@ namespace AISAM.Services.Service
             return GenericResponse<bool>.CreateSuccess(true, "Campaign restored successfully");
         }
 
-        public async Task<GenericResponse<AdCampaignResponseDto>> DeployToFacebookAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+        public async Task<GenericResponse<AdCampaignResponseDto>> DeployAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
@@ -384,19 +395,24 @@ namespace AISAM.Services.Service
 
             if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed)
             {
-                return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(campaign), "Campaign already deployed to Facebook");
+                return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(campaign), "Campaign already deployed");
             }
 
             try
             {
-                await DeployCampaignToFacebookAsync(campaign, cancellationToken);
+                await DeployCampaignAsync(campaign, cancellationToken);
                 var refreshed = await _campaignRepository.GetByIdAsync(campaign.Id, cancellationToken);
-                return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(refreshed ?? campaign), "Campaign deployed to Facebook successfully");
+                return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(refreshed ?? campaign), $"Campaign deployed to {campaign.Platform} successfully");
             }
             catch (Exception ex)
             {
-                return GenericResponse<AdCampaignResponseDto>.CreateError($"Failed to deploy campaign to Facebook: {ex.Message}");
+                return GenericResponse<AdCampaignResponseDto>.CreateError($"Failed to deploy campaign: {ex.Message}");
             }
+        }
+
+        public async Task<GenericResponse<AdCampaignResponseDto>> DeployToFacebookAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+        {
+            return await DeployAsync(id, workspaceId, userId, cancellationToken);
         }
 
         public async Task<GenericResponse<bool>> CleanupFailedDeploymentAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
@@ -418,17 +434,11 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Campaign is not in a failed or in-progress state");
             }
 
-            // Get social account for access token
-            var accounts = await _socialService.GetProfileAccountsAsync(campaign.ProfileId, cancellationToken);
-            var account = accounts.FirstOrDefault(a => a.Provider == "facebook");
-            if (account == null)
-            {
-                return GenericResponse<bool>.CreateError("No Facebook account connected");
-            }
+            var provider = GetProvider(campaign.Platform);
+            var (account, _, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
 
             var errors = new List<string>();
 
-            // Cleanup in reverse order: Ad → AdCreative → AdSet → Campaign
             var adSets = campaign.AdSets.Where(ads => !ads.IsDeleted).ToList();
             foreach (var adSet in adSets)
             {
@@ -437,31 +447,31 @@ namespace AISAM.Services.Service
                 {
                     if (!string.IsNullOrWhiteSpace(ad.AdId))
                     {
-                        var ok = await _facebookProvider.DeleteAdAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, cancellationToken);
-                        if (!ok) errors.Add($"Failed to delete ad {ad.AdId} on Facebook");
+                        var ok = await provider.DeleteAdAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, cancellationToken);
+                        if (!ok) errors.Add($"Failed to delete ad {ad.AdId}");
                     }
                     await _campaignRepository.HardDeleteAdAsync(ad.Id, cancellationToken);
 
                     if (ad.CreativeId != Guid.Empty && !string.IsNullOrWhiteSpace(ad.Creative?.CreativeId))
                     {
-                        var ok = await _facebookProvider.DeleteAdCreativeAsync(campaign.AdAccountId, account.AccessToken, ad.Creative.CreativeId, cancellationToken);
-                        if (!ok) errors.Add($"Failed to delete creative {ad.Creative.CreativeId} on Facebook");
+                        var ok = await provider.DeleteAdCreativeAsync(campaign.AdAccountId, account.AccessToken, ad.Creative.CreativeId, cancellationToken);
+                        if (!ok) errors.Add($"Failed to delete creative {ad.Creative.CreativeId}");
                         await _campaignRepository.HardDeleteAdCreativeAsync(ad.CreativeId, cancellationToken);
                     }
                 }
 
                 if (!string.IsNullOrWhiteSpace(adSet.FacebookAdSetId))
                 {
-                    var ok = await _facebookProvider.DeleteAdSetAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, cancellationToken);
-                    if (!ok) errors.Add($"Failed to delete ad set {adSet.FacebookAdSetId} on Facebook");
+                    var ok = await provider.DeleteAdSetAsync(campaign.AdAccountId, account.AccessToken, adSet.FacebookAdSetId, cancellationToken);
+                    if (!ok) errors.Add($"Failed to delete ad set {adSet.FacebookAdSetId}");
                 }
                 await _campaignRepository.HardDeleteAdSetAsync(adSet.Id, cancellationToken);
             }
 
             if (!string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
             {
-                var ok = await _facebookProvider.DeleteCampaignAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, cancellationToken);
-                if (!ok) errors.Add($"Failed to delete campaign {campaign.FacebookCampaignId} on Facebook");
+                var ok = await provider.DeleteCampaignAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, cancellationToken);
+                if (!ok) errors.Add($"Failed to delete campaign {campaign.FacebookCampaignId}");
             }
 
             await _campaignRepository.ClearFacebookIdsAsync(campaign.Id, cancellationToken);
@@ -487,12 +497,13 @@ namespace AISAM.Services.Service
                 return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
 
             if (string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
-                return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign has not been deployed to Facebook yet.");
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign has not been deployed yet.");
 
             try
             {
-                var (account, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
-                var insights = await _facebookProvider.GetCampaignInsightsAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, cancellationToken);
+                var provider = GetProvider(campaign.Platform);
+                var (account, _, _, _) = await ResolveSocialContextAsync(campaign, cancellationToken);
+                var insights = await provider.GetCampaignInsightsAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, cancellationToken);
 
                 if (insights != null)
                 {
@@ -502,7 +513,7 @@ namespace AISAM.Services.Service
 
                     await _campaignRepository.UpdateCampaignInsightsAsync(campaign.Id, impressions, clicks, spend, 0, cancellationToken);
 
-                    _logger.LogInformation("Synced and saved insights for campaign {CampaignId}: impressions={Impressions}, clicks={Clicks}, spend={Spend}",
+                    _logger.LogInformation("Synced insights for campaign {CampaignId}: impressions={Impressions}, clicks={Clicks}, spend={Spend}",
                         campaign.Id, impressions, clicks, spend);
                 }
                 else
@@ -516,78 +527,116 @@ namespace AISAM.Services.Service
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to sync insights for campaign {CampaignId}", campaign.Id);
-                return GenericResponse<AdCampaignResponseDto>.CreateError("Failed to sync insights from Facebook.");
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Failed to sync insights.");
             }
         }
 
-        // ──────────────────────────────────────────────
-        //  Deployment with incremental save & retry
-        // ──────────────────────────────────────────────
-
-        private async Task DeployCampaignToFacebookAsync(AdCampaign campaign, CancellationToken cancellationToken)
+        public async Task<GenericResponse<AdCampaignResponseDto>> DuplicateAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
-            var (account, integration, pageId) = await ResolveSocialContextAsync(campaign, cancellationToken);
+            var original = await _campaignRepository.GetByIdAsync(id, cancellationToken);
+            if (original == null || original.WorkspaceId != workspaceId)
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
 
-            // ── Step 1: Campaign ──
+            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
+                return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
+
+            var campaign = new AdCampaign
+            {
+                WorkspaceId = original.WorkspaceId,
+                ProfileId = original.ProfileId,
+                BrandId = original.BrandId,
+                ProductId = original.ProductId,
+                ContentId = original.ContentId,
+                Targeting = original.Targeting,
+                AdAccountId = original.AdAccountId,
+                Platform = original.Platform,
+                Name = $"{original.Name} (copy)",
+                Objective = original.Objective,
+                Budget = original.Budget,
+                LandingUrl = original.LandingUrl,
+                IsActive = false
+            };
+
+            var created = await _campaignRepository.AddAsync(campaign, cancellationToken);
+            var refreshed = await _campaignRepository.GetByIdAsync(created.Id, cancellationToken);
+            return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(refreshed ?? created), "Campaign duplicated successfully");
+        }
+
+        private async Task DeployCampaignAsync(AdCampaign campaign, CancellationToken cancellationToken)
+        {
+            var provider = GetProvider(campaign.Platform);
+            var (account, integration, pageId, igActorId) = await ResolveSocialContextAsync(campaign, cancellationToken);
+
             if (campaign.DeploymentStep < StepCampaignCreated)
             {
-                var fbCampaignId = await _facebookProvider.CreateCampaignAsync(
-                    campaign.AdAccountId,
-                    account.AccessToken,
-                    campaign.Name,
-                    campaign.Objective ?? "AWARENESS",
-                    campaign.Budget,
-                    campaign.StartDate,
-                    campaign.EndDate,
-                    cancellationToken
-                );
-
-                campaign.FacebookCampaignId = fbCampaignId;
-                campaign.DeploymentStatus = DeploymentStatusEnum.InProgress;
-                campaign.DeploymentStep = StepCampaignCreated;
-                await _campaignRepository.UpdateAsync(campaign, cancellationToken);
-                _logger.LogInformation("Deploy step 1/4: Campaign {FbId} created and saved", fbCampaignId);
+                try
+                {
+                    var fbCampaignId = await provider.CreateCampaignAsync(
+                        campaign.AdAccountId,
+                        account.AccessToken,
+                        campaign.Name,
+                        campaign.Objective ?? "AWARENESS",
+                        campaign.Budget,
+                        campaign.StartDate,
+                        campaign.EndDate,
+                        cancellationToken
+                    );
+                    campaign.FacebookCampaignId = fbCampaignId;
+                    campaign.DeploymentStatus = DeploymentStatusEnum.InProgress;
+                    campaign.DeploymentStep = StepCampaignCreated;
+                    await _campaignRepository.UpdateAsync(campaign, cancellationToken);
+                    _logger.LogInformation("Deploy step 1/4: Campaign {FbId} created on {Platform}", fbCampaignId, campaign.Platform);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Step 1/4 (Create Campaign) failed: {ex.Message}", ex);
+                }
             }
 
-            // ── Step 2: Ad Set ──
             var adSet = await _campaignRepository.GetAdSetByCampaignIdAsync(campaign.Id, cancellationToken);
             if (campaign.DeploymentStep < StepAdSetCreated || adSet == null || string.IsNullOrWhiteSpace(adSet.FacebookAdSetId))
             {
-                var adSetName = $"{campaign.Name} - Ad Set";
-                var fbAdSetId = await _facebookProvider.CreateAdSetAsync(
-                    campaign.AdAccountId,
-                    account.AccessToken,
-                    campaign.FacebookCampaignId!,
-                    adSetName,
-                    campaign.Objective ?? "AWARENESS",
-                    campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
-                    campaign.StartDate,
-                    campaign.EndDate,
-                    campaign.Targeting ?? "{\"geo_locations\":{\"countries\":[\"VN\"]}}",
-                    cancellationToken
-                );
-
-                adSet = new AdSet
+                try
                 {
-                    CampaignId = campaign.Id,
-                    Name = adSetName,
-                    FacebookAdSetId = fbAdSetId,
-                    DailyBudget = campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
-                    Status = "PAUSED",
-                    StartDate = campaign.StartDate,
-                    EndDate = campaign.EndDate
-                };
-                await _campaignRepository.AddAdSetAsync(adSet, cancellationToken);
-                campaign.DeploymentStep = StepAdSetCreated;
-                await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.InProgress, StepAdSetCreated, cancellationToken);
-                _logger.LogInformation("Deploy step 2/4: Ad Set {FbId} created and saved", fbAdSetId);
+                    var adSetName = $"{campaign.Name} - Ad Set";
+                    var fbAdSetId = await provider.CreateAdSetAsync(
+                        campaign.AdAccountId,
+                        account.AccessToken,
+                        campaign.FacebookCampaignId!,
+                        adSetName,
+                        campaign.Objective ?? "AWARENESS",
+                        campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
+                        campaign.StartDate,
+                        campaign.EndDate,
+                        campaign.Targeting ?? "{\"geo_locations\":{\"countries\":[\"VN\"]}}",
+                        cancellationToken
+                    );
+                    adSet = new AdSet
+                    {
+                        CampaignId = campaign.Id,
+                        Name = adSetName,
+                        FacebookAdSetId = fbAdSetId,
+                        DailyBudget = campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
+                        Status = "PAUSED",
+                        StartDate = campaign.StartDate,
+                        EndDate = campaign.EndDate
+                    };
+                    await _campaignRepository.AddAdSetAsync(adSet, cancellationToken);
+                    campaign.DeploymentStep = StepAdSetCreated;
+                    await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.InProgress, StepAdSetCreated, cancellationToken);
+                    _logger.LogInformation("Deploy step 2/4: Ad Set {FbId} created on {Platform}", fbAdSetId, campaign.Platform);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Step 2/4 (Create Ad Set) failed: {ex.Message}", ex);
+                }
             }
             else
             {
                 _logger.LogInformation("Deploy step 2/4: Reusing existing ad set {AdSetId}", adSet.Id);
             }
 
-            // ── Step 3: Ad Creative ──
             AdCreative? creative = null;
             var existingAd = adSet.Id != Guid.Empty ? await _campaignRepository.GetAdByAdSetIdAsync(adSet.Id, cancellationToken) : null;
             if (existingAd?.CreativeId != null)
@@ -597,98 +646,124 @@ namespace AISAM.Services.Service
 
             if (campaign.DeploymentStep < StepAdCreativeCreated || creative == null || string.IsNullOrWhiteSpace(creative.CreativeId))
             {
-                Content? content = null;
-
-                // Use campaign.ContentId if set by user
-                if (campaign.ContentId.HasValue)
+                try
                 {
-                    content = await _contentRepository.GetByIdAsync(campaign.ContentId.Value, cancellationToken);
-                }
+                    Content? content = null;
 
-                // Fallback: fetch published/approved content for the brand
-                if (content == null)
-                {
-                    var contentRequest = new PaginationRequest { Page = 1, PageSize = 5 };
-                    var brandContent = await _contentRepository.GetPagedByProfileIdAsync(
-                        campaign.ProfileId, contentRequest,
-                        brandId: campaign.BrandId,
-                        status: ContentStatusEnum.Published,
-                        cancellationToken: cancellationToken
-                    );
-                    if (brandContent.Data.Count == 0)
+                    if (campaign.ContentId.HasValue)
                     {
-                        brandContent = await _contentRepository.GetPagedByProfileIdAsync(
+                        content = await _contentRepository.GetByIdAsync(campaign.ContentId.Value, cancellationToken);
+                    }
+
+                    if (content == null)
+                    {
+                        var contentRequest = new PaginationRequest { Page = 1, PageSize = 5 };
+                        var brandContent = await _contentRepository.GetPagedByProfileIdAsync(
                             campaign.ProfileId, contentRequest,
                             brandId: campaign.BrandId,
-                            status: ContentStatusEnum.Approved,
+                            status: ContentStatusEnum.Published,
                             cancellationToken: cancellationToken
                         );
+                        if (brandContent.Data.Count == 0)
+                        {
+                            brandContent = await _contentRepository.GetPagedByProfileIdAsync(
+                                campaign.ProfileId, contentRequest,
+                                brandId: campaign.BrandId,
+                                status: ContentStatusEnum.Approved,
+                                cancellationToken: cancellationToken
+                            );
+                        }
+                        content = brandContent.Data.FirstOrDefault();
                     }
-                    content = brandContent.Data.FirstOrDefault();
+
+                    var message = content?.TextContent ?? campaign.Name;
+                    var linkUrl = campaign.LandingUrl ?? $"https://www.facebook.com/{pageId}";
+                    var imageUrl = content?.ImageUrl;
+
+                string? instagramMediaId = null;
+                string? instagramActorId = igActorId;
+                if (campaign.Platform == "instagram" && content != null)
+                {
+                    var posts = await _postRepository.GetPublishedByContentIdAsync(content.Id, cancellationToken);
+                    var igPost = posts.FirstOrDefault(p => p.Integration?.Platform == SocialPlatformEnum.Instagram && !string.IsNullOrWhiteSpace(p.ExternalPostId));
+                    if (igPost != null)
+                    {
+                        instagramMediaId = igPost.ExternalPostId;
+                        instagramActorId = igPost.Integration?.ExternalId ?? igActorId;
+                    }
                 }
 
-                var message = content?.TextContent ?? campaign.Name;
-                var linkUrl = campaign.LandingUrl ?? $"https://www.facebook.com/{pageId}";
-                var imageUrl = content?.ImageUrl;
+                    var fbCreativeId = await provider.CreateAdCreativeAsync(
+                        campaign.AdAccountId,
+                        account.AccessToken,
+                        pageId,
+                        message,
+                        linkUrl,
+                        imageUrl,
+                        null,
+                        instagramMediaId,
+                        instagramActorId,
+                        cancellationToken
+                    );
 
-                var fbCreativeId = await _facebookProvider.CreateAdCreativeAsync(
-                    campaign.AdAccountId,
-                    account.AccessToken,
-                    pageId,
-                    message,
-                    linkUrl,
-                    imageUrl,
-                    null,
-                    cancellationToken
-                );
+                    creative = new AdCreative
+                    {
+                        AdAccountId = campaign.AdAccountId,
+                        ContentId = content?.Id,
+                        CreativeId = fbCreativeId,
+                        CallToAction = "LEARN_MORE",
+                        LinkUrl = linkUrl
+                    };
 
-                creative = new AdCreative
+                    campaign.LandingUrl = linkUrl;
+                    await _campaignRepository.AddAdCreativeAsync(creative, cancellationToken);
+                    campaign.DeploymentStep = StepAdCreativeCreated;
+                    await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.InProgress, StepAdCreativeCreated, cancellationToken);
+                    _logger.LogInformation("Deploy step 3/4: Ad Creative {FbId} created on {Platform}", fbCreativeId, campaign.Platform);
+                }
+                catch (Exception ex)
                 {
-                    AdAccountId = campaign.AdAccountId,
-                    ContentId = content?.Id,
-                    CreativeId = fbCreativeId,
-                    CallToAction = "LEARN_MORE",
-                    LinkUrl = linkUrl
-                };
-
-                campaign.LandingUrl = linkUrl;
-                await _campaignRepository.AddAdCreativeAsync(creative, cancellationToken);
-                campaign.DeploymentStep = StepAdCreativeCreated;
-                await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.InProgress, StepAdCreativeCreated, cancellationToken);
-                _logger.LogInformation("Deploy step 3/4: Ad Creative {FbId} created and saved", fbCreativeId);
+                    throw new InvalidOperationException($"Step 3/4 (Create Ad Creative) failed: {ex.Message}", ex);
+                }
             }
             else
             {
                 _logger.LogInformation("Deploy step 3/4: Reusing existing creative {CreativeId}", creative.Id);
             }
 
-            // ── Step 4: Ad ──
             if (campaign.DeploymentStep < StepAdCreated || existingAd == null || string.IsNullOrWhiteSpace(existingAd.AdId))
             {
-                var adName = $"{campaign.Name} - Ad";
-                var fbAdId = await _facebookProvider.CreateAdAsync(
-                    campaign.AdAccountId,
-                    account.AccessToken,
-                    adSet.FacebookAdSetId!,
-                    creative!.CreativeId!,
-                    adName,
-                    "PAUSED",
-                    cancellationToken
-                );
-
-                var ad = new Ad
+                try
                 {
-                    AdSetId = adSet.Id,
-                    CreativeId = creative.Id,
-                    AdId = fbAdId,
-                    Status = "PAUSED"
-                };
-                await _campaignRepository.AddAdAsync(ad, cancellationToken);
+                    var adName = $"{campaign.Name} - Ad";
+                    var fbAdId = await provider.CreateAdAsync(
+                        campaign.AdAccountId,
+                        account.AccessToken,
+                        adSet.FacebookAdSetId!,
+                        creative!.CreativeId!,
+                        adName,
+                        "PAUSED",
+                        cancellationToken
+                    );
 
-                campaign.DeploymentStatus = DeploymentStatusEnum.Completed;
-                campaign.DeploymentStep = StepAdCreated;
-                await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.Completed, StepAdCreated, cancellationToken);
-                _logger.LogInformation("Deploy step 4/4: Ad {FbId} created — deployment complete", fbAdId);
+                    var ad = new Ad
+                    {
+                        AdSetId = adSet.Id,
+                        CreativeId = creative.Id,
+                        AdId = fbAdId,
+                        Status = "PAUSED"
+                    };
+                    await _campaignRepository.AddAdAsync(ad, cancellationToken);
+
+                    campaign.DeploymentStatus = DeploymentStatusEnum.Completed;
+                    campaign.DeploymentStep = StepAdCreated;
+                    await _campaignRepository.UpdateDeploymentStatusAsync(campaign.Id, DeploymentStatusEnum.Completed, StepAdCreated, cancellationToken);
+                    _logger.LogInformation("Deploy step 4/4: Ad {FbId} created on {Platform} — deployment complete", fbAdId, campaign.Platform);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Step 4/4 (Create Ad) failed: {ex.Message}", ex);
+                }
             }
             else
             {
@@ -699,13 +774,14 @@ namespace AISAM.Services.Service
             }
         }
 
-        private async Task<(SocialAccountDto Account, SocialIntegrationDto Integration, string PageId)> ResolveSocialContextAsync(AdCampaign campaign, CancellationToken cancellationToken)
+        private async Task<(SocialAccountDto Account, SocialIntegrationDto Integration, string PageId, string? InstagramActorId)> ResolveSocialContextAsync(AdCampaign campaign, CancellationToken cancellationToken)
         {
             var integrations = await _socialService.GetIntegrationsByBrandAsync(campaign.ProfileId, campaign.BrandId, cancellationToken);
-            var integration = integrations.OrderByDescending(i => i.CreatedAt).FirstOrDefault();
-            if (integration == null)
+
+            var fbIntegration = integrations.FirstOrDefault(i => string.Equals(i.Platform, "facebook", StringComparison.OrdinalIgnoreCase));
+            if (fbIntegration == null)
             {
-                throw new InvalidOperationException("No social integration found for this brand. Please connect a Facebook page first.");
+                throw new InvalidOperationException("No Facebook page connected for this brand. Please connect a Facebook page in Social Accounts first.");
             }
 
             var accounts = await _socialService.GetProfileAccountsAsync(campaign.ProfileId, cancellationToken);
@@ -715,7 +791,23 @@ namespace AISAM.Services.Service
                 throw new InvalidOperationException("No Facebook account connected. Please connect your Facebook account first.");
             }
 
-            return (account, integration, integration.ExternalId ?? string.Empty);
+            var adToken = await _socialService.GetFacebookUserAccessTokenAsync(campaign.ProfileId, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(adToken)) account.AccessToken = adToken;
+
+            string? instagramActorId = null;
+            if (campaign.Platform == "instagram")
+            {
+                var igIntegration = integrations.FirstOrDefault(i => string.Equals(i.Platform, "instagram", StringComparison.OrdinalIgnoreCase));
+                if (igIntegration == null)
+                    throw new InvalidOperationException("No Instagram account connected. Please connect your Instagram Business account in Social Accounts first.");
+
+                if (string.IsNullOrWhiteSpace(igIntegration.ExternalId))
+                    throw new InvalidOperationException("Instagram account is not properly linked. Please reconnect your Instagram Business account in Social Accounts.");
+
+                instagramActorId = igIntegration.ExternalId;
+            }
+
+            return (account, fbIntegration, fbIntegration.ExternalId ?? string.Empty, instagramActorId);
         }
 
         private async Task<(bool Success, string Message)> EnsureWorkspaceMemberAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken)
@@ -752,6 +844,7 @@ namespace AISAM.Services.Service
                 Targeting = campaign.Targeting,
                 AdAccountId = campaign.AdAccountId,
                 FacebookCampaignId = campaign.FacebookCampaignId,
+                Platform = campaign.Platform,
                 Name = campaign.Name,
                 Objective = campaign.Objective,
                 Budget = campaign.Budget,

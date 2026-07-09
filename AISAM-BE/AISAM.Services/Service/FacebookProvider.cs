@@ -322,7 +322,7 @@ public sealed class FacebookProvider : IProviderService
     //  Marketing API — Ad Creatives
     // ──────────────────────────────────────────────
 
-    public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, CancellationToken cancellationToken = default)
+        public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
 

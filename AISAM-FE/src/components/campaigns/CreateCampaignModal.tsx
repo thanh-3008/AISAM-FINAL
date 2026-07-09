@@ -6,6 +6,7 @@ import { OBJECTIVE_CONFIG, getCachedBrands } from "./campaignUtils";
 import { fetchSocialAccounts, fetchAdAccounts, type SocialAccount, type AdAccount } from "@/services/socialAccountService";
 import { fetchProducts } from "@/services/brandService";
 import { fetchContents } from "@/services/contentService";
+import { PlatformIcon } from "@/lib/contentConstants";
 
 interface CreateCampaignModalProps {
   open: boolean;
@@ -29,6 +30,8 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
   const [contents, setContents] = useState<{ id: string; title: string; brandId: string }[]>([]);
   const [selectedContentId, setSelectedContentId] = useState("");
   const [landingUrl, setLandingUrl] = useState("");
+
+  const [platform, setPlatform] = useState<"facebook" | "instagram">("facebook");
 
   // Targeting
   const TARGETING_PRESETS: { label: string; value: string }[] = [
@@ -63,12 +66,20 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       setSelectedTargeting(TARGETING_PRESETS[0].value);
       setCustomTargeting("");
       setLandingUrl("");
-
-      fetchSocialAccounts().then((res) => {
-        setSocialAccounts(res.data.filter((a) => a.provider === "facebook"));
-      });
+      setPlatform("facebook");
+      loadSocialAccounts();
     }
   }, [open]);
+
+  useEffect(() => {
+    loadSocialAccounts();
+  }, [platform]);
+
+  function loadSocialAccounts() {
+    fetchSocialAccounts().then((res) => {
+      setSocialAccounts(res.data.filter((a) => a.provider === "facebook"));
+    });
+  }
 
   useEffect(() => {
     if (!selectedSocialAccountId) {
@@ -117,6 +128,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       name,
       brandId,
       brandName: brand.name,
+      platform,
       productId: selectedProductId || null,
       contentId: selectedContentId || null,
       targeting: selectedTargeting === "custom" ? customTargeting || null : selectedTargeting,
@@ -164,6 +176,34 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                 placeholder="e.g. Summer Sale 2024"
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
               />
+            </div>
+
+            {/* Platform */}
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Platform</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPlatform("facebook")}
+                  className={`flex items-center gap-2 flex-1 p-3 rounded-xl border-2 transition-all ${
+                    platform === "facebook" ? "border-primary bg-primary/5" : "border-outline-variant/20 hover:border-outline-variant/40"
+                  }`}
+                >
+                  <PlatformIcon platform="facebook" className="w-6 h-6" />
+                  <span className="text-label-sm font-semibold text-on-surface">Facebook</span>
+                </button>
+                <button
+                  onClick={() => setPlatform("instagram")}
+                  className={`flex items-center gap-2 flex-1 p-3 rounded-xl border-2 transition-all ${
+                    platform === "instagram" ? "border-primary bg-primary/5" : "border-outline-variant/20 hover:border-outline-variant/40"
+                  }`}
+                >
+                  <PlatformIcon platform="instagram" className="w-6 h-6" />
+                  <span className="text-label-sm font-semibold text-on-surface">Instagram</span>
+                </button>
+              </div>
+              <p className="text-label-3xs text-outline mt-1">
+                {platform === "instagram" ? "Instagram ads run through Facebook Ad Accounts" : "Facebook Ads Manager"}
+              </p>
             </div>
 
             {/* Facebook Account */}
@@ -252,10 +292,18 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10"
               >
                 <option value="">Select content...</option>
-                {contents.map((c) => (
-                  <option key={c.id} value={c.id}>{c.title || "(untitled)"}</option>
+                {contents.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title || "(untitled)"}
+                    {c.platforms?.includes("instagram") ? " (on Instagram)" : ""}
+                  </option>
                 ))}
               </select>
+              {platform === "instagram" && selectedContentId && (
+                <p className="text-label-3xs text-primary mt-1">
+                  If this content was published to Instagram, it will be boosted as an existing post instead of creating a new creative.
+                </p>
+              )}
             </div>
 
             {/* Landing URL */}

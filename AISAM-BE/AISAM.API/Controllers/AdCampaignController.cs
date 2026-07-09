@@ -172,13 +172,13 @@ namespace AISAM.API.Controllers
         }
 
         [HttpPost("{id}/deploy")]
-        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> DeployToFacebook(Guid id, CancellationToken cancellationToken = default)
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> Deploy(Guid id, CancellationToken cancellationToken = default)
         {
             try
             {
                 var userId = UserClaimsHelper.GetUserIdOrThrow(User);
                 var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
-                var result = await _campaignService.DeployToFacebookAsync(id, workspaceId, userId, cancellationToken);
+                var result = await _campaignService.DeployAsync(id, workspaceId, userId, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
             }
             catch (UnauthorizedAccessException)
@@ -187,7 +187,7 @@ namespace AISAM.API.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deploying campaign {CampaignId} to Facebook", id);
+                _logger.LogError(ex, "Error deploying campaign {CampaignId}", id);
                 return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
@@ -231,6 +231,27 @@ namespace AISAM.API.Controllers
             {
                 _logger.LogError(ex, "Error cleaning up deployment for campaign {CampaignId}", id);
                 return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("{id}/duplicate")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> Duplicate(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.DuplicateAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error duplicating campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 

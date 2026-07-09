@@ -10,6 +10,7 @@ import {
   getCtr,
   getDaysRemaining,
 } from "./campaignUtils";
+import { PlatformIcon } from "@/lib/contentConstants";
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -84,6 +85,16 @@ export default function CampaignCard({
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-2xs font-bold border ${statusConfig.bg} ${statusConfig.color}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot} ${campaign.status === "ACTIVE" ? "animate-pulse" : ""}`} />
           {statusConfig.label}
+        </span>
+      </div>
+
+      {/* Platform badge */}
+      <div className="px-5 pb-2">
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-label-2xs font-medium ${
+          campaign.platform === "instagram" ? "bg-pink-50 text-pink-600" : "bg-blue-50 text-blue-600"
+        }`}>
+          <PlatformIcon platform={campaign.platform || "facebook"} className="w-[14px] h-[14px]" />
+          {campaign.platform === "instagram" ? "Instagram" : "Facebook"}
         </span>
       </div>
 
