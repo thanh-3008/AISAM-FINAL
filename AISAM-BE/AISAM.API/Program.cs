@@ -310,7 +310,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", corsBuilder =>
     {
-        var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+        var allowedOrigins = BuildAllowedOrigins(builder.Configuration);
         corsBuilder
             .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
@@ -388,4 +388,41 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
     {
         configuration[configurationKey] = value;
     }
+}
+
+static string[] BuildAllowedOrigins(IConfiguration configuration)
+{
+    var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    void AddOrigin(string? origin)
+    {
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            return;
+        }
+
+        var cleaned = origin.Trim().TrimEnd('/');
+        if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            origins.Add(cleaned);
+        }
+    }
+
+    foreach (var origin in configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>())
+    {
+        AddOrigin(origin);
+    }
+
+    AddOrigin(configuration["FrontendSettings:BaseUrl"]);
+
+    var envOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+        ?? Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+
+    foreach (var origin in (envOrigins ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        AddOrigin(origin);
+    }
+
+    return origins.ToArray();
 }
