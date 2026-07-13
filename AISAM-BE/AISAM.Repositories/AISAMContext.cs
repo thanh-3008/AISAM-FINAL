@@ -181,6 +181,9 @@ namespace AISAM.Repositories
                 entity.HasIndex(si => si.WorkspaceId);
                 entity.HasIndex(si => si.BrandId);
                 entity.HasIndex(si => si.SocialAccountId);
+                entity.HasIndex(si => new { si.WorkspaceId, si.Platform, si.ExternalId })
+                      .IsUnique()
+                      .HasFilter("\"is_deleted\" = FALSE AND \"external_id\" IS NOT NULL");
                 entity.HasOne(si => si.Profile)
                       .WithMany(p => p.SocialIntegrations)
                       .HasForeignKey(si => si.ProfileId)

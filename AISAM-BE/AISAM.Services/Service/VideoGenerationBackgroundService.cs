@@ -139,7 +139,14 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[VideoGenerationBackgroundService] Error occurred during video polling iteration.");
-                await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
 

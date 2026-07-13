@@ -124,7 +124,8 @@ public sealed class SocialService : ISocialService
         var account = await RequireOwnedAccountAsync(profileId, socialAccountId, cancellationToken);
         var provider = GetProvider(account.Platform.ToString().ToLowerInvariant());
         var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
-        return (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
+        var targets = (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
+        return await EnrichAvailableTargetsAsync(account.WorkspaceId, account.Platform, targets, cancellationToken);
     }
 
     public async Task<SocialAccountDto> LinkSelectedTargetsForAccountAsync(Guid profileId, Guid socialAccountId, LinkSelectedTargetsRequest request, CancellationToken cancellationToken = default)
@@ -169,17 +170,35 @@ public sealed class SocialService : ISocialService
         var targetTokens = await provider.GetTargetAccessTokensAsync(userAccessToken, selectedIds, cancellationToken);
         foreach (var providerTargetId in selectedIds)
         {
+            var target = availableById[providerTargetId];
+            var linkedInWorkspace = await _socialIntegrationRepository.GetByWorkspacePlatformExternalIdAsync(
+                account.WorkspaceId,
+                account.Platform,
+                providerTargetId,
+                cancellationToken);
+
+            if (linkedInWorkspace != null && linkedInWorkspace.BrandId != brand.Id)
+            {
+                var linkedBrandName = linkedInWorkspace.Brand?.Name ?? "another brand";
+                throw new InvalidOperationException($"Target \"{target.Name}\" is already linked to brand \"{linkedBrandName}\".");
+            }
+
             if (!targetTokens.TryGetValue(providerTargetId, out var targetAccessToken))
             {
                 throw new InvalidOperationException($"Missing access token for target {providerTargetId}.");
             }
 
-            var existing = await _socialIntegrationRepository.GetByExternalIdAsync(account.Id, providerTargetId, cancellationToken);
+            var existing = linkedInWorkspace ?? await _socialIntegrationRepository.GetByExternalIdAsync(account.Id, providerTargetId, cancellationToken);
             if (existing != null)
             {
                 existing.BrandId = brand.Id;
                 existing.WorkspaceId = account.WorkspaceId;
+                existing.SocialAccountId = account.Id;
                 existing.AccessToken = _tokenProtector.Protect(targetAccessToken);
+                existing.TargetName = target.Name;
+                existing.TargetType = target.Type;
+                existing.TargetCategory = target.Category;
+                existing.ProfilePictureUrl = target.ProfilePictureUrl;
                 existing.IsDeleted = false;
                 existing.IsActive = true;
                 await _socialIntegrationRepository.UpdateAsync(existing, cancellationToken);
@@ -200,6 +219,10 @@ public sealed class SocialService : ISocialService
                 SocialAccountId = account.Id,
                 Platform = account.Platform,
                 ExternalId = providerTargetId,
+                TargetName = target.Name,
+                TargetType = target.Type,
+                TargetCategory = target.Category,
+                ProfilePictureUrl = target.ProfilePictureUrl,
                 AccessToken = _tokenProtector.Protect(targetAccessToken),
                 IsActive = true,
                 IsDeleted = false
@@ -330,6 +353,31 @@ public sealed class SocialService : ISocialService
         return account;
     }
 
+    private async Task<IReadOnlyList<AvailableTargetDto>> EnrichAvailableTargetsAsync(
+        Guid workspaceId,
+        SocialPlatformEnum platform,
+        IReadOnlyList<AvailableTargetDto> targets,
+        CancellationToken cancellationToken)
+    {
+        var integrations = await _socialIntegrationRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
+        var linkedByExternalId = integrations
+            .Where(integration => integration.Platform == platform && !string.IsNullOrWhiteSpace(integration.ExternalId))
+            .GroupBy(integration => integration.ExternalId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        foreach (var target in targets)
+        {
+            if (linkedByExternalId.TryGetValue(target.ProviderTargetId, out var linked))
+            {
+                target.LinkedBrandId = linked.BrandId;
+                target.LinkedBrandName = linked.Brand?.Name;
+                target.LinkedIntegrationId = linked.Id;
+            }
+        }
+
+        return targets;
+    }
+
     private async Task<SocialAccount> RequireOwnedAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken)
     {
         var account = await _socialAccountRepository.GetByIdWithIntegrationsAsync(socialAccountId, cancellationToken);
@@ -428,14 +476,18 @@ public sealed class SocialService : ISocialService
         return new SocialTargetDto
         {
             Id = integration.Id,
+            BrandId = integration.BrandId,
+            BrandName = integration.Brand?.Name,
             ProviderTargetId = integration.ExternalId ?? string.Empty,
-            Name = integration.ExternalId ?? string.Empty,
-            Type = integration.Platform switch
+            Name = string.IsNullOrWhiteSpace(integration.TargetName) ? integration.ExternalId ?? string.Empty : integration.TargetName,
+            Type = string.IsNullOrWhiteSpace(integration.TargetType) ? integration.Platform switch
             {
                 SocialPlatformEnum.TikTok => "tiktok_account",
                 SocialPlatformEnum.Instagram => "instagram_business_account",
                 _ => "page"
-            },
+            } : integration.TargetType,
+            Category = integration.TargetCategory,
+            ProfilePictureUrl = integration.ProfilePictureUrl,
             IsActive = integration.IsActive
         };
     }
@@ -449,7 +501,15 @@ public sealed class SocialService : ISocialService
             ProfileId = integration.ProfileId,
             BrandId = integration.BrandId,
             ExternalId = integration.ExternalId ?? string.Empty,
-            Name = integration.ExternalId ?? string.Empty,
+            Name = string.IsNullOrWhiteSpace(integration.TargetName) ? integration.ExternalId ?? string.Empty : integration.TargetName,
+            Type = string.IsNullOrWhiteSpace(integration.TargetType) ? integration.Platform switch
+            {
+                SocialPlatformEnum.TikTok => "tiktok_account",
+                SocialPlatformEnum.Instagram => "instagram_business_account",
+                _ => "page"
+            } : integration.TargetType,
+            Category = integration.TargetCategory,
+            ProfilePictureUrl = integration.ProfilePictureUrl,
             Platform = integration.Platform.ToString().ToLowerInvariant(),
             IsActive = integration.IsActive,
             CreatedAt = integration.CreatedAt,

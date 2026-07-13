@@ -145,7 +145,10 @@ export default function SocialAccountCard({
               {account.targets.slice(0, 2).map((target) => (
                 <div key={target.id} className="flex items-center gap-2">
                   <span className={`w-1.5 h-1.5 rounded-full ${target.isActive ? "bg-emerald-500" : "bg-outline/40"}`} />
-                  <span className="text-label-xs text-on-surface truncate flex-1">{target.name}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-label-xs text-on-surface truncate block">{target.name || target.providerTargetId}</span>
+                    {target.brandName && <span className="text-label-3xs text-outline truncate block">{target.brandName}</span>}
+                  </div>
                   <span className="text-label-3xs text-outline uppercase bg-surface-container-high px-1.5 py-0.5 rounded">{target.type}</span>
                 </div>
               ))}

@@ -5,6 +5,8 @@ export type AccountStatus = "connected" | "expired" | "error";
 
 export interface SocialTarget {
   id: string;
+  brandId: string;
+  brandName: string | null;
   providerTargetId: string;
   name: string;
   type: string;
@@ -48,6 +50,9 @@ export interface AvailableTarget {
   category: string | null;
   profilePictureUrl: string | null;
   isActive: boolean;
+  linkedBrandId: string | null;
+  linkedBrandName: string | null;
+  linkedIntegrationId: string | null;
 }
 
 export interface AuthUrlResponse {
@@ -79,6 +84,8 @@ interface BESocialAccountDto {
 
 interface BESocialTargetDto {
   id: string;
+  brandId: string;
+  brandName: string | null;
   providerTargetId: string;
   name: string;
   type: string;
@@ -94,6 +101,9 @@ interface BEAvailableTargetDto {
   category: string | null;
   profilePictureUrl: string | null;
   isActive: boolean;
+  linkedBrandId: string | null;
+  linkedBrandName: string | null;
+  linkedIntegrationId: string | null;
 }
 
 interface BEAuthUrlResponse {
@@ -106,8 +116,13 @@ interface BESocialIntegrationDto {
   socialAccountId: string;
   externalId: string;
   name: string;
+  type: string;
+  category: string | null;
+  profilePictureUrl: string | null;
   platform: string;
   isActive: boolean;
+  brandId: string;
+  brandName: string | null;
 }
 
 interface BECallbackRequest {
@@ -144,6 +159,8 @@ function mapSocialAccount(dto: BESocialAccountDto): SocialAccount {
 function mapSocialTarget(dto: BESocialTargetDto): SocialTarget {
   return {
     id: dto.id,
+    brandId: dto.brandId,
+    brandName: dto.brandName || null,
     providerTargetId: dto.providerTargetId,
     name: dto.name,
     type: dto.type,
@@ -161,6 +178,9 @@ function mapAvailableTarget(dto: BEAvailableTargetDto): AvailableTarget {
     category: dto.category || null,
     profilePictureUrl: dto.profilePictureUrl || null,
     isActive: dto.isActive,
+    linkedBrandId: dto.linkedBrandId || null,
+    linkedBrandName: dto.linkedBrandName || null,
+    linkedIntegrationId: dto.linkedIntegrationId || null,
   };
 }
 
@@ -252,7 +272,7 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
           accountName: dto.name,
           targetName: dto.name,
           isActive: dto.isActive,
-          brandId: brandId,
+          brandId: dto.brandId || brandId,
         }));
       }
     }

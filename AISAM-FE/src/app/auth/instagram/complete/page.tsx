@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getAvailableTargets, handleInstagramCallback, linkTargets } from "@/services/socialAccountService";
+import { handleInstagramCallback } from "@/services/socialAccountService";
 
 export default function InstagramCompletePage() {
   const router = useRouter();
@@ -13,8 +13,6 @@ export default function InstagramCompletePage() {
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     const oauthError = searchParams.get("error_description") || searchParams.get("error");
-    const brandId = sessionStorage.getItem("social_connect_brand_id");
-
     if (oauthError || !code || !state) {
       setStatus(oauthError || "Instagram returned invalid callback parameters.");
       return;
@@ -24,17 +22,8 @@ export default function InstagramCompletePage() {
       try {
         setStatus("Linking Instagram account...");
         const account = await handleInstagramCallback(code, state);
-        if (brandId) {
-          setStatus("Linking Instagram Professional account to the selected brand...");
-          const targets = await getAvailableTargets(account.id);
-          if (!targets.length) {
-            throw new Error("No Instagram Professional account linked to an accessible Facebook Page was found.");
-          }
-          await linkTargets(account.id, targets.map(target => target.providerTargetId), brandId, "instagram");
-        }
-
-        sessionStorage.removeItem("social_connect_brand_id");
-        router.replace("/social");
+        setStatus("Choose the Instagram account you want to link to this brand...");
+        router.replace(`/social?manageAccount=${encodeURIComponent(account.id)}`);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "Failed to connect Instagram account.");
         setTimeout(() => router.replace("/social"), 3000);

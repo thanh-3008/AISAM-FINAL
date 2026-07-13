@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import Header from "@/components/layout/Header";
 import {
@@ -23,6 +24,9 @@ import ManageTargetsModal from "@/components/social/ManageTargetsModal";
 
 export default function SocialAccountsPage() {
   const { activeWorkspace } = useWorkspaces();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -65,6 +69,15 @@ export default function SocialAccountsPage() {
     load();
     return () => { cancelled = true; };
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    const pendingAccountId = searchParams.get("manageAccount");
+    if (!pendingAccountId || accounts.length === 0 || managingTargetsAccount) return;
+    const account = accounts.find((item) => item.id === pendingAccountId);
+    if (account) {
+      setManagingTargetsAccount(account);
+    }
+  }, [accounts, managingTargetsAccount, searchParams]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -179,6 +192,17 @@ export default function SocialAccountsPage() {
       console.error("Failed to refresh social accounts:", err);
     }
     showToast("Targets linked successfully");
+  };
+
+  const handleCloseManageTargets = () => {
+    setManagingTargetsAccount(null);
+
+    if (searchParams.has("manageAccount")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("manageAccount");
+      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+      router.replace(nextUrl, { scroll: false });
+    }
   };
 
   const handleSelect = (id: string, selected: boolean) => {
@@ -321,7 +345,7 @@ export default function SocialAccountsPage() {
 
         <ManageTargetsModal
           account={managingTargetsAccount}
-          onClose={() => setManagingTargetsAccount(null)}
+          onClose={handleCloseManageTargets}
           onSuccess={handleManageTargetsSuccess}
         />
 

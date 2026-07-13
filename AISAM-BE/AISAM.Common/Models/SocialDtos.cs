@@ -28,6 +28,8 @@ namespace AISAM.Common.Models
     public class SocialTargetDto
     {
         public Guid Id { get; set; }
+        public Guid BrandId { get; set; }
+        public string? BrandName { get; set; }
         public string ProviderTargetId { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
@@ -44,6 +46,9 @@ namespace AISAM.Common.Models
         public string? Category { get; set; }
         public string? ProfilePictureUrl { get; set; }
         public bool IsActive { get; set; }
+        public Guid? LinkedBrandId { get; set; }
+        public string? LinkedBrandName { get; set; }
+        public Guid? LinkedIntegrationId { get; set; }
     }
 
     public class LinkSocialAccountRequest

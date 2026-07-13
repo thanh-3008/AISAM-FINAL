@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { handleFacebookCallback, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
+import { handleFacebookCallback } from "@/services/socialAccountService";
 
 export default function FacebookCallbackPage() {
   const router = useRouter();
@@ -12,8 +12,6 @@ export default function FacebookCallbackPage() {
   useEffect(() => {
     const code = searchParams.get("code");
     const state = searchParams.get("state");
-    const brandId = sessionStorage.getItem("social_connect_brand_id") || sessionStorage.getItem("facebook_connect_brand_id");
-
     if (!code || !state) {
       setStatus("Invalid callback parameters");
       return;
@@ -24,18 +22,9 @@ export default function FacebookCallbackPage() {
         setStatus("Linking Facebook account...");
         const account = await handleFacebookCallback(code, state);
 
-        if (brandId) {
-          setStatus("Connecting targets...");
-          const targets = await getAvailableTargets(account.id);
-          const targetIds = targets.map((t) => t.providerTargetId);
-          if (targetIds.length > 0) {
-            await linkTargets(account.id, targetIds, brandId, "facebook");
-          }
-        }
-
-        sessionStorage.removeItem("social_connect_brand_id");
         sessionStorage.removeItem("facebook_connect_brand_id");
-        router.push("/social");
+        setStatus("Choose the Page you want to link to this brand...");
+        router.push(`/social?manageAccount=${encodeURIComponent(account.id)}`);
       } catch {
         setStatus("Failed to connect Facebook account. Redirecting...");
         setTimeout(() => router.push("/social"), 2000);

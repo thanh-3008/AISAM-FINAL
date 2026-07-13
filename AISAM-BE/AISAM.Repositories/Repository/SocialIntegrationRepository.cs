@@ -1,4 +1,5 @@
 using AISAM.Data.Model;
+using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,6 +25,21 @@ public sealed class SocialIntegrationRepository : ISocialIntegrationRepository
         return await Query()
             .FirstOrDefaultAsync(integration =>
                 integration.SocialAccountId == socialAccountId &&
+                integration.ExternalId == externalId &&
+                !integration.IsDeleted,
+                cancellationToken);
+    }
+
+    public async Task<SocialIntegration?> GetByWorkspacePlatformExternalIdAsync(
+        Guid workspaceId,
+        SocialPlatformEnum platform,
+        string externalId,
+        CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .FirstOrDefaultAsync(integration =>
+                integration.WorkspaceId == workspaceId &&
+                integration.Platform == platform &&
                 integration.ExternalId == externalId &&
                 !integration.IsDeleted,
                 cancellationToken);

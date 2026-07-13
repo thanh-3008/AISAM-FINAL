@@ -45,6 +45,22 @@ namespace AISAM.Data.Model
         public string? ExternalId { get; set; } // Page ID (Facebook) hoặc account ID (TikTok/Twitter)
 
         [MaxLength(255)]
+        [Column("target_name")]
+        public string? TargetName { get; set; }
+
+        [MaxLength(100)]
+        [Column("target_type")]
+        public string? TargetType { get; set; }
+
+        [MaxLength(255)]
+        [Column("target_category")]
+        public string? TargetCategory { get; set; }
+
+        [MaxLength(1000)]
+        [Column("profile_picture_url")]
+        public string? ProfilePictureUrl { get; set; }
+
+        [MaxLength(255)]
         [Column("ad_account_id")]
         public string? AdAccountId { get; set; } // Facebook Ad Account ID for Marketing API
 

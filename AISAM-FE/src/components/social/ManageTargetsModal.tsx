@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
-import { type SocialAccount, type AvailableTarget, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
+import { type AvailableTarget, type SocialAccount, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
 import { fetchBrands } from "@/services/brandService";
 import { PLATFORM_INFO, getAccountDisplayName } from "./socialUtils";
 
@@ -17,56 +17,91 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
   const [linking, setLinking] = useState(false);
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!account) return;
+
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setError(null);
+
       try {
         const [targets, brandList] = await Promise.all([
           getAvailableTargets(account.id),
           fetchBrands(),
         ]);
+
+        if (cancelled) return;
+
+        const pendingBrandId = sessionStorage.getItem("social_connect_brand_id") || "";
+        const defaultBrandId = pendingBrandId && brandList.some((brand) => brand.id === pendingBrandId)
+          ? pendingBrandId
+          : brandList[0]?.id || "";
+
+        setBrands(brandList);
+        setAvailableTargets(targets);
+        setSelectedBrandId(defaultBrandId);
+        setSelectedTargetIds(targets
+          .filter((target) => target.linkedBrandId === defaultBrandId)
+          .map((target) => target.providerTargetId));
+      } catch (err) {
         if (!cancelled) {
-          const linkedIds = (account.targets || []).map((t) => t.providerTargetId);
-          setAvailableTargets(targets.filter((t) => !linkedIds.includes(t.providerTargetId)));
-          setBrands(brandList);
-          if (brandList.length > 0) setSelectedBrandId(brandList[0].id);
+          setAvailableTargets([]);
+          setError(err instanceof Error ? err.message : "Unable to load targets");
         }
-      } catch {
-        if (!cancelled) setAvailableTargets([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
+
     load();
     return () => { cancelled = true; };
   }, [account]);
 
+  useEffect(() => {
+    setSelectedTargetIds(availableTargets
+      .filter((target) => target.linkedBrandId === selectedBrandId)
+      .map((target) => target.providerTargetId));
+  }, [availableTargets, selectedBrandId]);
+
+  const selectableTargets = useMemo(
+    () => availableTargets.filter((target) => !target.linkedBrandId || target.linkedBrandId === selectedBrandId),
+    [availableTargets, selectedBrandId],
+  );
+
   const handleToggleTarget = (targetId: string) => {
+    const target = availableTargets.find((item) => item.providerTargetId === targetId);
+    if (!target || (target.linkedBrandId && target.linkedBrandId !== selectedBrandId)) return;
+
     setSelectedTargetIds((prev) =>
-      prev.includes(targetId) ? prev.filter((id) => id !== targetId) : [...prev, targetId]
+      prev.includes(targetId) ? prev.filter((id) => id !== targetId) : [...prev, targetId],
     );
   };
 
   const handleSelectAll = () => {
-    if (selectedTargetIds.length === availableTargets.length) {
+    if (selectableTargets.length === 0) return;
+    if (selectedTargetIds.length === selectableTargets.length) {
       setSelectedTargetIds([]);
-    } else {
-      setSelectedTargetIds(availableTargets.map((t) => t.providerTargetId));
+      return;
     }
+
+    setSelectedTargetIds(selectableTargets.map((target) => target.providerTargetId));
   };
 
   const handleLink = async () => {
     if (!account || selectedTargetIds.length === 0 || !selectedBrandId) return;
+
     setLinking(true);
+    setError(null);
     try {
-      await linkTargets(account.id, selectedTargetIds, selectedBrandId, account.provider === "tiktok" ? "tiktok" : "facebook");
-      onSuccess();
+      await linkTargets(account.id, selectedTargetIds, selectedBrandId, account.provider);
+      sessionStorage.removeItem("social_connect_brand_id");
       onClose();
-    } catch {
-      // Handle error
+      void onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to link selected targets");
     } finally {
       setLinking(false);
     }
@@ -88,7 +123,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                 <PlatformIcon platform={account.provider} className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-headline-sm font-bold text-on-surface">Manage Targets</h2>
+                <h2 className="text-headline-sm font-bold text-on-surface">Choose Brand & Page</h2>
                 <p className="text-label-xs text-outline">{displayName}</p>
               </div>
             </div>
@@ -106,58 +141,76 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
               <div className="text-center py-12">
                 <span className="material-symbols-outlined text-4xl text-outline/30 mb-3">link_off</span>
                 <p className="text-body-sm text-on-surface font-medium">No available targets</p>
-                <p className="text-[11px] text-outline mt-1">All targets are already linked or none available</p>
+                <p className="text-[11px] text-outline mt-1">{error || "No Page/account was returned by the provider"}</p>
               </div>
             ) : (
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] text-outline font-semibold uppercase block mb-1.5">Brand</label>
+                  <label className="text-[11px] text-outline font-semibold uppercase block mb-1.5">Brand đăng bài</label>
                   <select
                     value={selectedBrandId}
                     onChange={(e) => setSelectedBrandId(e.target.value)}
                     className="w-full p-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                   >
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
+                    {brands.length === 0 && <option value="">No brands available</option>}
+                    {brands.map((brand) => (
+                      <option key={brand.id} value={brand.id}>{brand.name}</option>
                     ))}
                   </select>
+                  <p className="text-label-2xs text-outline mt-1.5">Một Brand có thể chọn nhiều Page. Một Page chỉ được thuộc một Brand.</p>
                 </div>
+
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] text-outline font-semibold uppercase">Available Targets ({availableTargets.length})</p>
+                  <p className="text-[11px] text-outline font-semibold uppercase">Pages ({selectableTargets.length}/{availableTargets.length} selectable)</p>
                   <button onClick={handleSelectAll} className="text-[11px] text-primary font-semibold hover:underline">
-                    {selectedTargetIds.length === availableTargets.length ? "Deselect All" : "Select All"}
+                    {selectedTargetIds.length === selectableTargets.length ? "Deselect All" : "Select All"}
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  {availableTargets.map((target) => (
-                    <label key={target.providerTargetId} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                      selectedTargetIds.includes(target.providerTargetId)
-                        ? "border-primary bg-primary/5"
-                        : "border-outline-variant/20 hover:border-outline-variant/40"
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={selectedTargetIds.includes(target.providerTargetId)}
-                        onChange={() => handleToggleTarget(target.providerTargetId)}
-                        className="w-4 h-4 rounded border-outline-variant/30 text-primary focus:ring-primary/20"
-                      />
-                      {target.profilePictureUrl ? (
-                        <img src={target.profilePictureUrl} alt={target.name} className="w-8 h-8 rounded-lg object-cover" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center">
-                          <span className="material-symbols-outlined text-[16px] text-outline">
-                            {target.type === "page" ? "web" : target.type === "group" ? "group" : "person"}
-                          </span>
+                  {availableTargets.map((target) => {
+                    const isLocked = !!target.linkedBrandId && target.linkedBrandId !== selectedBrandId;
+                    const isSelected = selectedTargetIds.includes(target.providerTargetId);
+
+                    return (
+                      <label key={target.providerTargetId} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                        isLocked
+                          ? "border-outline-variant/10 bg-surface-container-low opacity-70 cursor-not-allowed"
+                          : isSelected
+                            ? "border-primary bg-primary/5 cursor-pointer"
+                            : "border-outline-variant/20 hover:border-outline-variant/40 cursor-pointer"
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={isLocked}
+                          onChange={() => handleToggleTarget(target.providerTargetId)}
+                          className="w-4 h-4 rounded border-outline-variant/30 text-primary focus:ring-primary/20 disabled:opacity-40"
+                        />
+                        {target.profilePictureUrl ? (
+                          <img src={target.profilePictureUrl} alt={target.name} className="w-8 h-8 rounded-lg object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[16px] text-outline">
+                              {target.type === "page" ? "web" : target.type === "group" ? "group" : "person"}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-semibold text-on-surface truncate">{target.name || target.providerTargetId}</p>
+                          <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` · ${target.category}` : ""}</p>
+                          {target.linkedBrandName && (
+                            <p className={`text-label-2xs mt-0.5 ${isLocked ? "text-danger-red" : "text-emerald-600"}`}>
+                              {isLocked ? `Already linked to ${target.linkedBrandName}` : "Linked to this brand"}
+                            </p>
+                          )}
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold text-on-surface truncate">{target.name}</p>
-                        <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` · ${target.category}` : ""}</p>
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </div>
+
+                {error && <p className="text-label-xs text-danger-red">{error}</p>}
               </div>
             )}
           </div>
@@ -165,7 +218,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
           {availableTargets.length > 0 && (
             <div className="p-6 border-t border-outline-variant/20 flex items-center justify-between shrink-0">
               <p className="text-[11px] text-outline">
-                {selectedTargetIds.length} of {availableTargets.length} selected
+                {selectedTargetIds.length} selected
               </p>
               <div className="flex items-center gap-3">
                 <button onClick={onClose}
@@ -179,7 +232,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                   ) : (
                     <span className="material-symbols-outlined text-[16px]">link</span>
                   )}
-                  Link Selected
+                  Save Mapping
                 </button>
               </div>
             </div>

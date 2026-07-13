@@ -8,6 +8,9 @@ public sealed class SocialIntegrationDto
     public Guid BrandId { get; set; }
     public string ExternalId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string? Category { get; set; }
+    public string? ProfilePictureUrl { get; set; }
     public string Platform { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
