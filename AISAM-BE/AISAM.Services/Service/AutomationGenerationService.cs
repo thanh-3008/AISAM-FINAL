@@ -148,7 +148,13 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 {
                     item.Status = AutomationItemStatusEnum.GeneratingMedia;
                     await _context.SaveChangesAsync(cancellationToken);
-                    var media = await _imageProvider.GenerateImageAsync(BuildImagePrompt(item), cancellationToken: cancellationToken);
+                    var media = await _imageProvider.GenerateImageAsync(
+                        BuildImagePrompt(item),
+                        new ImageGenerationOptions
+                        {
+                            ReferenceImageUrls = ParseProductImages(item.Product?.Images).Take(3).ToList()
+                        },
+                        cancellationToken);
                     if (!media.Success || media.MediaBytes is null)
                         throw new InvalidOperationException(media.ErrorMessage ?? "Image generation failed.");
 
@@ -214,25 +220,89 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         Platform: {item.Platform}
         Brand: {item.Brand.Name}
         Product: {item.Product?.Name ?? "Not specified"}
+        Product knowledge profile:
+        {BuildProductKnowledgeContext(item.Product)}
         Topic: {item.Topic}
         Objective: {item.Objective ?? "Not specified"}
         Tone: {item.Tone ?? "Natural and professional"}
         CTA: {item.Cta ?? "Choose a suitable call to action"}
         Notes: {item.Notes ?? "None"}
-        Return only the final caption, including a concise CTA and relevant hashtags. Do not explain your answer.
+        Return only the final caption, including a concise CTA and relevant hashtags. Do not explain your answer. Do not include assistant-talk such as "Được thôi", "Tôi sẽ", or "Dưới đây là".
         """;
 
     private static string BuildImagePrompt(AutomationItem item) => $"""
-        Create a polished social media advertising image for {item.Brand.Name}.
+        {BuildProductImageReferencePrefix(item.Product)}Create a polished social media advertising image for {item.Brand.Name}.
         Topic: {item.Topic}. Product: {item.Product?.Name ?? "brand offering"}.
+        Product knowledge profile:
+        {BuildProductKnowledgeContext(item.Product)}
         Tone: {item.Tone ?? "professional"}. Platform: {item.Platform}.
-        Do not render long text, watermarks, logos, or UI elements inside the image.
+        If a reference image URL is present at the beginning of this prompt, use the product shown in that reference image as the exact subject. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name.
+        Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, and distinctive details from the reference product image, maintaining the exact product design, high fidelity, commercial advertising photography.
+        Use a clear scene context, intentional camera angle, polished lighting, and commercial art direction.
+        no text, no typos, clean background, no watermark, no logo text, no gibberish typography, no broken-font characters.
+        Do not render readable text, fake words, broken-font characters, watermarks, logos, or UI elements inside the image.
         """;
 
     private static string BuildVideoPrompt(AutomationItem item) => $"""
         Create a short vertical social media advertising video for {item.Brand.Name}.
         Topic: {item.Topic}. Product: {item.Product?.Name ?? "brand offering"}.
+        Product knowledge profile:
+        {BuildProductKnowledgeContext(item.Product)}
         Objective: {item.Objective ?? "engagement"}. Tone: {item.Tone ?? "professional and energetic"}.
         Use visually clear scenes suitable for {item.Platform}. Do not add watermarks or long rendered text.
         """;
+
+    private static string BuildProductKnowledgeContext(Product? product)
+    {
+        if (product == null) return "Not specified";
+
+        var parts = new List<string>();
+        AddPart(parts, "Name", product.Name);
+        AddPart(parts, "Category", product.Category);
+        AddPart(parts, "Description", product.Description);
+        AddPart(parts, "Primary use", product.PrimaryUse);
+        AddPart(parts, "USP", product.Usp);
+        AddPart(parts, "Target audience", product.TargetAudience);
+        AddPart(parts, "Visual identity", product.VisualIdentity);
+        AddPart(parts, "Knowledge profile", product.KnowledgeProfile);
+        AddPart(parts, "Reference image URLs", FormatProductImages(product.Images));
+
+        return parts.Count == 0 ? "Not specified" : string.Join("\n", parts);
+    }
+
+    private static void AddPart(ICollection<string> parts, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            parts.Add($"- {label}: {value.Trim()}");
+        }
+    }
+
+    private static string? FormatProductImages(string? rawImages)
+    {
+        var images = ParseProductImages(rawImages);
+        return images.Count == 0 ? null : string.Join(", ", images.Take(5));
+    }
+
+    private static string BuildProductImageReferencePrefix(Product? product)
+    {
+        var images = ParseProductImages(product?.Images);
+        return images.Count == 0 ? string.Empty : $"{images[0]} ";
+    }
+
+    private static List<string> ParseProductImages(string? rawImages)
+    {
+        if (string.IsNullOrWhiteSpace(rawImages)) return new List<string>();
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(rawImages)?
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .ToList() ?? new List<string>();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return new List<string>();
+        }
+    }
 }

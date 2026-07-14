@@ -264,6 +264,43 @@ export default function AIGeneratePage() {
     simulateAIResponse(prompt);
   };
 
+  const parseGeneratedPost = (raw: string): { title?: string; caption: string } => {
+    const text = raw.trim();
+
+    try {
+      const parsed = JSON.parse(text);
+      const generated = parsed?.generated_content;
+      if (generated?.title || generated?.caption) {
+        return {
+          title: typeof generated.title === "string" ? generated.title.trim() : undefined,
+          caption: typeof generated.caption === "string" ? generated.caption.trim() : text,
+        };
+      }
+    } catch {
+      // Some models occasionally return single-quoted pseudo JSON; handle below.
+    }
+
+    const looseTitle = text.match(/['"]title['"]\s*:\s*['"]([\s\S]*?)['"]\s*,\s*['"]caption['"]/i)?.[1];
+    const looseCaption = text.match(/['"]caption['"]\s*:\s*['"]([\s\S]*?)['"]\s*(?:[,}])/i)?.[1];
+    if (looseTitle || looseCaption) {
+      return {
+        title: looseTitle?.replace(/\\n/g, "\n").trim(),
+        caption: (looseCaption || text).replace(/\\n/g, "\n").trim(),
+      };
+    }
+
+    const titleMatch = text.match(/^Title:\s*(.+)$/im);
+    const captionMatch = text.match(/Caption:\s*([\s\S]*)$/i);
+    if (titleMatch || captionMatch) {
+      return {
+        title: titleMatch?.[1]?.trim(),
+        caption: (captionMatch?.[1] || text.replace(/^Title:\s*.+$/im, "")).trim(),
+      };
+    }
+
+    return { caption: text };
+  };
+
   const handleApplyVariation = (variation: Variation) => {
     const h = AUTO_HASHTAGS[brandName] || [];
     let cleanContent = variation.result;
@@ -280,7 +317,10 @@ export default function AIGeneratePage() {
       setIsVideo(false);
     }
     setTitle(`AI Generated — ${brandName}`);
-    setContent(cleanContent);
+    const parsedPost = parseGeneratedPost(cleanContent);
+    setTitle(parsedPost.title || `AI Generated — ${brandName}`);
+    setContent(parsedPost.caption);
+    setTitle(parsedPost.title || `AI Generated — ${brandName}`);
     setHashtags(h);
     setSelectedVariation(variation.id);
   };

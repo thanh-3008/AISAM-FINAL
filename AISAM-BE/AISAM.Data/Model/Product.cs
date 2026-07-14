@@ -22,6 +22,25 @@ namespace AISAM.Data.Model
         [Column("description")]
         public string? Description { get; set; }
 
+        [MaxLength(255)]
+        [Column("category")]
+        public string? Category { get; set; }
+
+        [Column("primary_use")]
+        public string? PrimaryUse { get; set; }
+
+        [Column("usp")]
+        public string? Usp { get; set; }
+
+        [Column("target_audience")]
+        public string? TargetAudience { get; set; }
+
+        [Column("visual_identity")]
+        public string? VisualIdentity { get; set; }
+
+        [Column("knowledge_profile")]
+        public string? KnowledgeProfile { get; set; }
+
         [Column("price", TypeName = "decimal(10,2)")]
         public decimal? Price { get; set; }
 
