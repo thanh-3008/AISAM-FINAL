@@ -868,20 +868,22 @@ function CalendarContent() {
                   <div>
                     <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Accounts</label>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {integrations.filter((i) => i.isActive &&
-                        (!form.contentId || i.brandId === selectedCreateContent?.brandId) &&
-                        !(tiktokUnavailableForCreate && i.provider === "tiktok")).map((i) => (
-                        <label key={i.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${createIntegrationIds.includes(i.id) ? "border-primary bg-primary/5" : "border-outline-variant/20 bg-surface-container-low"}`}>
+                      {integrations.filter((i) => i.isActive).map((i) => {
+                        const isTikTokUnavailable = tiktokUnavailableForCreate && i.provider === "tiktok";
+                        return (
+                        <label key={i.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${isTikTokUnavailable ? "cursor-not-allowed opacity-50 border-outline-variant/10 bg-surface-container-low" : createIntegrationIds.includes(i.id) ? "cursor-pointer border-primary bg-primary/5" : "cursor-pointer border-outline-variant/20 bg-surface-container-low"}`}>
                           <input type="checkbox" checked={createIntegrationIds.includes(i.id)}
+                            disabled={isTikTokUnavailable}
                             onChange={() => setCreateIntegrationIds((current) => current.includes(i.id)
                               ? current.filter((id) => id !== i.id)
                               : [...current, i.id])}
                             className="w-4 h-4 rounded text-primary" />
                           <span className="text-body-sm text-on-surface">{i.accountName} - {i.targetName} ({i.provider})</span>
+                          {isTikTokUnavailable && <span className="ml-auto text-label-2xs text-amber-700">Requires video</span>}
                         </label>
-                      ))}
+                      );})}
                     </div>
-                    {integrations.length === 0 && (
+                    {integrations.every((integration) => !integration.isActive) && (
                       <p className="text-label-xs text-outline mt-2">No social accounts connected. Please connect accounts in Social page.</p>
                     )}
                     {tiktokUnavailableForCreate && integrations.some((integration) => integration.isActive && integration.provider === "tiktok") && (

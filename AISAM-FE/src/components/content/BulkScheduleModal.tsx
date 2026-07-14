@@ -33,6 +33,12 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
     }
   }, [singleBrand, uniqueBrandIds]);
 
+  useEffect(() => {
+    if (!tiktokUnavailable) return;
+    const tiktokIds = new Set(integrations.filter((integration) => integration.provider === "tiktok").map((integration) => integration.id));
+    setSelectedIntegrationIds((current) => current.filter((id) => !tiktokIds.has(id)));
+  }, [integrations, tiktokUnavailable]);
+
   const handleSchedule = async () => {
     if (!scheduledAt) { setError("Please select a date and time."); return; }
     if (selectedIntegrationIds.length === 0) { setError("Please select at least one social account."); return; }
@@ -151,16 +157,20 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
                   <div className="py-4 text-center text-body-sm text-outline">No social accounts linked to {brandName}.</div>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {integrations.filter(i => i.isActive && !(tiktokUnavailable && i.provider === "tiktok")).map((int) => {
+                    {integrations.filter(i => i.isActive).map((int) => {
                       const cfg = PLATFORM_CONFIG[int.provider];
+                      const isTikTokUnavailable = tiktokUnavailable && int.provider === "tiktok";
                       return (
                         <label key={int.id}
-                          className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            selectedIntegrationIds.includes(int.id)
+                          className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                            isTikTokUnavailable
+                              ? "cursor-not-allowed opacity-50 border-outline-variant/10 bg-surface-container"
+                              : selectedIntegrationIds.includes(int.id)
                               ? "border-primary bg-primary/5"
                               : "border-outline-variant/20 hover:border-primary/30 bg-surface-container"
                           }`}>
                           <input type="checkbox" value={int.id} checked={selectedIntegrationIds.includes(int.id)}
+                            disabled={isTikTokUnavailable}
                             onChange={() => setSelectedIntegrationIds((current) => current.includes(int.id)
                               ? current.filter((id) => id !== int.id)
                               : [...current, int.id])}
@@ -170,6 +180,7 @@ export default function BulkScheduleModal({ items, onClose, onSuccess }: BulkSch
                             <p className="text-label-sm font-semibold text-on-surface">{int.accountName}</p>
                             <p className="text-label-xs text-outline">{cfg?.label || int.provider}</p>
                           </div>
+                          {isTikTokUnavailable && <span className="text-label-2xs text-amber-700">Requires video</span>}
                         </label>
                       );
                     })}
