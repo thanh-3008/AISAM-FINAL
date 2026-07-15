@@ -9,6 +9,10 @@ public sealed class ImageProviderSettings
     public string? OpenRouterBaseUrl { get; set; }
     // Default primary image model (OpenRouter-compatible)
     public string OpenRouterModel { get; set; } = "bytedance-seed/seedream-4.5";
+    public string? OpenRouterEditBaseUrl { get; set; }
+    public string OpenRouterEditModel { get; set; } = "QwenImageEdit_Plus_NF4";
+    public int OpenRouterEditPollingIntervalSeconds { get; set; } = 5;
+    public int OpenRouterEditTimeoutMinutes { get; set; } = 5;
 
     // === Fallback 1: Hugging Face ===
     public string HuggingFaceApiKey { get; set; } = string.Empty;

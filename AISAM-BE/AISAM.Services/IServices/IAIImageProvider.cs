@@ -4,6 +4,7 @@ public class ImageGenerationOptions
 {
     public int Width { get; set; } = 1024;
     public int Height { get; set; } = 1024;
+    public IReadOnlyList<string> ReferenceImageUrls { get; set; } = Array.Empty<string>();
 }
 
 public class AIMediaResult

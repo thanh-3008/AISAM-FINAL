@@ -25,7 +25,8 @@ public class AisamContextFactory : IDesignTimeDbContextFactory<AisamContext>
         var dataSource = dataSourceBuilder.Build();
 
         var optionsBuilder = new DbContextOptionsBuilder<AisamContext>();
-        optionsBuilder.UseNpgsql(dataSource);
+        optionsBuilder.UseNpgsql(dataSource, npgsqlOptions =>
+            npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
 
         return new AisamContext(optionsBuilder.Options);
     }

@@ -84,16 +84,32 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
             var scheduleErrors = new List<string>();
             foreach (var integration in selectedIntegrations)
             {
-                var existing = await _context.ContentCalendars.FirstOrDefaultAsync(value => value.ContentId == content.Id && value.IntegrationId == integration.Id && value.IsActive && !value.IsDeleted, cancellationToken);
-                if (existing is not null)
+                var targetName = string.IsNullOrWhiteSpace(integration.TargetName)
+                    ? integration.ExternalId ?? integration.Id.ToString()
+                    : integration.TargetName;
+
+                try
                 {
-                    item.ContentCalendarId ??= existing.Id;
-                    continue;
+                    var existing = await _context.ContentCalendars.FirstOrDefaultAsync(value => value.ContentId == content.Id && value.IntegrationId == integration.Id && value.IsActive && !value.IsDeleted, cancellationToken);
+                    if (existing is not null)
+                    {
+                        item.ContentCalendarId ??= existing.Id;
+                        continue;
+                    }
+
+                    var scheduled = await _scheduleService.CreateInWorkspaceAsync(workspaceId, plan.ProfileId,
+                        new CreateContentScheduleRequest { ContentId = content.Id, IntegrationId = integration.Id, ScheduledAt = item.ScheduledAt }, cancellationToken);
+                    if (scheduled.Success && scheduled.Data is not null) item.ContentCalendarId ??= scheduled.Data.Id;
+                    else scheduleErrors.Add(scheduled.Message ?? $"Unable to schedule page {targetName}.");
                 }
-                var scheduled = await _scheduleService.CreateInWorkspaceAsync(workspaceId, plan.ProfileId,
-                    new CreateContentScheduleRequest { ContentId = content.Id, IntegrationId = integration.Id, ScheduledAt = item.ScheduledAt }, cancellationToken);
-                if (scheduled.Success && scheduled.Data is not null) item.ContentCalendarId ??= scheduled.Data.Id;
-                else scheduleErrors.Add(scheduled.Message ?? $"Unable to schedule page {integration.ExternalId}.");
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    scheduleErrors.Add($"Scheduling page {targetName} failed because the database connection timed out. Retry this item.");
+                }
+                catch (Exception ex)
+                {
+                    scheduleErrors.Add($"Scheduling page {targetName} failed: {ex.GetBaseException().Message}");
+                }
             }
             item.Status = scheduleErrors.Count == 0 ? AutomationItemStatusEnum.Scheduled : AutomationItemStatusEnum.NeedsAttention;
             item.LastError = scheduleErrors.Count == 0 ? null : string.Join(" ", scheduleErrors);

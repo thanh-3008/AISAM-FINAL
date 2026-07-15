@@ -92,6 +92,11 @@ namespace AISAM.Services.Service
                 BrandId = request.BrandId,
                 Name = request.Name,
                 Description = request.Description,
+                Category = NormalizeOptional(request.Category),
+                PrimaryUse = NormalizeOptional(request.PrimaryUse),
+                Usp = NormalizeOptional(request.Usp),
+                TargetAudience = NormalizeOptional(request.TargetAudience),
+                VisualIdentity = NormalizeOptional(request.VisualIdentity),
                 Price = request.Price,
                 Stock = request.Stock,
                 Images = JsonSerializer.Serialize(new List<string>())
@@ -104,6 +109,11 @@ namespace AISAM.Services.Service
                 try { product.Images = JsonSerializer.Serialize(await UploadImagesAsync(product.Id, product.BrandId, request.ImageFiles, cancellationToken)); }
                 catch (Exception ex) { return GenericResponse<ProductResponseDto>.CreateError(ex.Message); }
             }
+
+            product.KnowledgeProfile = BuildKnowledgeProfile(
+                NormalizeOptional(request.KnowledgeProfile),
+                product,
+                DeserializeImages(product.Images));
 
             var created = await _productRepository.AddAsync(product, cancellationToken);
             var loaded = await _productRepository.GetByIdAsync(created.Id, cancellationToken) ?? created;
@@ -145,6 +155,31 @@ namespace AISAM.Services.Service
                 product.Description = request.Description;
             }
 
+            if (request.Category != null)
+            {
+                product.Category = NormalizeOptional(request.Category);
+            }
+
+            if (request.PrimaryUse != null)
+            {
+                product.PrimaryUse = NormalizeOptional(request.PrimaryUse);
+            }
+
+            if (request.Usp != null)
+            {
+                product.Usp = NormalizeOptional(request.Usp);
+            }
+
+            if (request.TargetAudience != null)
+            {
+                product.TargetAudience = NormalizeOptional(request.TargetAudience);
+            }
+
+            if (request.VisualIdentity != null)
+            {
+                product.VisualIdentity = NormalizeOptional(request.VisualIdentity);
+            }
+
             if (request.Price.HasValue)
             {
                 product.Price = request.Price.Value;
@@ -169,6 +204,11 @@ namespace AISAM.Services.Service
                 }
                 catch (Exception ex) { return GenericResponse<ProductResponseDto>.CreateError(ex.Message); }
             }
+
+            product.KnowledgeProfile = BuildKnowledgeProfile(
+                request.KnowledgeProfile != null ? NormalizeOptional(request.KnowledgeProfile) : product.KnowledgeProfile,
+                product,
+                DeserializeImages(product.Images));
 
             await _productRepository.UpdateAsync(product, cancellationToken);
             var loaded = await _productRepository.GetByIdAsync(product.Id, cancellationToken) ?? product;
@@ -248,14 +288,71 @@ namespace AISAM.Services.Service
                 BrandId = product.BrandId,
                 Name = product.Name,
                 Description = product.Description,
+                Category = product.Category,
+                PrimaryUse = product.PrimaryUse,
+                Usp = product.Usp,
+                TargetAudience = product.TargetAudience,
+                VisualIdentity = product.VisualIdentity,
+                KnowledgeProfile = product.KnowledgeProfile,
                 Price = product.Price,
                 Stock = product.Stock,
-                Images = !string.IsNullOrWhiteSpace(product.Images)
-                    ? JsonSerializer.Deserialize<List<string>>(product.Images) ?? new List<string>()
-                    : new List<string>(),
+                Images = DeserializeImages(product.Images),
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };
+        }
+
+        private static string? NormalizeOptional(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static List<string> DeserializeImages(string? images)
+        {
+            if (string.IsNullOrWhiteSpace(images)) return new List<string>();
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(images) ?? new List<string>();
+            }
+            catch (JsonException)
+            {
+                return new List<string>();
+            }
+        }
+
+        private static string? BuildKnowledgeProfile(string? providedProfile, Product product, IReadOnlyCollection<string> imageUrls)
+        {
+            if (!string.IsNullOrWhiteSpace(providedProfile))
+            {
+                return providedProfile.Trim();
+            }
+
+            var lines = new List<string>
+            {
+                $"Tên sản phẩm: {product.Name}"
+            };
+
+            AddLine(lines, "Ngành hàng", product.Category);
+            AddLine(lines, "Mô tả", product.Description);
+            AddLine(lines, "Công dụng chính", product.PrimaryUse);
+            AddLine(lines, "Điểm khác biệt/USP", product.Usp);
+            AddLine(lines, "Đối tượng mục tiêu", product.TargetAudience);
+            AddLine(lines, "Định hình hình ảnh", product.VisualIdentity);
+
+            if (imageUrls.Count > 0)
+            {
+                lines.Add($"Ảnh tham khảo: {imageUrls.Count} ảnh sản phẩm đã được lưu. Khi tạo ảnh, xem đây là nguồn tham chiếu ngoại hình sản phẩm.");
+            }
+
+            return lines.Count > 1 ? string.Join(Environment.NewLine, lines) : null;
+        }
+
+        private static void AddLine(ICollection<string> lines, string label, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                lines.Add($"{label}: {value.Trim()}");
+            }
         }
 
         private string? ValidateImages(IReadOnlyCollection<Microsoft.AspNetCore.Http.IFormFile>? files)

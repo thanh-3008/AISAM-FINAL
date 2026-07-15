@@ -89,6 +89,10 @@ ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSe
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_KEY", "ImageProviderSettings:OpenRouterApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_MODEL", "ImageProviderSettings:OpenRouterModel");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_BASE_URL", "ImageProviderSettings:OpenRouterBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_EDIT_MODEL", "ImageProviderSettings:OpenRouterEditModel");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_EDIT_BASE_URL", "ImageProviderSettings:OpenRouterEditBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_EDIT_POLLING_INTERVAL_SECONDS", "ImageProviderSettings:OpenRouterEditPollingIntervalSeconds");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_EDIT_TIMEOUT_MINUTES", "ImageProviderSettings:OpenRouterEditTimeoutMinutes");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_HUGGINGFACE_KEY", "ImageProviderSettings:HuggingFaceApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_HUGGINGFACE_MODEL", "ImageProviderSettings:HuggingFaceModel");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_HUGGINGFACE_BASE_URL", "ImageProviderSettings:HuggingFaceBaseUrl");
@@ -116,7 +120,8 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     var dataSource = dataSourceBuilder.Build();
 
     builder.Services.AddDbContext<AisamContext>(options =>
-        options.UseNpgsql(dataSource));
+        options.UseNpgsql(dataSource, npgsqlOptions =>
+            npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null)));
 }
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
