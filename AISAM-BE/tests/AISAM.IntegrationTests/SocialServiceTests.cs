@@ -532,6 +532,8 @@ public class SocialServiceTests
             return Task.FromResult<IReadOnlyList<SocialIntegration>>(Integrations.Values.Where(integration => integration.WorkspaceId == workspaceId && !integration.IsDeleted).ToList());
         }
 
+        public Task<SocialIntegration?> GetByWorkspacePlatformExternalIdAsync(Guid workspaceId, SocialPlatformEnum platform, string externalId, CancellationToken cancellationToken = default) => Task.FromResult<SocialIntegration?>(null);
+
         public Task<SocialIntegration> AddAsync(SocialIntegration integration, CancellationToken cancellationToken = default)
         {
             Integrations[integration.Id] = integration;
@@ -593,6 +595,7 @@ public class SocialServiceTests
         public Task<string> CreateCampaignAsync(string adAccountId, string userAccessToken, string name, string objective, decimal? budget, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<string> CreateAdSetAsync(string adAccountId, string userAccessToken, string campaignId, string name, string objective, decimal? dailyBudget, DateTime? startDate, DateTime? endDate, string targetingJson, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

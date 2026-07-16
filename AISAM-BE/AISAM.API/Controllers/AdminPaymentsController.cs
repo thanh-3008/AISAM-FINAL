@@ -42,7 +42,7 @@ public sealed class AdminPaymentsController : ControllerBase
         {
             var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
             var request = new PaginationRequest { Page = page, PageSize = pageSize };
-            var result = await _adminService.GetPaymentsAsync(adminUserId, request, cancellationToken);
+            var result = await _adminService.GetPaymentsAsync(adminUserId, request, status, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
 

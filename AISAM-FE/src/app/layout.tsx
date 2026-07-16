@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { FeatureFlagsProvider } from "@/contexts/FeatureFlagsContext";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -30,7 +31,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden">
         <ThemeProvider attribute="class" defaultTheme="light">
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <FeatureFlagsProvider>{children}</FeatureFlagsProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

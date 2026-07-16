@@ -17,19 +17,25 @@ namespace AISAM.Services.Service
         private readonly IPaymentRepository _paymentRepository;
         private readonly IContentRepository _contentRepository;
         private readonly IAuditLogRepository _auditLogRepository;
+        private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IAdCampaignRepository _adCampaignRepository;
 
         public AdminService(
             IUserRepository userRepository,
             IWorkspaceRepository workspaceRepository,
             IPaymentRepository paymentRepository,
             IContentRepository contentRepository,
-            IAuditLogRepository auditLogRepository)
+            IAuditLogRepository auditLogRepository,
+            ISubscriptionRepository subscriptionRepository,
+            IAdCampaignRepository adCampaignRepository)
         {
             _userRepository = userRepository;
             _workspaceRepository = workspaceRepository;
             _paymentRepository = paymentRepository;
             _contentRepository = contentRepository;
             _auditLogRepository = auditLogRepository;
+            _subscriptionRepository = subscriptionRepository;
+            _adCampaignRepository = adCampaignRepository;
         }
 
         public async Task<GenericResponse<PagedResult<UserListDto>>> GetUsersAsync(
@@ -63,6 +69,56 @@ namespace AISAM.Services.Service
                 TypeName = w.WorkspaceType.ToString()
             }).ToList();
 
+            var subscriptions = new List<object>();
+            var campaigns = new List<object>();
+
+            foreach (var w in workspaces)
+            {
+                var sub = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(w.Id, cancellationToken);
+                if (sub != null)
+                {
+                    subscriptions.Add(new
+                    {
+                        sub.Id,
+                        WorkspaceId = w.Id,
+                        WorkspaceName = w.Name,
+                        PlanType = (int)sub.Plan,
+                        Status = sub.IsActive ? 1 : 0,
+                        CurrentPeriodEnd = sub.EndDate
+                    });
+                }
+
+                var camps = await _adCampaignRepository.GetPagedByWorkspaceIdAsync(w.Id, new PaginationRequest { PageSize = 100 }, false, cancellationToken);
+                foreach (var c in camps.Data)
+                {
+                    campaigns.Add(new
+                    {
+                        c.Id,
+                        WorkspaceId = w.Id,
+                        WorkspaceName = w.Name,
+                        c.Name,
+                        Status = c.IsActive ? 2 : 0,
+                        c.Impressions,
+                        c.Clicks,
+                        c.Spend,
+                        c.Conversions,
+                        c.CreatedAt
+                    });
+                }
+            }
+
+            var rawPayments = await _paymentRepository.GetByUserIdAsync(userId, cancellationToken);
+            var payments = rawPayments.Select(p => new
+            {
+                p.Id,
+                p.Amount,
+                p.Currency,
+                p.Status,
+                p.PaymentMethod,
+                p.CreatedAt,
+                WorkspaceName = p.Workspace?.Name
+            }).ToList();
+
             List<object> sessions;
             try
             {
@@ -77,6 +133,9 @@ namespace AISAM.Services.Service
                 RoleName = user.Role.ToString(),
                 Workspaces = workspaceDetails,
                 WorkspaceCount = workspaceDetails.Count,
+                Subscriptions = subscriptions,
+                Payments = payments,
+                Campaigns = campaigns,
                 Sessions = sessions,
                 SessionCount = sessions.Count
             });
@@ -181,7 +240,19 @@ namespace AISAM.Services.Service
             if (ws == null)
                 return GenericResponse<object>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
 
-            return GenericResponse<object>.CreateSuccess(ws);
+            return GenericResponse<object>.CreateSuccess(new
+            {
+                ws.Id,
+                ws.Name,
+                ws.WorkspaceType,
+                ws.Status,
+                ws.MemberLimit,
+                ws.SubscriptionExpiredAt,
+                ws.CreatedAt,
+                ws.UpdatedAt,
+                TypeName = ws.WorkspaceType.ToString(),
+                StatusName = ws.Status.ToString()
+            });
         }
 
         public async Task<GenericResponse<bool>> SetWorkspaceStatusAsync(
@@ -220,26 +291,28 @@ namespace AISAM.Services.Service
         }
 
         public async Task<GenericResponse<object>> GetPaymentsAsync(
-            Guid adminUserId, PaginationRequest request, CancellationToken cancellationToken = default)
+            Guid adminUserId, PaginationRequest request, int? status = null, CancellationToken cancellationToken = default)
         {
             var admin = await _userRepository.GetByIdAsync(adminUserId);
             if (admin?.Role != UserRoleEnum.Admin)
                 return GenericResponse<object>.CreateError(
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
-            var result = await _paymentRepository.GetPagedAllAsync(request, cancellationToken);
+            PaymentStatusEnum? statusEnum = status.HasValue ? (PaymentStatusEnum)status.Value : null;
+            var result = await _paymentRepository.GetPagedAllAsync(request, statusEnum, cancellationToken);
+            
             return GenericResponse<object>.CreateSuccess(result);
         }
 
         public async Task<GenericResponse<object>> GetAllContentAsync(
-            Guid adminUserId, PaginationRequest request, CancellationToken cancellationToken = default)
+            Guid adminUserId, PaginationRequest request, int? status = null, CancellationToken cancellationToken = default)
         {
             var admin = await _userRepository.GetByIdAsync(adminUserId);
             if (admin?.Role != UserRoleEnum.Admin)
                 return GenericResponse<object>.CreateError(
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
-            var result = await _contentRepository.GetPagedAllAsync(request, cancellationToken);
+            var result = await _contentRepository.GetPagedAllAsync(request, status.HasValue ? (ContentStatusEnum?)status.Value : null, cancellationToken);
             return GenericResponse<object>.CreateSuccess(result);
         }
 

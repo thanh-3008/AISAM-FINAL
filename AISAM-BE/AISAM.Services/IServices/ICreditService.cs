@@ -25,6 +25,12 @@ public interface ICreditService
         WorkspaceTypeEnum workspaceType,
         long credits,
         CancellationToken cancellationToken = default);
+    Task<GenericResponse<CreditWallet>> AdminAdjustCreditsAsync(
+        Guid workspaceId,
+        Guid adminUserId,
+        long amount,
+        string reason,
+        CancellationToken cancellationToken = default);
     Task<GenericResponse<CreditUsageRecord>> ConsumeCreditsAsync(
         Guid workspaceId,
         Guid userId,

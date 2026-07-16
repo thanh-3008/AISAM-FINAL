@@ -9,6 +9,7 @@ namespace AISAM.Data.Enumeration
         GenerateImage = 5,
         GenerateVideo = 6,
         TrendAnalysis = 7,
-        CampaignRecommendation = 8
+        CampaignRecommendation = 8,
+        AdminAdjust = 9
     }
 }

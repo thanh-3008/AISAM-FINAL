@@ -161,6 +161,8 @@ public class SocialControllerTests
 
         public Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<FacebookAdAccountData>>(new List<FacebookAdAccountData>());
+        
+        public Task<string?> GetFacebookUserAccessTokenAsync(Guid profileId, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
 
         public Task<SocialAccountDto> LinkAccountAsync(string provider, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default)
         {

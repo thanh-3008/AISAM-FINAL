@@ -119,6 +119,52 @@ public sealed class CreditService : ICreditService
             cancellationToken);
     }
 
+    public async Task<GenericResponse<CreditWallet>> AdminAdjustCreditsAsync(
+        Guid workspaceId,
+        Guid adminUserId,
+        long amount,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            var workspace = await _workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+            if (workspace == null)
+            {
+                return GenericResponse<CreditWallet>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
+            }
+
+            var wallet = await EnsureWalletAsync(workspaceId, cancellationToken);
+            
+            if (amount < 0 && wallet.Balance < Math.Abs(amount))
+            {
+                return GenericResponse<CreditWallet>.CreateError("Insufficient credits to deduct.", HttpStatusCode.BadRequest);
+            }
+
+            var maxBalance = workspace.WorkspaceType == WorkspaceTypeEnum.Personal ? PersonalMaximumBalance : BusinessMaximumBalance;
+            if (amount > 0 && wallet.Balance + amount > maxBalance)
+            {
+                return GenericResponse<CreditWallet>.CreateError($"Cannot exceed maximum balance of {maxBalance}.", HttpStatusCode.BadRequest);
+            }
+
+            wallet.Balance += amount;
+            wallet.UpdatedAt = DateTime.UtcNow;
+            await _creditWalletRepository.UpdateAsync(wallet, cancellationToken);
+
+            await _creditUsageRecordRepository.AddAsync(new CreditUsageRecord
+            {
+                WorkspaceId = workspaceId,
+                UserId = adminUserId,
+                Action = CreditActionEnum.AdminAdjust,
+                Credits = amount,
+                Status = CreditUsageStatusEnum.Success,
+                CreatedAt = DateTime.UtcNow
+            }, cancellationToken);
+
+            return GenericResponse<CreditWallet>.CreateSuccess(wallet, $"Credit adjusted successfully: {reason}");
+        }, cancellationToken);
+    }
+
     public async Task<GenericResponse<CreditUsageRecord>> RecordUsageAsync(
         Guid workspaceId,
         Guid userId,

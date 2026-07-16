@@ -6,7 +6,7 @@ import AdminDataTable from "@/components/admin/AdminDataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { fetchAdminContent, setContentStatus, deleteContent, AdminContent } from "@/services/adminService";
 
-const contentStatusLabels: Record<number, string> = { 0: "Draft", 1: "Pending", 2: "Approved", 3: "Rejected", 4: "Published" };
+const contentStatusLabels: Record<number, string> = { 0: "Draft", 1: "Pending", 2: "Approved", 3: "Rejected", 4: "Published", 5: "Flagged" };
 
 export default function AdminContentPage() {
   const [contents, setContents] = useState<AdminContent[]>([]);
@@ -14,27 +14,27 @@ export default function AdminContentPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<number | "all">("all");
 
   const loadContent = useCallback(async () => {
     setLoading(true);
-    const data = await fetchAdminContent(page, 20, search || undefined);
+    const data = await fetchAdminContent(page, 20, search || undefined, filterStatus === "all" ? undefined : filterStatus);
     if (data) {
       setContents(data.items);
       setTotal(data.total);
     }
     setLoading(false);
-  }, [page, search]);
+  }, [page, search, filterStatus]);
 
   useEffect(() => { loadContent(); }, [loadContent]);
 
-  const handleStatusChange = async (id: string, currentStatus: number) => {
-    const newStatus = currentStatus === 3 ? 2 : 3;
+  const handleStatusChange = async (id: string, newStatus: number) => {
     const ok = await setContentStatus(id, newStatus);
     if (ok) loadContent();
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this content? This cannot be undone.")) return;
+    if (!confirm("Force delete this content? This cannot be undone.")) return;
     const ok = await deleteContent(id);
     if (ok) loadContent();
   };
@@ -51,7 +51,7 @@ export default function AdminContentPage() {
       header: "Status",
       render: (c: AdminContent) => {
         const label = contentStatusLabels[c.status] ?? "Unknown";
-        const variant = c.status === 2 || c.status === 4 ? "success" : c.status === 1 ? "warning" : c.status === 3 ? "error" : "neutral";
+        const variant = c.status === 2 || c.status === 4 ? "success" : c.status === 5 || c.status === 3 ? "error" : c.status === 1 ? "warning" : "neutral";
         return <StatusBadge status={label} variant={variant} />;
       },
     },
@@ -65,17 +65,26 @@ export default function AdminContentPage() {
       header: "Actions",
       render: (c: AdminContent) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleStatusChange(c.id, c.status); }}
-            className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-          >
-            {c.status === 3 ? "Approve" : "Reject"}
-          </button>
+          {c.status !== 5 ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); if(confirm("Flag this content for moderation?")) handleStatusChange(c.id, 5); }}
+              className="text-xs px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors"
+            >
+              Flag Content
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleStatusChange(c.id, 1); }}
+              className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            >
+              Unflag (Set Pending)
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
             className="text-xs px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
           >
-            Delete
+            Force Delete
           </button>
         </div>
       ),
@@ -84,14 +93,27 @@ export default function AdminContentPage() {
 
   return (
     <>
-      <AdminHeader breadcrumbs={[{ label: "Content" }]} />
+      <AdminHeader breadcrumbs={[{ label: "Content Moderation" }]} />
       <main className="flex-1 p-8 overflow-y-auto space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Content</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Content Moderation Queue</h2>
           <p className="text-gray-500 mt-1">{total} total content items</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") loadContent(); }} placeholder="Search content..." className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+          >
+            <option value="all">All Statuses</option>
+            <option value={5}>Flagged</option>
+            <option value={1}>Pending</option>
+            <option value={2}>Approved</option>
+            <option value={3}>Rejected</option>
+            <option value={4}>Published</option>
+            <option value={0}>Draft</option>
+          </select>
           <button onClick={loadContent} className="px-3 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200">Search</button>
         </div>
 
