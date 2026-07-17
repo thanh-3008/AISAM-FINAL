@@ -145,8 +145,11 @@ export async function fetchScheduleById(id: string): Promise<ScheduleItem | null
 
 export interface BulkItemResult {
   contentId: string;
+  integrationId: string;
+  platform?: string | null;
   success: boolean;
   error?: string;
+  schedule?: ScheduleItem | null;
 }
 
 interface BulkCreateResult {
@@ -177,4 +180,4 @@ export async function bulkCreateSchedules(data: {
   } catch (err: any) {
     return { success: false, message: err.message || "Failed to bulk schedule." };
   }
-}
+}

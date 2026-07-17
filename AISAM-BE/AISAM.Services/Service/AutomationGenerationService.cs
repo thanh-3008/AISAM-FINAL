@@ -152,7 +152,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                         BuildImagePrompt(item),
                         new ImageGenerationOptions
                         {
-                            ReferenceImageUrls = ParseProductImages(item.Product?.Images).Take(3).ToList()
+                            ReferenceImageUrls = SelectProductReferenceImages(item.Product).Select(reference => reference.Url).ToList()
                         },
                         cancellationToken);
                     if (!media.Success || media.MediaBytes is null)
@@ -231,13 +231,15 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         """;
 
     private static string BuildImagePrompt(AutomationItem item) => $"""
-        {BuildProductImageReferencePrefix(item.Product)}Create a polished social media advertising image for {item.Brand.Name}.
+        {BuildProductImageReferenceInstruction(item.Product)}
+        Create a polished social media advertising image for {item.Brand.Name}.
         Topic: {item.Topic}. Product: {item.Product?.Name ?? "brand offering"}.
         Product knowledge profile:
         {BuildProductKnowledgeContext(item.Product)}
         Tone: {item.Tone ?? "professional"}. Platform: {item.Platform}.
-        If a reference image URL is present at the beginning of this prompt, use the product shown in that reference image as the exact subject. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name.
-        Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, and distinctive details from the reference product image, maintaining the exact product design, high fidelity, commercial advertising photography.
+        If product reference image URLs are present, use all provided reference images collectively to reconstruct the same physical product. The first reference image is the primary reference and has the highest priority; supporting reference images provide complementary views and details.
+        Treat all reference images as different views of one product. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name.
+        Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, logo or marking placement, and distinctive details from the reference product images, maintaining the exact product design, high fidelity, commercial advertising photography.
         Use a clear scene context, intentional camera angle, polished lighting, and commercial art direction.
         no text, no typos, clean background, no watermark, no logo text, no gibberish typography, no broken-font characters.
         Do not render readable text, fake words, broken-font characters, watermarks, logos, or UI elements inside the image.
@@ -284,11 +286,32 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         return images.Count == 0 ? null : string.Join(", ", images.Take(5));
     }
 
-    private static string BuildProductImageReferencePrefix(Product? product)
+    private static string BuildProductImageReferenceInstruction(Product? product)
     {
-        var images = ParseProductImages(product?.Images);
-        return images.Count == 0 ? string.Empty : $"{images[0]} ";
+        var references = SelectProductReferenceImages(product);
+        if (references.Count == 0) return string.Empty;
+
+        var referenceList = string.Join(" ", references.Select((reference, index) =>
+            $"Reference image {index + 1} ({reference.Role}): {reference.Url}."));
+
+        return $"""
+        {referenceList}
+        Use the reference images above as the exact product subject. Do not invent, modify, or guess image URLs.
+        """;
     }
+
+    private static List<ProductReferenceImage> SelectProductReferenceImages(Product? product)
+    {
+        return ParseProductImages(product?.Images)
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .Select((url, index) => new ProductReferenceImage(url, index == 0 ? "primary" : "supporting"))
+            .ToList();
+    }
+
+    private sealed record ProductReferenceImage(string Url, string Role);
 
     private static List<string> ParseProductImages(string? rawImages)
     {

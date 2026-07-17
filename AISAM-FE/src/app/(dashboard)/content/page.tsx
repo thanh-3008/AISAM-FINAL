@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContents, createContent, updateContent, deleteContent, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import { fetchContents, createContent, updateContent, deleteContentWithResult, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
 import { apiFetch } from "@/lib/apiClient";
@@ -193,12 +193,17 @@ export default function ContentPage() {
 
   const handleBatchDelete = async () => {
     const ids = new Set(selectedIds);
-    for (const id of ids) {
-      await deleteContent(id);
-    }
+    const results = await Promise.all(Array.from(ids).map((id) => deleteContentWithResult(id)));
+    const deletedCount = results.filter((result) => result.success).length;
+    const firstError = results.find((result) => !result.success)?.error;
     setSelectedIds(new Set());
     loadContent();
-    addToast(`Deleted ${ids.size} items`, "delete");
+    addToast(
+      deletedCount === ids.size
+        ? `Deleted ${deletedCount} item${deletedCount === 1 ? "" : "s"}`
+        : `Deleted ${deletedCount}/${ids.size}. ${firstError || "Some items could not be deleted."}`,
+      deletedCount === ids.size ? "delete" : "warning"
+    );
   };
 
   const handleBatchStatusChange = async () => {
@@ -281,7 +286,12 @@ export default function ContentPage() {
   // Delete confirm
   const handleDeleteConfirm = async () => {
     if (!deletingItem) return;
-    await deleteContent(deletingItem.id);
+    const result = await deleteContentWithResult(deletingItem.id);
+    if (!result.success) {
+      addToast(result.error || "Could not delete content", "warning");
+      setDeletingItem(null);
+      return;
+    }
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(deletingItem.id); return n; });
     setDeletingItem(null);
     loadContent();
