@@ -5,14 +5,13 @@ export type DateRange = "7d" | "30d" | "90d" | "custom";
 export type ChartView = "daily" | "weekly";
 
 export interface KpiData {
-  totalAdSpend: number;
-  totalAdSpendTrend: number;
-  engagementRate: number;
-  engagementRateTrend: number;
-  avgCpa: number;
-  avgCpaTrend: number;
-  roas: number;
-  roasTrend: number;
+  totalReach: number;
+  totalReachTrend: number;
+  totalInteractions: number;
+  totalInteractionsTrend: number;
+  avgCpe: number;
+  avgCpeTrend: number;
+  publishedPosts: number;
   sparklines: {
     spend: number[];
     engagement: number[];
@@ -427,20 +426,16 @@ export async function fetchAnalytics(
 
   return {
     kpi: {
-      totalAdSpend: totals?.spend || 0,
-      totalAdSpendTrend: changes?.spendPct || 0,
-      engagementRate,
-      engagementRateTrend: changes?.engagementPct || 0,
-      avgCpa:
-        totals?.clicks && totals.clicks > 0
-          ? Math.round((totals.spend / totals.clicks) * 100) / 100
+      totalReach: totals?.reach || totals?.impressions || 0,
+      totalReachTrend: changes?.impressionsPct || 0,
+      totalInteractions: totals?.engagement || 0,
+      totalInteractionsTrend: changes?.engagementPct || 0,
+      avgCpe:
+        totals?.engagement && totals.engagement > 0
+          ? Math.round((totals.spend / totals.engagement) * 100) / 100
           : 0,
-      avgCpaTrend: changes?.cpaPct || 0,
-      roas:
-        totals?.spend && totals.spend > 0
-          ? Math.round((totals.estimatedRevenue / totals.spend) * 100) / 100
-          : 0,
-      roasTrend: changes?.roasPct || 0,
+      avgCpeTrend: (changes?.spendPct || 0) - (changes?.engagementPct || 0),
+      publishedPosts: totals?.publishedPosts || 0,
       sparklines: {
         spend: sparklines?.spend || [],
         engagement: sparklines?.engagement || [],
