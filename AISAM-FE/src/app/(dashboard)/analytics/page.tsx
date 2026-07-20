@@ -7,14 +7,17 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import {
   fetchAnalytics,
+  fetchTopPosts,
   type AnalyticsData,
   type DateRange,
+  type TopPostItem,
 } from "@/services/analyticsService";
 import { fetchBrands } from "@/services/brandService";
 import AnalyticsKpiCards from "@/components/analytics/AnalyticsKpiCards";
 import AnalyticsFilterBar from "@/components/analytics/AnalyticsFilterBar";
 import AnalyticsChart from "@/components/analytics/AnalyticsChart";
 import AnalyticsPerformanceTable from "@/components/analytics/AnalyticsPerformanceTable";
+import AnalyticsTopPosts from "@/components/analytics/AnalyticsTopPosts";
 import AnalyticsAiInsights from "@/components/analytics/AnalyticsAiInsights";
 import AnalyticsEfficiencyCard from "@/components/analytics/AnalyticsEfficiencyCard";
 
@@ -22,6 +25,7 @@ export default function AnalyticsPage() {
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [topPosts, setTopPosts] = useState<TopPostItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dateRange, setDateRange] = useState<DateRange>("30d");
@@ -56,6 +60,13 @@ export default function AnalyticsPage() {
           console.error("Failed to load analytics:", err);
           setData(null);
         }
+      }
+
+      try {
+        const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined);
+        if (!cancelled) setTopPosts(posts);
+      } catch (err) {
+        if (!cancelled) console.error("Failed to load top posts:", err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,10 +77,14 @@ export default function AnalyticsPage() {
 
   const handleRefresh = () => {
     setData(null);
+    setTopPosts([]);
     setLoading(true);
     fetchAnalytics({ dateRange, campaignFilter, brandId: brandFilter, platform: platformFilter }).then((res) => {
       setData(res);
       setLoading(false);
+    });
+    fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined).then((posts) => {
+      setTopPosts(posts);
     });
   };
 
@@ -194,6 +209,7 @@ export default function AnalyticsPage() {
                 <div className="col-span-12 lg:col-span-8 space-y-6">
                   <AnalyticsChart data={data.chartData} />
                   <AnalyticsPerformanceTable campaigns={data.campaignPerformance} onViewFullReport={handleExport} />
+                  <AnalyticsTopPosts posts={topPosts} />
                 </div>
 
                 <aside className="col-span-12 lg:col-span-4 space-y-6">

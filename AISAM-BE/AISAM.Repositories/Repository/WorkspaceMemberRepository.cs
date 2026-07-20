@@ -125,26 +125,30 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
             return await TransferOwnershipCoreAsync(workspaceId, currentOwnerUserId, targetMemberId, false, cancellationToken);
         }
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            var newOwner = await TransferOwnershipCoreAsync(
-                workspaceId,
-                currentOwnerUserId,
-                targetMemberId,
-                true,
+            await using var transaction = await _context.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
                 cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return newOwner;
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+
+            try
+            {
+                var newOwner = await TransferOwnershipCoreAsync(
+                    workspaceId,
+                    currentOwnerUserId,
+                    targetMemberId,
+                    true,
+                    cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return newOwner;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
     }
 
     public async Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default)

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
-import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, type CreateContentPayload } from "@/services/contentService";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
@@ -24,6 +24,8 @@ interface Variation {
   prompt: string;
   result: string;
 }
+
+type GenerationMode = "exact_product_reference" | "normal_generation";
 
 const VARIATION_TEMPLATES: Record<string, string> = {
   longer: "Make this content longer and more detailed",
@@ -71,6 +73,8 @@ export default function AIGeneratePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("exact_product_reference");
+  const [uploadedImage, setUploadedImage] = useState<{ file: File; previewUrl: string; uploadedUrl?: string } | null>(null);
 
   const [variations, setVariations] = useState<Variation[]>([]);
   const [selectedVariation, setSelectedVariation] = useState<string | null>(null);
@@ -80,6 +84,7 @@ export default function AIGeneratePage() {
   const [isVideo, setIsVideo] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatImageInputRef = useRef<HTMLInputElement>(null);
 
   const availableProducts = brandList.length > 0 ? productList : [];
 
@@ -142,6 +147,43 @@ export default function AIGeneratePage() {
     return () => { cancelled = true; };
   }, [conversationStorageKey]);
 
+  useEffect(() => {
+    if (generationMode === "exact_product_reference" && uploadedImage) {
+      URL.revokeObjectURL(uploadedImage.previewUrl);
+      setUploadedImage(null);
+    }
+  }, [generationMode, uploadedImage]);
+
+  useEffect(() => {
+    return () => {
+      if (uploadedImage?.previewUrl) URL.revokeObjectURL(uploadedImage.previewUrl);
+    };
+  }, [uploadedImage?.previewUrl]);
+
+  const handleChatImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    if (!allowed.has(file.type)) {
+      addToast("Please upload a JPEG, PNG, WebP, or GIF image.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      addToast("Image must be 10 MB or smaller.");
+      return;
+    }
+
+    if (uploadedImage?.previewUrl) URL.revokeObjectURL(uploadedImage.previewUrl);
+    setUploadedImage({ file, previewUrl: URL.createObjectURL(file) });
+  };
+
+  const clearUploadedImage = () => {
+    if (uploadedImage?.previewUrl) URL.revokeObjectURL(uploadedImage.previewUrl);
+    setUploadedImage(null);
+  };
+
   const simulateAIResponse = async (userPrompt: string) => {
     if (creditBalance !== null && creditBalance <= 0) {
       setInsufficientCredits(true);
@@ -151,7 +193,33 @@ export default function AIGeneratePage() {
     setInsufficientCredits(false);
     setIsGenerating(true);
 
-    const aiReply = await chatWithAI(userPrompt, 0, brandId || undefined, productId || undefined, conversationId || undefined, messages.map(m => ({ role: m.role, text: m.text })));
+    let uploadedPrimaryImageUrl = uploadedImage?.uploadedUrl ?? null;
+    if (generationMode === "normal_generation" && uploadedImage && !uploadedPrimaryImageUrl) {
+      try {
+        uploadedPrimaryImageUrl = await uploadContentMedia(uploadedImage.file);
+        setUploadedImage((current) => current && current.file === uploadedImage.file
+          ? { ...current, uploadedUrl: uploadedPrimaryImageUrl ?? undefined }
+          : current);
+      } catch (error: any) {
+        setIsGenerating(false);
+        addToast(error?.message || "Failed to upload reference image.");
+        return;
+      }
+    }
+
+    const aiReply = await chatWithAI(
+      userPrompt,
+      0,
+      brandId || undefined,
+      productId || undefined,
+      conversationId || undefined,
+      messages.map(m => ({ role: m.role, text: m.text })),
+      {
+        generationMode,
+        uploadedPrimaryImageUrl: generationMode === "normal_generation" ? uploadedPrimaryImageUrl : null,
+        selectedProductImageUrl: null,
+      }
+    );
     if (aiReply?.errorMessage) {
       setIsGenerating(false);
       addToast(aiReply.errorMessage);
@@ -716,8 +784,92 @@ export default function AIGeneratePage() {
               <div ref={chatEndRef} />
             </div>
 
-            <div className="border-t border-outline-variant/10 p-3 shrink-0">
+            <div className="border-t border-outline-variant/10 p-3 shrink-0 space-y-2.5">
+              <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-1">
+                <div className="flex items-center gap-1.5 px-1 pb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Chế độ tạo ảnh</span>
+                  <div className="group relative flex h-5 w-5 items-center justify-center">
+                    <button
+                      type="button"
+                      className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-outline-variant/40 text-[10px] font-black text-outline transition-colors hover:border-primary/60 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      aria-label="Giải thích chế độ tạo ảnh"
+                    >
+                      !
+                    </button>
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-72 -translate-x-1/2 rounded-xl border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-left text-[11px] leading-relaxed text-on-surface opacity-0 shadow-xl transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                      <p><span className="font-bold text-primary">Bảo toàn sản phẩm:</span> dùng ảnh sản phẩm đang chọn để giữ đúng kiểu dáng, màu sắc và chi tiết chính.</p>
+                      <p className="mt-1.5"><span className="font-bold text-primary">Sáng tạo tự do:</span> không bám ảnh sản phẩm; có thể upload ảnh riêng làm cảm hứng cho bố cục hoặc phong cách.</p>
+                      <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-outline-variant/20 bg-surface-container-high" />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {([
+                    { value: "exact_product_reference", label: "Bảo toàn sản phẩm", icon: "verified" },
+                    { value: "normal_generation", label: "Sáng tạo tự do", icon: "auto_awesome" },
+                  ] as const).map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => setGenerationMode(mode.value)}
+                      className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold transition-all ${
+                        generationMode === mode.value
+                          ? "bg-primary text-on-primary shadow-sm"
+                          : "text-on-surface-variant hover:bg-surface-container"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">{mode.icon}</span>
+                      <span className="truncate">
+                        {mode.value === "exact_product_reference" ? "Bảo toàn sản phẩm" : "Sáng tạo tự do"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="hidden">
+                  {generationMode === "exact_product_reference"
+                    ? "Dùng ảnh của sản phẩm đang chọn để giữ đúng ngoại hình."
+                    : "Không dùng ảnh sản phẩm; có thể đính kèm ảnh riêng làm cảm hứng."}
+                </p>
+                <p className="px-2 pt-1.5 text-[10px] leading-snug text-outline">
+                  {generationMode === "exact_product_reference"
+                    ? "Dùng ảnh của sản phẩm đang chọn để giữ đúng ngoại hình."
+                    : "Không dùng ảnh sản phẩm; có thể đính kèm ảnh riêng làm cảm hứng."}
+                </p>
+              </div>
+
+              {generationMode === "normal_generation" && uploadedImage && (
+                <div className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-2.5 py-2">
+                  <img src={uploadedImage.previewUrl} alt="Uploaded reference" className="h-12 w-12 rounded-lg object-cover border border-outline-variant/20" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-semibold text-on-surface">{uploadedImage.file.name}</p>
+                    <p className="text-[10px] text-outline">{uploadedImage.uploadedUrl ? "Uploaded" : "Ready to upload"}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearUploadedImage}
+                    className="h-7 w-7 rounded-lg text-outline hover:bg-surface-container hover:text-danger-red transition-colors flex items-center justify-center"
+                    aria-label="Remove uploaded image"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5 transition-all">
+                {generationMode === "normal_generation" && (
+                  <>
+                    <input ref={chatImageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleChatImageChange} />
+                    <button
+                      type="button"
+                      onClick={() => chatImageInputRef.current?.click()}
+                      disabled={isGenerating}
+                      className="w-7 h-7 rounded-lg text-outline hover:text-primary hover:bg-primary/8 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+                      aria-label="Upload image reference"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">attach_file</span>
+                    </button>
+                  </>
+                )}
                 <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
                   className="flex-1 bg-transparent border-none outline-none text-body-sm text-on-surface placeholder:text-outline/30"

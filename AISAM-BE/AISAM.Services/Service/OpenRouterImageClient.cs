@@ -35,7 +35,6 @@ public sealed class OpenRouterImageClient
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
             .ToList() ?? new List<string>();
 
         if (referenceImageUrls.Count > 0 && IsDeApiUrl(url))
@@ -209,14 +208,16 @@ public sealed class OpenRouterImageClient
             ? "QwenImageEdit_Plus_NF4"
             : _settings.OpenRouterEditModel;
         var cleanPrompt = CleanPromptForImageEdit(prompt, referenceImageUrls);
+        var providerReferenceImageUrls = referenceImageUrls.Take(1).ToList();
 
         try
         {
             _logger.LogInformation(
-                "Starting deAPI image edit. Url={Url}, Model={Model}, ReferenceCount={ReferenceCount}",
+                "Starting deAPI image edit. Url={Url}, Model={Model}, ReferenceCount={ReferenceCount}, SubmittedReferenceCount={SubmittedReferenceCount}",
                 editUrl,
                 model,
-                referenceImageUrls.Count);
+                referenceImageUrls.Count,
+                providerReferenceImageUrls.Count);
 
             using var form = new MultipartFormDataContent();
             form.Add(new StringContent(cleanPrompt), "prompt");
@@ -227,9 +228,9 @@ public sealed class OpenRouterImageClient
             form.Add(new StringContent((options?.Width ?? 1024).ToString(System.Globalization.CultureInfo.InvariantCulture)), "width");
             form.Add(new StringContent((options?.Height ?? 1024).ToString(System.Globalization.CultureInfo.InvariantCulture)), "height");
 
-            for (var index = 0; index < referenceImageUrls.Count; index++)
+            for (var index = 0; index < providerReferenceImageUrls.Count; index++)
             {
-                var imageUrl = referenceImageUrls[index];
+                var imageUrl = providerReferenceImageUrls[index];
                 var bytes = await _httpClient.GetByteArrayAsync(imageUrl, cancellationToken);
                 if (bytes.Length == 0)
                 {
@@ -238,11 +239,10 @@ public sealed class OpenRouterImageClient
 
                 var content = new ByteArrayContent(bytes);
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(GetContentType(imageUrl));
-                var fieldName = referenceImageUrls.Count == 1 ? "image" : "images[]";
-                form.Add(content, fieldName, $"reference-{index + 1}{GetFileExtension(imageUrl)}");
+                form.Add(content, "image", $"reference-{index + 1}{GetFileExtension(imageUrl)}");
             }
 
-            if (!form.Any(part => part.Headers.ContentDisposition?.Name?.Trim('"') is "image" or "images[]"))
+            if (!form.Any(part => part.Headers.ContentDisposition?.Name?.Trim('"') == "image"))
             {
                 return (null, null, "No reference image could be downloaded for image-to-image generation.");
             }

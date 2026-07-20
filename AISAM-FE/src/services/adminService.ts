@@ -103,9 +103,12 @@ export async function setUserRole(id: string, role: number): Promise<boolean> {
   } catch { return false; }
 }
 
-export async function fetchAdminWorkspaces(page = 1, pageSize = 20): Promise<{ items: AdminWorkspace[]; total: number } | null> {
+export async function fetchAdminWorkspaces(page = 1, pageSize = 20, search?: string, type?: number): Promise<{ items: AdminWorkspace[]; total: number } | null> {
   try {
-    const res: GenericResponse<any> = await apiClient(`/admin/workspaces?page=${page}&pageSize=${pageSize}`);
+    let url = `/admin/workspaces?page=${page}&pageSize=${pageSize}`;
+    if (search) url += `&searchTerm=${encodeURIComponent(search)}`;
+    if (type !== undefined && type !== -1) url += `&type=${type}`;
+    const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }

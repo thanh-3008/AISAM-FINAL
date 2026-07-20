@@ -217,14 +217,15 @@ namespace AISAM.Services.Service
         }
 
         public async Task<GenericResponse<object>> GetWorkspacesAsync(
-            Guid adminUserId, PaginationRequest request, CancellationToken cancellationToken = default)
+            Guid adminUserId, PaginationRequest request, int? workspaceType = null, CancellationToken cancellationToken = default)
         {
             var admin = await _userRepository.GetByIdAsync(adminUserId);
             if (admin?.Role != UserRoleEnum.Admin)
                 return GenericResponse<object>.CreateError(
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
-            var result = await _workspaceRepository.GetPagedAllAsync(request, cancellationToken);
+            var result = await _workspaceRepository.GetPagedAllAsync(request, workspaceType, cancellationToken);
+            Console.WriteLine($"DEBUG: GetWorkspacesAsync returning {result.TotalCount} items");
             return GenericResponse<object>.CreateSuccess(result);
         }
 
@@ -240,6 +241,30 @@ namespace AISAM.Services.Service
             if (ws == null)
                 return GenericResponse<object>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
 
+            var members = ws.Members.Select(m => new
+            {
+                m.UserId,
+                m.User.FullName,
+                m.User.Email,
+                RoleName = m.Role.ToString(),
+                m.IsActive,
+                m.JoinedAt
+            }).ToList();
+
+            var recentPosts = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, new PaginationRequest { PageSize = 50 }, cancellationToken: cancellationToken);
+
+            var posts = recentPosts.Data.Select(c => new
+            {
+                c.Id,
+                c.Title,
+                c.TextContent,
+                c.ImageUrl,
+                c.VideoUrl,
+                c.Status,
+                StatusName = c.Status.ToString(),
+                c.CreatedAt
+            }).ToList();
+
             return GenericResponse<object>.CreateSuccess(new
             {
                 ws.Id,
@@ -251,7 +276,9 @@ namespace AISAM.Services.Service
                 ws.CreatedAt,
                 ws.UpdatedAt,
                 TypeName = ws.WorkspaceType.ToString(),
-                StatusName = ws.Status.ToString()
+                StatusName = ws.Status.ToString(),
+                Members = members,
+                Posts = posts
             });
         }
 
@@ -294,13 +321,15 @@ namespace AISAM.Services.Service
             Guid adminUserId, PaginationRequest request, int? status = null, CancellationToken cancellationToken = default)
         {
             var admin = await _userRepository.GetByIdAsync(adminUserId);
+            Console.WriteLine($"[DEBUG] adminUserId: {adminUserId}, admin: {admin != null}, Role: {admin?.Role}");
             if (admin?.Role != UserRoleEnum.Admin)
-                return GenericResponse<object>.CreateError(
-                    "Only administrators can access this resource.", HttpStatusCode.Forbidden);
+            {
+                return GenericResponse<object>.CreateError("Only administrators can access this resource.", System.Net.HttpStatusCode.Forbidden);
+            }
 
             PaymentStatusEnum? statusEnum = status.HasValue ? (PaymentStatusEnum)status.Value : null;
+
             var result = await _paymentRepository.GetPagedAllAsync(request, statusEnum, cancellationToken);
-            
             return GenericResponse<object>.CreateSuccess(result);
         }
 

@@ -119,7 +119,7 @@ public class AIServiceTests
     }
 
     [Fact]
-    public async Task ApproveGenerationAsync_CopiesTextAndKeepsContentDraft()
+    public async Task ApproveGenerationAsync_CopiesTextAndSetsPendingApproval()
     {
         var profileId = Guid.NewGuid();
         var content = new Content
@@ -129,7 +129,7 @@ public class AIServiceTests
             WorkspaceId = profileId,
             BrandId = Guid.NewGuid(),
             TextContent = "Old text",
-            Status = ContentStatusEnum.PendingApproval
+            Status = ContentStatusEnum.Draft
         };
         var generation = new AiGeneration
         {
@@ -149,7 +149,7 @@ public class AIServiceTests
 
         Assert.True(result.Success);
         Assert.Equal("Approved AI text", content.TextContent);
-        Assert.Equal(ContentStatusEnum.Draft, content.Status);
+        Assert.Equal(ContentStatusEnum.PendingApproval, content.Status);
     }
 
     [Fact]

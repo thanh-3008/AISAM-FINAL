@@ -29,6 +29,8 @@ public sealed class BulkCreateResultDto
 public sealed class BulkCreateItemResult
 {
     public Guid ContentId { get; set; }
+    public Guid IntegrationId { get; set; }
+    public string? Platform { get; set; }
     public bool Success { get; set; }
     public string? Error { get; set; }
     public ContentScheduleDto? Schedule { get; set; }

@@ -49,11 +49,6 @@ public sealed class ContentScheduleService : IContentScheduleService
         {
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeMustBeFuture, HttpStatusCode.BadRequest);
         }
-        if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, request.IntegrationId, cancellationToken))
-        {
-            return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.BadRequest);
-        }
-
         var schedule = new ContentCalendar
         {
             ContentId = validationResult.Content!.Id,
@@ -275,6 +270,8 @@ public sealed class ContentScheduleService : IContentScheduleService
                 result.Results.Add(new BulkCreateItemResult
                 {
                     ContentId = item.ContentId,
+                    IntegrationId = item.IntegrationId,
+                    Platform = createResult.Data?.Platform,
                     Success = true,
                     Schedule = createResult.Data
                 });
@@ -285,6 +282,8 @@ public sealed class ContentScheduleService : IContentScheduleService
                 result.Results.Add(new BulkCreateItemResult
                 {
                     ContentId = item.ContentId,
+                    IntegrationId = item.IntegrationId,
+                    Platform = null,
                     Success = false,
                     Error = createResult.Message
                 });
@@ -312,8 +311,6 @@ public sealed class ContentScheduleService : IContentScheduleService
         if (scheduledAt == default) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeInvalid, HttpStatusCode.BadRequest);
         if (scheduledAt <= DateTime.UtcNow)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeMustBeFuture, HttpStatusCode.BadRequest);
-        if (await _contentCalendarRepository.HasActiveScheduleAsync(request.ContentId, request.IntegrationId, cancellationToken))
-            return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.AlreadyHasActiveSchedule, HttpStatusCode.BadRequest);
         var schedule = new ContentCalendar { WorkspaceId = workspaceId, ProfileId = profileId, ContentId = content.Id, Content = content, IntegrationId = integration.Id, Integration = integration, ScheduledAt = scheduledAt, ScheduledDate = scheduledAt, ScheduledTime = scheduledAt.TimeOfDay, Status = ScheduleStatusEnum.Pending };
         try
         {

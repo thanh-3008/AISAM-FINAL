@@ -12,7 +12,7 @@ import {
 } from "@/lib/contentConstants";
 import type { ContentItem } from "@/services/contentService";
 
-type TabKey = "all" | "pending" | "approved" | "rejected";
+type TabKey = "all" | "pending" | "approved" | "published" | "failed" | "rejected";
 
 const TEAM = [
   { name: "Alex C.", color: "bg-blue-500" },
@@ -25,6 +25,8 @@ const DOT_COLORS: Record<TabKey, string> = {
   all: "",
   pending: "bg-warning-amber",
   approved: "bg-emerald-500",
+  published: "bg-primary",
+  failed: "bg-danger-red",
   rejected: "bg-danger-red",
 };
 
@@ -79,6 +81,14 @@ function isRejectedStatus(status: string) {
   return status === "Rejected";
 }
 
+function isPublishedStatus(status: string) {
+  return status === "Published";
+}
+
+function isPublishFailedStatus(status: string) {
+  return ["PublishFailed", "Publish Failed", "Failed", "PostFailed", "Post Failed"].includes(status);
+}
+
 function getStatusMeta(status: string) {
   if (isPendingStatus(status)) {
     return {
@@ -107,6 +117,24 @@ function getStatusMeta(status: string) {
     };
   }
 
+  if (isPublishedStatus(status)) {
+    return {
+      label: "Published",
+      icon: "publish",
+      className: "bg-primary/10 text-primary ring-1 ring-primary/20",
+      dotClassName: "bg-primary",
+    };
+  }
+
+  if (isPublishFailedStatus(status)) {
+    return {
+      label: "Publish Failed",
+      icon: "error",
+      className: "bg-danger-red/10 text-danger-red ring-1 ring-danger-red/20",
+      dotClassName: "bg-danger-red",
+    };
+  }
+
   return {
     label: status || "Draft",
     icon: "edit_note",
@@ -129,17 +157,15 @@ export default function ApprovalsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [page, setPage] = useState(1);
   const [confirmItem, setConfirmItem] = useState<ContentItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<ContentItem | null>(null);
   const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
   const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
-  const pageSize = 15;
 
   const load = useCallback(async (reset = true) => {
-    if (reset) { setLoading(true); setPage(1); }
+    if (reset) { setLoading(true); }
     const result = await fetchContents({ pageSize: 100 });
     setItems(result?.items ?? []);
     setLoading(false);
@@ -283,9 +309,11 @@ export default function ApprovalsPage() {
   };
 
   const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
-    all: (i) => isPendingStatus(i.status) || isApprovedStatus(i.status) || isRejectedStatus(i.status),
+    all: () => true,
     pending: (i) => isPendingStatus(i.status),
     approved: (i) => isApprovedStatus(i.status),
+    published: (i) => isPublishedStatus(i.status),
+    failed: (i) => isPublishFailedStatus(i.status),
     rejected: (i) => isRejectedStatus(i.status),
   };
 
@@ -298,12 +326,14 @@ export default function ApprovalsPage() {
     sortKey, sortDir,
   );
 
-  const paged = filtered.slice(0, page * pageSize);
+  const paged = filtered;
 
   const tabCounts: Record<TabKey, number> = {
     all: items.length,
     pending: items.filter((i) => isPendingStatus(i.status)).length,
     approved: items.filter((i) => isApprovedStatus(i.status)).length,
+    published: items.filter((i) => isPublishedStatus(i.status)).length,
+    failed: items.filter((i) => isPublishFailedStatus(i.status)).length,
     rejected: items.filter((i) => isRejectedStatus(i.status)).length,
   };
 
@@ -378,6 +408,8 @@ export default function ApprovalsPage() {
               { key: "all", label: "All" },
               { key: "pending", label: "Pending" },
               { key: "approved", label: "Approved" },
+              { key: "published", label: "Published" },
+              { key: "failed", label: "Failed" },
               { key: "rejected", label: "Rejected" },
             ] as { key: TabKey; label: string }[]).map((t) => (
               <button key={t.key} onClick={() => { setTab(t.key); setSelected(new Set()); }}
@@ -681,16 +713,6 @@ export default function ApprovalsPage() {
                 </table>
               </div>
 
-              {/* Load More */}
-              {filtered.length > paged.length && (
-                <div className="flex justify-center pt-2">
-                  <button onClick={() => setPage((p) => p + 1)}
-                    className="px-6 py-3 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[14px]">expand_more</span>
-                    Load More ({filtered.length - paged.length} remaining)
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>

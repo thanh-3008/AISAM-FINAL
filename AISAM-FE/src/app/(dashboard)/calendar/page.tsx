@@ -7,7 +7,7 @@ import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import {
-  fetchSchedules, createSchedule,
+  fetchSchedules, bulkCreateSchedules,
   updateSchedule, deleteSchedule, type ScheduleItem,
   onScheduleChange,
 } from "@/services/scheduleService";
@@ -129,7 +129,12 @@ function CalendarContent() {
   const completedCount = schedules.filter((s) => s.status === "Completed").length;
   const failedCount = schedules.filter((s) => s.status === "Failed").length;
   const selectedCreateContent = contents.find((content) => content.id === form.contentId);
+  const selectedCreateBrandId = selectedCreateContent?.brandId || "";
   const tiktokUnavailableForCreate = Boolean(selectedCreateContent && selectedCreateContent.type !== "VIDEO");
+  const activeCreateIntegrations = integrations.filter((integration) => integration.isActive);
+  const hasCreateIntegrationsForBrand = Boolean(
+    selectedCreateBrandId && activeCreateIntegrations.some((integration) => integration.brandId === selectedCreateBrandId)
+  );
 
   const filteredSchedules = schedules.filter((s) => {
     if (filterBrand && s.brandName !== filterBrand) return false;
@@ -233,20 +238,31 @@ function CalendarContent() {
     if (!form.contentId || createIntegrationIds.length === 0 || !form.date || !form.time) return;
     setActionId("create");
     const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
-    const results = await Promise.all(createIntegrationIds.map((integrationId) =>
-      createSchedule({ contentId: form.contentId, integrationId, scheduledAt })));
-    const created = results.flatMap((result) => result.data ? [result.data] : []);
-    const errors = results.flatMap((result) => result.error ? [result.error] : []);
-    if (created.length > 0) {
+    const selectedIds = [...createIntegrationIds];
+    const result = await bulkCreateSchedules({
+      items: selectedIds.map((integrationId) => ({ contentId: form.contentId, integrationId, scheduledAt })),
+    });
+
+    if (result.success && result.results) {
+      const created = result.results.flatMap((item) => item.success && item.schedule ? [item.schedule] : []);
+      const failed = result.results.filter((item) => !item.success);
+
       setSchedules((prev) => [...created, ...prev]);
-      setToast(errors.length === 0
+
+      setToast(failed.length === 0
         ? `${created.length} schedules created`
-        : `${created.length}/${results.length} schedules created. ${errors[0]}`);
-      setCreateIntegrationIds([]);
-      setShowCreate(false);
-      setForm({ contentId: "", integrationId: "", date: "", time: "" });
+        : `${created.length}/${selectedIds.length} schedules created. ${failed[0]?.error || "Some platforms failed."}`);
+
+      if (failed.length === 0) {
+        setCreateIntegrationIds([]);
+        setShowCreate(false);
+        setForm({ contentId: "", integrationId: "", date: "", time: "" });
+      } else {
+        const failedIntegrationIds = new Set(failed.map((item) => item.integrationId));
+        setCreateIntegrationIds(selectedIds.filter((id) => failedIntegrationIds.has(id)));
+      }
     } else {
-      setToast(errors[0] || "Failed to create schedules");
+      setToast(result.message || "Failed to create schedules");
     }
     setActionId(null);
   };
@@ -868,23 +884,31 @@ function CalendarContent() {
                   <div>
                     <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Social Accounts</label>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {integrations.filter((i) => i.isActive).map((i) => {
+                      {activeCreateIntegrations.map((i) => {
                         const isTikTokUnavailable = tiktokUnavailableForCreate && i.provider === "tiktok";
+                        const isBrandMismatch = Boolean(selectedCreateBrandId && i.brandId !== selectedCreateBrandId);
+                        const isUnavailable = isTikTokUnavailable || isBrandMismatch;
                         return (
-                        <label key={i.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${isTikTokUnavailable ? "cursor-not-allowed opacity-50 border-outline-variant/10 bg-surface-container-low" : createIntegrationIds.includes(i.id) ? "cursor-pointer border-primary bg-primary/5" : "cursor-pointer border-outline-variant/20 bg-surface-container-low"}`}>
+                        <label key={i.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${isUnavailable ? "cursor-not-allowed opacity-50 border-outline-variant/10 bg-surface-container-low" : createIntegrationIds.includes(i.id) ? "cursor-pointer border-primary bg-primary/5" : "cursor-pointer border-outline-variant/20 bg-surface-container-low"}`}>
                           <input type="checkbox" checked={createIntegrationIds.includes(i.id)}
-                            disabled={isTikTokUnavailable}
+                            disabled={isUnavailable}
                             onChange={() => setCreateIntegrationIds((current) => current.includes(i.id)
                               ? current.filter((id) => id !== i.id)
                               : [...current, i.id])}
                             className="w-4 h-4 rounded text-primary" />
                           <span className="text-body-sm text-on-surface">{i.accountName} - {i.targetName} ({i.provider})</span>
                           {isTikTokUnavailable && <span className="ml-auto text-label-2xs text-amber-700">Requires video</span>}
+                          {isBrandMismatch && <span className="ml-auto text-label-2xs text-outline">Linked to another brand</span>}
                         </label>
                       );})}
                     </div>
-                    {integrations.every((integration) => !integration.isActive) && (
+                    {activeCreateIntegrations.length === 0 && (
                       <p className="text-label-xs text-outline mt-2">No social accounts connected. Please connect accounts in Social page.</p>
+                    )}
+                    {selectedCreateContent && activeCreateIntegrations.length > 0 && !hasCreateIntegrationsForBrand && (
+                      <p className="text-label-xs text-danger-red mt-2">
+                        No active social accounts are linked to this content&apos;s brand. Open Social Accounts and map Facebook, Instagram, or TikTok pages to this brand first.
+                      </p>
                     )}
                     {tiktokUnavailableForCreate && integrations.some((integration) => integration.isActive && integration.provider === "tiktok") && (
                       <div className="mt-2 px-3 py-2 rounded-lg bg-amber-500/10 text-amber-700 text-label-xs flex items-start gap-2">

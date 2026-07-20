@@ -50,6 +50,10 @@ public sealed class ChatRequest
     public AdTypeEnum AdType { get; set; }
     public string Message { get; set; } = string.Empty;
     public Guid? ConversationId { get; set; }
+    public string? GenerationMode { get; set; }
+    public string? UploadedPrimaryImageUrl { get; set; }
+    public string? SelectedProductImageUrl { get; set; }
+    public string? UserPrompt { get; set; }
 }
 
 public sealed class ChatResponse

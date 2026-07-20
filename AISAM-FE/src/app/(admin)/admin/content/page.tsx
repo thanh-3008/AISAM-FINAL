@@ -15,6 +15,7 @@ export default function AdminContentPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<number | "all">("all");
+  const [selectedContent, setSelectedContent] = useState<any>(null);
 
   const loadContent = useCallback(async () => {
     setLoading(true);
@@ -121,7 +122,7 @@ export default function AdminContentPage() {
           <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>
         ) : (
           <>
-            <AdminDataTable columns={columns} data={contents} keyField="id" />
+            <AdminDataTable columns={columns} data={contents} keyField="id" onRowClick={(c) => setSelectedContent(c)} />
             <div className="flex items-center justify-between">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm rounded-lg border border-gray-200 disabled:opacity-50">Previous</button>
               <span className="text-sm text-gray-500">Page {page}</span>
@@ -130,6 +131,59 @@ export default function AdminContentPage() {
           </>
         )}
       </main>
+
+      {/* Content Detail Modal */}
+      {selectedContent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedContent(null)}>
+          <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-xl font-semibold text-gray-900">{selectedContent.title || "Untitled Content"}</h3>
+              <button onClick={() => setSelectedContent(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="flex gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Status:</span>
+                <span>{contentStatusLabels[selectedContent.status] ?? "Unknown"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Created:</span>
+                <span>{new Date(selectedContent.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div className="mt-4 flex-1 overflow-y-auto space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                {selectedContent.textContent || "No text content."}
+              </div>
+              {selectedContent.videoUrl && (
+                <div>
+                  <h4 className="font-semibold text-sm mb-2 text-gray-900">Video</h4>
+                  <video src={selectedContent.videoUrl} controls className="max-w-full rounded-lg max-h-64 border border-gray-200" />
+                </div>
+              )}
+              {selectedContent.imageUrl && (
+                <div>
+                  <h4 className="font-semibold text-sm mb-2 text-gray-900">Images</h4>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {(() => {
+                      let imgs: string[] = [];
+                      try {
+                        imgs = selectedContent.imageUrl.startsWith("[") ? JSON.parse(selectedContent.imageUrl) : [selectedContent.imageUrl];
+                      } catch {}
+                      return imgs.map((img, idx) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={idx} src={img} alt={`Image ${idx}`} className="h-32 object-cover rounded-md border border-gray-200" />
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setSelectedContent(null)} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

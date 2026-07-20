@@ -279,11 +279,17 @@ export async function rejectContent(id: string): Promise<boolean> {
 }
 
 export async function deleteContent(id: string): Promise<boolean> {
+  const result = await deleteContentWithResult(id);
+  return result.success;
+}
+
+export async function deleteContentWithResult(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<null> = await apiFetch(`/content/${id}`, { method: "DELETE" });
-    return res?.success === true;
-  } catch {
-    return false;
+    if (res?.success === true) return { success: true };
+    return { success: false, error: res?.error?.errorMessage || res?.message || "Failed to delete content" };
+  } catch (error: any) {
+    return { success: false, error: error?.message || "Failed to delete content" };
   }
 }
 
@@ -348,11 +354,26 @@ export async function chatWithAI(
   brandId?: string,
   productId?: string,
   conversationId?: string,
-  _history?: { role: string; text: string }[]
+  _history?: { role: string; text: string }[],
+  options?: {
+    generationMode?: "exact_product_reference" | "normal_generation";
+    uploadedPrimaryImageUrl?: string | null;
+    selectedProductImageUrl?: string | null;
+  }
 ): Promise<{ text?: string; conversationId?: string; shouldCreateContent?: boolean; createdContentId?: string; errorMessage?: string } | null> {
   try {
     const res: GenericResponse<{ response: string; conversationId: string; shouldCreateContent: boolean; createdContentId?: string }> = await apiClient("/ai/chat", {
-      data: { message, adType, brandId, productId, conversationId },
+      data: {
+        message,
+        adType,
+        brandId,
+        productId,
+        conversationId,
+        generationMode: options?.generationMode,
+        uploadedPrimaryImageUrl: options?.uploadedPrimaryImageUrl ?? null,
+        selectedProductImageUrl: options?.selectedProductImageUrl ?? null,
+        userPrompt: message,
+      },
     });
     if (res?.success && res.data?.response) {
       return {
@@ -366,6 +387,19 @@ export async function chatWithAI(
   } catch (error) {
     return { errorMessage: error instanceof Error ? error.message : "AI service request failed." };
   }
+}
+
+export async function uploadContentMedia(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("File", file);
+
+  const res: GenericResponse<{ url: string }> = await apiFetch("/content/media", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (res?.success && res.data?.url) return res.data.url;
+  throw new Error(res?.message || res?.error?.errorMessage || "Failed to upload media.");
 }
 
 export async function getConversationMessages(

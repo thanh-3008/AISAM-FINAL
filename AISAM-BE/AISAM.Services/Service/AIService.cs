@@ -79,7 +79,7 @@ public sealed class AIService : IAIService
             AdType = request.AdType,
             Title = request.Title,
             TextContent = string.Empty,
-            Status = ContentStatusEnum.Draft,
+            Status = ContentStatusEnum.PendingApproval,
             IsAiGenerated = true
         }, cancellationToken);
 
@@ -122,7 +122,7 @@ public sealed class AIService : IAIService
         }
 
         generation.Content.TextContent = generation.GeneratedText;
-        generation.Content.Status = ContentStatusEnum.Draft;
+        generation.Content.Status = ContentStatusEnum.PendingApproval;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(generation.Content), "AI generation approved.");
     }
@@ -259,7 +259,7 @@ public sealed class AIService : IAIService
 
             if (workspaceId.HasValue && userId.HasValue && IsImageIntent(parsedResponse.Intent))
             {
-                var prompt = BuildSafeImagePrompt(parsedResponse.Prompt ?? userMessage, selectedBrand, selectedProduct, userMessage);
+                var prompt = BuildSafeImagePrompt(parsedResponse.Prompt ?? userMessage, selectedBrand, selectedProduct, userMessage, request);
                 var isImageTextRequest = string.Equals(parsedResponse.Intent, "image_text", StringComparison.OrdinalIgnoreCase);
                 if (!conversation.BrandId.HasValue)
                 {
@@ -283,14 +283,15 @@ public sealed class AIService : IAIService
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
                             Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Chat Image Generation",
                             TextContent = isImageTextRequest ? responseText : prompt,
-                            Status = ContentStatusEnum.Draft
+                            Status = ContentStatusEnum.PendingApproval,
+                            IsAiGenerated = true
                         }, CancellationToken.None);
                         var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Pending }, CancellationToken.None);
                         var imgResult = await _imageProvider.GenerateImageAsync(
                             prompt,
                             new ImageGenerationOptions
                             {
-                                ReferenceImageUrls = GetReferenceImageUrlsForGeneration(selectedProduct, userMessage, prompt)
+                                ReferenceImageUrls = GetReferenceImageUrlsForGeneration(selectedProduct, userMessage, prompt, request)
                             },
                             cancellationToken);
                         if (imgResult.Success && imgResult.MediaBytes != null)
@@ -342,7 +343,7 @@ public sealed class AIService : IAIService
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
                             Title = "Chat Generation",
                             TextContent = prompt,
-                            Status = ContentStatusEnum.Draft,
+                            Status = ContentStatusEnum.PendingApproval,
                             IsAiGenerated = true
                         }, CancellationToken.None);
                         var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Processing }, CancellationToken.None);
@@ -448,7 +449,7 @@ public sealed class AIService : IAIService
         if (generation == null || generation.Content.WorkspaceId != workspaceId) return GenericResponse<ContentResponseDto>.CreateError("AI generation not found.", HttpStatusCode.NotFound);
         if (generation.Status != AiStatusEnum.Completed || string.IsNullOrWhiteSpace(generation.GeneratedText)) return GenericResponse<ContentResponseDto>.CreateError("AI generation is not completed.", HttpStatusCode.BadRequest);
         generation.Content.TextContent = generation.GeneratedText;
-        generation.Content.Status = ContentStatusEnum.Draft;
+        generation.Content.Status = ContentStatusEnum.PendingApproval;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(generation.Content), "AI generation approved.");
     }
@@ -1076,46 +1077,98 @@ Latest user message:
         }
     }
 
-    private static IReadOnlyList<string> GetReferenceImageUrlsForGeneration(Product? product, string? userMessage, string? prompt)
-    {
-        if (IsFreeCreativeImageRequest($"{userMessage}\n{prompt}"))
-        {
-            return Array.Empty<string>();
-        }
+    private static IReadOnlyList<string> GetReferenceImageUrlsForGeneration(Product? product, string? userMessage, string? prompt, ChatRequest? request = null) =>
+        SelectProductReferenceImages(product, userMessage, prompt, request).Select(reference => reference.Url).ToList();
 
-        return GetProductImageUrls(product)
-            .Take(3)
-            .ToList();
-    }
-
-    private static string BuildSafeImagePrompt(string prompt, Brand? brand, Product? product, string? userMessage = null)
+    private static string BuildSafeImagePrompt(string prompt, Brand? brand, Product? product, string? userMessage = null, ChatRequest? request = null)
     {
         var brandContext = string.IsNullOrWhiteSpace(brand?.Name) ? string.Empty : $" Brand: {brand.Name}.";
         var productContext = BuildProductImageContext(product);
-        var promptWithReference = ApplyProductImageReferenceRule(prompt, product, userMessage);
+        var references = SelectProductReferenceImages(product, userMessage, prompt, request);
+        var promptWithReference = ApplyProductImageReferenceRule(prompt, references, userMessage);
+        var modeInstruction = IsNormalGenerationMode(request)
+            ? "Generation mode: normal_generation. Do not use product catalog images as exact product references. If an uploaded user image is provided, use it only as a user-provided visual reference or inspiration unless the user explicitly asks to preserve it exactly."
+            : "Generation mode: exact_product_reference. Preserve the selected product identity from product reference images.";
         return $"""
 {promptWithReference}
 {brandContext}{productContext}
-If product reference image URLs are present, the product in the final image must be the same physical product from the reference image. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name. Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, and distinctive details from the reference product image.
+{modeInstruction}
+If product reference image URLs are present, use all provided reference images collectively as different views of one same physical product. The first reference image is the primary reference and has the highest priority. The supporting reference images provide complementary details. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name. Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, logo or marking placement, and distinctive details from the reference product images.
 Create a clean professional social media advertising image with clear scene context, intentional camera angle, polished lighting, and commercial art direction. no text, no typos, clean background, no watermark, no logo text, no gibberish typography, no broken-font characters. Do not include any readable text, letters, numbers, logos made of text, fake words, signature, subtitle, or UI text. If signage or packaging appears, keep it blank or use abstract non-text shapes. High quality, polished, commercial composition.
 """.Trim();
     }
 
-    private static string ApplyProductImageReferenceRule(string prompt, Product? product, string? userMessage = null)
+    private static List<ProductReferenceImage> SelectProductReferenceImages(Product? product, string? userMessage, string? prompt, ChatRequest? request = null)
     {
-        var images = GetProductImageUrls(product);
-        if (images.Count == 0 || IsFreeCreativeImageRequest($"{userMessage}\n{prompt}"))
+        if (IsFreeCreativeImageRequest($"{userMessage}\n{prompt}"))
+        {
+            return new List<ProductReferenceImage>();
+        }
+
+        if (IsNormalGenerationMode(request))
+        {
+            return IsValidImageUrl(request?.UploadedPrimaryImageUrl)
+                ? new List<ProductReferenceImage> { new(request!.UploadedPrimaryImageUrl!.Trim(), "primary") }
+                : new List<ProductReferenceImage>();
+        }
+
+        var orderedImages = new List<string>();
+        if (IsValidImageUrl(request?.UploadedPrimaryImageUrl))
+        {
+            orderedImages.Add(request!.UploadedPrimaryImageUrl!.Trim());
+        }
+        if (IsValidImageUrl(request?.SelectedProductImageUrl))
+        {
+            orderedImages.Add(request!.SelectedProductImageUrl!.Trim());
+        }
+        orderedImages.AddRange(GetProductImageUrls(product));
+
+        var uniqueImages = orderedImages
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToList();
+
+        if (uniqueImages.Count == 0)
+        {
+            return new List<ProductReferenceImage>();
+        }
+
+        return uniqueImages
+            .Select((url, index) => new ProductReferenceImage(url, index == 0 ? "primary" : "supporting"))
+            .ToList();
+    }
+
+    private static string ApplyProductImageReferenceRule(string prompt, IReadOnlyList<ProductReferenceImage> references, string? userMessage = null)
+    {
+        if (references.Count == 0 || IsFreeCreativeImageRequest($"{userMessage}\n{prompt}"))
         {
             return prompt;
         }
 
-        var firstImage = images[0];
-        if (prompt.TrimStart().StartsWith(firstImage, StringComparison.OrdinalIgnoreCase))
-        {
-            return prompt;
-        }
+        var referenceList = string.Join(" ", references.Select((reference, index) =>
+            $"Reference image {index + 1} ({reference.Role}): {reference.Url}."));
 
-        return $"{firstImage} Use the product shown in this reference image as the exact subject. {prompt.Trim()}, keeping the same physical product from the reference image, preserving exact silhouette, proportions, color scheme, visible parts, materials, accessories, and distinctive details, do not turn it into a generic product or a different model, maintaining the exact product design, high fidelity, commercial advertising photography, no text, no typos";
+        return $"""
+{referenceList}
+Use all reference images collectively to reconstruct the same physical product. The first reference image is the primary reference and has the highest priority; the remaining reference images are supporting views and detail references.
+User request: {prompt.Trim()}
+Preserve the product identity accurately: overall shape and proportions, structure and components, materials and surface texture, colors and color placement, logo position and brand markings, label or packaging layout if visible, and distinctive visible details.
+Treat all reference images as different views of one product. Do not create multiple copies unless requested. Do not merge the reference views into separate products. Do not invent new components. Do not change the product color. Do not replace or redesign logos or markings. Only change the requested background, environment, lighting, camera framing, advertising composition, and decorative effects. high fidelity, commercial advertising photography, no text, no typos
+""".Trim();
+    }
+
+    private sealed record ProductReferenceImage(string Url, string Role);
+
+    private static bool IsNormalGenerationMode(ChatRequest? request) =>
+        string.Equals(request?.GenerationMode, "normal_generation", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsValidImageUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        return Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
     private static bool IsFreeCreativeImageRequest(string prompt)

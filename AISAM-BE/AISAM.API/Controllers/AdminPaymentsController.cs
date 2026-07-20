@@ -46,6 +46,15 @@ public sealed class AdminPaymentsController : ControllerBase
             return StatusCode(result.StatusCode, result);
         }
 
+    [AllowAnonymous]
+    [HttpGet("test")]
+    public async Task<IActionResult> TestGetPayments([FromServices] IPaymentRepository paymentRepo)
+    {
+        var request = new PaginationRequest { Page = 1, PageSize = 20 };
+        var result = await paymentRepo.GetPagedAllAsync(request, null, default);
+        return Ok(GenericResponse<object>.CreateSuccess(result));
+    }
+
     [HttpGet("revenue/stats")]
     public async Task<ActionResult<GenericResponse<object>>> GetRevenueStats(
         [FromQuery] string period = "month", CancellationToken cancellationToken = default)

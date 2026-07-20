@@ -42,6 +42,36 @@ function getInitials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 }
 
+function normalizeProductImages(images: Product["images"] | string | null | undefined): string[] {
+  if (!images) return [];
+
+  if (Array.isArray(images)) {
+    return images
+      .map((image) => (typeof image === "string" ? image.trim() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof images === "string") {
+    const raw = images.trim();
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((image) => (typeof image === "string" ? image.trim() : ""))
+          .filter(Boolean);
+      }
+    } catch {
+      // Legacy rows may contain a single URL instead of a JSON array.
+    }
+
+    return raw.startsWith("http") ? [raw] : [];
+  }
+
+  return [];
+}
+
 const inputClass =
   "w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 outline-none transition-all";
 
@@ -64,6 +94,7 @@ export default function BrandDetailPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [viewingProductImageIndex, setViewingProductImageIndex] = useState(0);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -120,6 +151,10 @@ export default function BrandDetailPage() {
     };
     load();
   }, [id, activeWorkspace?.id]);
+
+  useEffect(() => {
+    setViewingProductImageIndex(0);
+  }, [viewingProduct?.id]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError("Brand name is required"); return; }
@@ -662,25 +697,69 @@ export default function BrandDetailPage() {
               </button>
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
-              <div className="aspect-video rounded-xl bg-surface-container-low overflow-hidden">
-                {(() => {
-                  let vImage = null;
-                  if (Array.isArray(viewingProduct.images) && viewingProduct.images.length > 0) vImage = viewingProduct.images[0];
-                  else if (typeof viewingProduct.images === "string") {
-                    try {
-                      const parsed = JSON.parse(viewingProduct.images);
-                      if (Array.isArray(parsed) && parsed.length > 0) vImage = parsed[0];
-                    } catch {
-                      if ((viewingProduct.images as string).startsWith("http")) vImage = viewingProduct.images;
-                    }
-                  }
-                  return vImage ? (
-                    <img src={vImage} alt={viewingProduct.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
-                  );
-                })()}
-              </div>
+              {(() => {
+                const imageUrls = normalizeProductImages(viewingProduct.images);
+                const selectedIndex = imageUrls.length > 0
+                  ? Math.min(viewingProductImageIndex, imageUrls.length - 1)
+                  : 0;
+                const selectedImage = imageUrls[selectedIndex];
+
+                return (
+                  <div className="space-y-3">
+                    <div className="relative aspect-video rounded-xl bg-surface-container-low overflow-hidden">
+                      {selectedImage ? (
+                        <img src={selectedImage} alt={`${viewingProduct.name} image ${selectedIndex + 1}`} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full bg-gradient-to-br ${gradient} opacity-20`} />
+                      )}
+
+                      {imageUrls.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setViewingProductImageIndex((current) => (current - 1 + imageUrls.length) % imageUrls.length)}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 transition-colors flex items-center justify-center"
+                            aria-label="Previous product image"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setViewingProductImageIndex((current) => (current + 1) % imageUrls.length)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 transition-colors flex items-center justify-center"
+                            aria-label="Next product image"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                          </button>
+                          <div className="absolute right-3 bottom-3 rounded-full bg-black/55 px-3 py-1 text-label-xs font-bold text-white backdrop-blur-sm">
+                            {selectedIndex + 1}/{imageUrls.length}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {imageUrls.length > 1 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {imageUrls.map((imageUrl, index) => (
+                          <button
+                            key={`${imageUrl}-${index}`}
+                            type="button"
+                            onClick={() => setViewingProductImageIndex(index)}
+                            className={`h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+                              index === selectedIndex
+                                ? "border-primary ring-2 ring-primary/20"
+                                : "border-outline-variant/20 opacity-70 hover:opacity-100"
+                            }`}
+                            aria-label={`View product image ${index + 1}`}
+                          >
+                            <img src={imageUrl} alt={`${viewingProduct.name} thumbnail ${index + 1}`} className="h-full w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <p className="text-body-sm text-on-surface-variant leading-relaxed">{viewingProduct.description}</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">

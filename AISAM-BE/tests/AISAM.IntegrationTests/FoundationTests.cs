@@ -213,14 +213,14 @@ public class FoundationTests
             Name = "New product",
             ImageFiles = new List<IFormFile>
             {
-                new FormFile(createStream, 0, createStream.Length, "image", "product.png")
+                new FormFile(createStream, 0, createStream.Length, "image", "product.png") { Headers = new HeaderDictionary { { "Content-Type", "image/png" } } }
             }
         });
         var updateResult = await service.UpdateAsync(product.Id, workspaceId, userId, new ProductUpdateRequestDto
         {
             ImageFiles = new List<IFormFile>
             {
-                new FormFile(updateStream, 0, updateStream.Length, "image", "product.png")
+                new FormFile(updateStream, 0, updateStream.Length, "image", "product.png") { Headers = new HeaderDictionary { { "Content-Type", "image/png" } } }
             }
         });
 
