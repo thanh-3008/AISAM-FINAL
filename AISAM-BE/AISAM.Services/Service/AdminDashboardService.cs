@@ -14,19 +14,22 @@ namespace AISAM.Services.Service
         private readonly IContentRepository _contentRepository;
         private readonly IPaymentRepository _paymentRepository;
         private readonly IAiGenerationRepository _aiGenerationRepository;
+        private readonly IPerformanceReportRepository _performanceReportRepository;
 
         public AdminDashboardService(
             IUserRepository userRepository,
             IWorkspaceRepository workspaceRepository,
             IContentRepository contentRepository,
             IPaymentRepository paymentRepository,
-            IAiGenerationRepository aiGenerationRepository)
+            IAiGenerationRepository aiGenerationRepository,
+            IPerformanceReportRepository performanceReportRepository)
         {
             _userRepository = userRepository;
             _workspaceRepository = workspaceRepository;
             _contentRepository = contentRepository;
             _paymentRepository = paymentRepository;
             _aiGenerationRepository = aiGenerationRepository;
+            _performanceReportRepository = performanceReportRepository;
         }
 
         private async Task<GenericResponse<T>> Unauthorized<T>()
@@ -128,6 +131,62 @@ namespace AISAM.Services.Service
                 TotalRevenue = revenue,
                 TotalTransactions = transactions.Values.Sum()
             });
+        }
+
+        public async Task<GenericResponse<object>> GetTopWorkspacesAsync(Guid adminUserId, int limit, string period = "month", CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin) return await Unauthorized<object>();
+
+            var now = DateTime.UtcNow;
+            DateTime from = period switch
+            {
+                "day" => now.AddDays(-1),
+                "week" => now.AddDays(-7),
+                "month" => now.AddDays(-30),
+                "year" => now.AddDays(-365),
+                "all" => DateTime.MinValue,
+                _ => now.AddDays(-30)
+            };
+
+            var topByRevenue = await _paymentRepository.GetTopWorkspacesByRevenueAsync(limit, from, now, cancellationToken);
+            var workspacesPerformance = await _performanceReportRepository.GetWorkspaceComparisonAsync(from, now, limit, cancellationToken);
+
+            var allWorkspaceIds = topByRevenue.Select(x => x.WorkspaceId)
+                .Union(workspacesPerformance.Select(x => x.WorkspaceId))
+                .Distinct()
+                .ToList();
+
+            // Fetch workspace names to ensure all have valid names
+            var activeWorkspaces = await _workspaceRepository.GetAllActiveAsync(cancellationToken);
+            var workspaceNames = activeWorkspaces.ToDictionary(w => w.Id, w => w.Name);
+
+            var result = allWorkspaceIds.Select(id =>
+            {
+                var rev = topByRevenue.FirstOrDefault(x => x.WorkspaceId == id)?.Revenue ?? 0m;
+                var perf = workspacesPerformance.FirstOrDefault(x => x.WorkspaceId == id);
+                var spend = perf?.Spend ?? 0m;
+                var adRevenue = perf?.EstimatedRevenue ?? 0m;
+                var roas = spend > 0 ? adRevenue / spend : 0m;
+                var engagement = perf?.Engagement ?? 0;
+                var name = workspaceNames.GetValueOrDefault(id, "Unknown Workspace");
+
+                return new
+                {
+                    WorkspaceId = id,
+                    WorkspaceName = name,
+                    SaaSRevenue = rev,
+                    AdSpend = spend,
+                    AdRevenue = adRevenue,
+                    Roas = Math.Round(roas, 2),
+                    Engagement = engagement
+                };
+            })
+            .OrderByDescending(x => x.SaaSRevenue)
+            .Take(limit)
+            .ToList();
+
+            return GenericResponse<object>.CreateSuccess(result);
         }
     }
 }

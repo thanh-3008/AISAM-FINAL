@@ -28,19 +28,30 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("30");
 
+  const [topWorkspacesLimit, setTopWorkspacesLimit] = useState(10);
+  const [spendRevLimit, setSpendRevLimit] = useState(10);
+  const [roasLimit, setRoasLimit] = useState(10);
+  const [engagementLimit, setEngagementLimit] = useState(10);
+  const [wsTableLimit, setWsTableLimit] = useState(20);
+  const [campaignsTableLimit, setCampaignsTableLimit] = useState(20);
+
+  const [campaigns, setCampaigns] = useState<AdminAnalyticsOverview["topCampaigns"]>([]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     const now = new Date();
     const from = new Date(now.getTime() - parseInt(dateRange) * 86400000).toISOString();
     const to = now.toISOString();
     
-    const [ov, ws] = await Promise.all([
+    const [ov, ws, camps] = await Promise.all([
       fetchAdminAnalyticsOverview(from, to),
-      fetchAdminWorkspaceComparison(from, to, 20),
+      fetchAdminWorkspaceComparison(from, to, 100),
+      import("@/services/adminService").then(m => m.fetchAdminTopCampaigns(from, to, 100))
     ]);
     
     setOverview(ov);
     setWorkspaces(ws ?? []);
+    setCampaigns(camps ?? []);
     setLoading(false);
   }, [dateRange]);
 
@@ -66,7 +77,20 @@ export default function AdminAnalyticsPage() {
     return (
       <>
         <AdminHeader breadcrumbs={[{ label: "Analytics" }]} />
-        <main className="flex-1 p-8"><div className="animate-pulse space-y-4"><div className="h-8 w-64 bg-gray-200 rounded" /><div className="h-64 bg-gray-200 rounded-xl" /></div></main>
+        <main className="flex-1 flex flex-col items-center justify-center p-8 min-h-[500px]">
+          <div className="flex flex-col items-center gap-4 bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-sm w-full text-center">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="material-symbols-outlined text-blue-600 text-[20px]">analytics</span>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-gray-900 font-semibold mb-1">Đang tải dữ liệu báo cáo...</h3>
+              <p className="text-sm text-gray-500">Đang đồng bộ và chờ phản hồi từ Meta. Vui lòng đợi trong giây lát.</p>
+            </div>
+          </div>
+        </main>
       </>
     );
   }
@@ -118,9 +142,17 @@ export default function AdminAnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Workspaces Chart */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Top Workspaces by Revenue</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Top Workspaces by Revenue</h3>
+              <select value={topWorkspacesLimit} onChange={(e) => setTopWorkspacesLimit(Number(e.target.value))} className="text-xs rounded border border-gray-300 px-2 py-1">
+                <option value={5}>Top 5</option>
+                <option value={10}>Top 10</option>
+                <option value={20}>Top 20</option>
+                <option value={50}>Top 50</option>
+              </select>
+            </div>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={workspaces.slice(0, 10)} layout="vertical" margin={{ left: 100 }}>
+              <BarChart data={workspaces.slice(0, topWorkspacesLimit)} layout="vertical" margin={{ left: 100 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={formatCurrency} />
                 <YAxis type="category" dataKey="workspaceName" tick={{ fontSize: 11 }} width={90} />
@@ -132,9 +164,16 @@ export default function AdminAnalyticsPage() {
 
           {/* Spend vs Revenue Chart */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Spend vs Revenue (Top Workspaces)</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Spend vs Revenue</h3>
+              <select value={spendRevLimit} onChange={(e) => setSpendRevLimit(Number(e.target.value))} className="text-xs rounded border border-gray-300 px-2 py-1">
+                <option value={5}>Top 5</option>
+                <option value={10}>Top 10</option>
+                <option value={20}>Top 20</option>
+              </select>
+            </div>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={workspaces.slice(0, 8)}>
+              <BarChart data={workspaces.slice(0, spendRevLimit)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="workspaceName" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrency} />
@@ -150,9 +189,16 @@ export default function AdminAnalyticsPage() {
         {/* ROAS + Engagement Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">ROAS by Workspace</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">ROAS by Workspace</h3>
+              <select value={roasLimit} onChange={(e) => setRoasLimit(Number(e.target.value))} className="text-xs rounded border border-gray-300 px-2 py-1">
+                <option value={5}>Top 5</option>
+                <option value={10}>Top 10</option>
+                <option value={20}>Top 20</option>
+              </select>
+            </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={workspaces.slice(0, 10)}>
+              <BarChart data={workspaces.slice(0, roasLimit)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="workspaceName" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v.toFixed(1)}x`} />
@@ -163,9 +209,16 @@ export default function AdminAnalyticsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Engagement by Workspace</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Engagement by Workspace</h3>
+              <select value={engagementLimit} onChange={(e) => setEngagementLimit(Number(e.target.value))} className="text-xs rounded border border-gray-300 px-2 py-1">
+                <option value={5}>Top 5</option>
+                <option value={10}>Top 10</option>
+                <option value={20}>Top 20</option>
+              </select>
+            </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={workspaces.slice(0, 10)}>
+              <BarChart data={workspaces.slice(0, engagementLimit)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="workspaceName" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={formatNumber} />
@@ -178,7 +231,15 @@ export default function AdminAnalyticsPage() {
 
         {/* Workspace Comparison Table */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Workspace Performance Comparison</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Workspace Performance Comparison</h3>
+            <select value={wsTableLimit} onChange={(e) => setWsTableLimit(Number(e.target.value))} className="text-xs rounded border border-gray-300 px-2 py-1">
+              <option value={10}>Top 10</option>
+              <option value={20}>Top 20</option>
+              <option value={50}>Top 50</option>
+              <option value={100}>Top 100</option>
+            </select>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -195,7 +256,7 @@ export default function AdminAnalyticsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {workspaces.map((w) => (
+                {workspaces.slice(0, wsTableLimit).map((w) => (
                   <tr key={w.workspaceId} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">{w.workspaceName}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{w.publishedPosts}</td>
@@ -216,9 +277,17 @@ export default function AdminAnalyticsPage() {
         </div>
 
         {/* Top Campaigns */}
-        {overview?.topCampaigns && overview.topCampaigns.length > 0 && (
+        {campaigns && campaigns.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Top Campaigns (All Workspaces)</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Top Campaigns (All Workspaces)</h3>
+              <select value={campaignsTableLimit} onChange={(e) => setCampaignsTableLimit(Number(e.target.value))} className="text-xs rounded border border-gray-300 px-2 py-1">
+                <option value={10}>Top 10</option>
+                <option value={20}>Top 20</option>
+                <option value={50}>Top 50</option>
+                <option value={100}>Top 100</option>
+              </select>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -234,7 +303,7 @@ export default function AdminAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {overview.topCampaigns.map((c, i) => (
+                  {campaigns.slice(0, campaignsTableLimit).map((c, i) => (
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{c.campaignName}</td>
                       <td className="px-4 py-3">

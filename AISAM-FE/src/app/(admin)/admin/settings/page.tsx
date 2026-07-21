@@ -7,6 +7,7 @@ const settingCards = [
   { title: "AI Providers", description: "Configure AI models, API keys, and credit costs", href: "/admin/settings/ai-providers", icon: "smart_toy" },
   { title: "Email", description: "Configure SMTP server and email templates", href: "/admin/settings/email", icon: "mail" },
   { title: "System", description: "Rate limits, maintenance mode, feature toggles", href: "/admin/settings/system", icon: "tune" },
+  { title: "Security", description: "Manage your account security and password", href: "/admin/settings/security", icon: "security" },
 ];
 
 export default function AdminSettingsPage() {

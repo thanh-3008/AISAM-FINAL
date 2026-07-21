@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminDataTable from "@/components/admin/AdminDataTable";
@@ -16,16 +16,27 @@ export default function AdminWorkspacesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [type, setType] = useState<number>(-1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset page on search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const loadWorkspaces = useCallback(async () => {
     setLoading(true);
-    const data = await fetchAdminWorkspaces(page);
+    const data = await fetchAdminWorkspaces(page, 20, debouncedSearch, type);
     if (data) {
       setWorkspaces(data.items);
       setTotal(data.total);
     }
     setLoading(false);
-  }, [page]);
+  }, [page, debouncedSearch, type]);
 
   useEffect(() => { loadWorkspaces(); }, [loadWorkspaces]);
 
@@ -90,9 +101,29 @@ export default function AdminWorkspacesPage() {
     <>
       <AdminHeader breadcrumbs={[{ label: "Workspaces" }]} />
       <main className="flex-1 p-8 overflow-y-auto space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Workspaces</h2>
-          <p className="text-gray-500 mt-1">{total} total workspaces</p>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Workspaces</h2>
+            <p className="text-gray-500 mt-1">{total} total workspaces</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search workspaces..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-64"
+            />
+            <select
+              value={type}
+              onChange={(e) => { setType(Number(e.target.value)); setPage(1); }}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+            >
+              <option value={-1}>All Types</option>
+              <option value={1}>Personal</option>
+              <option value={2}>Business</option>
+            </select>
+          </div>
         </div>
         {loading ? (
           <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>

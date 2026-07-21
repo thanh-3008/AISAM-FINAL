@@ -89,6 +89,13 @@ export async function deleteUser(id: string): Promise<boolean> {
   } catch { return false; }
 }
 
+export async function impersonateUser(id: string): Promise<any | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/users/${id}/impersonate`, { method: "POST" });
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
 export async function setUserRole(id: string, role: number): Promise<boolean> {
   try {
     const res: GenericResponse<boolean> = await apiClient(`/admin/users/${id}/role`, { data: { role }, method: "PATCH" });
@@ -96,26 +103,32 @@ export async function setUserRole(id: string, role: number): Promise<boolean> {
   } catch { return false; }
 }
 
-export async function fetchAdminWorkspaces(page = 1, pageSize = 20): Promise<{ items: AdminWorkspace[]; total: number } | null> {
+export async function fetchAdminWorkspaces(page = 1, pageSize = 20, search?: string, type?: number): Promise<{ items: AdminWorkspace[]; total: number } | null> {
   try {
-    const res: GenericResponse<any> = await apiClient(`/admin/workspaces?page=${page}&pageSize=${pageSize}`);
+    let url = `/admin/workspaces?page=${page}&pageSize=${pageSize}`;
+    if (search) url += `&searchTerm=${encodeURIComponent(search)}`;
+    if (type !== undefined && type !== -1) url += `&type=${type}`;
+    const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
-export async function fetchAdminPayments(page = 1, pageSize = 20): Promise<{ items: AdminPayment[]; total: number } | null> {
+export async function fetchAdminPayments(page = 1, pageSize = 20, status?: number): Promise<{ items: AdminPayment[]; total: number } | null> {
   try {
-    const res: GenericResponse<any> = await apiClient(`/admin/payments?page=${page}&pageSize=${pageSize}`);
+    let url = `/admin/payments?page=${page}&pageSize=${pageSize}`;
+    if (status !== undefined) url += `&status=${status}`;
+    const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
 }
 
-export async function fetchAdminContent(page = 1, pageSize = 20, search?: string): Promise<{ items: AdminContent[]; total: number } | null> {
+export async function fetchAdminContent(page = 1, pageSize = 20, search?: string, status?: number): Promise<{ items: AdminContent[]; total: number } | null> {
   try {
     let url = `/admin/content?page=${page}&pageSize=${pageSize}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (status !== undefined) url += `&status=${status}`;
     const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
@@ -167,6 +180,25 @@ export async function fetchAdminAnalyticsCharts(): Promise<{ userRegistrations: 
     const res: GenericResponse<{ userRegistrations: any[]; revenue: any[] }> = await apiClient("/admin/dashboard/charts");
     return res?.data ?? null;
   } catch { return null; }
+}
+
+export interface AdminTopWorkspace {
+  workspaceId: string;
+  workspaceName: string;
+  saaSRevenue: number;
+  adSpend: number;
+  adRevenue: number;
+  roas: number;
+  engagement: number;
+}
+
+export async function fetchAdminTopWorkspaces(limit = 10, period = "month"): Promise<AdminTopWorkspace[] | null> {
+  try {
+    const res: GenericResponse<AdminTopWorkspace[]> = await apiClient(`/admin/dashboard/top-workspaces?limit=${limit}&period=${period}`);
+    return res?.data ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchAdminAuditLogs(page = 1, pageSize = 20): Promise<{ items: AdminAuditLog[]; total: number } | null> {
@@ -273,6 +305,17 @@ export async function fetchAdminWorkspaceComparison(from?: string, to?: string, 
   } catch { return null; }
 }
 
+export async function fetchAdminTopCampaigns(from?: string, to?: string, top = 20): Promise<AdminAnalyticsOverview["topCampaigns"] | null> {
+  try {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("top", String(top));
+    const res: GenericResponse<AdminAnalyticsOverview["topCampaigns"]> = await apiClient(`/admin/analytics/top-campaigns?${params.toString()}`);
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
 export function getAdminExportUrl(from?: string, to?: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
   const params = new URLSearchParams();
@@ -355,6 +398,16 @@ export async function fetchAiCreditSummary(): Promise<AiCreditSummary | null> {
     const res: GenericResponse<AiCreditSummary> = await apiClient("/admin/credit-oversight/summary");
     return res?.data ?? null;
   } catch { return null; }
+}
+
+export async function adjustAdminCredits(workspaceId: string, amount: number, reason: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<any> = await apiClient("/admin/credit-oversight/adjust", {
+      data: { workspaceId, amount, reason },
+      method: "POST"
+    });
+    return res?.success ?? false;
+  } catch { return false; }
 }
 
 export async function fetchSystemHealth(): Promise<SystemHealth | null> {

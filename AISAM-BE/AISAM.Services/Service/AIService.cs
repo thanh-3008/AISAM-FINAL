@@ -548,6 +548,21 @@ public sealed class AIService : IAIService
             ? $"Generate a video for a social media post with the following context: {content.TextContent ?? content.Title}"
             : request.CustomPrompt;
 
+        try
+        {
+            var translationPrompt = $"Translate the following text to English for a video generation prompt. Output ONLY the English text, without any quotes, markdown or additional explanation:\n\n{prompt}";
+            var translatedPrompt = await _geminiTextClient.GenerateAsync(translationPrompt, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(translatedPrompt))
+            {
+                prompt = translatedPrompt.Trim();
+                Console.WriteLine($"[AIService.StartVideoGenerationAsync] Prompt translated to English: {prompt}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AIService.StartVideoGenerationAsync] Prompt translation failed, using original prompt. Error: {ex.Message}");
+        }
+
         var generation = await _generationRepository.AddAsync(new AiGeneration
         {
             ContentId = content.Id,

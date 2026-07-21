@@ -167,15 +167,39 @@ public sealed class ContentRepository : IContentRepository
                 cancellationToken);
     }
 
-    public async Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         var query = _context.Contents.AsNoTracking().Where(c => !c.IsDeleted);
+        
+        if (status.HasValue)
+        {
+            query = query.Where(c => c.Status == status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+        {
+            var pattern = $"%{request.SearchTerm}%";
+            query = query.Where(c => (c.Title != null && EF.Functions.ILike(c.Title, pattern)) || EF.Functions.ILike(c.TextContent, pattern));
+        }
+
         var total = await query.CountAsync(cancellationToken);
+        
+        // Apply sorting
+        if (!status.HasValue)
+        {
+            query = query.OrderByDescending(c => c.Status == ContentStatusEnum.Flagged)
+                         .ThenByDescending(c => c.CreatedAt);
+        }
+        else
+        {
+            query = query.OrderByDescending(c => c.CreatedAt);
+        }
+
         var items = await query
-            .OrderByDescending(c => c.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
+            
         return new PagedResult<Content> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
     }
 

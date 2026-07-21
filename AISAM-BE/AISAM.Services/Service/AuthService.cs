@@ -198,6 +198,23 @@ namespace AISAM.Services.Service
             return await GenerateTokensAsync(user, userAgent, ipAddress);
         }
 
+        public async Task<TokenResponse> GenerateImpersonationTokenAsync(Guid userId, Guid adminId, string? userAgent, string? ipAddress)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+            {
+                throw new UnauthorizedAccessException("User not found");
+            }
+
+            var admin = await _userRepository.GetByIdAsync(adminId);
+            if (admin == null || admin.Role != UserRoleEnum.Admin)
+            {
+                throw new UnauthorizedAccessException("Only administrators can impersonate users");
+            }
+
+            return await GenerateTokensAsync(user, userAgent, ipAddress, isImpersonation: true);
+        }
+
         public async Task LogoutAsync(Guid userId, string? refreshToken)
         {
             if (!string.IsNullOrEmpty(refreshToken))
@@ -399,10 +416,10 @@ namespace AISAM.Services.Service
             });
         }
 
-        private async Task<TokenResponse> GenerateTokensAsync(User user, string? userAgent, string? ipAddress)
+        private async Task<TokenResponse> GenerateTokensAsync(User user, string? userAgent, string? ipAddress, bool isImpersonation = false)
         {
             // Generate access token
-            var accessToken = GenerateAccessToken(user);
+            var accessToken = GenerateAccessToken(user, isImpersonation);
             var accessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
 
             // Generate refresh token
@@ -443,7 +460,7 @@ namespace AISAM.Services.Service
             };
         }
 
-        private string GenerateAccessToken(User user)
+        private string GenerateAccessToken(User user, bool isImpersonation = false)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_jwtSettings.SecretKey);
@@ -455,6 +472,11 @@ namespace AISAM.Services.Service
                 new Claim(ClaimTypes.Role, user.Role.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
+
+            if (isImpersonation)
+            {
+                claims.Add(new Claim("IsImpersonating", "true"));
+            }
 
             if (!string.IsNullOrEmpty(user.FullName))
             {

@@ -42,9 +42,18 @@ public sealed class AdminPaymentsController : ControllerBase
         {
             var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
             var request = new PaginationRequest { Page = page, PageSize = pageSize };
-            var result = await _adminService.GetPaymentsAsync(adminUserId, request, cancellationToken);
+            var result = await _adminService.GetPaymentsAsync(adminUserId, request, status, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
+
+    [AllowAnonymous]
+    [HttpGet("test")]
+    public async Task<IActionResult> TestGetPayments([FromServices] IPaymentRepository paymentRepo)
+    {
+        var request = new PaginationRequest { Page = 1, PageSize = 20 };
+        var result = await paymentRepo.GetPagedAllAsync(request, null, default);
+        return Ok(GenericResponse<object>.CreateSuccess(result));
+    }
 
     [HttpGet("revenue/stats")]
     public async Task<ActionResult<GenericResponse<object>>> GetRevenueStats(

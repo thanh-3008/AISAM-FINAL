@@ -15,10 +15,12 @@ namespace AISAM.API.Controllers;
 public sealed class AdminUsersController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly IAuthService _authService;
 
-    public AdminUsersController(IAdminService adminService)
+    public AdminUsersController(IAdminService adminService, IAuthService authService)
     {
         _adminService = adminService;
+        _authService = authService;
     }
 
     [HttpGet]
@@ -68,6 +70,25 @@ public sealed class AdminUsersController : ControllerBase
         var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
         var result = await _adminService.SetUserRoleAsync(adminUserId, id, request.Role, cancellationToken);
         return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{id:guid}/impersonate")]
+    public async Task<ActionResult<GenericResponse<TokenResponse>>> ImpersonateUser(Guid id, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        try
+        {
+            var tokenResponse = await _authService.GenerateImpersonationTokenAsync(id, adminUserId, null, null);
+            return Ok(GenericResponse<TokenResponse>.CreateSuccess(tokenResponse, "Impersonation successful"));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, GenericResponse<TokenResponse>.CreateError(ex.Message, System.Net.HttpStatusCode.Forbidden));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(GenericResponse<TokenResponse>.CreateError(ex.Message));
+        }
     }
 }
 
