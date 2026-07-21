@@ -12,44 +12,48 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
 
   const stats = [
     {
-      label: "Total Ad Spend",
-      value: kpi.totalAdSpend,
-      format: (v: number) => formatCurrency(v),
-      trend: kpi.totalAdSpendTrend,
-      icon: "payments",
+      label: "Total Reach",
+      description: "Tổng lượt tiếp cận: Số lượng người dùng duy nhất đã xem quảng cáo hoặc nội dung của bạn.",
+      value: kpi.totalReach,
+      format: (v: number) => formatCurrency(v).replace('$', ''),
+      trend: kpi.totalReachTrend,
+      icon: "visibility",
       gradient: "from-blue-500 via-blue-600 to-indigo-600",
       bgGlow: "bg-blue-500/10",
-      sparkline: sparkData.spend.length > 0 ? sparkData.spend : [0],
+      sparkline: sparkData.impressions.length > 0 ? sparkData.impressions : [0],
     },
     {
-      label: "Engagement Rate",
-      value: kpi.engagementRate,
-      format: (v: number) => `${v}%`,
-      trend: kpi.engagementRateTrend,
+      label: "Total Interactions",
+      description: "Tổng lượt tương tác: Số lượt Like, Share, Comment, Clicks thu về được.",
+      value: kpi.totalInteractions,
+      format: (v: number) => formatCurrency(v).replace('$', ''),
+      trend: kpi.totalInteractionsTrend,
       icon: "ads_click",
       gradient: "from-purple-500 via-purple-600 to-pink-600",
       bgGlow: "bg-purple-500/10",
       sparkline: sparkData.engagement.length > 0 ? sparkData.engagement : [0],
     },
     {
-      label: "Avg. CPA",
-      value: kpi.avgCpa,
+      label: "Avg. CPE",
+      description: "Cost Per Engagement (Chi phí mỗi tương tác): Chi phí trung bình bạn phải bỏ ra để có một lượt tương tác.",
+      value: kpi.avgCpe,
       format: (v: number) => formatCurrency(v),
-      trend: kpi.avgCpaTrend,
-      icon: "shopping_cart",
+      trend: kpi.avgCpeTrend,
+      icon: "payments",
       gradient: "from-orange-500 via-orange-600 to-red-600",
       bgGlow: "bg-orange-500/10",
-      sparkline: sparkData.clicks.length > 0 ? sparkData.clicks : [0],
+      sparkline: sparkData.spend.length > 0 ? sparkData.spend : [0],
     },
     {
-      label: "ROAS",
-      value: kpi.roas,
-      format: (v: number) => `${v}x`,
-      trend: kpi.roasTrend,
-      icon: "rocket_launch",
+      label: "Published Posts",
+      description: "Tổng số bài viết hoặc chiến dịch đã được xuất bản trong khoảng thời gian này.",
+      value: kpi.publishedPosts,
+      format: (v: number) => `${v}`,
+      trend: 0,
+      icon: "post_add",
       gradient: "from-emerald-500 via-emerald-600 to-teal-600",
       bgGlow: "bg-emerald-500/10",
-      sparkline: sparkData.spend.length > 0 ? sparkData.spend : [0],
+      sparkline: [0], // No sparkline for single number
     },
   ];
 
@@ -71,9 +75,15 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-label-sm font-semibold text-outline uppercase tracking-wider mb-1">
-                  {stat.label}
-                </p>
+                <div className="flex items-center gap-1 mb-1 relative group/tooltip w-max">
+                  <p className="text-label-sm font-semibold text-outline uppercase tracking-wider">
+                    {stat.label}
+                  </p>
+                  <span className="material-symbols-outlined text-[14px] text-outline-variant cursor-help">info</span>
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-surface-container-highest border border-outline-variant/30 text-on-surface text-body-sm rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-300 z-10 pointer-events-none">
+                    {stat.description}
+                  </div>
+                </div>
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-headline-md bg-gradient-to-r from-on-surface to-on-surface-variant bg-clip-text text-transparent">
                     {stat.format(stat.value)}
