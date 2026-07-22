@@ -883,11 +883,13 @@ public class PaymentServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, PaymentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<decimal> GetTotalRevenueAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, decimal>> GetDailyRevenueAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, int>> GetDailyTransactionCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<Payment>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<TopWorkspaceRevenueDto>> GetTopWorkspacesByRevenueAsync(int limit, DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeSubscriptionRepository : ISubscriptionRepository
@@ -1032,7 +1034,7 @@ public class PaymentServiceTests
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspaces.ContainsKey(id));
 
-        public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, int? workspaceType = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default)
@@ -1190,6 +1192,8 @@ public class PaymentServiceTests
             DateTime? now = null,
             CancellationToken cancellationToken = default)
             => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
+
+        public Task<GenericResponse<CreditWallet>> AdminAdjustCreditsAsync(Guid workspaceId, Guid adminUserId, long amount, string reason, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<CreditWallet?> GetWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default)
             => Task.FromResult(Wallets.GetValueOrDefault(workspaceId));

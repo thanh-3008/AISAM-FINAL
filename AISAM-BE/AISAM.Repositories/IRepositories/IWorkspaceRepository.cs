@@ -11,7 +11,7 @@ public interface IWorkspaceRepository
     Task<Workspace> AddAsync(Workspace workspace, CancellationToken cancellationToken = default);
     Task UpdateAsync(Workspace workspace, CancellationToken cancellationToken = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, int? workspaceType = null, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<int> GetCountAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default);

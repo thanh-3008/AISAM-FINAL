@@ -29,7 +29,7 @@ public sealed class AdminContentController : ControllerBase
     {
         var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
         var request = new PaginationRequest { Page = page, PageSize = pageSize, SearchTerm = search };
-        var result = await _adminService.GetAllContentAsync(adminUserId, request, cancellationToken);
+        var result = await _adminService.GetAllContentAsync(adminUserId, request, status, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

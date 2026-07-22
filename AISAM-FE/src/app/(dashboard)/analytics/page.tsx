@@ -128,15 +128,15 @@ export default function AnalyticsPage() {
       `}</style>
 
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Analysis" }]} />
-      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto bg-gradient-to-br from-surface-gray via-surface to-surface-gray">
+      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto bg-linear-to-br from-surface-gray via-surface to-surface-gray">
         <div className="max-w-7xl mx-auto space-y-6">
 
           {/* Premium Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-fade-up">
             <div className="flex items-center gap-4">
               <div className="relative w-12 h-12 shrink-0">
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary via-secondary to-primary animate-gradient shadow-lg shadow-primary/30" />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent" />
+                <div className="absolute inset-0 rounded-xl bg-linear-to-br from-primary via-secondary to-primary animate-gradient shadow-lg shadow-primary/30" />
+                <div className="absolute inset-0 rounded-xl bg-linear-to-br from-white/20 to-transparent" />
                 <div className="relative w-full h-full flex items-center justify-center">
                   <span className="material-symbols-outlined text-on-primary text-xl" style={{ fontVariationSettings: '"FILL" 1' }}>
                     bar_chart
@@ -145,7 +145,7 @@ export default function AnalyticsPage() {
                 <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-success-green rounded-full border-2 border-surface shadow-lg animate-pulse" />
               </div>
               <div>
-                <h1 className="text-headline-sm bg-gradient-to-r from-on-surface via-on-surface to-on-surface-variant bg-clip-text text-transparent">
+                <h1 className="text-headline-sm bg-linear-to-r from-on-surface via-on-surface to-on-surface-variant bg-clip-text text-transparent">
                   Reports & Analytics
                 </h1>
                 <p className="text-body-sm text-outline mt-1 flex items-center gap-2">
@@ -156,9 +156,9 @@ export default function AnalyticsPage() {
             </div>
             <button
               onClick={handleExport}
-              className="group relative bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-xl text-label-sm font-bold shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 hover:scale-105 overflow-hidden"
+              className="group relative bg-linear-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-xl text-label-sm font-bold shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 hover:scale-105 overflow-hidden"
             >
-              <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              <span className="absolute inset-0 bg-linear-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
               <span className="relative flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-label-md">download</span>
                 Export Report
@@ -168,6 +168,12 @@ export default function AnalyticsPage() {
 
           {loading || !data ? (
             <div className="space-y-6">
+              <div className="text-center py-4">
+                <span className="inline-flex items-center gap-2 text-primary font-medium bg-primary/10 px-4 py-2 rounded-full animate-pulse">
+                  <span className="material-symbols-outlined text-xl">sync</span>
+                  Đang phân tích dữ liệu & chờ phản hồi từ Meta...
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant animate-pulse shadow-lg">

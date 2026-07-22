@@ -44,7 +44,9 @@ export default function AdminSidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {adminNavItems.map((item) => {
+        {adminNavItems
+          .filter(item => process.env.NODE_ENV === "development" || item.label !== "Dev Tools")
+          .map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <button

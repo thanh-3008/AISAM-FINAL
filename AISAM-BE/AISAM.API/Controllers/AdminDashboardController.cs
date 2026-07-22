@@ -34,4 +34,15 @@ public sealed class AdminDashboardController : ControllerBase
         var result = await _adminDashboardService.GetChartsAsync(adminUserId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("top-workspaces")]
+    public async Task<ActionResult<GenericResponse<object>>> GetTopWorkspaces(
+        [FromQuery] int limit = 10, 
+        [FromQuery] string period = "month",
+        CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _adminDashboardService.GetTopWorkspacesAsync(adminUserId, limit, period, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

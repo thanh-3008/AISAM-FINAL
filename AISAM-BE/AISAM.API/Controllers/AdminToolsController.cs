@@ -22,24 +22,30 @@ public sealed class AdminToolsController : ControllerBase
     private readonly IContentRepository _contentRepository;
     private readonly AisamContext _context;
     private readonly ILogger<AdminToolsController> _logger;
+    private readonly IWebHostEnvironment _env;
 
     public AdminToolsController(
         IUserRepository userRepository,
         IWorkspaceRepository workspaceRepository,
         IContentRepository contentRepository,
         AisamContext context,
-        ILogger<AdminToolsController> logger)
+        ILogger<AdminToolsController> logger,
+        IWebHostEnvironment env)
     {
         _userRepository = userRepository;
         _workspaceRepository = workspaceRepository;
         _contentRepository = contentRepository;
         _context = context;
         _logger = logger;
+        _env = env;
     }
 
     [HttpPost("seed-demo-users")]
     public async Task<ActionResult<GenericResponse<object>>> SeedDemoUsers([FromQuery] int count = 5, CancellationToken cancellationToken = default)
     {
+        if (!_env.IsDevelopment())
+            return NotFound();
+
         var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
         var admin = await _userRepository.GetByIdAsync(adminUserId);
         if (admin?.Role != UserRoleEnum.Admin)
@@ -72,6 +78,9 @@ public sealed class AdminToolsController : ControllerBase
     [HttpPost("seed-demo-content")]
     public async Task<ActionResult<GenericResponse<object>>> SeedDemoContent([FromQuery] int count = 10, CancellationToken cancellationToken = default)
     {
+        if (!_env.IsDevelopment())
+            return NotFound();
+
         var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
         var admin = await _userRepository.GetByIdAsync(adminUserId);
         if (admin?.Role != UserRoleEnum.Admin)

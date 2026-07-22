@@ -190,7 +190,7 @@ public class DashboardServiceTests
             return Task.FromResult(new PagedResult<Content> { Data = data, TotalCount = data.Count, Page = request.Page, PageSize = request.PageSize });
         }
 
-        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
@@ -257,6 +257,7 @@ public class DashboardServiceTests
         public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
             => GetPagedByProfileIdAsync(workspaceId, request, brandId, status, cancellationToken);
 
+        public Task<List<Post>> GetPublishedByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Post post, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminStatsCard from "@/components/admin/AdminStatsCard";
+import AdminTopWorkspaces from "@/components/admin/AdminTopWorkspaces";
 import { fetchAdminDashboardSummary, AdminDashboardSummary } from "@/services/adminService";
 
 export default function AdminDashboardPage() {
@@ -79,6 +80,8 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         </div>
+
+        <AdminTopWorkspaces />
       </main>
     </>
   );

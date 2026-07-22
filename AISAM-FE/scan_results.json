@@ -1,0 +1,653 @@
+[
+  {
+    "file": "(admin)\\admin\\analytics\\page.tsx",
+    "routePath": "//admin/analytics",
+    "componentName": "AdminAnalyticsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons",
+      "cards",
+      "charts/analytics widgets",
+      "form inputs"
+    ],
+    "snippet": "export default function AdminAnalyticsPage() {\r\n  const [overview, setOverview] = useState<AdminAnalyticsOverview | null>(null);\r\n  const [workspaces, setWorkspaces] = useState<WorkspaceComparisonItem[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [dateRange, setDateRange] = useSt"
+  },
+  {
+    "file": "(admin)\\admin\\audit-logs\\page.tsx",
+    "routePath": "//admin/audit-logs",
+    "componentName": "AdminAuditLogsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons"
+    ],
+    "snippet": "export default function AdminAuditLogsPage() {\r\n  const router = useRouter();\r\n  const [logs, setLogs] = useState<AdminAuditLog[]>([]);\r\n  const [total, setTotal] = useState(0);\r\n  const [page, setPage] = useState(1);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  const loadLogs = useCallback"
+  },
+  {
+    "file": "(admin)\\admin\\audit-logs\\[id]\\page.tsx",
+    "routePath": "//admin/audit-logs/:id",
+    "componentName": "AdminAuditLogDetailPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons"
+    ],
+    "snippet": "export default function AdminAuditLogDetailPage() {\r\n  const { id } = useParams<{ id: string }>();\r\n  const router = useRouter();\r\n  const [log, setLog] = useState<any>(null);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  useEffect(() => {\r\n    if (!id) return;\r\n    apiClient(`/admin/audit-l"
+  },
+  {
+    "file": "(admin)\\admin\\broadcast\\page.tsx",
+    "routePath": "//admin/broadcast",
+    "componentName": "AdminBroadcastPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminBroadcastPage() {\r\n  const [title, setTitle] = useState(\"\");\r\n  const [message, setMessage] = useState(\"\");\r\n  const [excludeAdmins, setExcludeAdmins] = useState(true);\r\n  const [sending, setSending] = useState(false);\r\n  const [result, setResult] = useState<string | nul"
+  },
+  {
+    "file": "(admin)\\admin\\content\\page.tsx",
+    "routePath": "//admin/content",
+    "componentName": "AdminContentPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons"
+    ],
+    "snippet": "export default function AdminContentPage() {\r\n  const [contents, setContents] = useState<AdminContent[]>([]);\r\n  const [total, setTotal] = useState(0);\r\n  const [page, setPage] = useState(1);\r\n  const [loading, setLoading] = useState(true);\r\n  const [search, setSearch] = useState(\"\");\r\n\r\n  const loa"
+  },
+  {
+    "file": "(admin)\\admin\\credit-oversight\\page.tsx",
+    "routePath": "//admin/credit-oversight",
+    "componentName": "AdminCreditOversightPage",
+    "pageTitle": "",
+    "keyUI": [
+      "cards",
+      "charts/analytics widgets"
+    ],
+    "snippet": "export default function AdminCreditOversightPage() {\r\n  const [data, setData] = useState<AiCreditSummary | null>(null);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  useEffect(() => {\r\n    fetchAiCreditSummary().then((d) => { setData(d); setLoading(false); });\r\n  }, []);\r\n\r\n  if (loading) re"
+  },
+  {
+    "file": "(admin)\\admin\\dashboard\\page.tsx",
+    "routePath": "//admin/dashboard",
+    "componentName": "AdminDashboardPage",
+    "pageTitle": "",
+    "keyUI": [
+      "cards"
+    ],
+    "snippet": "export default function AdminDashboardPage() {\r\n  const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  useEffect(() => {\r\n    fetchAdminDashboardSummary().then((data) => {\r\n      setSummary(data);\r\n      setLoading(false);\r"
+  },
+  {
+    "file": "(admin)\\admin\\payments\\page.tsx",
+    "routePath": "//admin/payments",
+    "componentName": "AdminPaymentsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons"
+    ],
+    "snippet": "export default function AdminPaymentsPage() {\r\n  const [payments, setPayments] = useState<AdminPayment[]>([]);\r\n  const [total, setTotal] = useState(0);\r\n  const [page, setPage] = useState(1);\r\n  const [loading, setLoading] = useState(true);\r\n  const [statusFilter, setStatusFilter] = useState<string"
+  },
+  {
+    "file": "(admin)\\admin\\plans\\page.tsx",
+    "routePath": "//admin/plans",
+    "componentName": "AdminPlansPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminPlansPage() {\r\n  const [plans, setPlans] = useState<SubscriptionPlanDto[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [saved, setSaved] = useState(false);\r\n  const [editingPlan, setEditingPlan] = useState<SubscriptionPlanDto | null>(null);\r\n\r\n  useEff"
+  },
+  {
+    "file": "(admin)\\admin\\service-health\\page.tsx",
+    "routePath": "//admin/service-health",
+    "componentName": "AdminServiceHealthPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminServiceHealthPage() {\r\n  const [services, setServices] = useState<ServiceHealthItem[]>([]);\r\n  const [overall, setOverall] = useState(\"Loading...\");\r\n  const [loading, setLoading] = useState(true);\r\n  const [lastRefresh, setLastRefresh] = useState(\"\");\r\n\r\n  const loadHea"
+  },
+  {
+    "file": "(admin)\\admin\\settings\\ai-providers\\page.tsx",
+    "routePath": "//admin/settings/ai-providers",
+    "componentName": "AdminAiProvidersPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminAiProvidersPage() {\r\n  const [saved, setSaved] = useState(false);\r\n  const [loading, setLoading] = useState(true);\r\n  const [defaultModel, setDefaultModel] = useState(\"gemini-2.5-flash\");\r\n  const [creditCost, setCreditCost] = useState(\"1\");\r\n  const [provider, setProvid"
+  },
+  {
+    "file": "(admin)\\admin\\settings\\email\\page.tsx",
+    "routePath": "//admin/settings/email",
+    "componentName": "AdminEmailSettingsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminEmailSettingsPage() {\r\n  const [saved, setSaved] = useState(false);\r\n  const [loading, setLoading] = useState(true);\r\n  const [smtpHost, setSmtpHost] = useState(\"smtp.gmail.com\");\r\n  const [smtpPort, setSmtpPort] = useState(\"587\");\r\n  const [username, setUsername] = useS"
+  },
+  {
+    "file": "(admin)\\admin\\settings\\page.tsx",
+    "routePath": "//admin/settings",
+    "componentName": "AdminSettingsPage",
+    "pageTitle": "AI Providers",
+    "keyUI": [
+      "cards"
+    ],
+    "snippet": "export default function AdminSettingsPage() {\r\n  return (\r\n    <>\r\n      <AdminHeader breadcrumbs={[{ label: \"Settings\" }]} />\r\n      <main className=\"flex-1 p-8 overflow-y-auto space-y-6\">\r\n        <div>\r\n          <h2 className=\"text-2xl font-bold text-gray-900\">Settings</h2>\r\n          <p classNa"
+  },
+  {
+    "file": "(admin)\\admin\\settings\\system\\page.tsx",
+    "routePath": "//admin/settings/system",
+    "componentName": "AdminSystemSettingsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminSystemSettingsPage() {\r\n  const [saved, setSaved] = useState(false);\r\n  const [loading, setLoading] = useState(true);\r\n  const [maintenanceMode, setMaintenanceMode] = useState(false);\r\n  const [apiRateLimit, setApiRateLimit] = useState(\"60\");\r\n  const [aiLimit, setAiLimi"
+  },
+  {
+    "file": "(admin)\\admin\\subscriptions\\page.tsx",
+    "routePath": "//admin/subscriptions",
+    "componentName": "AdminSubscriptionsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons"
+    ],
+    "snippet": "export default function AdminSubscriptionsPage() {\r\n  const [subs, setSubs] = useState<AdminSubscription[]>([]);\r\n  const [total, setTotal] = useState(0);\r\n  const [page, setPage] = useState(1);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  const loadSubs = useCallback(async () => {\r\n    set"
+  },
+  {
+    "file": "(admin)\\admin\\system-health\\page.tsx",
+    "routePath": "//admin/system-health",
+    "componentName": "AdminSystemHealthPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminSystemHealthPage() {\r\n  const [checks, setChecks] = useState<SystemHealthCheck[]>([]);\r\n  const [overall, setOverall] = useState(\"Checking...\");\r\n  const [services, setServices] = useState<ServiceHealthItem[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  co"
+  },
+  {
+    "file": "(admin)\\admin\\tools\\page.tsx",
+    "routePath": "//admin/tools",
+    "componentName": "AdminToolsPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminToolsPage() {\r\n  const [userCount, setUserCount] = useState(5);\r\n  const [contentCount, setContentCount] = useState(10);\r\n  const [result, setResult] = useState<string | null>(null);\r\n  const [loading, setLoading] = useState(false);\r\n\r\n  const handleSeedUsers = async () "
+  },
+  {
+    "file": "(admin)\\admin\\users\\page.tsx",
+    "routePath": "//admin/users",
+    "componentName": "AdminUsersPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons"
+    ],
+    "snippet": "export default function AdminUsersPage() {\r\n  const router = useRouter();\r\n  const [users, setUsers] = useState<AdminUser[]>([]);\r\n  const [total, setTotal] = useState(0);\r\n  const [page, setPage] = useState(1);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  const loadUsers = useCallback(asyn"
+  },
+  {
+    "file": "(admin)\\admin\\users\\[id]\\page.tsx",
+    "routePath": "//admin/users/:id",
+    "componentName": "AdminUserDetailPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminUserDetailPage() {\r\n  const { id } = useParams<{ id: string }>();\r\n  const router = useRouter();\r\n  const [user, setUser] = useState<any>(null);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  useEffect(() => {\r\n    if (!id) return;\r\n    fetchAdminUserDetail(id).th"
+  },
+  {
+    "file": "(admin)\\admin\\workspaces\\page.tsx",
+    "routePath": "//admin/workspaces",
+    "componentName": "AdminWorkspacesPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "buttons"
+    ],
+    "snippet": "export default function AdminWorkspacesPage() {\r\n  const router = useRouter();\r\n  const [workspaces, setWorkspaces] = useState<AdminWorkspace[]>([]);\r\n  const [total, setTotal] = useState(0);\r\n  const [page, setPage] = useState(1);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  const loadWork"
+  },
+  {
+    "file": "(admin)\\admin\\workspaces\\[id]\\page.tsx",
+    "routePath": "//admin/workspaces/:id",
+    "componentName": "AdminWorkspaceDetailPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AdminWorkspaceDetailPage() {\r\n  const { id } = useParams<{ id: string }>();\r\n  const router = useRouter();\r\n  const [ws, setWs] = useState<any>(null);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  useEffect(() => {\r\n    if (!id) return;\r\n    apiClient(`/admin/workspac"
+  },
+  {
+    "file": "(auth)\\forgot-password\\page.tsx",
+    "routePath": "//forgot-password",
+    "componentName": "ForgotPasswordPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons",
+      "form inputs"
+    ],
+    "snippet": "export default function ForgotPasswordPage() {\r\n  const [email, setEmail] = useState(\"\");\r\n  const [isLoading, setIsLoading] = useState(false);\r\n  const [isSuccess, setIsSuccess] = useState(false);\r\n  const [error, setError] = useState<string | null>(null);\r\n\r\n  const handleSubmit = async (e: React."
+  },
+  {
+    "file": "(auth)\\invitation\\[token]\\page.tsx",
+    "routePath": "//invitation/:token",
+    "componentName": "AcceptInvitationPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function AcceptInvitationPage() {\r\n  const { token } = useParams<{ token: string }>();\r\n  const router = useRouter();\r\n  const [status, setStatus] = useState<Status>(\"ready\");\r\n  const [errorMessage, setErrorMessage] = useState<string>(\"\");\r\n  const [successWorkspace, setSuccessWorksp"
+  },
+  {
+    "file": "(auth)\\login\\page.tsx",
+    "routePath": "//login",
+    "componentName": "LoginPage",
+    "pageTitle": "",
+    "keyUI": [
+      "search bar",
+      "buttons",
+      "form inputs"
+    ],
+    "snippet": "export default function LoginPage() {\r\n  const [email, setEmail] = useState(\"\");\r\n  const [password, setPassword] = useState(\"\");\r\n  const [showPassword, setShowPassword] = useState(false);\r\n  const [isLoading, setIsLoading] = useState(false);\r\n  const [isSuccess, setIsSuccess] = useState(false);\r\n "
+  },
+  {
+    "file": "(auth)\\register\\page.tsx",
+    "routePath": "//register",
+    "componentName": "RegisterPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons",
+      "form inputs"
+    ],
+    "snippet": "export default function RegisterPage() {\r\n  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;\r\n  const [showPassword, setShowPassword] = useState(false);\r\n  const [isLoading, setIsLoading] = useState(false);\r\n  const [error, setError] = useState<string | null>(null);\r\n  const [isGoogleReady"
+  },
+  {
+    "file": "(auth)\\reset-password\\page.tsx",
+    "routePath": "//reset-password",
+    "componentName": "ResetPasswordPage",
+    "pageTitle": "",
+    "keyUI": [
+      "search bar",
+      "buttons",
+      "form inputs"
+    ],
+    "snippet": "export default function ResetPasswordPage() {\r\n  return (\r\n    <Suspense fallback={<div className=\"min-h-screen flex items-center justify-center gap-3\"><div className=\"w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin\" /><span className=\"text-body-sm text-outline\">Loading"
+  },
+  {
+    "file": "(dashboard)\\analytics\\page.tsx",
+    "routePath": "//analytics",
+    "componentName": "AnalyticsPage",
+    "pageTitle": "Reports & Analytics",
+    "keyUI": [
+      "data table",
+      "buttons",
+      "cards",
+      "charts/analytics widgets"
+    ],
+    "snippet": "export default function AnalyticsPage() {\r\n  const featureGate = useFeatureGate();\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const [data, setData] = useState<AnalyticsData | null>(null);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  const [dateRange, setDateRange] = useState<DateRan"
+  },
+  {
+    "file": "(dashboard)\\approvals\\page.tsx",
+    "routePath": "//approvals",
+    "componentName": "ApprovalsPage",
+    "pageTitle": "Content Approvals",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons",
+      "modal dialogs",
+      "tabs",
+      "form inputs"
+    ],
+    "snippet": "export default function ApprovalsPage() {\r\n  const router = useRouter();\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const [items, setItems] = useState<ContentItem[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [actionId, setActionId] = useState<string | null>(null);\r\n  con"
+  },
+  {
+    "file": "(dashboard)\\automation\\page.tsx",
+    "routePath": "//automation",
+    "componentName": "AutomationPage",
+    "pageTitle": "Content Automation Plans",
+    "keyUI": [
+      "buttons",
+      "form inputs"
+    ],
+    "snippet": "export default function AutomationPage() {\r\n  const [plans, setPlans] = useState<AutomationPlan[]>([]);\r\n  const [selected, setSelected] = useState<AutomationPlan | null>(null);\r\n  const [loading, setLoading] = useState(true);\r\n  const [showImport, setShowImport] = useState(false);\r\n  const [name, s"
+  },
+  {
+    "file": "(dashboard)\\brands\\page.tsx",
+    "routePath": "//brands",
+    "componentName": "BrandsPage",
+    "pageTitle": "Brands",
+    "keyUI": [
+      "search bar",
+      "buttons",
+      "cards",
+      "modal dialogs"
+    ],
+    "snippet": "export default function BrandsPage() {\r\n  const router = useRouter();\r\n  const prefersReducedMotion = useReducedMotion();\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const { activeProfile } = useProfiles();\r\n  const { addToast } = useToast();\r\n  const [brands, setBrands] = useState<Brand[]>(["
+  },
+  {
+    "file": "(dashboard)\\brands\\[id]\\page.tsx",
+    "routePath": "//brands/:id",
+    "componentName": "BrandDetailPage",
+    "pageTitle": "",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function BrandDetailPage() {\r\n  const { id } = useParams<{ id: string }>();\r\n  const router = useRouter();\r\n  const prefersReducedMotion = useReducedMotion();\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const { addToast } = useToast();\r\n  const [brand, setBrand] = useState<Bran"
+  },
+  {
+    "file": "(dashboard)\\calendar\\page.tsx",
+    "routePath": "//calendar",
+    "componentName": "CalendarPage",
+    "pageTitle": "Content Calendar",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function CalendarPage() {\r\n  return (\r\n    <Suspense fallback={null}>\r\n      <CalendarContent />\r\n    </Suspense>\r\n  );\r\n}\r\n"
+  },
+  {
+    "file": "(dashboard)\\campaigns\\page.tsx",
+    "routePath": "//campaigns",
+    "componentName": "CampaignsPage",
+    "pageTitle": "Ad Campaigns",
+    "keyUI": [
+      "search bar",
+      "buttons",
+      "cards",
+      "modal dialogs"
+    ],
+    "snippet": "export default function CampaignsPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const [campaigns, setCampaigns] = useState<Campaign[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n\r\n  // Filters\r\n  const [search, setSearch] = useState(\"\");\r\n  const [statusFilter, setStatusFilt"
+  },
+  {
+    "file": "(dashboard)\\content\\ai-generate\\page.tsx",
+    "routePath": "//content/ai-generate",
+    "componentName": "AIGeneratePage",
+    "pageTitle": "AI Generate",
+    "keyUI": [
+      "buttons",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function AIGeneratePage() {\r\n  const router = useRouter();\r\n  const { addToast } = useToast();\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const featureGate = useFeatureGate();\r\n  const [creditBalance, setCreditBalance] = useState<number | null>(null);\r\n  const [insufficientCre"
+  },
+  {
+    "file": "(dashboard)\\content\\create\\page.tsx",
+    "routePath": "//content/create",
+    "componentName": "CreateContentPage",
+    "pageTitle": "Create New Content",
+    "keyUI": [
+      "buttons",
+      "cards",
+      "tabs",
+      "form inputs"
+    ],
+    "snippet": "export default function CreateContentPage() {\r\n  const router = useRouter();\r\n  const { addToast } = useToast();\r\n  const [saving, setSaving] = useState(false);\r\n  const [saved, setSaved] = useState(false);\r\n  const [saveError, setSaveError] = useState<string | null>(null);\r\n\r\n  const [brandList, se"
+  },
+  {
+    "file": "(dashboard)\\content\\page.tsx",
+    "routePath": "//content",
+    "componentName": "ContentPage",
+    "pageTitle": "Content Library",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons",
+      "cards",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function ContentPage() {\r\n  const router = useRouter();\r\n  const [visible, setVisible] = useState(false);\r\n  const [loading, setLoading] = useState(true);\r\n  const [search, setSearch] = useState(\"\");\r\n  const [brandFilter, setBrandFilter] = useState(\"\");\r\n  const [productFilter, setPr"
+  },
+  {
+    "file": "(dashboard)\\content\\[id]\\page.tsx",
+    "routePath": "//content/:id",
+    "componentName": "ContentDetailPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function ContentDetailPage() {\r\n  const params = useParams();\r\n  const router = useRouter();\r\n  const [editing, setEditing] = useState(false);\r\n  const [saving, setSaving] = useState(false);\r\n  const [showDelete, setShowDelete] = useState(false);\r\n  const [showPlatformPicker, setShowP"
+  },
+  {
+    "file": "(dashboard)\\credit-history\\page.tsx",
+    "routePath": "//credit-history",
+    "componentName": "CreditHistoryPage",
+    "pageTitle": "Credit Usage History",
+    "keyUI": [
+      "data table",
+      "buttons",
+      "cards"
+    ],
+    "snippet": "export default function CreditHistoryPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const [history, setHistory] = useState<CreditUsageRecord[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [page, setPage] = useState(1);\r\n  const [totalPages, setTotalPages] = useState(0"
+  },
+  {
+    "file": "(dashboard)\\credit-pack\\page.tsx",
+    "routePath": "//credit-pack",
+    "componentName": "CreditPackPage",
+    "pageTitle": "Buy Credits",
+    "keyUI": [
+      "buttons",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function CreditPackPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);\r\n  const [selectedPack, setSelectedPack] = useState<CreditPack | null>(null);\r\n  const [showConfirmDialog, setShowConfirmDialog] "
+  },
+  {
+    "file": "(dashboard)\\dashboard\\page.tsx",
+    "routePath": "//dashboard",
+    "componentName": "DashboardPage",
+    "pageTitle": "Eco-Friendly Packaging",
+    "keyUI": [
+      "data table",
+      "buttons",
+      "modal dialogs",
+      "charts/analytics widgets",
+      "form inputs"
+    ],
+    "snippet": "export default function DashboardPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const workspaceName = activeWorkspace?.name || \"User\";\r\n  const [visible, setVisible] = useState(false);\r\n  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);\r\n  const [creditBalance, se"
+  },
+  {
+    "file": "(dashboard)\\notifications\\page.tsx",
+    "routePath": "//notifications",
+    "componentName": "NotificationsPage",
+    "pageTitle": "Notifications",
+    "keyUI": [
+      "buttons",
+      "modal dialogs",
+      "tabs",
+      "form inputs"
+    ],
+    "snippet": "export default function NotificationsPage() {\r\n  const reduceMotion = useReducedMotion();\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const { addToast } = useToast();\r\n  \r\n  const [notifications, setNotifications] = useState<NotificationListItem[]>([]);\r\n  const [loading, setLoading] = useSta"
+  },
+  {
+    "file": "(dashboard)\\posts\\page.tsx",
+    "routePath": "//posts",
+    "componentName": "PostsPage",
+    "pageTitle": "Posts",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "cards",
+      "modal dialogs"
+    ],
+    "snippet": "export default function PostsPage() {\r\n  const [posts, setPosts] = useState<PostItem[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [page, setPage] = useState(1);\r\n  const [totalCount, setTotalCount] = useState(0);\r\n  const [totalPages, setTotalPages] = useState(0);\r\n  const [post"
+  },
+  {
+    "file": "(dashboard)\\social\\page.tsx",
+    "routePath": "//social",
+    "componentName": "SocialAccountsPage",
+    "pageTitle": "Social Accounts",
+    "keyUI": [
+      "search bar",
+      "buttons",
+      "cards",
+      "modal dialogs"
+    ],
+    "snippet": "export default function SocialAccountsPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const router = useRouter();\r\n  const pathname = usePathname();\r\n  const searchParams = useSearchParams();\r\n  const [accounts, setAccounts] = useState<SocialAccount[]>([]);\r\n  const [loading, setLoading]"
+  },
+  {
+    "file": "(dashboard)\\team\\page.tsx",
+    "routePath": "//team",
+    "componentName": "TeamPage",
+    "pageTitle": "Teams &amp; Collaboration",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons",
+      "cards",
+      "modal dialogs",
+      "charts/analytics widgets"
+    ],
+    "snippet": "export default function TeamPage() {\r\n  const [teams, setTeams] = useState<Team[]>([]);\r\n  const [members, setMembers] = useState<TeamMember[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [now, setNow] = useState(() => Date.now());\r\n\r\n  useEffect(() => {\r\n    const interval = setI"
+  },
+  {
+    "file": "(dashboard)\\workspace-dashboard\\page.tsx",
+    "routePath": "//workspace-dashboard",
+    "componentName": "WorkspaceDashboardPage",
+    "pageTitle": "Workspace Dashboard",
+    "keyUI": [
+      "buttons",
+      "cards",
+      "modal dialogs",
+      "charts/analytics widgets"
+    ],
+    "snippet": "export default function WorkspaceDashboardPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const featureGate = useFeatureGate();\r\n  const [dashboard, setDashboard] = useState<WorkspaceDashboard | null>(null);\r\n  const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);\r"
+  },
+  {
+    "file": "(dashboard)\\workspace-members\\page.tsx",
+    "routePath": "//workspace-members",
+    "componentName": "WorkspaceMembersPage",
+    "pageTitle": "Team Members",
+    "keyUI": [
+      "buttons",
+      "modal dialogs"
+    ],
+    "snippet": "export default function WorkspaceMembersPage() {\r\n  const { activeWorkspace } = useWorkspaces();\r\n  const featureGate = useFeatureGate();\r\n  const [members, setMembers] = useState<WorkspaceMember[]>([]);\r\n  const [loading, setLoading] = useState(true);\r\n  const [filter, setFilter] = useState<\"all\" |"
+  },
+  {
+    "file": "auth\\facebook\\callback\\page.tsx",
+    "routePath": "/auth/facebook/callback",
+    "componentName": "FacebookCallbackPage",
+    "pageTitle": "",
+    "keyUI": [
+      "search bar"
+    ],
+    "snippet": "export default function FacebookCallbackPage() {\r\n  const router = useRouter();\r\n  const searchParams = useSearchParams();\r\n  const [status, setStatus] = useState(\"Processing...\");\r\n\r\n  useEffect(() => {\r\n    const code = searchParams.get(\"code\");\r\n    const state = searchParams.get(\"state\");\r\n    i"
+  },
+  {
+    "file": "auth\\instagram\\complete\\page.tsx",
+    "routePath": "/auth/instagram/complete",
+    "componentName": "InstagramCompletePage",
+    "pageTitle": "",
+    "keyUI": [
+      "search bar"
+    ],
+    "snippet": "export default function InstagramCompletePage() {\r\n  const router = useRouter();\r\n  const searchParams = useSearchParams();\r\n  const [status, setStatus] = useState(\"Processing Instagram authorization...\");\r\n\r\n  useEffect(() => {\r\n    const code = searchParams.get(\"code\");\r\n    const state = searchPa"
+  },
+  {
+    "file": "overview\\page.tsx",
+    "routePath": "/overview",
+    "componentName": "OverviewPage",
+    "pageTitle": "",
+    "keyUI": [
+      "buttons"
+    ],
+    "snippet": "export default function OverviewPage() {\r\n  const router = useRouter();\r\n  const { workspaces, loading, activeWorkspace, selectWorkspace } = useWorkspaces();\r\n  const [creating, setCreating] = useState(false);\r\n  const [toast, setToast] = useState<{ name: string } | null>(null);\r\n  const [createErro"
+  },
+  {
+    "file": "page.tsx",
+    "routePath": "/",
+    "componentName": "LandingPage",
+    "pageTitle": "Master Social Ads with\r\n                  AI-Powered\r\n                  Intelligence",
+    "keyUI": [
+      "buttons",
+      "cards"
+    ],
+    "snippet": "export default function LandingPage() {\r\n  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);\r\n  const [scrolled, setScrolled] = useState(false);\r\n  const { theme, setTheme } = useTheme();\r\n  const progress = useScrollProgress();\r\n\r\n  useEffect(() => {\r\n    const handler = () => setScrolle"
+  },
+  {
+    "file": "pricing\\page.tsx",
+    "routePath": "/pricing",
+    "componentName": "PricingPage",
+    "pageTitle": "Payment not completed",
+    "keyUI": [
+      "data table",
+      "search bar",
+      "buttons",
+      "modal dialogs",
+      "form inputs"
+    ],
+    "snippet": "export default function PricingPage() {\r\n  return (\r\n    <Suspense fallback={null}>\r\n      <PricingContent />\r\n    </Suspense>\r\n  );\r\n}\r\n"
+  },
+  {
+    "file": "privacy\\page.tsx",
+    "routePath": "/privacy",
+    "componentName": "PrivacyPolicyPage",
+    "pageTitle": "Privacy Policy",
+    "keyUI": [],
+    "snippet": "export default function PrivacyPolicyPage() {\r\n  return (\r\n    <main className=\"min-h-screen bg-surface text-on-surface px-6 py-12\">\r\n      <article className=\"mx-auto max-w-3xl rounded-3xl border border-outline-variant/30 bg-surface-container-lowest p-8 shadow-sm md:p-12\">\r\n        <Link href=\"/\" c"
+  },
+  {
+    "file": "profiles\\new\\page.tsx",
+    "routePath": "/profiles/new",
+    "componentName": "CreateProfileRedirect",
+    "pageTitle": "",
+    "keyUI": [],
+    "snippet": "export default function CreateProfileRedirect() {\r\n  const router = useRouter();\r\n  useEffect(() => { router.replace(\"/overview\"); }, [router]);\r\n  return null;\r\n}\r\n"
+  },
+  {
+    "file": "profiles\\page.tsx",
+    "routePath": "/profiles",
+    "componentName": "ProfilesPage",
+    "pageTitle": "",
+    "keyUI": [],
+    "snippet": "export default function ProfilesPage() {\r\n  redirect(\"/overview\");\r\n}\r\n"
+  },
+  {
+    "file": "profiles\\[id]\\page.tsx",
+    "routePath": "/profiles/:id",
+    "componentName": "ProfileDetailPage",
+    "pageTitle": "Password changed",
+    "keyUI": [
+      "search bar",
+      "buttons",
+      "cards",
+      "modal dialogs",
+      "charts/analytics widgets",
+      "tabs",
+      "form inputs"
+    ],
+    "snippet": "export default function ProfileDetailPage() {\r\n  const { id } = useParams<{ id: string }>();\r\n  const router = useRouter();\r\n  const searchParams = useSearchParams();\r\n  const [workspace, setWorkspace] = useState<Workspace | null>(null);\r\n  const [loading, setLoading] = useState(true);\r\n  const [sav"
+  },
+  {
+    "file": "social-callback\\facebook\\page.tsx",
+    "routePath": "/social-callback/facebook",
+    "componentName": "Unknown",
+    "pageTitle": "",
+    "keyUI": [],
+    "snippet": ""
+  },
+  {
+    "file": "terms\\page.tsx",
+    "routePath": "/terms",
+    "componentName": "TermsOfServicePage",
+    "pageTitle": "Terms of Service",
+    "keyUI": [],
+    "snippet": "export default function TermsOfServicePage() {\r\n  return (\r\n    <main className=\"min-h-screen bg-surface text-on-surface px-6 py-12\">\r\n      <article className=\"mx-auto max-w-3xl rounded-3xl border border-outline-variant/30 bg-surface-container-lowest p-8 shadow-sm md:p-12\">\r\n        <Link href=\"/\" "
+  }
+]

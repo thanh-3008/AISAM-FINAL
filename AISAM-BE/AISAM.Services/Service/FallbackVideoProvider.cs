@@ -12,7 +12,7 @@ public sealed class FallbackVideoProvider : IAIVideoProvider
     private readonly VideoProviderSettings _settings;
     private readonly ILogger<FallbackVideoProvider> _logger;
 
-    public string ProviderName => "OpenRouter→DeAPI";
+    public string ProviderName => "DeAPI→OpenRouter";
 
     public FallbackVideoProvider(
         DeApiVideoClient deapi,
@@ -31,31 +31,31 @@ public sealed class FallbackVideoProvider : IAIVideoProvider
         _logger.LogInformation("========= VIDEO GENERATION START =========");
         _logger.LogInformation("Prompt: {Prompt}", prompt.Length > 100 ? prompt[..100] + "..." : prompt);
         _logger.LogInformation("Options: AspectRatio={AR}, Duration={Dur}", options?.AspectRatio ?? "9:16", options?.DurationSeconds > 0 ? $"{options.DurationSeconds}s" : "N/A (Default/Segmented)");
-        _logger.LogInformation("Provider chain: OpenRouter → DeAPI");
-        _logger.LogInformation("OpenRouter Key: {HasKey}, BaseUrl: {Url}", !string.IsNullOrWhiteSpace(_settings.OpenRouterApiKey) ? "SET" : "MISSING", _settings.OpenRouterBaseUrl ?? "(default)");
+        _logger.LogInformation("Provider chain: DeAPI → OpenRouter");
         _logger.LogInformation("DeAPI Key: {HasKey}, BaseUrl: {Url}, Model: {Model}", !string.IsNullOrWhiteSpace(_settings.DeApiApiKey) ? "SET" : "MISSING", _settings.DeApiBaseUrl ?? "(default)", _settings.DeApiModel ?? "(default)");
+        _logger.LogInformation("OpenRouter Key: {HasKey}, BaseUrl: {Url}", !string.IsNullOrWhiteSpace(_settings.OpenRouterApiKey) ? "SET" : "MISSING", _settings.OpenRouterBaseUrl ?? "(default)");
 
-        // === Provider 1: OpenRouter ===
-        _logger.LogInformation("[1/3] Attempting OpenRouter video start...");
-        var orResult = await _openRouter.StartAsync(prompt, options, cancellationToken);
-        if (orResult.Success)
-        {
-            _logger.LogInformation("[1/3] ✅ OpenRouter SUCCESS. JobId={JobId}", orResult.JobId);
-            return orResult;
-        }
-        _logger.LogWarning("[1/3] ❌ OpenRouter FAILED: {Error}", orResult.ErrorMessage);
-
-        // === Provider 2: DeAPI ===
-        _logger.LogInformation("[2/3] Attempting DeAPI video start...");
+        // === Provider 1: DeAPI ===
+        _logger.LogInformation("[1/3] Attempting DeAPI video start...");
         var deapiResult = await _deapi.StartAsync(prompt, options, cancellationToken);
         if (deapiResult.Success)
         {
-            _logger.LogInformation("[2/3] ✅ DeAPI SUCCESS. JobId={JobId}", deapiResult.JobId);
+            _logger.LogInformation("[1/3] ✅ DeAPI SUCCESS. JobId={JobId}", deapiResult.JobId);
             return deapiResult;
         }
-        _logger.LogWarning("[2/3] ❌ DeAPI FAILED: {Error}", deapiResult.ErrorMessage);
+        _logger.LogWarning("[1/3] ❌ DeAPI FAILED: {Error}", deapiResult.ErrorMessage);
 
-        var error = $"Both providers failed. OpenRouter: [{orResult.ErrorMessage}] | DeAPI: [{deapiResult.ErrorMessage}]";
+        // === Provider 2: OpenRouter ===
+        _logger.LogInformation("[2/3] Attempting OpenRouter video start...");
+        var orResult = await _openRouter.StartAsync(prompt, options, cancellationToken);
+        if (orResult.Success)
+        {
+            _logger.LogInformation("[2/3] ✅ OpenRouter SUCCESS. JobId={JobId}", orResult.JobId);
+            return orResult;
+        }
+        _logger.LogWarning("[2/3] ❌ OpenRouter FAILED: {Error}", orResult.ErrorMessage);
+
+        var error = $"Both providers failed. DeAPI: [{deapiResult.ErrorMessage}] | OpenRouter: [{orResult.ErrorMessage}]";
         _logger.LogError("========= VIDEO GENERATION FAILED ========= {Error}", error);
         return VideoGenerationResult.Fail(error, ProviderName);
     }

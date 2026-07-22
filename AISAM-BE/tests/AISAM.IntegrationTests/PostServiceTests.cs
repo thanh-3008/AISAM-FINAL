@@ -191,6 +191,8 @@ public class PostServiceTests
             });
         }
 
+        public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<Post>> GetPublishedByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Post post, CancellationToken cancellationToken = default)
         {
             post.IsDeleted = true;

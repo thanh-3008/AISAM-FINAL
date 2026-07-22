@@ -67,9 +67,21 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
                 cancellationToken);
     }
 
-    public async Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, int? workspaceType = null, CancellationToken cancellationToken = default)
     {
         var query = _context.Workspaces.AsNoTracking();
+
+        if (workspaceType.HasValue)
+        {
+            query = query.Where(w => w.WorkspaceType == (WorkspaceTypeEnum)workspaceType.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+        {
+            var pattern = $"%{request.SearchTerm}%";
+            query = query.Where(w => w.Name != null && EF.Functions.ILike(w.Name, pattern));
+        }
+
         var total = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(w => w.CreatedAt)

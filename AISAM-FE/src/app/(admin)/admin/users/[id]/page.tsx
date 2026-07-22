@@ -4,18 +4,45 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminHeader from "@/components/admin/AdminHeader";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { fetchAdminUserDetail, deleteUser } from "@/services/adminService";
+import { fetchAdminUserDetail, deleteUser, impersonateUser } from "@/services/adminService";
+import { setToken, setRefreshToken, setStoredUser, getToken } from "@/lib/auth";
 
 export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showAllPayments, setShowAllPayments] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     fetchAdminUserDetail(id).then((data: any) => { setUser(data); setLoading(false); });
   }, [id]);
+
+  const handleImpersonate = async () => {
+    if (!confirm(`Are you sure you want to login as ${user.email}?`)) return;
+    setImpersonating(true);
+    const data = await impersonateUser(user.id);
+    if (data && data.accessToken) {
+      // Save admin token to restore later
+      const currentToken = getToken();
+      if (currentToken) localStorage.setItem("aisam_admin_token", currentToken);
+      
+      setToken(data.accessToken);
+      setRefreshToken(data.refreshToken);
+      setStoredUser({
+        id: data.user.id,
+        fullName: data.user.fullName,
+        email: data.user.email
+      });
+      // Redirect to the user's dashboard
+      window.location.href = "/dashboard";
+    } else {
+      alert("Failed to impersonate user.");
+      setImpersonating(false);
+    }
+  };
 
   if (loading) return (
     <><AdminHeader breadcrumbs={[{ label: "Users", href: "/admin/users" }, { label: "Loading..." }]} /><main className="flex-1 p-8"><div className="animate-pulse space-y-4"><div className="h-8 w-64 bg-gray-200 rounded" /></div></main></>
@@ -31,7 +58,17 @@ export default function AdminUserDetailPage() {
       <main className="flex-1 p-8 space-y-6">
         {/* User Info */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">User Details</h3>
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">User Details</h3>
+            <button 
+              onClick={handleImpersonate}
+              disabled={impersonating || user.role === 2}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+              {impersonating ? "Logging in..." : "Login as User"}
+            </button>
+          </div>
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div><dt className="text-gray-500">Email</dt><dd className="font-medium text-gray-900">{user.email}</dd></div>
             <div><dt className="text-gray-500">Full Name</dt><dd className="font-medium text-gray-900">{user.fullName}</dd></div>
@@ -70,6 +107,87 @@ export default function AdminUserDetailPage() {
                   <span className="text-gray-500">{new Date(s.createdAt).toLocaleString()}</span>
                   <span className="text-gray-400 truncate max-w-xs ml-4">{s.userAgent || "Unknown"}</span>
                   <StatusBadge status={s.isActive ? "Active" : "Ended"} variant={s.isActive ? "success" : "neutral"} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Subscriptions */}
+        {user.subscriptions && user.subscriptions.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Active Subscriptions ({user.subscriptions.length})</h3>
+            <div className="space-y-2">
+              {user.subscriptions.map((sub: any) => (
+                <div key={sub.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">
+                      Plan: {sub.planType === 1 ? "Pro" : sub.planType === 2 ? "Business" : "Free"}
+                    </p>
+                    <p className="text-xs text-gray-500">Workspace: {sub.workspaceName}</p>
+                  </div>
+                  <div className="text-right">
+                    <StatusBadge status={sub.status === 1 ? "Active" : "Inactive"} variant={sub.status === 1 ? "success" : "neutral"} />
+                    <p className="text-xs text-gray-400 mt-1">Ends: {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : "N/A"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Payments */}
+        {user.payments && user.payments.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Payment History</h3>
+              {user.payments.some((p: any) => new Date(p.createdAt).getTime() < Date.now() - 365 * 24 * 60 * 60 * 1000) && (
+                <button 
+                  onClick={() => setShowAllPayments(!showAllPayments)}
+                  className="text-xs text-primary font-medium hover:underline"
+                >
+                  {showAllPayments ? "Hide older than 1 year" : "Show all history"}
+                </button>
+              )}
+            </div>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {user.payments
+                .filter((p: any) => showAllPayments || new Date(p.createdAt).getTime() >= Date.now() - 365 * 24 * 60 * 60 * 1000)
+                .map((p: any) => (
+                <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: p.currency || 'USD' }).format(p.amount)}
+                    </p>
+                    <p className="text-xs text-gray-500">{p.workspaceName ? `Workspace: ${p.workspaceName}` : "Direct Purchase"}</p>
+                  </div>
+                  <div className="text-right">
+                    <StatusBadge status={p.status === 2 ? "Success" : p.status === 3 ? "Failed" : "Pending"} variant={p.status === 2 ? "success" : p.status === 3 ? "error" : "warning"} />
+                    <p className="text-xs text-gray-400 mt-1">{new Date(p.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Campaigns */}
+        {user.campaigns && user.campaigns.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Ad Campaigns ({user.campaigns.length})</h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {user.campaigns.map((c: any) => (
+                <div key={c.id} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                  <div className="flex justify-between items-center">
+                    <p className="font-medium text-gray-900 text-sm">{c.name}</p>
+                    <StatusBadge status={c.status === 2 ? "Active" : c.status === 0 ? "Draft" : "Completed"} variant={c.status === 2 ? "success" : "neutral"} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-xs text-gray-500">
+                    <div><span className="block text-gray-400">Workspace</span><span className="font-medium text-gray-700">{c.workspaceName}</span></div>
+                    <div><span className="block text-gray-400">Impressions</span><span className="font-medium text-gray-700">{c.impressions?.toLocaleString() || 0}</span></div>
+                    <div><span className="block text-gray-400">Clicks</span><span className="font-medium text-gray-700">{c.clicks?.toLocaleString() || 0}</span></div>
+                    <div><span className="block text-gray-400">Spend</span><span className="font-medium text-gray-700">${c.spend?.toLocaleString() || 0}</span></div>
+                  </div>
                 </div>
               ))}
             </div>

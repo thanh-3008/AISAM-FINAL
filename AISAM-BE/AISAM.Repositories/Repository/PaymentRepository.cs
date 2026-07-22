@@ -89,6 +89,14 @@ public sealed class PaymentRepository : IPaymentRepository
         };
     }
 
+    public async Task<IReadOnlyList<Payment>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .Where(payment => !payment.IsDeleted && payment.UserId == userId)
+            .OrderByDescending(payment => payment.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Payment> AddAsync(Payment payment, CancellationToken cancellationToken = default)
     {
         payment.CreatedAt = DateTime.UtcNow;
@@ -103,9 +111,13 @@ public sealed class PaymentRepository : IPaymentRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, PaymentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         var query = _context.Payments.AsNoTracking();
+        if (status.HasValue)
+        {
+            query = query.Where(p => p.Status == status.Value);
+        }
         var total = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(p => p.CreatedAt)
@@ -141,6 +153,24 @@ public sealed class PaymentRepository : IPaymentRepository
             .GroupBy(p => p.CreatedAt.Date)
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+    }
+
+    public async Task<List<TopWorkspaceRevenueDto>> GetTopWorkspacesByRevenueAsync(int limit, DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Payments.Where(p => p.Status == PaymentStatusEnum.Success && p.WorkspaceId != null);
+        if (from.HasValue) query = query.Where(p => p.CreatedAt >= from.Value);
+        if (to.HasValue) query = query.Where(p => p.CreatedAt <= to.Value);
+
+        return await query
+            .GroupBy(p => p.WorkspaceId)
+            .Select(g => new TopWorkspaceRevenueDto
+            {
+                WorkspaceId = g.Key.Value,
+                Revenue = g.Sum(p => p.Amount)
+            })
+            .OrderByDescending(x => x.Revenue)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
     }
 
     private IQueryable<Payment> Query()

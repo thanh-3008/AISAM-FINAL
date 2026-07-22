@@ -102,7 +102,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             {
                 var generatedText = await _textClient.GenerateAsync(BuildTextPrompt(item), cancellationToken);
                 if (string.IsNullOrWhiteSpace(generatedText)) throw new InvalidOperationException("AI returned empty content.");
-                content.TextContent = generatedText.Trim();
+                content.TextContent = EnsureProductLandingUrlInCaption(generatedText.Trim(), item.Product, $"{item.Notes}\n{item.Cta}");
                 await _context.SaveChangesAsync(cancellationToken);
                 if (item.UsedCredits < 1)
                 {
@@ -222,12 +222,13 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         Product: {item.Product?.Name ?? "Not specified"}
         Product knowledge profile:
         {BuildProductKnowledgeContext(item.Product)}
+        Product landing URL: {ExtractProductSourceUrl(item.Product) ?? "Not specified"}
         Topic: {item.Topic}
         Objective: {item.Objective ?? "Not specified"}
         Tone: {item.Tone ?? "Natural and professional"}
         CTA: {item.Cta ?? "Choose a suitable call to action"}
         Notes: {item.Notes ?? "None"}
-        Return only the final caption, including a concise CTA and relevant hashtags. Do not explain your answer. Do not include assistant-talk such as "Được thôi", "Tôi sẽ", or "Dưới đây là".
+        Return only the final caption, including a concise CTA and relevant hashtags. Write the post naturally. DO NOT include structural labels like "Title:", "Caption:", or "Nội dung:". Just output the final text ready to be posted. The backend will append the exact Product landing URL after generation when one is available, so do not invent, shorten, rewrite, or add fake URLs yourself. Do not explain your answer. Do not include assistant-talk such as "Được thôi", "Tôi sẽ", or "Dưới đây là".
         """;
 
     private static string BuildImagePrompt(AutomationItem item) => $"""
@@ -240,9 +241,13 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         If product reference image URLs are present, use all provided reference images collectively to reconstruct the same physical product. The first reference image is the primary reference and has the highest priority; supporting reference images provide complementary views and details.
         Treat all reference images as different views of one product. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name.
         Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, logo or marking placement, and distinctive details from the reference product images, maintaining the exact product design, high fidelity, commercial advertising photography.
-        Use a clear scene context, intentional camera angle, polished lighting, and commercial art direction.
+        Act as an expert commercial product photographer.
+        Strict rules: NO HUMANS, NO FACES, NO HANDS, NO BODY PARTS. Do not show people, hands holding the product, faces, silhouettes, or human skin.
+        Use a minimalist clean commercial background related to the product with intentional negative space for future text placement.
+        Use studio lighting, 4k resolution, hyper-realistic, polished 3D render style, premium commercial product photography. Put the product as the central hero subject.
+        Add only subtle decor accents such as soft blurred leaves, window light, water reflections, geometric shapes, or material textures when relevant.
         no text, no typos, clean background, no watermark, no logo text, no gibberish typography, no broken-font characters.
-        Do not render readable text, fake words, broken-font characters, watermarks, logos, or UI elements inside the image.
+        Do not render readable text, fake words, broken-font characters, watermarks, logos, UI elements, or brand-name text inside the image.
         """;
 
     private static string BuildVideoPrompt(AutomationItem item) => $"""
@@ -267,6 +272,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         AddPart(parts, "Target audience", product.TargetAudience);
         AddPart(parts, "Visual identity", product.VisualIdentity);
         AddPart(parts, "Knowledge profile", product.KnowledgeProfile);
+        AddPart(parts, "Product landing URL", ExtractProductSourceUrl(product));
         AddPart(parts, "Reference image URLs", FormatProductImages(product.Images));
 
         return parts.Count == 0 ? "Not specified" : string.Join("\n", parts);
@@ -284,6 +290,114 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
     {
         var images = ParseProductImages(rawImages);
         return images.Count == 0 ? null : string.Join(", ", images.Take(5));
+    }
+
+    private static string? ExtractProductSourceUrl(Product? product)
+    {
+        if (IsValidHttpUrl(product?.ProductUrl)) return product!.ProductUrl!.Trim();
+        if (string.IsNullOrWhiteSpace(product?.KnowledgeProfile)) return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(product.KnowledgeProfile);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("sourceUrl", out var sourceUrl) &&
+                sourceUrl.ValueKind == JsonValueKind.String)
+            {
+                var value = sourceUrl.GetString();
+                return IsValidHttpUrl(value) ? value : null;
+            }
+        }
+        catch (JsonException)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(product.KnowledgeProfile, @"https?://[^\s""'<>]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success && IsValidHttpUrl(match.Value) ? match.Value : null;
+        }
+
+        return null;
+    }
+
+    private static string EnsureProductLandingUrlInCaption(string caption, Product? product, string? instructionText = null)
+    {
+        if (string.IsNullOrWhiteSpace(caption)) return caption;
+        var cleanedCaption = StripStructuralPostLabels(caption);
+        if (ShouldSuppressProductLink(instructionText)) return cleanedCaption;
+
+        var sourceUrl = ExtractProductSourceUrl(product);
+        if (string.IsNullOrWhiteSpace(sourceUrl)) return cleanedCaption;
+        if (cleanedCaption.Contains(sourceUrl, StringComparison.OrdinalIgnoreCase)) return cleanedCaption;
+
+        return $"{cleanedCaption.Trim()}\n\n👉 Xem chi tiết và mua ngay tại: {sourceUrl}";
+    }
+
+    private static string StripStructuralPostLabels(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var cleaned = value.Trim();
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned,
+            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:title|tiêu đề|tieu de)\s*:?\s*(?:\*\*)?\s*",
+            string.Empty,
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned,
+            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:caption|nội dung|noi dung|content)\s*:?\s*(?:\*\*)?\s*",
+            string.Empty,
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned,
+            @"\n{3,}",
+            "\n\n",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        return cleaned.Trim();
+    }
+
+    private static bool ShouldSuppressProductLink(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        var normalized = RemoveVietnameseDiacritics(value).ToLowerInvariant();
+        var signals = new[]
+        {
+            "no link",
+            "without link",
+            "do not include link",
+            "dont include link",
+            "khong can chen link",
+            "khong chen link",
+            "khong gan link",
+            "khong them link",
+            "bo link"
+        };
+
+        return signals.Any(signal => normalized.Contains(signal));
+    }
+
+    private static string RemoveVietnameseDiacritics(string value)
+    {
+        var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+        var builder = new System.Text.StringBuilder(normalized.Length);
+
+        foreach (var character in normalized)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString()
+            .Replace('đ', 'd')
+            .Replace('Đ', 'd')
+            .Normalize(System.Text.NormalizationForm.FormC);
+    }
+
+    private static bool IsValidHttpUrl(string? value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
     private static string BuildProductImageReferenceInstruction(Product? product)

@@ -15,13 +15,18 @@ export default function AdminPaymentsPage() {
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
-    const data = await fetchAdminPayments(page);
+    let statusParam: number | undefined = undefined;
+    if (statusFilter === "completed") statusParam = 1;
+    if (statusFilter === "pending") statusParam = 0;
+    if (statusFilter === "failed") statusParam = 2;
+
+    const data = await fetchAdminPayments(page, 20, statusParam);
     if (data) {
       setPayments(data.items);
       setTotal(data.total);
     }
     setLoading(false);
-  }, [page]);
+  }, [page, statusFilter]);
 
   useEffect(() => { loadPayments(); }, [loadPayments]);
 
