@@ -10,6 +10,7 @@ namespace AISAM.Services.IServices
         Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(PaginationRequest request, Guid workspaceId, Guid userId, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default);
         Task<GenericResponse<ProductResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
         Task<GenericResponse<ProductResponseDto>> CreateAsync(Guid workspaceId, Guid userId, ProductCreateRequest request, CancellationToken cancellationToken = default);
+        Task<GenericResponse<ProductResponseDto>> CreateReviewedImportAsync(Guid workspaceId, Guid userId, ProductImportReviewRequest request, CancellationToken cancellationToken = default);
         Task<GenericResponse<ProductResponseDto>> UpdateAsync(Guid id, Guid workspaceId, Guid userId, ProductUpdateRequestDto request, CancellationToken cancellationToken = default);
         Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
         Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
