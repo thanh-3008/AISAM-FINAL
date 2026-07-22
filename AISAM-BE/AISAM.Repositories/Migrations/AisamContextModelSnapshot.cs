@@ -1632,6 +1632,11 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("text")
                         .HasColumnName("knowledge_profile");
 
+                    b.Property<string>("ProductUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("product_url");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)

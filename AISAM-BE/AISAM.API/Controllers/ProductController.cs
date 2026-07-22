@@ -16,11 +16,13 @@ namespace AISAM.API.Controllers
     public class ProductController : ControllerBase
     {
         private readonly IProductService _productService;
+        private readonly IProductImportService _productImportService;
         private readonly ILogger<ProductController> _logger;
 
-        public ProductController(IProductService productService, ILogger<ProductController> logger)
+        public ProductController(IProductService productService, IProductImportService productImportService, ILogger<ProductController> logger)
         {
             _productService = productService;
+            _productImportService = productImportService;
             _logger = logger;
         }
 
@@ -104,6 +106,52 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating product");
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("extract-url")]
+        public async Task<ActionResult<GenericResponse<ProductUrlExtractResponseDto>>> ExtractFromUrl([FromBody] ProductUrlExtractRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _ = UserClaimsHelper.GetUserIdOrThrow(User);
+                var result = await _productImportService.ExtractFromUrlAsync(request.Url, cancellationToken);
+                return result.Success ? Ok(result) : StatusCode(result.StatusCode, result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<ProductUrlExtractResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error extracting product from URL {Url}", request.Url);
+                return StatusCode(500, GenericResponse<ProductUrlExtractResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("import-reviewed")]
+        public async Task<ActionResult<GenericResponse<ProductResponseDto>>> CreateReviewedImport([FromBody] ProductImportReviewRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _productService.CreateReviewedImportAsync(workspaceId, userId, request, cancellationToken);
+                if (!result.Success)
+                {
+                    return BadRequest(result);
+                }
+
+                return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<ProductResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving reviewed imported product");
                 return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }

@@ -97,6 +97,7 @@ namespace AISAM.Services.Service
                 Usp = NormalizeOptional(request.Usp),
                 TargetAudience = NormalizeOptional(request.TargetAudience),
                 VisualIdentity = NormalizeOptional(request.VisualIdentity),
+                ProductUrl = NormalizeUrl(request.ProductUrl),
                 Price = request.Price,
                 Stock = request.Stock,
                 Images = JsonSerializer.Serialize(new List<string>())
@@ -119,6 +120,64 @@ namespace AISAM.Services.Service
             var loaded = await _productRepository.GetByIdAsync(created.Id, cancellationToken) ?? created;
 
             return GenericResponse<ProductResponseDto>.CreateSuccess(MapToDto(loaded), "Product created successfully");
+        }
+
+        public async Task<GenericResponse<ProductResponseDto>> CreateReviewedImportAsync(Guid workspaceId, Guid userId, ProductImportReviewRequest request, CancellationToken cancellationToken = default)
+        {
+            var access = await EnsureBrandWorkspaceAccessAsync(request.BrandId, workspaceId, userId, cancellationToken);
+            if (!access.Success)
+            {
+                return GenericResponse<ProductResponseDto>.CreateError(access.Message);
+            }
+
+            var images = request.Images
+                .Where(IsHttpUrl)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxImageCount)
+                .ToList();
+
+            var benefits = CleanList(request.Benefits).Take(4).ToList();
+            var features = CleanList(request.Features);
+            var keywords = CleanList(request.Keywords);
+
+            var product = new Product
+            {
+                BrandId = request.BrandId,
+                Name = request.ProductName.Trim(),
+                Description = NormalizeOptional(request.Description),
+                ProductUrl = NormalizeUrl(request.SourceUrl),
+                Price = request.Price,
+                Stock = 0,
+                Images = JsonSerializer.Serialize(images),
+                PrimaryUse = benefits.Count > 0 ? string.Join("; ", benefits) : null,
+                Usp = benefits.FirstOrDefault(),
+                TargetAudience = NormalizeOptional(request.TargetAudience),
+                VisualIdentity = images.Count > 0
+                    ? $"Imported reference images: {images.Count}. Use these URLs as real product references for future image generation."
+                    : null
+            };
+
+            product.KnowledgeProfile = JsonSerializer.Serialize(new
+            {
+                importStatus = "Reviewed",
+                sourceUrl = product.ProductUrl,
+                productName = product.Name,
+                description = product.Description,
+                price = product.Price,
+                benefits,
+                features,
+                targetAudience = NormalizeOptional(request.TargetAudience),
+                tone = NormalizeOptional(request.Tone),
+                keywords,
+                recommendedCTA = NormalizeOptional(request.RecommendedCTA),
+                images,
+                importedAt = DateTime.UtcNow
+            });
+
+            var created = await _productRepository.AddAsync(product, cancellationToken);
+            var loaded = await _productRepository.GetByIdAsync(created.Id, cancellationToken) ?? created;
+
+            return GenericResponse<ProductResponseDto>.CreateSuccess(MapToDto(loaded), "Reviewed product imported successfully");
         }
 
         public async Task<GenericResponse<ProductResponseDto>> UpdateAsync(Guid id, Guid workspaceId, Guid userId, ProductUpdateRequestDto request, CancellationToken cancellationToken = default)
@@ -178,6 +237,11 @@ namespace AISAM.Services.Service
             if (request.VisualIdentity != null)
             {
                 product.VisualIdentity = NormalizeOptional(request.VisualIdentity);
+            }
+
+            if (request.ProductUrl != null)
+            {
+                product.ProductUrl = NormalizeUrl(request.ProductUrl);
             }
 
             if (request.Price.HasValue)
@@ -294,6 +358,7 @@ namespace AISAM.Services.Service
                 TargetAudience = product.TargetAudience,
                 VisualIdentity = product.VisualIdentity,
                 KnowledgeProfile = product.KnowledgeProfile,
+                ProductUrl = product.ProductUrl,
                 Price = product.Price,
                 Stock = product.Stock,
                 Images = DeserializeImages(product.Images),
@@ -305,6 +370,28 @@ namespace AISAM.Services.Service
         private static string? NormalizeOptional(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static List<string> CleanList(IEnumerable<string>? values)
+        {
+            return values?
+                .Select(NormalizeOptional)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new List<string>();
+        }
+
+        private static bool IsHttpUrl(string? value)
+        {
+            return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        }
+
+        private static string? NormalizeUrl(string? value)
+        {
+            var normalized = NormalizeOptional(value);
+            return IsHttpUrl(normalized) ? normalized : null;
         }
 
         private static List<string> DeserializeImages(string? images)
@@ -336,6 +423,7 @@ namespace AISAM.Services.Service
             AddLine(lines, "Mô tả", product.Description);
             AddLine(lines, "Công dụng chính", product.PrimaryUse);
             AddLine(lines, "Điểm khác biệt/USP", product.Usp);
+            AddLine(lines, "Link sản phẩm", product.ProductUrl);
             AddLine(lines, "Đối tượng mục tiêu", product.TargetAudience);
             AddLine(lines, "Định hình hình ảnh", product.VisualIdentity);
 
