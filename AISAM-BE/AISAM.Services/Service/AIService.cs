@@ -223,7 +223,7 @@ public sealed class AIService : IAIService
         try
         {
             var rawResponse = await _geminiTextClient.GenerateAsync(
-                BuildChatPrompt(conversation, selectedBrand, selectedProduct, userMessage),
+                BuildChatPrompt(conversation, selectedBrand, selectedProduct, userMessage, request),
                 cancellationToken);
             var parsedResponse = ParseChatResponse(rawResponse);
             var responseText = parsedResponse.Response;
@@ -258,6 +258,13 @@ public sealed class AIService : IAIService
             }
 
             Guid? createdContentId = null;
+            var originalProductImageUrls = request.UseOriginalProductImages
+                ? GetProductImageUrls(selectedProduct)
+                    .Where(IsValidImageUrl)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(5)
+                    .ToList()
+                : new List<string>();
 
             if (workspaceId.HasValue && userId.HasValue && IsImageIntent(parsedResponse.Intent))
             {
@@ -269,6 +276,43 @@ public sealed class AIService : IAIService
                 }
                 else
                 {
+                    if (request.UseOriginalProductImages)
+                    {
+                        if (originalProductImageUrls.Count == 0)
+                        {
+                            responseText += "\n\n(Sản phẩm chưa có ảnh gốc để đính kèm.)";
+                        }
+                        else
+                        {
+                            var dummyContent = await _contentRepository.AddAsync(new Content
+                            {
+                                ProfileId = profileId,
+                                WorkspaceId = workspaceId.Value,
+                                BrandId = conversation.BrandId.Value,
+                                ProductId = conversation.ProductId,
+                                AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
+                                Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Original Product Images",
+                                TextContent = StripMediaMarkers(responseText),
+                                ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
+                                Status = ContentStatusEnum.PendingApproval,
+                                IsAiGenerated = true
+                            }, CancellationToken.None);
+
+                            await _generationRepository.AddAsync(new AiGeneration
+                            {
+                                ContentId = dummyContent.Id,
+                                AiPrompt = "Use original product images from selected product. No AI image generation was requested.",
+                                GeneratedImageUrl = originalProductImageUrls[0],
+                                ProviderName = "ProductOriginalImages",
+                                Status = AiStatusEnum.Completed
+                            }, CancellationToken.None);
+
+                            createdContentId = dummyContent.Id;
+                            responseText = AppendOriginalProductImagesToResponse(responseText, originalProductImageUrls);
+                        }
+                    }
+                    else
+                    {
                     var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateImage, ImageGenerationCredits, cancellationToken: CancellationToken.None);
                     if (!chargeResult.Success)
                     {
@@ -316,6 +360,7 @@ public sealed class AIService : IAIService
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
                             responseText += $"\n\n(Lỗi tạo ảnh: {imgResult.ErrorMessage})";
                         }
+                    }
                     }
                 }
             }
@@ -376,6 +421,43 @@ public sealed class AIService : IAIService
                         }
                     }
                 }
+            }
+
+            if (!createdContentId.HasValue &&
+                request.UseOriginalProductImages &&
+                originalProductImageUrls.Count > 0 &&
+                string.Equals(parsedResponse.Intent, "content", StringComparison.OrdinalIgnoreCase))
+            {
+                if (workspaceId.HasValue && conversation.BrandId.HasValue)
+                {
+                    var contentWithOriginalImages = await _contentRepository.AddAsync(new Content
+                    {
+                        ProfileId = profileId,
+                        WorkspaceId = workspaceId.Value,
+                        BrandId = conversation.BrandId.Value,
+                        ProductId = conversation.ProductId,
+                        AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
+                        Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
+                        TextContent = StripMediaMarkers(responseText),
+                        ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
+                        Status = ContentStatusEnum.PendingApproval,
+                        IsAiGenerated = true
+                    }, CancellationToken.None);
+
+                    await _generationRepository.AddAsync(new AiGeneration
+                    {
+                        ContentId = contentWithOriginalImages.Id,
+                        AiPrompt = "Use original product images from selected product. No AI image generation was requested.",
+                        GeneratedText = StripMediaMarkers(responseText),
+                        GeneratedImageUrl = originalProductImageUrls[0],
+                        ProviderName = "ProductOriginalImages",
+                        Status = AiStatusEnum.Completed
+                    }, CancellationToken.None);
+
+                    createdContentId = contentWithOriginalImages.Id;
+                }
+
+                responseText = AppendOriginalProductImagesToResponse(responseText, originalProductImageUrls);
             }
 
             await _conversationRepository.AddMessageAsync(new ChatMessage
@@ -757,7 +839,7 @@ public sealed class AIService : IAIService
         };
     }
 
-    private static string BuildChatPrompt(Conversation conversation, Brand? brand, Product? product, string message)
+    private static string BuildChatPrompt(Conversation conversation, Brand? brand, Product? product, string message, ChatRequest request)
     {
         return $$"""
 You are AISAM, an AI assistant for social media content creation.
@@ -783,6 +865,7 @@ Content quality rules:
 - Never include meta phrases such as "Được thôi", "Tôi sẽ", "Dưới đây là", "Here is", "Sure", or similar assistant-talk inside the title or caption.
 - Include a compelling title, an engaging caption/body, a clear CTA when appropriate, and relevant hashtags.
 - Rule for URL: The backend will append the exact Product landing URL after generation when one is available. Do not invent, shorten, rewrite, or add fake URLs yourself.
+- If "Use original product images" is yes, write only the caption/content. Do not tell users to view images or describe that images are attached; the backend will attach product images from the database.
 - Keep the wording natural, specific to the selected brand/product, and ready to publish.
 - For image prompts, request a clean professional advertising visual with no readable text, no letters, no fake words, no gibberish typography, no watermark, and no broken-font characters.
 
@@ -833,6 +916,7 @@ Context:
   - Knowledge profile: {{product?.KnowledgeProfile ?? "none"}}
   - Product landing URL: {{ExtractProductSourceUrl(product) ?? "none"}}
   - Reference image URLs: {{FormatProductImagesForPrompt(product)}}
+  - Use original product images: {{(request.UseOriginalProductImages ? "yes" : "no")}}
   - Price: {{product?.Price?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"}}
   - Stock: {{product?.Stock.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"}}
 - AdType: {{conversation.AdType}}
@@ -1171,6 +1255,25 @@ Latest user message:
         {
             return new List<string>();
         }
+    }
+
+    private static string AppendOriginalProductImagesToResponse(string responseText, IReadOnlyList<string> imageUrls)
+    {
+        if (imageUrls.Count == 0) return responseText;
+        if (responseText.Contains("[IMAGE:", StringComparison.OrdinalIgnoreCase)) return responseText;
+
+        // The current frontend preview reads the first [IMAGE: ...] marker.
+        // The Content record still stores the full image URL array when we create one above.
+        return $"{responseText.Trim()}\n\n[IMAGE: {imageUrls[0]}]";
+    }
+
+    private static string StripMediaMarkers(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var cleaned = Regex.Replace(value, @"\[IMAGE:\s*.+?\]", string.Empty, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        cleaned = Regex.Replace(cleaned, @"\[VIDEO_JOB:\s*.+?\]", string.Empty, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return cleaned.Trim();
     }
 
     private static IReadOnlyList<string> GetReferenceImageUrlsForGeneration(Product? product, string? userMessage, string? prompt, ChatRequest? request = null) =>

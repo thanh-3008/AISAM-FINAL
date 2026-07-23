@@ -359,6 +359,7 @@ export async function chatWithAI(
     generationMode?: "exact_product_reference" | "normal_generation";
     uploadedPrimaryImageUrl?: string | null;
     selectedProductImageUrl?: string | null;
+    useOriginalProductImages?: boolean;
   }
 ): Promise<{ text?: string; conversationId?: string; shouldCreateContent?: boolean; createdContentId?: string; errorMessage?: string } | null> {
   try {
@@ -372,6 +373,7 @@ export async function chatWithAI(
         generationMode: options?.generationMode,
         uploadedPrimaryImageUrl: options?.uploadedPrimaryImageUrl ?? null,
         selectedProductImageUrl: options?.selectedProductImageUrl ?? null,
+        useOriginalProductImages: options?.useOriginalProductImages === true,
         userPrompt: message,
       },
     });
