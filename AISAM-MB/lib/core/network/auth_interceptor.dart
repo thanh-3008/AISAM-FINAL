@@ -7,26 +7,27 @@ import '../services/logger_service.dart';
 class AuthInterceptor extends Interceptor {
   final SecureStorage _storage;
   final Dio _dio;
+  final void Function()? onSessionExpired;
   
   Completer<void>? _refreshCompleter;
 
-  AuthInterceptor(this._storage, this._dio);
+  AuthInterceptor(this._storage, this._dio, {this.onSessionExpired});
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    final accessToken = await _storage.getAccessToken();
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final accessToken = _storage.cachedAccessToken;
     if (accessToken != null) {
       options.headers['Authorization'] = 'Bearer $accessToken';
     }
 
     final isAuthEndpoint = options.path.contains('/Auth/');
     if (!isAuthEndpoint) {
-      final workspaceId = await _storage.getActiveWorkspaceId();
+      final workspaceId = _storage.cachedWorkspaceId;
       if (workspaceId != null) {
         options.headers['X-Workspace-Id'] = workspaceId;
       }
       
-      final profileId = await _storage.getActiveProfileId();
+      final profileId = _storage.cachedProfileId;
       if (profileId != null) {
         options.headers['X-Profile-Id'] = profileId;
       }
@@ -42,6 +43,7 @@ class AuthInterceptor extends Interceptor {
       if (refreshToken == null) {
         LoggerService.w('Refresh token not found. Clearing storage.');
         await _storage.clearAll();
+        onSessionExpired?.call();
         return handler.next(err);
       }
 
@@ -71,6 +73,7 @@ class AuthInterceptor extends Interceptor {
         } catch (e) {
           LoggerService.e('Token refresh failed: $e');
           await _storage.clearAll();
+          onSessionExpired?.call();
           final completer = _refreshCompleter;
           _refreshCompleter = null;
           completer?.completeError(e);

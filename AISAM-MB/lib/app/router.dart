@@ -42,8 +42,10 @@ GoRouter router(RouterRef ref) {
     initialLocation: '/login',
     redirect: (context, state) async {
       final storage = ref.read(secureStorageProvider);
-      final token = await storage.getAccessToken();
-      final workspaceId = await storage.getActiveWorkspaceId();
+      await storage.initCache(); // Only blocks on first call
+      
+      final token = storage.cachedAccessToken;
+      final workspaceId = storage.cachedWorkspaceId;
       
       final isAuthRoute = state.uri.path == '/login' || 
                           state.uri.path == '/register' ||

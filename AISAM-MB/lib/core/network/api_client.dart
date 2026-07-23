@@ -4,6 +4,7 @@ import '../storage/secure_storage.dart';
 import 'auth_interceptor.dart';
 import '../config/env_config.dart';
 import '../services/logger_service.dart';
+import '../../app/router.dart';
 
 part 'api_client.g.dart';
 
@@ -29,7 +30,17 @@ Dio dio(DioRef ref) {
   ));
 
   final storage = ref.watch(secureStorageProvider);
-  dio.interceptors.add(AuthInterceptor(storage, dio));
+  dio.interceptors.add(AuthInterceptor(
+    storage, 
+    dio,
+    onSessionExpired: () {
+      try {
+        ref.read(routerProvider).go('/login');
+      } catch (e) {
+        LoggerService.e('Navigation to login failed: $e');
+      }
+    },
+  ));
   
   if (EnvConfig.isDebugMode) {
     dio.interceptors.add(LogInterceptor(

@@ -38,8 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _onGoogleLogin() {
-    // Tạm thời mock Google Login
-    ref.read(authControllerProvider.notifier).googleLogin('mocked-google-id-token');
+    ref.read(authControllerProvider.notifier).googleLogin();
   }
 
   Widget _buildSocialButton({

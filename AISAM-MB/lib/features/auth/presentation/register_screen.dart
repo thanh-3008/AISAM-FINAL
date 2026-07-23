@@ -51,7 +51,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   void _onGoogleLogin() {
-    ref.read(authControllerProvider.notifier).googleLogin('mocked-google-id-token');
+    ref.read(authControllerProvider.notifier).googleLogin();
   }
 
   Widget _buildSocialButton({
