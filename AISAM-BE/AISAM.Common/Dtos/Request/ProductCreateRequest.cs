@@ -33,6 +33,9 @@ namespace AISAM.Common.Dtos.Request
         [MaxLength(6000)]
         public string? KnowledgeProfile { get; set; }
 
+        [MaxLength(2000)]
+        public string? ProductUrl { get; set; }
+
         public decimal? Price { get; set; }
 
         public int Stock { get; set; }

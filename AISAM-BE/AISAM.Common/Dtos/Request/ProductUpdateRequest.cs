@@ -14,6 +14,7 @@ namespace AISAM.Common.Dtos.Request
         public string? TargetAudience { get; set; }
         public string? VisualIdentity { get; set; }
         public string? KnowledgeProfile { get; set; }
+        public string? ProductUrl { get; set; }
         public decimal? Price { get; set; }
         public int? Stock { get; set; }
         public List<IFormFile>? ImageFiles { get; set; } 

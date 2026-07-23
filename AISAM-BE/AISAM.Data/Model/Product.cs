@@ -41,6 +41,10 @@ namespace AISAM.Data.Model
         [Column("knowledge_profile")]
         public string? KnowledgeProfile { get; set; }
 
+        [MaxLength(2000)]
+        [Column("product_url")]
+        public string? ProductUrl { get; set; }
+
         [Column("price", TypeName = "decimal(10,2)")]
         public decimal? Price { get; set; }
 

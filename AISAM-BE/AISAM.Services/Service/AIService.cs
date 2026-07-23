@@ -9,6 +9,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Services.Service;
@@ -222,10 +223,11 @@ public sealed class AIService : IAIService
         try
         {
             var rawResponse = await _geminiTextClient.GenerateAsync(
-                BuildChatPrompt(conversation, selectedBrand, selectedProduct, userMessage),
+                BuildChatPrompt(conversation, selectedBrand, selectedProduct, userMessage, request),
                 cancellationToken);
             var parsedResponse = ParseChatResponse(rawResponse);
             var responseText = parsedResponse.Response;
+            responseText = EnsureProductLandingUrlInGeneratedResponse(responseText, parsedResponse.Intent, selectedProduct, userMessage);
 
             Console.WriteLine($"[AIService.ChatInternalAsync] Parsed AI intent={parsedResponse.Intent}. ConversationId={conversation.Id}");
 
@@ -256,6 +258,13 @@ public sealed class AIService : IAIService
             }
 
             Guid? createdContentId = null;
+            var originalProductImageUrls = request.UseOriginalProductImages
+                ? GetProductImageUrls(selectedProduct)
+                    .Where(IsValidImageUrl)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(5)
+                    .ToList()
+                : new List<string>();
 
             if (workspaceId.HasValue && userId.HasValue && IsImageIntent(parsedResponse.Intent))
             {
@@ -267,6 +276,43 @@ public sealed class AIService : IAIService
                 }
                 else
                 {
+                    if (request.UseOriginalProductImages)
+                    {
+                        if (originalProductImageUrls.Count == 0)
+                        {
+                            responseText += "\n\n(Sản phẩm chưa có ảnh gốc để đính kèm.)";
+                        }
+                        else
+                        {
+                            var dummyContent = await _contentRepository.AddAsync(new Content
+                            {
+                                ProfileId = profileId,
+                                WorkspaceId = workspaceId.Value,
+                                BrandId = conversation.BrandId.Value,
+                                ProductId = conversation.ProductId,
+                                AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
+                                Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Original Product Images",
+                                TextContent = StripMediaMarkers(responseText),
+                                ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
+                                Status = ContentStatusEnum.PendingApproval,
+                                IsAiGenerated = true
+                            }, CancellationToken.None);
+
+                            await _generationRepository.AddAsync(new AiGeneration
+                            {
+                                ContentId = dummyContent.Id,
+                                AiPrompt = "Use original product images from selected product. No AI image generation was requested.",
+                                GeneratedImageUrl = originalProductImageUrls[0],
+                                ProviderName = "ProductOriginalImages",
+                                Status = AiStatusEnum.Completed
+                            }, CancellationToken.None);
+
+                            createdContentId = dummyContent.Id;
+                            responseText = AppendOriginalProductImagesToResponse(responseText, originalProductImageUrls);
+                        }
+                    }
+                    else
+                    {
                     var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateImage, ImageGenerationCredits, cancellationToken: CancellationToken.None);
                     if (!chargeResult.Success)
                     {
@@ -314,6 +360,7 @@ public sealed class AIService : IAIService
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
                             responseText += $"\n\n(Lỗi tạo ảnh: {imgResult.ErrorMessage})";
                         }
+                    }
                     }
                 }
             }
@@ -376,6 +423,43 @@ public sealed class AIService : IAIService
                 }
             }
 
+            if (!createdContentId.HasValue &&
+                request.UseOriginalProductImages &&
+                originalProductImageUrls.Count > 0 &&
+                string.Equals(parsedResponse.Intent, "content", StringComparison.OrdinalIgnoreCase))
+            {
+                if (workspaceId.HasValue && conversation.BrandId.HasValue)
+                {
+                    var contentWithOriginalImages = await _contentRepository.AddAsync(new Content
+                    {
+                        ProfileId = profileId,
+                        WorkspaceId = workspaceId.Value,
+                        BrandId = conversation.BrandId.Value,
+                        ProductId = conversation.ProductId,
+                        AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
+                        Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
+                        TextContent = StripMediaMarkers(responseText),
+                        ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
+                        Status = ContentStatusEnum.PendingApproval,
+                        IsAiGenerated = true
+                    }, CancellationToken.None);
+
+                    await _generationRepository.AddAsync(new AiGeneration
+                    {
+                        ContentId = contentWithOriginalImages.Id,
+                        AiPrompt = "Use original product images from selected product. No AI image generation was requested.",
+                        GeneratedText = StripMediaMarkers(responseText),
+                        GeneratedImageUrl = originalProductImageUrls[0],
+                        ProviderName = "ProductOriginalImages",
+                        Status = AiStatusEnum.Completed
+                    }, CancellationToken.None);
+
+                    createdContentId = contentWithOriginalImages.Id;
+                }
+
+                responseText = AppendOriginalProductImagesToResponse(responseText, originalProductImageUrls);
+            }
+
             await _conversationRepository.AddMessageAsync(new ChatMessage
             {
                 ConversationId = conversation.Id,
@@ -430,7 +514,11 @@ public sealed class AIService : IAIService
 
         try
         {
-            generation.GeneratedText = await _geminiTextClient.GenerateAsync(prompt, cancellationToken);
+            var generatedText = await _geminiTextClient.GenerateAsync(prompt, cancellationToken);
+            var selectedProduct = content.Product ?? (content.ProductId.HasValue
+                ? await _productRepository.GetByIdAsync(content.ProductId.Value, cancellationToken)
+                : null);
+            generation.GeneratedText = EnsureProductLandingUrlInGeneratedResponse(generatedText, "content", selectedProduct, prompt);
             generation.Status = AiStatusEnum.Completed;
         }
         catch (Exception ex)
@@ -751,7 +839,7 @@ public sealed class AIService : IAIService
         };
     }
 
-    private static string BuildChatPrompt(Conversation conversation, Brand? brand, Product? product, string message)
+    private static string BuildChatPrompt(Conversation conversation, Brand? brand, Product? product, string message, ChatRequest request)
     {
         return $$"""
 You are AISAM, an AI assistant for social media content creation.
@@ -776,6 +864,8 @@ Content quality rules:
 - For "content" and "image_text", the response must be a real finished advertising post, not a conversational preface.
 - Never include meta phrases such as "Được thôi", "Tôi sẽ", "Dưới đây là", "Here is", "Sure", or similar assistant-talk inside the title or caption.
 - Include a compelling title, an engaging caption/body, a clear CTA when appropriate, and relevant hashtags.
+- Rule for URL: The backend will append the exact Product landing URL after generation when one is available. Do not invent, shorten, rewrite, or add fake URLs yourself.
+- If "Use original product images" is yes, write only the caption/content. Do not tell users to view images or describe that images are attached; the backend will attach product images from the database.
 - Keep the wording natural, specific to the selected brand/product, and ready to publish.
 - For image prompts, request a clean professional advertising visual with no readable text, no letters, no fake words, no gibberish typography, no watermark, and no broken-font characters.
 
@@ -797,11 +887,8 @@ Output format rules for content and image_text:
 - Put a short trend-aware title in generated_content.title.
 - Put the complete ad post in generated_content.caption with this structure: hook -> product benefit -> CTA -> relevant hashtags.
 - The caption must not contain assistant-talk or explanations.
-- Also mirror the ready-to-publish text in "response" as:
-  Title: ...
-
-  Caption:
-  ...
+- Write the post naturally. DO NOT include structural labels like "Title:", "Caption:", or "Nội dung:". Just output the final text ready to be posted.
+- Also mirror the ready-to-publish text in "response" without structural labels.
 - For image_text and image intents, put the English image prompt in both "image_prompt" and "prompt".
 - The image prompt must describe scene/context, camera angle, lighting, and art/style direction.
 - The image prompt must include: "no text, no typos, clean background, no watermark, no logo text, no gibberish typography, no broken-font characters".
@@ -827,7 +914,9 @@ Context:
   - Target audience: {{product?.TargetAudience ?? "none"}}
   - Visual identity/reference-image notes: {{product?.VisualIdentity ?? "none"}}
   - Knowledge profile: {{product?.KnowledgeProfile ?? "none"}}
+  - Product landing URL: {{ExtractProductSourceUrl(product) ?? "none"}}
   - Reference image URLs: {{FormatProductImagesForPrompt(product)}}
+  - Use original product images: {{(request.UseOriginalProductImages ? "yes" : "no")}}
   - Price: {{product?.Price?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"}}
   - Stock: {{product?.Stock.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"}}
 - AdType: {{conversation.AdType}}
@@ -1042,9 +1131,9 @@ Latest user message:
     private static string? BuildGeneratedContentResponse(string? title, string? caption)
     {
         if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(caption)) return null;
-        if (string.IsNullOrWhiteSpace(title)) return caption?.Trim();
-        if (string.IsNullOrWhiteSpace(caption)) return $"Title: {title.Trim()}";
-        return $"Title: {title.Trim()}\n\nCaption:\n{caption.Trim()}";
+        if (string.IsNullOrWhiteSpace(title)) return StripStructuralPostLabels(caption);
+        if (string.IsNullOrWhiteSpace(caption)) return StripStructuralPostLabels(title);
+        return StripStructuralPostLabels($"{title.Trim()}\n\n{caption.Trim()}");
     }
 
     private static bool IsImageIntent(string? intent) =>
@@ -1058,6 +1147,97 @@ Latest user message:
     {
         var images = GetProductImageUrls(product);
         return images.Count == 0 ? "none" : string.Join(", ", images.Take(5));
+    }
+
+    private static string? ExtractProductSourceUrl(Product? product)
+    {
+        if (IsValidHttpUrl(product?.ProductUrl)) return product!.ProductUrl!.Trim();
+        if (string.IsNullOrWhiteSpace(product?.KnowledgeProfile)) return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(product.KnowledgeProfile);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("sourceUrl", out var sourceUrl) &&
+                sourceUrl.ValueKind == JsonValueKind.String)
+            {
+                var value = sourceUrl.GetString();
+                return IsValidHttpUrl(value) ? value : null;
+            }
+        }
+        catch (JsonException)
+        {
+            var match = Regex.Match(product.KnowledgeProfile, @"https?://[^\s""'<>]+", RegexOptions.IgnoreCase);
+            return match.Success && IsValidHttpUrl(match.Value) ? match.Value : null;
+        }
+
+        return null;
+    }
+
+    private static string EnsureProductLandingUrlInGeneratedResponse(string responseText, string? intent, Product? product, string? userMessage)
+    {
+        if (string.IsNullOrWhiteSpace(responseText)) return responseText;
+        var cleanedResponse = StripStructuralPostLabels(responseText);
+        if (!string.Equals(intent, "content", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(intent, "image_text", StringComparison.OrdinalIgnoreCase))
+        {
+            return cleanedResponse;
+        }
+
+        if (ShouldSuppressProductLink(userMessage)) return cleanedResponse;
+
+        var sourceUrl = ExtractProductSourceUrl(product);
+        if (string.IsNullOrWhiteSpace(sourceUrl)) return cleanedResponse;
+        if (cleanedResponse.Contains(sourceUrl, StringComparison.OrdinalIgnoreCase)) return cleanedResponse;
+
+        return $"{cleanedResponse.Trim()}\n\n👉 Xem chi tiết và mua ngay tại: {sourceUrl}";
+    }
+
+    private static string StripStructuralPostLabels(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var cleaned = value.Trim();
+        cleaned = Regex.Replace(
+            cleaned,
+            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:title|tiêu đề|tieu de)\s*:?\s*(?:\*\*)?\s*",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+        cleaned = Regex.Replace(
+            cleaned,
+            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:caption|nội dung|noi dung|content)\s*:?\s*(?:\*\*)?\s*",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+        cleaned = Regex.Replace(cleaned, @"\n{3,}", "\n\n", RegexOptions.CultureInvariant);
+
+        return cleaned.Trim();
+    }
+
+    private static bool ShouldSuppressProductLink(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        var normalized = NormalizeSearchText(value);
+        var signals = new[]
+        {
+            "no link",
+            "without link",
+            "do not include link",
+            "dont include link",
+            "khong can chen link",
+            "khong chen link",
+            "khong gan link",
+            "khong them link",
+            "bo link"
+        };
+
+        return signals.Any(signal => normalized.Contains(signal));
+    }
+
+    private static bool IsValidHttpUrl(string? value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
     private static List<string> GetProductImageUrls(Product? product)
@@ -1077,6 +1257,25 @@ Latest user message:
         }
     }
 
+    private static string AppendOriginalProductImagesToResponse(string responseText, IReadOnlyList<string> imageUrls)
+    {
+        if (imageUrls.Count == 0) return responseText;
+        if (responseText.Contains("[IMAGE:", StringComparison.OrdinalIgnoreCase)) return responseText;
+
+        // The current frontend preview reads the first [IMAGE: ...] marker.
+        // The Content record still stores the full image URL array when we create one above.
+        return $"{responseText.Trim()}\n\n[IMAGE: {imageUrls[0]}]";
+    }
+
+    private static string StripMediaMarkers(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var cleaned = Regex.Replace(value, @"\[IMAGE:\s*.+?\]", string.Empty, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        cleaned = Regex.Replace(cleaned, @"\[VIDEO_JOB:\s*.+?\]", string.Empty, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return cleaned.Trim();
+    }
+
     private static IReadOnlyList<string> GetReferenceImageUrlsForGeneration(Product? product, string? userMessage, string? prompt, ChatRequest? request = null) =>
         SelectProductReferenceImages(product, userMessage, prompt, request).Select(reference => reference.Url).ToList();
 
@@ -1094,7 +1293,13 @@ Latest user message:
 {brandContext}{productContext}
 {modeInstruction}
 If product reference image URLs are present, use all provided reference images collectively as different views of one same physical product. The first reference image is the primary reference and has the highest priority. The supporting reference images provide complementary details. Do not redesign it. Do not replace it with a generic product, a different model, or a product inferred from the brand name. Preserve the exact silhouette, proportions, color scheme, visible parts, materials, accessories, logo or marking placement, and distinctive details from the reference product images.
-Create a clean professional social media advertising image with clear scene context, intentional camera angle, polished lighting, and commercial art direction. no text, no typos, clean background, no watermark, no logo text, no gibberish typography, no broken-font characters. Do not include any readable text, letters, numbers, logos made of text, fake words, signature, subtitle, or UI text. If signage or packaging appears, keep it blank or use abstract non-text shapes. High quality, polished, commercial composition.
+Act as an expert commercial product photographer. Create one premium advertising image for the selected product.
+Strict safety/composition rules:
+1. NO HUMANS, NO FACES, NO HANDS, NO BODY PARTS. Do not show people, hands holding the product, faces, silhouettes, or human skin.
+2. MINIMALIST commercial background related to the product, clean and elegant, with intentional negative space for future text placement.
+3. NO TEXT, NO WATERMARKS, NO LOGO TEXT, no readable letters, no numbers, no fake words, no labels rewritten by the model, no gibberish typography, no broken-font characters. If packaging/signage appears, keep all surfaces blank or abstract.
+4. Studio lighting, 4k resolution, hyper-realistic, polished 3D render style, premium commercial product photography. Put the product as the central hero subject.
+Scene guidance: place the product on a tasteful contextual surface or pedestal that fits its tone and category. Add only subtle decor accents such as soft blurred leaves, window light, water reflections, geometric shapes, or material textures when relevant. Keep the scene uncluttered, premium, and product-focused.
 """.Trim();
     }
 

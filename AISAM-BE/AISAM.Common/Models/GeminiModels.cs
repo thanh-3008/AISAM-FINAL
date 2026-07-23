@@ -53,6 +53,7 @@ public sealed class ChatRequest
     public string? GenerationMode { get; set; }
     public string? UploadedPrimaryImageUrl { get; set; }
     public string? SelectedProductImageUrl { get; set; }
+    public bool UseOriginalProductImages { get; set; }
     public string? UserPrompt { get; set; }
 }
 
