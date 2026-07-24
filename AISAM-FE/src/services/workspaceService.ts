@@ -300,7 +300,7 @@ export async function transferOwnership(targetMemberId: string): Promise<{ succe
     });
     return { success: res?.success === true, message: res?.message };
   } catch (err: any) {
-    return { success: false, message: err?.message || "Network error" };
+    return { success: false, message: err?.message || "Network error. Please check your connection" };
   }
 }
 
@@ -315,6 +315,6 @@ export async function updateMemberQuota(
     });
     return { success: res?.success === true, message: res?.message };
   } catch (err: any) {
-    return { success: false, message: err?.message || "Network error" };
+    return { success: false, message: err?.message || "Network error. Please check your connection" };
   }
 }

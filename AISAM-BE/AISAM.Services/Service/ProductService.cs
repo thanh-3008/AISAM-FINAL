@@ -282,7 +282,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
-            var product = await _productRepository.GetByIdAsync(id, cancellationToken);
+            var product = await _productRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
             if (product == null)
             {
                 return GenericResponse<bool>.CreateError("Product not found");
@@ -291,6 +291,11 @@ namespace AISAM.Services.Service
             if (!IsBrandVisibleInWorkspace(product.Brand, workspaceId, userId))
             {
                 return GenericResponse<bool>.CreateError("You are not allowed to delete this product");
+            }
+
+            if (product.IsDeleted)
+            {
+                return GenericResponse<bool>.CreateError("Product is already deleted");
             }
 
             product.IsDeleted = true;

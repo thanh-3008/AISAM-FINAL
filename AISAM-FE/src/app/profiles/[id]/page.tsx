@@ -279,7 +279,7 @@ export default function ProfileDetailPage() {
           router.replace(`/profiles/${activeWorkspace.id}${section ? `?section=${section}` : ""}`);
           return;
         }
-        setError(err instanceof Error ? err.message : "Network error");
+        setError(err instanceof Error ? err.message : "Network error. Please check your connection");
       } finally {
         setLoading(false);
       }
@@ -322,11 +322,13 @@ export default function ProfileDetailPage() {
             : prev.memberRole,
         } : null);
         setEditing(false);
+        showToast({ type: "success", title: "Workspace updated", message: "Workspace name has been updated successfully." });
+        selectWorkspace(data.id);
       } else {
         setError(result?.message || "Update failed");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+      setError(err instanceof Error ? err.message : "Network error. Please check your connection");
     } finally {
       setSaving(false);
     }
@@ -1257,14 +1259,16 @@ export default function ProfileDetailPage() {
                             <h2 className="text-2xl font-bold text-on-surface tracking-tight">Workspace Info</h2>
                             <p className="text-body-sm text-on-surface-variant mt-1.5">Manage your workspace information</p>
                           </div>
-                          <motion.button
-                            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                            onClick={() => setEditing(true)}
-                            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">edit</span>
-                            Edit
-                          </motion.button>
+                          {workspace?.isOwner && (
+                            <motion.button
+                              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                              onClick={() => setEditing(true)}
+                              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">edit</span>
+                              Edit
+                            </motion.button>
+                          )}
                         </motion.div>
 
                         <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm flex flex-col sm:flex-row items-center gap-5">

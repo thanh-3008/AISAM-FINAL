@@ -323,7 +323,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
                 placeholder="e.g. 5000"
-                min="0"
+                min="1"
                 disabled={isDeployed}
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40 disabled:opacity-50"
               />

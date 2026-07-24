@@ -5,7 +5,9 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
-import { fetchWorkspaceMembers, type WorkspaceMember, type WorkspaceMemberRole } from "@/services/workspaceService";
+import { getStoredUser } from "@/lib/auth";
+import { fetchWorkspaceMembers, transferOwnership, type WorkspaceMember, type WorkspaceMemberRole } from "@/services/workspaceService";
+import { updateMemberRole, removeMember, type MemberRole } from "@/services/teamService";
 
 function getRoleBadge(role: WorkspaceMemberRole): { label: string; color: string; bg: string; icon: string } {
   switch (role) {
@@ -35,6 +37,9 @@ export default function WorkspaceMembersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "pending">("all");
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     const loadMembers = async () => {
@@ -61,7 +66,62 @@ export default function WorkspaceMembersPage() {
   const activeCount = members.length;
   const pendingCount = 0;
 
-  const isOwner = members.some((m) => m.role === "Owner");
+  const currentUser = getStoredUser();
+  const isOwner = members.some((m) => m.role === "Owner" && m.userId === currentUser?.id);
+
+  const handleRoleChange = async (memberId: string, newRole: MemberRole) => {
+    setActionLoading(memberId);
+    setOpenActionMenu(null);
+    try {
+      await updateMemberRole(memberId, newRole);
+      setActionMessage({ text: "Role updated successfully.", type: "success" });
+      const data = await fetchWorkspaceMembers();
+      if (data) setMembers(data.data);
+    } catch (err: any) {
+      setActionMessage({ text: err?.message || "Failed to update role.", type: "error" });
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setActionMessage(null), 3000);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string, memberName: string) => {
+    if (!confirm(`Remove ${memberName} from this workspace?`)) return;
+    setActionLoading(memberId);
+    setOpenActionMenu(null);
+    try {
+      await removeMember(memberId);
+      setActionMessage({ text: "Member removed successfully.", type: "success" });
+      const data = await fetchWorkspaceMembers();
+      if (data) setMembers(data.data);
+    } catch (err: any) {
+      setActionMessage({ text: err?.message || "Failed to remove member.", type: "error" });
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setActionMessage(null), 3000);
+    }
+  };
+
+  const handleTransferOwnership = async (memberId: string, memberName: string) => {
+    if (!confirm(`Transfer ownership to ${memberName}? You will become a Manager.`)) return;
+    setActionLoading(memberId);
+    setOpenActionMenu(null);
+    try {
+      const res = await transferOwnership(memberId);
+      if (res.success) {
+        setActionMessage({ text: "Ownership transferred successfully.", type: "success" });
+        const data = await fetchWorkspaceMembers();
+        if (data) setMembers(data.data);
+      } else {
+        setActionMessage({ text: res.message || "Failed to transfer ownership.", type: "error" });
+      }
+    } catch (err: any) {
+      setActionMessage({ text: err?.message || "Failed to transfer ownership.", type: "error" });
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setActionMessage(null), 3000);
+    }
+  };
 
   if (!featureGate.canAccess("teamManagement")) {
     return (
@@ -254,14 +314,76 @@ export default function WorkspaceMembersPage() {
 
                       {/* Actions */}
                       {isOwner && member.role !== "Owner" && (
-                        <button className="p-2 rounded-lg hover:bg-surface-container transition-colors">
-                          <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
-                        </button>
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenActionMenu(openActionMenu === member.id ? null : member.id)}
+                            disabled={actionLoading === member.id}
+                            className="p-2 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50"
+                          >
+                            {actionLoading === member.id ? (
+                              <span className="w-4 h-4 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin inline-block" />
+                            ) : (
+                              <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
+                            )}
+                          </button>
+                          {openActionMenu === member.id && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setOpenActionMenu(null)} />
+                              <div className="absolute right-0 top-full mt-1 w-48 bg-surface-container-lowest rounded-xl border border-outline-variant/20 shadow-lg z-20 py-1 overflow-hidden">
+                                <div className="px-3 py-2 text-label-xs text-on-surface-variant/60 font-semibold uppercase tracking-wide">Change Role</div>
+                                {(["Manager", "ContentCreator", "Viewer"] as MemberRole[]).map((role) => (
+                                  <button
+                                    key={role}
+                                    onClick={() => handleRoleChange(member.id, role)}
+                                    disabled={member.role === role}
+                                    className={`w-full text-left px-3 py-2 text-body-sm hover:bg-surface-container transition-colors flex items-center gap-2 ${
+                                      member.role === role ? "text-primary font-semibold bg-primary/5" : "text-on-surface"
+                                    }`}
+                                  >
+                                    {member.role === role && <span className="material-symbols-outlined text-[14px] text-primary">check</span>}
+                                    <span className={member.role !== role ? "ml-[22px]" : ""}>{getRoleBadge(role).label}</span>
+                                  </button>
+                                ))}
+                                <div className="border-t border-outline-variant/10 my-1" />
+                                {member.role === "Manager" && (
+                                  <button
+                                    onClick={() => handleTransferOwnership(member.id, member.name)}
+                                    className="w-full text-left px-3 py-2 text-body-sm text-on-surface hover:bg-surface-container transition-colors flex items-center gap-2"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px] text-amber-500">swap_horiz</span>
+                                    Transfer Ownership
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleRemoveMember(member.id, member.name)}
+                                  className="w-full text-left px-3 py-2 text-body-sm text-error hover:bg-error/5 transition-colors flex items-center gap-2"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">person_remove</span>
+                                  Remove Member
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Action Message */}
+          {actionMessage && (
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+              actionMessage.type === "success"
+                ? "bg-emerald-50 border-emerald-200/50 text-emerald-700"
+                : "bg-red-50 border-red-200/50 text-red-700"
+            }`}>
+              <span className="material-symbols-outlined text-[20px]">
+                {actionMessage.type === "success" ? "check_circle" : "error"}
+              </span>
+              <span className="text-body-sm font-medium">{actionMessage.text}</span>
             </div>
           )}
 

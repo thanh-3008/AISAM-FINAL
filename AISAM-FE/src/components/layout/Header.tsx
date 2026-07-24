@@ -97,7 +97,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
     fetchCount();
     const interval = setInterval(fetchCount, 30000); // Poll every 30s
     return () => clearInterval(interval);
-  }, []);
+  }, [activeWorkspace?.id]);
 
   // Fetch recent notifications when dropdown opens
   useEffect(() => {

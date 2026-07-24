@@ -270,7 +270,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
         setError(result?.message || `Failed to ${mode === "edit" ? "update" : "create"} product`);
       }
     } catch (err: any) {
-      setError(err.message || "Network error");
+      setError(err?.message || "Network error. Please check your connection");
     } finally {
       setLoading(false);
     }

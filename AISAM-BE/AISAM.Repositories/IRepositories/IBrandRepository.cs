@@ -12,5 +12,6 @@ namespace AISAM.Repositories.IRepositories
             => throw new NotSupportedException();
         Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default);
         Task UpdateAsync(Brand brand, CancellationToken cancellationToken = default);
+        Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default);
     }
 }

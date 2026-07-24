@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
@@ -146,6 +147,8 @@ function getStatusMeta(status: string) {
 export default function ApprovalsPage() {
   const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
+  const featureGate = useFeatureGate();
+  const canReview = featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator;
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -556,7 +559,7 @@ export default function ApprovalsPage() {
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
                       const statusMeta = getStatusMeta(item.status);
-                      const canReview = isPendingStatus(item.status);
+                      const canReview = isPendingStatus(item.status) && (featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator);
                       const canDelete = isRejectedStatus(item.status);
                       return (
                         <tr key={item.id}
@@ -925,7 +928,7 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
-                {isPendingStatus(drawerItem.status) && (
+                {isPendingStatus(drawerItem.status) && (featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator) && (
                   <>
                     <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
                       className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">

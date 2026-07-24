@@ -15,6 +15,7 @@ namespace AISAM.Common.Dtos.Response
 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public bool IsDeleted { get; set; }
         public int ProductsCount { get; set; }
         public int ContentsCount { get; set; }
     }

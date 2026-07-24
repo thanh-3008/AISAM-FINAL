@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import Header from "@/components/layout/Header";
 import {
   fetchSocialAccounts,
@@ -24,6 +25,8 @@ import ManageTargetsModal from "@/components/social/ManageTargetsModal";
 
 export default function SocialAccountsPage() {
   const { activeWorkspace } = useWorkspaces();
+  const featureGate = useFeatureGate();
+  const canManage = featureGate.isOwner || featureGate.isManager;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -169,6 +172,7 @@ export default function SocialAccountsPage() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} account(s)? All linked targets will be unlinked.`)) return;
     setActionLoading("bulk");
     try {
       for (const id of selectedIds) {
@@ -249,7 +253,9 @@ export default function SocialAccountsPage() {
             </div>
             <button
               onClick={() => setShowConnectModal(true)}
-              className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-sm font-bold flex items-center gap-1.5 shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95"
+              disabled={!canManage}
+              className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-sm font-bold flex items-center gap-1.5 shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              title={!canManage ? "Only Owner and Manager can connect accounts" : ""}
             >
               <span className="material-symbols-outlined text-[16px]">add_link</span>
               Connect Account
@@ -322,6 +328,7 @@ export default function SocialAccountsPage() {
                   onDelete={setDeletingAccount}
                   onManageTargets={setManagingTargetsAccount}
                   onSelect={handleSelect}
+                  canManage={canManage}
                 />
               ))}
             </div>

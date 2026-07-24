@@ -6,7 +6,7 @@ namespace AISAM.Common.Dtos.Request;
 public sealed class CreateWorkspaceRequest
 {
     [Required]
-    [MaxLength(255)]
+    [MaxLength(255, ErrorMessage = "Name must not exceed 255 characters")]
     public string Name { get; set; } = string.Empty;
 
     [Required]
@@ -16,6 +16,6 @@ public sealed class CreateWorkspaceRequest
 public sealed class UpdateWorkspaceRequest
 {
     [Required]
-    [MaxLength(255)]
+    [MaxLength(255, ErrorMessage = "Name must not exceed 255 characters")]
     public string Name { get; set; } = string.Empty;
 }

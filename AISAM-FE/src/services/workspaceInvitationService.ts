@@ -35,7 +35,7 @@ export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: 
     if (!res?.success) return { error: res?.message || "Failed to send invitation" };
     return { data: res?.data ?? undefined };
   } catch (err: any) {
-    return { error: err?.message || "Network error" };
+    return { error: err?.message || "Network error. Please check your connection" };
   }
 }
 

@@ -236,11 +236,18 @@ function CalendarContent() {
 
   const handleCreate = async () => {
     if (!form.contentId || createIntegrationIds.length === 0 || !form.date || !form.time) return;
+
+    const scheduledAt = new Date(`${form.date}T${form.time}`);
+    if (scheduledAt <= new Date()) {
+      setToast("Scheduled time must be in the future.");
+      return;
+    }
+
+    const scheduledAtISO = scheduledAt.toISOString();
     setActionId("create");
-    const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
     const selectedIds = [...createIntegrationIds];
     const result = await bulkCreateSchedules({
-      items: selectedIds.map((integrationId) => ({ contentId: form.contentId, integrationId, scheduledAt })),
+      items: selectedIds.map((integrationId) => ({ contentId: form.contentId, integrationId, scheduledAt: scheduledAtISO })),
     });
 
     if (result.success && result.results) {
@@ -876,7 +883,7 @@ function CalendarContent() {
                     }}
                       className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-4 py-2.5 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all">
                       <option value="">Select content...</option>
-                      {contents.map((c) => (
+                      {contents.filter(c => c.status === "Approved" || c.status === "Published").map((c) => (
                         <option key={c.id} value={c.id}>{c.title} ({c.brandName})</option>
                       ))}
                     </select>

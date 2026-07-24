@@ -93,8 +93,8 @@ export function useProfiles() {
       } else {
         setError(res?.message || "Failed to load profiles");
       }
-    } catch {
-      setError("Network error loading profiles");
+    } catch (err: any) {
+      setError(err?.message || "Network error. Please check your connection");
     } finally {
       setLoading(false);
       fetchingProfiles = false;

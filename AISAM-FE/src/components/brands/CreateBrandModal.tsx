@@ -81,7 +81,7 @@ export default function CreateBrandModal({ open, onClose, onSuccess, profileId }
         setError(result?.message || "Failed to create brand");
       }
     } catch (err: any) {
-      setError(err.message || "Network error");
+      setError(err?.message || "Network error. Please check your connection");
     } finally {
       setLoading(false);
     }

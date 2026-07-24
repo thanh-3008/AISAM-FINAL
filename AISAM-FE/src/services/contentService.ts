@@ -102,6 +102,7 @@ export interface CreateContentPayload {
   textContent: string;
   imageUrl?: string | null;
   videoUrl?: string | null;
+  thumbnailUrl?: string | null;
   styleDescription?: string | null;
   contextDescription?: string | null;
   representativeCharacter?: string | null;
@@ -323,7 +324,7 @@ export async function publishContentDebug(contentId: string, integrationId: stri
       error: response.ok ? undefined : `HTTP ${response.status}: ${response.statusText}`
     };
   } catch (e: any) {
-    return { success: false, error: e?.message || "Network error" };
+    return { success: false, error: e?.message || "Network error. Please check your connection" };
   }
 }
 

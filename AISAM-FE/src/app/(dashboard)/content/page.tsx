@@ -272,15 +272,27 @@ export default function ContentPage() {
   };
 
   // Edit save
+  const [editingSaving, setEditingSaving] = useState(false);
   const handleEditSave = async (updated: ContentItem) => {
-    await updateContent(updated.id, {
-      title: updated.title,
-      adType: updated.type === "TEXT" ? 0 : updated.type === "IMAGE" ? 1 : 2,
-      textContent: "",
-    });
-    setEditingItem(null);
-    loadContent();
-    addToast(`"${updated.title}" updated`, "check_circle");
+    setEditingSaving(true);
+    try {
+      const success = await updateContent(updated.id, {
+        title: updated.title,
+        adType: updated.type === "TEXT" ? 0 : updated.type === "IMAGE" ? 1 : 2,
+        textContent: "",
+      });
+      if (success) {
+        setEditingItem(null);
+        loadContent();
+        addToast(`"${updated.title}" updated`, "check_circle");
+      } else {
+        addToast("Failed to update content", "error");
+      }
+    } catch {
+      addToast("Network error. Please check your connection", "error");
+    } finally {
+      setEditingSaving(false);
+    }
   };
 
   // Delete confirm
@@ -423,6 +435,20 @@ export default function ContentPage() {
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}
             className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[110px]">
             {SORT_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+
+          {/* Type filter */}
+          <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value as ContentType); setPage(1); }}
+            className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[100px]">
+            <option value="">All Types</option>
+            {CONTENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+
+          {/* Status filter */}
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as ContentStatus); setPage(1); }}
+            className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[140px]">
+            <option value="">All Status</option>
+            {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
 
           <div className="flex items-center gap-1 bg-surface-container-lowest border border-outline-variant/15 rounded-xl p-1 shadow-sm">
@@ -814,9 +840,9 @@ export default function ContentPage() {
       )}
 
       {/* ─── Edit Modal ─── */}
-      {editingItem && (
-        <ContentFormModal item={editingItem} onClose={() => setEditingItem(null)} onSave={handleEditSave} />
-      )}
+  {editingItem && (
+    <ContentFormModal item={editingItem} onClose={() => setEditingItem(null)} onSave={handleEditSave} saving={editingSaving} />
+  )}
 
       {/* ─── Delete Confirmation ─── */}
       {deletingItem && (
@@ -845,7 +871,7 @@ export default function ContentPage() {
       {/* ─── Preview Modal ─── */}
       {previewItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150" onClick={() => setPreviewItem(null)}>
-          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-lg w-full max-w-lg mx-4 animate-in fade-in zoom-in-95 duration-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="relative aspect-video bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center">
               <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(previewItem.type)} flex items-center justify-center text-white shadow-lg`}>
                 <span className="material-symbols-outlined text-4xl">{getTypeConfig(previewItem.type).icon}</span>
@@ -1086,7 +1112,7 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
 }
 
 /* ─── Content Form Modal (Create / Edit) ─── */
-function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClose: () => void; onSave: (data: ContentItem) => void }) {
+function ContentFormModal({ item, onClose, onSave, saving }: { item?: ContentItem; onClose: () => void; onSave: (data: ContentItem) => void; saving?: boolean }) {
   const isEdit = !!item;
   const [brandNames, setBrandNames] = useState<string[]>([]);
   const [form, setForm] = useState({
@@ -1273,10 +1299,14 @@ function ContentFormModal({ item, onClose, onSave }: { item?: ContentItem; onClo
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-outline-variant/10">
           <button onClick={onClose} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97]">Cancel</button>
-          <button onClick={handleSave} disabled={!isValid}
+          <button onClick={handleSave} disabled={!isValid || saving}
             className="px-5 py-2 rounded-xl bg-primary text-on-primary text-label-md font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-            <span className="material-symbols-outlined text-[16px]">{isEdit ? "check" : "add"}</span>
-            {isEdit ? "Save Changes" : "Create Content"}
+            {saving ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
+            ) : (
+              <><span className="material-symbols-outlined text-[16px]">{isEdit ? "check" : "add"}</span>
+              {isEdit ? "Save Changes" : "Create Content"}</>
+            )}
           </button>
         </div>
       </div>

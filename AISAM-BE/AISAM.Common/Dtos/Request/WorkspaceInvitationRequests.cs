@@ -7,7 +7,7 @@ public sealed class CreateWorkspaceInvitationRequest
 {
     [Required]
     [EmailAddress]
-    [MaxLength(255)]
+    [MaxLength(255, ErrorMessage = "Email must not exceed 255 characters")]
     public string Email { get; set; } = string.Empty;
 
     [Required]
@@ -22,6 +22,6 @@ public sealed class CreateWorkspaceInvitationRequest
 public sealed class AcceptWorkspaceInvitationRequest
 {
     [Required]
-    [MaxLength(500)]
+    [MaxLength(500, ErrorMessage = "Token must not exceed 500 characters")]
     public string Token { get; set; } = string.Empty;
 }

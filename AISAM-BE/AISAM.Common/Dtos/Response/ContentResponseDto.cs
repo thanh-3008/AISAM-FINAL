@@ -14,6 +14,7 @@ public sealed class ContentResponseDto
     public string TextContent { get; set; } = string.Empty;
     public string? ImageUrl { get; set; }
     public string? VideoUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
     public string? Tags { get; set; }
     public string? StyleDescription { get; set; }
     public string? ContextDescription { get; set; }

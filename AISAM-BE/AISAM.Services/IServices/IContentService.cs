@@ -26,7 +26,7 @@ public interface IContentService
         => GetPagedAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
     Task<GenericResponse<ContentResponseDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => GetByIdAsync(id, workspaceId, cancellationToken);
-    Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default)
+    Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, WorkspaceMemberRoleEnum role, CancellationToken cancellationToken = default)
         => UpdateAsync(id, workspaceId, request, cancellationToken);
     Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => CloneAsync(id, workspaceId, cancellationToken);

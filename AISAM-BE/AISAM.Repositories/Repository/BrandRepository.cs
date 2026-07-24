@@ -145,5 +145,11 @@ namespace AISAM.Repositories.Repository
             _context.Brands.Update(brand);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default)
+        {
+            return await _context.Brands
+                .AnyAsync(b => b.WorkspaceId == workspaceId && b.Name == name && !b.IsDeleted, cancellationToken);
+        }
     }
 }

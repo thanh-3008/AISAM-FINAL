@@ -147,6 +147,7 @@ export default function NotificationsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Delete this notification?")) return;
     const ok = await deleteNotification(id);
     if (ok) {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
