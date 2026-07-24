@@ -34,6 +34,7 @@ const ERROR_MAP: Record<string, string> = {
   "Missing or invalid X-Profile-Id header.": "Chưa chọn Profile cho tính năng này.",
   "You are not a member of this workspace.": "Bạn không phải thành viên của workspace này.",
   "Profile does not belong to active workspace.": "Profile không thuộc workspace đang chọn.",
+  "System error": "Đã có lỗi hệ thống. Vui lòng thử lại sau.",
 };
 
 async function handleResponse(response: Response) {
@@ -50,17 +51,27 @@ async function handleResponse(response: Response) {
     let errorMessage = "Đã có lỗi xảy ra";
 
     if (result) {
-      const validationErrors = result.error?.validationErrors;
-      if (validationErrors && typeof validationErrors === "object") {
-        const values = Object.values(validationErrors).flat().filter(Boolean);
-        if (values.length > 0) {
-          errorMessage = values.join(", ");
+      if (typeof result.error === "string") {
+        errorMessage = result.error;
+      } else if (result.error) {
+        const validationErrors = result.error.validationErrors;
+        if (validationErrors && typeof validationErrors === "object" && validationErrors !== null) {
+          const values = Object.values(validationErrors).flat().filter(Boolean);
+          if (values.length > 0) {
+            errorMessage = values.join(", ");
+          }
+        }
+        if (errorMessage === "Đã có lỗi xảy ra" && typeof result.error.message === "string") {
+          errorMessage = result.error.message;
+        }
+        if (errorMessage === "Đã có lỗi xảy ra" && typeof result.error.errorMessage === "string") {
+          errorMessage = result.error.errorMessage;
         }
       }
       if (errorMessage === "Đã có lỗi xảy ra" && typeof result.message === "string") {
         errorMessage = result.message;
       }
-      if (errorMessage === "Đã có lỗi xảy ra" && result.errors && typeof result.errors === "object") {
+      if (errorMessage === "Đã có lỗi xảy ra" && result.errors && typeof result.errors === "object" && result.errors !== null) {
         const values = Object.values(result.errors).flat().filter(Boolean);
         if (values.length > 0) {
           errorMessage = values.join(", ");
@@ -98,8 +109,10 @@ async function handleResponse(response: Response) {
       return;
     }
 
-    const mappedError = ERROR_MAP[errorMessage];
-    throw new Error(mappedError ?? String(errorMessage));
+    const trimmed = errorMessage.trim();
+    const mappedError = ERROR_MAP[trimmed]
+      ?? Object.entries(ERROR_MAP).find(([k]) => k.toLowerCase() === trimmed.toLowerCase())?.[1];
+    throw new Error(mappedError ?? (trimmed || `Request failed (${response.status})`));
   }
 
   return result;
