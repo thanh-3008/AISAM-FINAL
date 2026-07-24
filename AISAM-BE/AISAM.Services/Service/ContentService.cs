@@ -104,6 +104,7 @@ public sealed class ContentService : IContentService
             WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
             AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
             ImageUrl = FormatImageUrlForJsonb(request.ImageUrl), VideoUrl = request.VideoUrl,
+            ThumbnailUrl = request.ThumbnailUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.PendingApproval,
             IsAiGenerated = request.IsAiGenerated,
@@ -137,7 +138,7 @@ public sealed class ContentService : IContentService
         return content == null || content.WorkspaceId != workspaceId ? NotFound() : GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.RetrievedSuccess);
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, WorkspaceMemberRoleEnum role, CancellationToken cancellationToken = default)
     {
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return NotFound();
@@ -155,6 +156,10 @@ public sealed class ContentService : IContentService
         if (request.Tags != null) content.Tags = request.Tags.Count > 0 ? JsonSerializer.Serialize(request.Tags) : null;
         if (request.Status.HasValue)
         {
+            if (role == WorkspaceMemberRoleEnum.Viewer)
+            {
+                return GenericResponse<ContentResponseDto>.CreateError("Viewer role cannot approve or reject content.", HttpStatusCode.Forbidden);
+            }
             var statusValidation = ValidateStatusTransition(content.Status, request.Status.Value);
             if (!statusValidation.Success)
                 return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
@@ -711,6 +716,7 @@ public sealed class ContentService : IContentService
             TextContent = content.TextContent,
             ImageUrl = content.ImageUrl,
             VideoUrl = content.VideoUrl,
+            ThumbnailUrl = content.ThumbnailUrl,
             StyleDescription = content.StyleDescription,
             ContextDescription = content.ContextDescription,
             RepresentativeCharacter = content.RepresentativeCharacter,

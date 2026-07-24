@@ -201,6 +201,7 @@ export default function CreateContentPage() {
       textContent: form.textContent || form.caption || form.description || "",
       imageUrl,
       videoUrl,
+      thumbnailUrl: thumbnailUrl || undefined,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
       status: form.status === "Awaiting Approval" ? 1 : 0,

@@ -66,6 +66,10 @@ namespace AISAM.Data.Model
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;
 
+        [MaxLength(500)]
+        [Column("thumbnail_url")]
+        public string? ThumbnailUrl { get; set; }
+
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

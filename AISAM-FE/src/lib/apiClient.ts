@@ -50,16 +50,26 @@ async function handleResponse(response: Response) {
     let errorMessage = "Đã có lỗi xảy ra";
 
     if (result) {
-      if (typeof result.message === "string") {
+      const validationErrors = result.error?.validationErrors;
+      if (validationErrors && typeof validationErrors === "object") {
+        const values = Object.values(validationErrors).flat().filter(Boolean);
+        if (values.length > 0) {
+          errorMessage = values.join(", ");
+        }
+      }
+      if (errorMessage === "Đã có lỗi xảy ra" && typeof result.message === "string") {
         errorMessage = result.message;
-      } else if (result.errors && typeof result.errors === "object") {
+      }
+      if (errorMessage === "Đã có lỗi xảy ra" && result.errors && typeof result.errors === "object") {
         const values = Object.values(result.errors).flat().filter(Boolean);
         if (values.length > 0) {
           errorMessage = values.join(", ");
         }
-      } else if (result.title && typeof result.title === "string") {
+      }
+      if (errorMessage === "Đã có lỗi xảy ra" && result.title && typeof result.title === "string") {
         errorMessage = result.title;
-      } else if (result.detail && typeof result.detail === "string") {
+      }
+      if (errorMessage === "Đã có lỗi xảy ra" && result.detail && typeof result.detail === "string") {
         errorMessage = result.detail;
       }
     }

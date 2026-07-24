@@ -99,7 +99,7 @@ export default function EditBrandModal({ open, onClose, onSuccess, brand }: Prop
         return;
       }
     } catch (err: any) {
-      setError(err.message || "Network error");
+      setError(err?.message || "Network error. Please check your connection");
       return;
     } finally {
       setLoading(false);

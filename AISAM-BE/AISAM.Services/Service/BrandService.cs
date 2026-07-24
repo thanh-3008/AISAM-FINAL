@@ -51,13 +51,13 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<BrandResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
-            var brand = await _brandRepository.GetByIdAsync(id, cancellationToken);
+            var brand = await _brandRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
             if (brand == null)
             {
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
             if (!access.Success)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(access.Message);
@@ -68,7 +68,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<BrandResponseDto>> CreateAsync(Guid workspaceId, Guid userId, CreateBrandRequest request, CancellationToken cancellationToken = default)
         {
-            var workspaceAccess = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            var workspaceAccess = await EnsureWorkspaceOwnerOrManagerAsync(workspaceId, userId, cancellationToken);
             if (!workspaceAccess.Success)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(workspaceAccess.Message);
@@ -99,6 +99,11 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError("You are not allowed to access this profile");
             }
 
+            if (await _brandRepository.ExistsByNameInWorkspaceAsync(workspaceId, request.Name, cancellationToken))
+            {
+                return GenericResponse<BrandResponseDto>.CreateError("Brand name already exists in this workspace");
+            }
+
             var brand = new Brand
             {
                 ProfileId = profile.Id,
@@ -125,7 +130,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
             if (!access.Success)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(access.Message);
@@ -133,6 +138,11 @@ namespace AISAM.Services.Service
 
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
+                if (request.Name != brand.Name &&
+                    await _brandRepository.ExistsByNameInWorkspaceAsync(workspaceId, request.Name, cancellationToken))
+                {
+                    return GenericResponse<BrandResponseDto>.CreateError("Brand name already exists in this workspace");
+                }
                 brand.Name = request.Name;
             }
 
@@ -174,10 +184,21 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
             if (!access.Success)
             {
                 return GenericResponse<bool>.CreateError(access.Message);
+            }
+
+            if (brand.IsDeleted)
+            {
+                return GenericResponse<bool>.CreateError("Brand is already deleted");
+            }
+
+            var activeProducts = brand.Products?.Count(p => !p.IsDeleted) ?? 0;
+            if (activeProducts > 0)
+            {
+                return GenericResponse<bool>.CreateError("Cannot delete brand with existing products. Please delete or reassign products first.");
             }
 
             brand.IsDeleted = true;
@@ -194,7 +215,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
             if (!access.Success)
             {
                 return GenericResponse<bool>.CreateError(access.Message);
@@ -238,18 +259,36 @@ namespace AISAM.Services.Service
                 : (true, string.Empty);
         }
 
+        private async Task<(bool Success, string Message)> EnsureWorkspaceOwnerOrManagerAsync(
+            Guid workspaceId,
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            var membership = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId, userId, cancellationToken);
+            if (membership == null)
+                return (false, "You are not allowed to access this workspace");
+
+            if (membership.Role != WorkspaceMemberRoleEnum.Owner && membership.Role != WorkspaceMemberRoleEnum.Manager)
+                return (false, "Only workspace Owner and Manager can manage brands");
+
+            return (true, string.Empty);
+        }
+
         private async Task<(bool Success, string Message)> EnsureBrandWorkspaceAccessAsync(
             Brand brand,
             Guid workspaceId,
             Guid userId,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool requireOwnerOrManager = false)
         {
             if (brand.WorkspaceId != workspaceId)
             {
                 return (false, "Brand not found");
             }
 
-            return await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            return requireOwnerOrManager
+                ? await EnsureWorkspaceOwnerOrManagerAsync(workspaceId, userId, cancellationToken)
+                : await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
         }
 
         private static BrandResponseDto MapToDto(Brand brand)
@@ -268,6 +307,7 @@ namespace AISAM.Services.Service
                 WorkspaceId = brand.WorkspaceId,
                 CreatedAt = brand.CreatedAt,
                 UpdatedAt = brand.UpdatedAt,
+                IsDeleted = brand.IsDeleted,
                 ProductsCount = brand.Products?.Count(p => !p.IsDeleted) ?? 0,
                 ContentsCount = brand.Contents?.Count(c => !c.IsDeleted) ?? 0
             };

@@ -6,7 +6,7 @@ namespace AISAM.Common.Dtos.Request
 {
     public class UpdateProfileRequest
     {
-        [MaxLength(255)]
+        [MaxLength(255, ErrorMessage = "Name must not exceed 255 characters")]
         public string? Name { get; set; }
 
         /// <summary>
@@ -14,13 +14,13 @@ namespace AISAM.Common.Dtos.Request
         /// </summary>
         public ProfileTypeEnum? ProfileType { get; set; }
 
-        [MaxLength(255)]
+        [MaxLength(255, ErrorMessage = "Company name must not exceed 255 characters")]
         public string? CompanyName { get; set; }
 
-        [MaxLength(1000)]
+        [MaxLength(1000, ErrorMessage = "Bio must not exceed 1000 characters")]
         public string? Bio { get; set; }
 
-        [MaxLength(500)]
+        [MaxLength(500, ErrorMessage = "Avatar URL must not exceed 500 characters")]
         public string? AvatarUrl { get; set; }
 
         /// <summary>

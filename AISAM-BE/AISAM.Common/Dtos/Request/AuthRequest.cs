@@ -16,7 +16,7 @@ namespace AISAM.Common.Dtos.Request
         [Compare("Password", ErrorMessage = "Passwords do not match")]
         public string ConfirmPassword { get; set; } = string.Empty;
 
-        [MaxLength(255)]
+        [MaxLength(255, ErrorMessage = "Full name must not exceed 255 characters")]
         public string? FullName { get; set; }
     }
 

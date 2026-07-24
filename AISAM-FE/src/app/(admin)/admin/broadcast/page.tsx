@@ -12,7 +12,7 @@ export default function AdminBroadcastPage() {
   const [result, setResult] = useState<string | null>(null);
 
   const handleSend = async () => {
-    if (!title || !message) return;
+    if (!title.trim() || !message.trim()) return;
     setSending(true);
     const ok = await broadcastNotification(title, message, excludeAdmins);
     setResult(ok ? "Notification sent successfully!" : "Failed to send notification.");
@@ -43,7 +43,7 @@ export default function AdminBroadcastPage() {
             <label htmlFor="excludeAdmins" className="text-sm text-gray-700">Exclude admin users</label>
           </div>
           <div className="flex items-center gap-3 pt-2">
-            <button onClick={handleSend} disabled={sending || !title || !message} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            <button onClick={handleSend} disabled={sending || !title.trim() || !message.trim()} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
               {sending ? "Sending..." : "Send Broadcast"}
             </button>
             {result && <span className={`text-sm ${result.includes("success") ? "text-emerald-600" : "text-red-600"}`}>{result}</span>}

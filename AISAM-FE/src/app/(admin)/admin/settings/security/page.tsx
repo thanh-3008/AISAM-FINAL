@@ -41,8 +41,8 @@ export default function AdminSecuritySettingsPage() {
       } else {
         setError("Failed to change password. Please check your current password.");
       }
-    } catch {
-      setError("Network error while changing password");
+    } catch (err: any) {
+      setError(err?.message || "Network error. Please check your connection");
     } finally {
       setChangingPassword(false);
     }

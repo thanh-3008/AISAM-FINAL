@@ -21,6 +21,19 @@ public sealed class ContentController : ControllerBase
     private readonly IContentService _contentService;
     private readonly IProfileRepository _profileRepository;
     private readonly IMediaStorageService _mediaStorageService;
+    private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    };
+    private static readonly HashSet<string> AllowedVideoContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "video/mp4",
+        "video/webm",
+        "video/quicktime"
+    };
     private static readonly HashSet<string> AllowedMediaContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -72,7 +85,17 @@ public sealed class ContentController : ControllerBase
 
         if (!AllowedMediaContentTypes.Contains(file.ContentType))
         {
-            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Media file must be JPEG, PNG, WebP, GIF, MP4, WebM, or MOV."));
+            var isImageType = file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+            var isVideoType = file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+            if (isImageType)
+            {
+                return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Please upload a valid image file (JPEG, PNG, WebP, GIF)."));
+            }
+            if (isVideoType)
+            {
+                return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Unsupported video format. Please upload MP4, WebM, or MOV."));
+            }
+            return BadRequest(GenericResponse<ContentMediaUploadResponse>.CreateError("Please upload a valid image (JPEG, PNG, WebP, GIF) or video (MP4, WebM, MOV) file."));
         }
 
         var workspaceId = GetWorkspaceId();
@@ -152,7 +175,8 @@ public sealed class ContentController : ControllerBase
         [FromBody] UpdateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.UpdateInWorkspaceAsync(contentId, GetWorkspaceId(), request, cancellationToken);
+        var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+        var result = await _contentService.UpdateInWorkspaceAsync(contentId, GetWorkspaceId(), request, membership.Role, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

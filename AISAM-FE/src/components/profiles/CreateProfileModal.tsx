@@ -120,7 +120,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
         setError(result?.message || "Failed to create workspace");
       }
     } catch (err: any) {
-      setError(err.message || "Network error");
+      setError(err?.message || "Network error. Please check your connection");
     } finally {
       setLoading(false);
     }

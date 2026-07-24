@@ -28,6 +28,7 @@ export default function PostsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [publishedTotalCount, setPublishedTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [postQuota, setPostQuota] = useState<{ used: number; total: number } | null>(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -67,6 +68,11 @@ export default function PostsPage() {
           setPosts(data);
           setTotalCount(res.totalCount);
           setTotalPages(res.totalPages);
+          if (page === 1 && !filters.search && !filters.brand) {
+            fetchPosts({ page: 1, pageSize: 1, status: "Published" as any }).then(r => {
+              setPublishedTotalCount(r.totalCount);
+            });
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -139,6 +145,8 @@ export default function PostsPage() {
       }
       setPosts((prev) => prev.filter((p) => !deletingPosts.some((d) => d.id === p.id)));
       setSelectedIds((prev) => prev.filter((id) => !deletingPosts.some((d) => d.id === id)));
+      const publishedDeleted = deletingPosts.filter(p => p.status === "Published").length;
+      setPublishedTotalCount(prev => Math.max(0, prev - publishedDeleted));
       setDeletingPosts([]);
       addToast(`${deletingPosts.length} post(s) deleted`);
     } catch {
@@ -178,7 +186,7 @@ export default function PostsPage() {
 
           {/* Stats & Quota */}
           <StatsCards
-            publishedCount={posts.filter(p => p.status === "Published").length}
+            publishedCount={publishedTotalCount}
             totalCount={totalCount}
             quotaUsed={postQuota?.used ?? null}
             quotaTotal={postQuota?.total ?? null}

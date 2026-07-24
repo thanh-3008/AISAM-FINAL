@@ -7,6 +7,7 @@ import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/apiClient";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useProfiles } from "@/hooks/useProfiles";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { clearActiveProfile } from "@/stores/profile-store";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
@@ -23,6 +24,7 @@ interface Brand {
   usp: string | null;
   targetAudience: string | null;
   profileId: string | null;
+  isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
@@ -67,6 +69,8 @@ export default function BrandsPage() {
   const { activeWorkspace } = useWorkspaces();
   const { activeProfile } = useProfiles();
   const { addToast } = useToast();
+  const featureGate = useFeatureGate();
+  const canEdit = featureGate.isOwner || featureGate.isManager;
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -74,6 +78,14 @@ export default function BrandsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null);
+  const [sortBy, setSortBy] = useState<string>("createdat");
+  const [sortDesc, setSortDesc] = useState(true);
+  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 12;
 
   // Nếu workspace ID không phải GUID → clear + redirect overview
   useEffect(() => {
@@ -93,13 +105,25 @@ export default function BrandsPage() {
   const fetchBrands = useCallback(async () => {
     if (!activeWorkspace) { setLoading(false); return; }
     try {
-      const result = await apiFetch(`/brands?pageSize=100`);
-      if (result?.success && result.data?.data) setBrands(result.data.data as Brand[]);
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
+      params.set("sortBy", sortBy);
+      params.set("sortDescending", String(sortDesc));
+      if (includeDeleted) params.set("includeDeleted", "true");
+      const result = await apiFetch(`/brands?${params.toString()}`);
+      if (result?.success && result.data) {
+        setBrands((result.data.data as Brand[]) ?? []);
+        setTotalCount(result.data.totalCount ?? 0);
+        setTotalPages(Math.max(1, Math.ceil((result.data.totalCount ?? 0) / PAGE_SIZE)));
+      }
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [activeWorkspace]);
+  }, [activeWorkspace, sortBy, sortDesc, includeDeleted, page]);
 
   useEffect(() => { fetchBrands(); }, [fetchBrands]);
+
+  useEffect(() => { setPage(1); }, [sortBy, sortDesc, includeDeleted]);
 
   const filtered = useMemo(() => {
     let list = brands;
@@ -107,7 +131,7 @@ export default function BrandsPage() {
       const q = search.toLowerCase();
       list = list.filter((b) => b.name.toLowerCase().includes(q) || (b.description && b.description.toLowerCase().includes(q)));
     }
-    return [...list].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return list;
   }, [brands, search]);
 
   const stats = useMemo(() => ({
@@ -133,12 +157,24 @@ export default function BrandsPage() {
         setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
         addToast("Brand deleted successfully", "check");
       } else {
-        addToast(result?.message || "Failed to delete brand", "error");
-        setDeletingBrand(brandToDelete);
+        addToast(result?.message || result?.error?.errorMessage || "Failed to delete brand", "error");
       }
-    } catch {
-      addToast("Failed to delete brand", "error");
-      setDeletingBrand(brandToDelete);
+    } catch (err: any) {
+      addToast(err?.message || "Failed to delete brand", "error");
+    }
+  };
+
+  const handleRestoreBrand = async (brandId: string) => {
+    try {
+      const result = await apiFetch(`/brands/${brandId}/restore`, { method: "POST" });
+      if (result?.success) {
+        fetchBrands();
+        addToast("Brand restored successfully", "check");
+      } else {
+        addToast(result?.message || "Failed to restore brand", "error");
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to restore brand", "error");
     }
   };
 
@@ -164,17 +200,19 @@ export default function BrandsPage() {
               </p>
             </div>
           </div>
-          <button onClick={() => {
-            if (!activeWorkspace) {
-              setError("Vui lòng chọn Workspace trước (vào Overview).");
-              return;
-            }
-            setShowCreateModal(true);
-          }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all shrink-0">
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            New Brand
-          </button>
+          {canEdit && (
+            <button onClick={() => {
+              if (!activeWorkspace) {
+                setError("Vui lòng chọn Workspace trước (vào Overview).");
+                return;
+              }
+              setShowCreateModal(true);
+            }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all shrink-0">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              New Brand
+            </button>
+          )}
         </motion.div>
 
         {/* ─── Error ─── */}
@@ -234,19 +272,81 @@ export default function BrandsPage() {
           </div>
         )}
 
-        {/* ─── Search ─── */}
+        {/* ─── Search + Sort + Filter ─── */}
         <motion.div {...fadeUp} transition={{ duration: 0.5, delay: 0.2, ease: easeOut }}>
-          <div className="flex-1 relative max-w-md">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-outline/35 pointer-events-none transition-colors group-focus-within:text-primary/50">
-              <span className="material-symbols-outlined text-[18px]">search</span>
-            </span>
-            <input className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl py-2.5 pl-10 pr-9 text-body-sm placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/8 outline-none transition-all shadow-sm"
-              placeholder="Search brands..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline/40 hover:text-on-surface active:scale-[0.97] focus-visible:outline-none">
-                <span className="material-symbols-outlined text-[16px]">close</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex-1 relative max-w-md">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-outline/35 pointer-events-none">
+                <span className="material-symbols-outlined text-[18px]">search</span>
+              </span>
+              <input className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl py-2.5 pl-10 pr-9 text-body-sm placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/8 outline-none transition-all shadow-sm"
+                placeholder="Search brands..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline/40 hover:text-on-surface active:scale-[0.97] focus-visible:outline-none">
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              )}
+            </div>
+
+            {/* Sort */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-outline-variant/10 bg-surface-container-lowest text-body-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">{sortDesc ? "arrow_downward" : "arrow_upward"}</span>
+                <span className="max-w-[100px] truncate">
+                  {sortBy === "name" ? "Name" : "Created Date"}
+                </span>
+                <span className="material-symbols-outlined text-[14px] text-outline/40">unfold_more</span>
               </button>
-            )}
+              {showSortMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-surface-container-lowest rounded-xl border border-outline-variant/20 shadow-lg z-20 py-1 overflow-hidden">
+                    <div className="px-3 py-2 text-label-xs text-on-surface-variant/60 font-semibold uppercase tracking-wide">Sort by</div>
+                    {[
+                      { key: "name", desc: false, label: "Name (A → Z)", icon: "sort_by_alpha" },
+                      { key: "name", desc: true, label: "Name (Z → A)", icon: "sort_by_alpha" },
+                      { key: "createdat", desc: true, label: "Created Date (Newest)", icon: "calendar_today" },
+                      { key: "createdat", desc: false, label: "Created Date (Oldest)", icon: "calendar_today" },
+                    ].map((opt) => {
+                      const isActive = sortBy === opt.key && sortDesc === opt.desc;
+                      return (
+                        <button
+                          key={`${opt.key}-${opt.desc}`}
+                          onClick={() => {
+                            setSortBy(opt.key);
+                            setSortDesc(opt.desc);
+                            setShowSortMenu(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-body-sm hover:bg-surface-container transition-colors flex items-center gap-2 ${
+                            isActive ? "text-primary font-semibold bg-primary/5" : "text-on-surface"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">{opt.icon}</span>
+                          <span>{opt.label}</span>
+                          {isActive && <span className="material-symbols-outlined text-[14px] text-primary ml-auto">check</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Show Deleted */}
+            <button
+              onClick={() => setIncludeDeleted(!includeDeleted)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-body-sm font-medium transition-all shadow-sm ${
+                includeDeleted
+                  ? "bg-amber-50 border-amber-200/50 text-amber-700"
+                  : "border-outline-variant/10 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">{includeDeleted ? "delete" : "delete_outline"}</span>
+              {includeDeleted ? "Deleted Visible" : "Show Deleted"}
+            </button>
           </div>
           {hasFilters && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -275,7 +375,26 @@ export default function BrandsPage() {
               </div>
             ))}
           </div>
-        ) : brands.length === 0 ? (
+        ) : filtered.length === 0 && brands.length > 0 ? (
+          <motion.div {...fadeUp} transition={{ duration: 0.5, ease: easeOut }}
+            className="flex flex-col items-center justify-center py-24 text-center gap-6">
+            <div className="w-20 h-20 rounded-3xl bg-surface-container-high flex items-center justify-center">
+              <span className="material-symbols-outlined text-outline/40 text-4xl">search_off</span>
+            </div>
+            <div className="max-w-sm">
+              <h2 className="text-headline-md text-on-surface font-bold mb-2">No brands found</h2>
+              <p className="text-body-md text-on-surface-variant">
+                {search ? "No brands match your search. Try different keywords." : "No brands match the current filters."}
+              </p>
+            </div>
+            {(search || includeDeleted) && (
+              <button onClick={() => { setSearch(""); setIncludeDeleted(false); }} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
+                <span className="material-symbols-outlined text-[16px]">close</span>
+                Clear Filters
+              </button>
+            )}
+          </motion.div>
+          ) : brands.length === 0 ? (
           <motion.div {...fadeUp} transition={{ duration: 0.5, ease: easeOut }}
             className="flex flex-col items-center justify-center py-24 text-center gap-6">
             <div className="w-20 h-20 rounded-3xl bg-surface-container-high flex items-center justify-center">
@@ -285,22 +404,24 @@ export default function BrandsPage() {
               <h2 className="text-headline-md text-on-surface font-bold mb-2">No brands yet</h2>
               <p className="text-body-md text-on-surface-variant">Create your first brand to start managing products and campaigns</p>
             </div>
-            <button onClick={() => {
-              if (!activeWorkspace) {
-                setError("Vui lòng chọn Workspace trước (vào Overview).");
-                return;
-              }
-              setShowCreateModal(true);
-            }} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              Create Your First Brand
-            </button>
+            {canEdit && (
+              <button onClick={() => {
+                if (!activeWorkspace) {
+                  setError("Vui lòng chọn Workspace trước (vào Overview).");
+                  return;
+                }
+                setShowCreateModal(true);
+              }} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                Create Your First Brand
+              </button>
+            )}
           </motion.div>
         ) : (
           <AnimatePresence mode="popLayout">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-min">
               {/* Sort: most content-rich first for visual hierarchy */}
-              {[...filtered].sort((a, b) => b.contentsCount - a.contentsCount).map((brand, i) => {
+              {filtered.map((brand, i) => {
                 const c = pickColor(brand.id);
                 const initials = getInitials(brand.name);
 
@@ -324,21 +445,40 @@ export default function BrandsPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h3 className="text-headline-sm font-bold text-on-surface truncate leading-tight">{brand.name}</h3>
+                            {brand.isDeleted && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold bg-red-50 text-red-600 border border-red-200/50">
+                                  <span className="material-symbols-outlined text-[12px]">delete</span>
+                                  Deleted
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleRestoreBrand(brand.id); }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/50 hover:bg-emerald-100 transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[12px]">restore</span>
+                                  Restore
+                                </button>
+                              </div>
+                            )}
                             {brand.slogan && (
                               <p className="text-label-sm text-on-surface-variant/50 italic truncate mt-0.5">&ldquo;{brand.slogan}&rdquo;</p>
                             )}
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); setEditingBrand(brand); }}
-                              className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-primary transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                              title="Edit">
-                              <span className="material-symbols-outlined text-[15px]">edit</span>
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setDeletingBrand(brand); }}
-                              className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-danger-red transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30"
-                              title="Delete">
-                              <span className="material-symbols-outlined text-[15px]">delete</span>
-                            </button>
+                            {canEdit && (
+                              <>
+                                <button onClick={(e) => { e.stopPropagation(); setEditingBrand(brand); }}
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-primary transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                  title="Edit">
+                                  <span className="material-symbols-outlined text-[15px]">edit</span>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setDeletingBrand(brand); }}
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-danger-red transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30"
+                                  title="Delete">
+                                  <span className="material-symbols-outlined text-[15px]">delete</span>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -372,6 +512,46 @@ export default function BrandsPage() {
               })}
             </div>
           </AnimatePresence>
+        )}
+
+        {/* ─── Pagination ─── */}
+        {!loading && brands.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-label-sm text-on-surface-variant">
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-2 rounded-lg border border-outline-variant/20 text-body-sm text-on-surface-variant hover:bg-surface-container disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-9 h-9 rounded-lg text-body-sm font-medium transition-colors ${
+                    p === page
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:bg-surface-container"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-2 rounded-lg border border-outline-variant/20 text-body-sm text-on-surface-variant hover:bg-surface-container disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              >
+                Next
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              </button>
+            </div>
+          </div>
         )}
       </main>
 

@@ -23,7 +23,8 @@ interface SocialAccountCardProps {
   isLoading: boolean;
   onDelete: (account: SocialAccount) => void;
   onManageTargets: (account: SocialAccount) => void;
-  onSelect: (id: string, selected: boolean) => void;
+  onSelect: (id: string) => void;
+  canManage?: boolean;
 }
 
 export default function SocialAccountCard({
@@ -34,6 +35,7 @@ export default function SocialAccountCard({
   onDelete,
   onManageTargets,
   onSelect,
+  canManage = true,
 }: SocialAccountCardProps) {
   const platformInfo = PLATFORM_INFO[account.provider];
   const status = getAccountStatus(account);
@@ -159,6 +161,7 @@ export default function SocialAccountCard({
           </div>
         )}
 
+        {canManage && (
         <div className="flex items-center gap-2 pt-3 border-t border-outline-variant/10">
           <button
             onClick={() => onManageTargets(account)}
@@ -179,6 +182,7 @@ export default function SocialAccountCard({
             )}
           </button>
         </div>
+        )}
       </div>
     </div>
   );
