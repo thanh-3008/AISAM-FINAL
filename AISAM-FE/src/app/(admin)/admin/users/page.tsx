@@ -107,6 +107,11 @@ export default function AdminUsersPage() {
               <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
             ))}
           </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <span className="material-symbols-outlined text-5xl mb-4">person_off</span>
+            <p className="text-lg font-medium text-gray-500">No users found</p>
+          </div>
         ) : (
           <>
             <AdminDataTable

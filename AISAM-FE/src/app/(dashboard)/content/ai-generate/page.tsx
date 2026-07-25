@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
-import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
@@ -82,6 +82,7 @@ export default function AIGeneratePage() {
   const [justGenerated, setJustGenerated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState({ title: "", content: "", imageUrl: "" as string | null });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatImageInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +160,53 @@ export default function AIGeneratePage() {
       if (uploadedImage?.previewUrl) URL.revokeObjectURL(uploadedImage.previewUrl);
     };
   }, [uploadedImage?.previewUrl]);
+
+  useEffect(() => {
+    if (!generatedId || !isVideo) return;
+
+    const pollVideoStatus = async () => {
+      try {
+        const generations = await fetchContentGenerations(generatedId);
+        if (!generations || generations.length === 0) return;
+
+        setMessages((prev) => {
+          let changed = false;
+          const updated = prev.map((msg) => {
+            const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
+            if (!vidMatch) return msg;
+            const gen = generations.find((g) => g.status === 2 || g.status === 3);
+            if (!gen) return msg;
+            if (gen.status === 2) {
+              changed = true;
+              return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, "").trim(), canApply: true };
+            }
+            if (gen.status === 3) {
+              changed = true;
+              return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `(Video generation failed: ${gen.errorMessage || "Unknown error"})`).trim(), canApply: false };
+            }
+            return msg;
+          });
+          return changed ? updated : prev;
+        });
+      } catch {
+        /* ignore polling errors */
+      }
+    };
+
+    const interval = setInterval(pollVideoStatus, 10000);
+    return () => clearInterval(interval);
+  }, [generatedId, isVideo]);
+
+  useEffect(() => {
+    const hasUnsavedChanges = title !== lastSavedContent.title || content !== lastSavedContent.content || imageUrl !== lastSavedContent.imageUrl;
+    if (!hasUnsavedChanges) return;
+
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [title, content, imageUrl, lastSavedContent]);
 
   const handleChatImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -303,6 +351,7 @@ export default function AIGeneratePage() {
       if (result) {
         setGeneratedId(result.id);
         setJustGenerated(true);
+        setLastSavedContent({ title, content, imageUrl });
         addToast("Post saved successfully!");
       }
     } catch (e: any) {
@@ -315,11 +364,20 @@ export default function AIGeneratePage() {
   const handleSendChat = () => {
     const text = chatInput.trim();
     if (!text || isGenerating) return;
+    if (text.length > 3000) {
+      addToast("Message is too long. Please limit to 3000 characters.");
+      return;
+    }
 
-    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", text };
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      text: uploadedImage ? `${text}\n\n[UPLOADED_IMAGE: ${uploadedImage.previewUrl}]` : text,
+    };
     setMessages((prev) => [...prev, userMsg]);
     setChatInput("");
     setSelectedVariation(null);
+    if (uploadedImage) clearUploadedImage();
 
     simulateAIResponse(text);
   };
@@ -543,6 +601,17 @@ export default function AIGeneratePage() {
                   <textarea value={content} onChange={(e) => setContent(e.target.value)}
                     className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all resize-y min-h-[40px] max-h-[120px]"
                     placeholder="Generated caption will appear here..." />
+                  <div className="flex items-center justify-between mt-1">
+                    <span className={`text-[11px] ${content.length > 2200 ? "text-danger-red font-semibold" : "text-outline/50"}`}>
+                      {content.length} / 2200 characters
+                    </span>
+                    {content.length > 2200 && (
+                      <span className="text-[11px] text-danger-red font-semibold flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">warning</span>
+                        Caption exceeds Instagram's 2,200 character limit
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -743,16 +812,18 @@ export default function AIGeneratePage() {
                           <span className="text-label-2xs font-semibold text-primary uppercase tracking-wider">AI</span>
                         </div>
                       )}
-                      {msg.text.includes("[IMAGE:") || msg.text.includes("[VIDEO_JOB:") ? (
+                      {msg.text.includes("[IMAGE:") || msg.text.includes("[VIDEO_JOB:") || msg.text.includes("[UPLOADED_IMAGE:") ? (
                         <>
                           <p className="text-[12px] leading-relaxed whitespace-pre-line">
-                            {msg.text.replace(/\[IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_JOB:\s*.+?\]/g, '').trim()}
+                            {msg.text.replace(/\[IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_JOB:\s*.+?\]/g, '').replace(/\[UPLOADED_IMAGE:\s*.+?\]/g, '').trim()}
                           </p>
                           {(() => {
                             const imgMatch = msg.text.match(/\[IMAGE:\s*(.+?)\]/);
                             if (imgMatch) return <img src={imgMatch[1]} alt="Generated" className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
+                            const uploadedMatch = msg.text.match(/\[UPLOADED_IMAGE:\s*(.+?)\]/);
+                            if (uploadedMatch) return <img src={uploadedMatch[1]} alt="Uploaded" className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
                             const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-                            if (vidMatch) return <div className="mt-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-1.5"><span className="material-symbols-outlined text-[14px]">movie</span><span>Đang tạo video (Job: {vidMatch[1]}). Vui lòng kiểm tra lại sau tại danh sách Content.</span></div>;
+                            if (vidMatch) return <div className="mt-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-1.5"><span className="material-symbols-outlined text-[14px]">movie</span><span>Generating video (Job: {vidMatch[1]}). Please check back later in the Content list.</span></div>;
                             return null;
                           })()}
                         </>
@@ -787,26 +858,26 @@ export default function AIGeneratePage() {
             <div className="border-t border-outline-variant/10 p-3 shrink-0 space-y-2.5">
               <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-1">
                 <div className="flex items-center gap-1.5 px-1 pb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Chế độ tạo ảnh</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Generation Mode</span>
                   <div className="group relative flex h-5 w-5 items-center justify-center">
                     <button
                       type="button"
                       className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-outline-variant/40 text-[10px] font-black text-outline transition-colors hover:border-primary/60 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      aria-label="Giải thích chế độ tạo ảnh"
+                      aria-label="Generation mode explanation"
                     >
                       !
                     </button>
                     <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-72 -translate-x-1/2 rounded-xl border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-left text-[11px] leading-relaxed text-on-surface opacity-0 shadow-xl transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-                      <p><span className="font-bold text-primary">Bảo toàn sản phẩm:</span> dùng ảnh sản phẩm đang chọn để giữ đúng kiểu dáng, màu sắc và chi tiết chính.</p>
-                      <p className="mt-1.5"><span className="font-bold text-primary">Sáng tạo tự do:</span> không bám ảnh sản phẩm; có thể upload ảnh riêng làm cảm hứng cho bố cục hoặc phong cách.</p>
+                      <p><span className="font-bold text-primary">Product Preservation:</span> uses the selected product image to maintain correct shape, color, and key details.</p>
+                      <p className="mt-1.5"><span className="font-bold text-primary">Creative Mode:</span> does not rely on product images; you can upload your own image as inspiration for layout or style.</p>
                       <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-outline-variant/20 bg-surface-container-high" />
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-1">
                   {([
-                    { value: "exact_product_reference", label: "Bảo toàn sản phẩm", icon: "verified" },
-                    { value: "normal_generation", label: "Sáng tạo tự do", icon: "auto_awesome" },
+                    { value: "exact_product_reference", label: "Product Preservation", icon: "verified" },
+                    { value: "normal_generation", label: "Creative Mode", icon: "auto_awesome" },
                   ] as const).map((mode) => (
                     <button
                       key={mode.value}
@@ -820,20 +891,20 @@ export default function AIGeneratePage() {
                     >
                       <span className="material-symbols-outlined text-[15px]">{mode.icon}</span>
                       <span className="truncate">
-                        {mode.value === "exact_product_reference" ? "Bảo toàn sản phẩm" : "Sáng tạo tự do"}
+                        {mode.value === "exact_product_reference" ? "Product Preservation" : "Creative Mode"}
                       </span>
                     </button>
                   ))}
                 </div>
                 <p className="hidden">
                   {generationMode === "exact_product_reference"
-                    ? "Dùng ảnh của sản phẩm đang chọn để giữ đúng ngoại hình."
-                    : "Không dùng ảnh sản phẩm; có thể đính kèm ảnh riêng làm cảm hứng."}
+                    ? "Uses the selected product image to preserve its appearance."
+                    : "Does not use product images; attach your own image for inspiration."}
                 </p>
                 <p className="px-2 pt-1.5 text-[10px] leading-snug text-outline">
                   {generationMode === "exact_product_reference"
-                    ? "Dùng ảnh của sản phẩm đang chọn để giữ đúng ngoại hình."
-                    : "Không dùng ảnh sản phẩm; có thể đính kèm ảnh riêng làm cảm hứng."}
+                    ? "Uses the selected product image to preserve its appearance."
+                    : "Does not use product images; attach your own image for inspiration."}
                 </p>
               </div>
 

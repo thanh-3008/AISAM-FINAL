@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { fetchCreditUsageHistory, type CreditUsageRecord } from "@/services/workspaceService";
+import { fetchCreditUsageHistory, fetchDailyCreditSummary, type CreditUsageRecord, type DailyCreditUsage } from "@/services/workspaceService";
 
 function getActionIcon(action: string): string {
   switch (action.toLowerCase()) {
@@ -53,6 +53,7 @@ export default function CreditHistoryPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<"all" | "success" | "failed">("all");
+  const [dailyUsage, setDailyUsage] = useState<DailyCreditUsage[]>([]);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -72,6 +73,12 @@ export default function CreditHistoryPage() {
     };
     loadHistory();
   }, [page, activeWorkspace?.id]);
+
+  useEffect(() => {
+    fetchDailyCreditSummary(7).then((data) => {
+      if (data) setDailyUsage(data);
+    });
+  }, [activeWorkspace?.id]);
 
   const filteredHistory = history.filter((record) => {
     if (filter === "all") return true;
@@ -282,6 +289,33 @@ export default function CreditHistoryPage() {
               </div>
             </div>
           </div>
+
+          {/* Daily Usage Chart */}
+          {dailyUsage.length > 0 && (
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6">
+              <h3 className="text-body-md font-semibold text-on-surface mb-4">Daily Credit Usage (Last 7 Days)</h3>
+              <div className="flex items-end gap-3 h-[120px]">
+                {dailyUsage.map((day) => {
+                  const maxCredits = Math.max(...dailyUsage.map((d) => d.totalCredits), 1);
+                  const height = Math.max((day.totalCredits / maxCredits) * 100, 4);
+                  return (
+                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
+                      <span className="text-label-xs text-on-surface font-semibold">{day.totalCredits}</span>
+                      <div className="w-full relative flex-1 flex items-end">
+                        <div
+                          className="w-full rounded-t-md bg-gradient-to-t from-primary/60 to-primary/30 hover:from-primary/80 hover:to-primary/50 transition-colors min-h-[4px]"
+                          style={{ height: `${height}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-outline">
+                        {new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </>

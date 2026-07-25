@@ -59,6 +59,10 @@ public sealed class AutomationService : IAutomationService
                 if (!row.ProductId.HasValue && !string.IsNullOrWhiteSpace(row.ProductName))
                     row.ProductId = resolvedBrand.Products.FirstOrDefault(product => string.Equals(product.Name, row.ProductName.Trim(), StringComparison.OrdinalIgnoreCase))?.Id;
             }
+            else
+            {
+                continue;
+            }
             var platforms = row.Platforms.Where(value => !string.IsNullOrWhiteSpace(value)).Select(NormalizePlatform).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (platforms.Count == 0) platforms.Add("unknown");
 

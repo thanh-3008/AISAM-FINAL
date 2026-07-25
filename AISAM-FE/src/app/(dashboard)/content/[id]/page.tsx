@@ -46,6 +46,19 @@ export default function ContentDetailPage() {
   }, [params.id]);
 
   useEffect(() => {
+    const hasProcessing = generations.some((g) => g.status === 0 || g.status === 1);
+    if (!hasProcessing) return;
+
+    const poll = async () => {
+      const gens = await fetchContentGenerations(params.id as string);
+      if (gens.length > 0) setGenerations(gens);
+    };
+
+    const interval = setInterval(poll, 10000);
+    return () => clearInterval(interval);
+  }, [generations, params.id]);
+
+  useEffect(() => {
     if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] });
   }, [item?.id]);
 

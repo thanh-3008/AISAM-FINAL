@@ -206,8 +206,14 @@ export default function CreditPackPage() {
                     <div>
                       <h3 className="text-body-lg font-bold text-on-surface">{pack.name}</h3>
                       <p className="text-label-xs text-on-surface-variant">{pack.description}</p>
-                    </div>
-                  </div>
+            </div>
+            {creditWallet && creditWallet.balance === 0 && (
+              <p className="mt-3 text-body-sm text-danger-red font-medium flex items-center gap-1">
+                <span className="material-symbols-outlined text-[16px]">warning</span>
+                No credits remaining. Purchase a pack below to continue using AI features.
+              </p>
+            )}
+          </div>
 
                   <div className="mb-4">
                     <div className="flex items-baseline gap-1">
@@ -311,6 +317,10 @@ export default function CreditPackPage() {
                     <span className="text-body-md font-semibold text-on-surface">Total</span>
                     <span className="text-2xl font-bold text-primary">{selectedPack.priceFormatted}</span>
                   </div>
+                  <p className="mt-2 text-label-xs text-amber-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">warning</span>
+                    Credits cannot be refunded.
+                  </p>
                 </div>
               </div>
 
