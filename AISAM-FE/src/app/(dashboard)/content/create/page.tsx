@@ -156,7 +156,7 @@ export default function CreateContentPage() {
     const storedWs = getStoredActiveWorkspace();
     if (!storedWs) {
       setSaving(false);
-      setSaveError("Bạn cần chọn Workspace trước khi tạo nội dung.");
+      setSaveError("Please select a Workspace before creating content.");
       return;
     }
 
@@ -188,7 +188,7 @@ export default function CreateContentPage() {
         thumbnailUrl = await uploadFile(thumbnailFileRef.current) ?? undefined;
       }
     } catch (e: any) {
-      setSaveError(e?.message || "Lỗi upload file.");
+      setSaveError(e?.message || "File upload error.");
       setSaving(false);
       return;
     }
@@ -215,17 +215,17 @@ export default function CreateContentPage() {
         addToast("Content created successfully", "check");
         setTimeout(() => router.push("/content"), 1000);
       } else {
-        setSaveError("Không thể lưu nội dung. BE trả về lỗi, kiểm tra console (F12) để biết chi tiết.");
+        setSaveError("Failed to save content. Check console (F12) for details.");
         addToast("Failed to create content", "error");
       }
     } catch (e: any) {
       const msg = e?.message || "";
       if (msg.includes("Profile not found")) {
         addToast("Workspace not found, redirecting...", "error");
-        setSaveError("Workspace hiện tại không tồn tại. Đang chuyển hướng...");
+        setSaveError("Current workspace does not exist. Redirecting...");
         setTimeout(() => router.push("/overview"), 2000);
       } else {
-        setSaveError(msg || "Lỗi không xác định khi lưu nội dung.");
+        setSaveError(msg || "Unknown error while saving content.");
         addToast(msg || "Failed to create content", "error");
       }
     } finally {

@@ -87,7 +87,7 @@ export default function BrandsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 12;
 
-  // Nếu workspace ID không phải GUID → clear + redirect overview
+  // If workspace ID is not a valid GUID → clear + redirect overview
   useEffect(() => {
     const ws = getStoredActiveWorkspace();
     if (ws && !/^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(ws.id)) {
@@ -203,7 +203,7 @@ export default function BrandsPage() {
           {canEdit && (
             <button onClick={() => {
               if (!activeWorkspace) {
-                setError("Vui lòng chọn Workspace trước (vào Overview).");
+                setError("Please select a Workspace first (go to Overview).");
                 return;
               }
               setShowCreateModal(true);
@@ -407,7 +407,7 @@ export default function BrandsPage() {
             {canEdit && (
               <button onClick={() => {
                 if (!activeWorkspace) {
-                  setError("Vui lòng chọn Workspace trước (vào Overview).");
+                  setError("Please select a Workspace first (go to Overview).");
                   return;
                 }
                 setShowCreateModal(true);

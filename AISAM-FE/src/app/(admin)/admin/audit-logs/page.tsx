@@ -58,6 +58,11 @@ export default function AdminAuditLogsPage() {
         </div>
         {loading ? (
           <div className="space-y-3">{[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>
+        ) : logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <span className="material-symbols-outlined text-5xl mb-4">receipt_long</span>
+            <p className="text-lg font-medium text-gray-500">No audit logs</p>
+          </div>
         ) : (
           <>
             <AdminDataTable columns={columns} data={logs} keyField="id" onRowClick={(log) => router.push(`/admin/audit-logs/${log.id}`)} />

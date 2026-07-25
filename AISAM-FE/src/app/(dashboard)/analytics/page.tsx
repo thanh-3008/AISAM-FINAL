@@ -171,7 +171,7 @@ export default function AnalyticsPage() {
               <div className="text-center py-4">
                 <span className="inline-flex items-center gap-2 text-primary font-medium bg-primary/10 px-4 py-2 rounded-full animate-pulse">
                   <span className="material-symbols-outlined text-xl">sync</span>
-                  Đang phân tích dữ liệu & chờ phản hồi từ Meta...
+                  Analyzing data & waiting for response from Meta...
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

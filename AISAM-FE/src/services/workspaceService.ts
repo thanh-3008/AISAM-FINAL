@@ -241,6 +241,21 @@ export async function fetchCreditUsageHistory(
   }
 }
 
+export interface DailyCreditUsage {
+  date: string;
+  totalCredits: number;
+}
+
+export async function fetchDailyCreditSummary(days: number = 7): Promise<DailyCreditUsage[] | null> {
+  try {
+    const res: GenericResponse<DailyCreditUsage[]> = await apiClient(`/credit-usage/daily-summary?days=${days}`);
+    if (res?.success && res.data) return res.data;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // Workspace Members
 export type WorkspaceMemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
 

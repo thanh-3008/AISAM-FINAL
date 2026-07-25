@@ -623,13 +623,7 @@ export default function DashboardPage() {
                 youtube: "from-red-600 to-red-500",
               };
               const defaultPlatforms = ["facebook", "instagram", "tiktok"];
-              const items = platformBreakdown.length > 0
-                ? defaultPlatforms.map(p => platformBreakdown.find(b => b.platform === p) || { platform: p, publishedPosts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 })
-                : [
-                    { platform: "facebook", publishedPosts: 45, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 },
-                    { platform: "instagram", publishedPosts: 28, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 },
-                    { platform: "tiktok", publishedPosts: 18, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 },
-                  ];
+              const items = defaultPlatforms.map(p => platformBreakdown.find(b => b.platform === p) || { platform: p, publishedPosts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 });
               const maxPosts = Math.max(...items.map(p => p.publishedPosts), 1);
               return items.map((item, i) => (
                 <div key={i} className="w-14 flex flex-col items-center gap-2 group" style={{ height: "100%" }}>
