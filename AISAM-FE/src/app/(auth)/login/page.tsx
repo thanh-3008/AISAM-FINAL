@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { getToken, getUserRoleFromToken, setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
@@ -27,6 +28,44 @@ export default function LoginPage() {
   const getRedirectUrl = useCallback(() => {
     return searchParams.get("redirect") || "/overview";
   }, [searchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const redirectIfAlreadySignedIn = async () => {
+      const token = getToken();
+      if (!token) {
+        setIsCheckingSession(false);
+        return;
+      }
+
+      try {
+        const meResult = await apiClient("/auth/me");
+        if (cancelled) return;
+
+        if (meResult?.success && meResult.data) {
+          setStoredUser({
+            id: meResult.data.id || meResult.data.userId || "",
+            fullName: meResult.data.fullName || meResult.data.full_name || "",
+            email: meResult.data.email || "",
+          });
+        }
+
+        setIsSuccess(true);
+        router.replace(getUserRoleFromToken() === "Admin" ? "/admin/dashboard" : getRedirectUrl());
+      } catch {
+        if (!cancelled) {
+          setIsCheckingSession(false);
+        }
+      }
+    };
+
+    redirectIfAlreadySignedIn();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getRedirectUrl, router]);
 
   const handleGoogleResponse = useCallback(async (credential: string) => {
     if (!credential) return;
@@ -200,7 +239,7 @@ export default function LoginPage() {
         <div
           ref={googleButtonRef}
           className="flex min-h-12 w-full items-center justify-center"
-          aria-busy={!isGoogleReady || isLoading || isSuccess}
+          aria-busy={!isGoogleReady || isLoading || isSuccess || isCheckingSession}
         />
         {!clientId && (
           <p className="mt-2 text-center font-body-sm text-body-sm text-error">
@@ -280,14 +319,19 @@ export default function LoginPage() {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isLoading || isSuccess}
+          disabled={isLoading || isSuccess || isCheckingSession}
           className={`w-full h-12 font-label-md text-label-md rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
             isSuccess
               ? "bg-success-green text-white"
               : "bg-primary-container text-on-primary-container"
           }`}
         >
-          {isLoading ? (
+          {isCheckingSession ? (
+            <>
+              <span className="w-5 h-5 border-2 border-white border-b-transparent rounded-full animate-spin inline-block" />
+              <span>Checking session...</span>
+            </>
+          ) : isLoading ? (
             <>
               <span className="w-5 h-5 border-2 border-white border-b-transparent rounded-full animate-spin inline-block" />
               <span>Authenticating...</span>
