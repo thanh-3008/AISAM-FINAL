@@ -8,11 +8,11 @@ namespace AISAM.Common.Dtos.Request
         [EmailAddress(ErrorMessage = "Invalid email format")]
         public string Email { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Password is required")]
+        [Required(ErrorMessage = "Password is required", AllowEmptyStrings = true)]
         [MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
         public string Password { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Confirm password is required")]
+        [Required(ErrorMessage = "Confirm password is required", AllowEmptyStrings = true)]
         [Compare("Password", ErrorMessage = "Passwords do not match")]
         public string ConfirmPassword { get; set; } = string.Empty;
 
@@ -26,7 +26,7 @@ namespace AISAM.Common.Dtos.Request
         [EmailAddress(ErrorMessage = "Invalid email format")]
         public string Email { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Password is required")]
+        [Required(ErrorMessage = "Password is required", AllowEmptyStrings = true)]
         public string Password { get; set; } = string.Empty;
     }
 
@@ -43,14 +43,14 @@ namespace AISAM.Common.Dtos.Request
 
     public class ChangePasswordRequest
     {
-        [Required(ErrorMessage = "Current password is required")]
+        [Required(ErrorMessage = "Current password is required", AllowEmptyStrings = true)]
         public string CurrentPassword { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "New password is required")]
+        [Required(ErrorMessage = "New password is required", AllowEmptyStrings = true)]
         [MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
         public string NewPassword { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Confirm password is required")]
+        [Required(ErrorMessage = "Confirm password is required", AllowEmptyStrings = true)]
         [Compare("NewPassword", ErrorMessage = "Passwords do not match")]
         public string ConfirmPassword { get; set; } = string.Empty;
     }

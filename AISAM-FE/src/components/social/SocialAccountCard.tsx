@@ -23,7 +23,7 @@ interface SocialAccountCardProps {
   isLoading: boolean;
   onDelete: (account: SocialAccount) => void;
   onManageTargets: (account: SocialAccount) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, selected: boolean) => void;
   canManage?: boolean;
 }
 

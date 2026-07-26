@@ -10,15 +10,29 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!validate()) return;
     setIsLoading(true);
 
     try {
       await apiClient("/auth/forgot-password", {
-        data: { email },
+        data: { email: email.trim() },
       });
       setIsSuccess(true);
     } catch (err: any) {
@@ -48,7 +62,7 @@ export default function ForgotPasswordPage() {
           </div>
           <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">Check your inbox</h2>
           <p className="font-body-md text-body-md text-on-surface-variant mb-8">
-            We&apos;ve sent a password reset link to <span className="font-semibold text-on-surface">{email}</span>. Please check your email.
+            If the email exists, a password reset link has been sent.
           </p>
           <Link
             href="/login"
@@ -93,7 +107,7 @@ export default function ForgotPasswordPage() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-stack-md">
+          <form onSubmit={handleSubmit} className="space-y-stack-md" noValidate>
             <div>
               <label
                 htmlFor="email"
@@ -105,11 +119,14 @@ export default function ForgotPasswordPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email) setErrors({ ...errors, email: "" });
+                }}
                 placeholder="name@company.com"
-                required
-                className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
+                className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface ${errors.email ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
               />
+              {errors.email && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.email}</p>}
             </div>
 
             {/* Submit Button */}

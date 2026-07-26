@@ -39,6 +39,20 @@ export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: 
   }
 }
 
+export async function validateInvitation(token: string): Promise<{ valid: boolean; message?: string }> {
+  try {
+    const res = await apiClient(`/workspace-invitations/validate/${token}`, {
+      method: "GET",
+    });
+    if (res?.success) {
+      return { valid: true };
+    }
+    return { valid: false, message: res?.message || "Invalid invitation" };
+  } catch (err: any) {
+    return { valid: false, message: err?.message || "Invalid invitation" };
+  }
+}
+
 export async function acceptInvitation(token: string): Promise<{ success: boolean; workspaceId?: string; message?: string }> {
   try {
     const res = await apiClient("/workspace-invitations/accept", {

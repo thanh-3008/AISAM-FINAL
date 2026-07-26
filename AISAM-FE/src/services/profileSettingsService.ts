@@ -16,15 +16,15 @@ export interface ChangePasswordRequest {
   confirmPassword: string;
 }
 
-export async function changePassword(data: ChangePasswordRequest): Promise<boolean> {
+export async function changePassword(data: ChangePasswordRequest): Promise<{ success: boolean; message?: string }> {
   try {
     const res: GenericResponse<null> = await apiClient("/auth/change-password", {
       data,
       method: "POST",
     });
-    return res?.success ?? false;
-  } catch {
-    return false;
+    return { success: res?.success ?? false, message: res?.message || undefined };
+  } catch (err: any) {
+    return { success: false, message: err.message };
   }
 }
 

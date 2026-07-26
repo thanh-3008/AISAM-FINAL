@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { acceptInvitation } from "@/services/workspaceInvitationService";
+import { acceptInvitation, validateInvitation } from "@/services/workspaceInvitationService";
 import { getToken } from "@/lib/auth";
 
 type Status = "ready" | "accepting" | "success" | "error";
@@ -20,15 +20,34 @@ export default function AcceptInvitationPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    const loggedIn = !!getToken();
-    setIsLoggedIn(loggedIn);
-    setIsMounted(true);
-    if (!loggedIn) {
-      router.push(`/login?redirect=/invitation/${token}`);
-    }
+    let cancelled = false;
+    const checkToken = async () => {
+      const res = await validateInvitation(token);
+      if (cancelled) return;
+      
+      if (!res.valid) {
+        setStatus("error");
+        setErrorMessage(res.message || "Invitation not found.");
+        setIsMounted(true);
+        return;
+      }
+      
+      const loggedIn = !!getToken();
+      setIsLoggedIn(loggedIn);
+      setIsMounted(true);
+      if (!loggedIn) {
+        router.push(`/login?redirect=/invitation/${token}`);
+      }
+    };
+    checkToken();
+    return () => { cancelled = true; };
   }, [router, token]);
 
-  if (!isMounted || !isLoggedIn) {
+  if (!isMounted) {
+    return null;
+  }
+  
+  if (status !== "error" && !isLoggedIn) {
     return null;
   }
 
