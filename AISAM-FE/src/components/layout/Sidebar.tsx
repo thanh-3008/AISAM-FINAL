@@ -117,11 +117,11 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-full bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 flex flex-col z-50 transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      className={`fixed left-0 top-0 h-dvh overflow-hidden bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/30 flex flex-col z-50 transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
       style={{ width: "var(--spacing-sidebar-width)" }}
     >
       {/* Logo + Toggle */}
-      <div className="flex items-center justify-between px-5 pt-6 pb-5 border-b border-outline-variant/20 mx-4">
+      <div className="shrink-0 flex items-center justify-between px-5 pt-6 pb-5 border-b border-outline-variant/20 mx-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
             <span className="material-symbols-outlined text-on-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -139,7 +139,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-4 pb-4 relative">
+      <nav className="min-h-0 flex-1 space-y-1 px-4 py-4 relative overflow-y-auto overflow-x-hidden">
         {visibleSections.map((section) => {
           const isContent = section.label === "Content Workspace";
           const isMarketing = section.label === "Marketing";
@@ -168,7 +168,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Logout */}
-      <div className="border-t border-outline-variant/20 px-4 pt-3 pb-4">
+      <div className="shrink-0 border-t border-outline-variant/20 px-4 pt-3 pb-3">
         <button
             onClick={async () => { await logout(); window.location.href = "/login"; }}
             className="w-full group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-on-surface-variant hover:bg-surface-container hover:text-danger-red text-left"
@@ -179,7 +179,7 @@ export default function Sidebar() {
       </div>
 
       {/* Workspace Selector - Bottom */}
-      <div className="relative px-4 pb-4 mt-auto">
+      <div className="relative shrink-0 px-4 pb-6">
         <button
           onClick={() => setWorkspaceOpen(!workspaceOpen)}
           className="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-surface-container to-surface-container-low border border-outline-variant/20 flex items-center gap-2.5 hover:from-surface-container-high hover:to-surface-container transition-all duration-200 text-left group"

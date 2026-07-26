@@ -16,6 +16,10 @@ type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
 const CREATED_WORKSPACE_PAYMENT_KEY = "aisam-created-workspace-payment";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -167,6 +171,9 @@ function PricingContent() {
       setCreating(true);
       try {
         const planCode = PLAN_CODES[plan.planType];
+        if (!planCode) {
+          throw new Error(`Unsupported plan: ${plan.name}`);
+        }
         const payment = await createBusinessWorkspacePayment({
           workspaceName: wsName.trim(),
           planCode,
@@ -183,7 +190,7 @@ function PricingContent() {
         window.sessionStorage.setItem(CREATED_WORKSPACE_PAYMENT_KEY, paymentReference);
         window.location.href = payment.checkoutUrl;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to start Business workspace checkout.";
+        const message = getErrorMessage(error, "Failed to start Business workspace checkout.");
         showToast({ type: "error", title: "Checkout failed", message });
       } finally {
         setCreating(false);
@@ -194,6 +201,9 @@ function PricingContent() {
 
     try {
       const planCode = PLAN_CODES[plan.planType] || "Plus";
+      if (!planCode) {
+        throw new Error(`Unsupported plan: ${plan.name}`);
+      }
       const payment = await createPayment({
         paymentType: 1,
         planCode,
@@ -206,8 +216,12 @@ function PricingContent() {
       } else {
         showToast({ type: "info", title: "Upgrade", message: `PayOS checkout will redirect for ${plan.name} plan.` });
       }
-    } catch {
-      showToast({ type: "error", title: "Error", message: "Failed to process upgrade." });
+    } catch (error) {
+      showToast({
+        type: "error",
+        title: "Checkout failed",
+        message: getErrorMessage(error, `Failed to process ${plan.name}.`),
+      });
     } finally {
       setProcessing(null);
     }

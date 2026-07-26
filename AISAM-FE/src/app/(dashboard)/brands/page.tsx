@@ -24,7 +24,7 @@ interface Brand {
   usp: string | null;
   targetAudience: string | null;
   profileId: string | null;
-  isDeleted: boolean;
+  isDeleted?: boolean;
   createdAt: string;
   updatedAt: string;
   productsCount: number;

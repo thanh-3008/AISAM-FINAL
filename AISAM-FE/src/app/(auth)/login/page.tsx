@@ -93,12 +93,12 @@ export default function LoginPage() {
 
           if (roleStr === "Admin") {
             setIsSuccess(true);
-            router.push("/admin/dashboard");
+            router.replace("/admin/dashboard");
             return;
           }
         }
         setIsSuccess(true);
-        router.push(getRedirectUrl());
+        router.replace(getRedirectUrl());
       } else {
         setError("Google sign-in failed.");
       }
@@ -186,7 +186,7 @@ export default function LoginPage() {
 
           if (roleStr === "Admin") {
             setIsSuccess(true);
-            router.push("/admin/dashboard");
+            router.replace("/admin/dashboard");
             return;
           }
         }
@@ -209,7 +209,7 @@ export default function LoginPage() {
         }
 
         setIsSuccess(true);
-        router.push(getRedirectUrl());
+        router.replace(getRedirectUrl());
       } else {
         setError("Login failed, please try again.");
       }

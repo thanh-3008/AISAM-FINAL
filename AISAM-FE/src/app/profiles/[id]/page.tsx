@@ -308,8 +308,8 @@ export default function ProfileDetailPage() {
           updatedAt: string;
           currentUserRole?: number;
         };
-        setWorkspace((prev) => prev ? {
-          ...prev,
+        const updatedWorkspace = workspace ? {
+          ...workspace,
           id: data.id,
           name: data.name,
           workspaceType: data.workspaceType,
@@ -319,8 +319,9 @@ export default function ProfileDetailPage() {
           isOwner: data.currentUserRole === 1,
           memberRole: typeof data.currentUserRole === "number"
             ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
-            : prev.memberRole,
-        } : null);
+            : workspace.memberRole,
+        } : null;
+        setWorkspace(updatedWorkspace);
         setEditing(false);
         showToast({ type: "success", title: "Workspace updated", message: "Workspace settings saved." });
         selectWorkspace({

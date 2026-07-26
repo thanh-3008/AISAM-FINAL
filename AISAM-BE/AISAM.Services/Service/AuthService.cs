@@ -312,6 +312,12 @@ namespace AISAM.Services.Service
                 return false;
             }
 
+            if (!string.IsNullOrWhiteSpace(request.Email) &&
+                !string.Equals(user.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             // Create new password hash
             CreatePasswordHash(request.NewPassword, out string passwordHash, out string passwordSalt);
 
