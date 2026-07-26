@@ -115,23 +115,23 @@ export default function ProfileDetailPage() {
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   // Search state for members
   const [memberSearch, setMemberSearch] = useState("");
 
   const [form, setForm] = useState({ name: "", profileType: "", companyName: "", bio: "", avatarUrl: "" });
-  
+
   // Security section state
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [changingPassword, setChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
-  
+
   // Billing section state
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
-  
+
   // Subscription section state
   const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
@@ -322,8 +322,21 @@ export default function ProfileDetailPage() {
             : prev.memberRole,
         } : null);
         setEditing(false);
-        showToast({ type: "success", title: "Workspace updated", message: "Workspace name has been updated successfully." });
-        selectWorkspace(data.id);
+        showToast({ type: "success", title: "Workspace updated", message: "Workspace settings saved." });
+        selectWorkspace({
+          id: data.id,
+          userId: workspace?.userId || "",
+          name: data.name,
+          workspaceType: data.workspaceType,
+          plan: data.workspaceType === 2 ? "Business" : "Personal",
+          status: data.status,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          isOwner: data.currentUserRole === 1,
+          memberRole: typeof data.currentUserRole === "number"
+            ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
+            : workspace?.memberRole ?? "Viewer",
+        });
       } else {
         setError(result?.message || "Update failed");
       }
@@ -348,23 +361,23 @@ export default function ProfileDetailPage() {
       setError("Password must be at least 8 characters");
       return;
     }
-    
+
     setChangingPassword(true);
     setError(null);
     try {
-      const success = await changePassword({
+      const result = await changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
         confirmPassword: passwordForm.confirmPassword,
       });
-      if (success) {
+      if (result.success) {
         setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
         setError(null);
         showToast({ type: "success", title: "Password changed", message: "Please login again with your new password." });
         // Optionally redirect to login
         // router.push("/login");
       } else {
-        setError("Failed to change password. Please check your current password.");
+        setError(result.message || "Failed to change password. Please check your current password.");
       }
     } catch {
       setError("Network error while changing password");
@@ -549,7 +562,7 @@ export default function ProfileDetailPage() {
     setChangingRole(true);
     try {
       await updateMemberRole(selectedMember.id, newRole);
-      setMembers(prev => prev.map(m => 
+      setMembers(prev => prev.map(m =>
         m.id === selectedMember.id ? { ...m, role: newRole } : m
       ));
       setShowRoleModal(false);
@@ -628,10 +641,10 @@ export default function ProfileDetailPage() {
     try {
       const result = await updateMemberQuota(quotaMember.id, { mode: quotaMode, limit: quotaLimit });
       if (result.success) {
-        showToast({ 
-          type: "success", 
-          title: "Quota updated", 
-          message: `Quota updated for ${quotaMember.name}: ${quotaMode}${quotaMode !== "SharedPool" ? ` - ${quotaLimit} credits` : ""}` 
+        showToast({
+          type: "success",
+          title: "Quota updated",
+          message: `Quota updated for ${quotaMember.name}: ${quotaMode}${quotaMode !== "SharedPool" ? ` - ${quotaLimit} credits` : ""}`
         });
         setShowQuotaModal(false);
         setQuotaMember(null);
@@ -767,7 +780,7 @@ export default function ProfileDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-surface flex">
+      <div className="min-h-dvh bg-surface flex">
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex overflow-hidden">
             <div className="w-64 shrink-0 border-r border-outline-variant/20 bg-surface-container-low/30 p-5 space-y-2">
@@ -794,7 +807,7 @@ export default function ProfileDetailPage() {
 
   if (error && !workspace) {
     return (
-      <div className="min-h-[100dvh] bg-surface flex">
+      <div className="min-h-dvh bg-surface flex">
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex overflow-hidden">
             <div className="w-64 shrink-0 border-r border-outline-variant/20 bg-surface-container-low/30" />
@@ -846,7 +859,7 @@ export default function ProfileDetailPage() {
   const statusInfo = workspace ? statusConfig[workspace.status] || statusConfig[0] : statusConfig[0];
 
   return (
-    <div className="min-h-[100dvh] bg-surface flex">
+    <div className="min-h-dvh bg-surface flex">
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex overflow-hidden">
           <WorkspaceSettingsSidebar
@@ -884,7 +897,7 @@ export default function ProfileDetailPage() {
                   <motion.div variants={reduceMotion ? undefined : container} initial={reduceMotion ? undefined : "hidden"} animate="show" className="space-y-8">
                     <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center ring-1 ring-primary/20">
+                        <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-primary/10 to-secondary/10 flex items-center justify-center ring-1 ring-primary/20">
                           <span className="material-symbols-outlined text-primary text-[24px]">dashboard</span>
                         </div>
                         <div>
@@ -929,7 +942,7 @@ export default function ProfileDetailPage() {
                           >
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 flex items-center justify-center ring-1 ring-emerald-500/20 group-hover:ring-emerald-500/40 transition-all">
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-emerald-500/10 to-emerald-600/5 flex items-center justify-center ring-1 ring-emerald-500/20 group-hover:ring-emerald-500/40 transition-all">
                                   <span className="material-symbols-outlined text-emerald-500 text-[20px]">token</span>
                                 </div>
                                 <span className="text-label-sm text-on-surface-variant font-medium">Credits</span>
@@ -948,7 +961,7 @@ export default function ProfileDetailPage() {
                                   initial={reduceMotion ? undefined : { width: 0 }}
                                   animate={{ width: `${overviewCreditWallet ? (overviewCreditWallet.balance / overviewCreditWallet.maxBalance) * 100 : 0}%` }}
                                   transition={{ duration: 1, ease: "easeOut" }}
-                                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full"
+                                  className="absolute inset-y-0 left-0 bg-linear-to-r from-emerald-400 to-emerald-500 rounded-full"
                                 />
                               </div>
                               <p className="text-label-xs text-outline flex items-center gap-1">
@@ -966,7 +979,7 @@ export default function ProfileDetailPage() {
                           >
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 flex items-center justify-center ring-1 ring-blue-500/20 group-hover:ring-blue-500/40 transition-all">
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-500/10 to-blue-600/5 flex items-center justify-center ring-1 ring-blue-500/20 group-hover:ring-blue-500/40 transition-all">
                                   <span className="material-symbols-outlined text-blue-500 text-[20px]">send</span>
                                 </div>
                                 <span className="text-label-sm text-on-surface-variant font-medium">Posts</span>
@@ -985,7 +998,7 @@ export default function ProfileDetailPage() {
                                   initial={reduceMotion ? undefined : { width: 0 }}
                                   animate={{ width: `${overviewPostQuota ? (overviewPostQuota.used / overviewPostQuota.total) * 100 : 0}%` }}
                                   transition={{ duration: 1, ease: "easeOut" }}
-                                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full"
+                                  className="absolute inset-y-0 left-0 bg-linear-to-r from-blue-400 to-blue-500 rounded-full"
                                 />
                               </div>
                               <p className="text-label-xs text-outline flex items-center gap-1">
@@ -1003,7 +1016,7 @@ export default function ProfileDetailPage() {
                           >
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 flex items-center justify-center ring-1 ring-purple-500/20 group-hover:ring-purple-500/40 transition-all">
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500/10 to-purple-600/5 flex items-center justify-center ring-1 ring-purple-500/20 group-hover:ring-purple-500/40 transition-all">
                                   <span className="material-symbols-outlined text-purple-500 text-[20px]">auto_awesome</span>
                                 </div>
                                 <span className="text-label-sm text-on-surface-variant font-medium">AI Usage</span>
@@ -1029,7 +1042,7 @@ export default function ProfileDetailPage() {
                           >
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 flex items-center justify-center ring-1 ring-amber-500/20 group-hover:ring-amber-500/40 transition-all">
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-amber-500/10 to-amber-600/5 flex items-center justify-center ring-1 ring-amber-500/20 group-hover:ring-amber-500/40 transition-all">
                                   <span className="material-symbols-outlined text-amber-500 text-[20px]">
                                     {workspace && workspace.workspaceType === 2 ? "business" : "person"}
                                   </span>
@@ -1059,7 +1072,7 @@ export default function ProfileDetailPage() {
                           >
                             <div className="flex items-center justify-between mb-6">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
                                   <span className="material-symbols-outlined text-primary text-[20px]">leaderboard</span>
                                 </div>
                                 <div>
@@ -1082,7 +1095,7 @@ export default function ProfileDetailPage() {
                                       transition={{ delay: index * 0.1 }}
                                       className="flex items-center gap-4"
                                     >
-                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-sm font-bold text-primary ring-2 ring-primary/20">
+                                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-sm font-bold text-primary ring-2 ring-primary/20">
                                         {index < 3 ? medals[index] : index + 1}
                                       </div>
                                       <div className="flex-1 min-w-0">
@@ -1095,7 +1108,7 @@ export default function ProfileDetailPage() {
                                             initial={reduceMotion ? undefined : { width: 0 }}
                                             animate={{ width: `${pct}%` }}
                                             transition={{ duration: 0.8, delay: index * 0.1, ease: "easeOut" }}
-                                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-primary-container rounded-full"
+                                            className="absolute inset-y-0 left-0 bg-linear-to-r from-primary to-primary-container rounded-full"
                                           />
                                         </div>
                                       </div>
@@ -1121,7 +1134,7 @@ export default function ProfileDetailPage() {
                           >
                             <div className="flex items-center justify-between mb-6">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 flex items-center justify-center ring-1 ring-secondary/20">
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-secondary/10 to-secondary/5 flex items-center justify-center ring-1 ring-secondary/20">
                                   <span className="material-symbols-outlined text-secondary text-[20px]">pie_chart</span>
                                 </div>
                                 <div>
@@ -1157,7 +1170,7 @@ export default function ProfileDetailPage() {
                                         initial={reduceMotion ? undefined : { width: 0 }}
                                         animate={{ width: `${item.value}%` }}
                                         transition={{ duration: 0.8, delay: idx * 0.1, ease: "easeOut" }}
-                                        className={`absolute inset-y-0 left-0 bg-gradient-to-r ${item.color} rounded-full`}
+                                        className={`absolute inset-y-0 left-0 bg-linear-to-r ${item.color} rounded-full`}
                                       />
                                     </div>
                                   </div>
@@ -1170,10 +1183,10 @@ export default function ProfileDetailPage() {
                         {/* Quick Actions */}
                         <motion.div
                           variants={reduceMotion ? undefined : item}
-                          className="bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/10 p-6 shadow-sm"
+                          className="bg-linear-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/10 p-6 shadow-sm"
                         >
                           <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center ring-1 ring-primary/20">
+                            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-primary/10 to-secondary/10 flex items-center justify-center ring-1 ring-primary/20">
                               <span className="material-symbols-outlined text-primary text-[20px]">bolt</span>
                             </div>
                             <div>
@@ -1272,7 +1285,7 @@ export default function ProfileDetailPage() {
                         </motion.div>
 
                         <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-sm flex flex-col sm:flex-row items-center gap-5">
-                          <div className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 shrink-0 border border-primary/10">
+                          <div className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden bg-linear-to-br from-primary/10 to-primary/5 shrink-0 border border-primary/10">
                             {avatarPreview ? (
                               <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
                             ) : (
@@ -1369,12 +1382,12 @@ export default function ProfileDetailPage() {
                         <motion.button
                           whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                           onClick={handleInviteMember}
-                          disabled={isLimitedMode}
+                          disabled={isLimitedMode || !workspace?.isOwner}
                           className="px-3 sm:px-5 py-2 sm:py-2.5 bg-primary text-on-primary rounded-xl text-label-sm sm:text-body-sm font-semibold hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 inline-flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="material-symbols-outlined text-[16px] sm:text-[18px]">person_add</span>
-                          {isLimitedMode ? "Limited" : <span className="hidden sm:inline">Invite Member</span>}
-                          {isLimitedMode ? "" : <span className="sm:hidden">Invite</span>}
+                          <span className="hidden sm:inline">Invite Member</span>
+                          <span className="sm:hidden">Invite</span>
                         </motion.button>
                       </div>
                     </motion.div>
@@ -1415,16 +1428,14 @@ export default function ProfileDetailPage() {
                           <button
                             key={f.key}
                             onClick={() => setMemberFilter(f.key)}
-                            className={`px-4 py-2 rounded-xl text-label-sm font-medium transition-all ${
-                              memberFilter === f.key
+                            className={`px-4 py-2 rounded-xl text-label-sm font-medium transition-all ${memberFilter === f.key
                                 ? "bg-primary text-on-primary shadow-sm"
                                 : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/20"
-                            }`}
+                              }`}
                           >
                             {f.label}
-                            <span className={`ml-2 px-1.5 py-0.5 rounded-full text-label-xs ${
-                              memberFilter === f.key ? "bg-white/20" : "bg-surface-container"
-                            }`}>
+                            <span className={`ml-2 px-1.5 py-0.5 rounded-full text-label-xs ${memberFilter === f.key ? "bg-white/20" : "bg-surface-container"
+                              }`}>
                               {f.count}
                             </span>
                           </button>
@@ -1472,7 +1483,7 @@ export default function ProfileDetailPage() {
                           </div>
                         ) : members.filter(m => {
                           const matchesFilter = memberFilter === "all" || memberFilter === "active" || memberFilter === "pending";
-                          const matchesSearch = !memberSearch || 
+                          const matchesSearch = !memberSearch ||
                             m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
                             m.email.toLowerCase().includes(memberSearch.toLowerCase());
                           return matchesFilter && matchesSearch;
@@ -1485,9 +1496,9 @@ export default function ProfileDetailPage() {
                               {memberFilter === "pending" ? "No pending invitations" : (memberSearch ? "No members match your search" : "No members found")}
                             </h4>
                             <p className="text-body-sm text-on-surface-variant max-w-sm mx-auto mb-4">
-                              {memberFilter === "pending" 
+                              {memberFilter === "pending"
                                 ? "Pending invitations will appear here once you invite new members."
-                                : (memberSearch 
+                                : (memberSearch
                                   ? "Try adjusting your search terms or filters to find what you're looking for."
                                   : "Start building your team by inviting members to collaborate on this workspace.")}
                             </p>
@@ -1502,8 +1513,7 @@ export default function ProfileDetailPage() {
                             ) : (
                               <button
                                 onClick={handleInviteMember}
-                                disabled={isLimitedMode}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
                               >
                                 <span className="material-symbols-outlined text-[16px]">person_add</span>
                                 Invite first member
@@ -1513,341 +1523,340 @@ export default function ProfileDetailPage() {
                         ) : (
                           (() => {
                             const filteredMembers = members.filter(m => {
-                            const matchesFilter = memberFilter === "all" || memberFilter === "active";
-                            const matchesSearch = !memberSearch || 
-                              m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-                              m.email.toLowerCase().includes(memberSearch.toLowerCase());
-                            return matchesFilter && matchesSearch;
-                          });
+                              const matchesFilter = memberFilter === "all" || memberFilter === "active";
+                              const matchesSearch = !memberSearch ||
+                                m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                                m.email.toLowerCase().includes(memberSearch.toLowerCase());
+                              return matchesFilter && matchesSearch;
+                            });
                             const totalPages = Math.ceil(filteredMembers.length / membersPerPage);
                             const paginatedMembers = filteredMembers.slice((memberPage - 1) * membersPerPage, memberPage * membersPerPage);
-                            
+
                             return (
                               <>
                                 {paginatedMembers.map((member) => {
-                            const roleConfig: Record<WorkspaceMemberRole, { label: string; color: string; bg: string; icon: string }> = {
-                              Owner: { label: "Owner", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", icon: "star" },
-                              Manager: { label: "Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
-                              ContentCreator: { label: "Content Creator", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
-                              Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "visibility" },
-                            };
-                            const statusConfigMember: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-                              Active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" },
-                              Pending: { label: "Pending", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", dot: "bg-amber-500" },
-                              Invited: { label: "Invited", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", dot: "bg-blue-500" },
-                            };
-                            const rb = roleConfig[member.role];
-                            const sb = statusConfigMember["Active"];
-                            const isSelected = selectedMembers.has(member.id);
-                            return (
-                              <div key={member.id} className={`px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    const newSelected = new Set(selectedMembers);
-                                    if (isSelected) {
-                                      newSelected.delete(member.id);
-                                    } else {
-                                      newSelected.add(member.id);
-                                    }
-                                    setSelectedMembers(newSelected);
-                                    setShowBulkActions(newSelected.size > 0);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="w-4 h-4 rounded border-outline-variant/40 text-primary focus:ring-primary/20 cursor-pointer"
-                                />
-                                <div 
-                                  className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-md font-bold text-primary shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
-                                  onClick={() => setSelectedMemberDetail(member)}
-                                >
-                                  {getInitials(member.name)}
-                                </div>
-                                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedMemberDetail(member)}>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-body-sm text-on-surface font-semibold truncate">{member.name}</p>
-                                    {member.role === "Owner" && (
-                                      <span className="material-symbols-outlined text-amber-500 text-[16px]">star</span>
-                                    )}
-                                  </div>
-                                  <p className="text-label-sm text-on-surface-variant truncate">{member.email}</p>
-                                  {member.joinedAt && (
-                                    <p className="text-label-xs text-outline mt-0.5">
-                                      Joined: {new Date(member.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                    </p>
-                                  )}
-                                </div>
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${rb.bg} ${rb.color}`}>
-                                  <span className="material-symbols-outlined text-[12px]">{rb.icon}</span>
-                                  {rb.label}
-                                </span>
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${sb.bg} ${sb.color}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${sb.dot} animate-pulse`} />
-                                  {sb.label}
-                                </span>
-                                {member.role !== "Owner" && (
-                                  <div className="relative">
-                                    <button 
-                                      onClick={() => setMemberActionMenu(memberActionMenu === member.id ? null : member.id)}
-                                      className="p-2 rounded-lg hover:bg-surface-container transition-colors"
-                                    >
-                                      <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
-                                    </button>
-                                    {memberActionMenu === member.id && (
-                                      <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setMemberActionMenu(null)} />
-                                        <div className="absolute right-0 top-full mt-1 w-48 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-lg z-20 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
-                                          <button
-                                            onClick={() => handleOpenRoleModal(member)}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
-                                          >
-                                            <span className="material-symbols-outlined text-[18px] text-blue-500">swap_horiz</span>
-                                            Change Role
-                                          </button>
-                                          <button
-                                            onClick={() => handleOpenQuotaModal(member)}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
-                                          >
-                                            <span className="material-symbols-outlined text-[18px] text-purple-500">data_thresholding</span>
-                                            Assign Quota
-                                          </button>
-                                          <button
-                                            onClick={() => handleRemoveMember(member)}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-danger-red hover:bg-danger-red/5 transition-colors text-left"
-                                          >
-                                            <span className="material-symbols-outlined text-[18px]">person_remove</span>
-                                            Remove Member
-                                          </button>
+                                  const roleConfig: Record<WorkspaceMemberRole, { label: string; color: string; bg: string; icon: string }> = {
+                                    Owner: { label: "Owner", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", icon: "star" },
+                                    Manager: { label: "Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
+                                    ContentCreator: { label: "Content Creator", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
+                                    Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "visibility" },
+                                  };
+                                  const statusConfigMember: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+                                    Active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" },
+                                    Pending: { label: "Pending", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", dot: "bg-amber-500" },
+                                    Invited: { label: "Invited", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", dot: "bg-blue-500" },
+                                  };
+                                  const rb = roleConfig[member.role];
+                                  const sb = statusConfigMember["Active"];
+                                  const isSelected = selectedMembers.has(member.id);
+                                  return (
+                                    <div key={member.id} className={`px-6 py-4 flex items-center gap-4 hover:bg-surface-container/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const newSelected = new Set(selectedMembers);
+                                          if (isSelected) {
+                                            newSelected.delete(member.id);
+                                          } else {
+                                            newSelected.add(member.id);
+                                          }
+                                          setSelectedMembers(newSelected);
+                                          setShowBulkActions(newSelected.size > 0);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-4 h-4 rounded border-outline-variant/40 text-primary focus:ring-primary/20 cursor-pointer"
+                                      />
+                                      <div
+                                        className="w-12 h-12 rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-md font-bold text-primary shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
+                                        onClick={() => setSelectedMemberDetail(member)}
+                                      >
+                                        {getInitials(member.name)}
+                                      </div>
+                                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedMemberDetail(member)}>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-body-sm text-on-surface font-semibold truncate">{member.name}</p>
+                                          {member.role === "Owner" && (
+                                            <span className="material-symbols-outlined text-amber-500 text-[16px]">star</span>
+                                          )}
                                         </div>
-                                      </>
-                                    )}
+                                        <p className="text-label-sm text-on-surface-variant truncate">{member.email}</p>
+                                        {member.joinedAt && (
+                                          <p className="text-label-xs text-outline mt-0.5">
+                                            Joined: {new Date(member.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${rb.bg} ${rb.color}`}>
+                                        <span className="material-symbols-outlined text-[12px]">{rb.icon}</span>
+                                        {rb.label}
+                                      </span>
+                                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${sb.bg} ${sb.color}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${sb.dot} animate-pulse`} />
+                                        {sb.label}
+                                      </span>
+                                      {member.role !== "Owner" && (
+                                        <div className="relative">
+                                          <button
+                                            onClick={() => setMemberActionMenu(memberActionMenu === member.id ? null : member.id)}
+                                            className="p-2 rounded-lg hover:bg-surface-container transition-colors"
+                                          >
+                                            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">more_vert</span>
+                                          </button>
+                                          {memberActionMenu === member.id && (
+                                            <>
+                                              <div className="fixed inset-0 z-10" onClick={() => setMemberActionMenu(null)} />
+                                              <div className="absolute right-0 top-full mt-1 w-48 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-lg z-20 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                <button
+                                                  onClick={() => handleOpenRoleModal(member)}
+                                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
+                                                >
+                                                  <span className="material-symbols-outlined text-[18px] text-blue-500">swap_horiz</span>
+                                                  Change Role
+                                                </button>
+                                                <button
+                                                  onClick={() => handleOpenQuotaModal(member)}
+                                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors text-left"
+                                                >
+                                                  <span className="material-symbols-outlined text-[18px] text-purple-500">data_thresholding</span>
+                                                  Assign Quota
+                                                </button>
+                                                <button
+                                                  onClick={() => handleRemoveMember(member)}
+                                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-body-sm text-danger-red hover:bg-danger-red/5 transition-colors text-left"
+                                                >
+                                                  <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                                                  Remove Member
+                                                </button>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Pagination */}
+                                {totalPages > 1 && (
+                                  <div className="px-6 py-4 border-t border-outline-variant/10 flex items-center justify-between bg-surface-container/20">
+                                    <p className="text-body-sm text-on-surface-variant">
+                                      Showing {(memberPage - 1) * membersPerPage + 1} to {Math.min(memberPage * membersPerPage, filteredMembers.length)} of {filteredMembers.length} members
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => setMemberPage(p => Math.max(1, p - 1))}
+                                        disabled={memberPage === 1}
+                                        className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                      >
+                                        Previous
+                                      </button>
+                                      <span className="px-3 py-1.5 text-label-sm text-on-surface-variant">
+                                        Page {memberPage} of {totalPages}
+                                      </span>
+                                      <button
+                                        onClick={() => setMemberPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={memberPage === totalPages}
+                                        className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                      >
+                                        Next
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
-                              </div>
+                              </>
                             );
-                          })}
-                          
-                          {/* Pagination */}
-                          {totalPages > 1 && (
-                            <div className="px-6 py-4 border-t border-outline-variant/10 flex items-center justify-between bg-surface-container/20">
-                              <p className="text-body-sm text-on-surface-variant">
-                                Showing {(memberPage - 1) * membersPerPage + 1} to {Math.min(memberPage * membersPerPage, filteredMembers.length)} of {filteredMembers.length} members
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => setMemberPage(p => Math.max(1, p - 1))}
-                                  disabled={memberPage === 1}
-                                  className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  Previous
-                                </button>
-                                <span className="px-3 py-1.5 text-label-sm text-on-surface-variant">
-                                  Page {memberPage} of {totalPages}
+                          })()
+                        )}
+                      </div>
+                    </motion.div>
+
+                    {/* Pending Invitations */}
+                    {invitations.length > 0 && (
+                      <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30">
+                          <h3 className="text-body-md font-semibold text-on-surface">Pending Invitations</h3>
+                        </div>
+                        <div className="divide-y divide-outline-variant/10">
+                          {loadingInvitations ? (
+                            <div className="px-6 py-4 text-center text-body-sm text-on-surface-variant">Loading...</div>
+                          ) : (
+                            invitations.map((inv) => (
+                              <div key={inv.id} className="px-6 py-4 flex items-center gap-4 group">
+                                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                  <span className="material-symbols-outlined text-[18px] text-blue-500">mail</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-body-sm font-medium text-on-surface">{inv.email}</p>
+                                  <p className="text-label-xs text-outline">
+                                    Invited by {inv.invitedByName} · {new Date(inv.createdAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <span className="text-label-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 font-medium">
+                                  Pending
                                 </span>
                                 <button
-                                  onClick={() => setMemberPage(p => Math.min(totalPages, p + 1))}
-                                  disabled={memberPage === totalPages}
-                                  className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                  onClick={async () => {
+                                    const ok = await cancelInvitation(inv.id);
+                                    if (ok) {
+                                      setInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+                                      showToast({ type: "success", title: "Revoked", message: `Invitation to ${inv.email} has been revoked.` });
+                                    } else {
+                                      showToast({ type: "error", title: "Error", message: "Failed to revoke invitation." });
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg text-on-surface-variant hover:bg-danger-red/10 hover:text-danger-red opacity-0 group-hover:opacity-100 transition-all"
+                                  title="Revoke invitation"
                                 >
-                                  Next
+                                  <span className="material-symbols-outlined text-[16px]">close</span>
                                 </button>
                               </div>
-                            </div>
+                            ))
                           )}
-                        </>
-                      );
-                    })()
-                  )}
-                </div>
-              </motion.div>
-
-              {/* Pending Invitations */}
-              {invitations.length > 0 && (
-                <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30">
-                    <h3 className="text-body-md font-semibold text-on-surface">Pending Invitations</h3>
-                  </div>
-                  <div className="divide-y divide-outline-variant/10">
-                    {loadingInvitations ? (
-                      <div className="px-6 py-4 text-center text-body-sm text-on-surface-variant">Loading...</div>
-                    ) : (
-                      invitations.map((inv) => (
-                        <div key={inv.id} className="px-6 py-4 flex items-center gap-4 group">
-                          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[18px] text-blue-500">mail</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-body-sm font-medium text-on-surface">{inv.email}</p>
-                            <p className="text-label-xs text-outline">
-                              Invited by {inv.invitedByName} · {new Date(inv.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <span className="text-label-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 font-medium">
-                            Pending
-                          </span>
-                          <button
-                            onClick={async () => {
-                              const ok = await cancelInvitation(inv.id);
-                              if (ok) {
-                                setInvitations((prev) => prev.filter((i) => i.id !== inv.id));
-                                showToast({ type: "success", title: "Revoked", message: `Invitation to ${inv.email} has been revoked.` });
-                              } else {
-                                showToast({ type: "error", title: "Error", message: "Failed to revoke invitation." });
-                              }
-                            }}
-                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-danger-red/10 hover:text-danger-red opacity-0 group-hover:opacity-100 transition-all"
-                            title="Revoke invitation"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">close</span>
-                          </button>
                         </div>
-                      ))
+                      </motion.div>
                     )}
-                  </div>
-                </motion.div>
-              )}
 
-              {/* Bulk Actions Bar */}
-              {showBulkActions && selectedMembers.size > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto z-40 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-2xl px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4"
-                >
-                  <span className="text-body-sm font-semibold text-on-surface text-center sm:text-left">
-                    {selectedMembers.size} member{selectedMembers.size > 1 ? "s" : ""} selected
-                  </span>
-                  <div className="hidden sm:block h-6 w-px bg-outline-variant/20" />
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setConfirmModal({
-                          isOpen: true,
-                          title: "Remove Members",
-                          message: `Are you sure you want to remove ${selectedMembers.size} member${selectedMembers.size > 1 ? "s" : ""}? This action cannot be undone.`,
-                          type: "danger",
-                          confirmText: "Remove All",
-                          onConfirm: async () => {
-                            try {
-                              await Promise.all(Array.from(selectedMembers).map(id => removeMember(id)));
-                              setMembers(prev => prev.filter(m => !selectedMembers.has(m.id)));
-                              const count = selectedMembers.size;
+                    {/* Bulk Actions Bar */}
+                    {showBulkActions && selectedMembers.size > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto z-40 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-2xl px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4"
+                      >
+                        <span className="text-body-sm font-semibold text-on-surface text-center sm:text-left">
+                          {selectedMembers.size} member{selectedMembers.size > 1 ? "s" : ""} selected
+                        </span>
+                        <div className="hidden sm:block h-6 w-px bg-outline-variant/20" />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: "Remove Members",
+                                message: `Are you sure you want to remove ${selectedMembers.size} member${selectedMembers.size > 1 ? "s" : ""}? This action cannot be undone.`,
+                                type: "danger",
+                                confirmText: "Remove All",
+                                onConfirm: async () => {
+                                  try {
+                                    await Promise.all(Array.from(selectedMembers).map(id => removeMember(id)));
+                                    setMembers(prev => prev.filter(m => !selectedMembers.has(m.id)));
+                                    const count = selectedMembers.size;
+                                    setSelectedMembers(new Set());
+                                    setShowBulkActions(false);
+                                    showToast({ type: "success", title: "Members removed", message: `${count} member${count > 1 ? "s" : ""} removed successfully.` });
+                                  } catch {
+                                    showToast({ type: "error", title: "Error", message: "Failed to remove some members." });
+                                  }
+                                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                },
+                              });
+                            }}
+                            className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-body-sm font-semibold text-danger-red hover:bg-danger-red/5 transition-colors flex items-center justify-center sm:justify-start gap-2"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">person_remove</span>
+                            Remove
+                          </button>
+                          <button
+                            onClick={() => {
                               setSelectedMembers(new Set());
                               setShowBulkActions(false);
-                              showToast({ type: "success", title: "Members removed", message: `${count} member${count > 1 ? "s" : ""} removed successfully.` });
-                            } catch {
-                              showToast({ type: "error", title: "Error", message: "Failed to remove some members." });
-                            }
-                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                          },
-                        });
-                      }}
-                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-body-sm font-semibold text-danger-red hover:bg-danger-red/5 transition-colors flex items-center justify-center sm:justify-start gap-2"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">person_remove</span>
-                      Remove
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedMembers(new Set());
-                        setShowBulkActions(false);
-                      }}
-                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </motion.div>
-              )}
+                            }}
+                            className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
 
-              {/* Member Detail Modal */}
-              {selectedMemberDetail && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                  <motion.div
-                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-body-lg font-bold text-on-surface">Member Details</h3>
-                      <button
-                        onClick={() => setSelectedMemberDetail(null)}
-                        className="w-8 h-8 rounded-lg hover:bg-surface-container flex items-center justify-center transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-lg font-bold text-primary">
-                        {getInitials(selectedMemberDetail.name)}
-                      </div>
-                      <div>
-                        <h4 className="text-body-md font-semibold text-on-surface">{selectedMemberDetail.name}</h4>
-                        <p className="text-body-sm text-on-surface-variant">{selectedMemberDetail.email}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
-                        <span className="text-body-sm text-on-surface-variant">Role</span>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${
-                          selectedMemberDetail.role === "Owner" ? "bg-amber-50 text-amber-700 border-amber-200/50" :
-                          selectedMemberDetail.role === "Manager" ? "bg-blue-50 text-blue-700 border-blue-200/50" :
-                          selectedMemberDetail.role === "ContentCreator" ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
-                          "bg-surface-container text-on-surface-variant border-outline-variant/20"
-                        }`}>
-                          <span className="material-symbols-outlined text-[12px]">
-                            {selectedMemberDetail.role === "Owner" ? "star" :
-                             selectedMemberDetail.role === "Manager" ? "manage_accounts" :
-                             selectedMemberDetail.role === "ContentCreator" ? "edit_note" : "visibility"}
-                          </span>
-                          {selectedMemberDetail.role === "ContentCreator" ? "Content Creator" : selectedMemberDetail.role}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
-                        <span className="text-body-sm text-on-surface-variant">Status</span>
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200/50">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          Active
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
-                        <span className="text-body-sm text-on-surface-variant">Joined</span>
-                        <span className="text-body-sm text-on-surface">
-                          {new Date(selectedMemberDetail.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3 mt-6">
-                      <button
-                        onClick={() => setSelectedMemberDetail(null)}
-                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors"
-                      >
-                        Close
-                      </button>
-                      {selectedMemberDetail.role !== "Owner" && (
-                        <button
-                          onClick={() => {
-                            setSelectedMemberDetail(null);
-                            handleOpenRoleModal(selectedMemberDetail);
-                          }}
-                          className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                    {/* Member Detail Modal */}
+                    {selectedMemberDetail && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
                         >
-                          Change Role
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                </div>
-              )}
+                          <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-body-lg font-bold text-on-surface">Member Details</h3>
+                            <button
+                              onClick={() => setSelectedMemberDetail(null)}
+                              className="w-8 h-8 rounded-lg hover:bg-surface-container flex items-center justify-center transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-4 mb-6">
+                            <div className="w-16 h-16 rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-lg font-bold text-primary">
+                              {getInitials(selectedMemberDetail.name)}
+                            </div>
+                            <div>
+                              <h4 className="text-body-md font-semibold text-on-surface">{selectedMemberDetail.name}</h4>
+                              <p className="text-body-sm text-on-surface-variant">{selectedMemberDetail.email}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                              <span className="text-body-sm text-on-surface-variant">Role</span>
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${selectedMemberDetail.role === "Owner" ? "bg-amber-50 text-amber-700 border-amber-200/50" :
+                                  selectedMemberDetail.role === "Manager" ? "bg-blue-50 text-blue-700 border-blue-200/50" :
+                                    selectedMemberDetail.role === "ContentCreator" ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
+                                      "bg-surface-container text-on-surface-variant border-outline-variant/20"
+                                }`}>
+                                <span className="material-symbols-outlined text-[12px]">
+                                  {selectedMemberDetail.role === "Owner" ? "star" :
+                                    selectedMemberDetail.role === "Manager" ? "manage_accounts" :
+                                      selectedMemberDetail.role === "ContentCreator" ? "edit_note" : "visibility"}
+                                </span>
+                                {selectedMemberDetail.role === "ContentCreator" ? "Content Creator" : selectedMemberDetail.role}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                              <span className="text-body-sm text-on-surface-variant">Status</span>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200/50">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Active
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
+                              <span className="text-body-sm text-on-surface-variant">Joined</span>
+                              <span className="text-body-sm text-on-surface">
+                                {new Date(selectedMemberDetail.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 mt-6">
+                            <button
+                              onClick={() => setSelectedMemberDetail(null)}
+                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors"
+                            >
+                              Close
+                            </button>
+                            {selectedMemberDetail.role !== "Owner" && (
+                              <button
+                                onClick={() => {
+                                  setSelectedMemberDetail(null);
+                                  handleOpenRoleModal(selectedMemberDetail);
+                                }}
+                                className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                              >
+                                Change Role
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
 
                     {/* Workspace Roles Info */}
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
+                    <motion.div variants={reduceMotion ? undefined : item} className="bg-linear-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
                       <div className="flex items-start gap-4 mb-4">
                         <div className="w-12 h-12 rounded-xl bg-white/80 flex items-center justify-center shrink-0">
                           <span className="material-symbols-outlined text-primary text-[24px]">admin_panel_settings</span>
@@ -1888,7 +1897,7 @@ export default function ProfileDetailPage() {
                     </motion.div>
 
                     {/* Security Status Card */}
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-emerald-50 to-emerald-50/50 rounded-2xl border border-emerald-200/30 p-6">
+                    <motion.div variants={reduceMotion ? undefined : item} className="bg-linear-to-br from-emerald-50 to-emerald-50/50 rounded-2xl border border-emerald-200/30 p-6">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
                           <span className="material-symbols-outlined text-emerald-600 text-[28px]">shield</span>
@@ -1917,14 +1926,14 @@ export default function ProfileDetailPage() {
                           <p className="text-label-sm text-on-surface-variant">Update your password to keep your account secure</p>
                         </div>
                       </div>
-                      
+
                       <div className="max-w-md space-y-5">
                         <div className="space-y-2">
                           <label className={labelClass}>Current Password</label>
                           <div className="relative">
-                            <input 
-                              className={`${inputClass} pr-12`} 
-                              type={showPasswords.current ? "text" : "password"} 
+                            <input
+                              className={`${inputClass} pr-12`}
+                              type={showPasswords.current ? "text" : "password"}
                               placeholder="Enter current password"
                               value={passwordForm.currentPassword}
                               onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
@@ -1934,13 +1943,13 @@ export default function ProfileDetailPage() {
                             </button>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <label className={labelClass}>New Password</label>
                           <div className="relative">
-                            <input 
-                              className={`${inputClass} pr-12`} 
-                              type={showPasswords.new ? "text" : "password"} 
+                            <input
+                              className={`${inputClass} pr-12`}
+                              type={showPasswords.new ? "text" : "password"}
                               placeholder="Enter new password"
                               value={passwordForm.newPassword}
                               onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
@@ -1951,32 +1960,30 @@ export default function ProfileDetailPage() {
                           </div>
                           <div className="flex items-center gap-2 mt-2">
                             <div className="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full transition-all ${
-                                passwordForm.newPassword.length === 0 ? "w-0 bg-surface-container" :
-                                passwordForm.newPassword.length < 8 ? "w-1/3 bg-red-500" :
-                                passwordForm.newPassword.length < 12 ? "w-2/3 bg-gradient-to-r from-amber-400 to-emerald-500" :
-                                "w-full bg-emerald-500"
-                              }`} />
+                              <div className={`h-full rounded-full transition-all ${passwordForm.newPassword.length === 0 ? "w-0 bg-surface-container" :
+                                  passwordForm.newPassword.length < 8 ? "w-1/3 bg-red-500" :
+                                    passwordForm.newPassword.length < 12 ? "w-2/3 bg-linear-to-r from-amber-400 to-emerald-500" :
+                                      "w-full bg-emerald-500"
+                                }`} />
                             </div>
-                            <span className={`text-label-xs font-medium ${
-                              passwordForm.newPassword.length === 0 ? "text-outline" :
-                              passwordForm.newPassword.length < 8 ? "text-red-600" :
-                              passwordForm.newPassword.length < 12 ? "text-emerald-600" :
-                              "text-emerald-600"
-                            }`}>
+                            <span className={`text-label-xs font-medium ${passwordForm.newPassword.length === 0 ? "text-outline" :
+                                passwordForm.newPassword.length < 8 ? "text-red-600" :
+                                  passwordForm.newPassword.length < 12 ? "text-emerald-600" :
+                                    "text-emerald-600"
+                              }`}>
                               {passwordForm.newPassword.length === 0 ? "—" :
-                               passwordForm.newPassword.length < 8 ? "Weak" :
-                               passwordForm.newPassword.length < 12 ? "Medium" : "Strong"}
+                                passwordForm.newPassword.length < 8 ? "Weak" :
+                                  passwordForm.newPassword.length < 12 ? "Medium" : "Strong"}
                             </span>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <label className={labelClass}>Confirm New Password</label>
                           <div className="relative">
-                            <input 
-                              className={`${inputClass} pr-12`} 
-                              type={showPasswords.confirm ? "text" : "password"} 
+                            <input
+                              className={`${inputClass} pr-12`}
+                              type={showPasswords.confirm ? "text" : "password"}
                               placeholder="Confirm new password"
                               value={passwordForm.confirmPassword}
                               onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
@@ -2066,11 +2073,10 @@ export default function ProfileDetailPage() {
                         <button
                           key={tab.key}
                           onClick={() => setBillingTab(tab.key)}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-body-sm font-semibold transition-all ${
-                            billingTab === tab.key
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-body-sm font-semibold transition-all ${billingTab === tab.key
                               ? "bg-surface-container-lowest text-primary shadow-sm"
                               : "text-on-surface-variant hover:text-on-surface"
-                          }`}
+                            }`}
                         >
                           <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
                           {tab.label}
@@ -2080,159 +2086,158 @@ export default function ProfileDetailPage() {
 
                     {billingTab === "overview" && (
                       <>
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-emerald-50 to-emerald-50/50 rounded-2xl border border-emerald-200/30 p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-emerald-600 text-[28px]">token</span>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-body-lg font-semibold text-on-surface">Credit Wallet</h3>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-label-xs font-semibold">
-                                <span className="material-symbols-outlined text-[12px]">check</span>
-                                Active
-                              </span>
-                            </div>
-                            <p className="text-body-sm text-on-surface-variant">Workspace AI credits balance</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-3xl font-bold text-emerald-600">{creditWallet?.balance?.toLocaleString() ?? "—"}</p>
-                          <p className="text-label-sm text-outline">Credits remaining</p>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                    {/* Workspace Credits & Usage */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      {[
-                        { label: "AI Credits", used: creditWallet ? creditWallet.creditsUsed.toLocaleString() : "—", total: creditWallet ? creditWallet.maxBalance.toLocaleString() : "—", pct: creditWallet && creditWallet.maxBalance > 0 ? Math.round((creditWallet.creditsUsed / creditWallet.maxBalance) * 100) : 0, icon: "token", color: "text-primary", bg: "bg-primary/5", bar: "bg-gradient-to-r from-primary to-primary-container", warning: false },
-                        { label: "Posts Published", used: creditWallet ? creditWallet.publishedPostCount.toLocaleString() : "—", total: creditWallet ? creditWallet.postQuotaLimit.toLocaleString() : "—", pct: creditWallet && creditWallet.postQuotaLimit > 0 ? Math.round((creditWallet.publishedPostCount / creditWallet.postQuotaLimit) * 100) : 0, icon: "send", color: "text-secondary", bg: "bg-secondary/5", bar: "bg-gradient-to-r from-secondary to-secondary-container", warning: false },
-                        { label: "Team Members", used: creditWallet ? creditWallet.activeMemberCount.toString() : "—", total: workspace?.memberLimit ? workspace.memberLimit.toString() : "—", pct: creditWallet && workspace?.memberLimit && workspace.memberLimit > 0 ? Math.round((creditWallet.activeMemberCount / workspace.memberLimit) * 100) : 0, icon: "group", color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-gradient-to-r from-emerald-500 to-emerald-400", warning: false },
-                      ].map((q) => (
-                        <motion.div
-                          key={q.label}
-                          variants={reduceMotion ? undefined : item}
-                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-5 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`w-9 h-9 rounded-xl ${q.bg} flex items-center justify-center`}>
-                                <span className={`material-symbols-outlined ${q.color} text-[18px]`}>{q.icon}</span>
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-linear-to-br from-emerald-50 to-emerald-50/50 rounded-2xl border border-emerald-200/30 p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-emerald-600 text-[28px]">token</span>
                               </div>
-                              <p className="text-label-sm text-on-surface-variant font-medium">{q.label}</p>
-                            </div>
-                            {q.warning && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-label-2xs font-semibold border border-amber-200/50">
-                                <span className="material-symbols-outlined text-[10px]">warning</span>
-                                High
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-baseline gap-1 mb-3">
-                            <p className="text-body-xl font-bold text-on-surface">{q.used}</p>
-                            <p className="text-body-sm text-outline">/ {q.total}</p>
-                          </div>
-                          <div className="h-2 bg-surface-container rounded-full overflow-hidden">
-                            <motion.div
-                              initial={reduceMotion ? undefined : { width: 0 }}
-                              animate={{ width: `${q.pct}%` }}
-                              transition={{ duration: 1, ease: "easeOut" }}
-                              className={`h-full rounded-full ${q.bar}`}
-                            />
-                          </div>
-                          <p className="text-label-xs text-outline mt-2">{q.pct}% used</p>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {/* Billing History */}
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30 flex items-center justify-between">
-                        <h3 className="text-body-md font-semibold text-on-surface">Billing History</h3>
-                        <span className="text-label-sm text-outline">Recent transactions</span>
-                      </div>
-                      <div className="divide-y divide-outline-variant/10">
-                        {loadingPayments ? (
-                          <div className="px-6 py-8 text-center">
-                            <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-body-sm text-on-surface-variant">Loading payment history...</p>
-                          </div>
-                        ) : paymentHistory.length === 0 ? (
-                          <div className="px-6 py-12 text-center">
-                            <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">receipt_long</span>
-                            <p className="text-body-sm text-on-surface-variant">No payment history yet</p>
-                          </div>
-                        ) : (
-                          paymentHistory.map((invoice) => (
-                            <div key={invoice.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-container/30 transition-colors">
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
-                                  <span className="material-symbols-outlined text-primary text-[20px]">receipt</span>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="text-body-lg font-semibold text-on-surface">Credit Wallet</h3>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-label-xs font-semibold">
+                                    <span className="material-symbols-outlined text-[12px]">check</span>
+                                    Active
+                                  </span>
                                 </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
+                                <p className="text-body-sm text-on-surface-variant">Workspace AI credits balance</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-3xl font-bold text-emerald-600">{creditWallet?.balance?.toLocaleString() ?? "—"}</p>
+                              <p className="text-label-sm text-outline">Credits remaining</p>
+                            </div>
+                          </div>
+                        </motion.div>
+
+                        {/* Workspace Credits & Usage */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {[
+                            { label: "AI Credits", used: creditWallet ? creditWallet.creditsUsed.toLocaleString() : "—", total: creditWallet ? creditWallet.maxBalance.toLocaleString() : "—", pct: creditWallet && creditWallet.maxBalance > 0 ? Math.round((creditWallet.creditsUsed / creditWallet.maxBalance) * 100) : 0, icon: "token", color: "text-primary", bg: "bg-primary/5", bar: "bg-linear-to-r from-primary to-primary-container", warning: false },
+                            { label: "Posts Published", used: creditWallet ? creditWallet.publishedPostCount.toLocaleString() : "—", total: creditWallet ? creditWallet.postQuotaLimit.toLocaleString() : "—", pct: creditWallet && creditWallet.postQuotaLimit > 0 ? Math.round((creditWallet.publishedPostCount / creditWallet.postQuotaLimit) * 100) : 0, icon: "send", color: "text-secondary", bg: "bg-secondary/5", bar: "bg-linear-to-r from-secondary to-secondary-container", warning: false },
+                            { label: "Team Members", used: creditWallet ? creditWallet.activeMemberCount.toString() : "—", total: workspace?.memberLimit ? workspace.memberLimit.toString() : "—", pct: creditWallet && workspace?.memberLimit && workspace.memberLimit > 0 ? Math.round((creditWallet.activeMemberCount / workspace.memberLimit) * 100) : 0, icon: "group", color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-linear-to-r from-emerald-500 to-emerald-400", warning: false },
+                          ].map((q) => (
+                            <motion.div
+                              key={q.label}
+                              variants={reduceMotion ? undefined : item}
+                              className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-5 shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className={`w-9 h-9 rounded-xl ${q.bg} flex items-center justify-center`}>
+                                    <span className={`material-symbols-outlined ${q.color} text-[18px]`}>{q.icon}</span>
+                                  </div>
+                                  <p className="text-label-sm text-on-surface-variant font-medium">{q.label}</p>
+                                </div>
+                                {q.warning && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-label-2xs font-semibold border border-amber-200/50">
+                                    <span className="material-symbols-outlined text-[10px]">warning</span>
+                                    High
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-baseline gap-1 mb-3">
+                                <p className="text-body-xl font-bold text-on-surface">{q.used}</p>
+                                <p className="text-body-sm text-outline">/ {q.total}</p>
+                              </div>
+                              <div className="h-2 bg-surface-container rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={reduceMotion ? undefined : { width: 0 }}
+                                  animate={{ width: `${q.pct}%` }}
+                                  transition={{ duration: 1, ease: "easeOut" }}
+                                  className={`h-full rounded-full ${q.bar}`}
+                                />
+                              </div>
+                              <p className="text-label-xs text-outline mt-2">{q.pct}% used</p>
+                            </motion.div>
+                          ))}
+                        </div>
+
+                        {/* Billing History */}
+                        <motion.div variants={reduceMotion ? undefined : item} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 shadow-sm overflow-hidden">
+                          <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container/30 flex items-center justify-between">
+                            <h3 className="text-body-md font-semibold text-on-surface">Billing History</h3>
+                            <span className="text-label-sm text-outline">Recent transactions</span>
+                          </div>
+                          <div className="divide-y divide-outline-variant/10">
+                            {loadingPayments ? (
+                              <div className="px-6 py-8 text-center">
+                                <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+                                <p className="text-body-sm text-on-surface-variant">Loading payment history...</p>
+                              </div>
+                            ) : paymentHistory.length === 0 ? (
+                              <div className="px-6 py-12 text-center">
+                                <span className="material-symbols-outlined text-outline/40 text-4xl mb-3 block">receipt_long</span>
+                                <p className="text-body-sm text-on-surface-variant">No payment history yet</p>
+                              </div>
+                            ) : (
+                              paymentHistory.map((invoice) => (
+                                <div key={invoice.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-container/30 transition-colors">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
+                                      <span className="material-symbols-outlined text-primary text-[20px]">receipt</span>
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-body-sm font-semibold text-on-surface">
+                                          {new Date(invoice.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                                        </p>
+                                        <span className="px-2 py-0.5 rounded-full text-label-2xs font-semibold bg-primary/5 text-primary border border-primary/20">
+                                          Payment
+                                        </span>
+                                      </div>
+                                      <p className="text-label-sm text-on-surface-variant">{invoice.paymentMethod}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-4">
                                     <p className="text-body-sm font-semibold text-on-surface">
-                                      {new Date(invoice.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(invoice.amount)}
                                     </p>
-                                    <span className="px-2 py-0.5 rounded-full text-label-2xs font-semibold bg-primary/5 text-primary border border-primary/20">
-                                      Payment
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-medium border ${invoice.status === "Completed" || invoice.status === "Success"
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
+                                        : invoice.status === "Pending"
+                                          ? "bg-amber-50 text-amber-700 border-amber-200/50"
+                                          : "bg-red-50 text-red-700 border-red-200/50"
+                                      }`}>
+                                      <span className="material-symbols-outlined text-[12px]">
+                                        {invoice.status === "Completed" || invoice.status === "Success" ? "check_circle" :
+                                          invoice.status === "Pending" ? "schedule" : "error"}
+                                      </span>
+                                      {invoice.status}
                                     </span>
                                   </div>
-                                  <p className="text-label-sm text-on-surface-variant">{invoice.paymentMethod}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+
+                        {/* Payment Method - hidden until BE API is available */}
+                        {false && (
+                          <motion.div variants={reduceMotion ? undefined : item} className="bg-linear-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <div className="w-14 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-6 h-6 rounded-full bg-red-500" />
+                                    <div className="w-6 h-6 rounded-full bg-amber-400 -ml-3" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-body-sm font-semibold text-on-surface">Visa ending in 4242</p>
+                                  <p className="text-label-sm text-on-surface-variant">Expires 12/2025</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-4">
-                                <p className="text-body-sm font-semibold text-on-surface">
-                                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(invoice.amount)}
-                                </p>
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-medium border ${
-                                  invoice.status === "Completed" || invoice.status === "Success"
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
-                                    : invoice.status === "Pending"
-                                    ? "bg-amber-50 text-amber-700 border-amber-200/50"
-                                    : "bg-red-50 text-red-700 border-red-200/50"
-                                }`}>
-                                  <span className="material-symbols-outlined text-[12px]">
-                                    {invoice.status === "Completed" || invoice.status === "Success" ? "check_circle" : 
-                                     invoice.status === "Pending" ? "schedule" : "error"}
-                                  </span>
-                                  {invoice.status}
-                                </span>
-                              </div>
+                              <motion.button
+                                whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                                onClick={handleUpdatePayment}
+                                className="px-4 py-2 bg-white border border-outline-variant/30 text-on-surface rounded-xl text-label-sm font-semibold hover:bg-surface-container transition-all"
+                              >
+                                Update
+                              </motion.button>
                             </div>
-                          ))
+                          </motion.div>
                         )}
-                      </div>
-                    </motion.div>
-
-                    {/* Payment Method - hidden until BE API is available */}
-                    {false && (
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/10 p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                            <div className="flex items-center gap-1">
-                              <div className="w-6 h-6 rounded-full bg-red-500" />
-                              <div className="w-6 h-6 rounded-full bg-amber-400 -ml-3" />
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-body-sm font-semibold text-on-surface">Visa ending in 4242</p>
-                            <p className="text-label-sm text-on-surface-variant">Expires 12/2025</p>
-                          </div>
-                        </div>
-                        <motion.button
-                          whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                          onClick={handleUpdatePayment}
-                          className="px-4 py-2 bg-white border border-outline-variant/30 text-on-surface rounded-xl text-label-sm font-semibold hover:bg-surface-container transition-all"
-                        >
-                          Update
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                    )}
                       </>
                     )}
 
@@ -2295,7 +2300,7 @@ export default function ProfileDetailPage() {
                           </div>
                           {loadingCreditHistory ? (
                             <div className="p-6 space-y-4">
-                              {[1,2,3].map(i => (
+                              {[1, 2, 3].map(i => (
                                 <div key={i} className="flex items-center gap-4 animate-pulse">
                                   <div className="w-8 h-8 rounded-lg bg-surface-container" />
                                   <div className="flex-1 space-y-1">
@@ -2320,11 +2325,10 @@ export default function ProfileDetailPage() {
                                       <p className="text-body-sm text-on-surface font-medium truncate">{record.action}</p>
                                       <p className="text-label-xs text-outline">{record.userName}</p>
                                     </div>
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${
-                                      record.status === "Success"
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${record.status === "Success"
                                         ? "bg-emerald-50 text-emerald-700"
                                         : "bg-red-50 text-red-700"
-                                    }`}>
+                                      }`}>
                                       {record.status === "Failed" && (
                                         <span className="material-symbols-outlined text-[10px]">close</span>
                                       )}
@@ -2424,7 +2428,7 @@ export default function ProfileDetailPage() {
                       <motion.div
                         initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-4"
+                        className="rounded-xl border border-amber-200 bg-linear-to-r from-amber-50 to-orange-50 px-5 py-4"
                       >
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
@@ -2436,13 +2440,13 @@ export default function ProfileDetailPage() {
                               Your subscription has expired. You still have <span className="font-bold">850 credits</span> remaining, but premium features are locked.
                             </p>
                             <div className="flex flex-wrap gap-2">
-                              <button 
+                              <button
                                 className="px-4 py-2 bg-amber-600 text-white rounded-lg text-body-sm font-semibold hover:bg-amber-700 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">credit_card</span>
                                 Renew Subscription
                               </button>
-                              <button 
+                              <button
                                 onClick={() => setShowExpiredBanner(false)}
                                 className="px-4 py-2 bg-white border border-amber-300 text-amber-800 rounded-lg text-body-sm font-medium hover:bg-amber-50 transition-colors"
                               >
@@ -2458,7 +2462,7 @@ export default function ProfileDetailPage() {
                       <motion.div
                         initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-orange-50 px-5 py-4"
+                        className="rounded-xl border border-red-200 bg-linear-to-r from-red-50 to-orange-50 px-5 py-4"
                       >
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
@@ -2484,13 +2488,13 @@ export default function ProfileDetailPage() {
                               </li>
                             </ul>
                             <div className="flex flex-wrap gap-2">
-                              <button 
+                              <button
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg text-body-sm font-semibold hover:bg-red-700 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">credit_card</span>
                                 Renew Now
                               </button>
-                              <button 
+                              <button
                                 onClick={() => {
                                   setShowLimitedModeBanner(false);
                                   setIsLimitedMode(false);
@@ -2509,7 +2513,7 @@ export default function ProfileDetailPage() {
                       <motion.div
                         initial={reduceMotion ? undefined : { opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="rounded-xl border border-gray-300 bg-gradient-to-r from-gray-50 to-slate-50 px-5 py-4"
+                        className="rounded-xl border border-gray-300 bg-linear-to-r from-gray-50 to-slate-50 px-5 py-4"
                       >
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center shrink-0">
@@ -2531,20 +2535,20 @@ export default function ProfileDetailPage() {
                               </li>
                             </ul>
                             <div className="flex flex-wrap gap-2">
-                              <button 
+                              <button
                                 className="px-4 py-2 bg-gray-700 text-white rounded-lg text-body-sm font-semibold hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">credit_card</span>
                                 Renew Subscription
                               </button>
-                              <button 
+                              <button
                                 onClick={() => showToast({ type: "info", title: "Export Data", message: "Feature coming soon!" })}
                                 className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-body-sm font-medium hover:bg-gray-50 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">download</span>
                                 Export Data
                               </button>
-                              <button 
+                              <button
                                 onClick={() => {
                                   setShowArchivedBanner(false);
                                   setIsArchived(false);
@@ -2560,7 +2564,7 @@ export default function ProfileDetailPage() {
                     )}
 
                     {/* Current Plan Card */}
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-gradient-to-br from-primary via-primary-container to-secondary rounded-2xl p-[1px] shadow-lg shadow-primary/20">
+                    <motion.div variants={reduceMotion ? undefined : item} className="bg-linear-to-br from-primary via-primary-container to-secondary rounded-2xl p-px shadow-lg shadow-primary/20">
                       <div className="bg-surface-container-lowest rounded-2xl p-6">
                         {loadingSubscription ? (
                           <div className="flex items-center justify-center py-8">
@@ -2571,7 +2575,7 @@ export default function ProfileDetailPage() {
                           <>
                             <div className="flex items-start justify-between gap-4 mb-6">
                               <div className="flex items-center gap-4">
-                                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
+                                <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
                                   <span className="material-symbols-outlined text-white text-[32px]">workspace_premium</span>
                                 </div>
                                 <div>
@@ -2585,7 +2589,7 @@ export default function ProfileDetailPage() {
                                     </span>
                                   </div>
                                   <p className="text-body-sm text-on-surface-variant">
-                                    {subscription?.endDate 
+                                    {subscription?.endDate
                                       ? `Active until ${new Date(subscription.endDate).toLocaleDateString()}`
                                       : "Your current subscription plan"}
                                   </p>
@@ -2596,7 +2600,7 @@ export default function ProfileDetailPage() {
                                   whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                                   onClick={() => handleUpgradePlan(1)}
                                   disabled={upgradingPlan}
-                                  className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white rounded-xl text-body-sm font-semibold hover:opacity-90 transition-all shadow-md shadow-primary/20 shrink-0 disabled:opacity-50"
+                                  className="px-5 py-2.5 bg-linear-to-r from-primary to-secondary text-white rounded-xl text-body-sm font-semibold hover:opacity-90 transition-all shadow-md shadow-primary/20 shrink-0 disabled:opacity-50"
                                 >
                                   {upgradingPlan ? "Processing..." : "Upgrade Plan"}
                                 </motion.button>
@@ -2634,7 +2638,7 @@ export default function ProfileDetailPage() {
                                   <p className="text-label-sm text-on-surface-variant">Start Date</p>
                                 </div>
                                 <p className="text-body-md text-on-surface font-semibold">
-                                  {subscription?.startDate 
+                                  {subscription?.startDate
                                     ? new Date(subscription.startDate).toLocaleDateString()
                                     : "—"}
                                 </p>
@@ -2686,17 +2690,16 @@ export default function ProfileDetailPage() {
                         ].map((plan) => (
                           <div
                             key={plan.name}
-                            className={`relative rounded-2xl border p-6 ${
-                              plan.popular
-                                ? "border-primary shadow-lg shadow-primary/10 bg-gradient-to-b from-primary/5 to-transparent"
+                            className={`relative rounded-2xl border p-6 ${plan.popular
+                                ? "border-primary shadow-lg shadow-primary/10 bg-linear-to-b from-primary/5 to-transparent"
                                 : plan.current
-                                ? "border-primary/30 bg-primary/5"
-                                : "border-outline-variant/20 bg-surface-container-lowest"
-                            }`}
+                                  ? "border-primary/30 bg-primary/5"
+                                  : "border-outline-variant/20 bg-surface-container-lowest"
+                              }`}
                           >
                             {plan.popular && (
                               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                <span className="px-3 py-1 bg-gradient-to-r from-primary to-secondary text-white text-label-xs font-bold rounded-full shadow-md">
+                                <span className="px-3 py-1 bg-linear-to-r from-primary to-secondary text-white text-label-xs font-bold rounded-full shadow-md">
                                   Most Popular
                                 </span>
                               </div>
@@ -2720,13 +2723,12 @@ export default function ProfileDetailPage() {
                               whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                               onClick={() => !plan.current && handleUpgradePlan(plan.planType)}
                               disabled={plan.current || upgradingPlan}
-                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${
-                                plan.popular
-                                  ? "bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
+                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${plan.popular
+                                  ? "bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
                                   : plan.current
-                                  ? "bg-primary/10 text-primary border border-primary/20 cursor-default"
-                                  : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
-                              } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                    ? "bg-primary/10 text-primary border border-primary/20 cursor-default"
+                                    : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
+                                } disabled:opacity-60 disabled:cursor-not-allowed`}
                             >
                               {upgradingPlan && !plan.current ? "Processing..." : plan.cta}
                             </motion.button>
@@ -2766,15 +2768,14 @@ export default function ProfileDetailPage() {
                         ].map((pack) => (
                           <div
                             key={pack.name}
-                            className={`relative rounded-2xl border p-5 ${
-                              pack.popular
-                                ? "border-primary shadow-lg shadow-primary/10 bg-gradient-to-b from-primary/5 to-transparent"
+                            className={`relative rounded-2xl border p-5 ${pack.popular
+                                ? "border-primary shadow-lg shadow-primary/10 bg-linear-to-b from-primary/5 to-transparent"
                                 : "border-outline-variant/20 bg-surface-container-lowest"
-                            }`}
+                              }`}
                           >
                             {pack.popular && (
                               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                <span className="px-3 py-1 bg-gradient-to-r from-primary to-secondary text-white text-label-xs font-bold rounded-full shadow-md">
+                                <span className="px-3 py-1 bg-linear-to-r from-primary to-secondary text-white text-label-xs font-bold rounded-full shadow-md">
                                   Best Value
                                 </span>
                               </div>
@@ -2791,11 +2792,10 @@ export default function ProfileDetailPage() {
                             <motion.button
                               whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                               onClick={() => { setSelectedCreditPack(pack); setShowPurchaseConfirm(true); }}
-                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${
-                                pack.popular
-                                  ? "bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
+                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${pack.popular
+                                  ? "bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
                                   : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
-                              }`}
+                                }`}
                             >
                               Purchase
                             </motion.button>
@@ -2829,294 +2829,291 @@ export default function ProfileDetailPage() {
                 )}
               </motion.div>
 
-                    {/* Change Role Modal */}
-                    {showRoleModal && selectedMember && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <motion.div
-                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
-                        >
-                          <div className="flex items-center gap-3 mb-6">
-                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                              <span className="material-symbols-outlined text-blue-500 text-[24px]">swap_horiz</span>
-                            </div>
-                            <div>
-                              <h3 className="text-body-lg font-bold text-on-surface">Change Role</h3>
-                              <p className="text-label-sm text-on-surface-variant">Update role for {selectedMember.name}</p>
-                            </div>
-                          </div>
-
-                          <div className="mb-6">
-                            <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Role</label>
-                            <div className="space-y-2">
-                              {[
-                                { value: "Manager", label: "Manager", icon: "manage_accounts", color: "text-blue-600", bg: "bg-blue-50", desc: "Manage brands, content, campaigns" },
-                                { value: "ContentCreator", label: "Content Creator", icon: "edit_note", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Create and publish content" },
-                                { value: "Viewer", label: "Viewer", icon: "visibility", color: "text-outline", bg: "bg-surface-container", desc: "View dashboard and analytics only" },
-                              ].map((role) => (
-                                <button
-                                  key={role.value}
-                                  onClick={() => setNewRole(role.value as WorkspaceMemberRole)}
-                                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
-                                    newRole === role.value
-                                      ? "border-primary bg-primary/5"
-                                      : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
-                                  }`}
-                                >
-                                  <div className={`w-10 h-10 rounded-lg ${role.bg} flex items-center justify-center`}>
-                                    <span className={`material-symbols-outlined ${role.color} text-[20px]`}>{role.icon}</span>
-                                  </div>
-                                  <div className="flex-1 text-left">
-                                    <p className="text-body-sm font-semibold text-on-surface">{role.label}</p>
-                                    <p className="text-label-xs text-on-surface-variant">{role.desc}</p>
-                                  </div>
-                                  {newRole === role.value && (
-                                    <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() => { setShowRoleModal(false); setSelectedMember(null); }}
-                              disabled={changingRole}
-                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={handleChangeRole}
-                              disabled={changingRole || newRole === selectedMember.role}
-                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                              {changingRole ? (
-                                <>
-                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                  </svg>
-                                  Updating...
-                                </>
-                              ) : (
-                                "Update Role"
-                              )}
-                            </button>
-                          </div>
-                        </motion.div>
+              {/* Change Role Modal */}
+              {showRoleModal && selectedMember && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <motion.div
+                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
+                  >
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-blue-500 text-[24px]">swap_horiz</span>
                       </div>
-                    )}
+                      <div>
+                        <h3 className="text-body-lg font-bold text-on-surface">Change Role</h3>
+                        <p className="text-label-sm text-on-surface-variant">Update role for {selectedMember.name}</p>
+                      </div>
+                    </div>
 
-                    {/* Transfer Ownership Modal */}
-                    {showTransferModal && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <motion.div
-                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg mx-4 p-6"
-                        >
-                          <div className="flex items-center gap-3 mb-6">
-                            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                              <span className="material-symbols-outlined text-amber-500 text-[24px]">admin_panel_settings</span>
+                    <div className="mb-6">
+                      <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Role</label>
+                      <div className="space-y-2">
+                        {[
+                          { value: "Manager", label: "Manager", icon: "manage_accounts", color: "text-blue-600", bg: "bg-blue-50", desc: "Manage brands, content, campaigns" },
+                          { value: "ContentCreator", label: "Content Creator", icon: "edit_note", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Create and publish content" },
+                          { value: "Viewer", label: "Viewer", icon: "visibility", color: "text-outline", bg: "bg-surface-container", desc: "View dashboard and analytics only" },
+                        ].map((role) => (
+                          <button
+                            key={role.value}
+                            onClick={() => setNewRole(role.value as WorkspaceMemberRole)}
+                            className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${newRole === role.value
+                                ? "border-primary bg-primary/5"
+                                : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
+                              }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg ${role.bg} flex items-center justify-center`}>
+                              <span className={`material-symbols-outlined ${role.color} text-[20px]`}>{role.icon}</span>
                             </div>
-                            <div>
-                              <h3 className="text-body-lg font-bold text-on-surface">Transfer Ownership</h3>
-                              <p className="text-label-sm text-on-surface-variant">Select a Manager to become the new Owner</p>
+                            <div className="flex-1 text-left">
+                              <p className="text-body-sm font-semibold text-on-surface">{role.label}</p>
+                              <p className="text-label-xs text-on-surface-variant">{role.desc}</p>
                             </div>
+                            {newRole === role.value && (
+                              <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setShowRoleModal(false); setSelectedMember(null); }}
+                        disabled={changingRole}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleChangeRole}
+                        disabled={changingRole || newRole === selectedMember.role}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {changingRole ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Updating...
+                          </>
+                        ) : (
+                          "Update Role"
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Transfer Ownership Modal */}
+              {showTransferModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <motion.div
+                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg mx-4 p-6"
+                  >
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-amber-500 text-[24px]">admin_panel_settings</span>
+                      </div>
+                      <div>
+                        <h3 className="text-body-lg font-bold text-on-surface">Transfer Ownership</h3>
+                        <p className="text-label-sm text-on-surface-variant">Select a Manager to become the new Owner</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200/50">
+                      <div className="flex items-start gap-2">
+                        <span className="material-symbols-outlined text-amber-600 text-[18px] mt-0.5">warning</span>
+                        <div className="text-body-sm text-amber-800">
+                          <p className="font-semibold mb-1">Important:</p>
+                          <ul className="space-y-1 text-amber-700">
+                            <li>• You will become a Manager after transfer</li>
+                            <li>• The new Owner will have full access to billing and settings</li>
+                            <li>• This action can be reversed by the new Owner</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Manager only)</label>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {members.filter(m => m.role === "Manager").length === 0 ? (
+                          <div className="text-center py-8">
+                            <span className="material-symbols-outlined text-outline/40 text-4xl mb-2 block">person_off</span>
+                            <p className="text-body-sm text-on-surface-variant">No Manager members found</p>
+                            <p className="text-label-xs text-outline mt-1">You need to have at least one Manager to transfer ownership</p>
                           </div>
-
-                          <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200/50">
-                            <div className="flex items-start gap-2">
-                              <span className="material-symbols-outlined text-amber-600 text-[18px] mt-0.5">warning</span>
-                              <div className="text-body-sm text-amber-800">
-                                <p className="font-semibold mb-1">Important:</p>
-                                <ul className="space-y-1 text-amber-700">
-                                  <li>• You will become a Manager after transfer</li>
-                                  <li>• The new Owner will have full access to billing and settings</li>
-                                  <li>• This action can be reversed by the new Owner</li>
-                                </ul>
+                        ) : (
+                          members.filter(m => m.role === "Manager").map((member) => (
+                            <button
+                              key={member.id}
+                              onClick={() => setSelectedNewOwner(member)}
+                              className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${selectedNewOwner?.id === member.id
+                                  ? "border-primary bg-primary/5"
+                                  : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
+                                }`}
+                            >
+                              <div className="w-10 h-10 rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-sm font-bold text-primary">
+                                {getInitials(member.name)}
                               </div>
-                            </div>
-                          </div>
-
-                          <div className="mb-6">
-                            <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Manager only)</label>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {members.filter(m => m.role === "Manager").length === 0 ? (
-                                <div className="text-center py-8">
-                                  <span className="material-symbols-outlined text-outline/40 text-4xl mb-2 block">person_off</span>
-                                  <p className="text-body-sm text-on-surface-variant">No Manager members found</p>
-                                  <p className="text-label-xs text-outline mt-1">You need to have at least one Manager to transfer ownership</p>
-                                </div>
-                              ) : (
-                                members.filter(m => m.role === "Manager").map((member) => (
-                                  <button
-                                    key={member.id}
-                                    onClick={() => setSelectedNewOwner(member)}
-                                    className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
-                                      selectedNewOwner?.id === member.id
-                                        ? "border-primary bg-primary/5"
-                                        : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
-                                    }`}
-                                  >
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-body-sm font-bold text-primary">
-                                      {getInitials(member.name)}
-                                    </div>
-                                    <div className="flex-1 text-left">
-                                      <p className="text-body-sm font-semibold text-on-surface">{member.name}</p>
-                                      <p className="text-label-xs text-on-surface-variant">{member.email}</p>
-                                    </div>
-                                    {selectedNewOwner?.id === member.id && (
-                                      <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
-                                    )}
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() => { setShowTransferModal(false); setSelectedNewOwner(null); }}
-                              disabled={transferring}
-                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={handleTransferOwnership}
-                              disabled={transferring || !selectedNewOwner}
-                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:opacity-90 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                              {transferring ? (
-                                <>
-                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                  </svg>
-                                  Transferring...
-                                </>
-                              ) : (
-                                <>
-                                  <span className="material-symbols-outlined text-[18px]">check</span>
-                                  Confirm Transfer
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </motion.div>
-                      </div>
-                    )}
-
-                    {/* Member Quota Modal */}
-                    {showQuotaModal && quotaMember && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <motion.div
-                          initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg mx-4 p-6"
-                        >
-                          <div className="flex items-center gap-3 mb-6">
-                            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
-                              <span className="material-symbols-outlined text-purple-500 text-[24px]">data_thresholding</span>
-                            </div>
-                            <div>
-                              <h3 className="text-body-lg font-bold text-on-surface">Assign Quota</h3>
-                              <p className="text-label-sm text-on-surface-variant">Set credit quota for {quotaMember.name}</p>
-                            </div>
-                          </div>
-
-                          <div className="mb-6">
-                            <label className="text-label-sm font-semibold text-on-surface mb-3 block">Quota Mode</label>
-                            <div className="space-y-2">
-                              {[
-                                { value: "SharedPool", label: "Shared Pool", icon: "pool", color: "text-blue-600", bg: "bg-blue-50", desc: "Use workspace's shared credit pool. No individual limit." },
-                                { value: "LifetimeAssigned", label: "Lifetime Assigned", icon: "lock_clock", color: "text-purple-600", bg: "bg-purple-50", desc: "Fixed credit limit that never resets. Owner must increase when used up." },
-                                { value: "MonthlyAssigned", label: "Monthly Assigned", icon: "calendar_month", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Monthly credit limit that resets on the 1st of each month." },
-                              ].map((mode) => (
-                                <button
-                                  key={mode.value}
-                                  onClick={() => setQuotaMode(mode.value as typeof quotaMode)}
-                                  className={`w-full flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${
-                                    quotaMode === mode.value
-                                      ? "border-primary bg-primary/5"
-                                      : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
-                                  }`}
-                                >
-                                  <div className={`w-10 h-10 rounded-lg ${mode.bg} flex items-center justify-center shrink-0`}>
-                                    <span className={`material-symbols-outlined ${mode.color} text-[20px]`}>{mode.icon}</span>
-                                  </div>
-                                  <div className="flex-1 text-left">
-                                    <p className="text-body-sm font-semibold text-on-surface">{mode.label}</p>
-                                    <p className="text-label-xs text-on-surface-variant mt-0.5">{mode.desc}</p>
-                                  </div>
-                                  {quotaMode === mode.value && (
-                                    <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {quotaMode !== "SharedPool" && (
-                            <div className="mb-6">
-                              <label className="text-label-sm font-semibold text-on-surface mb-2 block">
-                                Credit Limit
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  value={quotaLimit}
-                                  onChange={(e) => setQuotaLimit(Number(e.target.value))}
-                                  min={100}
-                                  step={100}
-                                  className="w-full px-4 py-3 pr-16 rounded-xl border border-outline-variant/40 bg-surface-container-lowest text-body-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
-                                  placeholder="Enter credit limit"
-                                />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-label-sm text-on-surface-variant font-medium">credits</span>
+                              <div className="flex-1 text-left">
+                                <p className="text-body-sm font-semibold text-on-surface">{member.name}</p>
+                                <p className="text-label-xs text-on-surface-variant">{member.email}</p>
                               </div>
-                              <p className="text-label-xs text-on-surface-variant mt-2">
-                                {quotaMode === "LifetimeAssigned" 
-                                  ? "This limit will never reset. Member will be blocked when reached."
-                                  : "This limit will reset to 0 on the 1st of each month."}
-                              </p>
-                            </div>
-                          )}
-
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() => { setShowQuotaModal(false); setQuotaMember(null); }}
-                              disabled={savingQuota}
-                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={handleSaveQuota}
-                              disabled={savingQuota || (quotaMode !== "SharedPool" && quotaLimit < 100)}
-                              className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                              {savingQuota ? (
-                                <>
-                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                  </svg>
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <span className="material-symbols-outlined text-[18px]">check</span>
-                                  Save Quota
-                                </>
+                              {selectedNewOwner?.id === member.id && (
+                                <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
                               )}
                             </button>
-                          </div>
-                        </motion.div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setShowTransferModal(false); setSelectedNewOwner(null); }}
+                        disabled={transferring}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleTransferOwnership}
+                        disabled={transferring || !selectedNewOwner}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-linear-to-r from-amber-500 to-amber-600 text-white hover:opacity-90 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {transferring ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Transferring...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">check</span>
+                            Confirm Transfer
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Member Quota Modal */}
+              {showQuotaModal && quotaMember && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <motion.div
+                    initial={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg mx-4 p-6"
+                  >
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-purple-500 text-[24px]">data_thresholding</span>
+                      </div>
+                      <div>
+                        <h3 className="text-body-lg font-bold text-on-surface">Assign Quota</h3>
+                        <p className="text-label-sm text-on-surface-variant">Set credit quota for {quotaMember.name}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="text-label-sm font-semibold text-on-surface mb-3 block">Quota Mode</label>
+                      <div className="space-y-2">
+                        {[
+                          { value: "SharedPool", label: "Shared Pool", icon: "pool", color: "text-blue-600", bg: "bg-blue-50", desc: "Use workspace's shared credit pool. No individual limit." },
+                          { value: "LifetimeAssigned", label: "Lifetime Assigned", icon: "lock_clock", color: "text-purple-600", bg: "bg-purple-50", desc: "Fixed credit limit that never resets. Owner must increase when used up." },
+                          { value: "MonthlyAssigned", label: "Monthly Assigned", icon: "calendar_month", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Monthly credit limit that resets on the 1st of each month." },
+                        ].map((mode) => (
+                          <button
+                            key={mode.value}
+                            onClick={() => setQuotaMode(mode.value as typeof quotaMode)}
+                            className={`w-full flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${quotaMode === mode.value
+                                ? "border-primary bg-primary/5"
+                                : "border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container/50"
+                              }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg ${mode.bg} flex items-center justify-center shrink-0`}>
+                              <span className={`material-symbols-outlined ${mode.color} text-[20px]`}>{mode.icon}</span>
+                            </div>
+                            <div className="flex-1 text-left">
+                              <p className="text-body-sm font-semibold text-on-surface">{mode.label}</p>
+                              <p className="text-label-xs text-on-surface-variant mt-0.5">{mode.desc}</p>
+                            </div>
+                            {quotaMode === mode.value && (
+                              <span className="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {quotaMode !== "SharedPool" && (
+                      <div className="mb-6">
+                        <label className="text-label-sm font-semibold text-on-surface mb-2 block">
+                          Credit Limit
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={quotaLimit}
+                            onChange={(e) => setQuotaLimit(Number(e.target.value))}
+                            min={100}
+                            step={100}
+                            className="w-full px-4 py-3 pr-16 rounded-xl border border-outline-variant/40 bg-surface-container-lowest text-body-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                            placeholder="Enter credit limit"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-label-sm text-on-surface-variant font-medium">credits</span>
+                        </div>
+                        <p className="text-label-xs text-on-surface-variant mt-2">
+                          {quotaMode === "LifetimeAssigned"
+                            ? "This limit will never reset. Member will be blocked when reached."
+                            : "This limit will reset to 0 on the 1st of each month."}
+                        </p>
                       </div>
                     )}
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setShowQuotaModal(false); setQuotaMember(null); }}
+                        disabled={savingQuota}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveQuota}
+                        disabled={savingQuota || (quotaMode !== "SharedPool" && quotaLimit < 100)}
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {savingQuota ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">check</span>
+                            Save Quota
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
               {showInviteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                   <motion.div
@@ -3125,7 +3122,7 @@ export default function ProfileDetailPage() {
                     className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6"
                   >
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+                      <div className="w-12 h-12 rounded-xl bg-linear-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
                         <span className="material-symbols-outlined text-primary text-[24px]">person_add</span>
                       </div>
                       <div>
@@ -3157,11 +3154,10 @@ export default function ProfileDetailPage() {
                               key={r.value}
                               type="button"
                               onClick={() => setInviteForm({ ...inviteForm, role: r.value as InvitationRole })}
-                              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                                inviteForm.role === r.value
+                              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${inviteForm.role === r.value
                                   ? "border-primary bg-primary/5 text-primary"
                                   : "border-outline-variant/30 text-on-surface-variant hover:border-outline-variant/60 hover:bg-surface-container"
-                              }`}
+                                }`}
                             >
                               <span className={`material-symbols-outlined text-[20px] ${inviteForm.role === r.value ? "text-primary" : ""}`}>{r.icon}</span>
                               <span className="text-label-sm font-medium">{r.label}</span>
@@ -3249,7 +3245,7 @@ export default function ProfileDetailPage() {
                       <button
                         onClick={handlePurchaseCredits}
                         disabled={purchasing}
-                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-3 rounded-xl text-body-sm font-semibold bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {purchasing ? (
                           <>

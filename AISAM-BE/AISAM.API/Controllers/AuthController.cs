@@ -205,7 +205,7 @@ namespace AISAM.API.Controllers
             }
             catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<object>.CreateError(ex.Message));
+                return BadRequest(GenericResponse<object>.CreateError(ex.Message));
             }
             catch (Exception ex)
             {

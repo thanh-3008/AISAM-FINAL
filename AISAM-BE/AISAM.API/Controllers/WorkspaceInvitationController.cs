@@ -60,4 +60,14 @@ public sealed class WorkspaceInvitationController : ControllerBase
         var result = await _workspaceInvitationService.AcceptAsync(userId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("validate/{token}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<GenericResponse<WorkspaceInvitationResponseDto>>> Validate(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _workspaceInvitationService.ValidateAsync(token, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

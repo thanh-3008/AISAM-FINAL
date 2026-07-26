@@ -151,6 +151,24 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             "Workspace invitation created successfully.");
     }
 
+    public async Task<GenericResponse<WorkspaceInvitationResponseDto>> ValidateAsync(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        var invitation = await _workspaceInvitationRepository.GetByTokenAsync(token.Trim(), cancellationToken);
+        if (invitation == null)
+        {
+            return GenericResponse<WorkspaceInvitationResponseDto>.CreateError("Invitation not found.", HttpStatusCode.NotFound);
+        }
+
+        if (invitation.AcceptedAt.HasValue || invitation.RevokedAt.HasValue || invitation.ExpiresAt <= DateTime.UtcNow)
+        {
+            return GenericResponse<WorkspaceInvitationResponseDto>.CreateError("Invitation is no longer valid.");
+        }
+
+        return GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(Map(invitation), "Invitation is valid.");
+    }
+
     public async Task<GenericResponse<AcceptWorkspaceInvitationResponseDto>> AcceptAsync(
         Guid userId,
         AcceptWorkspaceInvitationRequest request,

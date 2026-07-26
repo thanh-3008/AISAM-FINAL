@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -134,14 +135,32 @@ export default function LoginPage() {
     };
   }, [clientId, handleGoogleResponse]);
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    
+    if (!password) {
+      newErrors.password = "Password is required";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!validate()) return;
     setIsLoading(true);
 
     try {
       const result = await apiClient("/auth/login", {
-        data: { email, password },
+        data: { email: email.trim(), password },
       });
 
       if (result.success && result.data?.accessToken) {
@@ -258,7 +277,7 @@ export default function LoginPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-stack-md">
+      <form onSubmit={handleSubmit} className="space-y-stack-md" noValidate>
         {/* Email */}
         <div>
           <label
@@ -271,11 +290,14 @@ export default function LoginPage() {
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors({ ...errors, email: "" });
+            }}
             placeholder="name@company.com"
-            required
-            className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
+            className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface ${errors.email ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
           />
+          {errors.email && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.email}</p>}
         </div>
 
         {/* Password */}
@@ -299,10 +321,12 @@ export default function LoginPage() {
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors({ ...errors, password: "" });
+              }}
               placeholder="••••••••"
-              required
-              className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12"
+              className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${errors.password ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
             />
             <button
               type="button"
@@ -314,6 +338,7 @@ export default function LoginPage() {
               </span>
             </button>
           </div>
+          {errors.password && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.password}</p>}
         </div>
 
         {/* Submit Button */}

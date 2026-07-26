@@ -141,7 +141,7 @@ export default function BrandsPage() {
   const hasFilters = !!search;
   const clearFilters = () => setSearch("");
 
-  const handleEditSuccess = (updated: Brand) => {
+  const handleEditSuccess = (updated: any) => {
     setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setEditingBrand(null);
     addToast("Brand updated successfully", "check");
