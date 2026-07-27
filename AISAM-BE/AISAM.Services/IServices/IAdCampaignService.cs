@@ -18,5 +18,6 @@ namespace AISAM.Services.IServices
         Task<GenericResponse<bool>> CleanupFailedDeploymentAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
         Task<GenericResponse<AdCampaignResponseDto>> SyncCampaignInsightsAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
         Task<GenericResponse<AdCampaignResponseDto>> DuplicateAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
+        Task<GenericResponse<CampaignPreflightResponseDto>> PreflightAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
     }
 }

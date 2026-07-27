@@ -122,6 +122,22 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       setDateError("End date must be after start date");
       return;
     }
+    if (landingUrl && (!URL.canParse(landingUrl) || new URL(landingUrl).protocol !== "https:")) {
+      setDateError("Landing URL must be an absolute HTTPS URL");
+      return;
+    }
+    if (selectedTargeting === "custom") {
+      try {
+        const targeting = JSON.parse(customTargeting);
+        if (!targeting || typeof targeting !== "object" || !targeting.geo_locations) {
+          setDateError("Custom targeting must include geo_locations");
+          return;
+        }
+      } catch {
+        setDateError("Custom targeting must be valid JSON");
+        return;
+      }
+    }
     setDateError("");
 
     onCreate({
@@ -141,7 +157,15 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
     });
   };
 
-  const isValid = name.trim() && brandId && selectedAdAccount;
+  const isValid =
+    name.trim() &&
+    brandId &&
+    selectedAdAccount &&
+    selectedContentId &&
+    Number(budget) > 0 &&
+    startDate &&
+    endDate &&
+    landingUrl;
 
   return (
     <>

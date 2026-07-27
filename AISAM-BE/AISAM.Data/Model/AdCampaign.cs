@@ -112,5 +112,6 @@ namespace AISAM.Data.Model
         public virtual Content? Content { get; set; }
 
         public virtual ICollection<AdSet> AdSets { get; set; } = new List<AdSet>();
+        public virtual ICollection<CampaignInsightSnapshot> InsightSnapshots { get; set; } = new List<CampaignInsightSnapshot>();
     }
 }

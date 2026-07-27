@@ -9,6 +9,7 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using System.Text.Json;
 
 namespace AISAM.Services.Service
 {
@@ -23,6 +24,7 @@ namespace AISAM.Services.Service
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
         private readonly IBrandRepository _brandRepository;
         private readonly IContentRepository _contentRepository;
+        private readonly IProductRepository _productRepository;
         private readonly ISocialService _socialService;
         private readonly IPostRepository _postRepository;
         private readonly Dictionary<string, IProviderService> _providers;
@@ -33,6 +35,7 @@ namespace AISAM.Services.Service
             IWorkspaceMemberRepository workspaceMemberRepository,
             IBrandRepository brandRepository,
             IContentRepository contentRepository,
+            IProductRepository productRepository,
             ISocialService socialService,
             IPostRepository postRepository,
             IEnumerable<IProviderService> providers,
@@ -42,6 +45,7 @@ namespace AISAM.Services.Service
             _workspaceMemberRepository = workspaceMemberRepository;
             _brandRepository = brandRepository;
             _contentRepository = contentRepository;
+            _productRepository = productRepository;
             _socialService = socialService;
             _postRepository = postRepository;
             _providers = providers.Where(p => p.ProviderName == "facebook" || p.ProviderName == "instagram")
@@ -119,11 +123,36 @@ namespace AISAM.Services.Service
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Budget must be greater than 0.");
             if (request.StartDate.HasValue && request.EndDate.HasValue && request.StartDate.Value > request.EndDate.Value)
                 return GenericResponse<AdCampaignResponseDto>.CreateError("End date must be after start date.");
+            if (!IsSupportedPlatform(request.Platform))
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Unsupported campaign platform.");
+            if (!IsSupportedObjective(request.Objective))
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Unsupported campaign objective.");
+            if (!IsValidHttpsUrl(request.LandingUrl))
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Landing URL must be an absolute HTTPS URL.");
+            if (!IsValidTargeting(request.Targeting, requireLocation: false))
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Targeting must be a valid JSON object.");
 
             var brand = await _brandRepository.GetByIdAsync(request.BrandId, cancellationToken);
             if (brand == null || brand.WorkspaceId != workspaceId)
             {
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Brand not found in this workspace");
+            }
+
+            if (request.ProductId.HasValue)
+            {
+                var product = await _productRepository.GetByIdAsync(request.ProductId.Value, cancellationToken);
+                if (product == null || product.IsDeleted || product.BrandId != request.BrandId)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError(
+                        "Product must belong to the selected brand.");
+            }
+
+            if (request.ContentId.HasValue)
+            {
+                var content = await _contentRepository.GetByIdAsync(request.ContentId.Value, cancellationToken);
+                if (content == null || content.IsDeleted || content.WorkspaceId != workspaceId ||
+                    content.BrandId != request.BrandId)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError(
+                        "Content must belong to the selected brand and workspace.");
             }
 
             var campaign = new AdCampaign
@@ -257,6 +286,38 @@ namespace AISAM.Services.Service
             if (request.Budget.HasValue && request.Budget.Value <= 0)
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Budget must be greater than 0.");
 
+            if (!IsSupportedObjective(campaign.Objective))
+                return GenericResponse<AdCampaignResponseDto>.CreateError("Unsupported campaign objective.");
+            if (!IsValidHttpsUrl(campaign.LandingUrl))
+                return GenericResponse<AdCampaignResponseDto>.CreateError(
+                    "Landing URL must be an absolute HTTPS URL.");
+            if (!IsValidTargeting(campaign.Targeting, requireLocation: false))
+                return GenericResponse<AdCampaignResponseDto>.CreateError(
+                    "Targeting must be a valid JSON object.");
+            if (campaign.StartDate.HasValue && campaign.EndDate.HasValue &&
+                campaign.StartDate.Value.Date > campaign.EndDate.Value.Date)
+                return GenericResponse<AdCampaignResponseDto>.CreateError(
+                    "End date must be on or after start date.");
+
+            if (campaign.ProductId.HasValue)
+            {
+                var product = await _productRepository.GetByIdAsync(
+                    campaign.ProductId.Value, cancellationToken);
+                if (product == null || product.IsDeleted || product.BrandId != campaign.BrandId)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError(
+                        "Product must belong to the campaign brand.");
+            }
+
+            if (campaign.ContentId.HasValue)
+            {
+                var content = await _contentRepository.GetByIdAsync(
+                    campaign.ContentId.Value, cancellationToken);
+                if (content == null || content.IsDeleted ||
+                    content.WorkspaceId != workspaceId || content.BrandId != campaign.BrandId)
+                    return GenericResponse<AdCampaignResponseDto>.CreateError(
+                        "Content must belong to the campaign brand and workspace.");
+            }
+
             await _campaignRepository.UpdateAsync(campaign, cancellationToken);
 
             if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))
@@ -387,7 +448,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
             }
 
-            var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
+            var access = await EnsureCampaignManagerAsync(workspaceId, userId, cancellationToken);
             if (!access.Success)
             {
                 return GenericResponse<AdCampaignResponseDto>.CreateError(access.Message);
@@ -396,6 +457,16 @@ namespace AISAM.Services.Service
             if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed)
             {
                 return GenericResponse<AdCampaignResponseDto>.CreateSuccess(MapToDto(campaign), "Campaign already deployed");
+            }
+
+            var preflight = await BuildPreflightAsync(campaign, cancellationToken);
+            if (!preflight.Ready)
+            {
+                var errors = string.Join("; ", preflight.Checks
+                    .Where(check => check.Status == "failed")
+                    .Select(check => check.Message));
+                return GenericResponse<AdCampaignResponseDto>.CreateError(
+                    $"Campaign preflight failed: {errors}");
             }
 
             try
@@ -413,6 +484,25 @@ namespace AISAM.Services.Service
         public async Task<GenericResponse<AdCampaignResponseDto>> DeployToFacebookAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
             return await DeployAsync(id, workspaceId, userId, cancellationToken);
+        }
+
+        public async Task<GenericResponse<CampaignPreflightResponseDto>> PreflightAsync(
+            Guid id,
+            Guid workspaceId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
+            if (campaign == null || campaign.WorkspaceId != workspaceId)
+                return GenericResponse<CampaignPreflightResponseDto>.CreateError("Campaign not found");
+
+            var access = await EnsureCampaignManagerAsync(workspaceId, userId, cancellationToken);
+            if (!access.Success)
+                return GenericResponse<CampaignPreflightResponseDto>.CreateError(access.Message);
+
+            return GenericResponse<CampaignPreflightResponseDto>.CreateSuccess(
+                await BuildPreflightAsync(campaign, cancellationToken),
+                "Campaign preflight completed.");
         }
 
         public async Task<GenericResponse<bool>> CleanupFailedDeploymentAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
@@ -609,7 +699,7 @@ namespace AISAM.Services.Service
                         campaign.Budget.HasValue ? CalculateDailyBudget(campaign.Budget.Value, campaign.StartDate, campaign.EndDate) : null,
                         campaign.StartDate,
                         campaign.EndDate,
-                        campaign.Targeting ?? "{\"geo_locations\":{\"countries\":[\"VN\"]}}",
+                        campaign.Targeting!,
                         cancellationToken
                     );
                     adSet = new AdSet
@@ -656,25 +746,8 @@ namespace AISAM.Services.Service
                     }
 
                     if (content == null)
-                    {
-                        var contentRequest = new PaginationRequest { Page = 1, PageSize = 5 };
-                        var brandContent = await _contentRepository.GetPagedByProfileIdAsync(
-                            campaign.ProfileId, contentRequest,
-                            brandId: campaign.BrandId,
-                            status: ContentStatusEnum.Published,
-                            cancellationToken: cancellationToken
-                        );
-                        if (brandContent.Data.Count == 0)
-                        {
-                            brandContent = await _contentRepository.GetPagedByProfileIdAsync(
-                                campaign.ProfileId, contentRequest,
-                                brandId: campaign.BrandId,
-                                status: ContentStatusEnum.Approved,
-                                cancellationToken: cancellationToken
-                            );
-                        }
-                        content = brandContent.Data.FirstOrDefault();
-                    }
+                        throw new InvalidOperationException(
+                            "Campaign content is required. Select approved or published content before deployment.");
 
                     var message = content?.TextContent ?? campaign.Name;
                     var linkUrl = campaign.LandingUrl ?? $"https://www.facebook.com/{pageId}";
@@ -810,12 +883,162 @@ namespace AISAM.Services.Service
             return (account, fbIntegration, fbIntegration.ExternalId ?? string.Empty, instagramActorId);
         }
 
+        private async Task<CampaignPreflightResponseDto> BuildPreflightAsync(
+            AdCampaign campaign,
+            CancellationToken cancellationToken)
+        {
+            var checks = new List<CampaignPreflightCheckDto>();
+            AddCheck(checks, "platform", IsSupportedPlatform(campaign.Platform),
+                "Platform is supported.", "Platform must be Facebook or Instagram.");
+            AddCheck(checks, "objective", IsSupportedObjective(campaign.Objective),
+                "Objective is supported.", "Campaign objective is missing or unsupported.");
+            AddCheck(checks, "budget", campaign.Budget is > 0,
+                "Budget is valid.", "Budget must be greater than zero.");
+            AddCheck(checks, "dates",
+                campaign.StartDate.HasValue && campaign.EndDate.HasValue &&
+                campaign.StartDate.Value.Date <= campaign.EndDate.Value.Date,
+                "Campaign dates are valid.", "End date must be on or after start date.");
+            AddCheck(checks, "targeting", IsValidTargeting(campaign.Targeting, requireLocation: true),
+                "Targeting is valid.", "Targeting must be JSON and include geo_locations.");
+            AddCheck(checks, "landing_url", IsValidHttpsUrl(campaign.LandingUrl),
+                "Landing URL is valid.", "Landing URL must be an absolute HTTPS URL.");
+
+            var brand = await _brandRepository.GetByIdAsync(campaign.BrandId, cancellationToken);
+            AddCheck(checks, "brand",
+                brand != null && !brand.IsDeleted && brand.WorkspaceId == campaign.WorkspaceId,
+                "Brand belongs to the active workspace.",
+                "Brand does not belong to the active workspace.");
+
+            if (campaign.ProductId.HasValue)
+            {
+                var product = await _productRepository.GetByIdAsync(campaign.ProductId.Value, cancellationToken);
+                AddCheck(checks, "product",
+                    product != null && !product.IsDeleted && product.BrandId == campaign.BrandId,
+                    "Product belongs to the campaign brand.",
+                    "Product does not belong to the campaign brand.");
+            }
+
+            Content? content = null;
+            if (campaign.ContentId.HasValue)
+                content = await _contentRepository.GetByIdAsync(campaign.ContentId.Value, cancellationToken);
+            AddCheck(checks, "content",
+                content != null && !content.IsDeleted &&
+                content.WorkspaceId == campaign.WorkspaceId &&
+                content.BrandId == campaign.BrandId &&
+                content.Status is ContentStatusEnum.Approved or ContentStatusEnum.Published,
+                "Content is approved and belongs to the campaign brand.",
+                "Select approved or published content from the campaign brand.");
+
+            try
+            {
+                var (account, integration, pageId, _) =
+                    await ResolveSocialContextAsync(campaign, cancellationToken);
+                AddCheck(checks, "social_account",
+                    account.IsActive && !string.IsNullOrWhiteSpace(account.AccessToken),
+                    "Social account is connected.",
+                    "Social account token is unavailable.");
+                AddCheck(checks, "page",
+                    integration.IsActive && !string.IsNullOrWhiteSpace(pageId),
+                    "Social target is linked.",
+                    "No active social target is linked to this brand.");
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new CampaignPreflightCheckDto
+                {
+                    Key = "provider",
+                    Status = "failed",
+                    Message = ex.Message
+                });
+            }
+
+            var errors = checks.Count(check => check.Status == "failed");
+            var warnings = checks.Count(check => check.Status == "warning");
+            return new CampaignPreflightResponseDto
+            {
+                Ready = errors == 0,
+                Checks = checks,
+                Errors = errors,
+                Warnings = warnings
+            };
+        }
+
+        private static void AddCheck(
+            ICollection<CampaignPreflightCheckDto> checks,
+            string key,
+            bool passed,
+            string successMessage,
+            string failureMessage)
+        {
+            checks.Add(new CampaignPreflightCheckDto
+            {
+                Key = key,
+                Status = passed ? "passed" : "failed",
+                Message = passed ? successMessage : failureMessage
+            });
+        }
+
+        private static bool IsSupportedPlatform(string? platform)
+            => platform is not null &&
+               (platform.Equals("facebook", StringComparison.OrdinalIgnoreCase) ||
+                platform.Equals("instagram", StringComparison.OrdinalIgnoreCase));
+
+        private static bool IsSupportedObjective(string? objective)
+        {
+            if (string.IsNullOrWhiteSpace(objective))
+                return false;
+            return objective.ToUpperInvariant() is
+                "AWARENESS" or "TRAFFIC" or "ENGAGEMENT" or "LEADS" or "SALES" or
+                "OUTCOME_AWARENESS" or "OUTCOME_TRAFFIC" or "OUTCOME_ENGAGEMENT" or
+                "OUTCOME_LEADS" or "OUTCOME_SALES";
+        }
+
+        private static bool IsValidHttpsUrl(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+            return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+                   uri.Scheme == Uri.UriSchemeHttps;
+        }
+
+        private static bool IsValidTargeting(string? value, bool requireLocation)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return !requireLocation;
+            try
+            {
+                using var document = JsonDocument.Parse(value);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    return false;
+                return !requireLocation ||
+                       document.RootElement.TryGetProperty("geo_locations", out var geoLocations) &&
+                       geoLocations.ValueKind == JsonValueKind.Object;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
         private async Task<(bool Success, string Message)> EnsureWorkspaceMemberAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken)
         {
             var membership = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId, userId, cancellationToken);
             return membership == null
                 ? (false, "You are not allowed to access this workspace")
                 : (true, string.Empty);
+        }
+
+        private async Task<(bool Success, string Message)> EnsureCampaignManagerAsync(
+            Guid workspaceId,
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            var membership = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(
+                workspaceId, userId, cancellationToken);
+            return membership is { IsActive: true } &&
+                   membership.Role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager
+                ? (true, string.Empty)
+                : (false, "You do not have permission to manage campaigns.");
         }
 
         private static decimal CalculateDailyBudget(decimal totalBudget, DateTime? startDate, DateTime? endDate)

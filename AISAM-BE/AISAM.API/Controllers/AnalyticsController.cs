@@ -13,10 +13,27 @@ namespace AISAM.API.Controllers;
 public sealed class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analyticsService;
+    private readonly ICampaignInsightSyncService _campaignInsightSyncService;
 
-    public AnalyticsController(IAnalyticsService analyticsService)
+    public AnalyticsController(
+        IAnalyticsService analyticsService,
+        ICampaignInsightSyncService campaignInsightSyncService)
     {
         _analyticsService = analyticsService;
+        _campaignInsightSyncService = campaignInsightSyncService;
+    }
+
+    [HttpPost("sync")]
+    public async Task<ActionResult<GenericResponse<AnalyticsSyncResultDto>>> Sync(
+        [FromBody] AnalyticsSyncRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _campaignInsightSyncService.SyncAsync(
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            UserClaimsHelper.GetUserIdOrThrow(User),
+            request,
+            cancellationToken);
+        return StatusCode(result.StatusCode, result);
     }
 
     private static DateTime ToUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc);

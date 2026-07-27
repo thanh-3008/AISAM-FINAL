@@ -88,6 +88,26 @@ public sealed class DataFreshness
 {
     public DateTime? LastSyncedAt { get; set; }
     public bool IsPartial { get; set; }
+    public string Status { get; set; } = "no_data";
+    public IReadOnlyList<string> Sources { get; set; } = [];
+    public IReadOnlyList<string> Warnings { get; set; } = [];
+}
+
+public sealed class AnalyticsSyncRequest
+{
+    public Guid? CampaignId { get; set; }
+    public DateTime From { get; set; }
+    public DateTime To { get; set; }
+}
+
+public sealed class AnalyticsSyncResultDto
+{
+    public string Status { get; set; } = "failed";
+    public int CampaignsRequested { get; set; }
+    public int CampaignsSucceeded { get; set; }
+    public int SnapshotsUpserted { get; set; }
+    public DateTime? LastSyncedAt { get; set; }
+    public IReadOnlyList<string> Warnings { get; set; } = [];
 }
 
 public sealed class AnalyticsOverviewDto

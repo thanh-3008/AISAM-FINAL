@@ -62,15 +62,27 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .Where(c => c.IsActive && c.DeploymentStatus == DeploymentStatusEnum.None && (c.EndDate == null || c.EndDate >= from))
             .CountAsync(cancellationToken);
 
-        var campaignAgg = await campaignsQuery
-            .Where(c => c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from)
+        var snapshotQuery = _context.CampaignInsightSnapshots
+            .Where(snapshot => snapshot.WorkspaceId == workspaceId
+                && snapshot.SnapshotDate >= from.Date
+                && snapshot.SnapshotDate <= to.Date);
+        if (brandId.HasValue)
+            snapshotQuery = snapshotQuery.Where(snapshot => snapshot.Campaign.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            snapshotQuery = snapshotQuery.Where(snapshot => snapshot.Platform == platform.ToLower());
+        if (campaignId.HasValue)
+            snapshotQuery = snapshotQuery.Where(snapshot => snapshot.CampaignId == campaignId.Value);
+
+        var campaignAgg = await snapshotQuery
             .GroupBy(_ => 1)
             .Select(g => new
             {
-                Impressions = g.Sum(c => c.Impressions),
-                Clicks = g.Sum(c => c.Clicks),
-                Spend = g.Sum(c => c.Spend),
-                Conversions = g.Sum(c => c.Conversions)
+                Impressions = g.Sum(snapshot => snapshot.Impressions),
+                Reach = g.Sum(snapshot => snapshot.Reach ?? 0),
+                Clicks = g.Sum(snapshot => snapshot.Clicks),
+                Spend = g.Sum(snapshot => snapshot.Spend),
+                Conversions = g.Sum(snapshot => snapshot.Conversions ?? 0),
+                Revenue = g.Sum(snapshot => snapshot.AttributedRevenue ?? 0)
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -95,15 +107,15 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             Impressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0),
             Engagement = perfAgg?.Engagement ?? 0,
             Clicks = campaignAgg?.Clicks ?? 0,
-            Conversions = campaignAgg?.Conversions ?? 0,
+            Conversions = (long)(campaignAgg?.Conversions ?? 0),
             Ctr = campaignAgg?.Clicks > 0
                 ? Math.Round((decimal)campaignAgg.Clicks / (campaignAgg.Impressions > 0 ? campaignAgg.Impressions : 1) * 100, 2)
                 : (perfAgg?.Ctr != null ? Math.Round(perfAgg.Ctr, 2) : 0),
             Spend = campaignAgg?.Spend ?? 0,
-            EstimatedRevenue = perfAgg?.Revenue ?? 0,
+            EstimatedRevenue = (campaignAgg?.Revenue ?? 0) + (perfAgg?.Revenue ?? 0),
             PublishedPosts = publishedPosts,
             ActiveCampaigns = activeCampaigns,
-            Reach = 0
+            Reach = campaignAgg?.Reach ?? 0
         };
     }
 
@@ -132,44 +144,69 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
 
-        var campaignsQuery = _context.AdCampaigns
-            .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
-                && ((c.StartDate >= from && c.StartDate <= to) || (c.CreatedAt >= from && c.CreatedAt <= to)));
+        var snapshotsQuery = _context.CampaignInsightSnapshots
+            .Where(snapshot => snapshot.WorkspaceId == workspaceId
+                && snapshot.SnapshotDate >= from.Date
+                && snapshot.SnapshotDate <= to.Date);
         if (brandId.HasValue)
-            campaignsQuery = campaignsQuery.Where(c => c.BrandId == brandId.Value);
+            snapshotsQuery = snapshotsQuery.Where(snapshot => snapshot.Campaign.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            snapshotsQuery = snapshotsQuery.Where(snapshot => snapshot.Platform == platform.ToLower());
         if (campaignId.HasValue)
-            campaignsQuery = campaignsQuery.Where(c => c.Id == campaignId.Value);
+            snapshotsQuery = snapshotsQuery.Where(snapshot => snapshot.CampaignId == campaignId.Value);
 
-        var campaignAgg = await campaignsQuery
-            .GroupBy(_ => 1)
+        var snapshotsByDay = await snapshotsQuery
+            .GroupBy(snapshot => snapshot.SnapshotDate)
             .Select(g => new
             {
+                Date = g.Key,
                 Impressions = g.Sum(c => c.Impressions),
+                Reach = g.Sum(c => c.Reach ?? 0),
                 Clicks = g.Sum(c => c.Clicks),
                 Spend = g.Sum(c => c.Spend),
-                Conversions = g.Sum(c => c.Conversions)
+                Conversions = g.Sum(c => c.Conversions ?? 0),
+                Revenue = g.Sum(c => c.AttributedRevenue ?? 0)
             })
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        var totalDays = days.Count;
-        var points = days.Select((day, index) =>
+        var performanceByDay = await _context.PerformanceReports
+            .Where(report => !report.IsDeleted
+                && report.ReportDate >= from.Date
+                && report.ReportDate <= to.Date
+                && report.Post != null
+                && report.Post.Content != null
+                && report.Post.Content.WorkspaceId == workspaceId)
+            .GroupBy(report => report.ReportDate)
+            .Select(g => new
+            {
+                Date = g.Key,
+                Engagement = g.Sum(report => report.Engagement),
+                Revenue = g.Sum(report => report.EstimatedRevenue)
+            })
+            .ToListAsync(cancellationToken);
+
+        if (snapshotsByDay.Count == 0 && postsByDay.Count == 0 && performanceByDay.Count == 0)
+            return [];
+
+        var points = days.Select(day =>
         {
             var dayPosts = postsByDay.FirstOrDefault(p => p.Date == day)?.Count ?? 0;
-            var dayFraction = totalDays > 0 ? (decimal)(index + 1) / totalDays : 0;
+            var snapshot = snapshotsByDay.FirstOrDefault(item => item.Date == day);
+            var performance = performanceByDay.FirstOrDefault(item => item.Date == day);
 
             return new AnalyticsPointDto
             {
                 Date = day.ToString("yyyy-MM-dd"),
                 PublishedPosts = dayPosts,
-                Impressions = (long)((campaignAgg?.Impressions ?? 0) * dayFraction / totalDays),
-                Clicks = (long)((campaignAgg?.Clicks ?? 0) * dayFraction / totalDays),
-                Conversions = (long)((campaignAgg?.Conversions ?? 0) * dayFraction / totalDays),
-                Spend = (campaignAgg?.Spend ?? 0) * dayFraction / totalDays,
-                Ctr = campaignAgg?.Impressions > 0
-                    ? Math.Round((decimal)(campaignAgg.Clicks) / campaignAgg.Impressions * 100, 2) : 0,
-                Reach = 0,
-                Engagement = 0,
-                EstimatedRevenue = 0,
+                Impressions = snapshot?.Impressions ?? 0,
+                Clicks = snapshot?.Clicks ?? 0,
+                Conversions = (long)(snapshot?.Conversions ?? 0),
+                Spend = snapshot?.Spend ?? 0,
+                Ctr = snapshot?.Impressions > 0
+                    ? Math.Round((decimal)snapshot.Clicks / snapshot.Impressions * 100, 2) : 0,
+                Reach = snapshot?.Reach ?? 0,
+                Engagement = performance?.Engagement ?? 0,
+                EstimatedRevenue = (snapshot?.Revenue ?? 0) + (performance?.Revenue ?? 0),
                 ActiveCampaigns = 0
             };
         }).ToList();
@@ -190,29 +227,50 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         var integrations = await integrationsQuery
             .Include(si => si.Posts.Where(p => !p.IsDeleted && p.PublishedAt >= from && p.PublishedAt <= to))
             .ToListAsync(cancellationToken);
-
-        return integrations
-            .GroupBy(si => si.Platform)
-            .Select(g =>
+        var snapshotQuery = _context.CampaignInsightSnapshots
+            .Where(snapshot => snapshot.WorkspaceId == workspaceId
+                && snapshot.SnapshotDate >= from.Date
+                && snapshot.SnapshotDate <= to.Date);
+        if (brandId.HasValue)
+            snapshotQuery = snapshotQuery.Where(snapshot => snapshot.Campaign.BrandId == brandId.Value);
+        var snapshotChannels = await snapshotQuery
+            .GroupBy(snapshot => snapshot.Platform)
+            .Select(g => new
             {
-                var platformStr = g.Key.ToString().ToLower();
-                var postCount = g.Sum(si => si.Posts.Count);
-                return new AnalyticsChannelBreakdownDto
-                {
-                    Platform = platformStr,
-                    IntegrationId = g.First().Id,
-                    DisplayName = $"{platformStr} ({g.Count()} accounts)",
-                    PublishedPosts = postCount,
-                    Impressions = 0,
-                    Reach = 0,
-                    Engagement = 0,
-                    Clicks = 0,
-                    Ctr = 0,
-                    Spend = 0,
-                    LastSyncedAt = g.Max(si => (DateTime?)si.UpdatedAt)
-                };
+                Platform = g.Key,
+                Impressions = g.Sum(item => item.Impressions),
+                Reach = g.Sum(item => item.Reach ?? 0),
+                Clicks = g.Sum(item => item.Clicks),
+                Spend = g.Sum(item => item.Spend),
+                LastSyncedAt = g.Max(item => item.SyncedAt)
             })
-            .ToList();
+            .ToListAsync(cancellationToken);
+
+        var platforms = integrations.Select(item => item.Platform.ToString().ToLower())
+            .Concat(snapshotChannels.Select(item => item.Platform))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        return platforms.Select(platform =>
+        {
+            var platformIntegrations = integrations
+                .Where(item => item.Platform.ToString().Equals(platform, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var metrics = snapshotChannels.FirstOrDefault(item =>
+                item.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase));
+            return new AnalyticsChannelBreakdownDto
+            {
+                Platform = platform,
+                IntegrationId = platformIntegrations.FirstOrDefault()?.Id,
+                DisplayName = $"{platform} ({platformIntegrations.Count} accounts)",
+                PublishedPosts = platformIntegrations.Sum(item => item.Posts.Count),
+                Impressions = metrics?.Impressions ?? 0,
+                Reach = metrics?.Reach ?? 0,
+                Clicks = metrics?.Clicks ?? 0,
+                Ctr = metrics?.Impressions > 0
+                    ? Math.Round((decimal)metrics.Clicks / metrics.Impressions * 100, 2) : 0,
+                Spend = metrics?.Spend ?? 0,
+                LastSyncedAt = metrics?.LastSyncedAt
+            };
+        }).ToList();
     }
 
     public async Task<(IReadOnlyList<CampaignAnalyticsItemDto> Items, int TotalCount)> GetCampaignBreakdownPagedAsync(
@@ -227,40 +285,67 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         if (brandId.HasValue)
             query = query.Where(c => c.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            query = query.Where(c => c.Platform == platform.ToLower());
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var campaigns = await query.AsNoTracking().ToListAsync(cancellationToken);
+        var campaignIds = campaigns.Select(campaign => campaign.Id).ToList();
+        var snapshots = await _context.CampaignInsightSnapshots
+            .AsNoTracking()
+            .Where(snapshot => snapshot.WorkspaceId == workspaceId
+                && campaignIds.Contains(snapshot.CampaignId)
+                && snapshot.SnapshotDate >= from.Date
+                && snapshot.SnapshotDate <= to.Date)
+            .ToListAsync(cancellationToken);
 
-        IQueryable<AdCampaign> orderedQuery = sortBy?.ToLower() switch
+        var allItems = campaigns.Select(c =>
         {
-            "clicks" => sortDescending ? query.OrderByDescending(c => c.Clicks) : query.OrderBy(c => c.Clicks),
-            "ctr" => sortDescending ? query.OrderByDescending(c => c.Impressions > 0 ? (decimal)c.Clicks / c.Impressions : 0) : query.OrderBy(c => c.Impressions > 0 ? (decimal)c.Clicks / c.Impressions : 0),
-            "spend" => sortDescending ? query.OrderByDescending(c => c.Spend) : query.OrderBy(c => c.Spend),
-            "engagement" => sortDescending ? query.OrderByDescending(c => c.Conversions) : query.OrderBy(c => c.Conversions),
-            _ => sortDescending ? query.OrderByDescending(c => c.Impressions) : query.OrderBy(c => c.Impressions),
-        };
-
-        var items = await orderedQuery
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(c => new CampaignAnalyticsItemDto
+            var campaignSnapshots = snapshots.Where(snapshot => snapshot.CampaignId == c.Id).ToList();
+            var impressions = campaignSnapshots.Sum(snapshot => snapshot.Impressions);
+            var clicks = campaignSnapshots.Sum(snapshot => snapshot.Clicks);
+            var spend = campaignSnapshots.Sum(snapshot => snapshot.Spend);
+            var conversions = campaignSnapshots.Sum(snapshot => snapshot.Conversions ?? 0);
+            var revenue = campaignSnapshots.Sum(snapshot => snapshot.AttributedRevenue ?? 0);
+            return new CampaignAnalyticsItemDto
             {
                 CampaignId = c.Id,
                 Name = c.Name,
-                Platform = null,
+                CampaignName = c.Name,
+                BrandName = c.Brand.Name,
+                Platform = c.Platform,
                 Objective = c.Objective,
                 Status = c.IsActive ? "ACTIVE" : "PAUSED",
                 Budget = c.Budget,
-                Impressions = c.Impressions,
-                Reach = 0,
-                Engagement = c.Conversions,
-                Clicks = c.Clicks,
-                Ctr = c.Impressions > 0 ? Math.Round((decimal)c.Clicks / c.Impressions * 100, 2) : 0,
-                Spend = c.Spend,
-                EstimatedRevenue = 0
-            })
-            .ToListAsync(cancellationToken);
+                Impressions = impressions,
+                Reach = campaignSnapshots.Sum(snapshot => snapshot.Reach ?? 0),
+                Engagement = campaignSnapshots.Sum(snapshot => snapshot.Engagement ?? 0),
+                Clicks = clicks,
+                Conversions = (long)conversions,
+                Ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions * 100, 2) : 0,
+                Spend = spend,
+                EstimatedRevenue = revenue,
+                Cpa = conversions > 0 ? spend / conversions : 0,
+                Roas = spend > 0 ? revenue / spend : 0
+            };
+        }).ToList();
 
-        return (items, totalCount);
+        Func<CampaignAnalyticsItemDto, decimal> sortValue = sortBy?.ToLower() switch
+        {
+            "clicks" => item => item.Clicks,
+            "ctr" => item => item.Ctr,
+            "spend" => item => item.Spend,
+            "conversions" => item => item.Conversions,
+            "roas" => item => item.Roas,
+            _ => item => item.Impressions
+        };
+        var ordered = sortDescending
+            ? allItems.OrderByDescending(sortValue)
+            : allItems.OrderBy(sortValue);
+        var items = ordered.Skip((Math.Max(page, 1) - 1) * Math.Clamp(pageSize, 1, 100))
+            .Take(Math.Clamp(pageSize, 1, 100))
+            .ToList();
+
+        return (items, allItems.Count);
     }
 
     public async Task<(IReadOnlyList<TopPostItemDto> Items, int TotalCount)> GetTopPostsPagedAsync(
@@ -323,44 +408,18 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         Guid? brandId = null, string? platform = null, Guid? campaignId = null,
         CancellationToken cancellationToken = default)
     {
-        var sparkDays = Enumerable.Range(0, days)
-            .Select(d => to.Date.AddDays(-d))
-            .OrderBy(d => d)
-            .ToList();
-
-        var postsByDay = await _context.Posts
-            .Where(p => !p.IsDeleted && p.PublishedAt >= sparkDays.First() && p.PublishedAt <= to
-                && p.Content != null && !p.Content.IsDeleted
-                && p.Content.WorkspaceId == workspaceId)
-            .GroupBy(p => p.PublishedAt.Date)
-            .Select(g => new { Date = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
-
-        var campaignByDay = await _context.AdCampaigns
-            .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                TotalImpressions = g.Sum(c => c.Impressions),
-                TotalClicks = g.Sum(c => c.Clicks),
-                TotalSpend = g.Sum(c => c.Spend),
-                TotalConversions = g.Sum(c => c.Conversions)
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var avgDailyImpressions = sparkDays.Count > 0 ? (campaignByDay?.TotalImpressions ?? 0) / (decimal)sparkDays.Count : 0;
-        var avgDailyClicks = sparkDays.Count > 0 ? (campaignByDay?.TotalClicks ?? 0) / (decimal)sparkDays.Count : 0;
-        var avgDailySpend = sparkDays.Count > 0 ? (campaignByDay?.TotalSpend ?? 0) / sparkDays.Count : 0;
-        var avgDailyConversions = sparkDays.Count > 0 ? (campaignByDay?.TotalConversions ?? 0) / (decimal)sparkDays.Count : 0;
+        var sparkFrom = to.Date.AddDays(-(Math.Max(days, 1) - 1));
+        var points = await GetDailyTimeSeriesAsync(
+            workspaceId, sparkFrom, to, null, brandId, platform, campaignId, cancellationToken);
 
         return new AnalyticsSparklines
         {
-            Impressions = sparkDays.Select(_ => avgDailyImpressions).ToList(),
-            Engagement = sparkDays.Select(d => (decimal)(postsByDay.FirstOrDefault(p => p.Date == d)?.Count ?? 0)).ToList(),
-            Clicks = sparkDays.Select(_ => avgDailyClicks).ToList(),
-            Conversions = sparkDays.Select(_ => avgDailyConversions).ToList(),
-            Ctr = sparkDays.Select(d => (decimal)(postsByDay.FirstOrDefault(p => p.Date == d)?.Count ?? 0)).ToList(),
-            Spend = sparkDays.Select(_ => avgDailySpend).ToList(),
+            Impressions = points.Select(point => (decimal)point.Impressions).ToList(),
+            Engagement = points.Select(point => (decimal)point.Engagement).ToList(),
+            Clicks = points.Select(point => (decimal)point.Clicks).ToList(),
+            Conversions = points.Select(point => (decimal)point.Conversions).ToList(),
+            Ctr = points.Select(point => point.Ctr).ToList(),
+            Spend = points.Select(point => point.Spend).ToList(),
         };
     }
 

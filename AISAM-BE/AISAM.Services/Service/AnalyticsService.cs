@@ -13,17 +13,20 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly ISocialIntegrationRepository _socialIntegrationRepo;
     private readonly IGeminiTextClient _geminiTextClient;
     private readonly FacebookProvider _facebookProvider;
+    private readonly ICampaignInsightSnapshotRepository _campaignInsightSnapshotRepo;
 
     public AnalyticsService(
         IPerformanceReportRepository performanceReportRepo,
         ISocialIntegrationRepository socialIntegrationRepo,
         IGeminiTextClient geminiTextClient,
-        FacebookProvider facebookProvider)
+        FacebookProvider facebookProvider,
+        ICampaignInsightSnapshotRepository campaignInsightSnapshotRepo)
     {
         _performanceReportRepo = performanceReportRepo;
         _socialIntegrationRepo = socialIntegrationRepo;
         _geminiTextClient = geminiTextClient;
         _facebookProvider = facebookProvider;
+        _campaignInsightSnapshotRepo = campaignInsightSnapshotRepo;
     }
 
     public async Task<GenericResponse<AnalyticsOverviewDto>> GetOverviewAsync(
@@ -31,6 +34,10 @@ public sealed class AnalyticsService : IAnalyticsService
         Guid? brandId = null, string? platform = null, Guid? campaignId = null,
         CancellationToken cancellationToken = default)
     {
+        if (to < from)
+            return GenericResponse<AnalyticsOverviewDto>.CreateError(
+                "The analytics end date must be on or after the start date.");
+
         var totals = await _performanceReportRepo.GetAggregatedTotalsAsync(
             workspaceId, from, to, brandId, platform, campaignId, cancellationToken);
 
@@ -41,6 +48,10 @@ public sealed class AnalyticsService : IAnalyticsService
             workspaceId, from, to, 7, brandId, platform, campaignId, cancellationToken);
 
         var changes = ComputeChanges(totals, prevTotals);
+
+        var lastSyncedAt = await _campaignInsightSnapshotRepo.GetLastSyncedAtAsync(
+            workspaceId, cancellationToken);
+        var hasData = lastSyncedAt.HasValue;
 
         return GenericResponse<AnalyticsOverviewDto>.CreateSuccess(new AnalyticsOverviewDto
         {
@@ -54,8 +65,13 @@ public sealed class AnalyticsService : IAnalyticsService
             Sparklines = sparklines,
             DataFreshness = new DataFreshness
             {
-                LastSyncedAt = null,
-                IsPartial = true
+                LastSyncedAt = lastSyncedAt,
+                IsPartial = !hasData,
+                Status = hasData
+                    ? (DateTime.UtcNow - lastSyncedAt.Value > TimeSpan.FromHours(24) ? "stale" : "fresh")
+                    : "no_data",
+                Sources = hasData ? ["meta"] : [],
+                Warnings = hasData ? [] : ["Campaign analytics have not been synchronized yet."]
             }
         }, "Analytics overview retrieved successfully.");
     }
@@ -69,9 +85,12 @@ public sealed class AnalyticsService : IAnalyticsService
             CtrPct = SafeChange(current.Ctr, previous.Ctr),
             SpendPct = SafeChange(current.Spend, previous.Spend),
             ClicksPct = SafeChange(current.Clicks, previous.Clicks),
-            ConversionRatePct = SafeChange(current.PublishedPosts > 0 ? current.Engagement / current.PublishedPosts : 0,
-                                             previous.PublishedPosts > 0 ? previous.Engagement / previous.PublishedPosts : 0),
-            CpaPct = current.Clicks > 0 ? SafePercentage(-(current.Spend / current.Clicks), previous.Clicks > 0 ? -(previous.Spend / previous.Clicks) : 0) : 0,
+            ConversionRatePct = SafeChange(
+                current.Clicks > 0 ? (decimal)current.Conversions / current.Clicks * 100 : 0,
+                previous.Clicks > 0 ? (decimal)previous.Conversions / previous.Clicks * 100 : 0),
+            CpaPct = SafeChange(
+                current.Conversions > 0 ? current.Spend / current.Conversions : 0,
+                previous.Conversions > 0 ? previous.Spend / previous.Conversions : 0),
             RoasPct = SafeChange(current.Spend > 0 ? current.EstimatedRevenue / current.Spend : 0,
                                   previous.Spend > 0 ? previous.EstimatedRevenue / previous.Spend : 0)
         };
@@ -103,6 +122,13 @@ public sealed class AnalyticsService : IAnalyticsService
         Guid? brandId = null, string? platform = null, Guid? campaignId = null,
         CancellationToken cancellationToken = default)
     {
+        if (to < from)
+            return GenericResponse<AnalyticsTimeSeriesDto>.CreateError(
+                "The analytics end date must be on or after the start date.");
+        if (!string.Equals(granularity, "day", StringComparison.OrdinalIgnoreCase))
+            return GenericResponse<AnalyticsTimeSeriesDto>.CreateError(
+                "Only day granularity is currently supported.");
+
         var metricArray = metrics?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         var points = await _performanceReportRepo.GetDailyTimeSeriesAsync(
@@ -302,19 +328,10 @@ public sealed class AnalyticsService : IAnalyticsService
             }
         }
 
-        // Fallback device data (Facebook doesn't provide device breakdown via page insights)
-        deviceItems.Add(new DeviceItemDto { Device = "Desktop", Percentage = 52 });
-        deviceItems.Add(new DeviceItemDto { Device = "Mobile", Percentage = 38 });
-        deviceItems.Add(new DeviceItemDto { Device = "Tablet", Percentage = 10 });
-
         return GenericResponse<AudienceBreakdownDto>.CreateSuccess(new AudienceBreakdownDto
         {
-            Geographic = geoItems.Count > 0
-                ? geoItems.OrderByDescending(g => g.Percentage).Take(5).ToList()
-                : GetDefaultGeographic(),
-            Demographics = demoItems.Count > 0
-                ? demoItems.OrderByDescending(d => d.Percentage).Take(4).ToList()
-                : GetDefaultDemographics(),
+            Geographic = geoItems.OrderByDescending(g => g.Percentage).Take(5).ToList(),
+            Demographics = demoItems.OrderByDescending(d => d.Percentage).Take(4).ToList(),
             Devices = deviceItems
         }, "Audience breakdown retrieved successfully.");
     }
@@ -371,20 +388,4 @@ public sealed class AnalyticsService : IAnalyticsService
         }
     }
 
-    private static List<GeographicItemDto> GetDefaultGeographic() => new()
-    {
-        new() { Country = "US", Percentage = 38 },
-        new() { Country = "UK", Percentage = 22 },
-        new() { Country = "Germany", Percentage = 15 },
-        new() { Country = "Japan", Percentage = 12 },
-        new() { Country = "Others", Percentage = 13 }
-    };
-
-    private static List<DemographicItemDto> GetDefaultDemographics() => new()
-    {
-        new() { Group = "18-24", Percentage = 28 },
-        new() { Group = "25-34", Percentage = 42 },
-        new() { Group = "35-44", Percentage = 20 },
-        new() { Group = "45+", Percentage = 10 }
-    };
 }

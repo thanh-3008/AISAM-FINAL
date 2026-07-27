@@ -96,6 +96,22 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
       setDateError("End date must be after start date");
       return;
     }
+    if (landingUrl && (!URL.canParse(landingUrl) || new URL(landingUrl).protocol !== "https:")) {
+      setDateError("Landing URL must be an absolute HTTPS URL");
+      return;
+    }
+    if (selectedTargeting === "custom") {
+      try {
+        const targeting = JSON.parse(customTargeting);
+        if (!targeting || typeof targeting !== "object" || !targeting.geo_locations) {
+          setDateError("Custom targeting must include geo_locations");
+          return;
+        }
+      } catch {
+        setDateError("Custom targeting must be valid JSON");
+        return;
+      }
+    }
     setDateError("");
 
     const finalTargeting = selectedTargeting === "custom"

@@ -306,6 +306,27 @@ export async function deployCampaignToFacebook(id: string): Promise<Campaign> {
   return mapCampaign(res.data as CampaignApiItem);
 }
 
+export interface CampaignPreflightCheck {
+  key: string;
+  status: "passed" | "warning" | "failed";
+  message: string;
+}
+
+export interface CampaignPreflightResult {
+  ready: boolean;
+  checks: CampaignPreflightCheck[];
+  errors: number;
+  warnings: number;
+}
+
+export async function preflightCampaign(id: string): Promise<CampaignPreflightResult> {
+  const res = await apiClient(`/campaigns/${id}/preflight`, { method: "POST" });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to validate campaign");
+  }
+  return res.data as CampaignPreflightResult;
+}
+
 export async function syncCampaignInsights(id: string): Promise<Campaign> {
   const res = await apiClient(`/campaigns/${id}/sync-insights`, { method: "POST" });
   if (!res?.success || !res.data) {

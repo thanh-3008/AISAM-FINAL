@@ -57,5 +57,6 @@ namespace AISAM.Data.Model
         public virtual ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
         public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
         public virtual ICollection<AdCampaign> AdCampaigns { get; set; } = new List<AdCampaign>();
+        public virtual ICollection<CampaignInsightSnapshot> CampaignInsightSnapshots { get; set; } = new List<CampaignInsightSnapshot>();
     }
 }

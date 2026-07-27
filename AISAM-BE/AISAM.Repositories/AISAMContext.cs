@@ -35,6 +35,7 @@ namespace AISAM.Repositories
         public DbSet<AdSet> AdSets { get; set; }
         public DbSet<AdCreative> AdCreatives { get; set; }
         public DbSet<PerformanceReport> PerformanceReports { get; set; }
+        public DbSet<CampaignInsightSnapshot> CampaignInsightSnapshots { get; set; }
         public DbSet<ContentCalendar> ContentCalendars { get; set; }
         public DbSet<AiGeneration> AiGenerations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
@@ -488,6 +489,31 @@ namespace AISAM.Repositories
                       .WithMany(p => p.PerformanceReports)
                       .HasForeignKey(pr => pr.PostId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CampaignInsightSnapshot>(entity =>
+            {
+                entity.HasKey(snapshot => snapshot.Id);
+                entity.HasIndex(snapshot => new
+                {
+                    snapshot.CampaignId,
+                    snapshot.Platform,
+                    snapshot.SnapshotDate,
+                    snapshot.AttributionWindow
+                }).IsUnique();
+                entity.HasIndex(snapshot => new { snapshot.WorkspaceId, snapshot.SnapshotDate });
+                entity.HasIndex(snapshot => new { snapshot.CampaignId, snapshot.SnapshotDate });
+                entity.Property(snapshot => snapshot.Spend).HasPrecision(18, 2);
+                entity.Property(snapshot => snapshot.Conversions).HasPrecision(18, 4);
+                entity.Property(snapshot => snapshot.AttributedRevenue).HasPrecision(18, 2);
+                entity.HasOne(snapshot => snapshot.Workspace)
+                    .WithMany(workspace => workspace.CampaignInsightSnapshots)
+                    .HasForeignKey(snapshot => snapshot.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(snapshot => snapshot.Campaign)
+                    .WithMany(campaign => campaign.InsightSnapshots)
+                    .HasForeignKey(snapshot => snapshot.CampaignId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ContentCalendar entity configuration

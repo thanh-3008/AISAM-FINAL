@@ -207,6 +207,7 @@ builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IContentCalendarRepository, ContentCalendarRepository>();
 builder.Services.AddScoped<IAutomationRepository, AutomationRepository>();
 builder.Services.AddScoped<IPerformanceReportRepository, PerformanceReportRepository>();
+builder.Services.AddScoped<ICampaignInsightSnapshotRepository, CampaignInsightSnapshotRepository>();
 builder.Services.AddScoped<IAdCampaignRepository, AdCampaignRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -252,6 +253,7 @@ builder.Services.AddScoped<IAutomationGenerationService, AutomationGenerationSer
 builder.Services.AddScoped<IAutomationApprovalService, AutomationApprovalService>();
 builder.Services.AddScoped<IAutomationCreditService, AutomationCreditService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+builder.Services.AddScoped<ICampaignInsightSyncService, CampaignInsightSyncService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
 builder.Services.AddScoped<IAdminService, AdminService>();

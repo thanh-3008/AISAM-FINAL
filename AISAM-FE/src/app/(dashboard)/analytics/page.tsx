@@ -27,6 +27,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [topPosts, setTopPosts] = useState<TopPostItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [campaignFilter, setCampaignFilter] = useState("all");
@@ -47,6 +48,7 @@ export default function AnalyticsPage() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const res = await fetchAnalytics({
           dateRange,
@@ -58,7 +60,7 @@ export default function AnalyticsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error("Failed to load analytics:", err);
-          setData(null);
+          setLoadError(err instanceof Error ? err.message : "Failed to load analytics");
         }
       }
 
@@ -150,7 +152,7 @@ export default function AnalyticsPage() {
                 </h1>
                 <p className="text-body-sm text-outline mt-1 flex items-center gap-2">
                   <span className="material-symbols-outlined text-body-sm text-success-green">check_circle</span>
-                  Real-time campaign performance & AI insights
+                  Latest synchronized campaign performance
                 </p>
               </div>
             </div>
@@ -165,6 +167,23 @@ export default function AnalyticsPage() {
               </span>
             </button>
           </div>
+
+          {loadError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-4">
+              <span>{loadError}. Existing data is kept when available.</span>
+              <button type="button" onClick={handleRefresh} className="font-semibold underline">Retry</button>
+            </div>
+          )}
+
+          {data && (
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant">
+              <span className="font-semibold capitalize">{data.freshness.status.replace("_", " ")}</span>
+              {data.freshness.lastSyncedAt
+                ? ` · Last synced ${new Date(data.freshness.lastSyncedAt).toLocaleString()}`
+                : " · Campaign analytics have not been synchronized yet."}
+              {data.freshness.warnings.map((warning) => <span key={warning}> · {warning}</span>)}
+            </div>
+          )}
 
           {loading || !data ? (
             <div className="space-y-6">

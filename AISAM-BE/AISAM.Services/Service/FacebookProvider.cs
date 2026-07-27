@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Services.IServices;
@@ -468,6 +469,95 @@ public sealed class FacebookProvider : IProviderService
 
         var result = Deserialize<FacebookCampaignInsightsResponse>(content);
         return result?.Data?.FirstOrDefault(i => !string.IsNullOrWhiteSpace(i.Impressions));
+    }
+
+    public async Task<IReadOnlyList<CampaignDailyInsightDto>> GetCampaignDailyInsightsAsync(
+        string adAccountId,
+        string userAccessToken,
+        string campaignId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        if (to.Date < from.Date)
+            throw new ArgumentException("The analytics end date must be on or after the start date.");
+        if ((to.Date - from.Date).TotalDays > 90)
+            throw new ArgumentException("A single analytics sync cannot exceed 90 days.");
+
+        var timeRange = JsonSerializer.Serialize(new
+        {
+            since = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            until = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        });
+        var fields = "date_start,date_stop,impressions,reach,clicks,spend,actions,action_values,account_currency";
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{campaignId}/insights" +
+                  $"?fields={Uri.EscapeDataString(fields)}&time_increment=1&limit=100" +
+                  $"&time_range={Uri.EscapeDataString(timeRange)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Failed to get daily campaign insights: {GetErrorMessage(content)}");
+
+        var result = Deserialize<FacebookCampaignInsightsResponse>(content);
+        return (result?.Data ?? [])
+            .Select(item =>
+            {
+                var hasDate = DateTime.TryParseExact(
+                    item.DateStart,
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal,
+                    out var date);
+                long.TryParse(item.Impressions, NumberStyles.Integer, CultureInfo.InvariantCulture, out var impressions);
+                long.TryParse(item.Reach, NumberStyles.Integer, CultureInfo.InvariantCulture, out var reach);
+                long.TryParse(item.Clicks, NumberStyles.Integer, CultureInfo.InvariantCulture, out var clicks);
+                decimal.TryParse(item.Spend, NumberStyles.Number, CultureInfo.InvariantCulture, out var spend);
+
+                return hasDate
+                    ? new CampaignDailyInsightDto
+                    {
+                        Date = date.Date,
+                        Impressions = impressions,
+                        Reach = string.IsNullOrWhiteSpace(item.Reach) ? null : reach,
+                        Clicks = clicks,
+                        Spend = spend,
+                        Conversions = SumActions(item.Actions,
+                            "purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"),
+                        AttributedRevenue = SumActions(item.ActionValues,
+                            "purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"),
+                        Currency = string.IsNullOrWhiteSpace(item.AccountCurrency)
+                            ? "VND"
+                            : item.AccountCurrency.ToUpperInvariant(),
+                        RawData = JsonSerializer.Serialize(item)
+                    }
+                    : null;
+            })
+            .Where(item => item != null)
+            .Cast<CampaignDailyInsightDto>()
+            .ToList();
+    }
+
+    private static decimal? SumActions(
+        IReadOnlyList<FacebookActionData>? actions,
+        params string[] actionTypes)
+    {
+        if (actions == null)
+            return null;
+
+        var matches = actions.Where(action =>
+            actionTypes.Contains(action.ActionType, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0)
+            return null;
+
+        return matches.Sum(action =>
+            decimal.TryParse(action.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
+                ? value
+                : 0);
     }
 
     // ──────────────────────────────────────────────

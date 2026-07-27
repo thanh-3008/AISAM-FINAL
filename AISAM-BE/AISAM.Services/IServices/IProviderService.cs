@@ -19,6 +19,15 @@ public interface IProviderService
     Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, CancellationToken cancellationToken = default);
     Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default);
     Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CampaignDailyInsightDto>> GetCampaignDailyInsightsAsync(
+        string adAccountId,
+        string userAccessToken,
+        string campaignId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default)
+        => Task.FromException<IReadOnlyList<CampaignDailyInsightDto>>(
+            new NotSupportedException($"{ProviderName} does not support daily campaign insights."));
 
     // ─── Status Update ───
     Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default);

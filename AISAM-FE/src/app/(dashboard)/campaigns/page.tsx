@@ -15,10 +15,12 @@ import {
   restoreCampaign,
   deployCampaignToFacebook,
   duplicateCampaign,
+  preflightCampaign,
   type Campaign,
   type CampaignStatus,
   type CampaignObjective,
   type CreateCampaignData,
+  type CampaignPreflightResult,
 } from "@/services/campaignService";
 import CampaignStatsCards from "@/components/campaigns/CampaignStatsCards";
 import CampaignFilterBar, { type SortOption } from "@/components/campaigns/CampaignFilterBar";
@@ -30,6 +32,7 @@ import EditCampaignModal from "@/components/campaigns/EditCampaignModal";
 import CampaignDetailModal from "@/components/campaigns/CampaignDetailModal";
 import DeleteConfirmModal from "@/components/campaigns/DeleteConfirmModal";
 import StartConfirmModal from "@/components/campaigns/StartConfirmModal";
+import CampaignPreflightModal from "@/components/campaigns/CampaignPreflightModal";
 import { fetchBrands } from "@/services/brandService";
 import { setCachedBrands, OBJECTIVE_CONFIG, STATUS_CONFIG } from "@/components/campaigns/campaignUtils";
 
@@ -37,6 +40,10 @@ export default function CampaignsPage() {
   const { activeWorkspace } = useWorkspaces();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [preflightState, setPreflightState] = useState<{
+    campaign: Campaign;
+    result: CampaignPreflightResult;
+  } | null>(null);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -282,13 +289,26 @@ export default function CampaignsPage() {
   const handleDeploy = async (campaign: Campaign) => {
     setActionLoading(campaign.id);
     try {
-      const updated = await deployCampaignToFacebook(campaign.id);
-      if (updated) {
-        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
-        addToast(`Campaign deployed to Facebook`);
-      }
+      const result = await preflightCampaign(campaign.id);
+      setPreflightState({ campaign, result });
     } catch (err: any) {
-      addToast(err?.message || "Failed to deploy", "error");
+      addToast(err?.message || "Failed to validate campaign", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleConfirmDeploy = async () => {
+    if (!preflightState?.result.ready) return;
+    const campaign = preflightState.campaign;
+    setActionLoading(campaign.id);
+    try {
+      const updated = await deployCampaignToFacebook(campaign.id);
+      setCampaigns((prev) => prev.map((item) => (item.id === campaign.id ? updated : item)));
+      setPreflightState(null);
+      addToast(`Campaign deployed to ${updated.platform}`);
+    } catch (err: any) {
+      addToast(err?.message || "Failed to deploy campaign", "error");
     } finally {
       setActionLoading(null);
     }
@@ -462,6 +482,16 @@ export default function CampaignsPage() {
           onConfirm={handleConfirmDelete}
           onCancel={() => setDeletingCampaigns([])}
         />
+
+        {preflightState && (
+          <CampaignPreflightModal
+            campaign={preflightState.campaign}
+            result={preflightState.result}
+            isDeploying={actionLoading === preflightState.campaign.id}
+            onClose={() => setPreflightState(null)}
+            onConfirm={handleConfirmDeploy}
+          />
+        )}
 
       </main>
     </>

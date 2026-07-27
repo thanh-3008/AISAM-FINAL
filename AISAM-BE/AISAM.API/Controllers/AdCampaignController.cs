@@ -213,6 +213,18 @@ namespace AISAM.API.Controllers
             }
         }
 
+        [HttpPost("{id}/preflight")]
+        public async Task<ActionResult<GenericResponse<CampaignPreflightResponseDto>>> Preflight(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+            var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+            var result = await _campaignService.PreflightAsync(
+                id, workspaceId, userId, cancellationToken);
+            return StatusCode(result.StatusCode, result);
+        }
+
         [HttpPost("{id}/cleanup")]
         public async Task<ActionResult<GenericResponse<bool>>> CleanupFailedDeployment(Guid id, CancellationToken cancellationToken = default)
         {

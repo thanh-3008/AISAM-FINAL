@@ -101,6 +101,13 @@ export interface AnalyticsData {
   channelBreakdown: ChannelBreakdownItem[];
   aiInsights: AiInsight[];
   efficiency: EfficiencyMetric[];
+  freshness: {
+    status: "fresh" | "stale" | "partial" | "syncing" | "failed" | "not_configured" | "no_data";
+    lastSyncedAt: string | null;
+    isPartial: boolean;
+    sources: string[];
+    warnings: string[];
+  };
 }
 
 interface GenericResponse<T> {
@@ -151,6 +158,9 @@ interface AnalyticsOverviewResponse {
   dataFreshness: {
     lastSyncedAt: string | null;
     isPartial: boolean;
+    status: AnalyticsData["freshness"]["status"];
+    sources: string[];
+    warnings: string[];
   };
 }
 
@@ -227,14 +237,12 @@ export async function fetchChannelBreakdown(
 ): Promise<ChannelBreakdownItem[]> {
   const { from, to } = getDateRange(dateRange || "30d");
   const query = buildFilterQuery(from, to, { brandId });
-  try {
-    const res: GenericResponse<ChannelBreakdownItem[]> = await apiClient(
-      `/analytics/channel-breakdown?${query}`
-    );
-    return res?.data || [];
-  } catch {
-    return [];
-  }
+  const res: GenericResponse<ChannelBreakdownItem[]> = await apiClient(
+    `/analytics/channel-breakdown?${query}`
+  );
+  if (!res?.success)
+    throw new Error(res?.message || "Failed to load channel analytics");
+  return res.data || [];
 }
 
 export async function fetchUsageBreakdown(): Promise<UsageBreakdownItem[]> {
@@ -331,33 +339,18 @@ export async function fetchAnalytics(
 
   const filterQuery = buildFilterQuery(from, to, { brandId, platform });
 
-  let overview: AnalyticsOverviewResponse | null = null;
-  let timeSeries: TimeSeriesResponse | null = null;
-  let channelBreakdown: ChannelBreakdownItem[] = [];
+  const [overviewResult, timeSeriesResult, channelBreakdown] = await Promise.all([
+    apiClient(`/analytics/overview?${filterQuery}`) as Promise<GenericResponse<AnalyticsOverviewResponse>>,
+    apiClient(`/analytics/time-series?${filterQuery}&granularity=day`) as Promise<GenericResponse<TimeSeriesResponse>>,
+    fetchChannelBreakdown(range, brandId),
+  ]);
+  if (!overviewResult?.success || !overviewResult.data)
+    throw new Error(overviewResult?.message || "Failed to load analytics overview");
+  if (!timeSeriesResult?.success || !timeSeriesResult.data)
+    throw new Error(timeSeriesResult?.message || "Failed to load analytics time series");
 
-  try {
-    const res1: GenericResponse<AnalyticsOverviewResponse> = await apiClient(
-      `/analytics/overview?${filterQuery}`
-    );
-    if (res1?.data) overview = res1.data;
-  } catch {
-    /* graceful fallback */
-  }
-
-  try {
-    const res2: GenericResponse<TimeSeriesResponse> = await apiClient(
-      `/analytics/time-series?${filterQuery}&granularity=day`
-    );
-    if (res2?.data) timeSeries = res2.data;
-  } catch {
-    /* graceful fallback */
-  }
-
-  try {
-    channelBreakdown = await fetchChannelBreakdown(range, brandId);
-  } catch {
-    /* ignore */
-  }
+  const overview = overviewResult.data;
+  const timeSeries = timeSeriesResult.data;
 
   const totals = overview?.totals;
   const changes = overview?.changes;
@@ -394,7 +387,7 @@ export async function fetchAnalytics(
         c.impressions > 0
           ? Math.round((c.clicks / c.impressions) * 10000) / 100
           : 0,
-      roas: c.spend > 0 ? Math.round((c.conversions / c.spend) * 10) / 10 : 0,
+      roas: 0,
       spend: c.spend,
       conversions: c.conversions,
     }));
@@ -477,5 +470,12 @@ export async function fetchAnalytics(
         color: "bg-secondary",
       },
     ],
+    freshness: {
+      status: overview.dataFreshness.status || "no_data",
+      lastSyncedAt: overview.dataFreshness.lastSyncedAt,
+      isPartial: overview.dataFreshness.isPartial,
+      sources: overview.dataFreshness.sources || [],
+      warnings: overview.dataFreshness.warnings || [],
+    },
   };
 }

@@ -135,6 +135,12 @@ public sealed class FacebookCampaignInsightsResponse
 
 public sealed class FacebookInsightData
 {
+    [JsonPropertyName("date_start")]
+    public string? DateStart { get; set; }
+
+    [JsonPropertyName("date_stop")]
+    public string? DateStop { get; set; }
+
     [JsonPropertyName("impressions")]
     public string? Impressions { get; set; }
 
@@ -152,6 +158,30 @@ public sealed class FacebookInsightData
 
     [JsonPropertyName("cpc")]
     public string? Cpc { get; set; }
+
+    [JsonPropertyName("reach")]
+    public string? Reach { get; set; }
+
+    [JsonPropertyName("account_currency")]
+    public string? AccountCurrency { get; set; }
+
+    [JsonPropertyName("action_values")]
+    public List<FacebookActionData>? ActionValues { get; set; }
+}
+
+public sealed class CampaignDailyInsightDto
+{
+    public DateTime Date { get; set; }
+    public long Impressions { get; set; }
+    public long? Reach { get; set; }
+    public long Clicks { get; set; }
+    public decimal Spend { get; set; }
+    public decimal? Conversions { get; set; }
+    public decimal? AttributedRevenue { get; set; }
+    public string Currency { get; set; } = "VND";
+    public string? AttributionWindow { get; set; }
+    public bool IsPartial { get; set; }
+    public string? RawData { get; set; }
 }
 
 public sealed class FacebookActionData
