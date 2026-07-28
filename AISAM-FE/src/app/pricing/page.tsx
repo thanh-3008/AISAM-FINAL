@@ -153,7 +153,7 @@ function PricingContent() {
 
   const currentPlan = featureGate.plan;
   const isCurrentPlan = (planType: PlanType) => currentPlan === planType;
-  const isPlanLocked = (planType: PlanType) => PLAN_HIERARCHY[planType] <= PLAN_HIERARCHY[currentPlan];
+  const isLowerPlan = (planType: PlanType) => PLAN_HIERARCHY[planType] < PLAN_HIERARCHY[currentPlan];
 
   const filteredPlans = PLAN_PRICING.filter(p => p.category === planCategory);
 
@@ -466,7 +466,7 @@ function PricingContent() {
               <div className="flex flex-wrap justify-center gap-4">
                 {filteredPlans.map((plan) => {
                   const current = !createMode && isCurrentPlan(plan.planType);
-                  const locked = !createMode && isPlanLocked(plan.planType);
+                  const lower = !createMode && isLowerPlan(plan.planType);
 
                   return (
                     <motion.div
@@ -501,9 +501,14 @@ function PricingContent() {
                           <span className="text-label-sm text-outline">{yearly ? "/year" : plan.period}</span>
                         </div>
                         {yearly && plan.price > 0 && (
-                          <p className="text-label-xs text-emerald-600 mt-0.5">
-                            {(plan.price * 10 / 12).toLocaleString("vi-VN", { maximumFractionDigits: 0 })}₫/mo billed yearly
-                          </p>
+                          <>
+                            <p className="text-label-xs text-emerald-600 mt-0.5">
+                              {(plan.price * 10 / 12).toLocaleString("vi-VN", { maximumFractionDigits: 0 })}₫/mo billed yearly
+                            </p>
+                            <p className="text-label-xs text-emerald-600/80 mt-0.5">
+                              {(plan.price * 2).toLocaleString("vi-VN")}₫ saved vs monthly
+                            </p>
+                          </>
                         )}
                       </div>
 
@@ -521,7 +526,7 @@ function PricingContent() {
 
                       <button
                         onClick={() => handleUpgrade(plan)}
-                        disabled={(current || creating) || processing === plan.planType}
+                        disabled={current || creating || processing === plan.planType}
                         className={`w-full py-2.5 rounded-xl text-label-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                           plan.popular
                             ? "bg-primary text-on-primary hover:bg-primary/90 shadow-sm shadow-primary/20"
@@ -550,7 +555,7 @@ function PricingContent() {
                           "Subscribe"
                         ) : current ? (
                           "Current Plan"
-                        ) : locked ? (
+                        ) : lower ? (
                           "Downgrade"
                         ) : (
                           plan.cta

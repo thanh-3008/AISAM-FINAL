@@ -86,6 +86,15 @@ public sealed class PaymentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("subscription/cancel")]
+    [Authorize]
+    public async Task<ActionResult<GenericResponse<bool>>> CancelSubscription(CancellationToken cancellationToken = default)
+    {
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _paymentService.CancelSubscriptionAsync(GetWorkspaceId(), userId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     private Guid GetWorkspaceId()
     {
         return WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);

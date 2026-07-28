@@ -14,4 +14,5 @@ public interface IPaymentService
     Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default);
     Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default);
     Task<GenericResponse<CurrentSubscriptionDto>> GetCurrentSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<bool>> CancelSubscriptionAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
 }
