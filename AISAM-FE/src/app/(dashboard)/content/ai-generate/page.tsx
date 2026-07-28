@@ -26,6 +26,7 @@ interface Variation {
 }
 
 type GenerationMode = "exact_product_reference" | "normal_generation";
+type ImageSourceMode = "original_product_images" | "ai_exact_product_reference" | "ai_normal_generation";
 
 const VARIATION_TEMPLATES: Record<string, string> = {
   longer: "Make this content longer and more detailed",
@@ -73,7 +74,7 @@ export default function AIGeneratePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationMode, setGenerationMode] = useState<GenerationMode>("exact_product_reference");
+  const [imageSourceMode, setImageSourceMode] = useState<ImageSourceMode>("original_product_images");
   const [uploadedImage, setUploadedImage] = useState<{ file: File; previewUrl: string; uploadedUrl?: string } | null>(null);
 
   const [variations, setVariations] = useState<Variation[]>([]);
@@ -108,6 +109,16 @@ export default function AIGeneratePage() {
   const brandName = selectedBrand?.name || "";
   const selectedProduct = productList.find(p => p.id === productId);
   const productName = selectedProduct?.name || "";
+  const generationMode: GenerationMode = imageSourceMode === "ai_normal_generation"
+    ? "normal_generation"
+    : "exact_product_reference";
+  const useOriginalProductImages = imageSourceMode === "original_product_images";
+  const setGenerationMode = (mode: GenerationMode) => {
+    setImageSourceMode(mode === "normal_generation" ? "ai_normal_generation" : "ai_exact_product_reference");
+  };
+  const setUseOriginalProductImages = (checked: boolean) => {
+    setImageSourceMode(checked ? "original_product_images" : "ai_exact_product_reference");
+  };
   const conversationStorageKey = activeWorkspace?.id && brandId
     ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}`
     : null;
@@ -266,6 +277,7 @@ export default function AIGeneratePage() {
         generationMode,
         uploadedPrimaryImageUrl: generationMode === "normal_generation" ? uploadedPrimaryImageUrl : null,
         selectedProductImageUrl: null,
+        useOriginalProductImages: generationMode === "exact_product_reference" && useOriginalProductImages,
       }
     );
     if (aiReply?.errorMessage) {
@@ -856,7 +868,43 @@ export default function AIGeneratePage() {
             </div>
 
             <div className="border-t border-outline-variant/10 p-3 shrink-0 space-y-2.5">
-              <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-1">
+              <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-3 py-2">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[15px] text-primary">image</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Nguồn ảnh</span>
+                  </div>
+                  <div className="group relative flex h-5 w-5 items-center justify-center">
+                    <button
+                      type="button"
+                      className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-outline-variant/40 text-[10px] font-black text-outline transition-colors hover:border-primary/60 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      aria-label="Giải thích nguồn ảnh"
+                    >
+                      !
+                    </button>
+                    <div className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-72 rounded-xl border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-left text-[11px] leading-relaxed text-on-surface opacity-0 shadow-xl transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                      <p><span className="font-bold text-primary">Dùng ảnh gốc:</span> không tạo ảnh mới, lấy ảnh đang lưu trong Product để gắn vào bài đăng.</p>
+                      <p className="mt-1.5"><span className="font-bold text-primary">AI bảo toàn:</span> AI tạo ảnh mới nhưng dùng ảnh sản phẩm làm reference để giữ đúng ngoại hình.</p>
+                      <p className="mt-1.5"><span className="font-bold text-primary">AI sáng tạo:</span> AI tạo ảnh tự do; có thể upload ảnh riêng làm cảm hứng.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative">
+                  <select
+                    value={imageSourceMode}
+                    onChange={(event) => setImageSourceMode(event.target.value as ImageSourceMode)}
+                    disabled={isGenerating}
+                    className="w-full appearance-none rounded-xl border border-outline-variant/20 bg-surface-container px-3 py-2.5 pr-9 text-[12px] font-semibold text-on-surface outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="original_product_images">🖼️ Dùng ảnh gốc của sản phẩm</option>
+                    <option value="ai_exact_product_reference">✨ AI tạo ảnh (Bảo toàn sản phẩm)</option>
+                    <option value="ai_normal_generation">🎨 AI tạo ảnh (Sáng tạo tự do)</option>
+                  </select>
+                  <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-outline">expand_more</span>
+                </div>
+              </div>
+
+              <div className="hidden rounded-xl border border-outline-variant/15 bg-surface-container-low p-1">
                 <div className="flex items-center gap-1.5 px-1 pb-1">
                   <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Generation Mode</span>
                   <div className="group relative flex h-5 w-5 items-center justify-center">
@@ -907,6 +955,30 @@ export default function AIGeneratePage() {
                     : "Does not use product images; attach your own image for inspiration."}
                 </p>
               </div>
+
+              {false && generationMode === "exact_product_reference" && (
+                <label className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 transition-all ${
+                  useOriginalProductImages
+                    ? "border-primary/30 bg-primary/8"
+                    : "border-outline-variant/20 bg-surface-container-low"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={useOriginalProductImages}
+                    onChange={(event) => setUseOriginalProductImages(event.target.checked)}
+                    disabled={isGenerating || !productId}
+                    className="mt-0.5 h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary/30 disabled:opacity-50"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-bold text-on-surface">Sử dụng ảnh gốc của sản phẩm</span>
+                    <span className="block text-[10px] leading-snug text-outline">
+                      {productId
+                        ? "Bỏ qua bước tạo ảnh AI, lấy ảnh đang lưu trong Product để gắn vào preview và bài đăng."
+                        : "Chọn Product trước để AISAM lấy ảnh gốc của sản phẩm."}
+                    </span>
+                  </span>
+                </label>
+              )}
 
               {generationMode === "normal_generation" && uploadedImage && (
                 <div className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-2.5 py-2">

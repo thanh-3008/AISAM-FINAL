@@ -16,12 +16,41 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm_password: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: "" });
+    }
+  };
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    const trimmedEmail = form.email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    
+    if (!form.password) {
+      newErrors.password = "Password is required";
+    } else if (form.password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
+    }
+    
+    if (!form.confirm_password) {
+      newErrors.confirm_password = "Confirm password is required";
+    } else if (form.password !== form.confirm_password) {
+      newErrors.confirm_password = "Confirm password does not match";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleGoogleResponse = useCallback(async (credential: string) => {
@@ -75,18 +104,14 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!validate()) return;
     setIsLoading(true);
     
     try {
-      if (form.password !== form.confirm_password) {
-        setError("Confirm password does not match.");
-        setIsLoading(false);
-        return;
-      }
       const result = await apiClient("/auth/register", {
         data: {
-          fullName: form.full_name,
-          email: form.email,
+          fullName: form.full_name.trim() === "" ? "Personal" : form.full_name,
+          email: form.email.trim(),
           password: form.password,
           confirmPassword: form.confirm_password,
         },
@@ -175,7 +200,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-stack-md">
+      <form onSubmit={handleSubmit} className="space-y-stack-md" noValidate>
         {/* Full Name */}
         <div>
           <label htmlFor="full_name" className="block font-label-md text-label-md text-on-surface-variant mb-1">
@@ -188,9 +213,9 @@ export default function RegisterPage() {
             value={form.full_name}
             onChange={handleChange}
             placeholder="John Doe"
-            required
             className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
           />
+          {errors.full_name && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.full_name}</p>}
         </div>
 
         {/* Email */}
@@ -205,9 +230,9 @@ export default function RegisterPage() {
             value={form.email}
             onChange={handleChange}
             placeholder="name@company.com"
-            required
-            className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
+            className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface ${errors.email ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
           />
+          {errors.email && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.email}</p>}
         </div>
 
         {/* Password */}
@@ -223,8 +248,7 @@ export default function RegisterPage() {
               value={form.password}
               onChange={handleChange}
               placeholder="Min. 8 characters"
-              required
-              className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12"
+              className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${errors.password ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
             />
             <button
               type="button"
@@ -236,6 +260,7 @@ export default function RegisterPage() {
               </span>
             </button>
           </div>
+          {errors.password && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.password}</p>}
         </div>
 
         {/* Confirm Password */}
@@ -251,9 +276,8 @@ export default function RegisterPage() {
               value={form.confirm_password}
               onChange={handleChange}
               placeholder="Re-enter your password"
-              required
               className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${
-                form.confirm_password && form.password !== form.confirm_password
+                errors.confirm_password
                   ? "border-error focus:ring-error"
                   : "border-outline-variant"
               }`}
@@ -268,8 +292,8 @@ export default function RegisterPage() {
               </span>
             </button>
           </div>
-          {form.confirm_password && form.password !== form.confirm_password && (
-            <p className="mt-1 font-label-sm text-label-sm text-error">Passwords do not match</p>
+          {errors.confirm_password && (
+            <p className="mt-1 font-label-sm text-label-sm text-error">{errors.confirm_password}</p>
           )}
         </div>
 

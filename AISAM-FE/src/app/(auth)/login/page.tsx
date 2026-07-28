@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
+import { getToken, getUserRoleFromToken, setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
@@ -15,7 +15,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -27,6 +29,44 @@ export default function LoginPage() {
   const getRedirectUrl = useCallback(() => {
     return searchParams.get("redirect") || "/overview";
   }, [searchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const redirectIfAlreadySignedIn = async () => {
+      const token = getToken();
+      if (!token) {
+        setIsCheckingSession(false);
+        return;
+      }
+
+      try {
+        const meResult = await apiClient("/auth/me");
+        if (cancelled) return;
+
+        if (meResult?.success && meResult.data) {
+          setStoredUser({
+            id: meResult.data.id || meResult.data.userId || "",
+            fullName: meResult.data.fullName || meResult.data.full_name || "",
+            email: meResult.data.email || "",
+          });
+        }
+
+        setIsSuccess(true);
+        router.replace(getUserRoleFromToken() === "Admin" ? "/admin/dashboard" : getRedirectUrl());
+      } catch {
+        if (!cancelled) {
+          setIsCheckingSession(false);
+        }
+      }
+    };
+
+    redirectIfAlreadySignedIn();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getRedirectUrl, router]);
 
   const handleGoogleResponse = useCallback(async (credential: string) => {
     if (!credential) return;
@@ -53,12 +93,12 @@ export default function LoginPage() {
 
           if (roleStr === "Admin") {
             setIsSuccess(true);
-            router.push("/admin/dashboard");
+            router.replace("/admin/dashboard");
             return;
           }
         }
         setIsSuccess(true);
-        router.push(getRedirectUrl());
+        router.replace(getRedirectUrl());
       } else {
         setError("Google sign-in failed.");
       }
@@ -95,14 +135,32 @@ export default function LoginPage() {
     };
   }, [clientId, handleGoogleResponse]);
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    
+    if (!password) {
+      newErrors.password = "Password is required";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!validate()) return;
     setIsLoading(true);
 
     try {
       const result = await apiClient("/auth/login", {
-        data: { email, password },
+        data: { email: email.trim(), password },
       });
 
       if (result.success && result.data?.accessToken) {
@@ -128,7 +186,7 @@ export default function LoginPage() {
 
           if (roleStr === "Admin") {
             setIsSuccess(true);
-            router.push("/admin/dashboard");
+            router.replace("/admin/dashboard");
             return;
           }
         }
@@ -151,7 +209,7 @@ export default function LoginPage() {
         }
 
         setIsSuccess(true);
-        router.push(getRedirectUrl());
+        router.replace(getRedirectUrl());
       } else {
         setError("Login failed, please try again.");
       }
@@ -200,7 +258,7 @@ export default function LoginPage() {
         <div
           ref={googleButtonRef}
           className="flex min-h-12 w-full items-center justify-center"
-          aria-busy={!isGoogleReady || isLoading || isSuccess}
+          aria-busy={!isGoogleReady || isLoading || isSuccess || isCheckingSession}
         />
         {!clientId && (
           <p className="mt-2 text-center font-body-sm text-body-sm text-error">
@@ -219,7 +277,7 @@ export default function LoginPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-stack-md">
+      <form onSubmit={handleSubmit} className="space-y-stack-md" noValidate>
         {/* Email */}
         <div>
           <label
@@ -232,11 +290,14 @@ export default function LoginPage() {
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors({ ...errors, email: "" });
+            }}
             placeholder="name@company.com"
-            required
-            className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface"
+            className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface ${errors.email ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
           />
+          {errors.email && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.email}</p>}
         </div>
 
         {/* Password */}
@@ -260,10 +321,12 @@ export default function LoginPage() {
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors({ ...errors, password: "" });
+              }}
               placeholder="••••••••"
-              required
-              className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12"
+              className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${errors.password ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
             />
             <button
               type="button"
@@ -275,19 +338,25 @@ export default function LoginPage() {
               </span>
             </button>
           </div>
+          {errors.password && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.password}</p>}
         </div>
 
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isLoading || isSuccess}
+          disabled={isLoading || isSuccess || isCheckingSession}
           className={`w-full h-12 font-label-md text-label-md rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
             isSuccess
               ? "bg-success-green text-white"
               : "bg-primary-container text-on-primary-container"
           }`}
         >
-          {isLoading ? (
+          {isCheckingSession ? (
+            <>
+              <span className="w-5 h-5 border-2 border-white border-b-transparent rounded-full animate-spin inline-block" />
+              <span>Checking session...</span>
+            </>
+          ) : isLoading ? (
             <>
               <span className="w-5 h-5 border-2 border-white border-b-transparent rounded-full animate-spin inline-block" />
               <span>Authenticating...</span>

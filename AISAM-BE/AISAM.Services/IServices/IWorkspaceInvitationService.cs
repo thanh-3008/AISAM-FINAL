@@ -12,6 +12,10 @@ public interface IWorkspaceInvitationService
         CreateWorkspaceInvitationRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<GenericResponse<WorkspaceInvitationResponseDto>> ValidateAsync(
+        string token,
+        CancellationToken cancellationToken = default);
+
     Task<GenericResponse<AcceptWorkspaceInvitationResponseDto>> AcceptAsync(
         Guid userId,
         AcceptWorkspaceInvitationRequest request,

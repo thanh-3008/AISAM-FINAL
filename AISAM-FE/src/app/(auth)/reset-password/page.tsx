@@ -10,33 +10,48 @@ function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
-  const emailFromUrl = searchParams.get("email") || "";
-
-  const [form, setForm] = useState({ email: emailFromUrl, newPassword: "", confirmPassword: "" });
+  const [form, setForm] = useState({ newPassword: "", confirmPassword: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: "" });
+    }
+  };
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.newPassword) {
+      newErrors.newPassword = "Password is required";
+    } else if (form.newPassword.length < 8) {
+      newErrors.newPassword = "Password must be at least 8 characters";
+    }
+
+    if (!form.confirmPassword) {
+      newErrors.confirmPassword = "Confirm password is required";
+    } else if (form.newPassword !== form.confirmPassword) {
+      newErrors.confirmPassword = "Confirm password does not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (form.newPassword !== form.confirmPassword) {
-      setError("Confirm password does not match.");
-      return;
-    }
+    if (!validate()) return;
 
     setIsLoading(true);
     try {
       await apiClient("/auth/reset-password", {
         data: {
-          email: form.email,
           token,
           newPassword: form.newPassword,
           confirmPassword: form.confirmPassword,
@@ -152,24 +167,7 @@ function ResetPasswordForm() {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-stack-md">
-        {/* Email */}
-        <div>
-          <label htmlFor="email" className="block font-label-md text-label-md text-on-surface-variant mb-1">
-            Email Address
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="name@company.com"
-            required
-            readOnly={!!emailFromUrl}
-            className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface ${emailFromUrl ? "opacity-60 cursor-not-allowed" : ""}`}
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="space-y-stack-md" noValidate>
 
         {/* New Password */}
         <div>
@@ -184,9 +182,7 @@ function ResetPasswordForm() {
               value={form.newPassword}
               onChange={handleChange}
               placeholder="Min. 8 characters"
-              required
-              minLength={8}
-              className="w-full h-12 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12"
+              className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${errors.newPassword ? 'border-error focus:ring-error' : 'border-outline-variant'}`}
             />
             <button
               type="button"
@@ -198,6 +194,7 @@ function ResetPasswordForm() {
               </span>
             </button>
           </div>
+          {errors.newPassword && <p className="mt-1 font-label-sm text-label-sm text-error">{errors.newPassword}</p>}
         </div>
 
         {/* Confirm Password */}
@@ -213,9 +210,8 @@ function ResetPasswordForm() {
               value={form.confirmPassword}
               onChange={handleChange}
               placeholder="Re-enter new password"
-              required
               className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${
-                form.confirmPassword && form.newPassword !== form.confirmPassword
+                errors.confirmPassword
                   ? "border-error focus:ring-error"
                   : "border-outline-variant"
               }`}
@@ -230,8 +226,8 @@ function ResetPasswordForm() {
               </span>
             </button>
           </div>
-          {form.confirmPassword && form.newPassword !== form.confirmPassword && (
-            <p className="mt-1 font-label-sm text-label-sm text-error">Passwords do not match</p>
+          {errors.confirmPassword && (
+            <p className="mt-1 font-label-sm text-label-sm text-error">{errors.confirmPassword}</p>
           )}
         </div>
 
