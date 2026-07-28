@@ -14,6 +14,7 @@ import {
   getCurrentSubscription,
   createCheckout,
   createCreditPackCheckout,
+  cancelSubscription,
   type PaymentHistoryItem,
   type CurrentSubscription,
 } from "@/services/profileSettingsService";
@@ -486,14 +487,19 @@ export default function ProfileDetailPage() {
     setConfirmModal({
       isOpen: true,
       title: "Cancel Subscription",
-      message: "Are you sure you want to cancel your subscription? You will lose access to premium features immediately when the current period ends.",
+      message: "Are you sure you want to cancel your subscription? You will lose access to premium features when the current billing period ends.",
       type: "danger",
       confirmText: "Cancel Subscription",
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
-          showToast({ type: "success", title: "Cancelled", message: "Subscription has been cancelled." });
-          handleLoadSubscription();
+          const result = await cancelSubscription();
+          if (result.success) {
+            showToast({ type: "success", title: "Cancelled", message: result.message || "Subscription has been cancelled." });
+            handleLoadSubscription();
+          } else {
+            showToast({ type: "error", title: "Error", message: result.message || "Failed to cancel subscription." });
+          }
         } catch {
           showToast({ type: "error", title: "Error", message: "Network error while cancelling subscription." });
         }
@@ -2442,6 +2448,7 @@ export default function ProfileDetailPage() {
                             </p>
                             <div className="flex flex-wrap gap-2">
                               <button
+                                onClick={() => router.push("/pricing")}
                                 className="px-4 py-2 bg-amber-600 text-white rounded-lg text-body-sm font-semibold hover:bg-amber-700 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">credit_card</span>
@@ -2490,6 +2497,7 @@ export default function ProfileDetailPage() {
                             </ul>
                             <div className="flex flex-wrap gap-2">
                               <button
+                                onClick={() => router.push("/pricing")}
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg text-body-sm font-semibold hover:bg-red-700 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">credit_card</span>
@@ -2537,6 +2545,7 @@ export default function ProfileDetailPage() {
                             </ul>
                             <div className="flex flex-wrap gap-2">
                               <button
+                                onClick={() => router.push("/pricing")}
                                 className="px-4 py-2 bg-gray-700 text-white rounded-lg text-body-sm font-semibold hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
                               >
                                 <span className="material-symbols-outlined text-[16px]">credit_card</span>

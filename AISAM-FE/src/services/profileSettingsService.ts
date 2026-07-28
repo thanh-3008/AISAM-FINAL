@@ -111,3 +111,14 @@ export async function createCreditPackCheckout(data: {
     cancelUrl: data.cancelUrl,
   });
 }
+
+export async function cancelSubscription(): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/payment/subscription/cancel", {
+      method: "POST",
+    });
+    return { success: res?.success ?? false, message: res?.message || undefined };
+  } catch (err: any) {
+    return { success: false, message: err.message || "Failed to cancel subscription." };
+  }
+}

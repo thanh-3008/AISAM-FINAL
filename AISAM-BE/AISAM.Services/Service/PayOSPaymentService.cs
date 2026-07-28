@@ -1054,6 +1054,26 @@ public sealed class PayOSPaymentService : IPaymentService
         };
     }
 
+    public async Task<GenericResponse<bool>> CancelSubscriptionAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var subscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
+        if (subscription == null)
+        {
+            return GenericResponse<bool>.CreateError("No active subscription found for this workspace.", HttpStatusCode.NotFound);
+        }
+
+        if (subscription.Plan == SubscriptionPlanEnum.Free)
+        {
+            return GenericResponse<bool>.CreateError("Free plan cannot be cancelled.", HttpStatusCode.BadRequest);
+        }
+
+        subscription.IsActive = false;
+        subscription.UpdatedAt = DateTime.UtcNow;
+        await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
+
+        return GenericResponse<bool>.CreateSuccess(true, "Subscription cancelled successfully. You will retain access until the end of your current billing period.");
+    }
+
     private static PaymentHistoryItemDto MapPaymentHistoryItem(Payment payment)
     {
         return new PaymentHistoryItemDto

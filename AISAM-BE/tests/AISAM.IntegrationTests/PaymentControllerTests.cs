@@ -110,6 +110,7 @@ public class PaymentControllerTests
         public GenericResponse<bool> WebhookResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
         public GenericResponse<PagedResult<PaymentHistoryItemDto>> PaymentHistoryResult { get; set; } = GenericResponse<PagedResult<PaymentHistoryItemDto>>.CreateSuccess(new PagedResult<PaymentHistoryItemDto>());
         public GenericResponse<CurrentSubscriptionDto> CurrentSubscriptionResult { get; set; } = GenericResponse<CurrentSubscriptionDto>.CreateSuccess(new CurrentSubscriptionDto());
+        public GenericResponse<bool> CancelSubscriptionResult { get; set; } = GenericResponse<bool>.CreateSuccess(true);
 
         public Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(Guid workspaceId, Guid userId, CreateCheckoutRequest request, CancellationToken cancellationToken = default)
         {
@@ -151,6 +152,13 @@ public class PaymentControllerTests
         {
             LastWorkspaceId = workspaceId;
             return Task.FromResult(CurrentSubscriptionResult);
+        }
+
+        public Task<GenericResponse<bool>> CancelSubscriptionAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+        {
+            LastWorkspaceId = workspaceId;
+            LastUserId = userId;
+            return Task.FromResult(CancelSubscriptionResult);
         }
     }
 }
