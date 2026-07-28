@@ -4,6 +4,7 @@ public class VideoGenerationOptions
 {
     public int DurationSeconds { get; set; } = 4;
     public string AspectRatio { get; set; } = "9:16";
+    public string? FirstFrameImageUrl { get; set; }
 }
 
 public enum VideoGenerationStatus

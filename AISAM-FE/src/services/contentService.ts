@@ -443,8 +443,9 @@ export async function resolveProductName(productId: string): Promise<string> {
 
 export interface AiGenerationResponse {
   id: string;
-  status: number; // 0: Pending, 1: Processing, 2: Completed, 3: Failed
+  status: number; // 0: Pending, 1: Completed, 2: Failed, 3: Processing
   errorMessage?: string;
+  generatedVideoUrl?: string;
   createdAt: string;
 }
 

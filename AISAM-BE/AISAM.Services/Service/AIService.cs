@@ -12,6 +12,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
 namespace AISAM.Services.Service;
 
 public sealed class AIService : IAIService
@@ -26,6 +29,7 @@ public sealed class AIService : IAIService
     private readonly IAIImageProvider _imageProvider;
     private readonly IAIVideoProvider _videoProvider;
     private readonly IMediaStorageService _mediaStorage;
+    private readonly ILogger<AIService> _logger;
     private const long TextGenerationCredits = 1;
     private const long ImageGenerationCredits = 5;
     private const long VideoGenerationCredits = 20;
@@ -40,7 +44,8 @@ public sealed class AIService : IAIService
         ICreditService creditService,
         IAIImageProvider imageProvider,
         IAIVideoProvider videoProvider,
-        IMediaStorageService mediaStorage)
+        IMediaStorageService mediaStorage,
+        ILogger<AIService> logger)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -52,6 +57,7 @@ public sealed class AIService : IAIService
         _imageProvider = imageProvider;
         _videoProvider = videoProvider;
         _mediaStorage = mediaStorage;
+        _logger = logger;
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
@@ -355,10 +361,11 @@ public sealed class AIService : IAIService
                         }
                         else
                         {
+                            _logger.LogError("Image generation failed during chat context for WorkspaceId {WorkspaceId}. Provider: {Provider}. Error: {Error}", workspaceId, imgResult.ProviderName, imgResult.ErrorMessage);
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = imgResult.ErrorMessage;
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
-                            responseText += $"\n\n(Lỗi tạo ảnh: {imgResult.ErrorMessage})";
+                            responseText += $"\n\n(Hệ thống đang bận hoặc quá tải, không thể tạo ảnh lúc này. Vui lòng thử lại sau.)";
                         }
                     }
                     }
@@ -394,7 +401,7 @@ public sealed class AIService : IAIService
                             IsAiGenerated = true
                         }, CancellationToken.None);
                         var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Processing }, CancellationToken.None);
-                        var vidResult = await _videoProvider.StartVideoGenerationAsync(prompt, cancellationToken: cancellationToken);
+                        var vidResult = await _videoProvider.StartVideoGenerationAsync(prompt, new VideoGenerationOptions { DurationSeconds = parsedResponse.DurationSeconds }, cancellationToken);
                         if (vidResult.Success && !string.IsNullOrEmpty(vidResult.JobId))
                         {
                             generation.VideoJobId = vidResult.JobId;
@@ -414,10 +421,11 @@ public sealed class AIService : IAIService
                         }
                         else
                         {
+                            _logger.LogError("Video generation failed during chat context for WorkspaceId {WorkspaceId}. Error: {Error}", workspaceId, vidResult.ErrorMessage);
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = vidResult.ErrorMessage;
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
-                            responseText += $"\n\n(Lỗi bắt đầu tạo video: {vidResult.ErrorMessage})";
+                            responseText += $"\n\n(Hệ thống đang bận hoặc quá tải, không thể khởi tạo video lúc này. Vui lòng thử lại sau.)";
                         }
                     }
                 }
@@ -495,10 +503,10 @@ public sealed class AIService : IAIService
             {
                 ConversationId = conversation.Id,
                 SenderType = ChatSenderType.AI,
-                Message = errorMessage
+                Message = "(Hệ thống AI đang bảo trì hoặc quá tải, không thể phản hồi lúc này. Vui lòng thử lại sau.)"
             }, CancellationToken.None);
 
-            return GenericResponse<ChatResponse>.CreateError(errorMessage, HttpStatusCode.ServiceUnavailable);
+            return GenericResponse<ChatResponse>.CreateError("Hệ thống AI đang bận. Vui lòng thử lại sau.", HttpStatusCode.ServiceUnavailable);
         }
     }
 
@@ -580,11 +588,12 @@ public sealed class AIService : IAIService
 
         if (!result.Success)
         {
+            _logger.LogError("Image generation failed for ContentId {ContentId}. Provider: {Provider}. Error: {Error}", request.ContentId, result.ProviderName, result.ErrorMessage);
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = result.ErrorMessage;
             generation.ProviderName = result.ProviderName;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
-            return GenericResponse<AiGenerationResponse>.CreateError(result.ErrorMessage ?? "Image generation failed.", HttpStatusCode.BadGateway);
+            return GenericResponse<AiGenerationResponse>.CreateError("Lỗi hệ thống: Không thể tạo ảnh lúc này. Vui lòng thử lại sau.", HttpStatusCode.BadGateway);
         }
 
         try
@@ -662,11 +671,12 @@ public sealed class AIService : IAIService
 
         if (!result.Success)
         {
+            _logger.LogError("Video generation failed for ContentId {ContentId}. Provider: {Provider}. Error: {Error}", request.ContentId, result.ProviderName, result.ErrorMessage);
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = result.ErrorMessage;
             generation.ProviderName = result.ProviderName;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
-            return GenericResponse<AiGenerationResponse>.CreateError(result.ErrorMessage ?? "Failed to start video generation.", HttpStatusCode.BadGateway);
+            return GenericResponse<AiGenerationResponse>.CreateError("Lỗi hệ thống: Không thể khởi tạo video lúc này. Vui lòng thử lại sau.", HttpStatusCode.BadGateway);
         }
 
         generation.VideoJobId = result.JobId;
@@ -845,7 +855,7 @@ public sealed class AIService : IAIService
 You are AISAM, an AI assistant for social media content creation.
 
 Classify the latest user message and respond with valid JSON only:
-{"intent":"chat"|"content"|"image"|"image_text"|"video","assistant_message":"","generated_content":{"title":"","caption":""},"image_prompt":"","prompt":"detailed generation prompt if applicable","response":"your response"}
+{"intent":"chat"|"content"|"image"|"image_text"|"video","assistant_message":"","generated_content":{"title":"","caption":""},"image_prompt":"","prompt":"detailed generation prompt if applicable","duration_seconds":8,"response":"your response"}
 
 Intent rules:
 - The JSON must use standard double quotes for every property name and string value. Never use single quotes.
@@ -854,9 +864,11 @@ Intent rules:
 - Use "image" when the user asks only to create, generate, or draw an image/picture. Extract or create a detailed image description in "prompt" in English. Put a concise image-generation status in "response".
 - Use "image_text" when the user asks for a complete post that includes both text/caption and an image. Put the complete ready-to-publish post in "response" and the detailed image description in "prompt".
 - Use "video" when the user asks to create or generate a video. Extract or create a detailed video description in "prompt" in English. Put a brief confirmation in "response".
+- CRITICAL: You are connected to external image and video generation tools. NEVER refuse a request to create an image or video (e.g., do not say "I am a text AI"). Always use "image" or "video" intent.
 - Never mark a greeting or conversational answer as "content".
 - If the request is ambiguous, use "chat" and ask one concise clarification question.
 - Ignore video script/storyboard formatting until explicitly requested.
+- For "video" intent, if the user explicitly specifies a duration in seconds, extract it and put it as an integer in "duration_seconds" (default 8).
 - Reply in the language of the latest user message unless another language is explicitly requested.
 - Do not include markdown fences around the JSON.
 
@@ -966,6 +978,9 @@ Latest user message:
             var imagePrompt = root.TryGetProperty("image_prompt", out var imagePromptElement)
                 ? imagePromptElement.GetString()
                 : null;
+            var durationSeconds = root.TryGetProperty("duration_seconds", out var durationElement) && durationElement.ValueKind == JsonValueKind.Number
+                ? durationElement.GetInt32()
+                : 0;
             var generatedResponse = TryBuildGeneratedContentResponse(root);
 
             if (string.IsNullOrWhiteSpace(prompt) && !string.IsNullOrWhiteSpace(imagePrompt))
@@ -990,7 +1005,8 @@ Latest user message:
                     string.Equals(intent, "content", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(intent, "image_text", StringComparison.OrdinalIgnoreCase),
                     intent,
-                    prompt);
+                    prompt,
+                    durationSeconds);
             }
         }
         catch (JsonException)
@@ -1014,6 +1030,8 @@ Latest user message:
         var prompt = ExtractLooseJsonString(rawResponse, "prompt");
         var imagePrompt = ExtractLooseJsonString(rawResponse, "image_prompt");
         var response = ExtractLooseJsonString(rawResponse, "response");
+        var durationStr = ExtractLooseJsonString(rawResponse, "duration_seconds");
+        int durationSeconds = int.TryParse(durationStr, out var d) ? d : 0;
         var title = ExtractLooseJsonString(rawResponse, "title");
         var caption = ExtractLooseJsonString(rawResponse, "caption");
 
@@ -1043,7 +1061,8 @@ Latest user message:
             string.Equals(intent, "content", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(intent, "image_text", StringComparison.OrdinalIgnoreCase),
             intent,
-            prompt);
+            prompt,
+            durationSeconds);
     }
 
     private static string? ExtractLooseJsonString(string text, string propertyName)
@@ -1478,7 +1497,7 @@ Treat all reference images as different views of one product. Do not create mult
         return fallback[..Math.Min(fallback.Length, 255)];
     }
 
-    private sealed record ParsedChatResponse(string Response, bool ShouldCreateContent, string? Intent, string? Prompt);
+    private sealed record ParsedChatResponse(string Response, bool ShouldCreateContent, string? Intent, string? Prompt, int DurationSeconds = 0);
 
     private static ContentResponseDto MapContent(Content content)
     {

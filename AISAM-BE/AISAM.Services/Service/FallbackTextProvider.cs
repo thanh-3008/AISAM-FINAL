@@ -7,18 +7,18 @@ public sealed class FallbackTextProvider : IGeminiTextClient
 {
     private readonly GeminiTextClient _geminiClient;
     private readonly FallbackGeminiTextClient _fallbackGeminiClient;
-    private readonly OpenRouterTextClient _openRouterClient;
+    private readonly FallbackGeminiTextClient2 _fallbackGeminiClient2;
     private readonly ILogger<FallbackTextProvider> _logger;
 
     public FallbackTextProvider(
         GeminiTextClient geminiClient,
         FallbackGeminiTextClient fallbackGeminiClient,
-        OpenRouterTextClient openRouterClient,
+        FallbackGeminiTextClient2 fallbackGeminiClient2,
         ILogger<FallbackTextProvider> logger)
     {
         _geminiClient = geminiClient;
         _fallbackGeminiClient = fallbackGeminiClient;
-        _openRouterClient = openRouterClient;
+        _fallbackGeminiClient2 = fallbackGeminiClient2;
         _logger = logger;
     }
 
@@ -31,24 +31,24 @@ public sealed class FallbackTextProvider : IGeminiTextClient
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Gemini text generation failed. Trying OpenRouter...");
+            _logger.LogWarning(ex, "Gemini text generation failed. Trying first fallback Gemini API...");
 
             try
             {
-                return await _openRouterClient.GenerateAsync(prompt, cancellationToken);
+                return await _fallbackGeminiClient.GenerateAsync(prompt, cancellationToken);
             }
-            catch (Exception openRouterEx)
+            catch (Exception fallback1Ex)
             {
-                _logger.LogWarning(openRouterEx, "OpenRouter text generation failed. Falling back to secondary Gemini API...");
+                _logger.LogWarning(fallback1Ex, "Fallback Gemini text generation failed. Trying secondary Fallback Gemini API...");
 
                 try
                 {
-                    return await _fallbackGeminiClient.GenerateAsync(prompt, cancellationToken);
+                    return await _fallbackGeminiClient2.GenerateAsync(prompt, cancellationToken);
                 }
-                catch (Exception fallbackEx)
+                catch (Exception fallback2Ex)
                 {
-                    _logger.LogError(fallbackEx, "All AI text providers failed.");
-                    throw new Exception($"All AI text providers failed. Primary Gemini: {ex.Message} | OpenRouter: {openRouterEx.Message} | Secondary Gemini: {fallbackEx.Message}", fallbackEx);
+                    _logger.LogError(fallback2Ex, "All AI text providers failed.");
+                    throw new Exception($"All AI text providers failed. Primary Gemini: {ex.Message} | Fallback 1: {fallback1Ex.Message} | Fallback 2: {fallback2Ex.Message}", fallback2Ex);
                 }
             }
         }

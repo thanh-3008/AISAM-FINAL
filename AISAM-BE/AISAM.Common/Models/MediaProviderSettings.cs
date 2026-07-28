@@ -31,12 +31,11 @@ public sealed class VideoProviderSettings
     // === Fallback 1: DeAPI ===
     public string DeApiApiKey { get; set; } = string.Empty;
     public string? DeApiBaseUrl { get; set; } = "https://api.deapi.ai/api/v1";
-    public string DeApiModel { get; set; } = "Ltxv_13B_0_9_8_Distilled_FP8";
+    public string DeApiModel { get; set; } = "Ltx2_3_22B_Dist_INT8";
+    public string? DeApiApiKeyFallback { get; set; }
+    public string? DeApiModelFallback { get; set; }
 
-    // === Primary: OpenRouter ===
-    public string OpenRouterApiKey { get; set; } = string.Empty;
-    public string? OpenRouterBaseUrl { get; set; }
-    public string OpenRouterModel { get; set; } = "minimax/video-01";
+
 
     // === Colab Fallback ===
     public bool EnableColabFallback { get; set; } = true;
