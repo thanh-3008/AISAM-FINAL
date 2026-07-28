@@ -22,7 +22,7 @@ namespace AISAM.IntegrationTests;
 public class FoundationTests
 {
     [Fact]
-    public async Task ProfileController_ReturnsForbidden_WhenRouteUserDoesNotMatchJwtUser()
+    public async Task ProfileController_ReturnsForbidden_WhenRouteUserDoesNotMatchJwtUserAsync()
     {
         var jwtUserId = Guid.NewGuid();
         var routeUserId = Guid.NewGuid();
@@ -42,7 +42,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProfileService_ReturnsNotFound_WhenProfileIsOwnedByDifferentUser()
+    public async Task ProfileService_ReturnsNotFound_WhenProfileIsOwnedByDifferentUserAsync()
     {
         var ownerId = Guid.NewGuid();
         var requesterId = Guid.NewGuid();
@@ -64,7 +64,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProfileService_DoesNotDelete_WhenProfileIsOwnedByDifferentUser()
+    public async Task ProfileService_DoesNotDelete_WhenProfileIsOwnedByDifferentUserAsync()
     {
         var ownerId = Guid.NewGuid();
         var requesterId = Guid.NewGuid();
@@ -87,7 +87,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProfileService_AllowsOwnedProfileLifecycle()
+    public async Task ProfileService_AllowsOwnedProfileLifecycleAsync()
     {
         var ownerId = Guid.NewGuid();
         var profile = new Profile
@@ -120,7 +120,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProfileService_DoesNotUpdateOrRestore_WhenProfileIsOwnedByDifferentUser()
+    public async Task ProfileService_DoesNotUpdateOrRestore_WhenProfileIsOwnedByDifferentUserAsync()
     {
         var ownerId = Guid.NewGuid();
         var requesterId = Guid.NewGuid();
@@ -150,7 +150,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProfileService_ReturnsError_WhenAvatarFileIsProvided()
+    public async Task ProfileService_ReturnsError_WhenAvatarFileIsProvidedAsync()
     {
         var userId = Guid.NewGuid();
         var profile = new Profile
@@ -187,7 +187,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task ProductService_Succeeds_WhenImageFilesAreProvided()
+    public async Task ProductService_Succeeds_WhenImageFilesAreProvidedAsync()
     {
         var userId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
@@ -231,7 +231,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task EmailService_ReturnsFalse_WhenSmtpIsNotConfigured()
+    public async Task EmailService_ReturnsFalse_WhenSmtpIsNotConfiguredAsync()
     {
         var emailService = new EmailService(
             Options.Create(new EmailSettings()),
