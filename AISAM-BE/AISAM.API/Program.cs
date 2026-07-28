@@ -72,6 +72,7 @@ ApplyEnvironmentOverride(builder.Configuration, "GEMINI_TEMPERATURE", "GeminiSet
 ApplyEnvironmentOverride(builder.Configuration, "TEXT_OPENROUTER_KEY", "GeminiSettings:OpenRouterApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "TEXT_OPENROUTER_MODEL", "GeminiSettings:OpenRouterModel");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY", "GeminiSettings:FallbackApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY_2", "GeminiSettings:FallbackApiKey2");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CLIENT_ID", "PayOSSettings:ClientId");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_API_KEY", "PayOSSettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSettings:ChecksumKey");
@@ -105,9 +106,7 @@ ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_TIMEOUT", "VideoPr
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_KEY", "VideoProviderSettings:DeApiApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_MODEL", "VideoProviderSettings:DeApiModel");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_BASE_URL", "VideoProviderSettings:DeApiBaseUrl");
-ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_KEY", "VideoProviderSettings:OpenRouterApiKey");
-ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_MODEL", "VideoProviderSettings:OpenRouterModel");
-ApplyEnvironmentOverride(builder.Configuration, "VIDEO_OPENROUTER_BASE_URL", "VideoProviderSettings:OpenRouterBaseUrl");
+
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_BASE_URL", "VideoProviderSettings:ColabBaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TOKEN", "VideoProviderSettings:ColabToken");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TIMEOUT", "VideoProviderSettings:ColabTimeout");
@@ -235,6 +234,7 @@ builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<Instagr
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
 builder.Services.AddHttpClient<GeminiTextClient>();
 builder.Services.AddHttpClient<FallbackGeminiTextClient>();
+builder.Services.AddHttpClient<FallbackGeminiTextClient2>();
 builder.Services.AddHttpClient<OpenRouterTextClient>();
 builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
@@ -274,7 +274,7 @@ builder.Services.AddHttpClient<OpenRouterImageClient>();
 builder.Services.AddHttpClient<HuggingFaceImageClient>();
 builder.Services.AddHttpClient<GeminiVideoClient>();
 builder.Services.AddHttpClient<DeApiVideoClient>();
-builder.Services.AddHttpClient<OpenRouterVideoClient>();
+
 builder.Services.AddHttpClient<ColabVideoStrategy>();
 
 // Providers

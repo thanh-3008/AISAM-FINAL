@@ -51,6 +51,34 @@ const AUTO_HASHTAGS: Record<string, string[]> = {
   "Pulse Finance": ["FinTech", "InvestSmart", "Wealth", "FinanceTips", "MoneyMatters"],
 };
 
+const VideoGenerationProgress = ({ jobId }: { jobId: string }) => {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  let statusText = "";
+  if (elapsed < 30) {
+    statusText = `Thinking (${30 - elapsed}s)...`;
+  } else if (elapsed < 60) {
+    statusText = `Creating (${60 - elapsed}s)...`;
+  } else {
+    statusText = `Loading (${elapsed - 60}s)...`;
+  }
+
+  return (
+    <div className="mt-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-2">
+      <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin shrink-0" />
+      <span>{statusText}</span>
+    </div>
+  );
+};
+
 export default function AIGeneratePage() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -69,6 +97,7 @@ export default function AIGeneratePage() {
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [platform, setPlatform] = useState(PLATFORMS[0].value);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -83,7 +112,7 @@ export default function AIGeneratePage() {
   const [justGenerated, setJustGenerated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
-  const [lastSavedContent, setLastSavedContent] = useState({ title: "", content: "", imageUrl: "" as string | null });
+  const [lastSavedContent, setLastSavedContent] = useState({ title: "", content: "", imageUrl: "" as string | null, videoUrl: "" as string | null });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatImageInputRef = useRef<HTMLInputElement>(null);
@@ -139,6 +168,7 @@ export default function AIGeneratePage() {
     setGeneratedId(null);
     setJustGenerated(false);
     setImageUrl(null);
+    setVideoUrl(null);
     setIsVideo(false);
     if (!conversationStorageKey) return;
 
@@ -185,13 +215,13 @@ export default function AIGeneratePage() {
           const updated = prev.map((msg) => {
             const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
             if (!vidMatch) return msg;
-            const gen = generations.find((g) => g.status === 2 || g.status === 3);
-            if (!gen) return msg;
-            if (gen.status === 2) {
+            const gen = generations.find((g) => g.status === 1 || g.status === 2);
+            if (!gen) return msg; // If 0 (Pending) or 3 (Processing), wait.
+            if (gen.status === 1) { // 1 = Completed
               changed = true;
-              return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, "").trim(), canApply: true };
+              return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `[VIDEO_URL: ${gen.generatedVideoUrl || ''}]`).trim(), canApply: true };
             }
-            if (gen.status === 3) {
+            if (gen.status === 2) { // 2 = Failed
               changed = true;
               return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `(Video generation failed: ${gen.errorMessage || "Unknown error"})`).trim(), canApply: false };
             }
@@ -209,7 +239,7 @@ export default function AIGeneratePage() {
   }, [generatedId, isVideo]);
 
   useEffect(() => {
-    const hasUnsavedChanges = title !== lastSavedContent.title || content !== lastSavedContent.content || imageUrl !== lastSavedContent.imageUrl;
+    const hasUnsavedChanges = title !== lastSavedContent.title || content !== lastSavedContent.content || imageUrl !== lastSavedContent.imageUrl || videoUrl !== lastSavedContent.videoUrl;
     if (!hasUnsavedChanges) return;
 
     const handler = (e: BeforeUnloadEvent) => {
@@ -217,7 +247,7 @@ export default function AIGeneratePage() {
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [title, content, imageUrl, lastSavedContent]);
+  }, [title, content, imageUrl, videoUrl, lastSavedContent]);
 
   const handleChatImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -331,7 +361,7 @@ export default function AIGeneratePage() {
       addToast("Nothing to save.");
       return;
     }
-    
+
     setIsSaving(true);
     const payload: Partial<CreateContentPayload> = {
       brandId,
@@ -359,11 +389,11 @@ export default function AIGeneratePage() {
       } else {
         result = await createContent(payload as CreateContentPayload);
       }
-      
+
       if (result) {
         setGeneratedId(result.id);
         setJustGenerated(true);
-        setLastSavedContent({ title, content, imageUrl });
+        setLastSavedContent({ title, content, imageUrl, videoUrl });
         addToast("Post saved successfully!");
       }
     } catch (e: any) {
@@ -447,12 +477,19 @@ export default function AIGeneratePage() {
       setImageUrl(imageMatch[1]);
       cleanContent = cleanContent.replace(/\[IMAGE:\s*(.+?)\]/g, '').trim();
     }
-    const videoMatch = cleanContent.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-    if (videoMatch) {
+    const videoUrlMatch = cleanContent.match(/\[VIDEO_URL:\s*(.+?)\]/);
+    if (videoUrlMatch) {
       setIsVideo(true);
-      cleanContent = cleanContent.replace(/\[VIDEO_JOB:\s*(.+?)\]/g, '').trim();
+      setVideoUrl(videoUrlMatch[1]);
+      cleanContent = cleanContent.replace(/\[VIDEO_URL:\s*(.+?)\]/g, '').trim();
     } else {
-      setIsVideo(false);
+      const videoMatch = cleanContent.match(/\[VIDEO_JOB:\s*(.+?)\]/);
+      if (videoMatch) {
+        setIsVideo(true);
+        cleanContent = cleanContent.replace(/\[VIDEO_JOB:\s*(.+?)\]/g, '').trim();
+      } else {
+        setIsVideo(false);
+      }
     }
     setTitle(`AI Generated — ${brandName}`);
     const parsedPost = parseGeneratedPost(cleanContent);
@@ -505,11 +542,10 @@ export default function AIGeneratePage() {
                 </div>
               ) : (
                 variations.map((v) => (
-                  <div key={v.id} className={`p-3 rounded-xl border transition-all ${
-                    selectedVariation === v.id
-                      ? "border-primary bg-primary/5"
-                      : "border-outline-variant/20 bg-surface-container hover:border-primary/30"
-                  }`}>
+                  <div key={v.id} className={`p-3 rounded-xl border transition-all ${selectedVariation === v.id
+                    ? "border-primary bg-primary/5"
+                    : "border-outline-variant/20 bg-surface-container hover:border-primary/30"
+                    }`}>
                     <p className="text-[11px] text-outline/60 font-medium mb-1 line-clamp-1">Prompt: {v.prompt}</p>
                     <p className="text-[11px] text-on-surface-variant line-clamp-3 mb-2 leading-relaxed">{v.result}</p>
                     <button onClick={() => handleApplyVariation(v)}
@@ -557,9 +593,8 @@ export default function AIGeneratePage() {
               </div>
               <div className="flex items-center gap-2">
                 {creditBalance !== null && (
-                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${
-                    creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"
-                  }`}>
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"
+                    }`}>
                     <span className="material-symbols-outlined text-[14px]">token</span>
                     {creditBalance} Credits
                   </div>
@@ -591,7 +626,7 @@ export default function AIGeneratePage() {
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-4 shrink-0 flex flex-col gap-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-label-sm font-semibold text-on-surface">Edit Generated Content</span>
-                <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo)}
+                <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo && !videoUrl)}
                   className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-xs font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
                   {isSaving ? (
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -620,7 +655,7 @@ export default function AIGeneratePage() {
                     {content.length > 2200 && (
                       <span className="text-[11px] text-danger-red font-semibold flex items-center gap-1">
                         <span className="material-symbols-outlined text-[12px]">warning</span>
-                        Caption exceeds Instagram's 2,200 character limit
+                        Caption exceeds Instagram&apos;s 2,200 character limit
                       </span>
                     )}
                   </div>
@@ -636,11 +671,10 @@ export default function AIGeneratePage() {
                 <div className="flex gap-1">
                   {PLATFORMS.map((p) => (
                     <button key={p.value} onClick={() => setPlatform(p.value)}
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-label-xs font-semibold transition-all ${
-                        platform === p.value
-                          ? "bg-surface-container text-on-surface shadow-sm"
-                          : "text-outline/50 hover:bg-surface-container/50 hover:text-outline"
-                      }`}>
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-label-xs font-semibold transition-all ${platform === p.value
+                        ? "bg-surface-container text-on-surface shadow-sm"
+                        : "text-outline/50 hover:bg-surface-container/50 hover:text-outline"
+                        }`}>
                       <PlatformIcon platform={p.icon} />
                       <span className="hidden sm:inline">{p.label}</span>
                     </button>
@@ -688,11 +722,11 @@ export default function AIGeneratePage() {
                         )}
                       </div>
                       <div className="px-3.5 py-2 flex items-center gap-1 text-[13px] text-[#65676b]">
-                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="#65676b"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9.33c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="#65676b"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9.33c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z" /></svg>
                         <span className="font-semibold">Like</span>
-                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] ml-5" fill="#65676b"><path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 5.52 0 10-4.48 10-10 0-5.52-4.48-10-10-10zm-2 15l-4 4V7c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2v8c0 1.1-.9 2-2 2h-6z"/></svg>
+                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] ml-5" fill="#65676b"><path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 5.52 0 10-4.48 10-10 0-5.52-4.48-10-10-10zm-2 15l-4 4V7c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2v8c0 1.1-.9 2-2 2h-6z" /></svg>
                         <span className="font-semibold">Comment</span>
-                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] ml-5" fill="#65676b"><path d="M21 12l-7-7v4c-7 1-10 5-11 11 2.5-3.5 6-5.5 11-5.5v4l7-7z"/></svg>
+                        <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] ml-5" fill="#65676b"><path d="M21 12l-7-7v4c-7 1-10 5-11 11 2.5-3.5 6-5.5 11-5.5v4l7-7z" /></svg>
                         <span className="font-semibold">Share</span>
                       </div>
                     </div>
@@ -711,7 +745,9 @@ export default function AIGeneratePage() {
                         <span className="material-symbols-outlined text-[18px] text-[#262626]">more_horiz</span>
                       </div>
                       <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef] overflow-hidden">
-                        {imageUrl ? (
+                        {videoUrl ? (
+                          <video src={videoUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                        ) : imageUrl ? (
                           <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                         ) : (
                           <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
@@ -722,10 +758,10 @@ export default function AIGeneratePage() {
                       </div>
                       <div className="p-3 space-y-1.5">
                         <div className="flex items-center gap-3">
-                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z"/></svg>
-                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm5.5 12.5h-11v-1h11v1zm-2 3h-7v-1h7v1zm2-6h-11v-1h11v1z"/></svg>
-                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M2 2v20l5-5h13V2H2zm18 13H6.5l-2.5 2.5V4h16v11z"/></svg>
-                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px] ml-auto" fill="#262626"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l5-3 5 3V5c0-1.1-.9-2-2-2z"/></svg>
+                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z" /></svg>
+                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm5.5 12.5h-11v-1h11v1zm-2 3h-7v-1h7v1zm2-6h-11v-1h11v1z" /></svg>
+                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M2 2v20l5-5h13V2H2zm18 13H6.5l-2.5 2.5V4h16v11z" /></svg>
+                          <svg viewBox="0 0 24 24" className="w-[22px] h-[22px] ml-auto" fill="#262626"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l5-3 5 3V5c0-1.1-.9-2-2-2z" /></svg>
                         </div>
                         <p className="text-[12px] font-semibold text-[#262626]">{brandName ? `${brandName.toLowerCase().replace(/\s+/g, "")} ` : ""}<span className="font-normal whitespace-pre-line">{content || "Write a caption..."}</span></p>
                         {hashtags.length > 0 && (
@@ -740,11 +776,13 @@ export default function AIGeneratePage() {
                   {platform.startsWith("tiktok") && (
                     <div className="font-sans bg-[#111111] text-white relative overflow-hidden">
                       <div className="aspect-[9/16] flex items-center justify-center relative overflow-hidden">
-                        {imageUrl ? (
+                        {videoUrl ? (
+                          <video src={videoUrl} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-80" />
+                        ) : imageUrl ? (
                           <img src={imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-80" />
                         ) : (
                           <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z"/></svg>
+                            <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z" /></svg>
                           </div>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
@@ -760,20 +798,20 @@ export default function AIGeneratePage() {
                             <p className="text-[12px] text-[#00acee] mt-0.5">{hashtags.map((h) => `#${h}`).join(" ")}</p>
                           )}
                           <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-white/60">
-                            <svg viewBox="0 0 24 24" className="w-[14px] h-[14px]" fill="rgba(255,255,255,0.6)"><path d="M9 3v10.5a4.5 4.5 0 1 0 2-3.8V7h7V3H9z"/></svg>
+                            <svg viewBox="0 0 24 24" className="w-[14px] h-[14px]" fill="rgba(255,255,255,0.6)"><path d="M9 3v10.5a4.5 4.5 0 1 0 2-3.8V7h7V3H9z" /></svg>
                             <span>original sound - {brandName || "Creator"}</span>
                           </div>
                         </div>
                         <div className="absolute bottom-4 right-3 flex flex-col items-center gap-3">
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
-                              <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z"/></svg>
+                              <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z" /></svg>
                             </div>
                             <span className="text-label-xs">12.4K</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
-                              <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm5.5 12.5h-11v-1h11v1zm-2 3h-7v-1h7v1zm2-6h-11v-1h11v1z"/></svg>
+                              <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm5.5 12.5h-11v-1h11v1zm-2 3h-7v-1h7v1zm2-6h-11v-1h11v1z" /></svg>
                             </div>
                             <span className="text-label-xs">834</span>
                           </div>
@@ -813,29 +851,30 @@ export default function AIGeneratePage() {
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                      msg.role === "user"
-                        ? "bg-primary/10 text-on-surface"
-                        : "bg-surface-container text-on-surface"
-                    }`}>
+                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${msg.role === "user"
+                      ? "bg-primary/10 text-on-surface"
+                      : "bg-surface-container text-on-surface"
+                      }`}>
                       {msg.role === "assistant" && msg.canApply && (
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="material-symbols-outlined text-[12px] text-primary">auto_awesome</span>
                           <span className="text-label-2xs font-semibold text-primary uppercase tracking-wider">AI</span>
                         </div>
                       )}
-                      {msg.text.includes("[IMAGE:") || msg.text.includes("[VIDEO_JOB:") || msg.text.includes("[UPLOADED_IMAGE:") ? (
+                      {msg.text.includes("[IMAGE:") || msg.text.includes("[VIDEO_JOB:") || msg.text.includes("[UPLOADED_IMAGE:") || msg.text.includes("[VIDEO_URL:") ? (
                         <>
                           <p className="text-[12px] leading-relaxed whitespace-pre-line">
-                            {msg.text.replace(/\[IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_JOB:\s*.+?\]/g, '').replace(/\[UPLOADED_IMAGE:\s*.+?\]/g, '').trim()}
+                            {msg.text.replace(/\[IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_JOB:\s*.+?\]/g, '').replace(/\[UPLOADED_IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_URL:\s*.+?\]/g, '').trim()}
                           </p>
                           {(() => {
                             const imgMatch = msg.text.match(/\[IMAGE:\s*(.+?)\]/);
                             if (imgMatch) return <img src={imgMatch[1]} alt="Generated" className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
                             const uploadedMatch = msg.text.match(/\[UPLOADED_IMAGE:\s*(.+?)\]/);
                             if (uploadedMatch) return <img src={uploadedMatch[1]} alt="Uploaded" className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
+                            const vidUrlMatch = msg.text.match(/\[VIDEO_URL:\s*(.+?)\]/);
+                            if (vidUrlMatch) return <video src={vidUrlMatch[1]} autoPlay loop muted playsInline className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
                             const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-                            if (vidMatch) return <div className="mt-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-1.5"><span className="material-symbols-outlined text-[14px]">movie</span><span>Generating video (Job: {vidMatch[1]}). Please check back later in the Content list.</span></div>;
+                            if (vidMatch) return <VideoGenerationProgress jobId={vidMatch[1]} />;
                             return null;
                           })()}
                         </>
@@ -931,11 +970,10 @@ export default function AIGeneratePage() {
                       key={mode.value}
                       type="button"
                       onClick={() => setGenerationMode(mode.value)}
-                      className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold transition-all ${
-                        generationMode === mode.value
-                          ? "bg-primary text-on-primary shadow-sm"
-                          : "text-on-surface-variant hover:bg-surface-container"
-                      }`}
+                      className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold transition-all ${generationMode === mode.value
+                        ? "bg-primary text-on-primary shadow-sm"
+                        : "text-on-surface-variant hover:bg-surface-container"
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[15px]">{mode.icon}</span>
                       <span className="truncate">
@@ -957,11 +995,10 @@ export default function AIGeneratePage() {
               </div>
 
               {false && generationMode === "exact_product_reference" && (
-                <label className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 transition-all ${
-                  useOriginalProductImages
-                    ? "border-primary/30 bg-primary/8"
-                    : "border-outline-variant/20 bg-surface-container-low"
-                }`}>
+                <label className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 transition-all ${useOriginalProductImages
+                  ? "border-primary/30 bg-primary/8"
+                  : "border-outline-variant/20 bg-surface-container-low"
+                  }`}>
                   <input
                     type="checkbox"
                     checked={useOriginalProductImages}
