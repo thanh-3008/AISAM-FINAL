@@ -143,11 +143,11 @@ export default function LoginPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       newErrors.email = "Please enter a valid email address";
     }
-    
+
     if (!password) {
       newErrors.password = "Password is required";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -345,11 +345,10 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isLoading || isSuccess || isCheckingSession}
-          className={`w-full h-12 font-label-md text-label-md rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
-            isSuccess
+          className={`w-full h-12 font-label-md text-label-md rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${isSuccess
               ? "bg-success-green text-white"
               : "bg-primary-container text-on-primary-container"
-          }`}
+            }`}
         >
           {isCheckingSession ? (
             <>

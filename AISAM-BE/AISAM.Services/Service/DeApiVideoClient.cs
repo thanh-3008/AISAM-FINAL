@@ -29,50 +29,109 @@ public sealed class DeApiVideoClient
             return VideoGenerationResult.Fail("DeAPI API Key is missing.", "DeAPI");
 
         var baseUrl = _settings.DeApiBaseUrl ?? "https://api.deapi.ai/api/v1";
-        // Sử dụng endpoint từ doc API
-        var url = baseUrl.EndsWith("/client/txt2video") ? baseUrl : $"{baseUrl.TrimEnd('/')}/client/txt2video";
-        var model = _settings.DeApiModel ?? "Ltxv_13B_0_9_8_Distilled_FP8";
+        bool isImg2Video = !string.IsNullOrWhiteSpace(options?.FirstFrameImageUrl);
 
-        // Map aspect ratio to width and height. Max dimension is 768.
-        // For 9:16 -> 432x768
-        // For 16:9 -> 768x432
-        // For 1:1 -> 768x768
-        int w = 432, h = 768;
+        var endpoint = isImg2Video ? "/client/img2video" : "/client/txt2video";
+        var url = baseUrl.EndsWith("/client/img2video") || baseUrl.EndsWith("/client/txt2video")
+            ? baseUrl.Replace("/client/img2video", endpoint).Replace("/client/txt2video", endpoint)
+            : $"{baseUrl.TrimEnd('/')}{endpoint}";
+
+        var primaryModel = _settings.DeApiModel ?? "Ltx2_3_22B_Dist_INT8";
+        var primaryKey = _settings.DeApiApiKey;
+        var fallbackModel = _settings.DeApiModelFallback ?? "Ltxv_13B_0_9_8_Distilled_FP8";
+        var fallbackKey = _settings.DeApiApiKeyFallback ?? primaryKey;
+
+        var modelsToTry = primaryModel == fallbackModel 
+            ? new[] { (Model: primaryModel, Key: primaryKey) } 
+            : new[] { (Model: primaryModel, Key: primaryKey), (Model: fallbackModel, Key: fallbackKey) };
+
+        // Map aspect ratio to width and height. DeAPI requires width >= 512.
+        int w = 576, h = 1024;
         var ratio = options?.AspectRatio ?? "9:16";
-        if (ratio == "16:9") { w = 768; h = 432; }
+        if (ratio == "16:9") { w = 1024; h = 576; }
         else if (ratio == "1:1") { w = 768; h = 768; }
 
-        var payload = new
+        int fps = 24;
+        // LTX-Video requires frame counts to follow (8n + 1). 
+        int frames = 193; // Default to 8 seconds (24*8 = 192, 192/8 = 24, 24*8+1 = 193)
+        if (options?.DurationSeconds > 0)
         {
-            prompt = prompt,
-            frames = options?.DurationSeconds > 0 ? options.DurationSeconds * 30 : 120, // Default 4s
-            width = w,
-            height = h,
-            fps = 30,
-            model = model,
-            steps = 1,
-            seed = Random.Shared.Next(1, 1000000000), // Require seed
-            negative_prompt = "low quality, worst quality, deformed"
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
-        request.Headers.Add("Authorization", $"Bearer {_settings.DeApiApiKey}");
-        request.Headers.Add("Accept", "application/json");
-        request.Content = JsonContent.Create(payload);
-
-        _logger.LogInformation("[DeAPI.Start] Sending POST to {Url}", url);
-        _logger.LogInformation("[DeAPI.Start] Payload: prompt={PromptLen}chars, model={Model}, size={W}x{H}, seed=included", prompt.Length, model, w, h);
+            int requestedFrames = options.DurationSeconds * fps;
+            int n = (int)Math.Round(requestedFrames / 8.0);
+            frames = (n * 8) + 1;
+        }
 
         try
         {
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            _logger.LogInformation("[DeAPI.Start] HTTP Status: {Status}", (int)response.StatusCode);
-
-            if (!response.IsSuccessStatusCode)
+            byte[]? imageBytes = null;
+            if (isImg2Video)
             {
-                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("[DeAPI.Start] Error response body: {Body}", errorBody);
-                return VideoGenerationResult.Fail($"HTTP {(int)response.StatusCode}: {errorBody}", "DeAPI");
+                _logger.LogInformation("[DeAPI.Start] Mode: img2video. Downloading first_frame_image from {Url}", options!.FirstFrameImageUrl);
+                imageBytes = await _httpClient.GetByteArrayAsync(options.FirstFrameImageUrl, cancellationToken);
+            }
+
+            HttpResponseMessage? response = null;
+            string? errorBody = null;
+
+            foreach (var m in modelsToTry)
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.Add("Authorization", $"Bearer {m.Key}");
+                request.Headers.Add("Accept", "application/json");
+
+                if (isImg2Video && imageBytes != null)
+                {
+                    var form = new MultipartFormDataContent();
+                    var imageContent = new ByteArrayContent(imageBytes);
+                    imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                    form.Add(imageContent, "first_frame_image", "frame.jpg");
+                    
+                    form.Add(new StringContent(frames.ToString()), "frames");
+                    form.Add(new StringContent(w.ToString()), "width");
+                    form.Add(new StringContent(h.ToString()), "height");
+                    form.Add(new StringContent(fps.ToString()), "fps");
+                    form.Add(new StringContent(Random.Shared.Next(1, int.MaxValue).ToString()), "seed");
+                    form.Add(new StringContent(m.Model), "model");
+
+                    if (!string.IsNullOrWhiteSpace(prompt))
+                        form.Add(new StringContent(prompt), "prompt");
+
+                    request.Content = form;
+                }
+                else
+                {
+                    var payload = new
+                    {
+                        prompt = prompt ?? "",
+                        frames = frames,
+                        width = w,
+                        height = h,
+                        fps = fps,
+                        seed = Random.Shared.Next(1, int.MaxValue),
+                        model = m.Model
+                    };
+                    request.Content = JsonContent.Create(payload);
+                }
+
+                _logger.LogInformation("[DeAPI.Start] Sending POST to {Url} with model {Model}", url, m.Model);
+                
+                response = await _httpClient.SendAsync(request, cancellationToken);
+                _logger.LogInformation("[DeAPI.Start] HTTP Status: {Status} for model {Model}", (int)response.StatusCode, m.Model);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    break; // Success!
+                }
+
+                errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("[DeAPI.Start] Model {Model} failed: {Status} - {Body}", m.Model, (int)response.StatusCode, errorBody);
+                
+                // Keep trying the next model if it failed...
+            }
+
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                return VideoGenerationResult.Fail($"HTTP {(int?)response?.StatusCode}: {errorBody}", "DeAPI");
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -147,23 +206,41 @@ public sealed class DeApiVideoClient
         
         // Dùng base URL gốc (api.deapi.ai) nhưng dùng endpoint v2
         var requestUrl = $"https://api.deapi.ai/api/v2/jobs/{taskId}";
-
-        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("Authorization", $"Bearer {_settings.DeApiApiKey}");
-        request.Headers.Add("Accept", "application/json");
-
-        _logger.LogInformation("[DeAPI.Poll] Polling task: GET {Url}", requestUrl);
-
         try
         {
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var keysToTry = new List<string> { _settings.DeApiApiKey };
+        if (!string.IsNullOrWhiteSpace(_settings.DeApiApiKeyFallback) && _settings.DeApiApiKeyFallback != _settings.DeApiApiKey)
+        {
+            keysToTry.Add(_settings.DeApiApiKeyFallback);
+        }
+
+        HttpResponseMessage? response = null;
+        string json = "";
+
+        foreach (var key in keysToTry)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            request.Headers.Add("Authorization", $"Bearer {key}");
+            request.Headers.Add("Accept", "application/json");
+
+            _logger.LogInformation("[DeAPI.Poll] Polling task: GET {Url} with key ending in {Key}", requestUrl, key.Length > 4 ? key[^4..] : "***");
+
+            response = await _httpClient.SendAsync(request, cancellationToken);
+            json = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogInformation("[DeAPI.Poll] HTTP Status: {Status}, Body: {Body}", (int)response.StatusCode, json.Length > 500 ? json[..500] + "..." : json);
-            
-            if (!response.IsSuccessStatusCode)
+
+            if (response.IsSuccessStatusCode)
             {
-                return VideoGenerationResult.Fail($"HTTP {(int)response.StatusCode}: {json}", "DeAPI");
+                break; // Found it!
             }
+            
+            // If 404 or unauthorized, it might be on the other account. Loop to the next key.
+        }
+
+        if (response == null || !response.IsSuccessStatusCode)
+        {
+            return VideoGenerationResult.Fail($"HTTP {(int?)response?.StatusCode}: {json}", "DeAPI");
+        }
 
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
@@ -200,6 +277,12 @@ public sealed class DeApiVideoClient
                 if (root.TryGetProperty("error_message", out var errEl)) errMsg = errEl.GetString() ?? errMsg;
                 else if (root.TryGetProperty("error", out var errEl2)) errMsg = errEl2.GetString() ?? errMsg;
                 else if (root.TryGetProperty("message", out var msgEl)) errMsg = msgEl.GetString() ?? errMsg;
+                else if (root.TryGetProperty("data", out var dataObjErr) && dataObjErr.ValueKind == JsonValueKind.Object)
+                {
+                    if (dataObjErr.TryGetProperty("error_message", out var dErr)) errMsg = dErr.GetString() ?? errMsg;
+                    else if (dataObjErr.TryGetProperty("error", out var dErr2)) errMsg = dErr2.GetString() ?? errMsg;
+                    else if (dataObjErr.TryGetProperty("message", out var dMsg)) errMsg = dMsg.GetString() ?? errMsg;
+                }
                 _logger.LogWarning("[DeAPI.Poll] ❌ Job failed: {Error}", errMsg);
                 return VideoGenerationResult.Fail(errMsg, "DeAPI");
             }

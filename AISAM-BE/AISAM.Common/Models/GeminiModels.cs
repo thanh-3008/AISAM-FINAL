@@ -11,6 +11,7 @@ public sealed class GeminiSettings
     public string? OpenRouterApiKey { get; set; }
     public string? OpenRouterModel { get; set; }
     public string? FallbackApiKey { get; set; }
+    public string? FallbackApiKey2 { get; set; }
 }
 
 public sealed class CreateDraftRequest
