@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type AvailableTarget, type SocialAccount, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
 import { fetchBrands } from "@/services/brandService";
@@ -91,7 +91,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
   };
 
   const handleLink = async () => {
-    if (!account || selectedTargetIds.length === 0 || !selectedBrandId) return;
+    if (!account || !selectedBrandId) return;
 
     setLinking(true);
     setError(null);
@@ -146,7 +146,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
             ) : (
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] text-outline font-semibold uppercase block mb-1.5">Brand đăng bài</label>
+                  <label className="text-[11px] text-outline font-semibold uppercase block mb-1.5">Publishing brand</label>
                   <select
                     value={selectedBrandId}
                     onChange={(e) => setSelectedBrandId(e.target.value)}
@@ -157,7 +157,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                       <option key={brand.id} value={brand.id}>{brand.name}</option>
                     ))}
                   </select>
-                  <p className="text-label-2xs text-outline mt-1.5">Một Brand có thể chọn nhiều Page. Một Page chỉ được thuộc một Brand.</p>
+                  <p className="text-label-2xs text-outline mt-1.5">One brand can use multiple Pages. Each Page can belong to only one brand.</p>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-semibold text-on-surface truncate">{target.name || target.providerTargetId}</p>
-                          <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` · ${target.category}` : ""}</p>
+                          <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` Â· ${target.category}` : ""}</p>
                           {target.linkedBrandName && (
                             <p className={`text-label-2xs mt-0.5 ${isLocked ? "text-danger-red" : "text-emerald-600"}`}>
                               {isLocked ? `Already linked to ${target.linkedBrandName}` : "Linked to this brand"}
@@ -225,7 +225,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                   className="px-5 py-2.5 border border-outline-variant/20 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all">
                   Cancel
                 </button>
-                <button onClick={handleLink} disabled={selectedTargetIds.length === 0 || !selectedBrandId || linking}
+                <button onClick={handleLink} disabled={!selectedBrandId || linking}
                   className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2">
                   {linking ? (
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

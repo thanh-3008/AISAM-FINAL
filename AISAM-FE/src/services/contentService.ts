@@ -57,6 +57,9 @@ export interface ContentItem {
   type: ContentType;
   status: ContentStatus;
   thumbnail: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  textContent?: string;
   createdAt: string;
   platforms: string[];
   tags: string[];
@@ -158,6 +161,9 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
     thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
+    imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    videoUrl: parseApiUrl(api.videoUrl) || undefined,
+    textContent: api.textContent || "",
     createdAt: api.createdAt,
     platforms: [],
     tags: api.tags ? JSON.parse(api.tags) : [],
