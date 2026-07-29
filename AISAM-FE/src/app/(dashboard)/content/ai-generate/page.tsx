@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -367,7 +367,7 @@ export default function AIGeneratePage() {
       brandId,
       productId: productId || null,
       adType: 0,
-      title: title || `AI Generated — ${brandName}`,
+      title: title || brandName || "Untitled Post",
       textContent: content || "",
       status: 1, // Awaiting Approval
       isAiGenerated: true,
@@ -491,11 +491,11 @@ export default function AIGeneratePage() {
         setIsVideo(false);
       }
     }
-    setTitle(`AI Generated — ${brandName}`);
+    setTitle(brandName || "Untitled Post");
     const parsedPost = parseGeneratedPost(cleanContent);
-    setTitle(parsedPost.title || `AI Generated — ${brandName}`);
+    setTitle(parsedPost.title || brandName || "Untitled Post");
     setContent(parsedPost.caption);
-    setTitle(parsedPost.title || `AI Generated — ${brandName}`);
+    setTitle(parsedPost.title || brandName || "Untitled Post");
     setHashtags(h);
     setSelectedVariation(variation.id);
   };
@@ -522,9 +522,9 @@ export default function AIGeneratePage() {
           </div>
         </div>
 
-        <div className="flex gap-gutter flex-1 min-h-0">
+        <div className="grid grid-cols-[260px_minmax(0,1fr)_320px] gap-gutter flex-1 min-h-0 overflow-hidden">
           {/* Left Column: Chat History */}
-          <div className="w-[260px] shrink-0 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col overflow-hidden">
+          <div className="min-w-0 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col overflow-hidden">
             <div className="p-4 border-b border-outline-variant/10">
               <h2 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px] text-outline">history</span>
@@ -575,23 +575,23 @@ export default function AIGeneratePage() {
           {/* Center Column: Brand/Product Toolbar + Preview */}
           <div className="flex-1 min-w-0 flex flex-col gap-gutter overflow-y-auto pr-1 pb-4">
             {/* Brand & Product Toolbar */}
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-3 flex items-center gap-4 shrink-0">
-              <div className="flex items-center gap-2">
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-3 flex flex-wrap items-center gap-3 shrink-0">
+              <div className="flex min-w-[160px] flex-1 items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">business</span>
                 <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(""); }}
-                  className="bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
+                  className="min-w-0 w-full bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                   {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-[220px] flex-[1.4] items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">inventory_2</span>
                 <select value={productId} onChange={(e) => setProductId(e.target.value)}
-                  className="bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
+                  className="min-w-0 w-full bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                   <option value="">Select product</option>
                   {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 {creditBalance !== null && (
                   <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-xs font-semibold ${creditBalance <= 0 ? "bg-danger-red/10 text-danger-red" : "bg-surface-container text-on-surface-variant"
                     }`}>
@@ -695,7 +695,7 @@ export default function AIGeneratePage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{brandName}</p>
                           <p className="text-[11px] text-[#65676b]">
-                            {productName ? `Promoting ${productName} · ` : ""}Just now · <span className="material-symbols-outlined text-label-xs align-middle">public</span>
+                            {productName ? `Promoting ${productName} Â· ` : ""}Just now Â· <span className="material-symbols-outlined text-label-xs align-middle">public</span>
                           </p>
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
@@ -825,7 +825,7 @@ export default function AIGeneratePage() {
           </div>
 
           {/* Right Column: AI Assistant Chat */}
-          <div className="w-[320px] shrink-0 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col overflow-hidden">
+          <div className="min-w-0 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col overflow-hidden">
             <div className="p-4 border-b border-outline-variant/10 space-y-1.5 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
@@ -911,20 +911,20 @@ export default function AIGeneratePage() {
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[15px] text-primary">image</span>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Nguồn ảnh</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-outline">Image source</span>
                   </div>
                   <div className="group relative flex h-5 w-5 items-center justify-center">
                     <button
                       type="button"
                       className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-outline-variant/40 text-[10px] font-black text-outline transition-colors hover:border-primary/60 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      aria-label="Giải thích nguồn ảnh"
+                      aria-label="Image source explanation"
                     >
                       !
                     </button>
                     <div className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-72 rounded-xl border border-outline-variant/20 bg-surface-container-high px-3 py-2 text-left text-[11px] leading-relaxed text-on-surface opacity-0 shadow-xl transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-                      <p><span className="font-bold text-primary">Dùng ảnh gốc:</span> không tạo ảnh mới, lấy ảnh đang lưu trong Product để gắn vào bài đăng.</p>
-                      <p className="mt-1.5"><span className="font-bold text-primary">AI bảo toàn:</span> AI tạo ảnh mới nhưng dùng ảnh sản phẩm làm reference để giữ đúng ngoại hình.</p>
-                      <p className="mt-1.5"><span className="font-bold text-primary">AI sáng tạo:</span> AI tạo ảnh tự do; có thể upload ảnh riêng làm cảm hứng.</p>
+                      <p><span className="font-bold text-primary">Use product images:</span> do not generate a new image; attach the images already saved in the selected product.</p>
+                      <p className="mt-1.5"><span className="font-bold text-primary">AI product reference:</span> generate a new image while using product images as references to preserve the product appearance.</p>
+                      <p className="mt-1.5"><span className="font-bold text-primary">AI creative mode:</span> generate freely; you can upload your own inspiration image.</p>
                     </div>
                   </div>
                 </div>
@@ -935,9 +935,9 @@ export default function AIGeneratePage() {
                     disabled={isGenerating}
                     className="w-full appearance-none rounded-xl border border-outline-variant/20 bg-surface-container px-3 py-2.5 pr-9 text-[12px] font-semibold text-on-surface outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="original_product_images">🖼️ Dùng ảnh gốc của sản phẩm</option>
-                    <option value="ai_exact_product_reference">✨ AI tạo ảnh (Bảo toàn sản phẩm)</option>
-                    <option value="ai_normal_generation">🎨 AI tạo ảnh (Sáng tạo tự do)</option>
+                    <option value="original_product_images">Use product images</option>
+                    <option value="ai_exact_product_reference">AI image (Product reference)</option>
+                    <option value="ai_normal_generation">AI image (Creative mode)</option>
                   </select>
                   <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-outline">expand_more</span>
                 </div>
@@ -1007,11 +1007,11 @@ export default function AIGeneratePage() {
                     className="mt-0.5 h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary/30 disabled:opacity-50"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] font-bold text-on-surface">Sử dụng ảnh gốc của sản phẩm</span>
+                    <span className="block text-[11px] font-bold text-on-surface">Use original product images</span>
                     <span className="block text-[10px] leading-snug text-outline">
                       {productId
-                        ? "Bỏ qua bước tạo ảnh AI, lấy ảnh đang lưu trong Product để gắn vào preview và bài đăng."
-                        : "Chọn Product trước để AISAM lấy ảnh gốc của sản phẩm."}
+                        ? "Skip AI image generation and attach the images already saved in the selected product."
+                        : "Select a product first so AISAM can use its saved images."}
                     </span>
                   </span>
                 </label>

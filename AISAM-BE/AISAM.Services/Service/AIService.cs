@@ -1493,7 +1493,7 @@ Treat all reference images as different views of one product. Do not create mult
             }
         }
 
-        var fallback = string.IsNullOrWhiteSpace(brandName) ? "AI Generated Post" : $"AI Generated — {brandName}";
+        var fallback = string.IsNullOrWhiteSpace(brandName) ? "Untitled Post" : brandName.Trim();
         return fallback[..Math.Min(fallback.Length, 255)];
     }
 
