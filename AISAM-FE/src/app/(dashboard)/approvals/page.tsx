@@ -7,14 +7,27 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
+import { fetchSchedules } from "@/services/scheduleService";
 import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
   getBrandColor,
   ALL_PLATFORMS,
 } from "@/lib/contentConstants";
 import type { ContentItem } from "@/services/contentService";
+import type { ScheduleItem } from "@/services/scheduleService";
 
 type TabKey = "all" | "pending" | "approved" | "published" | "failed" | "rejected";
+type ApprovalStatus = ContentItem["status"] | "Publish Failed" | "Failed" | "Post Failed" | "PublishFailed";
+type ApprovalListItem = Omit<ContentItem, "status"> & {
+  status: ApprovalStatus;
+  approvalSource?: "content" | "schedule";
+  sourceContentId?: string;
+  scheduleId?: string;
+  scheduledAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+  attemptCount?: number;
+};
 
 const TEAM = [
   { name: "Alex C.", color: "bg-blue-500" },
@@ -47,7 +60,7 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
   );
 }
 
-function getPriority(item: ContentItem): { label: string; color: string } {
+function getPriority(item: ApprovalListItem): { label: string; color: string } {
   const tags = item.tags || [];
   if (tags.some((t) => t === "Product Launch" || t === "Promotion"))
     return { label: "Urgent", color: "text-danger-red bg-danger-red/10" };
@@ -60,7 +73,7 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2);
 }
 
-function sortItems(list: ContentItem[], key: SortKey, dir: SortDir): ContentItem[] {
+function sortItems(list: ApprovalListItem[], key: SortKey, dir: SortDir): ApprovalListItem[] {
   return [...list].sort((a, b) => {
     let cmp = 0;
     if (key === "title") cmp = a.title.localeCompare(b.title);
@@ -145,15 +158,118 @@ function getStatusMeta(status: string) {
   };
 }
 
-function getPreviewImageUrl(item: ContentItem) {
-  return item.imageUrl || (item.type === "IMAGE" ? item.thumbnail : "") || "";
+function isLikelyVideoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const normalized = url.split("?")[0].toLowerCase();
+  return normalized.includes("/video/") || /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(normalized);
 }
 
-function getPreviewVideoUrl(item: ContentItem) {
-  return item.videoUrl || (item.type === "VIDEO" ? item.thumbnail : "") || "";
+function getPreviewImageUrl(item: ApprovalListItem) {
+  const imageUrl = parseScheduleMediaUrl(item.imageUrl);
+  if (imageUrl) return imageUrl;
+  const thumbnail = parseScheduleMediaUrl(item.thumbnail);
+  return thumbnail && !isLikelyVideoUrl(thumbnail) ? thumbnail : "";
 }
 
-function SocialPostPreview({ item, platform }: { item: ContentItem; platform: string }) {
+function getPreviewVideoUrl(item: ApprovalListItem) {
+  const videoUrl = parseScheduleMediaUrl(item.videoUrl);
+  if (videoUrl) return videoUrl;
+  const thumbnail = parseScheduleMediaUrl(item.thumbnail);
+  return thumbnail && isLikelyVideoUrl(thumbnail) ? thumbnail : "";
+}
+
+function parseScheduleMediaUrl(url?: string | null): string {
+  const raw = (url || "").trim();
+  if (!raw) return "";
+
+  const pickUrl = (value: unknown): string => {
+    if (!value) return "";
+    if (typeof value === "string") return parseScheduleMediaUrl(value);
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const parsed = pickUrl(entry);
+        if (parsed) return parsed;
+      }
+      return "";
+    }
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      for (const key of ["url", "secure_url", "imageUrl", "image_url", "videoUrl", "video_url", "thumbnailUrl", "src"]) {
+        const parsed = pickUrl(record[key]);
+        if (parsed) return parsed;
+      }
+    }
+    return "";
+  };
+
+  try {
+    const parsed = JSON.parse(raw);
+    const parsedUrl = pickUrl(parsed);
+    if (parsedUrl) return parsedUrl;
+  } catch {
+    // Some legacy rows contain plain URLs or JSON-ish strings; fall through to regex.
+  }
+
+  const match = raw.match(/https?:\/\/[^"'\]\s,}]+/i);
+  return match?.[0] || raw;
+}
+
+function normalizeScheduleType(type?: string | null): ContentItem["type"] {
+  const normalized = (type || "").toUpperCase();
+  if (normalized === "VIDEO") return "VIDEO";
+  if (normalized === "IMAGE") return "IMAGE";
+  return "TEXT";
+}
+
+function normalizeSchedulePlatform(platform?: string | null) {
+  const normalized = (platform || "").toLowerCase();
+  return PLATFORM_CONFIG[normalized] ? normalized : "facebook";
+}
+
+function mapFailedScheduleToApprovalItem(schedule: ScheduleItem, sourceContent?: ApprovalListItem): ApprovalListItem {
+  const type = normalizeScheduleType(schedule.type || sourceContent?.type);
+  const thumbnailUrl = parseScheduleMediaUrl(schedule.thumbnailUrl);
+  const sourceThumbnailUrl = parseScheduleMediaUrl(sourceContent?.thumbnail);
+  const imageUrl = parseScheduleMediaUrl(schedule.imageUrl) || parseScheduleMediaUrl(sourceContent?.imageUrl);
+  const videoUrl = parseScheduleMediaUrl(schedule.videoUrl) || parseScheduleMediaUrl(sourceContent?.videoUrl);
+  const thumbnail = thumbnailUrl || videoUrl || imageUrl || sourceThumbnailUrl;
+  const thumbnailAsImage = thumbnailUrl && !isLikelyVideoUrl(thumbnailUrl) ? thumbnailUrl : "";
+  const sourceThumbnailAsImage = sourceThumbnailUrl && !isLikelyVideoUrl(sourceThumbnailUrl) ? sourceThumbnailUrl : "";
+  const thumbnailAsVideo = thumbnailUrl && isLikelyVideoUrl(thumbnailUrl) ? thumbnailUrl : "";
+  const sourceThumbnailAsVideo = sourceThumbnailUrl && isLikelyVideoUrl(sourceThumbnailUrl) ? sourceThumbnailUrl : "";
+
+  return {
+    id: `schedule-${schedule.id}`,
+    sourceContentId: schedule.contentId,
+    scheduleId: schedule.id,
+    approvalSource: "schedule",
+    title: schedule.title || sourceContent?.title || "Failed scheduled post",
+    brandId: schedule.brandId || sourceContent?.brandId || "",
+    brandName: schedule.brandName || sourceContent?.brandName || "Unknown brand",
+    productName: schedule.productName || sourceContent?.productName || "",
+    type,
+    status: "Publish Failed",
+    thumbnail,
+    imageUrl: imageUrl || thumbnailAsImage || sourceThumbnailAsImage || undefined,
+    videoUrl: videoUrl || thumbnailAsVideo || sourceThumbnailAsVideo || undefined,
+    textContent: schedule.textContent || sourceContent?.textContent || "",
+    createdAt: schedule.executedAt || schedule.scheduledAt,
+    platforms: [normalizeSchedulePlatform(schedule.platform)],
+    tags: ["Publish Failed"],
+    hashtags: [],
+    isAiGenerated: false,
+    scheduledAt: schedule.scheduledAt,
+    failedAt: schedule.executedAt,
+    failureReason: schedule.lastError || "Publishing failed without a saved error message.",
+    attemptCount: schedule.attemptCount,
+  };
+}
+
+function isScheduleFailureItem(item: ApprovalListItem) {
+  return item.approvalSource === "schedule";
+}
+
+function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platform: string }) {
   const imageUrl = getPreviewImageUrl(item);
   const videoUrl = getPreviewVideoUrl(item);
   const caption = item.textContent?.trim() || item.title || "No caption provided.";
@@ -275,7 +391,7 @@ export default function ApprovalsPage() {
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
   const canReview = featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator;
-  const [items, setItems] = useState<ContentItem[]>([]);
+  const [items, setItems] = useState<ApprovalListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "undo"; id?: string; undo?: () => void } | null>(null);
@@ -286,18 +402,29 @@ export default function ApprovalsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmItem, setConfirmItem] = useState<ContentItem | null>(null);
-  const [drawerItem, setDrawerItem] = useState<ContentItem | null>(null);
+  const [confirmItem, setConfirmItem] = useState<ApprovalListItem | null>(null);
+  const [drawerItem, setDrawerItem] = useState<ApprovalListItem | null>(null);
   const [drawerPreviewPlatform, setDrawerPreviewPlatform] = useState("facebook");
-  const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
-  const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
+  const [postNowItem, setPostNowItem] = useState<ApprovalListItem | null>(null);
+  const [revisionDrawer, setRevisionDrawer] = useState<ApprovalListItem | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); }
-    const result = await fetchContents({ pageSize: 100 });
-    setItems(result?.items ?? []);
+    const [contentResult, scheduleResult] = await Promise.all([
+      fetchContents({ pageSize: 100 }),
+      fetchSchedules({ pageSize: 100 }),
+    ]);
+    const contentItems: ApprovalListItem[] = (contentResult?.items ?? []).map((item) => ({
+      ...item,
+      approvalSource: "content",
+    }));
+    const contentById = new Map(contentItems.map((item) => [item.id, item]));
+    const failedScheduleItems = (scheduleResult.data.data ?? [])
+      .filter((schedule) => schedule.status === "Failed")
+      .map((schedule) => mapFailedScheduleToApprovalItem(schedule, contentById.get(schedule.contentId)));
+    setItems([...contentItems, ...failedScheduleItems]);
     setLoading(false);
   }, [activeWorkspace?.id]);
 
@@ -310,7 +437,7 @@ export default function ApprovalsPage() {
     setTimeout(() => setToast(null), type === "undo" ? 6000 : 3000);
   };
 
-  const openReviewDrawer = (item: ContentItem) => {
+  const openReviewDrawer = (item: ApprovalListItem) => {
     const firstPlatform = item.platforms.find((platform) => PLATFORM_CONFIG[platform]) || "facebook";
     setDrawerPreviewPlatform(firstPlatform);
     setDrawerItem(item);
@@ -353,7 +480,7 @@ export default function ApprovalsPage() {
     setActionId(null);
   };
 
-  const handleDeleteRejected = async (item: ContentItem) => {
+  const handleDeleteRejected = async (item: ApprovalListItem) => {
     if (!isRejectedStatus(item.status)) return;
     const ok = window.confirm(`Delete rejected content "${item.title || "Asset"}"?`);
     if (!ok) return;
@@ -410,7 +537,7 @@ export default function ApprovalsPage() {
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  const handleRequestChanges = (item: ContentItem) => {
+  const handleRequestChanges = (item: ApprovalListItem) => {
     setRevisionDrawer(item);
     setRevisionNote("");
     setTimeout(() => revisionsRef.current?.focus(), 100);
@@ -432,6 +559,8 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelect = (id: string) => {
+    const item = items.find((entry) => entry.id === id);
+    if (!item || isScheduleFailureItem(item)) return;
     setSelected((prev) => {
       const s = new Set(prev);
       if (s.has(id)) s.delete(id); else s.add(id);
@@ -440,11 +569,18 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map((i) => i.id)));
+    const selectableIds = filtered.filter((item) => !isScheduleFailureItem(item)).map((item) => item.id);
+    if (selectableIds.length === 0) return;
+    const allSelected = selectableIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) selectableIds.forEach((id) => next.delete(id));
+      else selectableIds.forEach((id) => next.add(id));
+      return next;
+    });
   };
 
-  const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
+  const statusFilter: Record<TabKey, (i: ApprovalListItem) => boolean> = {
     all: () => true,
     pending: (i) => isPendingStatus(i.status),
     approved: (i) => isApprovedStatus(i.status),
@@ -463,6 +599,8 @@ export default function ApprovalsPage() {
   );
 
   const paged = filtered;
+  const selectableFiltered = filtered.filter((item) => !isScheduleFailureItem(item));
+  const allSelectableSelected = selectableFiltered.length > 0 && selectableFiltered.every((item) => selected.has(item.id));
 
   const tabCounts: Record<TabKey, number> = {
     all: items.length,
@@ -661,9 +799,10 @@ export default function ApprovalsPage() {
                     <tr>
                       <th className="px-4 py-4 w-10">
                         <div className="flex items-center justify-center">
-                          <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
+                          <input type="checkbox" checked={allSelectableSelected}
+                            disabled={selectableFiltered.length === 0}
                             onChange={toggleSelectAll}
-                            className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer" />
+                            className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" />
                         </div>
                       </th>
                       <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface transition-colors"
@@ -691,9 +830,12 @@ export default function ApprovalsPage() {
                       const priority = getPriority(item);
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
+                      const isSelectable = !isScheduleFailureItem(item);
                       const statusMeta = getStatusMeta(item.status);
                       const canReview = isPendingStatus(item.status) && (featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator);
                       const canDelete = isRejectedStatus(item.status);
+                      const rowImageUrl = getPreviewImageUrl(item);
+                      const rowVideoUrl = getPreviewVideoUrl(item);
                       return (
                         <tr key={item.id}
                           className={`transition-colors cursor-pointer group ${
@@ -702,22 +844,22 @@ export default function ApprovalsPage() {
                           onClick={() => openReviewDrawer(item)}>
                           <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center">
-                              <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)}
-                                className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer" />
+                              <input type="checkbox" checked={isSelected} disabled={!isSelectable} onChange={() => toggleSelect(item.id)}
+                                className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" />
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4">
                               <div className={`w-14 h-11 rounded-lg bg-gradient-to-br ${getTypeStyle(item.type)} flex items-center justify-center text-white shrink-0 relative overflow-hidden`}>
-                                {item.thumbnail ? (
-                                  item.type === "VIDEO" ? (
+                                {rowVideoUrl || rowImageUrl ? (
+                                  rowVideoUrl ? (
                                     <>
-                                      <video src={item.thumbnail} className="absolute inset-0 w-full h-full object-cover bg-black" muted preload="metadata" />
+                                      <video src={rowVideoUrl} className="absolute inset-0 w-full h-full object-cover bg-black" muted preload="metadata" />
                                       <div className="absolute inset-0 bg-black/25" />
                                       <span className="material-symbols-outlined text-[18px] relative z-10">play_circle</span>
                                     </>
                                   ) : (
-                                    <img src={item.thumbnail} alt={item.title || "Approval asset"} className="absolute inset-0 w-full h-full object-cover" />
+                                    <img src={rowImageUrl} alt={item.title || "Approval asset"} className="absolute inset-0 w-full h-full object-cover" />
                                   )
                                 ) : (
                                   <>
@@ -729,6 +871,9 @@ export default function ApprovalsPage() {
                               <div>
                                 <p className="text-body-sm font-semibold text-on-surface leading-tight">{item.title}</p>
                                 <p className="text-[11px] text-outline mt-0.5">{item.type}</p>
+                                {item.failureReason && (
+                                  <p className="mt-1 max-w-xs text-[11px] leading-snug text-danger-red line-clamp-2">{item.failureReason}</p>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1013,6 +1158,31 @@ export default function ApprovalsPage() {
                     </div>
                   </section>
 
+                  {isPublishFailedStatus(drawerItem.status) && (
+                    <section>
+                      <div className="p-4 rounded-xl bg-danger-red/10 border border-danger-red/20">
+                        <label className="flex items-center gap-1 text-label-2xs text-danger-red uppercase font-bold tracking-widest mb-2">
+                          <span className="material-symbols-outlined text-[13px]">error</span>
+                          Failure reason
+                        </label>
+                        <p className="text-body-sm text-danger-red whitespace-pre-line leading-relaxed">
+                          {drawerItem.failureReason || "Publishing failed without a saved error message."}
+                        </p>
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-label-xs text-on-surface-variant">
+                          {drawerItem.scheduledAt && (
+                            <span>Scheduled: {new Date(drawerItem.scheduledAt).toLocaleString("en-GB")}</span>
+                          )}
+                          {drawerItem.failedAt && (
+                            <span>Failed: {new Date(drawerItem.failedAt).toLocaleString("en-GB")}</span>
+                          )}
+                          {typeof drawerItem.attemptCount === "number" && (
+                            <span>Attempts: {drawerItem.attemptCount}</span>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
                   {drawerItem.tags && drawerItem.tags.length > 0 && (
                     <section>
                       <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
@@ -1098,7 +1268,7 @@ export default function ApprovalsPage() {
                             <PlatformIcon platform={cfg.icon} className="w-[18px] h-[18px]" />
                             <div>
                               <p className="text-[11px] font-bold">{cfg.label}</p>
-                              <p className="text-label-2xs opacity-60">Post scheduled</p>
+                              <p className="text-label-2xs opacity-60">{isPublishFailedStatus(drawerItem.status) ? "Publish failed" : "Post scheduled"}</p>
                             </div>
                           </div>
                         ) : null;
@@ -1117,7 +1287,15 @@ export default function ApprovalsPage() {
                       {[
                         { icon: drawerItem.isAiGenerated ? "auto_awesome" : "edit_note", color: drawerItem.isAiGenerated ? "bg-primary/10 text-primary" : "bg-surface-container-high text-on-surface-variant", label: drawerItem.isAiGenerated ? "AI generated content" : "Manual content", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: drawerItem.isAiGenerated ? "AI-generated marketing asset created" : "Content created manually" },
                         { icon: "assignment", color: "bg-sky-500/10 text-sky-500", label: "Content review assigned", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: `Assigned to ${TEAM.map((t) => t.name).join(", ")}` },
-                        { icon: "flag", color: "bg-warning-amber/15 text-warning-amber", label: "Submitted for approval", time: "Pending", desc: "Awaiting review decision" },
+                        isPublishFailedStatus(drawerItem.status)
+                          ? {
+                              icon: "error",
+                              color: "bg-danger-red/10 text-danger-red",
+                              label: "Publishing failed",
+                              time: drawerItem.failedAt ? new Date(drawerItem.failedAt).toLocaleString("en-GB") : "Failed",
+                              desc: drawerItem.failureReason || "Publishing failed",
+                            }
+                          : { icon: "flag", color: "bg-warning-amber/15 text-warning-amber", label: "Submitted for approval", time: "Pending", desc: "Awaiting review decision" },
                       ].map((step, i) => (
                         <div key={i} className="flex gap-4 relative pb-6 last:pb-0">
                           {i < 2 && <div className="absolute left-3 top-6 bottom-0 w-px bg-outline-variant/30" />}
@@ -1191,6 +1369,13 @@ export default function ApprovalsPage() {
                     </button>
                   </>
                   )}
+                {isPublishFailedStatus(drawerItem.status) && drawerItem.sourceContentId && (
+                  <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.sourceContentId}`); setDrawerItem(null); }}
+                    className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">
+                    <span className="material-symbols-outlined text-[17px]">calendar_month</span>
+                    Open in Calendar
+                  </button>
+                )}
               </div>
             </div>
             </div>

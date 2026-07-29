@@ -12,7 +12,7 @@ public sealed class ImageProviderSettings
     public string? OpenRouterEditBaseUrl { get; set; }
     public string OpenRouterEditModel { get; set; } = "QwenImageEdit_Plus_NF4";
     public int OpenRouterEditPollingIntervalSeconds { get; set; } = 5;
-    public int OpenRouterEditTimeoutMinutes { get; set; } = 5;
+    public int OpenRouterEditTimeoutMinutes { get; set; } = 10;
 
     // === Fallback 1: Hugging Face ===
     public string HuggingFaceApiKey { get; set; } = string.Empty;

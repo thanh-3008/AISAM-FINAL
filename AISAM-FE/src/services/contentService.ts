@@ -38,6 +38,7 @@ export interface ContentApiItem {
   textContent: string;
   imageUrl: string | null;
   videoUrl: string | null;
+  thumbnailUrl?: string | null;
   styleDescription: string | null;
   contextDescription: string | null;
   representativeCharacter: string | null;
@@ -139,16 +140,39 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
 };
 
 const parseApiUrl = (url?: string | null): string => {
-  if (!url) return "";
-  if (url.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(url);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-    } catch {
-      return url;
+  const raw = (url || "").trim();
+  if (!raw) return "";
+
+  const pickUrl = (value: unknown): string => {
+    if (!value) return "";
+    if (typeof value === "string") return parseApiUrl(value);
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const parsed = pickUrl(entry);
+        if (parsed) return parsed;
+      }
+      return "";
     }
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      for (const key of ["url", "secure_url", "imageUrl", "image_url", "videoUrl", "video_url", "thumbnailUrl", "src"]) {
+        const parsed = pickUrl(record[key]);
+        if (parsed) return parsed;
+      }
+    }
+    return "";
+  };
+
+  try {
+    const parsed = JSON.parse(raw);
+    const parsedUrl = pickUrl(parsed);
+    if (parsedUrl) return parsedUrl;
+  } catch {
+    // Legacy records may be plain URLs; fall through to URL extraction.
   }
-  return url;
+
+  const match = raw.match(/https?:\/\/[^"'\]\s,}]+/i);
+  return match?.[0] || raw;
 };
 
 export function apiItemToContentItem(api: ContentApiItem): ContentItem {
@@ -160,7 +184,7 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
+    thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
     textContent: api.textContent || "",
@@ -181,7 +205,7 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: API_STATUS_TO_STATUS[api.status] || "Draft",
-    thumbnail: parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
+    thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,

@@ -95,15 +95,19 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
 
     setLinking(true);
     setError(null);
+    let saved = false;
     try {
       await linkTargets(account.id, selectedTargetIds, selectedBrandId, account.provider);
+      saved = true;
       sessionStorage.removeItem("social_connect_brand_id");
       onClose();
       void onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to link selected targets");
     } finally {
-      setLinking(false);
+      if (!saved) {
+        setLinking(false);
+      }
     }
   };
 
@@ -114,7 +118,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/45 z-50" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
         <div className="w-full max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">

@@ -482,7 +482,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                   </div>
                   <div className="space-y-1">
                     <label className={labelClass}>Tone</label>
-                    <input className={inputClass} value={importForm.tone} onChange={(e) => updateImportField("tone", e.target.value)} />
+                    <input className={inputClass} maxLength={200} value={importForm.tone} onChange={(e) => updateImportField("tone", e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-1">

@@ -79,8 +79,13 @@ export default function SocialAccountsPage() {
     const account = accounts.find((item) => item.id === pendingAccountId);
     if (account) {
       setManagingTargetsAccount(account);
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("manageAccount");
+      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+      router.replace(nextUrl, { scroll: false });
     }
-  }, [accounts, managingTargetsAccount, searchParams]);
+  }, [accounts, managingTargetsAccount, pathname, router, searchParams]);
 
   // Toast auto-dismiss
   useEffect(() => {

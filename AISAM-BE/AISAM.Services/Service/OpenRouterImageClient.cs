@@ -10,6 +10,20 @@ namespace AISAM.Services.Service;
 
 public sealed class OpenRouterImageClient
 {
+    private const string StrictProductNegativePrompt =
+        "no humans, no faces, no hands, no body parts, no people, no family, no crowd, " +
+        "do not change the product, do not redesign the product, no hallucination, no unrelated lifestyle scene, " +
+        "no extra products, no fake product, no text, no typos, no watermark, no logo text, " +
+        "no readable letters, no numbers, no gibberish typography, no broken-font characters";
+
+    private const string StrictProductReferencePromptSuffix =
+        "Strict product reference mode: use the uploaded reference image as the exact product identity. " +
+        "The product must be the main hero subject. Strictly maintain the original product shape, silhouette, " +
+        "proportions, colors, materials, packaging/label layout, and distinctive visible details. " +
+        "Only improve the background, lighting, camera angle, and commercial composition. " +
+        "Commercial product photography, minimalist background, clean negative space, studio lighting. " +
+        "No humans, no faces, no hands, do not change the product, no hallucination.";
+
     private readonly HttpClient _httpClient;
     private readonly ImageProviderSettings _settings;
     private readonly ILogger<OpenRouterImageClient> _logger;
@@ -54,7 +68,7 @@ public sealed class OpenRouterImageClient
             payload["height"] = 1024;
             payload["steps"] = 4; // Flux-schnell requires 4 steps max
             payload["seed"] = Random.Shared.Next(1, 99999999);
-            payload["negative_prompt"] = "";
+            payload["negative_prompt"] = StrictProductNegativePrompt;
         }
         else
         {
@@ -222,9 +236,9 @@ public sealed class OpenRouterImageClient
             using var form = new MultipartFormDataContent();
             form.Add(new StringContent(cleanPrompt), "prompt");
             form.Add(new StringContent(model), "model");
-            form.Add(new StringContent("20"), "steps");
+            form.Add(new StringContent("8"), "steps");
             form.Add(new StringContent(Random.Shared.Next(1, 99999999).ToString(System.Globalization.CultureInfo.InvariantCulture)), "seed");
-            form.Add(new StringContent(""), "negative_prompt");
+            form.Add(new StringContent(StrictProductNegativePrompt), "negative_prompt");
             form.Add(new StringContent((options?.Width ?? 1024).ToString(System.Globalization.CultureInfo.InvariantCulture)), "width");
             form.Add(new StringContent((options?.Height ?? 1024).ToString(System.Globalization.CultureInfo.InvariantCulture)), "height");
 
@@ -362,9 +376,16 @@ public sealed class OpenRouterImageClient
             cleaned = cleaned.Replace(referenceImageUrl, string.Empty, StringComparison.OrdinalIgnoreCase);
         }
 
-        return cleaned
+        cleaned = cleaned
             .Replace("Use the product shown in this reference image as the exact subject.", "Use the product in the uploaded reference image as the exact subject.", StringComparison.OrdinalIgnoreCase)
             .Trim();
+
+        if (!cleaned.Contains("Strict product reference mode", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = $"{cleaned}\n\n{StrictProductReferencePromptSuffix}";
+        }
+
+        return cleaned;
     }
 
     private static string? ExtractRequestId(JsonElement root)
