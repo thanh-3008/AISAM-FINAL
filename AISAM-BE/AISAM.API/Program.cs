@@ -111,6 +111,7 @@ ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_BASE_URL", "VideoPr
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TOKEN", "VideoProviderSettings:ColabToken");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TIMEOUT", "VideoProviderSettings:ColabTimeout");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_FALLBACK_ENABLED", "VideoProviderSettings:EnableColabFallback");
+ApplyEnvironmentOverride(builder.Configuration, "TAX_LOOKUP_ENDPOINT_TEMPLATE", "TaxLookup:EndpointTemplate");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -219,6 +220,10 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddHttpClient<IProductImportService, ProductImportService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(20);
+});
+builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<ISocialService, SocialService>();

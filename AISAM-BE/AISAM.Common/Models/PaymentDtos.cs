@@ -14,6 +14,8 @@ public sealed class CreateCheckoutRequest
 public sealed class CreateBusinessWorkspaceCheckoutRequest
 {
     public string WorkspaceName { get; set; } = string.Empty;
+    public string TaxId { get; set; } = string.Empty;
+    public string LegalBusinessName { get; set; } = string.Empty;
     public string PlanCode { get; set; } = string.Empty;
     public string? ReturnUrl { get; set; }
     public string? CancelUrl { get; set; }

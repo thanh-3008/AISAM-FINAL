@@ -52,6 +52,8 @@ function PricingContent() {
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
+  const [businessTaxId, setBusinessTaxId] = useState("");
+  const [businessLegalName, setBusinessLegalName] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Payment state
@@ -171,12 +173,22 @@ function PricingContent() {
   const filteredPlans = PLAN_PRICING.filter(p => p.category === planCategory);
 
   const handleUpgrade = async (plan: PlanPricing) => {
-    if (isCurrentPlan(plan.planType)) return;
+    if (!createMode && isCurrentPlan(plan.planType)) return;
     setProcessing(plan.planType);
 
     if (createMode) {
       if (!wsName.trim()) {
         showToast({ type: "error", title: "Missing name", message: "Please enter a workspace name." });
+        setProcessing(null);
+        return;
+      }
+      if (!businessLegalName.trim()) {
+        showToast({ type: "error", title: "Missing legal name", message: "Please enter the registered business name." });
+        setProcessing(null);
+        return;
+      }
+      if (!businessTaxId.trim()) {
+        showToast({ type: "error", title: "Missing tax ID", message: "Please enter the business tax ID." });
         setProcessing(null);
         return;
       }
@@ -189,6 +201,8 @@ function PricingContent() {
         }
         const payment = await createBusinessWorkspacePayment({
           workspaceName: wsName.trim(),
+          legalBusinessName: businessLegalName.trim(),
+          taxId: businessTaxId.trim(),
           planCode,
           returnUrl: window.location.origin + "/pricing",
           cancelUrl: window.location.origin + "/pricing?create=business",
@@ -437,6 +451,31 @@ function PricingContent() {
                         onChange={(e) => setWsName(e.target.value)}
                         autoFocus
                       />
+                    </div>
+                    <div>
+                      <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
+                        Legal Business Name <span className="text-danger-red">*</span>
+                      </label>
+                      <input
+                        className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                        placeholder="e.g. CÔNG TY TNHH ACME"
+                        value={businessLegalName}
+                        onChange={(e) => setBusinessLegalName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
+                        Tax ID <span className="text-danger-red">*</span>
+                      </label>
+                      <input
+                        className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                        placeholder="e.g. 0312345678"
+                        value={businessTaxId}
+                        onChange={(e) => setBusinessTaxId(e.target.value)}
+                      />
+                      <p className="mt-1.5 text-label-xs text-on-surface-variant">
+                        AISAM will verify this tax ID and legal name before opening Business checkout.
+                      </p>
                     </div>
                   </div>
                 </motion.div>

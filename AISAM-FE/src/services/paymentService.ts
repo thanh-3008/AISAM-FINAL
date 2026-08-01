@@ -31,6 +31,8 @@ export interface CreateCheckoutRequest {
 
 export interface CreateBusinessWorkspaceCheckoutRequest {
   workspaceName: string;
+  taxId: string;
+  legalBusinessName: string;
   planCode: string;
   returnUrl: string;
   cancelUrl: string;
