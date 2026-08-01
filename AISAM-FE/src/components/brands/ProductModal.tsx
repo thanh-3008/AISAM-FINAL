@@ -57,6 +57,24 @@ const EMPTY_IMPORT_FORM: ImportForm = {
   recommendedCTA: "",
 };
 
+function formatVndInput(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+
+  if (typeof value === "number") {
+    return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value);
+  }
+
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Number(digits));
+}
+
+function parseVndInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits ? Number(digits) : Number.NaN;
+}
+
 export default function ProductModal({ open, mode, onClose, onSuccess, brandId, product }: Props) {
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -66,7 +84,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     name: product?.name || "",
     description: product?.description || "",
     productUrl: product?.productUrl || "",
-    price: product?.price?.toString() || "",
+    price: product?.price != null ? formatVndInput(product.price) : "",
   });
   const [files, setFiles] = useState<File[]>([]);
   const [importUrl, setImportUrl] = useState("");
@@ -83,7 +101,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       name: product?.name || "",
       description: product?.description || "",
       productUrl: product?.productUrl || "",
-      price: product?.price?.toString() || "",
+      price: product?.price != null ? formatVndInput(product.price) : "",
     });
     setFiles([]);
     setImportUrl("");
@@ -98,6 +116,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
   const updateField = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (error) setError(null);
+  };
+
+  const updatePriceField = (value: string) => {
+    updateField("price", formatVndInput(value));
   };
 
   const updateImportField = (field: keyof ImportForm, value: string) => {
@@ -142,7 +164,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     fd.append("brandId", brandId);
     fd.append("description", form.description.trim());
     fd.append("productUrl", form.productUrl.trim());
-    fd.append("price", form.price);
+    fd.append("price", String(parseVndInput(form.price)));
     if (mode === "add") {
       if (benefits.length > 0) fd.append("primaryUse", benefits.join("; "));
       if (benefits[0]) fd.append("usp", benefits[0]);
@@ -154,7 +176,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
           sourceUrl: form.productUrl.trim() || null,
           productName: form.name.trim(),
           description: form.description.trim(),
-          price: Number(form.price),
+          price: parseVndInput(form.price),
           benefits,
           features,
           targetAudience: importForm.targetAudience.trim() || null,
@@ -212,7 +234,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
         name: data.productName || "",
         description: data.description || "",
         productUrl: data.sourceUrl || parsed.toString(),
-        price: data.price ? String(data.price) : "",
+        price: data.price != null ? formatVndInput(data.price) : "",
       });
       setFiles([]);
     } catch (err: any) {
@@ -228,7 +250,8 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       setError("Product name is required");
       return;
     }
-    if (!form.price.trim() || isNaN(Number(form.price))) {
+    const parsedPrice = parseVndInput(form.price);
+    if (!form.price.trim() || isNaN(parsedPrice)) {
       setError("Valid price is required");
       return;
     }
@@ -246,7 +269,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
             brandId,
             productName: form.name.trim(),
             description: form.description.trim(),
-            price: Number(form.price),
+            price: parsedPrice,
             images: selectedImageUrls.filter((url) => !brokenImageUrls.includes(url)),
             sourceUrl: form.productUrl.trim() || extracted.sourceUrl,
             benefits: importForm.benefits,
@@ -349,8 +372,8 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
               <div className="space-y-1">
                 <label className={labelClass}>Price <span className="text-danger-red">*</span></label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-outline/40 text-body-md">$</span>
-                  <input className={`${inputClass} pl-7`} placeholder="0.00" type="number" step="0.01" min="0" value={form.price} onChange={(e) => updateField("price", e.target.value)} />
+                  <input className={`${inputClass} pr-14`} placeholder="0" type="text" inputMode="numeric" value={form.price} onChange={(e) => updatePriceField(e.target.value)} />
+                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline/50 text-label-sm font-semibold">VND</span>
                 </div>
               </div>
 
