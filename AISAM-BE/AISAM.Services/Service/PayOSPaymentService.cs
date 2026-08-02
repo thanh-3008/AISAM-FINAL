@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AISAM.Common;
+using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
@@ -29,6 +30,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly ICreditWalletRepository _creditWalletRepository;
     private readonly ICreditService _creditService;
+    private readonly IBusinessKycService _businessKycService;
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
     private readonly AisamContext? _context;
@@ -40,6 +42,7 @@ public sealed class PayOSPaymentService : IPaymentService
         IWorkspaceRepository workspaceRepository,
         ICreditWalletRepository creditWalletRepository,
         ICreditService creditService,
+        IBusinessKycService businessKycService,
         IOptions<PayOSSettings> settings,
         HttpClient httpClient,
         AisamContext? context = null)
@@ -50,6 +53,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _workspaceRepository = workspaceRepository;
         _creditWalletRepository = creditWalletRepository;
         _creditService = creditService;
+        _businessKycService = businessKycService;
         _settings = settings.Value;
         _httpClient = httpClient;
         _context = context;
@@ -111,6 +115,33 @@ public sealed class PayOSPaymentService : IPaymentService
                 "Business workspaces require Business Plus or Business Pro.",
                 HttpStatusCode.BadRequest,
                 "BUSINESS_PLAN_REQUIRED");
+        }
+
+        var taxId = request.TaxId?.Trim();
+        var legalBusinessName = request.LegalBusinessName?.Trim();
+        if (string.IsNullOrWhiteSpace(taxId) || string.IsNullOrWhiteSpace(legalBusinessName))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "Business verification is required before creating a Business workspace.",
+                HttpStatusCode.BadRequest,
+                "BUSINESS_KYC_REQUIRED");
+        }
+
+        var kycResult = await _businessKycService.SubmitAsync(
+            userId,
+            new SubmitBusinessKycRequest
+            {
+                TaxId = taxId,
+                LegalBusinessName = legalBusinessName
+            },
+            cancellationToken);
+
+        if (!kycResult.Success || !string.Equals(kycResult.Data?.KycStatus, "Verified", StringComparison.OrdinalIgnoreCase))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                kycResult.Data?.Reason ?? kycResult.Message ?? "Business verification could not be completed.",
+                HttpStatusCode.BadRequest,
+                "BUSINESS_KYC_NOT_VERIFIED");
         }
 
         var planDefinition = GetPlanDefinition(WorkspaceTypeEnum.Business, plan.Value);

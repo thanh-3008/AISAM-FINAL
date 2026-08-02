@@ -246,6 +246,8 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
         return _context.ContentCalendars
             .Include(schedule => schedule.Content)
                 .ThenInclude(content => content.Brand)
+            .Include(schedule => schedule.Content)
+                .ThenInclude(content => content.Product)
             .Include(schedule => schedule.Profile)
             .Include(schedule => schedule.Integration)
             .Include(schedule => schedule.Workspace);

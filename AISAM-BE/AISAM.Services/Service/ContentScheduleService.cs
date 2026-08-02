@@ -431,7 +431,13 @@ public sealed class ContentScheduleService : IContentScheduleService
             AttemptCount = schedule.AttemptCount,
             LastError = schedule.LastError,
             Title = schedule.Content?.Title,
+            BrandId = schedule.Content?.BrandId,
             BrandName = schedule.Content?.Brand?.Name,
+            ProductName = schedule.Content?.Product?.Name,
+            TextContent = schedule.Content?.TextContent,
+            ThumbnailUrl = schedule.Content?.ThumbnailUrl,
+            ImageUrl = schedule.Content?.ImageUrl,
+            VideoUrl = schedule.Content?.VideoUrl,
             Type = schedule.Content != null ? MapAdType(schedule.Content.AdType) : null,
             Platform = MapPlatform(schedule.Integration?.Platform)
         };

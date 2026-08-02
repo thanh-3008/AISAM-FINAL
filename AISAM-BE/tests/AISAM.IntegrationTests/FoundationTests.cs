@@ -494,6 +494,12 @@ public class FoundationTests
             return Task.FromResult(brand);
         }
 
+        public Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default)
+        {
+            var exists = _brands.Values.Any(b => b.WorkspaceId == workspaceId && b.Name == name);
+            return Task.FromResult(exists);
+        }
+
         public Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default)
         {
             var brands = _brands.Values.Where(brand => brand.ProfileId == profileId).ToList();

@@ -444,6 +444,7 @@ public class AIServiceTests
             creditService ?? new FakeCreditService(),
             null!,
             null!,
+            null!,
             null!);
     }
 

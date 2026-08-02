@@ -12,7 +12,13 @@ export interface ScheduleItem {
   attemptCount: number;
   lastError: string | null;
   title: string | null;
+  brandId: string | null;
   brandName: string | null;
+  productName: string | null;
+  textContent: string | null;
+  thumbnailUrl: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
   type: string | null;
   platform: string | null;
 }

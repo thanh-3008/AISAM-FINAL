@@ -72,6 +72,15 @@ function normalizeProductImages(images: Product["images"] | string | null | unde
   return [];
 }
 
+function formatVndPrice(value: number | null | undefined) {
+  const amount = Number(value ?? 0);
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
 const inputClass =
   "w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 outline-none transition-all";
 
@@ -469,7 +478,7 @@ export default function BrandDetailPage() {
                           <div className="p-4 flex flex-col flex-1">
                             <h5 className="text-[16px] font-bold text-on-surface mb-1">{product.name}</h5>
                             <p className="text-on-surface-variant text-body-sm mb-2 line-clamp-2 flex-1">{product.description}</p>
-                            <p className="text-label-lg font-bold text-primary mb-3">${product.price.toFixed(2)}</p>
+                            <p className="text-label-lg font-bold text-primary mb-3">{formatVndPrice(product.price)}</p>
                             <div className="flex items-center justify-between mt-auto">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-1.5 text-on-surface-variant">
@@ -764,7 +773,7 @@ export default function BrandDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Price</span>
-                  <p className="text-body-sm font-semibold text-on-surface">${viewingProduct.price.toFixed(2)}</p>
+                  <p className="text-body-sm font-semibold text-on-surface">{formatVndPrice(viewingProduct.price)}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-label-sm font-bold text-on-surface-variant uppercase">Stock</span>

@@ -167,6 +167,25 @@ public sealed class SocialService : ISocialService
             }
         }
 
+        var selectedIdSet = selectedIds.ToHashSet(StringComparer.Ordinal);
+        var existingBrandIntegrations = await _socialIntegrationRepository.GetByBrandIdAsync(brand.Id, cancellationToken);
+        var integrationsToUnlink = existingBrandIntegrations
+            .Where(integration =>
+                integration.WorkspaceId == account.WorkspaceId &&
+                integration.SocialAccountId == account.Id &&
+                integration.Platform == account.Platform &&
+                !string.IsNullOrWhiteSpace(integration.ExternalId) &&
+                !selectedIdSet.Contains(integration.ExternalId) &&
+                !integration.IsDeleted)
+            .ToList();
+
+        foreach (var integration in integrationsToUnlink)
+        {
+            integration.IsDeleted = true;
+            integration.IsActive = false;
+            await _socialIntegrationRepository.UpdateAsync(integration, cancellationToken);
+        }
+
         var targetTokens = await provider.GetTargetAccessTokensAsync(userAccessToken, selectedIds, cancellationToken);
         foreach (var providerTargetId in selectedIds)
         {

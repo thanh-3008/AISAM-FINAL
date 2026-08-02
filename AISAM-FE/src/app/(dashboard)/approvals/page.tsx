@@ -7,13 +7,27 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
+import { fetchSchedules } from "@/services/scheduleService";
 import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
   getBrandColor,
+  ALL_PLATFORMS,
 } from "@/lib/contentConstants";
 import type { ContentItem } from "@/services/contentService";
+import type { ScheduleItem } from "@/services/scheduleService";
 
 type TabKey = "all" | "pending" | "approved" | "published" | "failed" | "rejected";
+type ApprovalStatus = ContentItem["status"] | "Publish Failed" | "Failed" | "Post Failed" | "PublishFailed";
+type ApprovalListItem = Omit<ContentItem, "status"> & {
+  status: ApprovalStatus;
+  approvalSource?: "content" | "schedule";
+  sourceContentId?: string;
+  scheduleId?: string;
+  scheduledAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+  attemptCount?: number;
+};
 
 const TEAM = [
   { name: "Alex C.", color: "bg-blue-500" },
@@ -46,7 +60,7 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
   );
 }
 
-function getPriority(item: ContentItem): { label: string; color: string } {
+function getPriority(item: ApprovalListItem): { label: string; color: string } {
   const tags = item.tags || [];
   if (tags.some((t) => t === "Product Launch" || t === "Promotion"))
     return { label: "Urgent", color: "text-danger-red bg-danger-red/10" };
@@ -59,7 +73,7 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2);
 }
 
-function sortItems(list: ContentItem[], key: SortKey, dir: SortDir): ContentItem[] {
+function sortItems(list: ApprovalListItem[], key: SortKey, dir: SortDir): ApprovalListItem[] {
   return [...list].sort((a, b) => {
     let cmp = 0;
     if (key === "title") cmp = a.title.localeCompare(b.title);
@@ -144,12 +158,240 @@ function getStatusMeta(status: string) {
   };
 }
 
+function isLikelyVideoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const normalized = url.split("?")[0].toLowerCase();
+  return normalized.includes("/video/") || /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(normalized);
+}
+
+function getPreviewImageUrl(item: ApprovalListItem) {
+  const imageUrl = parseScheduleMediaUrl(item.imageUrl);
+  if (imageUrl) return imageUrl;
+  const thumbnail = parseScheduleMediaUrl(item.thumbnail);
+  return thumbnail && !isLikelyVideoUrl(thumbnail) ? thumbnail : "";
+}
+
+function getPreviewVideoUrl(item: ApprovalListItem) {
+  const videoUrl = parseScheduleMediaUrl(item.videoUrl);
+  if (videoUrl) return videoUrl;
+  const thumbnail = parseScheduleMediaUrl(item.thumbnail);
+  return thumbnail && isLikelyVideoUrl(thumbnail) ? thumbnail : "";
+}
+
+function parseScheduleMediaUrl(url?: string | null): string {
+  const raw = (url || "").trim();
+  if (!raw) return "";
+
+  const pickUrl = (value: unknown): string => {
+    if (!value) return "";
+    if (typeof value === "string") return parseScheduleMediaUrl(value);
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const parsed = pickUrl(entry);
+        if (parsed) return parsed;
+      }
+      return "";
+    }
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      for (const key of ["url", "secure_url", "imageUrl", "image_url", "videoUrl", "video_url", "thumbnailUrl", "src"]) {
+        const parsed = pickUrl(record[key]);
+        if (parsed) return parsed;
+      }
+    }
+    return "";
+  };
+
+  try {
+    const parsed = JSON.parse(raw);
+    const parsedUrl = pickUrl(parsed);
+    if (parsedUrl) return parsedUrl;
+  } catch {
+    // Some legacy rows contain plain URLs or JSON-ish strings; fall through to regex.
+  }
+
+  const match = raw.match(/https?:\/\/[^"'\]\s,}]+/i);
+  return match?.[0] || raw;
+}
+
+function normalizeScheduleType(type?: string | null): ContentItem["type"] {
+  const normalized = (type || "").toUpperCase();
+  if (normalized === "VIDEO") return "VIDEO";
+  if (normalized === "IMAGE") return "IMAGE";
+  return "TEXT";
+}
+
+function normalizeSchedulePlatform(platform?: string | null) {
+  const normalized = (platform || "").toLowerCase();
+  return PLATFORM_CONFIG[normalized] ? normalized : "facebook";
+}
+
+function mapFailedScheduleToApprovalItem(schedule: ScheduleItem, sourceContent?: ApprovalListItem): ApprovalListItem {
+  const type = normalizeScheduleType(schedule.type || sourceContent?.type);
+  const thumbnailUrl = parseScheduleMediaUrl(schedule.thumbnailUrl);
+  const sourceThumbnailUrl = parseScheduleMediaUrl(sourceContent?.thumbnail);
+  const imageUrl = parseScheduleMediaUrl(schedule.imageUrl) || parseScheduleMediaUrl(sourceContent?.imageUrl);
+  const videoUrl = parseScheduleMediaUrl(schedule.videoUrl) || parseScheduleMediaUrl(sourceContent?.videoUrl);
+  const thumbnail = thumbnailUrl || videoUrl || imageUrl || sourceThumbnailUrl;
+  const thumbnailAsImage = thumbnailUrl && !isLikelyVideoUrl(thumbnailUrl) ? thumbnailUrl : "";
+  const sourceThumbnailAsImage = sourceThumbnailUrl && !isLikelyVideoUrl(sourceThumbnailUrl) ? sourceThumbnailUrl : "";
+  const thumbnailAsVideo = thumbnailUrl && isLikelyVideoUrl(thumbnailUrl) ? thumbnailUrl : "";
+  const sourceThumbnailAsVideo = sourceThumbnailUrl && isLikelyVideoUrl(sourceThumbnailUrl) ? sourceThumbnailUrl : "";
+
+  return {
+    id: `schedule-${schedule.id}`,
+    sourceContentId: schedule.contentId,
+    scheduleId: schedule.id,
+    approvalSource: "schedule",
+    title: schedule.title || sourceContent?.title || "Failed scheduled post",
+    brandId: schedule.brandId || sourceContent?.brandId || "",
+    brandName: schedule.brandName || sourceContent?.brandName || "Unknown brand",
+    productName: schedule.productName || sourceContent?.productName || "",
+    type,
+    status: "Publish Failed",
+    thumbnail,
+    imageUrl: imageUrl || thumbnailAsImage || sourceThumbnailAsImage || undefined,
+    videoUrl: videoUrl || thumbnailAsVideo || sourceThumbnailAsVideo || undefined,
+    textContent: schedule.textContent || sourceContent?.textContent || "",
+    createdAt: schedule.executedAt || schedule.scheduledAt,
+    platforms: [normalizeSchedulePlatform(schedule.platform)],
+    tags: ["Publish Failed"],
+    hashtags: [],
+    isAiGenerated: false,
+    scheduledAt: schedule.scheduledAt,
+    failedAt: schedule.executedAt,
+    failureReason: schedule.lastError || "Publishing failed without a saved error message.",
+    attemptCount: schedule.attemptCount,
+  };
+}
+
+function isScheduleFailureItem(item: ApprovalListItem) {
+  return item.approvalSource === "schedule";
+}
+
+function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platform: string }) {
+  const imageUrl = getPreviewImageUrl(item);
+  const videoUrl = getPreviewVideoUrl(item);
+  const caption = item.textContent?.trim() || item.title || "No caption provided.";
+  const cfg = PLATFORM_CONFIG[platform];
+  const brandInitial = (item.brandName || "A").charAt(0).toUpperCase();
+  const brandColor = getBrandColor(item.brandName || "AISAM") || "#2563eb";
+
+  if (platform === "instagram") {
+    return (
+      <div className="mx-auto max-w-sm rounded-2xl overflow-hidden border border-outline-variant/20 bg-white text-[#111827] shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600">
+              <div className="w-full h-full rounded-full bg-white p-[2px]">
+                <div className="w-full h-full rounded-full flex items-center justify-center text-white text-label-xs font-bold" style={{ backgroundColor: brandColor }}>
+                  {brandInitial}
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight">{item.brandName || "Brand"}</p>
+              <p className="text-[11px] text-gray-500">{item.productName || "Product"}</p>
+            </div>
+          </div>
+          <span className="material-symbols-outlined text-[18px]">more_horiz</span>
+        </div>
+        <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+          {videoUrl ? (
+            <video src={videoUrl} controls className="w-full h-full object-contain bg-black" />
+          ) : imageUrl ? (
+            <img src={imageUrl} alt={item.title || "Instagram preview"} className="w-full h-full object-cover" />
+          ) : (
+            <div className="text-gray-400 text-sm flex flex-col items-center gap-2">
+              <span className="material-symbols-outlined">image</span>
+              No media
+            </div>
+          )}
+        </div>
+        <div className="px-4 py-3 space-y-2">
+          <div className="flex items-center gap-4">
+            <span className="material-symbols-outlined text-[22px]">favorite</span>
+            <span className="material-symbols-outlined text-[22px]">mode_comment</span>
+            <span className="material-symbols-outlined text-[22px]">send</span>
+            <span className="material-symbols-outlined text-[22px] ml-auto">bookmark</span>
+          </div>
+          <p className="text-sm whitespace-pre-line leading-relaxed"><span className="font-bold">{item.brandName || "brand"}</span> {caption}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "tiktok") {
+    return (
+      <div className="mx-auto w-[260px] h-[460px] rounded-[2rem] overflow-hidden bg-black text-white shadow-sm relative border border-black">
+        {videoUrl ? (
+          <video src={videoUrl} controls className="absolute inset-0 w-full h-full object-cover" />
+        ) : imageUrl ? (
+          <img src={imageUrl} alt={item.title || "TikTok preview"} className="absolute inset-0 w-full h-full object-cover opacity-80" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-black flex items-center justify-center text-zinc-400">
+            <span className="material-symbols-outlined text-4xl">smart_display</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/10" />
+        <div className="absolute right-3 bottom-24 flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">favorite</span>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">chat_bubble</span>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">share</span>
+          </div>
+        </div>
+        <div className="absolute left-4 right-14 bottom-5">
+          <p className="text-sm font-bold">@{(item.brandName || "brand").replace(/\s+/g, "").toLowerCase()}</p>
+          <p className="mt-2 text-xs leading-relaxed whitespace-pre-line line-clamp-6">{caption}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-md rounded-2xl overflow-hidden border border-outline-variant/20 bg-white text-[#111827] shadow-sm">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-label-sm font-bold" style={{ backgroundColor: cfg?.color || brandColor }}>
+          {brandInitial}
+        </div>
+        <div>
+          <p className="text-sm font-bold leading-tight">{item.brandName || "Brand"}</p>
+          <p className="text-[11px] text-gray-500">Just now · Public</p>
+        </div>
+        <span className="material-symbols-outlined text-[18px] ml-auto text-gray-500">more_horiz</span>
+      </div>
+      <div className="px-4 pb-3">
+        <p className="text-sm whitespace-pre-line leading-relaxed">{caption}</p>
+      </div>
+      {(videoUrl || imageUrl) && (
+        <div className="bg-gray-100 border-y border-gray-100">
+          {videoUrl ? (
+            <video src={videoUrl} controls className="w-full max-h-[320px] object-contain bg-black" />
+          ) : (
+            <img src={imageUrl} alt={item.title || "Facebook preview"} className="w-full max-h-[320px] object-contain" />
+          )}
+        </div>
+      )}
+      <div className="grid grid-cols-3 px-4 py-2 text-gray-500 text-sm border-t border-gray-100">
+        <span className="flex items-center justify-center gap-1"><span className="material-symbols-outlined text-[18px]">thumb_up</span>Like</span>
+        <span className="flex items-center justify-center gap-1"><span className="material-symbols-outlined text-[18px]">mode_comment</span>Comment</span>
+        <span className="flex items-center justify-center gap-1"><span className="material-symbols-outlined text-[18px]">share</span>Share</span>
+      </div>
+    </div>
+  );
+}
+
 export default function ApprovalsPage() {
   const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
   const canReview = featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator;
-  const [items, setItems] = useState<ContentItem[]>([]);
+  const [items, setItems] = useState<ApprovalListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "undo"; id?: string; undo?: () => void } | null>(null);
@@ -160,17 +402,29 @@ export default function ApprovalsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmItem, setConfirmItem] = useState<ContentItem | null>(null);
-  const [drawerItem, setDrawerItem] = useState<ContentItem | null>(null);
-  const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
-  const [revisionDrawer, setRevisionDrawer] = useState<ContentItem | null>(null);
+  const [confirmItem, setConfirmItem] = useState<ApprovalListItem | null>(null);
+  const [drawerItem, setDrawerItem] = useState<ApprovalListItem | null>(null);
+  const [drawerPreviewPlatform, setDrawerPreviewPlatform] = useState("facebook");
+  const [postNowItem, setPostNowItem] = useState<ApprovalListItem | null>(null);
+  const [revisionDrawer, setRevisionDrawer] = useState<ApprovalListItem | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); }
-    const result = await fetchContents({ pageSize: 100 });
-    setItems(result?.items ?? []);
+    const [contentResult, scheduleResult] = await Promise.all([
+      fetchContents({ pageSize: 100 }),
+      fetchSchedules({ pageSize: 100 }),
+    ]);
+    const contentItems: ApprovalListItem[] = (contentResult?.items ?? []).map((item) => ({
+      ...item,
+      approvalSource: "content",
+    }));
+    const contentById = new Map(contentItems.map((item) => [item.id, item]));
+    const failedScheduleItems = (scheduleResult.data.data ?? [])
+      .filter((schedule) => schedule.status === "Failed")
+      .map((schedule) => mapFailedScheduleToApprovalItem(schedule, contentById.get(schedule.contentId)));
+    setItems([...contentItems, ...failedScheduleItems]);
     setLoading(false);
   }, [activeWorkspace?.id]);
 
@@ -181,6 +435,12 @@ export default function ApprovalsPage() {
   const showToast = (message: string, type: "success" | "error" | "undo" = "success", undo?: () => void) => {
     setToast({ message, type, undo });
     setTimeout(() => setToast(null), type === "undo" ? 6000 : 3000);
+  };
+
+  const openReviewDrawer = (item: ApprovalListItem) => {
+    const firstPlatform = item.platforms.find((platform) => PLATFORM_CONFIG[platform]) || "facebook";
+    setDrawerPreviewPlatform(firstPlatform);
+    setDrawerItem(item);
   };
 
   const applyItemStatus = (id: string, status: ContentItem["status"]) => {
@@ -220,7 +480,7 @@ export default function ApprovalsPage() {
     setActionId(null);
   };
 
-  const handleDeleteRejected = async (item: ContentItem) => {
+  const handleDeleteRejected = async (item: ApprovalListItem) => {
     if (!isRejectedStatus(item.status)) return;
     const ok = window.confirm(`Delete rejected content "${item.title || "Asset"}"?`);
     if (!ok) return;
@@ -277,7 +537,7 @@ export default function ApprovalsPage() {
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  const handleRequestChanges = (item: ContentItem) => {
+  const handleRequestChanges = (item: ApprovalListItem) => {
     setRevisionDrawer(item);
     setRevisionNote("");
     setTimeout(() => revisionsRef.current?.focus(), 100);
@@ -299,6 +559,8 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelect = (id: string) => {
+    const item = items.find((entry) => entry.id === id);
+    if (!item || isScheduleFailureItem(item)) return;
     setSelected((prev) => {
       const s = new Set(prev);
       if (s.has(id)) s.delete(id); else s.add(id);
@@ -307,11 +569,18 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map((i) => i.id)));
+    const selectableIds = filtered.filter((item) => !isScheduleFailureItem(item)).map((item) => item.id);
+    if (selectableIds.length === 0) return;
+    const allSelected = selectableIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) selectableIds.forEach((id) => next.delete(id));
+      else selectableIds.forEach((id) => next.add(id));
+      return next;
+    });
   };
 
-  const statusFilter: Record<TabKey, (i: ContentItem) => boolean> = {
+  const statusFilter: Record<TabKey, (i: ApprovalListItem) => boolean> = {
     all: () => true,
     pending: (i) => isPendingStatus(i.status),
     approved: (i) => isApprovedStatus(i.status),
@@ -330,6 +599,8 @@ export default function ApprovalsPage() {
   );
 
   const paged = filtered;
+  const selectableFiltered = filtered.filter((item) => !isScheduleFailureItem(item));
+  const allSelectableSelected = selectableFiltered.length > 0 && selectableFiltered.every((item) => selected.has(item.id));
 
   const tabCounts: Record<TabKey, number> = {
     all: items.length,
@@ -528,9 +799,10 @@ export default function ApprovalsPage() {
                     <tr>
                       <th className="px-4 py-4 w-10">
                         <div className="flex items-center justify-center">
-                          <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
+                          <input type="checkbox" checked={allSelectableSelected}
+                            disabled={selectableFiltered.length === 0}
                             onChange={toggleSelectAll}
-                            className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer" />
+                            className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" />
                         </div>
                       </th>
                       <th className="px-6 py-4 text-label-sm text-outline font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-on-surface transition-colors"
@@ -558,30 +830,50 @@ export default function ApprovalsPage() {
                       const priority = getPriority(item);
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
+                      const isSelectable = !isScheduleFailureItem(item);
                       const statusMeta = getStatusMeta(item.status);
                       const canReview = isPendingStatus(item.status) && (featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator);
                       const canDelete = isRejectedStatus(item.status);
+                      const rowImageUrl = getPreviewImageUrl(item);
+                      const rowVideoUrl = getPreviewVideoUrl(item);
                       return (
                         <tr key={item.id}
                           className={`transition-colors cursor-pointer group ${
                             isSelected ? "bg-primary/5" : "hover:bg-surface-container-low/60"
                           }`}
-                          onClick={() => setDrawerItem(item)}>
+                          onClick={() => openReviewDrawer(item)}>
                           <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center">
-                              <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)}
-                                className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer" />
+                              <input type="checkbox" checked={isSelected} disabled={!isSelectable} onChange={() => toggleSelect(item.id)}
+                                className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" />
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4">
                               <div className={`w-14 h-11 rounded-lg bg-gradient-to-br ${getTypeStyle(item.type)} flex items-center justify-center text-white shrink-0 relative overflow-hidden`}>
-                                <span className="material-symbols-outlined text-[18px] relative z-10">{typeCfg.icon}</span>
-                                <div className="absolute inset-0 bg-white/10" />
+                                {rowVideoUrl || rowImageUrl ? (
+                                  rowVideoUrl ? (
+                                    <>
+                                      <video src={rowVideoUrl} className="absolute inset-0 w-full h-full object-cover bg-black" muted preload="metadata" />
+                                      <div className="absolute inset-0 bg-black/25" />
+                                      <span className="material-symbols-outlined text-[18px] relative z-10">play_circle</span>
+                                    </>
+                                  ) : (
+                                    <img src={rowImageUrl} alt={item.title || "Approval asset"} className="absolute inset-0 w-full h-full object-cover" />
+                                  )
+                                ) : (
+                                  <>
+                                    <span className="material-symbols-outlined text-[18px] relative z-10">{typeCfg.icon}</span>
+                                    <div className="absolute inset-0 bg-white/10" />
+                                  </>
+                                )}
                               </div>
                               <div>
                                 <p className="text-body-sm font-semibold text-on-surface leading-tight">{item.title}</p>
                                 <p className="text-[11px] text-outline mt-0.5">{item.type}</p>
+                                {item.failureReason && (
+                                  <p className="mt-1 max-w-xs text-[11px] leading-snug text-danger-red line-clamp-2">{item.failureReason}</p>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -664,7 +956,7 @@ export default function ApprovalsPage() {
                                   </button>
                                 </>
                               )}
-                              <button onClick={() => setDrawerItem(item)}
+                              <button onClick={() => openReviewDrawer(item)}
                                 className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Review">
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
                                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
@@ -774,16 +1066,33 @@ export default function ApprovalsPage() {
 
               <div className="flex-1 overflow-y-auto">
                 <div className="relative w-full aspect-[2/1] bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${getTypeStyle(drawerItem.type)} opacity-15`} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent" />
-                  <div className="relative z-10 flex flex-col items-center gap-3">
-                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-lg`}>
-                      <span className="material-symbols-outlined text-4xl">{getTypeConfig(drawerItem.type).icon}</span>
-                    </div>
-                    <span className="text-label-sm font-semibold text-on-surface-variant bg-surface-container-lowest/80 backdrop-blur-sm px-4 py-1.5 rounded-full">
-                      {drawerItem.type} Asset Preview
-                    </span>
-                  </div>
+                  {getPreviewVideoUrl(drawerItem) ? (
+                    <video
+                      src={getPreviewVideoUrl(drawerItem)}
+                      className="absolute inset-0 w-full h-full object-contain bg-black"
+                      controls
+                      preload="metadata"
+                    />
+                  ) : getPreviewImageUrl(drawerItem) ? (
+                    <img
+                      src={getPreviewImageUrl(drawerItem)}
+                      alt={drawerItem.title || "Approval asset preview"}
+                      className="absolute inset-0 w-full h-full object-contain bg-surface-container-low"
+                    />
+                  ) : (
+                    <>
+                      <div className={`absolute inset-0 bg-gradient-to-br ${getTypeStyle(drawerItem.type)} opacity-15`} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent" />
+                      <div className="relative z-10 flex flex-col items-center gap-3">
+                        <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-lg`}>
+                          <span className="material-symbols-outlined text-4xl">{getTypeConfig(drawerItem.type).icon}</span>
+                        </div>
+                        <span className="text-label-sm font-semibold text-on-surface-variant bg-surface-container-lowest/80 backdrop-blur-sm px-4 py-1.5 rounded-full">
+                          {drawerItem.type} Asset Preview
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <div className="absolute top-3 right-3 flex gap-1.5">
                     <span className="text-label-xs font-bold px-2 py-1 rounded-md bg-surface-container-lowest/70 backdrop-blur-sm text-on-surface-variant">
                       {getTypeConfig(drawerItem.type).label}
@@ -849,6 +1158,31 @@ export default function ApprovalsPage() {
                     </div>
                   </section>
 
+                  {isPublishFailedStatus(drawerItem.status) && (
+                    <section>
+                      <div className="p-4 rounded-xl bg-danger-red/10 border border-danger-red/20">
+                        <label className="flex items-center gap-1 text-label-2xs text-danger-red uppercase font-bold tracking-widest mb-2">
+                          <span className="material-symbols-outlined text-[13px]">error</span>
+                          Failure reason
+                        </label>
+                        <p className="text-body-sm text-danger-red whitespace-pre-line leading-relaxed">
+                          {drawerItem.failureReason || "Publishing failed without a saved error message."}
+                        </p>
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-label-xs text-on-surface-variant">
+                          {drawerItem.scheduledAt && (
+                            <span>Scheduled: {new Date(drawerItem.scheduledAt).toLocaleString("en-GB")}</span>
+                          )}
+                          {drawerItem.failedAt && (
+                            <span>Failed: {new Date(drawerItem.failedAt).toLocaleString("en-GB")}</span>
+                          )}
+                          {typeof drawerItem.attemptCount === "number" && (
+                            <span>Attempts: {drawerItem.attemptCount}</span>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
                   {drawerItem.tags && drawerItem.tags.length > 0 && (
                     <section>
                       <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
@@ -866,6 +1200,58 @@ export default function ApprovalsPage() {
                     </section>
                   )}
 
+                  <section>
+                    <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
+                      <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest mb-2.5">
+                        <span className="material-symbols-outlined text-[13px]">notes</span>
+                        Full Content
+                      </label>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-label-2xs text-outline uppercase font-bold tracking-widest mb-1">Title</p>
+                          <p className="text-body-sm font-semibold text-on-surface">{drawerItem.title || "Untitled"}</p>
+                        </div>
+                        <div>
+                          <p className="text-label-2xs text-outline uppercase font-bold tracking-widest mb-1">Caption</p>
+                          <p className="text-body-sm text-on-surface-variant whitespace-pre-line leading-relaxed">
+                            {drawerItem.textContent?.trim() || "No caption provided."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest">
+                          <span className="material-symbols-outlined text-[13px]">preview</span>
+                          Platform Preview
+                        </label>
+                        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-container-high">
+                          {ALL_PLATFORMS.map((platform) => {
+                            const cfg = PLATFORM_CONFIG[platform];
+                            const active = drawerPreviewPlatform === platform;
+                            return (
+                              <button
+                                key={platform}
+                                type="button"
+                                onClick={() => setDrawerPreviewPlatform(platform)}
+                                className={`px-3 py-1.5 rounded-lg text-label-xs font-bold flex items-center gap-1.5 transition-all ${
+                                  active ? "bg-surface-container-lowest shadow-sm text-on-surface" : "text-outline hover:text-on-surface"
+                                }`}
+                              >
+                                <PlatformIcon platform={cfg.icon} className="w-[14px] h-[14px]" />
+                                {cfg.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <SocialPostPreview item={drawerItem} platform={drawerPreviewPlatform} />
+                    </div>
+                  </section>
+
                   <hr className="border-outline-variant/20" />
 
                   <section>
@@ -882,7 +1268,7 @@ export default function ApprovalsPage() {
                             <PlatformIcon platform={cfg.icon} className="w-[18px] h-[18px]" />
                             <div>
                               <p className="text-[11px] font-bold">{cfg.label}</p>
-                              <p className="text-label-2xs opacity-60">Post scheduled</p>
+                              <p className="text-label-2xs opacity-60">{isPublishFailedStatus(drawerItem.status) ? "Publish failed" : "Post scheduled"}</p>
                             </div>
                           </div>
                         ) : null;
@@ -901,7 +1287,15 @@ export default function ApprovalsPage() {
                       {[
                         { icon: drawerItem.isAiGenerated ? "auto_awesome" : "edit_note", color: drawerItem.isAiGenerated ? "bg-primary/10 text-primary" : "bg-surface-container-high text-on-surface-variant", label: drawerItem.isAiGenerated ? "AI generated content" : "Manual content", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: drawerItem.isAiGenerated ? "AI-generated marketing asset created" : "Content created manually" },
                         { icon: "assignment", color: "bg-sky-500/10 text-sky-500", label: "Content review assigned", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: `Assigned to ${TEAM.map((t) => t.name).join(", ")}` },
-                        { icon: "flag", color: "bg-warning-amber/15 text-warning-amber", label: "Submitted for approval", time: "Pending", desc: "Awaiting review decision" },
+                        isPublishFailedStatus(drawerItem.status)
+                          ? {
+                              icon: "error",
+                              color: "bg-danger-red/10 text-danger-red",
+                              label: "Publishing failed",
+                              time: drawerItem.failedAt ? new Date(drawerItem.failedAt).toLocaleString("en-GB") : "Failed",
+                              desc: drawerItem.failureReason || "Publishing failed",
+                            }
+                          : { icon: "flag", color: "bg-warning-amber/15 text-warning-amber", label: "Submitted for approval", time: "Pending", desc: "Awaiting review decision" },
                       ].map((step, i) => (
                         <div key={i} className="flex gap-4 relative pb-6 last:pb-0">
                           {i < 2 && <div className="absolute left-3 top-6 bottom-0 w-px bg-outline-variant/30" />}
@@ -975,6 +1369,13 @@ export default function ApprovalsPage() {
                     </button>
                   </>
                   )}
+                {isPublishFailedStatus(drawerItem.status) && drawerItem.sourceContentId && (
+                  <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.sourceContentId}`); setDrawerItem(null); }}
+                    className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">
+                    <span className="material-symbols-outlined text-[17px]">calendar_month</span>
+                    Open in Calendar
+                  </button>
+                )}
               </div>
             </div>
             </div>

@@ -440,8 +440,16 @@ export default function BrandsPage() {
                       <div className={`h-1 w-full bg-gradient-to-r ${c.gradient}`} />
                       <div className="p-6 flex flex-col flex-1">
                         <div className="flex items-start gap-4 min-w-0">
-                          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0`}>
-                            {initials}
+                          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden`}>
+                            {brand.logoUrl ? (
+                              <img
+                                src={brand.logoUrl}
+                                alt={`${brand.name} logo`}
+                                className="h-full w-full object-contain bg-white/20 p-1.5"
+                              />
+                            ) : (
+                              initials
+                            )}
                           </div>
                           <div className="min-w-0 flex-1">
                             <h3 className="text-headline-sm font-bold text-on-surface truncate leading-tight">{brand.name}</h3>

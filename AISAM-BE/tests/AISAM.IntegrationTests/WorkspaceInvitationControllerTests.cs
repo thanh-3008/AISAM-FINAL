@@ -79,6 +79,13 @@ public class WorkspaceInvitationControllerTests
             return Task.FromResult(GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(new WorkspaceInvitationResponseDto()));
         }
 
+        public Task<GenericResponse<WorkspaceInvitationResponseDto>> ValidateAsync(
+            string token,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(new WorkspaceInvitationResponseDto()));
+        }
+
         public Task<GenericResponse<AcceptWorkspaceInvitationResponseDto>> AcceptAsync(
             Guid userId,
             AcceptWorkspaceInvitationRequest request,

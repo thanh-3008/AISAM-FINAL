@@ -28,7 +28,7 @@ public sealed class ProductImportReviewRequest
     [MaxLength(2000, ErrorMessage = "Target audience must not exceed 2000 characters")]
     public string? TargetAudience { get; set; }
 
-    [MaxLength(50, ErrorMessage = "Tone must not exceed 50 characters")]
+    [MaxLength(200, ErrorMessage = "Tone must not exceed 200 characters")]
     public string? Tone { get; set; }
 
     public List<string> Keywords { get; set; } = new();

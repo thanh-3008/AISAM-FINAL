@@ -20,6 +20,14 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -44,12 +52,19 @@ function PricingContent() {
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
+  const [businessTaxId, setBusinessTaxId] = useState("");
+  const [businessLegalName, setBusinessLegalName] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Payment state
   const [showQRModal, setShowQRModal] = useState(false);
-  const [qrData, setQrData] = useState<{ checkoutUrl: string; amount: number; description: string } | null>(null);
-  const [qrStatus, setQrStatus] = useState<"pending" | "completed" | "failed">("pending");
+  const [qrData, setQrData] = useState<{
+    checkoutUrl: string;
+    amount: number;
+    description: string;
+    summary: string;
+    type: "subscription" | "credits" | "workspace";
+  } | null>(null);
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
   const [isClient, setIsClient] = useState(false);
   const paymentSyncStartedRef = useRef(false);
@@ -158,12 +173,22 @@ function PricingContent() {
   const filteredPlans = PLAN_PRICING.filter(p => p.category === planCategory);
 
   const handleUpgrade = async (plan: PlanPricing) => {
-    if (isCurrentPlan(plan.planType)) return;
+    if (!createMode && isCurrentPlan(plan.planType)) return;
     setProcessing(plan.planType);
 
     if (createMode) {
       if (!wsName.trim()) {
         showToast({ type: "error", title: "Missing name", message: "Please enter a workspace name." });
+        setProcessing(null);
+        return;
+      }
+      if (!businessLegalName.trim()) {
+        showToast({ type: "error", title: "Missing legal name", message: "Please enter the registered business name." });
+        setProcessing(null);
+        return;
+      }
+      if (!businessTaxId.trim()) {
+        showToast({ type: "error", title: "Missing tax ID", message: "Please enter the business tax ID." });
         setProcessing(null);
         return;
       }
@@ -176,6 +201,8 @@ function PricingContent() {
         }
         const payment = await createBusinessWorkspacePayment({
           workspaceName: wsName.trim(),
+          legalBusinessName: businessLegalName.trim(),
+          taxId: businessTaxId.trim(),
           planCode,
           returnUrl: window.location.origin + "/pricing",
           cancelUrl: window.location.origin + "/pricing?create=business",
@@ -188,7 +215,14 @@ function PricingContent() {
           throw new Error("PayOS payment reference was not returned.");
         }
         window.sessionStorage.setItem(CREATED_WORKSPACE_PAYMENT_KEY, paymentReference);
-        window.location.href = payment.checkoutUrl;
+        setQrData({
+          checkoutUrl: payment.checkoutUrl,
+          amount: plan.price,
+          description: plan.name,
+          summary: `Create Business workspace "${wsName.trim()}" with ${plan.name}.`,
+          type: "workspace",
+        });
+        setShowQRModal(true);
       } catch (error) {
         const message = getErrorMessage(error, "Failed to start Business workspace checkout.");
         showToast({ type: "error", title: "Checkout failed", message });
@@ -212,7 +246,14 @@ function PricingContent() {
       });
 
       if (payment?.checkoutUrl) {
-        window.location.href = payment.checkoutUrl;
+        setQrData({
+          checkoutUrl: payment.checkoutUrl,
+          amount: plan.price,
+          description: plan.name,
+          summary: `${plan.postQuota} · ${plan.credits.toLocaleString()} AI credits`,
+          type: "subscription",
+        });
+        setShowQRModal(true);
       } else {
         showToast({ type: "info", title: "Upgrade", message: `PayOS checkout will redirect for ${plan.name} plan.` });
       }
@@ -241,7 +282,14 @@ function PricingContent() {
       });
 
       if (payment?.checkoutUrl) {
-        window.location.href = payment.checkoutUrl;
+        setQrData({
+          checkoutUrl: payment.checkoutUrl,
+          amount: pack.price,
+          description: pack.name,
+          summary: `${pack.credits.toLocaleString()} additional AI credits`,
+          type: "credits",
+        });
+        setShowQRModal(true);
       } else {
         showToast({ type: "info", title: "Purchase", message: `PayOS checkout will redirect for ${pack.name} pack.` });
       }
@@ -252,17 +300,10 @@ function PricingContent() {
     }
   };
 
-  const handleMockPayment = () => {
-    setQrStatus("completed");
-    if (selectedPack && creditWallet) {
-      setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedPack.credits });
-    }
-    showToast({ type: "success", title: "Payment successful", message: "Transaction completed." });
-    setTimeout(() => setShowQRModal(false), 3000);
-  };
-
   const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
   const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
+  const qrStatus = (() => "pending" as "pending" | "completed" | "failed")();
+  const handleMockPayment = () => undefined;
 
   return (
     <main className="min-h-[100dvh] bg-surface flex flex-col relative overflow-hidden">
@@ -410,6 +451,31 @@ function PricingContent() {
                         onChange={(e) => setWsName(e.target.value)}
                         autoFocus
                       />
+                    </div>
+                    <div>
+                      <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
+                        Legal Business Name <span className="text-danger-red">*</span>
+                      </label>
+                      <input
+                        className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                        placeholder="e.g. CÔNG TY TNHH ACME"
+                        value={businessLegalName}
+                        onChange={(e) => setBusinessLegalName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-label-sm font-semibold text-on-surface mb-1.5 block">
+                        Tax ID <span className="text-danger-red">*</span>
+                      </label>
+                      <input
+                        className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                        placeholder="e.g. 0312345678"
+                        value={businessTaxId}
+                        onChange={(e) => setBusinessTaxId(e.target.value)}
+                      />
+                      <p className="mt-1.5 text-label-xs text-on-surface-variant">
+                        AISAM will verify this tax ID and legal name before opening Business checkout.
+                      </p>
                     </div>
                   </div>
                 </motion.div>
@@ -723,8 +789,95 @@ function PricingContent() {
         </div>
       </div>
 
-      {/* QR Payment Modal */}
+      {/* AISAM Checkout Modal */}
       {showQRModal && qrData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-md">
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.96, y: 16 }}
+            animate={reduceMotion ? undefined : { opacity: 1, scale: 1, y: 0 }}
+            className="relative w-full max-w-[520px] overflow-hidden rounded-[32px] border border-outline-variant/25 bg-surface-container-lowest shadow-2xl"
+          >
+            <div className="absolute -right-16 -top-16 h-44 w-44 rounded-full bg-primary/15 blur-3xl" />
+            <div className="absolute -left-20 bottom-0 h-44 w-44 rounded-full bg-secondary/10 blur-3xl" />
+
+            <div className="relative p-6 sm:p-7">
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-lg shadow-primary/20">
+                    <span className="material-symbols-outlined text-[30px]">
+                      {qrData.type === "credits" ? "toll" : qrData.type === "workspace" ? "domain_add" : "workspace_premium"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-label-sm font-semibold uppercase tracking-[0.22em] text-primary">AISAM Checkout</p>
+                    <h3 className="text-headline-sm font-bold text-on-surface">Review your payment</h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
+                  aria-label="Close checkout"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="mb-5 rounded-3xl border border-outline-variant/30 bg-surface-container/60 p-4">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-label-sm text-on-surface-variant">Selected item</p>
+                    <p className="mt-1 text-title-md font-bold text-on-surface">{qrData.description}</p>
+                    <p className="mt-1 text-body-sm text-on-surface-variant">{qrData.summary}</p>
+                  </div>
+                  <div className="rounded-2xl bg-primary/10 px-3 py-2 text-right">
+                    <p className="text-label-sm text-primary">Amount</p>
+                    <p className="text-title-md font-bold text-primary">{formatCurrency(qrData.amount)}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    ["lock", "Secure"],
+                    ["qr_code_2", "VietQR"],
+                    ["verified", "PayOS"],
+                  ].map(([icon, label]) => (
+                    <div key={label} className="flex flex-col items-center gap-1 rounded-2xl bg-surface-container-lowest/80 px-3 py-3 text-center">
+                      <span className="material-symbols-outlined text-primary text-[20px]">{icon}</span>
+                      <span className="text-label-sm font-semibold text-on-surface-variant">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-6 rounded-2xl border border-blue-200/60 bg-blue-50 px-4 py-3 text-body-sm text-blue-800">
+                Bạn sẽ được chuyển sang PayOS để quét QR hoặc chuyển khoản. Sau khi thanh toán thành công,
+                AISAM sẽ tự đồng bộ gói/credit khi bạn quay lại hệ thống.
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className="flex-1 rounded-2xl border border-outline-variant/40 px-5 py-3 text-label-md font-semibold text-on-surface transition hover:bg-surface-container-high"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={() => {
+                    window.location.href = qrData.checkoutUrl;
+                  }}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-label-md font-bold text-on-primary shadow-lg shadow-primary/25 transition hover:opacity-90"
+                >
+                  <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                  Thanh toán với PayOS
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Legacy mock QR Payment Modal */}
+      {false && showQRModal && qrData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-md mx-4 p-6">
             {qrStatus === "pending" && (
@@ -760,11 +913,11 @@ function PricingContent() {
                 <div className="space-y-2 mb-6">
                   <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
                     <span className="text-label-sm text-on-surface-variant">Order</span>
-                    <span className="text-label-sm font-semibold text-on-surface">{qrData.description}</span>
+                    <span className="text-label-sm font-semibold text-on-surface">{qrData?.description}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
                     <span className="text-label-sm text-on-surface-variant">Amount</span>
-                    <span className="text-label-sm font-bold text-primary">{qrData.amount.toLocaleString()}₫</span>
+                    <span className="text-label-sm font-bold text-primary">{qrData?.amount.toLocaleString()}₫</span>
                   </div>
                   <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200/30">
                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />

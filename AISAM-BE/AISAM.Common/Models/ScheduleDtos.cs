@@ -48,7 +48,13 @@ public sealed class ContentScheduleDto
     public int AttemptCount { get; set; }
     public string? LastError { get; set; }
     public string? Title { get; set; }
+    public Guid? BrandId { get; set; }
     public string? BrandName { get; set; }
+    public string? ProductName { get; set; }
+    public string? TextContent { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? VideoUrl { get; set; }
     public string? Type { get; set; }
     public string? Platform { get; set; }
 }

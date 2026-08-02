@@ -84,6 +84,7 @@ public class PhaseEQuotaIntegrationTests
             creditService,
             null!,
             null!,
+            null!,
             null!);
     }
 
@@ -204,6 +205,9 @@ public class PhaseEQuotaIntegrationTests
 
         public Task<Brand?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
             => GetByIdAsync(id, cancellationToken);
+
+        public Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default)
+            => Task.FromResult(_brands.Values.Any(b => b.WorkspaceId == workspaceId && b.Name == name));
 
         public Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
