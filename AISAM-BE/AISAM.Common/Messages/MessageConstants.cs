@@ -249,6 +249,9 @@ public static class MessageConstants
         public const string InvalidStatusTransition = "Invalid campaign status transition.";
         public const string BrandNotFound = "Brand not found.";
         public const string WorkspaceAccessDenied = "You are not allowed to access campaigns in this workspace.";
+        public const string CampaignQuotaExceeded = "You have reached the maximum number of campaigns ({0}) allowed by your subscription plan.";
+        public const string MonthlyBudgetExceeded = "Your total campaign budget would exceed the monthly budget limit ({0:N0} VND) allowed by your subscription plan.";
+        public const string WorkspaceExpiredOrInactive = "Campaign operations are blocked because the workspace is expired or inactive.";
     }
 
     public static class Scheduler

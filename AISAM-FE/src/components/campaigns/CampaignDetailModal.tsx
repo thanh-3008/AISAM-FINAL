@@ -16,13 +16,14 @@ import {
 interface CampaignDetailModalProps {
   campaign: Campaign | null;
   onClose: () => void;
-  onApply?: (campaign: Campaign) => void;
   onRestart?: (campaign: Campaign) => void;
   onDeploy?: (campaign: Campaign) => void;
+  onActivate?: (campaign: Campaign) => void;
+  onCleanup?: (campaign: Campaign) => void;
   isLoading?: boolean;
 }
 
-export default function CampaignDetailModal({ campaign, onClose, onApply, onRestart, onDeploy, isLoading }: CampaignDetailModalProps) {
+export default function CampaignDetailModal({ campaign, onClose, onRestart, onDeploy, onActivate, onCleanup, isLoading }: CampaignDetailModalProps) {
   if (!campaign) return null;
 
   const objectiveConfig = OBJECTIVE_CONFIG[campaign.objective];
@@ -30,6 +31,9 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
   const budgetProgress = getBudgetProgress(campaign);
   const daysRemaining = getDaysRemaining(campaign.endDate);
   const ctr = getCtr(campaign);
+
+  const isJustDeployed = campaign.deploymentStatus === 2 && campaign.facebookCampaignId && campaign.status === "PENDING_REVIEW";
+  const isFailed = campaign.status === "REJECTED" || campaign.deploymentStatus === 3;
 
   return (
     <>
@@ -109,9 +113,9 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
                     <span className="material-symbols-outlined text-[16px] text-violet-600">payments</span>
                     <span className="text-label-xs text-outline uppercase font-medium">Spend</span>
                   </div>
-                  <p className="text-headline-sm font-bold text-on-surface">{formatCurrency(campaign.spend)}</p>
+                  <p className="text-headline-sm font-bold text-on-surface">{formatCurrency(campaign.spend, campaign.adAccountCurrency || undefined)}</p>
                   {campaign.budget && (
-                    <p className="text-label-xs text-outline mt-1">of {formatCurrency(campaign.budget)}</p>
+                    <p className="text-label-xs text-outline mt-1">of {formatCurrency(campaign.budget, campaign.adAccountCurrency || undefined)}</p>
                   )}
                 </div>
                 <div className="bg-surface-container-low rounded-xl p-4">
@@ -144,8 +148,8 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
                     />
                   </div>
                   <div className="flex items-center justify-between text-label-xs text-outline">
-                    <span>{formatCurrency(campaign.spend)} spent</span>
-                    <span>{formatCurrency(campaign.budget - campaign.spend)} remaining</span>
+                    <span>{formatCurrency(campaign.spend, campaign.adAccountCurrency || undefined)} spent</span>
+                    <span>{formatCurrency(campaign.budget - campaign.spend, campaign.adAccountCurrency || undefined)} remaining</span>
                   </div>
                 </div>
               </div>
@@ -248,12 +252,12 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
                         </div>
                         <div>
                           <span className="text-outline">Spend</span>
-                          <p className="font-bold text-on-surface">{formatCurrency(adSet.spend)}</p>
+                          <p className="font-bold text-on-surface">{formatCurrency(adSet.spend, campaign.adAccountCurrency || undefined)}</p>
                         </div>
                         {adSet.dailyBudget && (
                           <div>
                             <span className="text-outline">Daily Budget</span>
-                            <p className="font-bold text-on-surface">{formatCurrency(adSet.dailyBudget)}</p>
+                            <p className="font-bold text-on-surface">{formatCurrency(adSet.dailyBudget, campaign.adAccountCurrency || undefined)}</p>
                           </div>
                         )}
                       </div>
@@ -317,7 +321,48 @@ export default function CampaignDetailModal({ campaign, onClose, onApply, onRest
                 ) : (
                   <span className="material-symbols-outlined text-[16px]">ads_click</span>
                 )}
-                Deploy to Facebook
+                Send to Meta
+              </button>
+            )}
+            {isJustDeployed && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-xl text-[11px] font-semibold text-purple-600">
+                <span className="w-3 h-3 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin block" />
+                Waiting for Meta review. AISAM will mark it ready when checks pass.
+              </div>
+            )}
+            {isFailed && campaign.deploymentMessage && (
+              <div className="flex-1 px-3 py-2 bg-red-50 rounded-xl text-[11px] font-medium text-red-600">
+                {campaign.deploymentMessage}
+              </div>
+            )}
+            {isFailed && onCleanup && (
+              <button
+                onClick={() => onCleanup(campaign)}
+                disabled={isLoading}
+                className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-red-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+              >
+                {isLoading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">cleaning_services</span>
+                    Cleanup Failed
+                  </>
+                )}
+              </button>
+            )}
+            {campaign.status === "PAUSED" && campaign.facebookCampaignId && !isJustDeployed && onActivate && (
+              <button
+                onClick={() => onActivate(campaign)}
+                disabled={isLoading}
+                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-label-sm font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+              >
+                {isLoading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                )}
+                Start Campaign
               </button>
             )}
             {campaign.status === "COMPLETED" && onRestart && (

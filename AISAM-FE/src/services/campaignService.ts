@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/apiClient";
 
-export type CampaignStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "DRAFT";
+export type CampaignStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "DRAFT" | "PENDING_REVIEW" | "REJECTED";
 export type CampaignObjective = "AWARENESS" | "TRAFFIC" | "ENGAGEMENT" | "LEADS" | "SALES" | "APP_PROMOTION";
 
 export interface Ad {
@@ -38,6 +38,7 @@ export interface Campaign {
   contentTitle: string | null;
   targeting: string | null;
   adAccountId: string;
+  adAccountCurrency: string | null;
   facebookCampaignId: string | null;
   platform: string;
   name: string;
@@ -49,6 +50,7 @@ export interface Campaign {
   status: CampaignStatus;
   deploymentStatus: DeploymentStatus;
   deploymentStep: number;
+  deploymentMessage: string | null;
   createdAt: string;
   updatedAt: string;
   adSets: AdSet[];
@@ -67,11 +69,20 @@ export interface CreateCampaignData {
   contentId?: string | null;
   targeting?: string | null;
   adAccountId: string;
+  adAccountCurrency?: string | null;
   objective: CampaignObjective;
   budget: number | null;
   startDate: string | null;
   endDate: string | null;
   landingUrl?: string | null;
+  variants?: AdSetVariant[];
+}
+
+export interface AdSetVariant {
+  nameSuffix: string;
+  targeting?: string | null;
+  contentId?: string | null;
+  budgetShare: number;
 }
 
 interface CampaignApiItem {
@@ -86,6 +97,7 @@ interface CampaignApiItem {
   contentTitle: string | null;
   targeting: string | null;
   adAccountId: string;
+  adAccountCurrency: string | null;
   facebookCampaignId: string | null;
   platform: string;
   name: string;
@@ -96,6 +108,7 @@ interface CampaignApiItem {
   landingUrl: string | null;
   isActive: boolean;
   isDeleted: boolean;
+  status: number;
   deploymentStatus: number;
   deploymentStep: number;
   createdAt: string;
@@ -129,14 +142,15 @@ interface AdApiItem {
 }
 
 function mapCampaign(api: CampaignApiItem): Campaign {
-  let status: CampaignStatus = "DRAFT";
-  if (api.isActive) {
-    status = "ACTIVE";
-  } else if (api.endDate && new Date(api.endDate) < new Date()) {
-    status = "COMPLETED";
-  } else if (!api.isActive && api.startDate && api.facebookCampaignId) {
-    status = "PAUSED";
-  }
+  const STATUS_MAP: Record<number, CampaignStatus> = {
+    0: "DRAFT",
+    1: "ACTIVE",
+    2: "PAUSED",
+    3: "COMPLETED",
+    4: "PENDING_REVIEW",
+    5: "REJECTED",
+  };
+  const status = STATUS_MAP[api.status] ?? "DRAFT";
 
   return {
     id: api.id,
@@ -150,6 +164,7 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     contentTitle: api.contentTitle ?? null,
     targeting: api.targeting ?? null,
     adAccountId: api.adAccountId,
+    adAccountCurrency: api.adAccountCurrency ?? null,
     facebookCampaignId: api.facebookCampaignId,
     platform: api.platform || "facebook",
     name: api.name,
@@ -161,6 +176,7 @@ function mapCampaign(api: CampaignApiItem): Campaign {
     status,
     deploymentStatus: api.deploymentStatus as DeploymentStatus,
     deploymentStep: api.deploymentStep,
+    deploymentMessage: (api as any).deploymentMessage ?? null,
     createdAt: api.createdAt,
     updatedAt: api.updatedAt,
     adSets: (api.adSets || []).map((ads) => ({
@@ -229,18 +245,16 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
       contentId: data.contentId ?? null,
       targeting: data.targeting ?? null,
       adAccountId: data.adAccountId,
+      adAccountCurrency: data.adAccountCurrency ?? null,
       platform: data.platform || "facebook",
       objective: data.objective,
       budget: data.budget,
       startDate: data.startDate || null,
       endDate: data.endDate || null,
       landingUrl: data.landingUrl || null,
+      variants: data.variants ?? null,
     },
   });
-
-  if (!res?.success || !res.data) {
-    throw new Error(res?.message || "Failed to create campaign");
-  }
 
   return mapCampaign(res.data as CampaignApiItem);
 }
@@ -255,7 +269,6 @@ export async function updateCampaign(id: string, data: CreateCampaignData): Prom
       contentId: data.contentId ?? null,
       targeting: data.targeting ?? null,
       adAccountId: data.adAccountId,
-      platform: data.platform || "facebook",
       objective: data.objective,
       budget: data.budget,
       startDate: data.startDate || null,
@@ -285,10 +298,6 @@ export async function updateCampaignStatus(id: string, status: CampaignStatus): 
   return mapCampaign(res.data as CampaignApiItem);
 }
 
-export async function applyCampaign(id: string): Promise<Campaign> {
-  return updateCampaignStatus(id, "ACTIVE");
-}
-
 export async function restartCampaign(id: string): Promise<Campaign> {
   return updateCampaignStatus(id, "ACTIVE");
 }
@@ -302,6 +311,14 @@ export async function deployCampaignToFacebook(id: string): Promise<Campaign> {
   const res = await apiClient(`/campaigns/${id}/deploy`, { method: "POST" });
   if (!res?.success || !res.data) {
     throw new Error(res?.message || "Failed to deploy campaign");
+  }
+  return mapCampaign(res.data as CampaignApiItem);
+}
+
+export async function activateCampaign(id: string): Promise<Campaign> {
+  const res = await apiClient(`/campaigns/${id}/activate`, { method: "POST" });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to activate campaign");
   }
   return mapCampaign(res.data as CampaignApiItem);
 }

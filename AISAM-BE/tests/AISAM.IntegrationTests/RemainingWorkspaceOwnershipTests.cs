@@ -31,7 +31,7 @@ public class RemainingWorkspaceOwnershipTests
     }
 
     [Fact]
-    public async Task WorkspaceQueries_IsolateContentPostsCalendarConversationNotificationAndSocial()
+    public async Task WorkspaceQueries_IsolateContentPostsCalendarConversationNotificationAndSocialAsync()
     {
         await using var context = CreateContext();
         var first = Guid.NewGuid();

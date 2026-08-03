@@ -169,6 +169,42 @@ namespace AISAM.Repositories.Repository
             }
         }
 
+        public async Task UpdateDeploymentFailureAsync(Guid campaignId, int step, string message, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _context.AdCampaigns
+                .FirstOrDefaultAsync(ac => ac.Id == campaignId, cancellationToken);
+            if (campaign != null)
+            {
+                campaign.DeploymentStatus = DeploymentStatusEnum.Failed;
+                campaign.DeploymentStep = step;
+                campaign.DeploymentMessage = message;
+                campaign.Status = CampaignStatusEnum.Rejected;
+                campaign.IsActive = false;
+                campaign.UpdatedAt = DateTime.UtcNow;
+                _context.Entry(campaign).Property(e => e.DeploymentStatus).IsModified = true;
+                _context.Entry(campaign).Property(e => e.DeploymentStep).IsModified = true;
+                _context.Entry(campaign).Property(e => e.DeploymentMessage).IsModified = true;
+                _context.Entry(campaign).Property(e => e.Status).IsModified = true;
+                _context.Entry(campaign).Property(e => e.IsActive).IsModified = true;
+                _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task UpdateCampaignStatusAsync(Guid campaignId, CampaignStatusEnum status, CancellationToken cancellationToken = default)
+        {
+            var campaign = await _context.AdCampaigns
+                .FirstOrDefaultAsync(ac => ac.Id == campaignId, cancellationToken);
+            if (campaign != null)
+            {
+                campaign.Status = status;
+                campaign.UpdatedAt = DateTime.UtcNow;
+                _context.Entry(campaign).Property(e => e.Status).IsModified = true;
+                _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         public async Task UpdateCampaignInsightsAsync(Guid campaignId, long impressions, long clicks, decimal spend, long conversions, CancellationToken cancellationToken = default)
         {
             var campaign = await _context.AdCampaigns
@@ -268,13 +304,75 @@ namespace AISAM.Repositories.Repository
                 campaign.FacebookCampaignId = null;
                 campaign.DeploymentStatus = DeploymentStatusEnum.None;
                 campaign.DeploymentStep = 0;
+                campaign.DeploymentMessage = null;
+                campaign.Status = CampaignStatusEnum.Draft;
+                campaign.IsActive = false;
                 campaign.UpdatedAt = DateTime.UtcNow;
                 _context.Entry(campaign).Property(e => e.FacebookCampaignId).IsModified = true;
                 _context.Entry(campaign).Property(e => e.DeploymentStatus).IsModified = true;
                 _context.Entry(campaign).Property(e => e.DeploymentStep).IsModified = true;
+                _context.Entry(campaign).Property(e => e.DeploymentMessage).IsModified = true;
+                _context.Entry(campaign).Property(e => e.Status).IsModified = true;
+                _context.Entry(campaign).Property(e => e.IsActive).IsModified = true;
                 _context.Entry(campaign).Property(e => e.UpdatedAt).IsModified = true;
                 await _context.SaveChangesAsync(cancellationToken);
             }
         }
+
+        public async Task<Dictionary<Guid, int>> UpdateExpiredCampaignsAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var expiredCampaigns = await _context.AdCampaigns
+                .Where(ac => !ac.IsDeleted && ac.IsActive && ac.EndDate.HasValue && ac.EndDate.Value < now)
+                .ToListAsync(cancellationToken);
+
+            foreach (var campaign in expiredCampaigns)
+            {
+                campaign.IsActive = false;
+                campaign.Status = CampaignStatusEnum.Completed;
+                campaign.UpdatedAt = now;
+            }
+
+            if (expiredCampaigns.Count > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            return expiredCampaigns
+                .GroupBy(c => c.WorkspaceId)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+
+        public async Task<IReadOnlyList<AdCampaign>> GetDeployedCampaignsForSyncAsync(int batchSize, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdCampaigns
+                .Where(ac => !ac.IsDeleted
+                    && ac.DeploymentStatus == DeploymentStatusEnum.Completed
+                    && !string.IsNullOrWhiteSpace(ac.FacebookCampaignId))
+                .OrderBy(ac => ac.UpdatedAt)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<AdCampaign>> GetDeployedPendingActivationAsync(int batchSize, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdCampaigns
+                .Where(ac => !ac.IsDeleted
+                    && ac.DeploymentStatus == DeploymentStatusEnum.Completed
+                    && !string.IsNullOrWhiteSpace(ac.FacebookCampaignId)
+                    && ac.Status == CampaignStatusEnum.PendingReview)
+                .OrderBy(ac => ac.UpdatedAt)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<AdCampaign>> GetActiveCampaignsPastEndDateAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            return await _context.AdCampaigns
+                .Where(ac => !ac.IsDeleted && ac.IsActive && ac.EndDate.HasValue && ac.EndDate.Value < now)
+                .ToListAsync(cancellationToken);
+        }
+
     }
 }

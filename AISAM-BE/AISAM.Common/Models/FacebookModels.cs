@@ -64,6 +64,12 @@ public sealed class FacebookError
     [JsonPropertyName("message")]
     public string? Message { get; set; }
 
+    [JsonPropertyName("error_user_msg")]
+    public string? ErrorUserMsg { get; set; }
+
+    [JsonPropertyName("error_user_title")]
+    public string? ErrorUserTitle { get; set; }
+
     [JsonPropertyName("error_data")]
     public FacebookErrorData? ErrorData { get; set; }
 }

@@ -1,5 +1,7 @@
 using AISAM.Common;
 using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
@@ -786,6 +788,7 @@ public class PaymentServiceTests
         FakeWorkspaceRepository? workspaceRepository = null,
         FakeCreditWalletRepository? creditWalletRepository = null,
         FakeCreditService? creditService = null,
+        IBusinessKycService? businessKycService = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
     {
@@ -796,6 +799,7 @@ public class PaymentServiceTests
             workspaceRepository ?? new FakeWorkspaceRepository(),
             creditWalletRepository ?? new FakeCreditWalletRepository(),
             creditService ?? new FakeCreditService(),
+            businessKycService ?? new FakeBusinessKycService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
     }
@@ -1220,6 +1224,18 @@ public class PaymentServiceTests
             {
                 Content = new StringContent(_responseBody, Encoding.UTF8, "application/json")
             });
+        }
+    }
+
+    private sealed class FakeBusinessKycService : IBusinessKycService
+    {
+        public Task<GenericResponse<BusinessKycVerificationResponse>> SubmitAsync(
+            Guid userId,
+            SubmitBusinessKycRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<BusinessKycVerificationResponse>.CreateSuccess(
+                new BusinessKycVerificationResponse(), "OK"));
         }
     }
 }

@@ -21,10 +21,11 @@ interface CampaignCardProps {
   onViewDetail: (campaign: Campaign) => void;
   onEdit: (campaign: Campaign) => void;
   onToggleStatus: (campaign: Campaign) => void;
-  onApply: (campaign: Campaign) => void;
   onRestart: (campaign: Campaign) => void;
   onDelete: (campaign: Campaign) => void;
   onDeploy?: (campaign: Campaign) => void;
+  onActivate?: (campaign: Campaign) => void;
+  onCleanup?: (campaign: Campaign) => void;
 }
 
 export default function CampaignCard({
@@ -36,16 +37,21 @@ export default function CampaignCard({
   onViewDetail,
   onEdit,
   onToggleStatus,
-  onApply,
   onRestart,
   onDelete,
   onDeploy,
+  onActivate,
+  onCleanup,
 }: CampaignCardProps) {
   const objectiveConfig = OBJECTIVE_CONFIG[campaign.objective];
   const statusConfig = STATUS_CONFIG[campaign.status];
   const budgetProgress = getBudgetProgress(campaign);
   const daysRemaining = getDaysRemaining(campaign.endDate);
   const ctr = getCtr(campaign);
+
+  const isJustDeployed = campaign.deploymentStatus === 2 && campaign.facebookCampaignId && campaign.status === "PENDING_REVIEW";
+  const canActivate = campaign.deploymentStatus === 2 && campaign.facebookCampaignId && campaign.status === "PAUSED";
+  const isFailed = campaign.status === "REJECTED" || campaign.deploymentStatus === 3;
 
   return (
     <div
@@ -105,7 +111,7 @@ export default function CampaignCard({
           <span className={`text-label-xs font-semibold ${objectiveConfig.color}`}>{objectiveConfig.label}</span>
         </div>
         {campaign.budget && (
-          <span className="text-[11px] text-outline font-medium">{formatCurrency(campaign.budget)} budget</span>
+          <span className="text-[11px] text-outline font-medium">{formatCurrency(campaign.budget, campaign.adAccountCurrency || undefined)} budget</span>
         )}
       </div>
 
@@ -129,7 +135,7 @@ export default function CampaignCard({
           <p className="text-label-3xs text-outline uppercase">CTR</p>
         </div>
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
-          <p className="text-[11px] font-bold text-on-surface">{formatCurrency(campaign.spend)}</p>
+          <p className="text-[11px] font-bold text-on-surface">{formatCurrency(campaign.spend, campaign.adAccountCurrency || undefined)}</p>
           <p className="text-label-3xs text-outline uppercase">Spend</p>
         </div>
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
@@ -167,7 +173,7 @@ export default function CampaignCard({
           <span className="material-symbols-outlined text-[14px]">visibility</span>
           View Details
         </button>
-        {campaign.status !== "COMPLETED" && (
+        {campaign.status !== "COMPLETED" && campaign.status !== "REJECTED" && (
           <button
             onClick={() => onEdit(campaign)}
             disabled={isLoading}
@@ -187,7 +193,30 @@ export default function CampaignCard({
             ) : (
               <>
                 <span className="material-symbols-outlined text-[14px]">ads_click</span>
-                Deploy
+                Send to Meta
+              </>
+            )}
+          </button>
+        ) : isJustDeployed ? (
+          <button
+            disabled
+            className="px-3 py-2 bg-purple-50 rounded-lg text-[11px] font-semibold text-purple-600 transition-all flex items-center gap-1 cursor-not-allowed"
+          >
+            <span className="w-3.5 h-3.5 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin block" />
+            Review...
+          </button>
+        ) : canActivate && onActivate ? (
+          <button
+            onClick={() => onActivate(campaign)}
+            disabled={isLoading}
+            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[11px] font-semibold text-emerald-600 transition-all flex items-center gap-1 disabled:opacity-50"
+          >
+            {isLoading ? (
+              <span className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin block" />
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[14px]">play_arrow</span>
+                Start
               </>
             )}
           </button>
@@ -219,6 +248,23 @@ export default function CampaignCard({
             )}
           </button>
         ) : null}
+        {isFailed && onCleanup && (
+          <button
+            onClick={() => onCleanup(campaign)}
+            disabled={isLoading}
+            className="px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg text-[11px] font-semibold text-red-600 transition-all flex items-center gap-1 disabled:opacity-50"
+            title={campaign.deploymentMessage || "Cleanup failed deployment"}
+          >
+            {isLoading ? (
+              <span className="w-3.5 h-3.5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin block" />
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                Cleanup
+              </>
+            )}
+          </button>
+        )}
         {campaign.status === "COMPLETED" && (
           <button
             onClick={() => onRestart(campaign)}
