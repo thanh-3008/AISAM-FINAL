@@ -5,12 +5,16 @@ public sealed class ImageProviderSettings
 {
 
 
+    // === Primary: Image-to-Image Edit (DeAPI / FLUX.2 Klein) ===
+    public string? DeApiApiKey { get; set; }
+    public string? DeApiModel { get; set; }
+    public string OpenRouterEditModel { get; set; } = "Flux_2_Klein_4B_BF16";
+    public string? OpenRouterEditBaseUrl { get; set; }
+
+    // === Backup / Fallback: Text-to-Image (OpenRouter / DeAPI) ===
     public string OpenRouterApiKey { get; set; } = string.Empty;
     public string? OpenRouterBaseUrl { get; set; }
-    // Default primary image model (OpenRouter-compatible)
     public string OpenRouterModel { get; set; } = "bytedance-seed/seedream-4.5";
-    public string? OpenRouterEditBaseUrl { get; set; }
-    public string OpenRouterEditModel { get; set; } = "QwenImageEdit_Plus_NF4";
     public int OpenRouterEditPollingIntervalSeconds { get; set; } = 5;
     public int OpenRouterEditTimeoutMinutes { get; set; } = 10;
 

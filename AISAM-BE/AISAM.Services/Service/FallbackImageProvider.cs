@@ -32,33 +32,61 @@ public sealed class FallbackImageProvider : IAIImageProvider
             .ToList() ?? new List<string>();
         var requiresReferenceImage = referenceUrls.Count > 0;
 
-        _logger.LogInformation("Attempting OpenRouter image generation...");
+        _logger.LogInformation("Attempting primary image generation (Image-to-Image when references exist, otherwise Text-to-Image)...");
         var orResult = await _openRouter.GenerateAsync(prompt, options, cancellationToken);
         if (orResult.Bytes != null)
         {
-            return AIMediaResult.OkBytes(orResult.Bytes, requiresReferenceImage ? "OpenRouter ImageEdit" : "OpenRouter");
+            return AIMediaResult.OkBytes(orResult.Bytes, requiresReferenceImage ? "OpenRouter Image-to-Image (FLUX.2 Klein)" : "OpenRouter Text-to-Image");
         }
         if (!string.IsNullOrEmpty(orResult.Url))
         {
             try
             {
                 var bytes = await _httpClient.GetByteArrayAsync(orResult.Url, cancellationToken);
-                return AIMediaResult.OkBytes(bytes, requiresReferenceImage ? "OpenRouter ImageEdit" : "OpenRouter");
+                return AIMediaResult.OkBytes(bytes, requiresReferenceImage ? "OpenRouter Image-to-Image (FLUX.2 Klein)" : "OpenRouter Text-to-Image");
             }
             catch (Exception ex)
             {
-                return AIMediaResult.Fail($"Failed to download image from OpenRouter URL: {ex.Message}", requiresReferenceImage ? "OpenRouter ImageEdit" : "OpenRouter");
+                _logger.LogWarning(ex, "Failed to download image from OpenRouter URL: {Url}. Proceeding to fallback...", orResult.Url);
+                orResult.Error = $"Failed to download image from URL: {ex.Message}";
             }
         }
 
+        string? textToImageError = null;
         if (requiresReferenceImage)
         {
-            var error = $"Reference image generation failed, so fallback text-to-image was blocked to avoid creating a wrong product image. OpenRouter/deAPI error: [{orResult.Error}]";
-            _logger.LogError(error);
-            return AIMediaResult.Fail(error, "OpenRouter ImageEdit");
+            _logger.LogWarning("Primary image-to-image generation (FLUX.2 Klein) failed: [{Error}]. Falling back to OpenRouter text-to-image as backup...", orResult.Error);
+            var fallbackOptions = new ImageGenerationOptions
+            {
+                Width = options?.Width ?? 1024,
+                Height = options?.Height ?? 1024,
+                ReferenceImageUrls = Array.Empty<string>()
+            };
+            var t2iResult = await _openRouter.GenerateAsync(prompt, fallbackOptions, cancellationToken);
+            if (t2iResult.Bytes != null)
+            {
+                return AIMediaResult.OkBytes(t2iResult.Bytes, "OpenRouter Text-to-Image (Fallback)");
+            }
+            if (!string.IsNullOrEmpty(t2iResult.Url))
+            {
+                try
+                {
+                    var bytes = await _httpClient.GetByteArrayAsync(t2iResult.Url, cancellationToken);
+                    return AIMediaResult.OkBytes(bytes, "OpenRouter Text-to-Image (Fallback)");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to download fallback image from OpenRouter URL: {Message}", ex.Message);
+                    t2iResult.Error = $"Failed to download image: {ex.Message}";
+                }
+            }
+            textToImageError = t2iResult.Error ?? "Unknown Text-to-Image error";
+            _logger.LogWarning("OpenRouter text-to-image fallback failed: {Error}. Falling back to Hugging Face text-to-image...", textToImageError);
         }
-
-        _logger.LogWarning("OpenRouter image failed: {Error}. Falling back to Hugging Face...", orResult.Error);
+        else
+        {
+            _logger.LogWarning("OpenRouter image generation failed: {Error}. Falling back to Hugging Face...", orResult.Error);
+        }
 
         var huggingFacePrompt = AppendReferenceUrlsToPrompt(prompt, options);
         var huggingFaceResult = await _huggingFace.GenerateAsync(huggingFacePrompt, cancellationToken);
@@ -67,7 +95,7 @@ public sealed class FallbackImageProvider : IAIImageProvider
             try
             {
                 var bytes = await _httpClient.GetByteArrayAsync(huggingFaceResult.Url, cancellationToken);
-                return AIMediaResult.OkBytes(bytes, "Hugging Face");
+                return AIMediaResult.OkBytes(bytes, "Hugging Face Text-to-Image (Fallback)");
             }
             catch (Exception ex)
             {
@@ -76,12 +104,14 @@ public sealed class FallbackImageProvider : IAIImageProvider
         }
         else if (huggingFaceResult.Bytes != null)
         {
-             return AIMediaResult.OkBytes(huggingFaceResult.Bytes, "Hugging Face");
+             return AIMediaResult.OkBytes(huggingFaceResult.Bytes, "Hugging Face Text-to-Image (Fallback)");
         }
 
         var hfError = huggingFaceResult.Error ?? "Download failed or no result";
 
-        var errorMessage = $"All providers failed. OpenRouter: [{orResult.Error}] | Hugging Face: [{hfError}]";
+        var errorMessage = requiresReferenceImage && textToImageError != null
+            ? $"All providers failed. Primary I2I (FLUX.2 Klein): [{orResult.Error}] | Fallback T2I: [{textToImageError}] | Hugging Face T2I: [{hfError}]"
+            : $"All providers failed. OpenRouter: [{orResult.Error}] | Hugging Face: [{hfError}]";
         _logger.LogError(errorMessage);
         return AIMediaResult.Fail(errorMessage, ProviderName);
     }

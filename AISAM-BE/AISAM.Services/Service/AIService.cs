@@ -29,6 +29,7 @@ public sealed class AIService : IAIService
     private readonly IAIImageProvider _imageProvider;
     private readonly IAIVideoProvider _videoProvider;
     private readonly IMediaStorageService _mediaStorage;
+    private readonly IPromptEnhancerService _promptEnhancer;
     private readonly ILogger<AIService> _logger;
     private const long TextGenerationCredits = 1;
     private const long ImageGenerationCredits = 5;
@@ -45,6 +46,7 @@ public sealed class AIService : IAIService
         IAIImageProvider imageProvider,
         IAIVideoProvider videoProvider,
         IMediaStorageService mediaStorage,
+        IPromptEnhancerService promptEnhancer,
         ILogger<AIService> logger)
     {
         _contentRepository = contentRepository;
@@ -57,6 +59,7 @@ public sealed class AIService : IAIService
         _imageProvider = imageProvider;
         _videoProvider = videoProvider;
         _mediaStorage = mediaStorage;
+        _promptEnhancer = promptEnhancer;
         _logger = logger;
     }
 
@@ -565,9 +568,22 @@ public sealed class AIService : IAIService
                 creditCheck.Error?.ErrorCode);
         }
 
-        var prompt = string.IsNullOrWhiteSpace(request.CustomPrompt)
+        var rawPrompt = string.IsNullOrWhiteSpace(request.CustomPrompt)
             ? $"Generate an image for a social media post with the following context: {content.TextContent ?? content.Title}"
             : request.CustomPrompt;
+
+        var selectedProduct = content.Product ?? (content.ProductId.HasValue
+            ? await _productRepository.GetByIdAsync(content.ProductId.Value, cancellationToken)
+            : null);
+
+        var referenceUrls = GetReferenceImageUrlsForGeneration(selectedProduct, request.CustomPrompt, rawPrompt);
+        var hasReferenceImages = referenceUrls.Count > 0;
+
+        // Rewrite and enhance prompt using Gemini (bám sát sản phẩm + tối ưu cho FLUX.2 Klein)
+        var prompt = await _promptEnhancer.EnhanceImagePromptAsync(
+            rawPrompt, selectedProduct, hasReferenceImages, cancellationToken);
+
+        _logger.LogInformation("[AIService.GenerateImageAsync] Prompt enhanced. ContentId={ContentId}, HasRefs={HasRefs}", request.ContentId, hasReferenceImages);
 
         var generation = await _generationRepository.AddAsync(new AiGeneration
         {
@@ -582,7 +598,7 @@ public sealed class AIService : IAIService
             {
                 Width = request.Width,
                 Height = request.Height,
-                ReferenceImageUrls = GetReferenceImageUrlsForGeneration(content.Product, request.CustomPrompt, prompt)
+                ReferenceImageUrls = referenceUrls
             },
             cancellationToken);
 
@@ -641,25 +657,15 @@ public sealed class AIService : IAIService
                 creditCheck.Error?.ErrorCode);
         }
 
-        var prompt = string.IsNullOrWhiteSpace(request.CustomPrompt)
+        var rawPrompt = string.IsNullOrWhiteSpace(request.CustomPrompt)
             ? $"Generate a video for a social media post with the following context: {content.TextContent ?? content.Title}"
             : request.CustomPrompt;
 
-        try
-        {
-            var translationPrompt = $"Translate the following text to English for a video generation prompt. Output ONLY the English text, without any quotes, markdown or additional explanation:\n\n{prompt}";
-            var translatedPrompt = await _geminiTextClient.GenerateAsync(translationPrompt, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(translatedPrompt))
-            {
-                prompt = translatedPrompt.Trim();
-                Console.WriteLine($"[AIService.StartVideoGenerationAsync] Prompt translated to English: {prompt}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[AIService.StartVideoGenerationAsync] Prompt translation failed, using original prompt. Error: {ex.Message}");
-        }
+        // Rewrite and enhance prompt using Gemini (bám sát sản phẩm + tối ưu cho LTX-2.3)
+        var prompt = await _promptEnhancer.EnhanceVideoPromptAsync(
+            rawPrompt, content.Product, request.DurationSeconds, request.AspectRatio, cancellationToken);
 
+        _logger.LogInformation("[AIService.StartVideoGenerationAsync] Prompt enhanced for LTX-2.3. ContentId={ContentId}", request.ContentId);
         var generation = await _generationRepository.AddAsync(new AiGeneration
         {
             ContentId = content.Id,

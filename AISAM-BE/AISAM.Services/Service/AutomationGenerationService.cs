@@ -251,13 +251,17 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         """;
 
     private static string BuildVideoPrompt(AutomationItem item) => $"""
-        Create a short vertical social media advertising video for {item.Brand.Name}.
-        Topic: {item.Topic}. Product: {item.Product?.Name ?? "brand offering"}.
-        Product knowledge profile:
+        A premium advertising video showcasing {item.Product?.Name ?? item.Brand.Name} as the central hero subject.
         {BuildProductKnowledgeContext(item.Product)}
-        Objective: {item.Objective ?? "engagement"}. Tone: {item.Tone ?? "professional and energetic"}.
-        Use visually clear scenes suitable for {item.Platform}. Do not add watermarks or long rendered text.
+        Topic: {item.Topic}. Objective: {item.Objective ?? "engagement"}. Platform: {item.Platform}.
+        The product performs a subtle and elegant motion (slowly rotates, gleams under light, or is gently handled in context).
+        Camera: smooth slow dolly-in from establishing shot to close-up product detail.
+        Lighting: professional studio soft-box lighting with warm highlight accent, clean minimalist background.
+        Tone: {item.Tone ?? "professional, premium, social-media-ready"}.
+        No text overlay, no watermark, no readable letters on screen, no people, no hands, no faces.
+        Short-form vertical video optimized for {item.Platform} advertising.
         """;
+
 
     private static string BuildProductKnowledgeContext(Product? product)
     {

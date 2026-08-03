@@ -148,6 +148,8 @@ public class PaymentServiceTests
         {
             WorkspaceName = "Paid Business",
             PlanCode = "Plus",
+            TaxId = "0101234567",
+            LegalBusinessName = "CÔNG TY TNHH TEST",
             ReturnUrl = "https://app.test/pricing",
             CancelUrl = "https://app.test/pricing"
         });
@@ -796,6 +798,7 @@ public class PaymentServiceTests
             workspaceRepository ?? new FakeWorkspaceRepository(),
             creditWalletRepository ?? new FakeCreditWalletRepository(),
             creditService ?? new FakeCreditService(),
+            new FakeBusinessKycService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
     }
@@ -1220,6 +1223,23 @@ public class PaymentServiceTests
             {
                 Content = new StringContent(_responseBody, Encoding.UTF8, "application/json")
             });
+        }
+    }
+
+    private sealed class FakeBusinessKycService : IBusinessKycService
+    {
+        public Task<GenericResponse<AISAM.Common.Dtos.Response.BusinessKycVerificationResponse>> SubmitAsync(
+            Guid userId,
+            AISAM.Common.Dtos.Request.SubmitBusinessKycRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<AISAM.Common.Dtos.Response.BusinessKycVerificationResponse>.CreateSuccess(new AISAM.Common.Dtos.Response.BusinessKycVerificationResponse
+            {
+                TaxId = request.TaxId,
+                SubmittedLegalBusinessName = request.LegalBusinessName,
+                KycStatus = "Verified",
+                IsTaxStatusActive = true
+            }));
         }
     }
 }
