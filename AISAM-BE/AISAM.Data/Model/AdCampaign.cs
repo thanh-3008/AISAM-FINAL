@@ -40,6 +40,10 @@ namespace AISAM.Data.Model
         [Column("facebook_campaign_id")]
         public string? FacebookCampaignId { get; set; }
 
+        [MaxLength(10)]
+        [Column("ad_account_currency")]
+        public string? AdAccountCurrency { get; set; }
+
         [MaxLength(20)]
         [Column("platform")]
         public string Platform { get; set; } = "facebook";
@@ -72,6 +76,9 @@ namespace AISAM.Data.Model
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;
 
+        [Column("status")]
+        public CampaignStatusEnum Status { get; set; } = CampaignStatusEnum.Draft;
+
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -83,6 +90,10 @@ namespace AISAM.Data.Model
 
         [Column("deployment_step")]
         public int DeploymentStep { get; set; }
+
+        [MaxLength(2000)]
+        [Column("deployment_message")]
+        public string? DeploymentMessage { get; set; }
 
         // Insights
         [Column("impressions")]

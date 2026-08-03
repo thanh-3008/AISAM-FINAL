@@ -14,6 +14,8 @@ export const STATUS_CONFIG: Record<CampaignStatus, { label: string; color: strin
   PAUSED: { label: "Paused", color: "text-amber-600", bg: "bg-amber-50 border-amber-200/40", dot: "bg-amber-500" },
   COMPLETED: { label: "Completed", color: "text-blue-600", bg: "bg-blue-50 border-blue-200/40", dot: "bg-blue-500" },
   DRAFT: { label: "Draft", color: "text-outline", bg: "bg-surface-container-high border-outline-variant/20", dot: "bg-outline" },
+  PENDING_REVIEW: { label: "Pending Review", color: "text-purple-600", bg: "bg-purple-50 border-purple-200/40", dot: "bg-purple-500" },
+  REJECTED: { label: "Rejected", color: "text-danger-red", bg: "bg-red-50 border-red-200/40", dot: "bg-danger-red" },
 };
 
 export interface BrandOption {
@@ -31,8 +33,9 @@ export function getCachedBrands(): BrandOption[] {
   return brandCache ?? [];
 }
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+export function formatCurrency(amount: number, currency = "VND"): string {
+  const num = new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+  return currency === "USD" ? `$${num}` : `${num}đ`;
 }
 
 export function formatNumber(n: number): string {
@@ -76,7 +79,7 @@ export function getCtr(campaign: Campaign): string {
   return `${((campaign.clicks / campaign.impressions) * 100).toFixed(2)}%`;
 }
 
-export function getRoas(campaign: Campaign): string {
-  if (campaign.spend === 0 || campaign.conversions === 0) return "—";
-  return `${(campaign.conversions / campaign.spend).toFixed(2)}x`;
+export function getCpa(campaign: Campaign): string {
+  if (campaign.conversions === 0) return "—";
+  return formatCurrency(campaign.spend / campaign.conversions, campaign.adAccountCurrency || undefined);
 }

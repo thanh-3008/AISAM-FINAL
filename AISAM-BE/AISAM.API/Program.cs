@@ -273,6 +273,9 @@ builder.Services.AddHostedService<AutomationGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationOperationsBackgroundService>();
 builder.Services.AddHostedService<VideoPollingBackgroundService>();
 builder.Services.AddHostedService<VideoGenerationBackgroundService>();
+builder.Services.AddHostedService<CampaignInsightsBackgroundService>();
+
+builder.Services.AddScoped<ICampaignInsightsSyncService, CampaignInsightsSyncService>();
 
 builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSection("ImageProviderSettings"));
 builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
@@ -448,3 +451,4 @@ static string[] BuildAllowedOrigins(IConfiguration configuration)
 
     return origins.ToArray();
 }
+

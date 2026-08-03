@@ -1,10 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+function isLocalRequest(request: NextRequest): boolean {
+  const host = request.nextUrl.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 export function GET(request: NextRequest) {
-  const localCompleteUrl =
-    process.env.INSTAGRAM_LOCAL_COMPLETE_URL?.trim() ||
-    "http://localhost:3000/auth/instagram/complete";
-  const target = new URL(localCompleteUrl);
+  const configuredCompleteUrl = process.env.INSTAGRAM_COMPLETE_URL?.trim();
+  const localCompleteUrl = isLocalRequest(request)
+    ? process.env.INSTAGRAM_LOCAL_COMPLETE_URL?.trim()
+    : "";
+  const target = new URL(
+    configuredCompleteUrl ||
+      localCompleteUrl ||
+      `${request.nextUrl.origin}/auth/instagram/complete`,
+  );
   target.search = request.nextUrl.search;
 
   return NextResponse.redirect(target, {

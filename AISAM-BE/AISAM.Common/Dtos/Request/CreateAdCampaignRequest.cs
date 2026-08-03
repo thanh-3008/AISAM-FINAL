@@ -35,5 +35,23 @@ namespace AISAM.Common.Dtos.Request
 
         [MaxLength(20, ErrorMessage = "Platform must not exceed 20 characters")]
         public string Platform { get; set; } = "facebook";
+
+        [MaxLength(10, ErrorMessage = "Ad account currency must not exceed 10 characters")]
+        public string? AdAccountCurrency { get; set; }
+
+        public List<AdSetVariantRequest>? Variants { get; set; }
+    }
+
+    public class AdSetVariantRequest
+    {
+        [Required]
+        [MaxLength(255)]
+        public string NameSuffix { get; set; } = string.Empty;
+
+        public string? Targeting { get; set; }
+
+        public Guid? ContentId { get; set; }
+
+        public decimal BudgetShare { get; set; } = 100;
     }
 }

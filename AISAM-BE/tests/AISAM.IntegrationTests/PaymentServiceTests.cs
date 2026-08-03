@@ -1,5 +1,7 @@
 using AISAM.Common;
 using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Request;
+using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
@@ -788,6 +790,7 @@ public class PaymentServiceTests
         FakeWorkspaceRepository? workspaceRepository = null,
         FakeCreditWalletRepository? creditWalletRepository = null,
         FakeCreditService? creditService = null,
+        IBusinessKycService? businessKycService = null,
         PayOSSettings? settings = null,
         HttpClient? httpClient = null)
     {
@@ -798,7 +801,7 @@ public class PaymentServiceTests
             workspaceRepository ?? new FakeWorkspaceRepository(),
             creditWalletRepository ?? new FakeCreditWalletRepository(),
             creditService ?? new FakeCreditService(),
-            new FakeBusinessKycService(),
+            businessKycService ?? new FakeBusinessKycService(),
             Options.Create(settings ?? new PayOSSettings()),
             httpClient ?? new HttpClient());
     }
@@ -1228,18 +1231,13 @@ public class PaymentServiceTests
 
     private sealed class FakeBusinessKycService : IBusinessKycService
     {
-        public Task<GenericResponse<AISAM.Common.Dtos.Response.BusinessKycVerificationResponse>> SubmitAsync(
+        public Task<GenericResponse<BusinessKycVerificationResponse>> SubmitAsync(
             Guid userId,
-            AISAM.Common.Dtos.Request.SubmitBusinessKycRequest request,
+            SubmitBusinessKycRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(GenericResponse<AISAM.Common.Dtos.Response.BusinessKycVerificationResponse>.CreateSuccess(new AISAM.Common.Dtos.Response.BusinessKycVerificationResponse
-            {
-                TaxId = request.TaxId,
-                SubmittedLegalBusinessName = request.LegalBusinessName,
-                KycStatus = "Verified",
-                IsTaxStatusActive = true
-            }));
+            return Task.FromResult(GenericResponse<BusinessKycVerificationResponse>.CreateSuccess(
+                new BusinessKycVerificationResponse(), "OK"));
         }
     }
 }

@@ -1,11 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-export function GET(request: NextRequest) {
-  const localCallbackUrl =
-    process.env.INSTAGRAM_LOCAL_CALLBACK_URL?.trim() ||
-    "http://localhost:3000/auth/instagram/callback";
+function isLocalRequest(request: NextRequest): boolean {
+  const host = request.nextUrl.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
 
-  const target = new URL(localCallbackUrl);
+export function GET(request: NextRequest) {
+  const configuredCallbackUrl = process.env.INSTAGRAM_CALLBACK_URL?.trim();
+  const localCallbackUrl = isLocalRequest(request)
+    ? process.env.INSTAGRAM_LOCAL_CALLBACK_URL?.trim()
+    : "";
+
+  const target = new URL(
+    configuredCallbackUrl ||
+      localCallbackUrl ||
+      `${request.nextUrl.origin}/auth/instagram/callback`,
+  );
   target.search = request.nextUrl.search;
 
   return NextResponse.redirect(target, {

@@ -192,6 +192,27 @@ namespace AISAM.API.Controllers
             }
         }
 
+        [HttpPost("{id}/activate")]
+        public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> Activate(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.ActivateAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<AdCampaignResponseDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error activating campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
         [HttpPost("{id}/sync-insights")]
         public async Task<ActionResult<GenericResponse<AdCampaignResponseDto>>> SyncInsights(Guid id, CancellationToken cancellationToken = default)
         {
@@ -252,6 +273,90 @@ namespace AISAM.API.Controllers
             {
                 _logger.LogError(ex, "Error duplicating campaign {CampaignId}", id);
                 return StatusCode(500, GenericResponse<AdCampaignResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpGet("{id}/preview")]
+        public async Task<ActionResult<GenericResponse<CampaignPreviewDto>>> Preview(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.GetPreviewAsync(id, workspaceId, userId, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<CampaignPreviewDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error previewing campaign {CampaignId}", id);
+                return StatusCode(500, GenericResponse<CampaignPreviewDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("bulk")]
+        public async Task<ActionResult<GenericResponse<BulkCampaignResultDto>>> BulkCreate([FromBody] BulkCreateAdCampaignRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.BulkCreateAsync(workspaceId, userId, request, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<BulkCampaignResultDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error bulk creating campaigns");
+                return StatusCode(500, GenericResponse<BulkCampaignResultDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpDelete("bulk")]
+        public async Task<ActionResult<GenericResponse<BulkCampaignResultDto>>> BulkDelete([FromBody] BulkDeleteAdCampaignRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.BulkDeleteAsync(workspaceId, userId, request, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<BulkCampaignResultDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error bulk deleting campaigns");
+                return StatusCode(500, GenericResponse<BulkCampaignResultDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+            }
+        }
+
+        [HttpPost("bulk/deploy")]
+        public async Task<ActionResult<GenericResponse<BulkCampaignResultDto>>> BulkDeploy([FromBody] BulkDeployAdCampaignRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+                var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+                var result = await _campaignService.BulkDeployAsync(workspaceId, userId, request, cancellationToken);
+                return result.Success ? Ok(result) : BadRequest(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(GenericResponse<BulkCampaignResultDto>.CreateError("Invalid token"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error bulk deploying campaigns");
+                return StatusCode(500, GenericResponse<BulkCampaignResultDto>.CreateError("System error", HttpStatusCode.InternalServerError));
             }
         }
 
