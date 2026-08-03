@@ -53,7 +53,7 @@ public sealed class AutomationController : ControllerBase
     public async Task<ActionResult<GenericResponse<AutomationPlanDto>>> ImportCsv(
         [FromForm] string name,
         [FromForm] string? timezone,
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken cancellationToken)
     {
         if (file.Length == 0 || !string.Equals(Path.GetExtension(file.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
