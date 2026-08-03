@@ -382,11 +382,23 @@ public sealed class TikTokProvider : IProviderService
     public Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("TikTok does not support marketing API campaign status updates.");
 
+    public Task<bool> UpdateCampaignNameAsync(string adAccountId, string userAccessToken, string campaignId, string name, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API campaign name updates.");
+
     public Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("TikTok does not support marketing API ad set status updates.");
 
+    public Task<bool> UpdateAdSetBudgetAsync(string adAccountId, string userAccessToken, string adSetId, decimal dailyBudget, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("TikTok does not support marketing API ad set budget updates.");
+
     public Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("TikTok does not support marketing API ad status updates.");
+
+    public Task<string?> GetAdEffectiveStatusAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
+
+    public Task<string?> GetAdSetEffectiveStatusAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 
     public Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("TikTok does not support marketing API campaign deletion.");

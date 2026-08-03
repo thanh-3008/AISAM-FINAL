@@ -72,6 +72,11 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("AdAccountCurrency")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("ad_account_currency");
+
                     b.Property<string>("AdAccountId")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -101,6 +106,11 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("DeploymentMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("deployment_message");
 
                     b.Property<int>("DeploymentStatus")
                         .HasColumnType("integer")
@@ -168,6 +178,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
 
                     b.Property<string>("Targeting")
                         .HasColumnType("jsonb")

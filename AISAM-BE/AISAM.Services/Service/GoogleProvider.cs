@@ -79,7 +79,17 @@ public sealed class GoogleProvider : IProviderService
         throw new NotSupportedException("Google Ads is not available in Phase C.");
     }
 
+    public Task<bool> UpdateCampaignNameAsync(string adAccountId, string userAccessToken, string campaignId, string name, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Google Ads is not available in Phase C.");
+    }
+
     public Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Google Ads is not available in Phase C.");
+    }
+
+    public Task<bool> UpdateAdSetBudgetAsync(string adAccountId, string userAccessToken, string adSetId, decimal dailyBudget, CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException("Google Ads is not available in Phase C.");
     }
@@ -88,6 +98,12 @@ public sealed class GoogleProvider : IProviderService
     {
         throw new NotSupportedException("Google Ads is not available in Phase C.");
     }
+
+    public Task<string?> GetAdEffectiveStatusAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
+
+    public Task<string?> GetAdSetEffectiveStatusAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 
     public Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
     {

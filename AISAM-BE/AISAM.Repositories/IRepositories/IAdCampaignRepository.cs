@@ -21,6 +21,8 @@ namespace AISAM.Repositories.IRepositories
 
         // ─── Deployment step tracking ───
         Task UpdateDeploymentStatusAsync(Guid campaignId, DeploymentStatusEnum status, int step, CancellationToken cancellationToken = default);
+        Task UpdateDeploymentFailureAsync(Guid campaignId, int step, string message, CancellationToken cancellationToken = default);
+        Task UpdateCampaignStatusAsync(Guid campaignId, CampaignStatusEnum status, CancellationToken cancellationToken = default);
         Task<AdSet?> GetAdSetByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default);
         Task<Ad?> GetAdByAdSetIdAsync(Guid adSetId, CancellationToken cancellationToken = default);
         Task<AdCreative?> GetCreativeByIdAsync(Guid creativeId, CancellationToken cancellationToken = default);
@@ -32,5 +34,10 @@ namespace AISAM.Repositories.IRepositories
         Task HardDeleteAdCreativeAsync(Guid creativeId, CancellationToken cancellationToken = default);
         Task HardDeleteAdSetAsync(Guid adSetId, CancellationToken cancellationToken = default);
         Task ClearFacebookIdsAsync(Guid campaignId, CancellationToken cancellationToken = default);
+
+        Task<Dictionary<Guid, int>> UpdateExpiredCampaignsAsync(CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<AdCampaign>> GetDeployedCampaignsForSyncAsync(int batchSize, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<AdCampaign>> GetDeployedPendingActivationAsync(int batchSize, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<AdCampaign>> GetActiveCampaignsPastEndDateAsync(CancellationToken cancellationToken = default);
     }
 }

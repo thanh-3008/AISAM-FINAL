@@ -361,11 +361,45 @@ public sealed class InstagramProvider : IProviderService
     public async Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default)
         => await UpdateMetaObjectStatusAsync($"{adAccountId}/campaigns/{campaignId}", userAccessToken, status, cancellationToken);
 
+    public async Task<bool> UpdateCampaignNameAsync(string adAccountId, string userAccessToken, string campaignId, string name, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{adAccountId}/campaigns/{campaignId}";
+        var fields = new Dictionary<string, string> { ["name"] = name };
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(fields),
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default)
         => await UpdateMetaObjectStatusAsync($"{adAccountId}/adsets/{adSetId}", userAccessToken, status, cancellationToken);
 
+    public async Task<bool> UpdateAdSetBudgetAsync(string adAccountId, string userAccessToken, string adSetId, decimal dailyBudget, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{adAccountId}/adsets/{adSetId}";
+        var fields = new Dictionary<string, string> { ["daily_budget"] = $"{(long)dailyBudget}" };
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(fields),
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default)
         => await UpdateMetaObjectStatusAsync($"{adAccountId}/ads/{adId}", userAccessToken, status, cancellationToken);
+
+    public Task<string?> GetAdEffectiveStatusAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
+
+    public Task<string?> GetAdSetEffectiveStatusAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default)
+        => Task.FromResult<string?>(null);
 
     public async Task<bool> DeleteCampaignAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default)
         => await DeleteMetaObjectAsync($"{adAccountId}/campaigns/{campaignId}", userAccessToken, cancellationToken);

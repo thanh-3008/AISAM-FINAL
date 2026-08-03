@@ -15,7 +15,7 @@ namespace AISAM.IntegrationTests;
 public class PaymentControllerTests
 {
     [Fact]
-    public async Task GetCurrentSubscription_ReturnsOnlyActiveWorkspacesSubscription()
+    public async Task GetCurrentSubscription_ReturnsOnlyActiveWorkspacesSubscriptionAsync()
     {
         var workspaceId = Guid.NewGuid();
         var service = new FakePaymentService
@@ -30,7 +30,7 @@ public class PaymentControllerTests
     }
 
     [Fact]
-    public async Task GetPaymentHistory_ReturnsWorkspacesPayments()
+    public async Task GetPaymentHistory_ReturnsWorkspacesPaymentsAsync()
     {
         var workspaceId = Guid.NewGuid();
         var service = new FakePaymentService
@@ -45,7 +45,7 @@ public class PaymentControllerTests
     }
 
     [Fact]
-    public async Task CreateCheckout_ReturnsServiceUnavailable_WhenPayOsConfigMissing()
+    public async Task CreateCheckout_ReturnsServiceUnavailable_WhenPayOsConfigMissingAsync()
     {
         var service = new FakePaymentService
         {
@@ -67,7 +67,7 @@ public class PaymentControllerTests
     }
 
     [Fact]
-    public async Task CreateCheckout_ForCreditPack_ForwardsPaymentTypeAndPackCode()
+    public async Task CreateCheckout_ForCreditPack_ForwardsPaymentTypeAndPackCodeAsync()
     {
         var service = new FakePaymentService();
         var workspaceId = Guid.NewGuid();

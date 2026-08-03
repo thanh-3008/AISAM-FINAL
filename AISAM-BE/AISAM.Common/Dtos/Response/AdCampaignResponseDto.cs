@@ -15,6 +15,7 @@ namespace AISAM.Common.Dtos.Response
         public string? ContentTitle { get; set; }
         public string? Targeting { get; set; }
         public string AdAccountId { get; set; } = string.Empty;
+        public string? AdAccountCurrency { get; set; }
         public string? FacebookCampaignId { get; set; }
         public string Platform { get; set; } = "facebook";
         public string Name { get; set; } = string.Empty;
@@ -24,11 +25,13 @@ namespace AISAM.Common.Dtos.Response
         public DateTime? EndDate { get; set; }
         public bool IsActive { get; set; }
         public bool IsDeleted { get; set; }
+        public CampaignStatusEnum Status { get; set; }
         public string? LandingUrl { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public DeploymentStatusEnum DeploymentStatus { get; set; }
         public int DeploymentStep { get; set; }
+        public string? DeploymentMessage { get; set; }
         public List<AdSetSummaryDto> AdSets { get; set; } = new();
         public long Impressions { get; set; }
         public long Clicks { get; set; }
