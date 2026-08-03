@@ -4,8 +4,21 @@ function asJavaScriptString(value: string | null): string {
   return JSON.stringify(value ?? "").replaceAll("<", "\\u003c");
 }
 
+function canUseLocalCallback(request: NextRequest): boolean {
+  const host = request.nextUrl.hostname.toLowerCase();
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host.endsWith(".ngrok.app") ||
+    host.endsWith(".ngrok-free.app") ||
+    host.endsWith(".ngrok-free.dev")
+  );
+}
+
 export function GET(request: NextRequest) {
-  const localCallbackUrl = process.env.TIKTOK_LOCAL_CALLBACK_URL?.trim();
+  const localCallbackUrl = canUseLocalCallback(request)
+    ? process.env.TIKTOK_LOCAL_CALLBACK_URL?.trim()
+    : "";
   if (localCallbackUrl) {
     const target = new URL(localCallbackUrl);
     if (request.nextUrl.origin !== target.origin) {
