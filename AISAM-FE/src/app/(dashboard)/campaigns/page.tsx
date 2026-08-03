@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
 import Header from "@/components/layout/Header";
@@ -9,14 +9,16 @@ import {
   createCampaign,
   updateCampaign,
   updateCampaignStatus,
-  applyCampaign,
   restartCampaign,
   deleteCampaign,
   restoreCampaign,
   deployCampaignToFacebook,
+  activateCampaign,
+  cleanupCampaignDeployment,
   duplicateCampaign,
   type Campaign,
   type CampaignStatus,
+  type DeploymentStatus,
   type CampaignObjective,
   type CreateCampaignData,
 } from "@/services/campaignService";
@@ -37,6 +39,11 @@ export default function CampaignsPage() {
   const { activeWorkspace } = useWorkspaces();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const PAGE_SIZE = 20;
 
   // Filters
   const [search, setSearch] = useState("");
@@ -58,26 +65,38 @@ export default function CampaignsPage() {
   const { addToast } = useToast();
 
   // Load campaigns
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
+  const loadCampaigns = useCallback(async (pageNum: number, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
       setLoading(true);
-      try {
-        const res = await fetchCampaigns({ pageSize: 100 });
-        if (!cancelled) setCampaigns(res.data);
-      } catch (err) {
-        if (!cancelled) {
-          console.error("Failed to load campaigns:", err);
-          addToast("Failed to load campaigns", "error");
-          setCampaigns([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+    }
+    try {
+      const res = await fetchCampaigns({ page: pageNum, pageSize: PAGE_SIZE });
+      if (append) {
+        setCampaigns((prev) => [...prev, ...res.data]);
+      } else {
+        setCampaigns(res.data);
       }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [activeWorkspace?.id]);
+      setHasMore(res.data.length === PAGE_SIZE);
+      setPage(pageNum);
+    } catch (err) {
+      console.error("Failed to load campaigns:", err);
+      addToast("Failed to load campaigns", "error");
+      if (!append) setCampaigns([]);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    loadCampaigns(1);
+  }, [activeWorkspace?.id, loadCampaigns]);
+
+  const handleLoadMore = () => {
+    loadCampaigns(page + 1, true);
+  };
 
   useEffect(() => {
     fetchBrands().then((brands) => {
@@ -187,21 +206,6 @@ export default function CampaignsPage() {
     }
   };
 
-  const handleApply = async (campaign: Campaign) => {
-    setActionLoading(campaign.id);
-    try {
-      const updated = await applyCampaign(campaign.id);
-      if (updated) {
-        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
-        addToast(`Campaign "${updated.name}" applied and is now active`);
-      }
-    } catch {
-      addToast("Failed to apply campaign", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const handleRestart = async (campaign: Campaign) => {
     setActionLoading(campaign.id);
     try {
@@ -231,11 +235,10 @@ export default function CampaignsPage() {
     if (selected.length === 0) return;
     setActionLoading("duplicate");
     try {
-      const duplicated: Campaign[] = [];
-      for (const campaign of selected) {
-        const dup = await duplicateCampaign(campaign.id);
-        if (dup) duplicated.push(dup);
-      }
+      const results = await Promise.all(
+        selected.map((campaign) => duplicateCampaign(campaign.id))
+      );
+      const duplicated = results.filter(Boolean);
       setCampaigns((prev) => [...duplicated, ...prev]);
       setSelectedIds([]);
       addToast(`${duplicated.length} campaign(s) duplicated`);
@@ -250,9 +253,9 @@ export default function CampaignsPage() {
     if (deletingCampaigns.length === 0) return;
     setActionLoading("delete");
     try {
-      for (const campaign of deletingCampaigns) {
-        await deleteCampaign(campaign.id);
-      }
+      await Promise.all(
+        deletingCampaigns.map((campaign) => deleteCampaign(campaign.id))
+      );
       setCampaigns((prev) => prev.filter((c) => !deletingCampaigns.some((d) => d.id === c.id)));
       setSelectedIds((prev) => prev.filter((id) => !deletingCampaigns.some((d) => d.id === id)));
       setDeletingCampaigns([]);
@@ -285,10 +288,38 @@ export default function CampaignsPage() {
       const updated = await deployCampaignToFacebook(campaign.id);
       if (updated) {
         setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
-        addToast(`Campaign deployed to Facebook`);
+        addToast("Campaign sent to Meta. AISAM will mark it ready once review checks pass.");
       }
     } catch (err: any) {
       addToast(err?.message || "Failed to deploy", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleActivate = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      const updated = await activateCampaign(campaign.id);
+      if (updated) {
+        setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? updated : c)));
+        addToast("Campaign activated successfully.");
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to activate campaign", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCleanup = async (campaign: Campaign) => {
+    setActionLoading(campaign.id);
+    try {
+      await cleanupCampaignDeployment(campaign.id);
+      setCampaigns((prev) => prev.map((c) => (c.id === campaign.id ? { ...c, deploymentStatus: 0 as DeploymentStatus, deploymentStep: 0, status: "DRAFT" as CampaignStatus, facebookCampaignId: null } : c)));
+      addToast("Failed deployment cleaned up. Campaign reset to Draft.");
+    } catch (err: any) {
+      addToast(err?.message || "Failed to clean up deployment", "error");
     } finally {
       setActionLoading(null);
     }
@@ -414,12 +445,30 @@ export default function CampaignsPage() {
                   onViewDetail={setDetailCampaign}
                   onEdit={setEditCampaign}
                   onToggleStatus={handleToggleStatus}
-                  onApply={handleApply}
                   onRestart={handleRestart}
                   onDeploy={handleDeploy}
+                  onActivate={handleActivate}
+                  onCleanup={handleCleanup}
                   onDelete={handleDelete}
                 />
               ))}
+            </div>
+          )}
+
+          {hasMore && !loading && filteredCampaigns.length > 0 && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="px-6 py-3 border border-outline-variant/30 hover:bg-surface-container-high rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {loadingMore ? (
+                  <span className="w-4 h-4 border-2 border-outline/30 border-t-outline rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-[16px]">expand_more</span>
+                )}
+                {loadingMore ? "Loading..." : "Load More"}
+              </button>
             </div>
           )}
 
@@ -445,6 +494,8 @@ export default function CampaignsPage() {
           campaign={detailCampaign}
           onClose={() => setDetailCampaign(null)}
           onDeploy={handleDeploy}
+          onActivate={handleActivate}
+          onCleanup={handleCleanup}
           onRestart={handleRestart}
           isLoading={actionLoading === detailCampaign?.id}
         />

@@ -1,7 +1,7 @@
 "use client";
  
 import { useState, useEffect } from "react";
-import { type CampaignObjective, type CreateCampaignData } from "@/services/campaignService";
+import { type CampaignObjective, type CreateCampaignData, type AdSetVariant } from "@/services/campaignService";
 import { OBJECTIVE_CONFIG, getCachedBrands } from "./campaignUtils";
 import { fetchSocialAccounts, fetchAdAccounts, type SocialAccount, type AdAccount } from "@/services/socialAccountService";
 import { fetchProducts } from "@/services/brandService";
@@ -23,6 +23,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [dateError, setDateError] = useState("");
+  const [budgetError, setBudgetError] = useState("");
 
   // Product & Content
   const [products, setProducts] = useState<{ id: string; name: string; brandId: string }[]>([]);
@@ -42,6 +43,10 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
   ];
   const [selectedTargeting, setSelectedTargeting] = useState(TARGETING_PRESETS[0].value);
   const [customTargeting, setCustomTargeting] = useState("");
+
+  // Variants (Ad Sets)
+  const [variants, setVariants] = useState<AdSetVariant[]>([]);
+  const [showVariants, setShowVariants] = useState(false);
 
   // Facebook account & ad account selection
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
@@ -63,10 +68,13 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       setStartDate("");
       setEndDate("");
       setDateError("");
+      setBudgetError("");
       setSelectedTargeting(TARGETING_PRESETS[0].value);
       setCustomTargeting("");
       setLandingUrl("");
       setPlatform("facebook");
+      setVariants([]);
+      setShowVariants(false);
       loadSocialAccounts();
     }
   }, [open]);
@@ -114,6 +122,20 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
   if (!open) return null;
 
+  const addVariant = () => {
+    setVariants((prev) => [...prev, { nameSuffix: `Variant ${prev.length + 1}`, budgetShare: 0 }]);
+  };
+
+  const removeVariant = (index: number) => {
+    setVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateVariant = (index: number, field: keyof AdSetVariant, value: string | number | null) => {
+    setVariants((prev) => prev.map((v, i) =>
+      i === index ? { ...v, [field]: value } : v
+    ));
+  };
+
   const handleSubmit = () => {
     const brand = getCachedBrands().find((b) => b.id === brandId);
     if (!name.trim() || !brand) return;
@@ -122,7 +144,20 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       setDateError("End date must be after start date");
       return;
     }
+    if (budget && parseFloat(budget) < 30000) {
+      setBudgetError("Budget must be at least 30.000");
+      return;
+    }
     setDateError("");
+    setBudgetError("");
+
+    if (variants.length > 0) {
+      const totalShare = variants.reduce((sum, v) => sum + (v.budgetShare || 0), 0);
+      if (totalShare !== 100) {
+        setDateError(`Variant budget shares must sum to 100% (currently ${totalShare}%)`);
+        return;
+      }
+    }
 
     onCreate({
       name,
@@ -133,11 +168,13 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       contentId: selectedContentId || null,
       targeting: selectedTargeting === "custom" ? customTargeting || null : selectedTargeting,
       adAccountId: selectedAdAccount,
+      adAccountCurrency: adAccounts.find(a => a.id === selectedAdAccount)?.currency ?? null,
       objective,
       budget: budget ? parseFloat(budget) : null,
       startDate: startDate || null,
       endDate: endDate || null,
       landingUrl: landingUrl || null,
+      variants: variants.length > 0 ? variants : undefined,
     });
   };
 
@@ -372,15 +409,21 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
 
             {/* Budget */}
             <div>
-              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Total Budget (VND)</label>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">
+                Total Budget{selectedAdAccount ? ` (${adAccounts.find(a => a.id === selectedAdAccount)?.currency === "USD" ? "USD" : "VND"})` : ""}
+              </label>
               <input
                 type="number"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
-                placeholder="e.g. 5000"
-                min="1"
+                placeholder={adAccounts.find(a => a.id === selectedAdAccount)?.currency === "USD" ? "e.g. 100" : "e.g. 5000000"}
+                min="30000"
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
               />
+              <p className="text-label-3xs text-outline mt-1">Facebook range: 30.000đ – 3.000.000đ/day</p>
+              {budgetError && (
+                <p className="text-label-xs text-red-600 mt-1">{budgetError}</p>
+              )}
             </div>
 
             {/* Date Range */}
@@ -407,6 +450,70 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
             {dateError && (
               <p className="text-label-xs text-red-600 mt-1">{dateError}</p>
             )}
+
+            {/* Variants (Ad Sets) */}
+            <div>
+              <button
+                type="button"
+                onClick={() => { setShowVariants(!showVariants); if (!showVariants && variants.length === 0) addVariant(); }}
+                className="flex items-center gap-2 text-label-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">{showVariants ? "expand_less" : "expand_more"}</span>
+                {showVariants ? "Hide" : "Show"} Ad Set Variants ({variants.length})
+              </button>
+
+              {showVariants && (
+                <div className="mt-3 space-y-3">
+                  <p className="text-label-3xs text-outline">
+                    Create multiple ad sets with different content and budget allocation. Budget shares must sum to 100%.
+                  </p>
+                  {variants.map((variant, i) => (
+                    <div key={i} className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-label-xs font-bold text-on-surface">Ad Set #{i + 1}</span>
+                        {variants.length > 1 && (
+                          <button onClick={() => removeVariant(i)} className="text-outline hover:text-danger-red transition-colors">
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-label-3xs text-outline font-medium block mb-1">Name Suffix</label>
+                          <input
+                            type="text"
+                            value={variant.nameSuffix}
+                            onChange={(e) => updateVariant(i, "nameSuffix", e.target.value)}
+                            placeholder="e.g. Creative A"
+                            className="w-full p-2.5 bg-surface-container-high border border-outline-variant/20 rounded-lg text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-label-3xs text-outline font-medium block mb-1">Budget Share %</label>
+                          <input
+                            type="number"
+                            value={variant.budgetShare || ""}
+                            onChange={(e) => updateVariant(i, "budgetShare", e.target.value ? Number(e.target.value) : 0)}
+                            placeholder="e.g. 50"
+                            min="1"
+                            max="100"
+                            className="w-full p-2.5 bg-surface-container-high border border-outline-variant/20 rounded-lg text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addVariant}
+                    className="w-full p-2.5 border border-dashed border-outline-variant/30 rounded-xl text-label-xs text-outline hover:text-on-surface hover:border-outline-variant/50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    Add Variant
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Footer */}

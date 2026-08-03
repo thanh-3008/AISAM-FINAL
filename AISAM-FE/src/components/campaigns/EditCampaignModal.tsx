@@ -146,7 +146,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
                 <span className="material-symbols-outlined text-[16px] text-amber-600 mt-0.5">lock</span>
                 <p className="text-[11px] text-amber-700">
-                  Campaign already deployed to Facebook. Budget, dates, targeting, product, and content cannot be changed. Create a new campaign for different settings.
+                  Campaign already deployed to Facebook. Budget, dates, targeting, product, and content are locked. You can still change the campaign name and landing URL.
                 </p>
               </div>
             )}

@@ -270,7 +270,7 @@ public sealed class FacebookProvider : IProviderService
         {
             ["name"] = name,
             ["campaign_id"] = campaignId,
-            ["daily_budget"] = dailyBudget.HasValue ? $"{(long)Math.Max(dailyBudget.Value, 30000)}" : "30000",
+            ["daily_budget"] = dailyBudget.HasValue ? $"{(long)dailyBudget.Value}" : "30000",
             ["billing_event"] = adSetSettings.BillingEvent,
             ["optimization_goal"] = adSetSettings.OptimizationGoal,
             ["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP",
@@ -305,6 +305,7 @@ public sealed class FacebookProvider : IProviderService
         _logger.LogInformation("=== RESPONSE ===\nStatus: {StatusCode}\nBody: {Body}\n================", (int)response.StatusCode, content);
         if (!response.IsSuccessStatusCode)
         {
+            _logger.LogWarning("Failed to create Facebook ad set. Status={Status}, Body={Body}", (int)response.StatusCode, content);
             throw new InvalidOperationException($"Failed to create Facebook ad set: {GetErrorMessage(content)}");
         }
 
@@ -361,13 +362,23 @@ public sealed class FacebookProvider : IProviderService
         }
         else
         {
-            // No external link: create page post first, then use as creative
-            var postId = await CreatePagePostAsync(pageId, userAccessToken, message, imageUrl, cancellationToken);
+            var linkData = new Dictionary<string, object?>
+            {
+                ["link"] = linkUrl,
+                ["message"] = message
+            };
+
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+            {
+                var parsed = ParseImageUrl(imageUrl);
+                if (!string.IsNullOrWhiteSpace(parsed))
+                    linkData["picture"] = parsed;
+            }
 
             creativeObject = new Dictionary<string, object?>
             {
                 ["page_id"] = pageId,
-                ["object_story_id"] = postId
+                ["link_data"] = linkData
             };
         }
 
@@ -501,9 +512,37 @@ public sealed class FacebookProvider : IProviderService
         return await UpdateFacebookObjectStatusAsync($"{adAccountId}/campaigns/{campaignId}", userAccessToken, status, "campaign", cancellationToken);
     }
 
+    public async Task<bool> UpdateCampaignNameAsync(string adAccountId, string userAccessToken, string campaignId, string name, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{adAccountId}/campaigns/{campaignId}";
+        var fields = new Dictionary<string, string> { ["name"] = name };
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(fields),
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> UpdateAdSetStatusAsync(string adAccountId, string userAccessToken, string adSetId, string status, CancellationToken cancellationToken = default)
     {
         return await UpdateFacebookObjectStatusAsync($"{adAccountId}/adsets/{adSetId}", userAccessToken, status, "ad set", cancellationToken);
+    }
+
+    public async Task<bool> UpdateAdSetBudgetAsync(string adAccountId, string userAccessToken, string adSetId, decimal dailyBudget, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{adAccountId}/adsets/{adSetId}";
+        var fields = new Dictionary<string, string> { ["daily_budget"] = $"{(long)dailyBudget}" };
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new FormUrlEncodedContent(fields),
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<bool> UpdateAdStatusAsync(string adAccountId, string userAccessToken, string adId, string status, CancellationToken cancellationToken = default)
@@ -530,6 +569,64 @@ public sealed class FacebookProvider : IProviderService
         }
         _logger.LogInformation("Updated Facebook {Label} status to {Status}", label, status);
         return true;
+    }
+
+    // ──────────────────────────────────────────────
+    //  Marketing API — Review / Status Polling
+    // ──────────────────────────────────────────────
+
+    public async Task<string?> GetAdEffectiveStatusAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{adId}?fields=effective_status,status,ad_review_feedback";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get ad {AdId} status: {Error}", adId, GetErrorMessage(content));
+            return null;
+        }
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var date = doc.RootElement;
+            return date.TryGetProperty("effective_status", out var es) ? es.GetString() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string?> GetAdSetEffectiveStatusAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{adSetId}?fields=effective_status,status";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get ad set {AdSetId} status: {Error}", adSetId, GetErrorMessage(content));
+            return null;
+        }
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            return root.TryGetProperty("effective_status", out var es) ? es.GetString() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -800,7 +897,7 @@ public sealed class FacebookProvider : IProviderService
     {
         if (string.IsNullOrWhiteSpace(content))
         {
-            return "Facebook request failed.";
+            return "Facebook request failed (empty response).";
         }
 
         try
@@ -812,21 +909,29 @@ public sealed class FacebookProvider : IProviderService
 
             if (error?.Error != null)
             {
-                var msg = error.Error.Message ?? "Facebook request failed.";
+                if (error.Error.Code == 100 && error.Error.ErrorSubcode == 1885183)
+                {
+                    return "Creative khong hop le: app/content co the duoc tao khi Meta app con Development mode hoac bai viet chua public. "
+                        + "Hay chuyen app sang Live mode, reconnect Facebook, tao campaign/content moi bang asset public roi deploy lai. "
+                        + $"[code={error.Error.Code}, subcode={error.Error.ErrorSubcode}]";
+                }
+
+                var userMsg = error.Error.ErrorUserMsg ?? error.Error.Message ?? "Facebook request failed.";
                 var details = $" [code={error.Error.Code}";
                 if (error.Error.ErrorSubcode.HasValue)
                     details += $", subcode={error.Error.ErrorSubcode.Value}";
                 if (error.Error.ErrorData?.BlameFieldSpecs?.Count > 0)
                     details += $", blame_fields=[{string.Join(", ", error.Error.ErrorData.BlameFieldSpecs.Select(s => string.Join(".", s)))}]";
                 details += "]";
-                return msg + details;
+                return userMsg + details;
             }
         }
         catch (JsonException)
         {
         }
 
-        return "Facebook request failed.";
+        var truncated = content.Length > 500 ? content[..500] + "..." : content;
+        return $"Facebook request failed. Response: {truncated}";
     }
 
     private static string FormatFacebookDate(DateTime utcDateTime)
@@ -852,12 +957,13 @@ public sealed class FacebookProvider : IProviderService
     {
         return objective.ToUpperInvariant() switch
         {
+            "AWARENESS" => ("REACH", "IMPRESSIONS"),
             "TRAFFIC" => ("LINK_CLICKS", "IMPRESSIONS"),
             "ENGAGEMENT" => ("POST_ENGAGEMENT", "IMPRESSIONS"),
             "LEADS" => ("LEAD_GENERATION", "IMPRESSIONS"),
             "SALES" => ("LINK_CLICKS", "IMPRESSIONS"),
             "APP_PROMOTION" => ("LINK_CLICKS", "IMPRESSIONS"),
-            _ => ("REACH", "IMPRESSIONS")
+            _ => ("IMPRESSIONS", "IMPRESSIONS")
         };
     }
 
