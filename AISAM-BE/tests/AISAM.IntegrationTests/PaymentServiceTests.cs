@@ -150,6 +150,8 @@ public class PaymentServiceTests
         {
             WorkspaceName = "Paid Business",
             PlanCode = "Plus",
+            TaxId = "0101234567",
+            LegalBusinessName = "CÔNG TY TNHH TEST",
             ReturnUrl = "https://app.test/pricing",
             CancelUrl = "https://app.test/pricing"
         });

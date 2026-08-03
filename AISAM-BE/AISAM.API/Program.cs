@@ -86,7 +86,9 @@ ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSett
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
 
-// === AI Image (Gemini primary + OpenRouter fallback) ===
+// === AI Image (DeAPI primary I2I + OpenRouter T2I fallback + HuggingFace fallback) ===
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_DEAPI_KEY", "ImageProviderSettings:DeApiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "IMAGE_DEAPI_MODEL", "ImageProviderSettings:DeApiModel");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_KEY", "ImageProviderSettings:OpenRouterApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_MODEL", "ImageProviderSettings:OpenRouterModel");
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_OPENROUTER_BASE_URL", "ImageProviderSettings:OpenRouterBaseUrl");
@@ -244,6 +246,7 @@ builder.Services.AddHttpClient<OpenRouterTextClient>();
 builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
 builder.Services.AddScoped<IAIService, AIService>();
+builder.Services.AddScoped<IPromptEnhancerService, PromptEnhancerService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<IQuotaService, QuotaService>();

@@ -85,7 +85,17 @@ public class PhaseEQuotaIntegrationTests
             null!,
             null!,
             null!,
+            new FakePromptEnhancerService(),
             null!);
+    }
+
+    private sealed class FakePromptEnhancerService : AISAM.Services.IServices.IPromptEnhancerService
+    {
+        public Task<string> EnhanceImagePromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, bool hasReferenceImages, CancellationToken cancellationToken = default)
+            => Task.FromResult(rawPrompt);
+
+        public Task<string> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(rawPrompt);
     }
 
     private sealed class FakeCreditService : ICreditService

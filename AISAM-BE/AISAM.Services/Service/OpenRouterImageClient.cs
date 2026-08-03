@@ -40,21 +40,22 @@ public sealed class OpenRouterImageClient
 
     public async Task<(byte[]? Bytes, string? Url, string? Error)> GenerateAsync(string prompt, ImageGenerationOptions? options, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_settings.OpenRouterApiKey))
-            return (null, null, "OpenRouter API Key is missing.");
-
-        var model = _settings.OpenRouterModel ?? "black-forest-labs/FLUX-1.1-pro";
-        var url = _settings.OpenRouterBaseUrl ?? "https://openrouter.ai/api/v1/images";
         var referenceImageUrls = options?.ReferenceImageUrls?
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList() ?? new List<string>();
+        var url = _settings.OpenRouterBaseUrl ?? "https://openrouter.ai/api/v1/images";
 
-        if (referenceImageUrls.Count > 0 && IsDeApiUrl(url))
+        if (referenceImageUrls.Count > 0 && (IsDeApiUrl(url) || IsDeApiUrl(BuildEditUrl())))
         {
             return await GenerateEditAsync(prompt, referenceImageUrls, options, cancellationToken);
         }
+
+        if (string.IsNullOrWhiteSpace(_settings.OpenRouterApiKey))
+            return (null, null, "OpenRouter API Key is missing for Text-to-Image fallback.");
+
+        var model = _settings.OpenRouterModel ?? "black-forest-labs/FLUX-1.1-pro";
 
         var payload = new Dictionary<string, object>
         {
@@ -218,9 +219,17 @@ public sealed class OpenRouterImageClient
         CancellationToken cancellationToken)
     {
         var editUrl = BuildEditUrl();
-        var model = string.IsNullOrWhiteSpace(_settings.OpenRouterEditModel)
-            ? "QwenImageEdit_Plus_NF4"
-            : _settings.OpenRouterEditModel;
+        var apiKey = !string.IsNullOrWhiteSpace(_settings.DeApiApiKey)
+            ? _settings.DeApiApiKey
+            : _settings.OpenRouterApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return (null, null, "DeAPI/OpenRouter API Key is missing for Image-to-Image generation.");
+        }
+
+        var model = !string.IsNullOrWhiteSpace(_settings.DeApiModel)
+            ? _settings.DeApiModel
+            : (!string.IsNullOrWhiteSpace(_settings.OpenRouterEditModel) ? _settings.OpenRouterEditModel : "Flux_2_Klein_4B_BF16");
         var cleanPrompt = CleanPromptForImageEdit(prompt, referenceImageUrls);
         var providerReferenceImageUrls = referenceImageUrls.Take(1).ToList();
 
@@ -236,7 +245,8 @@ public sealed class OpenRouterImageClient
             using var form = new MultipartFormDataContent();
             form.Add(new StringContent(cleanPrompt), "prompt");
             form.Add(new StringContent(model), "model");
-            form.Add(new StringContent("8"), "steps");
+            var steps = model.Contains("Qwen", StringComparison.OrdinalIgnoreCase) ? "8" : "4";
+            form.Add(new StringContent(steps), "steps");
             form.Add(new StringContent(Random.Shared.Next(1, 99999999).ToString(System.Globalization.CultureInfo.InvariantCulture)), "seed");
             form.Add(new StringContent(StrictProductNegativePrompt), "negative_prompt");
             form.Add(new StringContent((options?.Width ?? 1024).ToString(System.Globalization.CultureInfo.InvariantCulture)), "width");
@@ -262,7 +272,7 @@ public sealed class OpenRouterImageClient
             }
 
             var request = new HttpRequestMessage(HttpMethod.Post, editUrl);
-            request.Headers.Add("Authorization", $"Bearer {_settings.OpenRouterApiKey}");
+            request.Headers.Add("Authorization", $"Bearer {apiKey}");
             request.Headers.Accept.ParseAdd(MediaTypeNames.Application.Json);
             request.Content = form;
 
@@ -285,7 +295,7 @@ public sealed class OpenRouterImageClient
                 return ExtractImageResult(document.RootElement, json);
             }
 
-            return await PollDeApiJobAsync(requestId, cancellationToken);
+            return await PollDeApiJobAsync(requestId, apiKey, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -294,7 +304,7 @@ public sealed class OpenRouterImageClient
         }
     }
 
-    private async Task<(byte[]? Bytes, string? Url, string? Error)> PollDeApiJobAsync(string requestId, CancellationToken cancellationToken)
+    private async Task<(byte[]? Bytes, string? Url, string? Error)> PollDeApiJobAsync(string requestId, string apiKey, CancellationToken cancellationToken)
     {
         var pollUrl = $"https://api.deapi.ai/api/v2/jobs/{requestId}";
         string lastPollResponse = "No response received";
@@ -305,7 +315,7 @@ public sealed class OpenRouterImageClient
         {
             await Task.Delay(pollingInterval, cancellationToken);
             var pollRequest = new HttpRequestMessage(HttpMethod.Get, pollUrl);
-            pollRequest.Headers.Add("Authorization", $"Bearer {_settings.OpenRouterApiKey}");
+            pollRequest.Headers.Add("Authorization", $"Bearer {apiKey}");
             var pollResponse = await _httpClient.SendAsync(pollRequest, cancellationToken);
             var pollJson = await pollResponse.Content.ReadAsStringAsync(cancellationToken);
             lastPollResponse = $"HTTP {(int)pollResponse.StatusCode}: {pollJson}";

@@ -397,8 +397,8 @@ public class AIServiceTests
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.StatusCode);
-        Assert.Equal("Gemini API key is not configured.", result.Message);
-        Assert.Equal("Gemini API key is not configured.", conversations.Messages.Last().Message);
+        Assert.Equal("Hệ thống AI đang bận. Vui lòng thử lại sau.", result.Message);
+        Assert.Equal("(Hệ thống AI đang bảo trì hoặc quá tải, không thể phản hồi lúc này. Vui lòng thử lại sau.)", conversations.Messages.Last().Message);
         Assert.Equal(0, credits.ConsumeCallCount);
     }
 
@@ -432,7 +432,8 @@ public class AIServiceTests
         IGeminiTextClient geminiTextClient,
         IConversationRepository? conversationRepository = null,
         IProductRepository? productRepository = null,
-        ICreditService? creditService = null)
+        ICreditService? creditService = null,
+        IPromptEnhancerService? promptEnhancer = null)
     {
         return new AIService(
             contentRepository,
@@ -445,6 +446,7 @@ public class AIServiceTests
             null!,
             null!,
             null!,
+            promptEnhancer ?? new FakePromptEnhancerService(),
             null!);
     }
 
@@ -609,5 +611,15 @@ public class AIServiceTests
         public Task<CreditWallet?> GetWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    /// <summary>Pass-through stub — returns the raw prompt unchanged so existing tests are not affected.</summary>
+    private sealed class FakePromptEnhancerService : IPromptEnhancerService
+    {
+        public Task<string> EnhanceImagePromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, bool hasReferenceImages, CancellationToken cancellationToken = default)
+            => Task.FromResult(rawPrompt);
+
+        public Task<string> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(rawPrompt);
     }
 }
