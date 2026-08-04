@@ -100,7 +100,6 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
       await linkTargets(account.id, selectedTargetIds, selectedBrandId, account.provider);
       saved = true;
       sessionStorage.removeItem("social_connect_brand_id");
-      onClose();
       void onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to link selected targets");
