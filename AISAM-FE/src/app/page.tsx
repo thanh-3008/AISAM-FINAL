@@ -102,7 +102,7 @@ function DotGrid() {
 function ScrollIndicator() {
   return (
     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce-slow">
-      <span className="text-label-xs text-outline uppercase tracking-widest">Cuộn xuống</span>
+      <span className="text-label-xs text-outline uppercase tracking-widest">Scroll down</span>
       <div className="w-6 h-10 rounded-full border-2 border-outline/30 flex justify-center pt-2">
         <div className="w-1.5 h-3 bg-primary/60 rounded-full" style={{ animation: "scroll-dot 2s ease-in-out infinite" }} />
       </div>
@@ -118,7 +118,7 @@ function BackToTop() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
   return (
-    <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Lên đầu trang" className="fixed bottom-8 right-8 z-50 w-12 h-12 bg-primary text-on-primary rounded-full shadow-xl shadow-primary/25 flex items-center justify-center hover:scale-110 active:scale-95 transition-all" style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(20px)", pointerEvents: show ? "auto" : "none", transition: "opacity 0.3s, transform 0.3s" }}>
+    <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Back to top" className="fixed bottom-8 right-8 z-50 w-12 h-12 bg-primary text-on-primary rounded-full shadow-xl shadow-primary/25 flex items-center justify-center hover:scale-110 active:scale-95 transition-all" style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(20px)", pointerEvents: show ? "auto" : "none", transition: "opacity 0.3s, transform 0.3s" }}>
       <span className="material-symbols-outlined text-[20px]" aria-hidden="true">keyboard_arrow_up</span>
     </button>
   );
@@ -207,46 +207,46 @@ export default function LandingPage() {
   }, []);
 
   const navLinks: [string, string][] = [
-    ["#features", "Tính năng"],
-    ["#how-it-works", "Quy trình"],
-    ["#for-business", "Dành cho doanh nghiệp"],
-    ["#decisions", "Vì sao chọn AISAM"],
+    ["#features", "Features"],
+    ["#how-it-works", "How it works"],
+    ["#for-business", "For business"],
+    ["#decisions", "Why AISAM"],
   ];
 
   const features = [
     {
-      title: "Workspace riêng cho từng thương hiệu",
-      desc: "Mỗi thương hiệu có một workspace riêng: tài sản, chiến dịch, quyền truy cập của đội nhóm được tách bạch — không gộp chung theo tài khoản cá nhân.",
+      title: "Dedicated workspace for each brand",
+      desc: "Every brand gets its own workspace: assets, campaigns, and team access permissions are fully isolated — not mingled under a single personal account.",
       icon: "workspaces",
     },
     {
-      title: "Ví credit dùng chung",
-      desc: "Tạo nội dung bằng AI, lên lịch và đăng bài đều trừ vào một ví credit duy nhất, thay vì mỗi tính năng một hạn mức riêng khó theo dõi.",
+      title: "Shared credit wallet",
+      desc: "AI content generation, scheduling, and publishing all draw from a single unified credit wallet, eliminating complex per-feature quotas.",
       icon: "account_balance_wallet",
     },
     {
-      title: "Pipeline duyệt nội dung",
-      desc: "Nhập kế hoạch nội dung hàng loạt, để AI soạn nháp cho từng bài, rồi duyệt trước khi bất kỳ nội dung nào được lên lịch đăng.",
+      title: "Content review pipeline",
+      desc: "Import content plans in bulk, let AI draft each post, then review and approve before any content is scheduled for publication.",
       icon: "dynamic_feed",
     },
   ];
 
   const steps = [
-    { step: "01", title: "Nhập kế hoạch nội dung", desc: "Tải lên kế hoạch hàng loạt hoặc bản brief cho một workspace. AISAM tự tách thành từng bài đăng riêng theo mỗi nền tảng.", icon: "upload_file", image: "/demo1.png", features: ["Nhập hàng loạt qua file", "Tự động tách theo nền tảng", "Giữ đúng giọng thương hiệu"] },
-    { step: "02", title: "AI soạn nháp, bạn duyệt", desc: "Nội dung và hình ảnh được AI tạo cho từng bài rồi đưa vào hàng chờ duyệt. Không có gì được đăng nếu chưa được xác nhận.", icon: "fact_check", image: "/demo2.png", features: ["Duyệt kiểu vuốt trên app", "Chỉnh sửa trước khi đăng", "Lưu lại lịch sử phiên bản"] },
-    { step: "03", title: "Lên lịch và đồng bộ", desc: "Bài đã duyệt được xếp hàng và tự động đăng lên các tài khoản đã kết nối đúng thời điểm đã định.", icon: "schedule_send", image: "/demo3.png", features: ["Facebook, Instagram, TikTok", "Tự thử lại nếu đăng lỗi", "Thông báo khi hoàn tất"] },
+    { step: "01", title: "Import content plan", desc: "Upload bulk schedules or briefs to a workspace. AISAM automatically separates them into individual posts tailored for each platform.", icon: "upload_file", image: "/demo1.png", features: ["Bulk import via file", "Auto-segment by platform", "Maintain brand tone of voice"] },
+    { step: "02", title: "AI drafts, you approve", desc: "Content and images are generated by AI for each post and placed into an approval queue. Nothing goes live without your confirmation.", icon: "fact_check", image: "/demo2.png", features: ["Swipe-style review on app", "Edit before publishing", "Version history tracking"] },
+    { step: "03", title: "Schedule and synchronize", desc: "Approved posts are queued and automatically published to connected accounts at the precisely scheduled times.", icon: "schedule_send", image: "/demo3.png", features: ["Facebook, Instagram, TikTok", "Auto-retry on publish error", "Notification upon completion"] },
   ];
 
   const businessPoints = [
-    { value: 0, suffix: "Không giới hạn", label: "Workspace / thương hiệu", desc: "Thêm thương hiệu mới mà không cần tài khoản riêng biệt", display: "Không giới hạn" },
-    { value: 3, suffix: "", label: "Nền tảng đồng bộ trực tiếp", desc: "Facebook, Instagram, TikTok — không cần đăng thủ công", display: null },
-    { value: 100, suffix: "%", label: "Nội dung AI qua kiểm duyệt", desc: "Không bài nào được đăng nếu chưa có người xác nhận", display: null },
+    { value: 0, suffix: "Unlimited", label: "Workspaces / brands", desc: "Add new brands without needing separate individual accounts", display: "Unlimited" },
+    { value: 3, suffix: "", label: "Directly synced platforms", desc: "Facebook, Instagram, TikTok — no manual publishing needed", display: null },
+    { value: 100, suffix: "%", label: "AI content human-verified", desc: "No post goes live without explicit human confirmation", display: null },
   ];
 
   const decisions = [
-    { title: "Sở hữu theo workspace, không theo cá nhân", desc: "Chiến dịch và tài sản thuộc về workspace của thương hiệu — đội ngũ không mất lịch sử làm việc khi có người rời nhóm.", icon: "groups" },
-    { title: "Ví credit thay vì hạn mức rời rạc", desc: "Một số dư duy nhất chi trả cho việc tạo nội dung AI, lên lịch và đăng bài, thay vì mỗi tính năng một giới hạn riêng.", icon: "savings" },
-    { title: "Không gì được đăng khi chưa qua duyệt", desc: "Mọi nội dung AI soạn đều nằm trong hàng chờ duyệt. Hệ thống đề xuất, con người quyết định.", icon: "verified" },
+    { title: "Workspace ownership, not personal", desc: "Campaigns and assets belong to the brand workspace — your team won't lose work history when someone leaves the group.", icon: "groups" },
+    { title: "Credit wallet instead of fragmented quotas", desc: "A single balance pays for AI content generation, scheduling, and posting, rather than separate limits for each feature.", icon: "savings" },
+    { title: "Nothing publishes without approval", desc: "All AI-drafted content stays in the approval queue. The AI proposes, humans decide.", icon: "verified" },
   ];
 
   return (
@@ -308,18 +308,18 @@ export default function LandingPage() {
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="relative w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-all hover:scale-110 active:scale-95" aria-label="Đổi giao diện sáng/tối">
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="relative w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-all hover:scale-110 active:scale-95" aria-label="Toggle light/dark theme">
               <span className={`material-symbols-outlined text-[16px] transition-all duration-300 ${theme === 'dark' ? "text-warning-amber" : "text-on-surface"}`} style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
                 {theme === 'dark' ? "dark_mode" : "light_mode"}
               </span>
             </button>
-            <Link href="/login" className="text-body-sm text-outline hover:text-on-surface font-semibold transition-colors">Đăng nhập</Link>
+            <Link href="/login" className="text-body-sm text-outline hover:text-on-surface font-semibold transition-colors">Sign in</Link>
             <Link href="/register" className="relative px-6 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95">
-              Dùng thử miễn phí
+              Start free trial
             </Link>
           </div>
 
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 rounded-xl hover:bg-surface-container transition-colors" aria-label="Mở menu">
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 rounded-xl hover:bg-surface-container transition-colors" aria-label="Open menu">
             <span className="material-symbols-outlined text-on-surface text-[24px]" aria-hidden="true">{mobileMenuOpen ? "close" : "menu"}</span>
           </button>
         </div>
@@ -333,10 +333,10 @@ export default function LandingPage() {
               <div className="pt-4 border-t border-outline-variant/20 flex flex-col gap-3">
                 <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="flex items-center gap-3 py-3 text-body-md text-on-surface font-semibold">
                   <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">{theme === 'dark' ? "light_mode" : "dark_mode"}</span>
-                  {theme === 'dark' ? "Chế độ sáng" : "Chế độ tối"}
+                  {theme === 'dark' ? "Light mode" : "Dark mode"}
                 </button>
-                <Link href="/login" className="text-center py-3 text-body-lg text-on-surface font-semibold">Đăng nhập</Link>
-                <Link href="/register" className="text-center py-3 bg-primary text-on-primary rounded-xl text-body-lg font-bold">Dùng thử miễn phí</Link>
+                <Link href="/login" className="text-center py-3 text-body-lg text-on-surface font-semibold">Sign in</Link>
+                <Link href="/register" className="text-center py-3 bg-primary text-on-primary rounded-xl text-body-lg font-bold">Start free trial</Link>
               </div>
             </div>
           </div>
@@ -356,40 +356,40 @@ export default function LandingPage() {
               <Reveal delay={0}>
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/5 border border-primary/15 rounded-full mb-8">
                   <span className="material-symbols-outlined text-primary text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">storefront</span>
-                  <span className="text-label-sm text-primary font-semibold">Dành cho đội ngũ quản lý nhiều thương hiệu</span>
+                  <span className="text-label-sm text-primary font-semibold">For teams managing multiple brands</span>
                 </div>
               </Reveal>
 
               <Reveal delay={100}>
                 <h1 className="text-display-lg text-on-surface font-bold leading-[1.05] mb-6">
-                  Soạn, duyệt và đăng nội dung{" "}
-                  <span className="text-gradient-clip">mạng xã hội</span>{" "}
-                  chỉ từ một workspace
+                  Draft, approve, and publish{" "}
+                  <span className="text-gradient-clip">social media</span>{" "}
+                  content from one workspace
                 </h1>
               </Reveal>
 
               <Reveal delay={200}>
                 <p className="text-body-lg text-on-surface-variant mb-10 max-w-xl leading-relaxed">
-                  AISAM nhập kế hoạch nội dung hàng loạt, để AI soạn nháp từng bài, giữ lại để bạn duyệt trước khi lên lịch đăng lên Facebook, Instagram và TikTok — tất cả theo dõi qua một ví credit cho mỗi workspace.
+                  AISAM imports content plans in bulk, lets AI draft every post, and holds them for your review before scheduling to Facebook, Instagram, and TikTok — all tracked via a unified credit wallet per workspace.
                 </p>
               </Reveal>
 
               <Reveal delay={300}>
                 <div className="flex flex-col sm:flex-row gap-4 mb-10">
                   <Link href="/register" className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary text-on-primary rounded-2xl text-headline-sm font-bold shadow-xl shadow-primary/25 hover:scale-[1.02] transition-all active:scale-[0.98]">
-                    <span>Dùng thử miễn phí</span>
+                    <span>Start free trial</span>
                     <span className="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform" aria-hidden="true">arrow_forward</span>
                   </Link>
                   <Link href="#how-it-works" className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-surface-container-lowest/80 backdrop-blur text-on-surface rounded-2xl text-headline-sm font-semibold border border-outline-variant/20 hover:border-primary/30 hover:bg-surface-container transition-all active:scale-[0.98]">
                     <span className="material-symbols-outlined text-[20px] text-primary" aria-hidden="true">play_circle</span>
-                    Xem quy trình hoạt động
+                    See how it works
                   </Link>
                 </div>
               </Reveal>
 
               <Reveal delay={400}>
                 <div className="flex flex-wrap items-center gap-6 text-label-sm text-outline">
-                  <span>Hiện đang kết nối với</span>
+                  <span>Now connected with</span>
                   {["Facebook", "Instagram", "TikTok"].map((p) => (
                     <span key={p} className="px-2.5 py-1 rounded-md border border-outline-variant/25 text-on-surface-variant font-medium">{p}</span>
                   ))}
@@ -413,8 +413,8 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto">
             <Reveal>
               <div className="text-center mb-16 lg:mb-20">
-                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Những gì thực sự có trong workspace</h2>
-                <p className="text-body-lg text-on-surface-variant max-w-2xl mx-auto">Ba thành phần cốt lõi mà toàn bộ quy trình vận hành xoay quanh.</p>
+                <h2 className="text-headline-lg text-on-surface font-bold mb-4">What is actually inside a workspace</h2>
+                <p className="text-body-lg text-on-surface-variant max-w-2xl mx-auto">Three core pillars that your entire content operation revolves around.</p>
               </div>
             </Reveal>
 
@@ -437,8 +437,8 @@ export default function LandingPage() {
             <Reveal delay={100}>
               <div className="mt-6 rounded-3xl bg-enterprise-navy p-8 lg:p-10 flex flex-col sm:flex-row items-start sm:items-center gap-6 justify-between">
                 <div>
-                  <h3 className="text-headline-sm text-white font-bold mb-2">Đồng bộ nền tảng</h3>
-                  <p className="text-body-sm text-outline-variant max-w-xl">Bài đăng đã duyệt được đẩy trực tiếp lên các tài khoản đã kết nối — không cần tải lên thủ công từng nền tảng.</p>
+                  <h3 className="text-headline-sm text-white font-bold mb-2">Platform Synchronization</h3>
+                  <p className="text-body-sm text-outline-variant max-w-xl">Approved posts are pushed directly to connected accounts — no manual uploads needed for individual platforms.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   {["Facebook", "Instagram", "TikTok"].map((p) => (
@@ -455,8 +455,8 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto">
             <Reveal>
               <div className="text-center mb-20 lg:mb-28">
-                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Pipeline duyệt nội dung</h2>
-                <p className="text-body-lg text-on-surface-variant max-w-2xl mx-auto">Mọi bài đăng đều đi qua đúng ba bước này, theo thứ tự.</p>
+                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Content review pipeline</h2>
+                <p className="text-body-lg text-on-surface-variant max-w-2xl mx-auto">Every single post moves through exactly these three steps, in order.</p>
               </div>
             </Reveal>
 
@@ -476,14 +476,14 @@ export default function LandingPage() {
                             </div>
                             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-lowest/80 border border-outline-variant/20">
                               <span className="material-symbols-outlined text-primary text-[14px]" aria-hidden="true">{item.icon}</span>
-                              <span className="text-label-2xs font-semibold text-on-surface-variant uppercase tracking-wider">Bước {item.step}</span>
+                              <span className="text-label-2xs font-semibold text-on-surface-variant uppercase tracking-wider">Step {item.step}</span>
                             </div>
                             <div className="w-12" />
                           </div>
                           <div className="relative overflow-hidden aspect-[16/10] bg-surface-container-low/30">
                             <img
                               src={item.image}
-                              alt={`Bước ${item.step} - ${item.title}`}
+                              alt={`Step ${item.step} - ${item.title}`}
                               className="w-full h-full object-cover object-top group-hover:scale-[1.02] transition-transform duration-700"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent pointer-events-none" />
@@ -520,8 +520,8 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto">
             <Reveal>
               <div className="text-center mb-16">
-                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Nền tảng cho đội ngũ quản lý nhiều thương hiệu</h2>
-                <p className="text-body-lg text-on-surface-variant">Một hệ thống, nhiều workspace, mỗi thương hiệu tách bạch dữ liệu và ngân sách riêng.</p>
+                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Built for teams managing multiple brands</h2>
+                <p className="text-body-lg text-on-surface-variant">One system, multiple workspaces, with each brand having fully isolated data and budgets.</p>
               </div>
             </Reveal>
 
@@ -539,13 +539,13 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Vì sao chọn AISAM (thay cho testimonial) */}
+        {/* Why AISAM */}
         <section className="py-24 lg:py-32 px-6 lg:px-8 relative" id="decisions">
           <div className="max-w-7xl mx-auto">
             <Reveal>
               <div className="text-center mb-16 lg:mb-20">
-                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Vài lựa chọn đáng nói rõ</h2>
-                <p className="text-body-lg text-on-surface-variant max-w-2xl mx-auto">Những nguyên tắc định hình cách AISAM vận hành, không chỉ là giao diện.</p>
+                <h2 className="text-headline-lg text-on-surface font-bold mb-4">Key architectural decisions</h2>
+                <p className="text-body-lg text-on-surface-variant max-w-2xl mx-auto">The foundational principles that shape how AISAM operates beyond just surface-level UI.</p>
               </div>
             </Reveal>
 
@@ -573,21 +573,21 @@ export default function LandingPage() {
                 <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
 
                 <div className="relative z-10">
-                  <h2 className="text-headline-lg text-on-surface font-bold mb-4">Sẵn sàng quản lý nội dung gọn gàng hơn?</h2>
-                  <p className="text-body-lg text-on-surface-variant mb-10 max-w-2xl mx-auto">Tạo workspace đầu tiên, kết nối nền tảng, và để AI lo phần soạn nháp — bạn chỉ cần duyệt.</p>
+                  <h2 className="text-headline-lg text-on-surface font-bold mb-4">Ready to streamline your social content?</h2>
+                  <p className="text-body-lg text-on-surface-variant mb-10 max-w-2xl mx-auto">Create your first workspace, connect your platforms, and let AI handle drafting — all you do is approve.</p>
 
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <Link href="/register" className="w-full sm:w-auto group relative inline-flex items-center justify-center gap-2 px-10 py-5 bg-primary text-on-primary rounded-2xl text-headline-sm font-bold shadow-xl shadow-primary/25 hover:scale-[1.02] transition-all active:scale-[0.98]">
-                      <span>Tạo workspace miễn phí</span>
+                      <span>Create free workspace</span>
                       <span className="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform" aria-hidden="true">arrow_forward</span>
                     </Link>
                     <Link href="/login" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-5 bg-surface-container-lowest/80 backdrop-blur text-on-surface rounded-2xl text-headline-sm font-semibold border border-outline-variant/20 hover:border-primary/30 hover:bg-surface-container transition-all active:scale-[0.98]">
-                      Đăng nhập
+                      Sign in
                     </Link>
                   </div>
 
                   <div className="flex flex-wrap justify-center items-center gap-6 text-label-sm text-outline mt-8">
-                    {["Không cần thẻ tín dụng", "Dùng thử 14 ngày", "Hủy bất kỳ lúc nào"].map((text) => (
+                    {["No credit card required", "14-day free trial", "Cancel anytime"].map((text) => (
                       <div key={text} className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-success-green text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">check_circle</span>
                         <span>{text}</span>
@@ -612,11 +612,11 @@ export default function LandingPage() {
                 </div>
                 <span className="text-headline-sm font-bold">AISAM</span>
               </Link>
-              <p className="text-body-sm text-outline-variant mb-6 leading-relaxed">Nền tảng quản lý và tự động hóa nội dung, quảng cáo mạng xã hội cho nhiều thương hiệu trên cùng một hệ thống.</p>
+              <p className="text-body-sm text-outline-variant mb-6 leading-relaxed">A unified platform for automating social media content and advertising management across multiple brands.</p>
             </div>
 
             <div>
-              <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Sản phẩm</h4>
+              <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Product</h4>
               <ul className="space-y-4">
                 {navLinks.map(([href, label]) => (
                   <li key={href}><Link href={href} className="text-body-sm text-outline-variant hover:text-white transition-colors inline-block">{label}</Link></li>
@@ -625,26 +625,26 @@ export default function LandingPage() {
             </div>
 
             <div>
-              <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Pháp lý</h4>
+              <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Legal</h4>
               <ul className="space-y-4">
-                <li><Link href="/terms" className="text-body-sm text-outline-variant hover:text-white transition-colors inline-block">Điều khoản dịch vụ</Link></li>
-                <li><Link href="/privacy" className="text-body-sm text-outline-variant hover:text-white transition-colors inline-block">Chính sách bảo mật</Link></li>
+                <li><Link href="/terms" className="text-body-sm text-outline-variant hover:text-white transition-colors inline-block">Terms of Service</Link></li>
+                <li><Link href="/privacy" className="text-body-sm text-outline-variant hover:text-white transition-colors inline-block">Privacy Policy</Link></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Liên hệ</h4>
-              <p className="text-body-sm text-outline-variant leading-relaxed">Cần hỗ trợ hoặc muốn tìm hiểu thêm về AISAM? Gửi email cho đội ngũ hỗ trợ để được tư vấn.</p>
+              <h4 className="text-label-sm font-bold text-white uppercase tracking-wider mb-6">Contact</h4>
+              <p className="text-body-sm text-outline-variant leading-relaxed">Need support or want to learn more about AISAM? Contact our customer success team for guidance.</p>
             </div>
           </div>
         </div>
 
         <div className="relative z-10 border-t border-white/10">
           <div className="max-w-7xl mx-auto px-6 lg:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-label-sm text-outline-variant">&copy; 2026 AISAM. Đã đăng ký bản quyền.</p>
+            <p className="text-label-sm text-outline-variant">&copy; 2026 AISAM. All rights reserved.</p>
             <div className="flex gap-6">
-              <Link href="/privacy" className="text-label-sm text-outline-variant hover:text-white">Bảo mật</Link>
-              <Link href="/terms" className="text-label-sm text-outline-variant hover:text-white">Điều khoản</Link>
+              <Link href="/privacy" className="text-label-sm text-outline-variant hover:text-white">Privacy</Link>
+              <Link href="/terms" className="text-label-sm text-outline-variant hover:text-white">Terms</Link>
             </div>
           </div>
         </div>
