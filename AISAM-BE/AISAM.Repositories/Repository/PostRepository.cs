@@ -21,6 +21,26 @@ public sealed class PostRepository : IPostRepository
             .FirstOrDefaultAsync(post => post.Id == id && !post.IsDeleted, cancellationToken);
     }
 
+    public async Task<Post?> GetByIntegrationAndExternalPostIdAsync(Guid integrationId, string externalPostId, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .FirstOrDefaultAsync(post =>
+                !post.IsDeleted &&
+                post.IntegrationId == integrationId &&
+                post.ExternalPostId == externalPostId,
+                cancellationToken);
+    }
+
+    public async Task<Post?> GetByExternalPostIdInWorkspaceAsync(Guid workspaceId, string externalPostId, CancellationToken cancellationToken = default)
+    {
+        return await Query()
+            .FirstOrDefaultAsync(post =>
+                !post.IsDeleted &&
+                post.ExternalPostId == externalPostId &&
+                post.Content != null && post.Content.WorkspaceId == workspaceId,
+                cancellationToken);
+    }
+
     public async Task DeleteAsync(Post post, CancellationToken cancellationToken = default)
     {
         post.IsDeleted = true;

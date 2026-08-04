@@ -3,6 +3,8 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace AISAM.Repositories.Repository;
 
@@ -59,11 +61,13 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         var publishedPosts = await postsQuery.CountAsync(cancellationToken);
         var activeCampaigns = await campaignsQuery
-            .Where(c => c.IsActive && c.DeploymentStatus == DeploymentStatusEnum.None && (c.EndDate == null || c.EndDate >= from))
+            .Where(c => c.IsActive && c.DeploymentStatus == DeploymentStatusEnum.None
+                && (c.StartDate ?? c.CreatedAt) <= to
+                && (c.EndDate == null || c.EndDate >= from))
             .CountAsync(cancellationToken);
 
         var campaignAgg = await campaignsQuery
-            .Where(c => c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from)
+            .Where(c => (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from)
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -74,36 +78,57 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var perfAgg = await _context.PerformanceReports
+        var perfReportsQuery = _context.PerformanceReports
             .Where(pr => !pr.IsDeleted
                 && pr.ReportDate >= from && pr.ReportDate <= to
                 && pr.Post != null && !pr.Post.IsDeleted
                 && pr.Post.Content != null && !pr.Post.Content.IsDeleted
-                && pr.Post.Content.WorkspaceId == workspaceId)
+                && pr.Post.Content.WorkspaceId == workspaceId);
+
+        if (brandId.HasValue)
+            perfReportsQuery = perfReportsQuery.Where(pr => pr.Post!.Content!.BrandId == brandId.Value);
+
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            var platformEnum = ParsePlatform(platform);
+            perfReportsQuery = perfReportsQuery.Where(pr => pr.Post!.Integration.Platform == platformEnum);
+        }
+
+        var perfAgg = await perfReportsQuery
             .GroupBy(_ => 1)
             .Select(g => new
             {
                 Impressions = g.Sum(pr => pr.Impressions),
                 Engagement = g.Sum(pr => pr.Engagement),
-                Ctr = g.Average(pr => pr.Ctr),
                 Revenue = g.Sum(pr => pr.EstimatedRevenue)
             })
             .FirstOrDefaultAsync(cancellationToken);
 
+        var perfClicks = (await perfReportsQuery
+                .Select(pr => pr.RawData)
+                .ToListAsync(cancellationToken))
+            .Sum(ExtractClicks);
+        var perfReach = (await perfReportsQuery
+                .Select(pr => pr.RawData)
+                .ToListAsync(cancellationToken))
+            .Sum(ExtractReach);
+        var totalImpressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0);
+        var totalClicks = (campaignAgg?.Clicks ?? 0) + perfClicks;
+
+        var perfReportCount = await perfReportsQuery.CountAsync(cancellationToken);
+
         return new AnalyticsTotals
         {
-            Impressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0),
+            Impressions = totalImpressions,
             Engagement = perfAgg?.Engagement ?? 0,
-            Clicks = campaignAgg?.Clicks ?? 0,
+            Clicks = totalClicks,
             Conversions = campaignAgg?.Conversions ?? 0,
-            Ctr = campaignAgg?.Clicks > 0
-                ? Math.Round((decimal)campaignAgg.Clicks / (campaignAgg.Impressions > 0 ? campaignAgg.Impressions : 1) * 100, 2)
-                : (perfAgg?.Ctr != null ? Math.Round(perfAgg.Ctr, 2) : 0),
+            Ctr = totalImpressions > 0 ? Math.Round((decimal)totalClicks / totalImpressions * 100, 2) : 0,
             Spend = campaignAgg?.Spend ?? 0,
             EstimatedRevenue = perfAgg?.Revenue ?? 0,
             PublishedPosts = publishedPosts,
             ActiveCampaigns = activeCampaigns,
-            Reach = 0
+            Reach = perfReach
         };
     }
 
@@ -134,42 +159,85 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         var campaignsQuery = _context.AdCampaigns
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
-                && ((c.StartDate >= from && c.StartDate <= to) || (c.CreatedAt >= from && c.CreatedAt <= to)));
+                && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from);
         if (brandId.HasValue)
             campaignsQuery = campaignsQuery.Where(c => c.BrandId == brandId.Value);
         if (campaignId.HasValue)
             campaignsQuery = campaignsQuery.Where(c => c.Id == campaignId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            campaignsQuery = campaignsQuery.Where(c => c.Platform.ToLower() == platform.ToLower());
 
-        var campaignAgg = await campaignsQuery
-            .GroupBy(_ => 1)
+        var campaignByDay = await campaignsQuery
+            .GroupBy(c => (c.StartDate ?? c.CreatedAt).Date)
             .Select(g => new
             {
+                Date = g.Key,
                 Impressions = g.Sum(c => c.Impressions),
                 Clicks = g.Sum(c => c.Clicks),
                 Spend = g.Sum(c => c.Spend),
                 Conversions = g.Sum(c => c.Conversions)
             })
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        var totalDays = days.Count;
-        var points = days.Select((day, index) =>
+        var reportRowsQuery = _context.PerformanceReports
+            .Where(pr => !pr.IsDeleted
+                && pr.ReportDate >= from && pr.ReportDate <= to
+                && pr.Post != null && !pr.Post.IsDeleted
+                && pr.Post.Content != null && !pr.Post.Content.IsDeleted
+                && pr.Post.Content.WorkspaceId == workspaceId);
+
+        if (brandId.HasValue)
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Content!.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            var platformEnum = ParsePlatform(platform);
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Integration.Platform == platformEnum);
+        }
+
+        var reportRows = await reportRowsQuery
+            .Select(pr => new
+            {
+                Date = pr.ReportDate.Date,
+                pr.Impressions,
+                pr.Engagement,
+                pr.EstimatedRevenue,
+                pr.RawData
+            })
+            .ToListAsync(cancellationToken);
+
+        var reportsByDay = reportRows
+            .GroupBy(pr => pr.Date)
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    Impressions = g.Sum(pr => pr.Impressions),
+                    Engagement = g.Sum(pr => pr.Engagement),
+                    Revenue = g.Sum(pr => pr.EstimatedRevenue),
+                    Clicks = g.Sum(pr => ExtractClicks(pr.RawData)),
+                    Reach = g.Sum(pr => ExtractReach(pr.RawData))
+                });
+
+        var points = days.Select(day =>
         {
             var dayPosts = postsByDay.FirstOrDefault(p => p.Date == day)?.Count ?? 0;
-            var dayFraction = totalDays > 0 ? (decimal)(index + 1) / totalDays : 0;
+            var dayCampaign = campaignByDay.FirstOrDefault(c => c.Date == day);
+            reportsByDay.TryGetValue(day, out var dayReport);
+            var impressions = (dayCampaign?.Impressions ?? 0) + (dayReport?.Impressions ?? 0);
+            var clicks = (dayCampaign?.Clicks ?? 0) + (dayReport?.Clicks ?? 0);
 
             return new AnalyticsPointDto
             {
                 Date = day.ToString("yyyy-MM-dd"),
                 PublishedPosts = dayPosts,
-                Impressions = (long)((campaignAgg?.Impressions ?? 0) * dayFraction / totalDays),
-                Clicks = (long)((campaignAgg?.Clicks ?? 0) * dayFraction / totalDays),
-                Conversions = (long)((campaignAgg?.Conversions ?? 0) * dayFraction / totalDays),
-                Spend = (campaignAgg?.Spend ?? 0) * dayFraction / totalDays,
-                Ctr = campaignAgg?.Impressions > 0
-                    ? Math.Round((decimal)(campaignAgg.Clicks) / campaignAgg.Impressions * 100, 2) : 0,
-                Reach = 0,
-                Engagement = 0,
-                EstimatedRevenue = 0,
+                Impressions = impressions,
+                Clicks = clicks,
+                Conversions = dayCampaign?.Conversions ?? 0,
+                Spend = dayCampaign?.Spend ?? 0,
+                Ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions * 100, 2) : 0,
+                Reach = dayReport?.Reach ?? 0,
+                Engagement = dayReport?.Engagement ?? 0,
+                EstimatedRevenue = dayReport?.Revenue ?? 0,
                 ActiveCampaigns = 0
             };
         }).ToList();
@@ -189,6 +257,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         var integrations = await integrationsQuery
             .Include(si => si.Posts.Where(p => !p.IsDeleted && p.PublishedAt >= from && p.PublishedAt <= to))
+                .ThenInclude(p => p.PerformanceReports.Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to))
             .ToListAsync(cancellationToken);
 
         return integrations
@@ -197,19 +266,24 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             {
                 var platformStr = g.Key.ToString().ToLower();
                 var postCount = g.Sum(si => si.Posts.Count);
+                var reports = g.SelectMany(si => si.Posts).SelectMany(p => p.PerformanceReports).ToList();
+                var impressions = reports.Sum(pr => pr.Impressions);
+                var engagement = reports.Sum(pr => pr.Engagement);
+                var clicks = reports.Sum(pr => ExtractClicks(pr.RawData));
+                var reach = reports.Sum(pr => ExtractReach(pr.RawData));
                 return new AnalyticsChannelBreakdownDto
                 {
                     Platform = platformStr,
                     IntegrationId = g.First().Id,
                     DisplayName = $"{platformStr} ({g.Count()} accounts)",
                     PublishedPosts = postCount,
-                    Impressions = 0,
-                    Reach = 0,
-                    Engagement = 0,
-                    Clicks = 0,
-                    Ctr = 0,
+                    Impressions = impressions,
+                    Reach = reach,
+                    Engagement = engagement,
+                    Clicks = clicks,
+                    Ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions * 100, 2) : 0,
                     Spend = 0,
-                    LastSyncedAt = g.Max(si => (DateTime?)si.UpdatedAt)
+                    LastSyncedAt = reports.Count > 0 ? reports.Max(pr => (DateTime?)pr.CreatedAt) : g.Max(si => (DateTime?)si.UpdatedAt)
                 };
             })
             .ToList();
@@ -227,6 +301,10 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         if (brandId.HasValue)
             query = query.Where(c => c.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            query = query.Where(c => c.Platform.ToLower() == platform.ToLower());
+
+        query = query.Where(c => (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -246,7 +324,9 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             {
                 CampaignId = c.Id,
                 Name = c.Name,
-                Platform = null,
+                CampaignName = c.Name,
+                BrandName = c.Brand != null ? c.Brand.Name : string.Empty,
+                Platform = c.Platform,
                 Objective = c.Objective,
                 Status = c.IsActive ? "ACTIVE" : "PAUSED",
                 Budget = c.Budget,
@@ -256,7 +336,10 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 Clicks = c.Clicks,
                 Ctr = c.Impressions > 0 ? Math.Round((decimal)c.Clicks / c.Impressions * 100, 2) : 0,
                 Spend = c.Spend,
-                EstimatedRevenue = 0
+                EstimatedRevenue = 0,
+                Conversions = c.Conversions,
+                Cpa = c.Conversions > 0 ? c.Spend / c.Conversions : 0,
+                Roas = 0
             })
             .ToListAsync(cancellationToken);
 
@@ -273,14 +356,15 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .Include(p => p.Content)
                 .ThenInclude(c => c!.Brand)
             .Include(p => p.Integration)
-            .Include(p => p.PerformanceReports.Where(pr => !pr.IsDeleted))
+            .Include(p => p.PerformanceReports.Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to))
             .Where(p => !p.IsDeleted
                 && p.PublishedAt >= from && p.PublishedAt <= to
                 && p.Content != null && !p.Content.IsDeleted
-                && p.Content.WorkspaceId == workspaceId);
+                && p.Integration != null
+                && (p.Content.WorkspaceId == workspaceId || p.Integration.WorkspaceId == workspaceId));
 
         if (brandId.HasValue)
-            postsQuery = postsQuery.Where(p => p.Content!.BrandId == brandId.Value);
+            postsQuery = postsQuery.Where(p => p.Content!.BrandId == brandId.Value || p.Integration.BrandId == brandId.Value);
 
         if (!string.IsNullOrWhiteSpace(platform))
             postsQuery = postsQuery.Where(p => p.Integration.Platform == ParsePlatform(platform));
@@ -291,15 +375,23 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         IOrderedEnumerable<Post> ordered = metric?.ToLower() switch
         {
-            "impressions" => sortDescending ? allPosts.OrderByDescending(p => p.PerformanceReports.Sum(pr => pr.Impressions)).ThenByDescending(p => p.PerformanceReports.Count) : allPosts.OrderBy(p => p.PerformanceReports.Sum(pr => pr.Impressions)).ThenBy(p => p.PerformanceReports.Count),
-            "clicks" => sortDescending ? allPosts.OrderByDescending(p => p.PerformanceReports.Sum(pr => pr.Impressions)).ThenByDescending(p => p.PerformanceReports.Average(pr => pr.Ctr)) : allPosts.OrderBy(p => p.PerformanceReports.Sum(pr => pr.Impressions)).ThenBy(p => p.PerformanceReports.Average(pr => pr.Ctr)),
-            "ctr" => sortDescending ? allPosts.OrderByDescending(p => p.PerformanceReports.Any() ? p.PerformanceReports.Average(pr => pr.Ctr) : 0) : allPosts.OrderBy(p => p.PerformanceReports.Any() ? p.PerformanceReports.Average(pr => pr.Ctr) : 0),
-            _ => sortDescending ? allPosts.OrderByDescending(p => p.PerformanceReports.Sum(pr => pr.Engagement)).ThenByDescending(p => p.PerformanceReports.Count) : allPosts.OrderBy(p => p.PerformanceReports.Sum(pr => pr.Engagement)).ThenBy(p => p.PerformanceReports.Count),
+            "recent" => sortDescending ? allPosts.OrderByDescending(p => p.PublishedAt) : allPosts.OrderBy(p => p.PublishedAt),
+            "impressions" => sortDescending ? allPosts.OrderByDescending(p => GetLatestReport(p)?.Impressions ?? 0).ThenByDescending(p => p.PerformanceReports.Count) : allPosts.OrderBy(p => GetLatestReport(p)?.Impressions ?? 0).ThenBy(p => p.PerformanceReports.Count),
+            "clicks" => sortDescending ? allPosts.OrderByDescending(GetPostClicks) : allPosts.OrderBy(GetPostClicks),
+            "ctr" => sortDescending ? allPosts.OrderByDescending(GetPostCtr) : allPosts.OrderBy(GetPostCtr),
+            _ => sortDescending ? allPosts.OrderByDescending(GetPostEngagement).ThenByDescending(p => p.PerformanceReports.Count) : allPosts.OrderBy(GetPostEngagement).ThenBy(p => p.PerformanceReports.Count),
         };
 
         var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
-        var items = paged.Select(p => new TopPostItemDto
+        var items = paged.Select(p =>
+        {
+            var latestReport = GetLatestReport(p);
+            var impressions = latestReport?.Impressions ?? 0;
+            var clicks = GetPostClicks(p);
+            var reach = ExtractReach(latestReport?.RawData);
+            var totalMediaViewUnique = ExtractTotalMediaViewUnique(latestReport?.RawData);
+            return new TopPostItemDto
         {
             PostId = p.Id,
             ContentId = p.ContentId,
@@ -308,11 +400,13 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             Platform = p.Integration.Platform.ToString().ToLower(),
             PublishedAt = p.PublishedAt,
             ExternalPostId = p.ExternalPostId,
-            Impressions = p.PerformanceReports.Sum(pr => pr.Impressions),
-            Reach = 0,
-            Engagement = p.PerformanceReports.Sum(pr => pr.Engagement),
-            Clicks = 0,
-            Ctr = p.PerformanceReports.Any() ? Math.Round(p.PerformanceReports.Average(pr => pr.Ctr), 2) : 0
+            Impressions = impressions,
+            Reach = reach,
+            Engagement = latestReport == null ? 0 : ExtractEngagement(latestReport.RawData, latestReport.Engagement),
+            Clicks = clicks,
+            TotalMediaViewUnique = totalMediaViewUnique,
+            Ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions * 100, 2) : 0
+        };
         }).ToList();
 
         return (items, totalCount);
@@ -328,39 +422,88 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .OrderBy(d => d)
             .ToList();
 
-        var postsByDay = await _context.Posts
-            .Where(p => !p.IsDeleted && p.PublishedAt >= sparkDays.First() && p.PublishedAt <= to
-                && p.Content != null && !p.Content.IsDeleted
-                && p.Content.WorkspaceId == workspaceId)
-            .GroupBy(p => p.PublishedAt.Date)
-            .Select(g => new { Date = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
+        var campaignsQuery = _context.AdCampaigns
+            .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
+                && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= sparkDays.First());
+        if (brandId.HasValue)
+            campaignsQuery = campaignsQuery.Where(c => c.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            campaignsQuery = campaignsQuery.Where(c => c.Platform.ToLower() == platform.ToLower());
+        if (campaignId.HasValue)
+            campaignsQuery = campaignsQuery.Where(c => c.Id == campaignId.Value);
 
-        var campaignByDay = await _context.AdCampaigns
-            .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId)
-            .GroupBy(_ => 1)
+        var campaignByDay = await campaignsQuery
+            .GroupBy(c => (c.StartDate ?? c.CreatedAt).Date)
             .Select(g => new
             {
-                TotalImpressions = g.Sum(c => c.Impressions),
-                TotalClicks = g.Sum(c => c.Clicks),
-                TotalSpend = g.Sum(c => c.Spend),
-                TotalConversions = g.Sum(c => c.Conversions)
+                Date = g.Key,
+                Impressions = g.Sum(c => c.Impressions),
+                Clicks = g.Sum(c => c.Clicks),
+                Spend = g.Sum(c => c.Spend),
+                Conversions = g.Sum(c => c.Conversions)
             })
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        var avgDailyImpressions = sparkDays.Count > 0 ? (campaignByDay?.TotalImpressions ?? 0) / (decimal)sparkDays.Count : 0;
-        var avgDailyClicks = sparkDays.Count > 0 ? (campaignByDay?.TotalClicks ?? 0) / (decimal)sparkDays.Count : 0;
-        var avgDailySpend = sparkDays.Count > 0 ? (campaignByDay?.TotalSpend ?? 0) / sparkDays.Count : 0;
-        var avgDailyConversions = sparkDays.Count > 0 ? (campaignByDay?.TotalConversions ?? 0) / (decimal)sparkDays.Count : 0;
+        var reportRowsQuery = _context.PerformanceReports
+            .Where(pr => !pr.IsDeleted
+                && pr.ReportDate >= sparkDays.First() && pr.ReportDate <= to
+                && pr.Post != null && !pr.Post.IsDeleted
+                && pr.Post.Content != null && !pr.Post.Content.IsDeleted
+                && pr.Post.Content.WorkspaceId == workspaceId);
+
+        if (brandId.HasValue)
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Content!.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Integration.Platform == ParsePlatform(platform));
+
+        var reportRows = await reportRowsQuery
+            .Select(pr => new
+            {
+                Date = pr.ReportDate.Date,
+                pr.Impressions,
+                pr.Engagement,
+                pr.RawData
+            })
+            .ToListAsync(cancellationToken);
+
+        var reportsByDay = reportRows
+            .GroupBy(pr => pr.Date)
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    Impressions = g.Sum(pr => pr.Impressions),
+                    Engagement = g.Sum(pr => pr.Engagement),
+                    Clicks = g.Sum(pr => ExtractClicks(pr.RawData))
+                });
 
         return new AnalyticsSparklines
         {
-            Impressions = sparkDays.Select(_ => avgDailyImpressions).ToList(),
-            Engagement = sparkDays.Select(d => (decimal)(postsByDay.FirstOrDefault(p => p.Date == d)?.Count ?? 0)).ToList(),
-            Clicks = sparkDays.Select(_ => avgDailyClicks).ToList(),
-            Conversions = sparkDays.Select(_ => avgDailyConversions).ToList(),
-            Ctr = sparkDays.Select(d => (decimal)(postsByDay.FirstOrDefault(p => p.Date == d)?.Count ?? 0)).ToList(),
-            Spend = sparkDays.Select(_ => avgDailySpend).ToList(),
+            Impressions = sparkDays.Select(d =>
+            {
+                reportsByDay.TryGetValue(d, out var report);
+                return (decimal)((campaignByDay.FirstOrDefault(c => c.Date == d)?.Impressions ?? 0) + (report?.Impressions ?? 0));
+            }).ToList(),
+            Engagement = sparkDays.Select(d =>
+            {
+                reportsByDay.TryGetValue(d, out var report);
+                return (decimal)(report?.Engagement ?? 0);
+            }).ToList(),
+            Clicks = sparkDays.Select(d =>
+            {
+                reportsByDay.TryGetValue(d, out var report);
+                return (decimal)((campaignByDay.FirstOrDefault(c => c.Date == d)?.Clicks ?? 0) + (report?.Clicks ?? 0));
+            }).ToList(),
+            Conversions = sparkDays.Select(d => (decimal)(campaignByDay.FirstOrDefault(c => c.Date == d)?.Conversions ?? 0)).ToList(),
+            Ctr = sparkDays.Select(d =>
+            {
+                var campaign = campaignByDay.FirstOrDefault(c => c.Date == d);
+                reportsByDay.TryGetValue(d, out var report);
+                var impressions = (campaign?.Impressions ?? 0) + (report?.Impressions ?? 0);
+                var clicks = (campaign?.Clicks ?? 0) + (report?.Clicks ?? 0);
+                return impressions > 0 ? Math.Round((decimal)clicks / impressions * 100, 2) : 0;
+            }).ToList(),
+            Spend = sparkDays.Select(d => campaignByDay.FirstOrDefault(c => c.Date == d)?.Spend ?? 0).ToList(),
         };
     }
 
@@ -406,6 +549,253 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         };
     }
 
+    public async Task AddAsync(PerformanceReport report, CancellationToken cancellationToken = default)
+    {
+        await _context.PerformanceReports.AddAsync(report, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddRangeAsync(IEnumerable<PerformanceReport> reports, CancellationToken cancellationToken = default)
+    {
+        await _context.PerformanceReports.AddRangeAsync(reports, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpsertPostReportAsync(PerformanceReport report, CancellationToken cancellationToken = default)
+    {
+        if (!report.PostId.HasValue)
+            throw new ArgumentException("Post report must have a PostId.", nameof(report));
+
+        var existing = await _context.PerformanceReports
+            .FirstOrDefaultAsync(pr => !pr.IsDeleted
+                && pr.PostId == report.PostId
+                && pr.ReportDate == report.ReportDate, cancellationToken);
+
+        if (existing == null)
+        {
+            await _context.PerformanceReports.AddAsync(report, cancellationToken);
+        }
+        else
+        {
+            existing.Impressions = report.Impressions;
+            existing.Engagement = report.Engagement;
+            existing.Ctr = report.Ctr;
+            existing.EstimatedRevenue = report.EstimatedRevenue;
+            existing.RawData = PreserveTrackedClicks(report.RawData, existing.RawData);
+            existing.CreatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> IncrementTrackedClickAsync(Guid contentId, Guid integrationId, CancellationToken cancellationToken = default)
+    {
+        var post = await _context.Posts
+            .Where(p => !p.IsDeleted && p.ContentId == contentId && p.IntegrationId == integrationId)
+            .OrderByDescending(p => p.PublishedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (post == null)
+            return false;
+
+        var reportDate = DateTime.UtcNow.Date;
+        var report = await _context.PerformanceReports
+            .FirstOrDefaultAsync(pr => !pr.IsDeleted && pr.PostId == post.Id && pr.ReportDate == reportDate, cancellationToken);
+
+        if (report == null)
+        {
+            report = new PerformanceReport
+            {
+                PostId = post.Id,
+                ReportDate = reportDate,
+                RawData = "{\"trackedClicks\":1}",
+                CreatedAt = DateTime.UtcNow
+            };
+            await _context.PerformanceReports.AddAsync(report, cancellationToken);
+        }
+        else
+        {
+            report.RawData = IncrementTrackedClicks(report.RawData);
+            report.CreatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<DateTime?> GetLatestReportDateForPostAsync(Guid postId, CancellationToken cancellationToken = default)
+    {
+        return await _context.PerformanceReports
+            .Where(pr => pr.PostId == postId && !pr.IsDeleted)
+            .MaxAsync(pr => (DateTime?)pr.ReportDate, cancellationToken);
+    }
+
+    public async Task<List<Post>> GetPostsNeedingSyncAsync(int batchSize, CancellationToken cancellationToken = default)
+    {
+        return await _context.Posts
+            .Include(p => p.Integration)
+                .ThenInclude(i => i.SocialAccount)
+            .Include(p => p.Integration.Workspace)
+            .Where(p => !p.IsDeleted
+                && !string.IsNullOrWhiteSpace(p.ExternalPostId)
+                && p.PublishedAt <= DateTime.UtcNow
+                && p.Integration != null)
+            .OrderByDescending(p => p.PublishedAt)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Post>> GetPostsNeedingSyncAsync(
+        int batchSize,
+        Guid workspaceId,
+        DateTime from,
+        DateTime to,
+        Guid? brandId = null,
+        string? platform = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Posts
+            .Include(p => p.Integration)
+                .ThenInclude(i => i.SocialAccount)
+            .Include(p => p.Content)
+            .Where(p => !p.IsDeleted
+                && !string.IsNullOrWhiteSpace(p.ExternalPostId)
+                && p.PublishedAt >= from
+                && p.PublishedAt <= to
+                && p.Content != null
+                && !p.Content.IsDeleted
+                && p.Integration != null
+                && (p.Content.WorkspaceId == workspaceId || p.Integration.WorkspaceId == workspaceId));
+
+        if (brandId.HasValue)
+            query = query.Where(p => p.Content!.BrandId == brandId.Value || p.Integration.BrandId == brandId.Value);
+
+        if (!string.IsNullOrWhiteSpace(platform))
+            query = query.Where(p => p.Integration.Platform == ParsePlatform(platform));
+
+        return await query
+            .OrderBy(p => p.Integration.Platform == SocialPlatformEnum.Facebook ? 0 : 1)
+            .ThenByDescending(p => p.PublishedAt)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    private static long ExtractClicks(string? rawData)
+    {
+        var metaClicks = ExtractMetaClicks(rawData);
+        var trackedClicks = ExtractTrackedClicks(rawData);
+        return Math.Max(metaClicks, trackedClicks);
+    }
+
+    private static long ExtractMetaClicks(string? rawData) =>
+        ReadLongProperty(rawData, "clicks");
+
+    private static long ExtractTrackedClicks(string? rawData) =>
+        ReadLongProperty(rawData, "trackedClicks");
+
+    private static long ExtractEngagement(string? rawData, long fallback)
+    {
+        var reactions = ReadLongProperty(rawData, "reactions");
+        var comments = ReadLongProperty(rawData, "comments");
+        var shares = ReadLongProperty(rawData, "shares");
+        var calculated = reactions + comments + shares;
+
+        return calculated > 0 ? calculated : fallback;
+    }
+
+    private static long ExtractReach(string? rawData)
+    {
+        return ReadLongProperty(rawData, "reach");
+    }
+
+    private static long ExtractTotalMediaViewUnique(string? rawData) =>
+        ReadLongProperty(rawData, "total_media_view_unique");
+
+    private static decimal GetPostCtr(Post post)
+    {
+        var report = GetLatestReport(post);
+        var impressions = report?.Impressions ?? 0;
+        if (impressions <= 0)
+            return 0;
+
+        var clicks = GetPostClicks(post);
+        return (decimal)clicks / impressions * 100;
+    }
+
+    private static long GetPostClicks(Post post)
+    {
+        var latestReport = GetLatestReport(post);
+        var latestMetaClicks = ExtractMetaClicks(latestReport?.RawData);
+        var trackedClicks = post.PerformanceReports.Sum(report => ExtractTrackedClicks(report.RawData));
+        return Math.Max(latestMetaClicks, trackedClicks);
+    }
+
+    private static long GetPostEngagement(Post post)
+    {
+        var report = GetLatestReport(post);
+        return report == null ? 0 : ExtractEngagement(report.RawData, report.Engagement);
+    }
+
+    private static PerformanceReport? GetLatestReport(Post post)
+    {
+        return post.PerformanceReports
+            .OrderByDescending(report => report.ReportDate)
+            .ThenByDescending(report => report.CreatedAt)
+            .FirstOrDefault();
+    }
+
+    private static string PreserveTrackedClicks(string? incomingRawData, string? existingRawData)
+    {
+        var trackedClicks = ReadLongProperty(existingRawData, "trackedClicks");
+        if (trackedClicks <= 0)
+            return incomingRawData ?? string.Empty;
+
+        var node = ParseObject(incomingRawData);
+        node["trackedClicks"] = trackedClicks;
+        return node.ToJsonString();
+    }
+
+    private static string IncrementTrackedClicks(string? rawData)
+    {
+        var node = ParseObject(rawData);
+        var current = ReadLongProperty(rawData, "trackedClicks");
+        node["trackedClicks"] = current + 1;
+        return node.ToJsonString();
+    }
+
+    private static long ReadLongProperty(string? rawData, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(rawData))
+            return 0;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawData);
+            return doc.RootElement.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Number
+                ? property.GetInt64()
+                : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static JsonObject ParseObject(string? rawData)
+    {
+        if (string.IsNullOrWhiteSpace(rawData))
+            return new JsonObject();
+
+        try
+        {
+            return JsonNode.Parse(rawData) as JsonObject ?? new JsonObject();
+        }
+        catch
+        {
+            return new JsonObject();
+        }
+    }
+
     private static SocialPlatformEnum ParsePlatform(string platform)
     {
         return platform.ToLower() switch
@@ -432,11 +822,13 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         var publishedPosts = await postsQuery.CountAsync(cancellationToken);
         var activeCampaigns = await campaignsQuery
-            .Where(c => c.IsActive && c.DeploymentStatus == DeploymentStatusEnum.None && (c.EndDate == null || c.EndDate >= from))
+            .Where(c => c.IsActive && c.DeploymentStatus == DeploymentStatusEnum.None
+                && (c.StartDate ?? c.CreatedAt) <= to
+                && (c.EndDate == null || c.EndDate >= from))
             .CountAsync(cancellationToken);
 
         var campaignAgg = await campaignsQuery
-            .Where(c => c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from)
+            .Where(c => (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from)
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -492,10 +884,12 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 .CountAsync(p => !p.IsDeleted && p.PublishedAt >= from && p.PublishedAt <= to && p.Content != null && p.Content.WorkspaceId == ws.Id, cancellationToken);
 
             var campaigns = await _context.AdCampaigns
-                .CountAsync(c => !c.IsDeleted && c.WorkspaceId == ws.Id && c.IsActive && (c.EndDate == null || c.EndDate >= from), cancellationToken);
+                .CountAsync(c => !c.IsDeleted && c.WorkspaceId == ws.Id && c.IsActive
+                    && (c.StartDate ?? c.CreatedAt) <= to
+                    && (c.EndDate == null || c.EndDate >= from), cancellationToken);
 
             var campAgg = await _context.AdCampaigns
-                .Where(c => !c.IsDeleted && c.WorkspaceId == ws.Id && (c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from))
+                .Where(c => !c.IsDeleted && c.WorkspaceId == ws.Id && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from)
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
@@ -542,7 +936,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     {
         var campaigns = await _context.AdCampaigns
             .AsNoTracking()
-            .Where(c => !c.IsDeleted && (c.StartDate >= from || c.StartDate == null || c.CreatedAt >= from))
+            .Where(c => !c.IsDeleted && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from)
             .Include(c => c.Workspace)
             .OrderByDescending(c => c.Impressions)
             .Take(top)

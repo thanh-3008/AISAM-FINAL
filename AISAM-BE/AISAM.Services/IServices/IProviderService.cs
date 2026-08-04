@@ -36,4 +36,7 @@ public interface IProviderService
     Task<bool> DeleteAdSetAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default);
     Task<bool> DeleteAdCreativeAsync(string adAccountId, string userAccessToken, string creativeId, CancellationToken cancellationToken = default);
     Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default);
+
+    // ─── Post Insights ───
+    Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default);
 }

@@ -208,6 +208,7 @@ public sealed class TopPostItemDto
     public long Reach { get; set; }
     public long Engagement { get; set; }
     public long Clicks { get; set; }
+    public long TotalMediaViewUnique { get; set; }
     public decimal Ctr { get; set; }
 }
 
