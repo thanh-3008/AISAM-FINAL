@@ -25,9 +25,16 @@ export default function FacebookCallbackPage() {
         sessionStorage.removeItem("facebook_connect_brand_id");
         setStatus("Choose the Page you want to link to this brand...");
         router.push(`/social?manageAccount=${encodeURIComponent(account.id)}`);
-      } catch {
-        setStatus("Failed to connect Facebook account. Redirecting...");
-        setTimeout(() => router.push("/social"), 2000);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to connect Facebook account.";
+        setStatus(`${message} Redirecting...`);
+        setTimeout(
+          () => router.push(`/social?connectError=${encodeURIComponent(message)}`),
+          3000
+        );
       }
     };
 

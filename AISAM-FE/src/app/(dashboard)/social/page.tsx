@@ -87,6 +87,18 @@ export default function SocialAccountsPage() {
     }
   }, [accounts, managingTargetsAccount, pathname, router, searchParams]);
 
+  useEffect(() => {
+    const connectError = searchParams.get("connectError");
+    if (!connectError) return;
+
+    showToast(connectError, "error");
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("connectError");
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   // Toast auto-dismiss
   useEffect(() => {
     if (toast) {
