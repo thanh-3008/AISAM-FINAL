@@ -229,7 +229,7 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
 });
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
-builder.Services.AddScoped<IOAuthStateStore, MemoryOAuthStateStore>();
+builder.Services.AddScoped<IOAuthStateStore>(_ => new SignedOAuthStateStore(jwtSecretKey));
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.AddHttpClient<FacebookProvider>();
 builder.Services.AddHttpClient<InstagramProvider>();

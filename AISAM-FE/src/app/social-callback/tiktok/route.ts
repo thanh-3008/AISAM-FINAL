@@ -4,6 +4,11 @@ function asJavaScriptString(value: string | null): string {
   return JSON.stringify(value ?? "").replaceAll("<", "\\u003c");
 }
 
+function getBackendApiBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  return configured ? configured.replace(/\/$/, "") : "/backend-api";
+}
+
 function canUseLocalCallback(request: NextRequest): boolean {
   const host = request.nextUrl.hostname.toLowerCase();
   return (
@@ -33,6 +38,7 @@ export function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const oauthError = request.nextUrl.searchParams.get("error_description") || request.nextUrl.searchParams.get("error");
+  const backendApiBaseUrl = getBackendApiBaseUrl();
 
   const html = `<!doctype html>
 <html lang="en">
@@ -65,6 +71,7 @@ export function GET(request: NextRequest) {
       const code = ${asJavaScriptString(code)};
       const state = ${asJavaScriptString(state)};
       const oauthError = ${asJavaScriptString(oauthError)};
+      const backendApiBaseUrl = ${asJavaScriptString(backendApiBaseUrl)};
       const card = document.getElementById('card');
       const title = document.getElementById('title');
       const message = document.getElementById('message');
@@ -82,6 +89,7 @@ export function GET(request: NextRequest) {
         try { return JSON.parse(localStorage.getItem(key) || 'null'); }
         catch { return null; }
       };
+      const apiUrl = (path) => backendApiBaseUrl.replace(/\\/$/, '') + path;
 
       const run = async () => {
         if (oauthError || !code || !state) {
@@ -108,7 +116,7 @@ export function GET(request: NextRequest) {
 
         try {
           message.textContent = 'Exchanging the authorization code...';
-          const callbackResponse = await fetch('/backend-api/social-auth/tiktok/callback', {
+          const callbackResponse = await fetch(apiUrl('/social-auth/tiktok/callback'), {
             method: 'POST', headers, body: JSON.stringify({ code, state }), signal: controller.signal
           });
           const callbackResult = await callbackResponse.json().catch(() => null);
@@ -120,7 +128,7 @@ export function GET(request: NextRequest) {
           const brandId = sessionStorage.getItem('social_connect_brand_id');
           if (brandId) {
             message.textContent = 'Linking the TikTok account to your brand...';
-            const targetsResponse = await fetch('/backend-api/social/accounts/' + encodeURIComponent(account.id) + '/available-targets', {
+            const targetsResponse = await fetch(apiUrl('/social/accounts/' + encodeURIComponent(account.id) + '/available-targets'), {
               headers, signal: controller.signal
             });
             const targetsResult = await targetsResponse.json().catch(() => null);
@@ -129,7 +137,7 @@ export function GET(request: NextRequest) {
             }
             const targetIds = (targetsResult?.data || []).map((target) => target.providerTargetId).filter(Boolean);
             if (targetIds.length) {
-              const linkResponse = await fetch('/backend-api/social/accounts/' + encodeURIComponent(account.id) + '/link-targets', {
+              const linkResponse = await fetch(apiUrl('/social/accounts/' + encodeURIComponent(account.id) + '/link-targets'), {
                 method: 'POST', headers,
                 body: JSON.stringify({ provider: 'tiktok', providerTargetIds: targetIds, brandId }),
                 signal: controller.signal
@@ -146,7 +154,7 @@ export function GET(request: NextRequest) {
           message.textContent = 'Redirecting to Social Accounts...';
           setTimeout(() => location.replace('/social'), 500);
         } catch (error) {
-          fail(error?.name === 'AbortError' ? 'The request timed out after 30 seconds. Confirm that the backend is running on port 5027.' : (error?.message || 'Unable to connect TikTok.'));
+          fail(error?.name === 'AbortError' ? 'The request timed out after 30 seconds. Confirm that the backend API is reachable.' : (error?.message || 'Unable to connect TikTok.'));
         } finally {
           clearTimeout(timeout);
         }
