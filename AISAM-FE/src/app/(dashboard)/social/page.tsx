@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
@@ -51,6 +51,17 @@ export default function SocialAccountsPage() {
   // Toast
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  const clearManageAccountParam = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("manageAccount")) return;
+
+    params.delete("manageAccount");
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    window.history.replaceState(null, "", nextUrl);
+  }, [pathname]);
+
   // Load accounts
   useEffect(() => {
     let cancelled = false;
@@ -77,15 +88,11 @@ export default function SocialAccountsPage() {
     const pendingAccountId = searchParams.get("manageAccount");
     if (!pendingAccountId || accounts.length === 0 || managingTargetsAccount) return;
     const account = accounts.find((item) => item.id === pendingAccountId);
+    clearManageAccountParam();
     if (account) {
       setManagingTargetsAccount(account);
-
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("manageAccount");
-      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      router.replace(nextUrl, { scroll: false });
     }
-  }, [accounts, managingTargetsAccount, pathname, router, searchParams]);
+  }, [accounts, clearManageAccountParam, managingTargetsAccount, searchParams]);
 
   useEffect(() => {
     const connectError = searchParams.get("connectError");
@@ -206,6 +213,9 @@ export default function SocialAccountsPage() {
   };
 
   const handleManageTargetsSuccess = async () => {
+    clearManageAccountParam();
+    setManagingTargetsAccount(null);
+
     try {
       const res = await fetchSocialAccounts();
       setAccounts(res.data);
@@ -216,14 +226,8 @@ export default function SocialAccountsPage() {
   };
 
   const handleCloseManageTargets = () => {
+    clearManageAccountParam();
     setManagingTargetsAccount(null);
-
-    if (searchParams.has("manageAccount")) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("manageAccount");
-      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      router.replace(nextUrl, { scroll: false });
-    }
   };
 
   const handleSelect = (id: string, selected: boolean) => {
