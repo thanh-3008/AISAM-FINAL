@@ -24,7 +24,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
     },
     {
       label: "Total Interactions",
-      description: "Tổng lượt tương tác: Số lượt Like, Share, Comment, Clicks thu về được.",
+      description: "Tổng lượt tương tác: Số lượt reaction, comment và share thu về được.",
       value: kpi.totalInteractions,
       format: (v: number) => formatCurrency(v).replace('$', ''),
       trend: kpi.totalInteractionsTrend,

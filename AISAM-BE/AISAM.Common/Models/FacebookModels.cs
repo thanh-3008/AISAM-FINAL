@@ -203,3 +203,144 @@ public sealed class FacebookInsightPeriodValue
     [JsonPropertyName("end_time")]
     public string? EndTime { get; set; }
 }
+
+public sealed class FacebookPostInsightData
+{
+    [JsonPropertyName("impressions")]
+    public long? Impressions { get; set; }
+
+    [JsonPropertyName("reach")]
+    public long? Reach { get; set; }
+
+    [JsonPropertyName("views")]
+    public long? Views { get; set; }
+
+    [JsonPropertyName("engaged_users")]
+    public long? EngagedUsers { get; set; }
+
+    [JsonPropertyName("clicks")]
+    public long? Clicks { get; set; }
+
+    [JsonPropertyName("reactions")]
+    public long? Reactions { get; set; }
+
+    [JsonPropertyName("comments")]
+    public long? Comments { get; set; }
+
+    [JsonPropertyName("shares")]
+    public long? Shares { get; set; }
+
+    [JsonPropertyName("total_media_view_unique")]
+    public long? TotalMediaViewUnique { get; set; }
+
+    [JsonPropertyName("diagnostics")]
+    public List<string> Diagnostics { get; set; } = new();
+}
+
+public sealed class FacebookPostInsightsResponse
+{
+    [JsonPropertyName("data")]
+    public List<FacebookPostInsightMetric>? Data { get; set; }
+}
+
+public sealed class FacebookPostInsightMetric
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("period")]
+    public string? Period { get; set; }
+
+    [JsonPropertyName("values")]
+    public List<FacebookPostInsightValue>? Values { get; set; }
+}
+
+public sealed class FacebookPostInsightValue
+{
+    [JsonPropertyName("value")]
+    public object? Value { get; set; }
+}
+
+public sealed class FacebookPostEngagementResponse
+{
+    [JsonPropertyName("insights")]
+    public FacebookPostInsightsResponse? Insights { get; set; }
+
+    [JsonPropertyName("views")]
+    public long? Views { get; set; }
+
+    [JsonPropertyName("view_count")]
+    public long? ViewCount { get; set; }
+
+    [JsonPropertyName("reactions")]
+    public FacebookSummaryEdge? Reactions { get; set; }
+
+    [JsonPropertyName("comments")]
+    public FacebookSummaryEdge? Comments { get; set; }
+
+    [JsonPropertyName("shares")]
+    public FacebookShareSummary? Shares { get; set; }
+}
+
+public sealed class FacebookSummaryEdge
+{
+    [JsonPropertyName("summary")]
+    public FacebookCountSummary? Summary { get; set; }
+}
+
+public sealed class FacebookCountSummary
+{
+    [JsonPropertyName("total_count")]
+    public long? TotalCount { get; set; }
+}
+
+public sealed class FacebookShareSummary
+{
+    [JsonPropertyName("count")]
+    public long? Count { get; set; }
+}
+
+public sealed class FacebookSummaryListResponse
+{
+    [JsonPropertyName("summary")]
+    public FacebookCountSummary? Summary { get; set; }
+}
+
+public sealed class FacebookPublishedPostsResponse
+{
+    [JsonPropertyName("data")]
+    public List<FacebookPublishedPostData>? Data { get; set; }
+
+    [JsonPropertyName("paging")]
+    public FacebookPaging? Paging { get; set; }
+}
+
+public sealed class FacebookPublishedPostData
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    [JsonPropertyName("created_time")]
+    public DateTime? CreatedTime { get; set; }
+
+    [JsonPropertyName("permalink_url")]
+    public string? PermalinkUrl { get; set; }
+
+    [JsonPropertyName("promotable_id")]
+    public string? PromotableId { get; set; }
+
+    [JsonPropertyName("status_type")]
+    public string? StatusType { get; set; }
+
+    [JsonPropertyName("insights")]
+    public FacebookPostInsightsResponse? Insights { get; set; }
+}
+
+public sealed class FacebookPaging
+{
+    [JsonPropertyName("next")]
+    public string? Next { get; set; }
+}

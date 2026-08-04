@@ -260,6 +260,7 @@ builder.Services.AddScoped<IAutomationGenerationService, AutomationGenerationSer
 builder.Services.AddScoped<IAutomationApprovalService, AutomationApprovalService>();
 builder.Services.AddScoped<IAutomationCreditService, AutomationCreditService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+builder.Services.AddScoped<IPostInsightsSyncService, PostInsightsSyncService>();
 builder.Services.AddScoped<IScheduledPostingService, ScheduledPostingService>();
 builder.Services.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
 builder.Services.AddScoped<IAdminService, AdminService>();
@@ -274,6 +275,7 @@ builder.Services.AddHostedService<AutomationOperationsBackgroundService>();
 builder.Services.AddHostedService<VideoPollingBackgroundService>();
 builder.Services.AddHostedService<VideoGenerationBackgroundService>();
 builder.Services.AddHostedService<CampaignInsightsBackgroundService>();
+builder.Services.AddHostedService<PostInsightsBackgroundService>();
 
 builder.Services.AddScoped<ICampaignInsightsSyncService, CampaignInsightsSyncService>();
 

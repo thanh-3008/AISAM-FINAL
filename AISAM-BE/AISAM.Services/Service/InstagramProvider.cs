@@ -507,4 +507,9 @@ public sealed class InstagramProvider : IProviderService
         public static ApiResult Ok(string id) => new(true, id, null);
         public static ApiResult Fail(string error) => new(false, null, error);
     }
+
+    public Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<FacebookPostInsightData?>(null);
+    }
 }

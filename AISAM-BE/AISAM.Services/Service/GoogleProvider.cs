@@ -124,4 +124,9 @@ public sealed class GoogleProvider : IProviderService
     {
         throw new NotSupportedException("Google Ads is not available in Phase C.");
     }
+
+    public Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<FacebookPostInsightData?>(null);
+    }
 }

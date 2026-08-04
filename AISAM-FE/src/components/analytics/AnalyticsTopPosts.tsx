@@ -56,12 +56,15 @@ export default function AnalyticsTopPosts({ posts }: AnalyticsTopPostsProps) {
               <th className="px-5 py-4 text-right text-label-sm font-bold text-outline uppercase tracking-wider">
                 CTR
               </th>
+              <th className="px-5 py-4 text-right text-label-sm font-bold text-outline uppercase tracking-wider">
+                Unique Views
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
             {posts.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-16 text-center">
+                  <td colSpan={9} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <span className="material-symbols-outlined text-outline text-4xl">article</span>
                     <p className="text-body-sm text-outline">No post data available for this period</p>
@@ -132,6 +135,11 @@ export default function AnalyticsTopPosts({ posts }: AnalyticsTopPostsProps) {
                     <td className="px-5 py-4 text-right">
                       <span className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary rounded-xl font-bold text-label-sm">
                         {formatPercent(post.ctr)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <span className="text-body-sm font-semibold text-on-surface tabular-nums">
+                        {formatNumber(post.totalMediaViewUnique)}
                       </span>
                     </td>
                   </tr>

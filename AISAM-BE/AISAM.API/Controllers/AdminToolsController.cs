@@ -120,4 +120,81 @@ public sealed class AdminToolsController : ControllerBase
 
         return Ok(GenericResponse<object>.CreateSuccess(new { Created = created }));
     }
+
+    [HttpPost("seed-performance-reports")]
+    public async Task<ActionResult<GenericResponse<object>>> SeedPerformanceReports(
+        [FromQuery] Guid? workspaceId = null,
+        [FromQuery] int days = 30,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_env.IsDevelopment())
+            return NotFound();
+
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var admin = await _userRepository.GetByIdAsync(adminUserId);
+        if (admin?.Role != UserRoleEnum.Admin)
+            return StatusCode(403, GenericResponse<object>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
+
+        var targetWorkspaceId = workspaceId ?? await _context.Workspaces
+            .Where(w => w.DeletedAt == null && w.Status == WorkspaceStatusEnum.Active)
+            .Select(w => (Guid?)w.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!targetWorkspaceId.HasValue)
+            return Ok(GenericResponse<object>.CreateError("No workspaces found."));
+
+        var posts = await _context.Posts
+            .Where(p => !p.IsDeleted
+                && p.Content != null && !p.Content.IsDeleted
+                && p.Content.WorkspaceId == targetWorkspaceId.Value)
+            .Include(p => p.Content)
+            .Include(p => p.Integration)
+            .ToListAsync(cancellationToken);
+
+        if (posts.Count == 0)
+            return Ok(GenericResponse<object>.CreateError(
+                $"No published posts found in workspace {targetWorkspaceId}. Publish some posts first."));
+
+        var random = new Random();
+        var created = 0;
+
+        for (int d = 0; d < days; d++)
+        {
+            var reportDate = DateTime.UtcNow.Date.AddDays(-d);
+            foreach (var post in posts)
+            {
+                var existing = await _context.PerformanceReports
+                    .AnyAsync(pr => !pr.IsDeleted && pr.PostId == post.Id && pr.ReportDate == reportDate, cancellationToken);
+                if (existing) continue;
+
+                var impressions = random.Next(100, 5000);
+                var clicks = random.Next(5, impressions / 10);
+                var engagement = random.Next(1, clicks * 3);
+                var ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions, 4) : 0m;
+
+                var report = new PerformanceReport
+                {
+                    PostId = post.Id,
+                    Impressions = impressions,
+                    Engagement = engagement,
+                    Ctr = ctr,
+                    EstimatedRevenue = engagement * 0.01m,
+                    ReportDate = reportDate,
+                    RawData = System.Text.Json.JsonSerializer.Serialize(new { impressions, clicks, trackedClicks = clicks }),
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.PerformanceReports.AddAsync(report, cancellationToken);
+                created++;
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(GenericResponse<object>.CreateSuccess(new
+        {
+            WorkspaceId = targetWorkspaceId,
+            Posts = posts.Count,
+            Days = days,
+            ReportsCreated = created
+        }));
+    }
 }
