@@ -94,6 +94,6 @@ public sealed class AdminCreditController : ControllerBase
         if (!result.Success)
             return StatusCode(result.StatusCode, GenericResponse<object>.CreateError(result.Message ?? "Failed to adjust credits"));
 
-        return Ok(GenericResponse<object>.CreateSuccess(result.Data, result.Message));
+        return Ok(GenericResponse<object>.CreateSuccess(result.Data, result.Message ?? "Operation successful"));
     }
 }

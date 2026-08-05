@@ -519,9 +519,9 @@ namespace AISAM.Services.Service
             {
                 return _tokenProtector.Unprotect(protectedToken);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                _logger.LogWarning(ex, "Stored social token could not be decrypted.");
+                _logger.LogWarning("Stored social token could not be decrypted (encryption key ring changed or token expired). Reconnect the social account in settings to generate a new token.");
                 return null;
             }
         }

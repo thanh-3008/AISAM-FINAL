@@ -287,11 +287,11 @@ public sealed class AnalyticsService : IAnalyticsService
                     {
                         if (metric.Name == "page_fans_country" && metric.Values?.LastOrDefault()?.Value != null)
                         {
-                            ParseGeographicData(metric.Values.Last().Value, geoItems);
+                            ParseGeographicData(metric.Values!.Last()!.Value!, geoItems);
                         }
                         else if (metric.Name == "page_fans_gender_age" && metric.Values?.LastOrDefault()?.Value != null)
                         {
-                            ParseDemographicData(metric.Values.Last().Value, demoItems);
+                            ParseDemographicData(metric.Values!.Last()!.Value!, demoItems);
                         }
                     }
                 }

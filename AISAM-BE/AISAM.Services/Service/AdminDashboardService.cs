@@ -32,9 +32,9 @@ namespace AISAM.Services.Service
             _performanceReportRepository = performanceReportRepository;
         }
 
-        private async Task<GenericResponse<T>> Unauthorized<T>()
+        private static Task<GenericResponse<T>> Unauthorized<T>()
         {
-            return GenericResponse<T>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
+            return Task.FromResult(GenericResponse<T>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden));
         }
 
         public async Task<GenericResponse<object>> GetSummaryAsync(Guid adminUserId, CancellationToken cancellationToken = default)

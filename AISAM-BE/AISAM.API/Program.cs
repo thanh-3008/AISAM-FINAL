@@ -141,6 +141,7 @@ var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, "
 Directory.CreateDirectory(dataProtectionKeysPath);
 builder.Services
     .AddDataProtection()
+    .SetApplicationName("AISAM")
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

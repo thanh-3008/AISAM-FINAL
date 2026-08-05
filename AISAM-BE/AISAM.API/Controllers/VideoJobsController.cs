@@ -47,7 +47,7 @@ public sealed class VideoJobsController : ControllerBase
         }
 
         var responseData = MapToDto(result.Data);
-        var successResponse = GenericResponse<VideoJobResponseDto>.CreateSuccess(responseData, result.Message);
+        var successResponse = GenericResponse<VideoJobResponseDto>.CreateSuccess(responseData, result.Message ?? "Operation successful");
         
         // Add a warning message if it fell back to Colab
         if (result.Data.IsFallback)
@@ -77,7 +77,7 @@ public sealed class VideoJobsController : ControllerBase
         }
 
         var responseData = MapToDto(result.Data);
-        var successResponse = GenericResponse<VideoJobResponseDto>.CreateSuccess(responseData, result.Message);
+        var successResponse = GenericResponse<VideoJobResponseDto>.CreateSuccess(responseData, result.Message ?? "Operation successful");
         
         // Include warning for frontend
         if (result.Data.IsFallback && result.Data.Status != AISAM.Data.Enumeration.AiStatusEnum.Completed && result.Data.Status != AISAM.Data.Enumeration.AiStatusEnum.Failed)
