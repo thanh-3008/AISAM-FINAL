@@ -249,24 +249,24 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         Guid workspaceId, DateTime from, DateTime to,
         Guid? brandId = null, CancellationToken cancellationToken = default)
     {
-        var integrationsQuery = _context.SocialIntegrations
-            .Where(si => !si.IsDeleted && si.IsActive && si.WorkspaceId == workspaceId);
+        var postsQuery = _context.Posts
+            .Where(p => !p.IsDeleted && p.Content != null && p.Content.WorkspaceId == workspaceId
+                && p.PublishedAt >= from && p.PublishedAt <= to);
 
         if (brandId.HasValue)
-            integrationsQuery = integrationsQuery.Where(si => si.BrandId == brandId.Value);
+            postsQuery = postsQuery.Where(p => p.Content.BrandId == brandId.Value);
 
-        var integrations = await integrationsQuery
-            .Include(si => si.Posts.Where(p => !p.IsDeleted && p.PublishedAt >= from && p.PublishedAt <= to))
-                .ThenInclude(p => p.PerformanceReports.Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to))
+        var posts = await postsQuery
+            .Include(p => p.Integration)
+            .Include(p => p.PerformanceReports.Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to))
             .ToListAsync(cancellationToken);
 
-        return integrations
-            .GroupBy(si => si.Platform)
+        return posts
+            .GroupBy(p => p.Integration != null ? p.Integration.Platform : SocialPlatformEnum.Facebook)
             .Select(g =>
             {
                 var platformStr = g.Key.ToString().ToLower();
-                var postCount = g.Sum(si => si.Posts.Count);
-                var reports = g.SelectMany(si => si.Posts).SelectMany(p => p.PerformanceReports).ToList();
+                var reports = g.SelectMany(p => p.PerformanceReports).ToList();
                 var impressions = reports.Sum(pr => pr.Impressions);
                 var engagement = reports.Sum(pr => pr.Engagement);
                 var clicks = reports.Sum(pr => ExtractClicks(pr.RawData));
@@ -274,16 +274,16 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 return new AnalyticsChannelBreakdownDto
                 {
                     Platform = platformStr,
-                    IntegrationId = g.First().Id,
-                    DisplayName = $"{platformStr} ({g.Count()} accounts)",
-                    PublishedPosts = postCount,
+                    IntegrationId = g.First().Integration?.Id ?? Guid.Empty,
+                    DisplayName = $"{platformStr} ({g.Select(p => p.IntegrationId).Distinct().Count()} accounts)",
+                    PublishedPosts = g.Count(),
                     Impressions = impressions,
                     Reach = reach,
                     Engagement = engagement,
                     Clicks = clicks,
                     Ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions * 100, 2) : 0,
                     Spend = 0,
-                    LastSyncedAt = reports.Count > 0 ? reports.Max(pr => (DateTime?)pr.CreatedAt) : g.Max(si => (DateTime?)si.UpdatedAt)
+                    LastSyncedAt = reports.Count > 0 ? reports.Max(pr => (DateTime?)pr.CreatedAt) : g.Max(p => (DateTime?)p.PublishedAt)
                 };
             })
             .ToList();

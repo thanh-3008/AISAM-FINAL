@@ -294,6 +294,8 @@ export default function BrandDetailPage() {
     ? products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
     : products;
 
+  const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE").length;
+
   return (
     <>
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Brands", href: "/brands" }, { label: safeBrand.name }]} />
@@ -348,7 +350,7 @@ export default function BrandDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button className="px-4 py-2 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-2">
+                <button onClick={() => router.push("/social")} className="px-4 py-2 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">link</span>
                   Manage Connections
                 </button>
@@ -370,8 +372,8 @@ export default function BrandDetailPage() {
           {[
             { icon: "inventory_2", iconBg: "bg-gradient-to-br from-primary/20 to-primary/5", iconColor: "text-primary", label: "Total Products", value: products.length },
             { icon: "auto_awesome_motion", iconBg: "bg-gradient-to-br from-secondary/20 to-secondary/5", iconColor: "text-secondary", label: "Generated Content", value: safeBrand.contentsCount },
-            { icon: "trending_up", iconBg: "bg-gradient-to-br from-tertiary/20 to-tertiary/5", iconColor: "text-tertiary", label: "Total Reach", value: "--" },
-            { icon: "favorite", iconBg: "bg-gradient-to-br from-surface/20 to-surface/5", iconColor: "text-on-surface", label: "Engagement Rate", value: "--" },
+            { icon: "campaign", iconBg: "bg-gradient-to-br from-tertiary/20 to-tertiary/5", iconColor: "text-tertiary", label: "Active Campaigns", value: activeCampaigns },
+            { icon: "ads_click", iconBg: "bg-gradient-to-br from-surface/20 to-surface/5", iconColor: "text-on-surface", label: "Total Campaigns", value: campaigns.length },
           ].map((s, i) => (
             <motion.div key={s.label}
               initial={{ opacity: 0, y: 12 }}

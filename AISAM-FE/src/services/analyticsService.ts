@@ -205,8 +205,8 @@ function getDateRange(range: DateRange): { from: string; to: string } {
   from.setHours(0, 0, 0, 0);
 
   return {
-    from: from.toISOString().split("T")[0],
-    to: to.toISOString().split("T")[0],
+    from: from.toISOString(),
+    to: to.toISOString(),
   };
 }
 
@@ -251,10 +251,11 @@ export async function fetchUsageBreakdown(): Promise<UsageBreakdownItem[]> {
 export async function fetchTopPosts(
   dateRange?: DateRange,
   metric?: string,
-  platform?: string
+  platform?: string,
+  pageSize?: number
 ): Promise<TopPostItem[]> {
   const { from, to } = getDateRange(dateRange || "30d");
-  let query = `from=${from}&to=${to}&metric=${metric || "engagement"}&pageSize=5`;
+  let query = `from=${from}&to=${to}&metric=${metric || "engagement"}&pageSize=${pageSize || 10}`;
   if (platform) query += `&platform=${platform}`;
   try {
     const res: GenericResponse<PaginatedResponse> = await apiClient(

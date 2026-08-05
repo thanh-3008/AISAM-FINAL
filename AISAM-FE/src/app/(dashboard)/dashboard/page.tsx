@@ -122,7 +122,7 @@ export default function DashboardPage() {
     fetchCampaigns({ pageSize: 5 }).then((res) => {
       if (res) setDashboardCampaigns(res.data.slice(0, 5));
     });
-    fetchChannelBreakdown("30d").then(setPlatformBreakdown);
+    fetchChannelBreakdown("90d").then(d => { console.log("Channel breakdown:", d); setPlatformBreakdown(d); }).catch(() => setPlatformBreakdown([]));
     fetchAudienceBreakdown().then(setAudience);
   }, [activeWorkspace?.id]);
 
@@ -608,39 +608,55 @@ export default function DashboardPage() {
         <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.96s" }}>
           <div className="flex items-center gap-2 mb-6">
             <h4 className="text-headline-sm text-on-surface">Platform Distribution</h4>
-            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">TOTAL {platformBreakdown.filter(p => p.publishedPosts > 0).length || 0}</span>
+            <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-label-xs font-semibold">{platformBreakdown.length > 0 ? `${platformBreakdown.filter(p => p.publishedPosts > 0).length} active` : "No data"}</span>
           </div>
-          <div className="h-72 flex items-end justify-evenly gap-10 px-4 pb-2 border-b border-outline-variant/20">
-            {(() => {
-              const barColor: Record<string, string> = {
-                facebook: "from-blue-500 to-blue-400",
-                instagram: "from-purple-500 to-purple-400",
-                tiktok: "from-amber-500 to-amber-400",
-                twitter: "from-cyan-500 to-cyan-400",
-                google: "from-red-500 to-red-400",
-                youtube: "from-red-600 to-red-500",
-              };
-              const defaultPlatforms = ["facebook", "instagram", "tiktok"];
-              const items = defaultPlatforms.map(p => platformBreakdown.find(b => b.platform === p) || { platform: p, publishedPosts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 });
-              const maxPosts = Math.max(...items.map(p => p.publishedPosts), 1);
-              return items.map((item, i) => (
-                <div key={i} className="w-14 flex flex-col items-center gap-2 group" style={{ height: "100%" }}>
-                  <span className="text-label-xs text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.publishedPosts} posts</span>
-                  <div className="w-full flex-1 flex flex-col justify-end">
-                    <div
-                      className={`w-full bg-gradient-to-t ${barColor[item.platform] || "from-outline to-outline-variant"} rounded-t-lg transition-all duration-1000 group-hover:rounded-t-xl`}
-                      style={{
-                        height: visible ? `${Math.round((item.publishedPosts / maxPosts) * 100)}%` : "0%",
-                        minHeight: item.publishedPosts > 0 ? "4px" : "0px",
-                        opacity: item.publishedPosts > 0 ? 1 : 0.2,
-                      }}
-                    />
-                  </div>
-                  <span className="text-label-sm text-outline font-medium group-hover:text-on-surface transition-colors capitalize">{item.platform}</span>
+          {(() => {
+            const barColor: Record<string, string> = {
+              facebook: "from-blue-500 to-blue-400",
+              instagram: "from-purple-500 to-purple-400",
+              tiktok: "from-amber-500 to-amber-400",
+              twitter: "from-cyan-500 to-cyan-400",
+              google: "from-red-500 to-red-400",
+              youtube: "from-red-600 to-red-500",
+            };
+            const defaultPlatforms = ["facebook", "instagram", "tiktok"];
+            const items = platformBreakdown.length > 0
+              ? defaultPlatforms.map(p => platformBreakdown.find(b => b.platform === p) || { platform: p, publishedPosts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 })
+              : defaultPlatforms.map(p => ({ platform: p, publishedPosts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, ctr: 0, spend: 0 }));
+            const maxPosts = Math.max(...items.map(p => p.publishedPosts), 1);
+            const totalPosts = items.reduce((s, p) => s + p.publishedPosts, 0);
+
+            if (totalPosts === 0) {
+              return (
+                <div className="h-48 flex flex-col items-center justify-center text-center gap-3">
+                  <span className="material-symbols-outlined text-outline/30 text-[40px]">bar_chart</span>
+                  <p className="text-body-sm text-outline">No posts published yet</p>
+                  <p className="text-label-sm text-outline/60">Data will appear once content is published to social platforms</p>
                 </div>
-              ));
-            })()}
+              );
+            }
+
+            return (
+          <div className="h-72 flex items-end justify-evenly gap-10 px-4 pb-2 border-b border-outline-variant/20">
+            {items.map((item, i) => (
+              <div key={i} className="w-14 flex flex-col items-center gap-2 group" style={{ height: "100%" }}>
+                <span className="text-label-xs text-outline font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.publishedPosts} posts</span>
+                <div className="w-full flex-1 flex flex-col justify-end">
+                  <div
+                    className={`w-full bg-gradient-to-t ${barColor[item.platform] || "from-outline to-outline-variant"} rounded-t-lg transition-all duration-1000 group-hover:rounded-t-xl`}
+                    style={{
+                      height: visible ? `${Math.max(Math.round((item.publishedPosts / maxPosts) * 100), 4)}%` : "0%",
+                      opacity: visible ? 1 : 0,
+                    }}
+                  />
+                </div>
+                <PlatformIcon platform={item.platform} className="w-[18px] h-[18px]" />
+                <span className="text-label-sm text-outline font-medium group-hover:text-on-surface transition-colors capitalize">{item.platform}</span>
+              </div>
+            ))}
           </div>
+            );
+          })()}
         </div>
 
         {/* ===== FOOTER ===== */}

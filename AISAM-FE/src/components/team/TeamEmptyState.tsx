@@ -2,7 +2,7 @@
 
 interface TeamEmptyStateProps {
   hasFilters: boolean;
-  onCreate: () => void;
+  onCreate?: () => void;
   onInvite: () => void;
 }
 
@@ -28,28 +28,28 @@ export default function TeamEmptyState({ hasFilters, onCreate, onInvite }: TeamE
 
       <div className="max-w-md space-y-2">
         <h2 className="text-headline-sm text-on-surface font-bold">
-          {hasFilters ? "No matching members" : "No teams yet"}
+          {hasFilters ? "No matching members" : "No members yet"}
         </h2>
         <p className="text-body-sm text-on-surface-variant">
           {hasFilters
             ? "Try adjusting your filters or search criteria to find what you're looking for."
-            : "Create your first team and invite members to start collaborating on your projects."}
+            : "Invite members to start collaborating in this workspace."}
         </p>
       </div>
 
       {!hasFilters && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mt-4">
           <div className="flex flex-col items-center gap-2 p-4 bg-surface-container-low rounded-xl">
-            <span className="material-symbols-outlined text-primary text-2xl">group_add</span>
-            <span className="text-label-sm text-on-surface font-medium text-center">Create teams & groups</span>
-          </div>
-          <div className="flex flex-col items-center gap-2 p-4 bg-surface-container-low rounded-xl">
             <span className="material-symbols-outlined text-primary text-2xl">person_add</span>
             <span className="text-label-sm text-on-surface font-medium text-center">Invite team members</span>
           </div>
           <div className="flex flex-col items-center gap-2 p-4 bg-surface-container-low rounded-xl">
+            <span className="material-symbols-outlined text-primary text-2xl">admin_panel_settings</span>
+            <span className="text-label-sm text-on-surface font-medium text-center">Assign roles &amp; permissions</span>
+          </div>
+          <div className="flex flex-col items-center gap-2 p-4 bg-surface-container-low rounded-xl">
             <span className="material-symbols-outlined text-primary text-2xl">work</span>
-            <span className="text-label-sm text-on-surface font-medium text-center">Assign to brands</span>
+            <span className="text-label-sm text-on-surface font-medium text-center">Collaborate on brands</span>
           </div>
         </div>
       )}
@@ -57,19 +57,21 @@ export default function TeamEmptyState({ hasFilters, onCreate, onInvite }: TeamE
       {!hasFilters && (
         <div className="flex gap-3 mt-4">
           <button
-            onClick={onCreate}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl font-semibold text-label-md hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97] transition-all"
-          >
-            <span className="material-symbols-outlined text-[18px]">group_add</span>
-            Create Team
-          </button>
-          <button
             onClick={onInvite}
             className="inline-flex items-center gap-2 px-6 py-3 border border-outline-variant/20 text-outline rounded-xl font-semibold text-label-md hover:text-on-surface hover:bg-surface-container active:scale-[0.97] transition-all"
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
             Invite Member
           </button>
+          {onCreate && (
+            <button
+              onClick={onCreate}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl font-semibold text-label-md hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97] transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">group_add</span>
+              Create Team
+            </button>
+          )}
         </div>
       )}
     </div>

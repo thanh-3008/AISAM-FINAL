@@ -273,29 +273,29 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
                 <circle cx={x} cy={engagementY} r="4" fill="white" />
 
                 {/* Premium tooltip */}
-                <g transform={`translate(${Math.min(x + 20, width - 200)}, ${Math.max(spendY - 100, padding.top)})`}>
-                  <rect width="180" height="110" rx="12" fill="rgba(30, 30, 40, 0.95)" filter="url(#shadow)" />
-                  <rect width="180" height="110" rx="12" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                <g transform={`translate(${Math.min(x + 20, width - 200)}, ${Math.max(spendY - 110, padding.top)})`}>
+                  <rect width="180" height="130" rx="12" fill="rgba(30, 30, 40, 0.95)" filter="url(#shadow)" />
+                  <rect width="180" height="130" rx="12" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
                   
-                  <text x="15" y="25" fill="white" fontSize="12" fontWeight="bold">
+                  <text x="15" y="22" fill="white" fontSize="12" fontWeight="bold">
                     {point.date}
                   </text>
                   
-                  <circle cx="15" cy="45" r="4" fill="#3b82f6" />
-                  <text x="25" y="50" fill="rgba(255,255,255,0.7)" fontSize="11">Spend</text>
-                  <text x="165" y="50" fill="white" fontSize="12" fontWeight="bold" textAnchor="end">
+                  <circle cx="15" cy="42" r="4" fill="#3b82f6" />
+                  <text x="25" y="47" fill="rgba(255,255,255,0.7)" fontSize="11">Spend</text>
+                  <text x="165" y="47" fill="white" fontSize="12" fontWeight="bold" textAnchor="end">
                     {formatCurrency(point.spend)}
                   </text>
                   
-                  <circle cx="15" cy="70" r="4" fill="#8b5cf6" />
-                  <text x="25" y="75" fill="rgba(255,255,255,0.7)" fontSize="11">Engagement</text>
-                  <text x="25" y="95" fill="rgba(255,255,255,0.9)" fontSize="14" fontWeight="bold" fillOpacity={0.85}>
+                  <circle cx="15" cy="67" r="4" fill="#8b5cf6" />
+                  <text x="25" y="72" fill="rgba(255,255,255,0.7)" fontSize="11">Engagement</text>
+                  <text x="165" y="72" fill="white" fontSize="12" fontWeight="bold" textAnchor="end">
                     {point.engagement}
                   </text>
                   
-                  <line x1="15" y1="85" x2="165" y2="85" stroke="rgba(255,255,255,0.1)" />
-                  <text x="15" y="100" fill="rgba(255,255,255,0.7)" fontSize="11">CPC</text>
-                  <text x="165" y="100" fill="white" fontSize="12" fontWeight="bold" textAnchor="end">
+                  <line x1="15" y1="87" x2="165" y2="87" stroke="rgba(255,255,255,0.1)" />
+                  <text x="15" y="105" fill="rgba(255,255,255,0.7)" fontSize="11">CPC</text>
+                  <text x="165" y="105" fill="white" fontSize="12" fontWeight="bold" textAnchor="end">
                     ${point.cpc.toFixed(2)}
                   </text>
                 </g>

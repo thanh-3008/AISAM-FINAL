@@ -123,7 +123,7 @@ public sealed class SocialService : ISocialService
     {
         var account = await RequireOwnedAccountAsync(profileId, socialAccountId, cancellationToken);
         var provider = GetProvider(account.Platform.ToString().ToLowerInvariant());
-        var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
+        var userAccessToken = RequireDecryptedToken(account.UserAccessToken);
         var targets = (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
         return await EnrichAvailableTargetsAsync(account.WorkspaceId, account.Platform, targets, cancellationToken);
     }
@@ -154,7 +154,7 @@ public sealed class SocialService : ISocialService
         }
 
         var provider = GetProvider(accountProvider);
-        var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
+        var userAccessToken = RequireDecryptedToken(account.UserAccessToken);
         var availableTargets = (await provider.GetTargetsAsync(userAccessToken, cancellationToken)).ToList();
         var availableById = availableTargets.ToDictionary(target => target.ProviderTargetId, StringComparer.Ordinal);
         var selectedIds = request.ProviderTargetIds.Distinct(StringComparer.Ordinal).ToList();
@@ -412,7 +412,7 @@ public sealed class SocialService : ISocialService
     {
         var account = await RequireOwnedAccountAsync(profileId, socialAccountId, cancellationToken);
         var provider = GetProvider(account.Platform.ToString().ToLowerInvariant());
-        var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
+        var userAccessToken = RequireDecryptedToken(account.UserAccessToken);
         return (await provider.GetAdAccountsAsync(userAccessToken, cancellationToken)).ToList();
     }
 
@@ -421,14 +421,14 @@ public sealed class SocialService : ISocialService
         var accounts = await _socialAccountRepository.GetByProfileIdAsync(profileId, cancellationToken);
         var fbAccount = accounts.FirstOrDefault(a => a.Platform == SocialPlatformEnum.Facebook && a.IsActive);
         if (fbAccount == null || string.IsNullOrWhiteSpace(fbAccount.UserAccessToken)) return null;
-        return _tokenProtector.Unprotect(fbAccount.UserAccessToken);
+        return _tokenProtector.TryUnprotect(fbAccount.UserAccessToken);
     }
 
     public async Task<IReadOnlyList<FacebookAdAccountData>> GetAdAccountsForSocialAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
     {
         var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);
         var provider = GetProvider(account.Platform.ToString().ToLowerInvariant());
-        var userAccessToken = _tokenProtector.Unprotect(account.UserAccessToken);
+        var userAccessToken = RequireDecryptedToken(account.UserAccessToken);
         return (await provider.GetAdAccountsAsync(userAccessToken, cancellationToken)).ToList();
     }
 
@@ -465,6 +465,13 @@ public sealed class SocialService : ISocialService
         throw new ArgumentException("Unsupported social provider.");
     }
 
+    private string RequireDecryptedToken(string ciphertext)
+    {
+        return _tokenProtector.TryUnprotect(ciphertext)
+            ?? throw new InvalidOperationException(
+                "Stored social credentials can no longer be decrypted. Disconnect and reconnect the account.");
+    }
+
     private SocialAccountDto MapAccount(SocialAccount account, bool includeCredentials = false)
     {
         return new SocialAccountDto
@@ -474,10 +481,10 @@ public sealed class SocialService : ISocialService
             Provider = account.Platform.ToString().ToLowerInvariant(),
             ProviderUserId = account.AccountId ?? string.Empty,
             AccessToken = includeCredentials && !string.IsNullOrWhiteSpace(account.UserAccessToken)
-                ? _tokenProtector.Unprotect(account.UserAccessToken)
+                ? (_tokenProtector.TryUnprotect(account.UserAccessToken) ?? string.Empty)
                 : string.Empty,
             RefreshToken = includeCredentials && !string.IsNullOrWhiteSpace(account.RefreshToken)
-                ? _tokenProtector.Unprotect(account.RefreshToken)
+                ? _tokenProtector.TryUnprotect(account.RefreshToken)
                 : null,
             IsActive = account.IsActive,
             ExpiresAt = account.ExpiresAt,

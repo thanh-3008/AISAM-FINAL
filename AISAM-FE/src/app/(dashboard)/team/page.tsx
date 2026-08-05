@@ -6,41 +6,26 @@ import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import {
-  fetchTeams,
   fetchMembers,
-  createTeam,
-  updateTeam,
-  deleteTeam,
   inviteMember,
   updateMemberRole,
   removeMember,
-  type Team,
   type TeamMember,
   type MemberRole,
   type MemberStatus,
-  type CreateTeamData,
   type InviteMemberData,
 } from "@/services/teamService";
-import TeamStatsCards from "@/components/team/TeamStatsCards";
-import TeamCard from "@/components/team/TeamCard";
-import TeamListView from "@/components/team/TeamListView";
 import TeamFilterBar, { type SortOption } from "@/components/team/TeamFilterBar";
 import TeamEmptyState from "@/components/team/TeamEmptyState";
-import TeamDetailModal from "@/components/team/TeamDetailModal";
-import CreateTeamModal from "@/components/team/CreateTeamModal";
-import EditTeamModal from "@/components/team/EditTeamModal";
 import EditMemberModal from "@/components/team/EditMemberModal";
 import MemberDetailModal from "@/components/team/MemberDetailModal";
 import DeleteMemberConfirmModal from "@/components/team/DeleteMemberConfirmModal";
 import InviteMemberModal from "@/components/team/InviteMemberModal";
-import DeleteConfirmModal from "@/components/team/DeleteConfirmModal";
-import BulkActionsBar from "@/components/team/BulkActionsBar";
 import RoleDonutChart from "@/components/team/RoleDonutChart";
 import MemberCard from "@/components/team/MemberCard";
 import { calcTimeAgo } from "@/components/team/teamUtils";
 
 export default function TeamPage() {
-  const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => Date.now());
@@ -53,18 +38,11 @@ export default function TeamPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemberStatus | "">("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
-  const [teamView, setTeamView] = useState<"grid" | "list">("list");
   const [memberView, setMemberView] = useState<"grid" | "table">("table");
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [detailTeam, setDetailTeam] = useState<Team | null>(null);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
-  const [deletingTeams, setDeletingTeams] = useState<Team[]>([]);
   const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -73,19 +51,13 @@ export default function TeamPage() {
   const { activeWorkspace } = useWorkspaces();
 
   const activeMemberCount = members.filter((m) => m.status === "Active").length;
-  const maxMembers = featureGate.isBusiness
-    ? featureGate.plan === 4 ? 50 : 10
-    : Infinity;
 
   const loadData = useCallback(async () => {
     try {
-      const [teamsRes, membersRes] = await Promise.all([fetchTeams(), fetchMembers()]);
-      setTeams(teamsRes.data);
+      const membersRes = await fetchMembers();
       setMembers(membersRes.data);
-    } catch (err) {
-      console.error("Failed to load teams:", err);
-      showToast("Failed to load teams", "error");
-      setTeams([]);
+    } catch {
+      showToast("Failed to load members", "error");
       setMembers([]);
     }
   }, []);
@@ -102,7 +74,6 @@ export default function TeamPage() {
     return () => { cancelled = true; };
   }, [activeWorkspace?.id, loadData]);
 
-  // Auto-refresh when tab gains focus or periodically
   useEffect(() => {
     const onFocus = () => { loadData(); };
     window.addEventListener("focus", onFocus);
@@ -122,36 +93,6 @@ export default function TeamPage() {
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
-  };
-
-  const handleCreate = async (data: CreateTeamData) => {
-    setActionLoading("create");
-    try {
-      const newTeam = await createTeam(data);
-      setTeams((prev) => [newTeam, ...prev]);
-      setShowCreateModal(false);
-      showToast(`Team "${newTeam.name}" created successfully`);
-    } catch {
-      showToast("Failed to create team", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleEdit = async (id: string, data: CreateTeamData) => {
-    setActionLoading("edit");
-    try {
-      const updated = await updateTeam(id, data);
-      if (updated) {
-        setTeams((prev) => prev.map((t) => (t.id === id ? updated : t)));
-        setEditingTeam(null);
-        showToast(`Team "${updated.name}" updated successfully`);
-      }
-    } catch {
-      showToast("Failed to update team", "error");
-    } finally {
-      setActionLoading(null);
-    }
   };
 
   const handleEditMember = async (id: string, role: MemberRole) => {
@@ -214,43 +155,6 @@ export default function TeamPage() {
     }
   };
 
-  const handleDelete = (team: Team) => {
-    setDeletingTeams([team]);
-  };
-
-  const handleBulkDelete = () => {
-    const selected = teams.filter((t) => selectedIds.includes(t.id));
-    setDeletingTeams(selected);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (deletingTeams.length === 0) return;
-    setActionLoading("delete");
-    try {
-      for (const team of deletingTeams) {
-        await deleteTeam(team.id);
-      }
-      setTeams((prev) => prev.filter((t) => !deletingTeams.some((d) => d.id === t.id)));
-      setSelectedIds((prev) => prev.filter((id) => !deletingTeams.some((d) => d.id === id)));
-      setDeletingTeams([]);
-      showToast(`${deletingTeams.length} team(s) deleted`);
-    } catch {
-      showToast("Failed to delete team(s)", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSelect = (id: string, selected: boolean) => {
-    setSelectedIds((prev) =>
-      selected ? [...prev, id] : prev.filter((x) => x !== id)
-    );
-  };
-
-  const handleClearSelection = () => {
-    setSelectedIds([]);
-  };
-
   const filteredMembers = useMemo(() => {
     let result = [...members];
     if (search) {
@@ -294,7 +198,7 @@ export default function TeamPage() {
               <span className="material-symbols-outlined text-outline text-[32px]">lock</span>
             </div>
             <h2 className="text-headline-md text-on-surface font-bold mb-2">Team Management</h2>
-            <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Business plan</strong>. Upgrade to manage teams and members.</p>
+            <p className="text-body-md text-on-surface-variant mb-6">This feature requires a <strong>Business plan</strong>. Upgrade to manage team members.</p>
             <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-all">
               View Plans
               <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
@@ -324,7 +228,7 @@ export default function TeamPage() {
         <div className="max-w-7xl mx-auto space-y-6">
 
           {/* Page Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-fade-up">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-up">
             <div className="flex items-center gap-4">
               <div className="relative w-12 h-12 shrink-0">
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 animate-float shadow-lg shadow-primary/20" />
@@ -334,8 +238,12 @@ export default function TeamPage() {
                 </div>
               </div>
               <div>
-                <h1 className="text-headline-sm font-bold text-on-surface">Teams &amp; Collaboration</h1>
-                <p className="text-label-sm text-outline">{activeMemberCount} members · {teams.length} teams · Manage your organization</p>
+                <h1 className="text-headline-sm font-bold text-on-surface">
+                  {activeWorkspace?.name || "Workspace"} Team
+                </h1>
+                <p className="text-label-sm text-outline">
+                  {activeMemberCount} members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)} · Manage your organization
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -345,13 +253,6 @@ export default function TeamPage() {
                 title="Refresh data"
               >
                 <span className="material-symbols-outlined text-[16px]">refresh</span>
-              </button>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                Create Team
               </button>
               <button
                 onClick={() => setShowInviteModal(true)}
@@ -364,86 +265,44 @@ export default function TeamPage() {
           </div>
 
           {/* Stats */}
-          <TeamStatsCards teams={teams} members={members} />
-
-          {/* Teams Section */}
-          <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-headline-sm text-on-surface font-semibold">Teams</h2>
-              <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
-                <button
-                  onClick={() => setTeamView("grid")}
-                  className={`p-1.5 rounded-md transition-all ${teamView === "grid" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">grid_view</span>
-                </button>
-                <button
-                  onClick={() => setTeamView("list")}
-                  className={`p-1.5 rounded-md transition-all ${teamView === "list" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">view_list</span>
-                </button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary text-[20px]">group</span>
+                </div>
+                <div>
+                  <p className="text-label-sm text-on-surface-variant">Total Members</p>
+                  <p className="text-body-lg font-bold text-on-surface">{members.length}</p>
+                </div>
               </div>
             </div>
-
-            {loading ? (
-              <div className={teamView === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" : ""}>
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 animate-pulse">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-surface-container" />
-                      <div className="space-y-2 flex-1">
-                        <div className="h-4 w-32 bg-surface-container rounded" />
-                        <div className="h-3 w-24 bg-surface-container rounded" />
-                      </div>
-                    </div>
-                    <div className="h-2 bg-surface-container rounded-full mb-4" />
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-surface-container" />
-                      <div className="w-6 h-6 rounded-full bg-surface-container" />
-                    </div>
-                  </div>
-                ))}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-emerald-600 text-[20px]">check_circle</span>
+                </div>
+                <div>
+                  <p className="text-label-sm text-on-surface-variant">Active</p>
+                  <p className="text-body-lg font-bold text-emerald-600">{activeMemberCount}</p>
+                </div>
               </div>
-            ) : teamView === "grid" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {teams.map((team, i) => (
-                  <TeamCard
-                    key={team.id}
-                    team={team}
-                    index={i}
-                    isSelected={selectedIds.includes(team.id)}
-                    isLoading={actionLoading === team.id}
-                    onSelect={handleSelect}
-                    onViewDetail={setDetailTeam}
-                    onEdit={setEditingTeam}
-                    onDelete={handleDelete}
-                  />
-                ))}
+            </div>
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-amber-600 text-[20px]">schedule</span>
+                </div>
+                <div>
+                  <p className="text-label-sm text-on-surface-variant">Pending</p>
+                  <p className="text-body-lg font-bold text-amber-600">{members.filter(m => m.status === "Pending").length}</p>
+                </div>
               </div>
-            ) : (
-              <TeamListView
-                teams={teams}
-                selectedIds={selectedIds}
-                actionLoading={actionLoading}
-                onSelect={handleSelect}
-                onViewDetail={setDetailTeam}
-                onEdit={setEditingTeam}
-                onDelete={handleDelete}
-              />
-            )}
-          </section>
-
-          {/* Bulk Actions */}
-          <BulkActionsBar
-            selectedCount={selectedIds.length}
-            onClearSelection={handleClearSelection}
-            onBulkDelete={handleBulkDelete}
-            isLoading={actionLoading === "delete"}
-          />
+            </div>
+          </div>
 
           {/* Members Section */}
-          <section className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
+          <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-headline-sm text-on-surface font-semibold">Members</h2>
               <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
@@ -462,7 +321,6 @@ export default function TeamPage() {
               </div>
             </div>
 
-            {/* Filter Bar */}
             <TeamFilterBar
               search={search}
               onSearchChange={setSearch}
@@ -488,15 +346,13 @@ export default function TeamPage() {
                   </div>
                 ))}
               </div>
-            ) : filteredMembers.length === 0 && teams.length === 0 ? (
+            ) : filteredMembers.length === 0 ? (
               <TeamEmptyState
                 hasFilters={hasFilters}
-                onCreate={() => setShowCreateModal(true)}
                 onInvite={() => setShowInviteModal(true)}
               />
             ) : (
               <>
-                {/* Role Distribution Chart */}
                 {!hasFilters && filteredMembers.length > 0 && (
                   <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 p-6 shadow-sm mb-6">
                     <h3 className="text-label-sm font-bold text-on-surface mb-4">Role Distribution</h3>
@@ -504,7 +360,6 @@ export default function TeamPage() {
                   </div>
                 )}
 
-                {/* Members Grid */}
                 {memberView === "grid" ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredMembers.map((member) => (
@@ -526,7 +381,7 @@ export default function TeamPage() {
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Member</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Role</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Last Active</th>
+                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Joined</th>
                             <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
@@ -615,24 +470,10 @@ export default function TeamPage() {
         {/* Modals */}
         <MemberDetailModal
           member={detailMember}
-          teams={teams}
+          teams={[]}
           onClose={() => setDetailMember(null)}
           onEdit={setEditingMember}
           onDelete={handleDeleteMember}
-        />
-
-        <CreateTeamModal
-          open={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreate}
-          isLoading={actionLoading === "create"}
-        />
-
-        <EditTeamModal
-          team={editingTeam}
-          onClose={() => setEditingTeam(null)}
-          onUpdate={handleEdit}
-          isLoading={actionLoading === "edit"}
         />
 
         <EditMemberModal
@@ -654,22 +495,8 @@ export default function TeamPage() {
           onClose={() => setShowInviteModal(false)}
           onInvite={handleInvite}
           isLoading={actionLoading === "invite"}
-          teams={teams}
+          teams={[]}
           currentMemberCount={activeMemberCount}
-          maxMembers={maxMembers}
-        />
-
-        <TeamDetailModal
-          team={detailTeam}
-          members={members}
-          onClose={() => setDetailTeam(null)}
-        />
-
-        <DeleteConfirmModal
-          teams={deletingTeams}
-          isLoading={actionLoading === "delete"}
-          onConfirm={handleConfirmDelete}
-          onCancel={() => setDeletingTeams([])}
         />
 
         {/* Toast */}

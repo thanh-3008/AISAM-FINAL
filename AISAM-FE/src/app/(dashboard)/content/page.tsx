@@ -237,6 +237,10 @@ export default function ContentPage() {
       router.push("/content/ai-generate");
       return;
     }
+    if (action === "Import Content") {
+      router.push("/automation");
+      return;
+    }
     addToast(`${action} — coming soon`, "construction");
   };
 
@@ -734,7 +738,7 @@ export default function ContentPage() {
                 </div>
               </div>
               <div className="px-5 pb-5">
-                <button className="w-full py-2 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 text-label-sm text-primary font-semibold hover:from-primary/15 hover:to-primary/10 active:scale-[0.97] transition-all flex items-center justify-center gap-1.5">
+                <button onClick={() => router.push("/pricing")} className="w-full py-2 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 text-label-sm text-primary font-semibold hover:from-primary/15 hover:to-primary/10 active:scale-[0.97] transition-all flex items-center justify-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px]">add</span>
                   Upgrade Plan
                 </button>

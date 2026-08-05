@@ -42,7 +42,7 @@ namespace AISAM.Services.Service
 
                 try
                 {
-                    var delay = processed ? TimeSpan.FromSeconds(30) : TimeSpan.FromMinutes(30);
+                    var delay = processed ? TimeSpan.FromSeconds(30) : TimeSpan.FromMinutes(5);
                     await Task.Delay(delay, stoppingToken);
                 }
                 catch (OperationCanceledException)

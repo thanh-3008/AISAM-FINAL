@@ -675,11 +675,24 @@ public class SocialServiceTests
                 ? ciphertext["protected:".Length..]
                 : ciphertext;
         }
+
+        public string? TryUnprotect(string ciphertext)
+        {
+            try
+            {
+                return Unprotect(ciphertext);
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     private sealed class ThrowingUnprotectSocialTokenProtector : ISocialTokenProtector
     {
         public string Protect(string plaintext) => plaintext;
         public string Unprotect(string ciphertext) => throw new InvalidOperationException("Token cannot be decrypted.");
+        public string? TryUnprotect(string ciphertext) => null;
     }
 }

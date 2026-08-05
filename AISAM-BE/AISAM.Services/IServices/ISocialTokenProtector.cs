@@ -4,4 +4,6 @@ public interface ISocialTokenProtector
 {
     string Protect(string plaintext);
     string Unprotect(string ciphertext);
+
+    string? TryUnprotect(string ciphertext);
 }

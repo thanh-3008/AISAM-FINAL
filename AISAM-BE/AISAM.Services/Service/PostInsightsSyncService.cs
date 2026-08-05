@@ -512,18 +512,7 @@ namespace AISAM.Services.Service
 
         private string? TryUnprotect(string? protectedToken)
         {
-            if (string.IsNullOrWhiteSpace(protectedToken))
-                return null;
-
-            try
-            {
-                return _tokenProtector.Unprotect(protectedToken);
-            }
-            catch (Exception)
-            {
-                _logger.LogWarning("Stored social token could not be decrypted (encryption key ring changed or token expired). Reconnect the social account in settings to generate a new token.");
-                return null;
-            }
+            return _tokenProtector.TryUnprotect(protectedToken);
         }
     }
 }

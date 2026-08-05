@@ -31,7 +31,7 @@ export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport 
         </button>
       </div>
       
-      <div className="overflow-x-auto">
+      <div className="max-h-96 overflow-y-auto">
         <table className="w-full">
           <thead className="bg-surface-container-high/50">
             <tr>
