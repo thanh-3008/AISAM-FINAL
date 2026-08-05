@@ -230,31 +230,42 @@ public sealed class AnalyticsService : IAnalyticsService
         IReadOnlyList<CampaignAnalyticsItemDto> campaigns)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Bạn là chuyên gia phân tích marketing. Dựa trên dữ liệu sau, đưa ra 3-5 đề xuất ngắn gọn (mỗi đề xuất 2-3 câu) để cải thiện hiệu quả chiến dịch. Trả lời bằng tiếng Việt. Dùng emoji: 🔥 cho tác động cao, 📈 cho xu hướng, ⚡ cho cải thiện nhanh.");
+
+        sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt. Format: emoji + tiêu đề + 2 câu giải thích.");
+        sb.AppendLine("CẤM: lời chào, giới thiệu, markdown. CẤM nói 'thiếu dữ liệu', 'giai đoạn đầu', 'chưa có'. Tập trung vào hành động.");
         sb.AppendLine();
-        sb.AppendLine($"--- Tổng quan ---");
-        sb.AppendLine($"Impressions: {totals.Impressions:N0}, Clicks: {totals.Clicks:N0}, CTR: {totals.Ctr}%");
-        sb.AppendLine($"Chi tiêu: {totals.Spend:N0} VND, Chuyển đổi: {totals.Conversions:N0}, Bài đăng: {totals.PublishedPosts}");
-        sb.AppendLine($"Chiến dịch đang chạy: {totals.ActiveCampaigns}");
+
+        sb.AppendLine($"TỔNG QUAN: {totals.PublishedPosts} posts, {totals.Impressions} imp, {totals.Engagement} eng, CTR {totals.Ctr}%, {totals.Clicks} clicks, {totals.Conversions} conv, ${totals.Spend} spend, {totals.ActiveCampaigns} campaigns");
 
         if (channels.Any())
         {
+            sb.Append("KÊNH: ");
+            foreach (var c in channels.Take(3))
+            {
+                var ctrStr = c.Impressions > 0 ? $"{c.Ctr:F1}%" : "0%";
+                sb.Append($"{c.Platform}({c.PublishedPosts}p,{c.Engagement}eng,CTR{ctrStr}) ");
+            }
             sb.AppendLine();
-            sb.AppendLine("--- Theo kênh ---");
-            foreach (var c in channels.Take(5))
-                sb.AppendLine($"{c.Platform}: {c.PublishedPosts} bài, {c.Impressions:N0} impressions");
+        }
+
+        if (topPosts.Any())
+        {
+            sb.Append("TOP POSTS: ");
+            for (int i = 0; i < Math.Min(topPosts.Count, 4); i++)
+            {
+                var p = topPosts[i];
+                sb.Append($"#{i + 1}\"{p.ContentTitle?.Length > 30 ? p.ContentTitle[..30] + ".." : p.ContentTitle ?? "?"}\"({p.Platform},{p.Engagement}eng) ");
+            }
+            sb.AppendLine();
         }
 
         if (campaigns.Any())
         {
+            sb.Append("CAMPAIGNS: ");
+            foreach (var c in campaigns.Take(3))
+                sb.Append($"{c.Name}(imp{c.Impressions},CTR{c.Ctr}%) ");
             sb.AppendLine();
-            sb.AppendLine("--- Chiến dịch nổi bật ---");
-            foreach (var c in campaigns.Take(5))
-                sb.AppendLine($"- {c.Name}: {c.Impressions:N0} impressions, CTR {c.Ctr}%, Chi {c.Spend:N0}");
         }
-
-        sb.AppendLine();
-        sb.AppendLine("Đề xuất:");
 
         return sb.ToString();
     }

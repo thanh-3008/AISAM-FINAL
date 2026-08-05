@@ -11,14 +11,83 @@ interface AnalyticsAiInsightsProps {
 function parseAiResponse(text: string): { icon: string; message: string }[] {
   const lines = text.split("\n").filter(l => l.trim());
   const items: { icon: string; message: string }[] = [];
+  const emojiIconMap: Record<string, string> = {
+    "🔥": "local_fire_department",
+    "📈": "trending_up",
+    "⚡": "bolt",
+    "📝": "edit_note",
+    "🎯": "my_location",
+    "💰": "payments",
+    "🚀": "rocket_launch",
+    "⚠️": "warning",
+  };
+
+  let current: { icon: string; message: string } | null = null;
+
   for (const line of lines) {
-    const trimmed = line.replace(/^[-•*]\s*/, "").trim();
+    let trimmed = line
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/__(.*?)__/g, "$1")
+      .replace(/^\d+\.\s*/, "")
+      .replace(/^[-•]\s*/, "")
+      .trim();
+
     if (!trimmed) continue;
-    if (trimmed.includes("🔥")) items.push({ icon: "local_fire_department", message: trimmed.replace(/🔥\s*/g, "") });
-    else if (trimmed.includes("📈")) items.push({ icon: "trending_up", message: trimmed.replace(/📈\s*/g, "") });
-    else if (trimmed.includes("⚡")) items.push({ icon: "bolt", message: trimmed.replace(/⚡\s*/g, "") });
-    else items.push({ icon: "lightbulb", message: trimmed });
+
+    // Check if this line starts with a known emoji (possibly with variation selector)
+    let matchedIcon: string | null = null;
+    for (const [emoji, icon] of Object.entries(emojiIconMap)) {
+      if (trimmed.startsWith(emoji) || trimmed.replace(/^\p{Emoji}+/u, "").length < trimmed.length) {
+        if (trimmed.startsWith(emoji) || trimmed.match(new RegExp(`^${emoji}`))) {
+          matchedIcon = icon;
+          trimmed = trimmed.slice(emoji.length).trim();
+          if (trimmed.startsWith(":")) trimmed = trimmed.slice(1).trim();
+          break;
+        }
+      }
+    }
+
+    if (matchedIcon) {
+      if (current && current.message) {
+        items.push(current);
+      }
+      current = { icon: matchedIcon, message: trimmed };
+    } else if (current) {
+      // Continuation line for current item
+      if (trimmed.length >= 3) {
+        current.message += " " + trimmed;
+      }
+    }
   }
+
+  if (current && current.message) {
+    items.push(current);
+  }
+
+  // Fallback: if no items parsed, treat each line as a separate tip
+  if (items.length === 0) {
+    for (const line of lines) {
+      let trimmed = line
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/__(.*?)__/g, "$1")
+        .replace(/^\d+\.\s*/, "")
+        .replace(/^[-•]\s*/, "")
+        .trim();
+      if (!trimmed || trimmed.length < 10) continue;
+
+      let icon = "lightbulb";
+      let message = trimmed;
+      for (const [emoji, icn] of Object.entries(emojiIconMap)) {
+        if (trimmed.includes(emoji)) {
+          icon = icn;
+          message = trimmed.replace(emoji, "").trim();
+          break;
+        }
+      }
+      items.push({ icon, message });
+    }
+  }
+
   return items;
 }
 

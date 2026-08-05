@@ -665,6 +665,18 @@ public class ContentServicePublishTests
                 ? ciphertext["protected:".Length..]
                 : ciphertext;
         }
+
+        public string? TryUnprotect(string ciphertext)
+        {
+            try
+            {
+                return Unprotect(ciphertext);
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     private sealed class FakeQuotaService : IQuotaService

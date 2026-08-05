@@ -117,7 +117,8 @@ ApplyEnvironmentOverride(builder.Configuration, "TAX_LOOKUP_ENDPOINT_TEMPLATE", 
 
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+    var effectiveConnectionString = BuildDatabaseConnectionString(connectionString);
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(effectiveConnectionString);
     dataSourceBuilder.EnableDynamicJson();
     var dataSource = dataSourceBuilder.Build();
 
@@ -137,11 +138,16 @@ builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayO
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.Configure<TikTokSettings>(builder.Configuration.GetSection("TikTokSettings"));
 
-var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
+var dataProtectionKeysPath = Environment.GetEnvironmentVariable("DATA_PROTECTION_KEYS_PATH");
+if (string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".keys");
+}
+
 Directory.CreateDirectory(dataProtectionKeysPath);
 builder.Services
     .AddDataProtection()
-    .SetApplicationName("AISAM")
+    .SetApplicationName("AISAM.API")
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -416,6 +422,26 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
     {
         configuration[configurationKey] = value;
     }
+}
+
+static string BuildDatabaseConnectionString(string connectionString)
+{
+    var builder = new NpgsqlConnectionStringBuilder(connectionString);
+    var configuredMaxPoolSize = builder.ContainsKey("Maximum Pool Size") || builder.ContainsKey("Max Pool Size");
+
+    if (!configuredMaxPoolSize)
+    {
+        var maxPoolSize = 10;
+        var envMaxPoolSize = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
+        if (int.TryParse(envMaxPoolSize, out var parsedMaxPoolSize) && parsedMaxPoolSize > 0)
+        {
+            maxPoolSize = parsedMaxPoolSize;
+        }
+
+        builder.MaxPoolSize = maxPoolSize;
+    }
+
+    return builder.ConnectionString;
 }
 
 static string[] BuildAllowedOrigins(IConfiguration configuration)

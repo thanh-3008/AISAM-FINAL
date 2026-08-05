@@ -128,7 +128,7 @@ export default function AnalyticsPage() {
       `}</style>
 
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Analysis" }]} />
-      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto bg-linear-to-br from-surface-gray via-surface to-surface-gray">
+      <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto overflow-x-hidden bg-linear-to-br from-surface-gray via-surface to-surface-gray">
         <div className="max-w-7xl mx-auto space-y-6">
 
           {/* Premium Header */}

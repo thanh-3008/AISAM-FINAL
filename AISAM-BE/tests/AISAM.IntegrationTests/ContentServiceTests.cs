@@ -352,6 +352,7 @@ public class ContentServiceTests
     {
         public string Protect(string plaintext) => plaintext;
         public string Unprotect(string ciphertext) => ciphertext;
+        public string? TryUnprotect(string ciphertext) => ciphertext;
     }
 
     private sealed class FakeQuotaService : IQuotaService
