@@ -30,4 +30,16 @@ public interface IPromptEnhancerService
         int durationSeconds = 8,
         string? aspectRatio = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Enhances a video generation prompt utilizing a 6-layer advertising formula (Subject -> Action -> Context -> Style -> Technical -> Quality)
+    /// and incorporates multi-scene storyboard directions when available.
+    /// </summary>
+    Task<string> EnhanceVideoPromptWithScriptAsync(
+        string rawPrompt,
+        string? videoScript,
+        Product? product,
+        int durationSeconds = 9,
+        string? aspectRatio = "9:16",
+        CancellationToken cancellationToken = default);
 }

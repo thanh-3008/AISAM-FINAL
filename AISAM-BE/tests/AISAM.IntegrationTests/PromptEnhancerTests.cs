@@ -148,6 +148,22 @@ public class PromptEnhancerTests
         Assert.Contains("no watermark", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task EnhanceVideoPromptWithScriptAsync_Includes6LayerFormulaAndScript()
+    {
+        var capture = new CapturingGeminiClient("Enhanced 6-layer prompt.");
+        var enhancer = CreateEnhancer(capture);
+
+        var script = "[{\"scene\":1,\"time\":\"00:00-00:03\",\"action\":\"Close-up macro shot\"}]";
+        var res = await enhancer.EnhanceVideoPromptWithScriptAsync("Quảng cáo giày thể thao", script, product: null, durationSeconds: 9, aspectRatio: "9:16");
+
+        Assert.Equal("Enhanced 6-layer prompt.", res);
+        Assert.Contains("6-Layer Advertising Prompt Formula", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Subject (Chủ thể)", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Action/Motion (Hành động/Chuyển động)", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Close-up macro shot", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static PromptEnhancerService CreateEnhancer(IGeminiTextClient gemini)
@@ -161,6 +177,8 @@ public class PromptEnhancerTests
         public StubGeminiClient(Exception ex) => _ex = ex;
         public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
             => _ex != null ? Task.FromException<string>(_ex) : Task.FromResult(_response!);
+        public Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+            => GenerateAsync(textPrompt, cancellationToken);
     }
 
     private sealed class CapturingGeminiClient : IGeminiTextClient
@@ -173,5 +191,7 @@ public class PromptEnhancerTests
             LastPrompt = prompt;
             return Task.FromResult(_response);
         }
+        public Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+            => GenerateAsync(textPrompt, cancellationToken);
     }
 }
