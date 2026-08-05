@@ -217,7 +217,19 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
         schedule.CreatedAt = DateTime.UtcNow;
         schedule.UpdatedAt = DateTime.UtcNow;
         _context.ContentCalendars.Add(schedule);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // A failed insert otherwise remains Added in this scoped DbContext. Bulk
+            // scheduling can intentionally continue after a duplicate item; leaving
+            // the entity tracked makes every later SaveChanges retry the same insert
+            // and turns a per-item conflict into an HTTP 500.
+            _context.Entry(schedule).State = EntityState.Detached;
+            throw;
+        }
         return schedule;
     }
 

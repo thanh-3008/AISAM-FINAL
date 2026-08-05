@@ -3,6 +3,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories;
 using AISAM.Repositories.Repository;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.IntegrationTests;
@@ -34,6 +35,39 @@ public class ContentCalendarRepositoryTests
         Assert.Equal(2, result.Count);
         Assert.Equal(fixture.UpcomingSoon.Id, result[0].Id);
         Assert.Equal(fixture.UpcomingLater.Id, result[1].Id);
+    }
+
+    [Fact]
+    public async Task AddAsync_DetachesSchedule_WhenSaveFails()
+    {
+        var interceptor = new FailFirstSaveInterceptor();
+        var options = new DbContextOptionsBuilder<AisamContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var context = new AisamContext(options);
+        var repository = new ContentCalendarRepository(context);
+        var failedSchedule = new ContentCalendar
+        {
+            ContentId = Guid.NewGuid(),
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = Guid.NewGuid(),
+            ScheduledDate = DateTime.UtcNow.AddHours(1)
+        };
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => repository.AddAsync(failedSchedule));
+
+        Assert.Equal(EntityState.Detached, context.Entry(failedSchedule).State);
+
+        var laterSchedule = new ContentCalendar
+        {
+            ContentId = Guid.NewGuid(),
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = Guid.NewGuid(),
+            ScheduledDate = DateTime.UtcNow.AddHours(2)
+        };
+        await repository.AddAsync(laterSchedule);
+        Assert.Equal(1, await context.ContentCalendars.CountAsync());
     }
 
     private static AisamContext CreateContext()
@@ -164,4 +198,23 @@ public class ContentCalendarRepositoryTests
         ContentCalendar DueSchedule,
         ContentCalendar UpcomingSoon,
         ContentCalendar UpcomingLater);
+
+    private sealed class FailFirstSaveInterceptor : SaveChangesInterceptor
+    {
+        private bool _shouldFail = true;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (_shouldFail)
+            {
+                _shouldFail = false;
+                throw new DbUpdateException("Simulated insert failure.");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
 }
