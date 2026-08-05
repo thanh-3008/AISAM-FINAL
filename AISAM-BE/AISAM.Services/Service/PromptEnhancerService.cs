@@ -137,6 +137,71 @@ Output rules:
         return rawPrompt;
     }
 
+    public async Task<string> EnhanceVideoPromptWithScriptAsync(
+        string rawPrompt,
+        string? videoScript,
+        Product? product,
+        int durationSeconds = 9,
+        string? aspectRatio = "9:16",
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(rawPrompt) && string.IsNullOrWhiteSpace(videoScript))
+        {
+            return rawPrompt ?? string.Empty;
+        }
+
+        var productContext = BuildProductContext(product);
+        var aspectHint = string.IsNullOrWhiteSpace(aspectRatio) ? "9:16 (vertical mobile short-form video)" : aspectRatio;
+
+        var metaPrompt = $"""
+You are an expert commercial advertising director and prompt engineer specializing in AI video generation models (LTX-2.3, Veo, Kling, Runway Gen-3).
+Your task is to transform the provided user request and video script into a single, high-performing video generation prompt in English using the strict 6-Layer Advertising Formula:
+
+### 6-Layer Advertising Prompt Formula:
+1. **Subject (Chủ thể)**: What is the central hero object? (Product appearance, colors, texture, packaging). Must be ultra-detailed.
+2. **Action/Motion (Hành động/Chuyển động)**: What happens? Describe liquid pouring, light reflections shifting, product rotating slowly, lid opening, or subtle background movement. Avoid static scenes.
+3. **Context/Setting (Bối cảnh)**: Where is the product? (Minimalist studio, wet marble surface, luxury gradient backdrop, nature setting).
+4. **Lighting (Ánh sáng)**: Soft studio rim light, cinematic chiaroscuro, golden hour sidelight, neon glow, or clean softbox lighting.
+5. **Camera & Lens (Góc máy/Lens)**: Macro lens, 85mm portrait lens, shallow depth of field, slow dolly-in, orbit shot, tracking camera.
+6. **Style & Quality (Phong cách & Chất lượng)**: 4K cinematic advertising commercial, photorealistic, Unreal Engine 5 render aesthetic, elegant color grading, aspirational tone.
+
+Product context (use as SOURCE OF TRUTH — preserve exact product visual details and brand identity):
+{productContext}
+
+Storyboard/Video Script (if available):
+{(string.IsNullOrWhiteSpace(videoScript) ? "None provided — synthesize a cohesive 3-scene advertising flow (Hook -> Feature Demonstration -> Hero CTA shot)." : videoScript)}
+
+Video Parameters:
+- Duration: {durationSeconds} seconds
+- Aspect Ratio: {aspectHint}
+
+Original User Prompt / Direction:
+"{rawPrompt}"
+
+Output Rules:
+- Output ONLY the final, continuous English prompt paragraph combining all 6 layers. No explanation, no markdown fences, no layer labels.
+- If a multi-scene script is provided, weave the transitions naturally: "[Scene 1 description], seamlessly transitioning to [Scene 2 description], and concluding with [Scene 3 hero composition]".
+- Always append at the very end: "commercial advertising photography, high fidelity, 4k cinematic, no text overlay, no watermark, no readable letters, no ugly morphing, no extra hands, professional social media video ad."
+""";
+
+        try
+        {
+            var enhanced = await _gemini.GenerateAsync(metaPrompt, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(enhanced))
+            {
+                _logger.LogInformation("[PromptEnhancer] Video script prompt enhanced with 6-layer formula. Original length={OrigLen}, Enhanced length={EhLen}",
+                    (rawPrompt + videoScript).Length, enhanced.Trim().Length);
+                return enhanced.Trim();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[PromptEnhancer] Gemini failed during 6-layer video prompt enhancement. Falling back to raw prompt.");
+        }
+
+        return !string.IsNullOrWhiteSpace(rawPrompt) ? rawPrompt : videoScript ?? string.Empty;
+    }
+
     // ─── Helpers ───────────────────────────────────────────────────────────────
 
     private static string BuildProductContext(Product? product)

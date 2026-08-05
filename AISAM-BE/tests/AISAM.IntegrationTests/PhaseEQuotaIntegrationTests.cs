@@ -96,6 +96,9 @@ public class PhaseEQuotaIntegrationTests
 
         public Task<string> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, CancellationToken cancellationToken = default)
             => Task.FromResult(rawPrompt);
+
+        public Task<string> EnhanceVideoPromptWithScriptAsync(string rawPrompt, string? videoScript, AISAM.Data.Model.Product? product, int durationSeconds = 9, string? aspectRatio = "9:16", CancellationToken cancellationToken = default)
+            => Task.FromResult(!string.IsNullOrWhiteSpace(rawPrompt) ? rawPrompt : videoScript ?? string.Empty);
     }
 
     private sealed class FakeCreditService : ICreditService
@@ -140,6 +143,9 @@ public class PhaseEQuotaIntegrationTests
 
         public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
             => _exception != null ? Task.FromException<string>(_exception) : Task.FromResult(_response!);
+
+        public Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+            => GenerateAsync(textPrompt, cancellationToken);
     }
 
     private sealed class FakeAiGenerationRepository : IAiGenerationRepository

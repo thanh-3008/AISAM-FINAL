@@ -53,4 +53,37 @@ public sealed class FallbackTextProvider : IGeminiTextClient
             }
         }
     }
+
+    public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Attempting to generate text with Vision using primary Gemini...");
+            return await _geminiClient.GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Gemini Vision generation failed. Trying first fallback Gemini API...");
+
+            try
+            {
+                return await _fallbackGeminiClient.GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, cancellationToken);
+            }
+            catch (Exception fallback1Ex)
+            {
+                _logger.LogWarning(fallback1Ex, "Fallback 1 Vision generation failed. Trying secondary Fallback Gemini API...");
+
+                try
+                {
+                    return await _fallbackGeminiClient2.GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, cancellationToken);
+                }
+                catch (Exception fallback2Ex)
+                {
+                    _logger.LogError(fallback2Ex, "All Vision providers failed. Falling back to text-only generation.");
+                    // Final fallback: call text-only (ignoring image bytes, generating script from text context)
+                    return await GenerateAsync(textPrompt, cancellationToken);
+                }
+            }
+        }
+    }
 }

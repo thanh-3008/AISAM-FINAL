@@ -62,6 +62,58 @@ public sealed class GeminiTextClient : IGeminiTextClient
         return text.Trim();
     }
 
+    public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+        {
+            throw new InvalidOperationException("Gemini API key is not configured.");
+        }
+
+        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
+        var requestBody = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    parts = new object[]
+                    {
+                        new { text = textPrompt },
+                        new { inlineData = new { mimeType = mimeType, data = Convert.ToBase64String(imageBytes) } }
+                    }
+                }
+            },
+            generationConfig = new
+            {
+                maxOutputTokens = _settings.MaxTokens,
+                temperature = _settings.Temperature
+            }
+        };
+
+        var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException($"Gemini Vision API returned {(int)response.StatusCode}: {ExtractErrorMessage(errorBody)}");
+        }
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        var text = document.RootElement
+            .GetProperty("candidates")[0]
+            .GetProperty("content")
+            .GetProperty("parts")[0]
+            .GetProperty("text")
+            .GetString();
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidOperationException("Gemini Vision API returned an empty response.");
+        }
+
+        return text.Trim();
+    }
+
     public static string ExtractErrorMessage(string responseBody)
     {
         try

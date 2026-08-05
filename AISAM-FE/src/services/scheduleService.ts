@@ -58,6 +58,18 @@ export function onScheduleChange(callback: () => void) {
   return () => window.removeEventListener(SCHEDULE_CHANGE_EVENT, callback);
 }
 
+/* ─── UTC Normalization Helper ─── */
+
+/**
+ * Ensures a datetime string is sent as UTC ISO 8601 with 'Z' suffix.
+ * Prevents server from receiving DateTimeKind.Unspecified which causes wrong timezone conversion.
+ */
+function toUtcIsoString(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr; // fallback: return as-is if invalid
+  return d.toISOString(); // always returns format like "2026-08-10T03:00:00.000Z"
+}
+
 /* ─── API Functions ─── */
 
 export async function fetchSchedules(params?: {
@@ -91,7 +103,10 @@ export async function createSchedule(data: {
 }): Promise<{ data: ScheduleItem | null; error?: string }> {
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient("/content-schedules", {
-      data,
+      data: {
+        ...data,
+        scheduledAt: toUtcIsoString(data.scheduledAt),
+      },
       method: "POST",
     });
     if (res?.data) {
@@ -113,7 +128,10 @@ export async function updateSchedule(id: string, data: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<ScheduleItem> = await apiClient(`/content-schedules/${id}`, {
-      data,
+      data: {
+        ...data,
+        ...(data.scheduledAt ? { scheduledAt: toUtcIsoString(data.scheduledAt) } : {}),
+      },
       method: "PUT",
     });
     if (res?.success) {
@@ -170,7 +188,12 @@ export async function bulkCreateSchedules(data: {
 }): Promise<{ success: boolean; message?: string; results?: BulkItemResult[] }> {
   try {
     const res: GenericResponse<BulkCreateResult> = await apiClient("/content-schedules/bulk", {
-      data,
+      data: {
+        items: data.items.map((item) => ({
+          ...item,
+          scheduledAt: toUtcIsoString(item.scheduledAt),
+        })),
+      },
       method: "POST",
     });
     if (res?.data) {

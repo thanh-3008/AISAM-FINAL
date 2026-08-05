@@ -7,6 +7,7 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using System.Net;
 using System.Text.Json;
@@ -19,17 +20,20 @@ public sealed class ContentScheduleService : IContentScheduleService
     private readonly ISocialIntegrationRepository _socialIntegrationRepository;
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly INotificationRepository _notificationRepository;
+    private readonly ILogger<ContentScheduleService> _logger;
 
     public ContentScheduleService(
         IContentRepository contentRepository,
         ISocialIntegrationRepository socialIntegrationRepository,
         IContentCalendarRepository contentCalendarRepository,
-        INotificationRepository notificationRepository)
+        INotificationRepository notificationRepository,
+        ILogger<ContentScheduleService> logger)
     {
         _contentRepository = contentRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
         _contentCalendarRepository = contentCalendarRepository;
         _notificationRepository = notificationRepository;
+        _logger = logger;
     }
 
     public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
@@ -203,9 +207,16 @@ public sealed class ContentScheduleService : IContentScheduleService
         var result = await CreateSingleInWorkspaceAsync(workspaceId, profileId, request, cancellationToken);
         if (result.Success && result.Data != null)
         {
-            await CreateNotificationAsync(profileId, "Schedule created",
-                $"Content {result.Data.ContentId} was scheduled for {result.Data.ScheduledAt:O}.",
-                result.Data.Id, cancellationToken, workspaceId);
+            try
+            {
+                await CreateNotificationAsync(profileId, "Schedule created",
+                    $"Content {result.Data.ContentId} was scheduled for {result.Data.ScheduledAt:O}.",
+                    result.Data.Id, cancellationToken, workspaceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create schedule notification for content {ContentId} in workspace {WorkspaceId}", result.Data.ContentId, workspaceId);
+            }
         }
         return result;
     }
@@ -290,11 +301,18 @@ public sealed class ContentScheduleService : IContentScheduleService
             }
         }
 
-        await CreateNotificationAsync(profileId, "Bulk schedule created",
-            string.Format(MessageConstants.Schedule.BulkCreated, result.SuccessCount, result.TotalRequested), Guid.Empty, cancellationToken, workspaceId);
+        var notifMessage = string.Format(MessageConstants.Schedule.BulkCreated, result.SuccessCount, result.TotalRequested);
+        try
+        {
+            await CreateNotificationAsync(profileId, "Bulk schedule created",
+                notifMessage, Guid.Empty, cancellationToken, workspaceId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create bulk schedule notification for profile {ProfileId} in workspace {WorkspaceId}", profileId, workspaceId);
+        }
 
-        return GenericResponse<BulkCreateResultDto>.CreateSuccess(result,
-            string.Format(MessageConstants.Schedule.BulkCreated, result.SuccessCount, result.TotalRequested));
+        return GenericResponse<BulkCreateResultDto>.CreateSuccess(result, notifMessage);
     }
 
     private async Task<GenericResponse<ContentScheduleDto>> CreateSingleInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
@@ -403,7 +421,8 @@ public sealed class ContentScheduleService : IContentScheduleService
         {
             DateTimeKind.Utc => value,
             DateTimeKind.Local => value.ToUniversalTime(),
-            _ => value.ToUniversalTime()
+            // DateTimeKind.Unspecified: treat as UTC to avoid double-conversion on server
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
         };
     }
 
