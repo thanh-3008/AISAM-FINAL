@@ -165,7 +165,7 @@ public sealed class PaymentRepository : IPaymentRepository
             .GroupBy(p => p.WorkspaceId)
             .Select(g => new TopWorkspaceRevenueDto
             {
-                WorkspaceId = g.Key.Value,
+                WorkspaceId = g.Key ?? Guid.Empty,
                 Revenue = g.Sum(p => p.Amount)
             })
             .OrderByDescending(x => x.Revenue)

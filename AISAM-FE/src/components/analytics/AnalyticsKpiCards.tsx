@@ -62,14 +62,14 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
       {stats.map((stat, index) => (
         <div
           key={stat.label}
-          className="group relative bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/50 overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 animate-fade-up"
+          className="group relative bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/50 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 animate-fade-up"
           style={{ animationDelay: `${index * 0.1}s` }}
         >
-          {/* Animated gradient background */}
-          <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
-          
-          {/* Glow effect */}
-          <div className={`absolute -top-20 -right-20 w-40 h-40 ${stat.bgGlow} rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+          {/* Animated gradient background wrapped with overflow-hidden */}
+          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+            <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
+            <div className={`absolute -top-20 -right-20 w-40 h-40 ${stat.bgGlow} rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+          </div>
 
           <div className="relative p-6">
             {/* Header */}
@@ -80,7 +80,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
                     {stat.label}
                   </p>
                   <span className="material-symbols-outlined text-[14px] text-outline-variant cursor-help">info</span>
-                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-surface-container-highest border border-outline-variant/30 text-on-surface text-body-sm rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-300 z-10 pointer-events-none">
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-surface-container-highest border border-outline-variant/30 text-on-surface text-body-sm rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-300 z-[100] pointer-events-none">
                     {stat.description}
                   </div>
                 </div>
@@ -138,7 +138,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
           </div>
 
           {/* Bottom border gradient */}
-          <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${stat.gradient} transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left`} />
+          <div className={`absolute bottom-0 left-0 right-0 h-1 rounded-b-2xl overflow-hidden bg-gradient-to-r ${stat.gradient} transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left`} />
         </div>
       ))}
 
