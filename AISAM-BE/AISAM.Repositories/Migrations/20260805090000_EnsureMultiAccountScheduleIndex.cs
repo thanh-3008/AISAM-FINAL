@@ -13,6 +13,7 @@ namespace AISAM.Repositories.Migrations
         {
             migrationBuilder.Sql("""
                 DROP INDEX IF EXISTS "IX_content_calendar_content_id";
+                DROP INDEX IF EXISTS ix_content_calendar_content_id;
 
                 CREATE UNIQUE INDEX IF NOT EXISTS "IX_content_calendar_content_id_integration_id"
                 ON content_calendar (content_id, integration_id)
