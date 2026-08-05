@@ -1,4 +1,5 @@
 using AISAM.Common.Models;
+using AISAM.Data.Model;
 
 namespace AISAM.Repositories.IRepositories;
 
@@ -16,4 +17,10 @@ public interface IPerformanceReportRepository
     Task<AnalyticsTotals> GetAllWorkspaceTotalsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<WorkspaceAnalyticsItemDto>> GetWorkspaceComparisonAsync(DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CampaignAnalyticsItemDto>> GetTopCampaignsAllWorkspacesAsync(DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default);
+
+    Task<List<Post>> GetPostsNeedingSyncAsync(int batchSize, CancellationToken cancellationToken = default);
+    Task<List<Post>> GetPostsNeedingSyncAsync(int batchSize, Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null, string? platform = null, CancellationToken cancellationToken = default);
+    Task UpsertPostReportAsync(PerformanceReport report, CancellationToken cancellationToken = default);
+    Task<bool> IncrementTrackedClickAsync(Guid contentId, Guid integrationId, CancellationToken cancellationToken = default);
+    Task<DateTime?> GetLatestReportDateForPostAsync(Guid postId, CancellationToken cancellationToken = default);
 }

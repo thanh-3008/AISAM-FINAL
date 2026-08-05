@@ -91,6 +91,7 @@ export interface TopPostItem {
   reach: number;
   engagement: number;
   clicks: number;
+  totalMediaViewUnique: number;
   ctr: number;
 }
 

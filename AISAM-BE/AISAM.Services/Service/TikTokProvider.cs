@@ -511,4 +511,9 @@ public sealed class TikTokProvider : IProviderService
         [JsonPropertyName("error_description")] public string? ErrorDescription { get; set; }
         public TikTokApiError? Error { get; set; }
     }
+
+    public Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<FacebookPostInsightData?>(null);
+    }
 }

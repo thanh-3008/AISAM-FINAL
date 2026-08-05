@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Services.IServices;
@@ -630,6 +631,509 @@ public sealed class FacebookProvider : IProviderService
     }
 
     // ──────────────────────────────────────────────
+    //  Post Insights
+    // ──────────────────────────────────────────────
+
+    public async Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+
+        var insights = new FacebookPostInsightData();
+
+        var coreMetrics = new[] { "post_media_view", "post_total_media_view_unique" };
+        await FetchAndMergePostInsightFieldsAsync(accessToken, postId, coreMetrics, insights, cancellationToken);
+
+        var impressionMetrics = new[] { "post_impressions", "post_impressions_unique" };
+        await FetchAndMergePostInsightMetricsAsync(accessToken, postId, impressionMetrics, insights, cancellationToken);
+
+        if (!insights.Impressions.HasValue && insights.Views.HasValue)
+            insights.Impressions = insights.Views;
+        if (!insights.Reach.HasValue && insights.TotalMediaViewUnique.HasValue)
+            insights.Reach = insights.TotalMediaViewUnique;
+        if (!insights.Reach.HasValue && insights.Impressions.HasValue)
+            insights.Reach = insights.Impressions;
+
+        var reactions = "post_reactions_like_total,post_reactions_love_total,post_reactions_wow_total,post_reactions_haha_total,post_reactions_sorry_total,post_reactions_anger_total";
+        await FetchAndMergePostInsightMetricsAsync(accessToken, postId, reactions.Split(','), insights, cancellationToken);
+
+        var clickMetrics = new[] { "post_clicks", "post_clicks_by_type" };
+        await FetchAndMergePostInsightMetricsAsync(accessToken, postId, clickMetrics, insights, cancellationToken);
+
+        var fields = "reactions.limit(0).summary(true),comments.limit(0).summary(true)";
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}?fields={Uri.EscapeDataString(fields)}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("reactions", out var r) && r.TryGetProperty("summary", out var rs) &&
+                    rs.TryGetProperty("total_count", out var rc) && rc.ValueKind == JsonValueKind.Number)
+                    insights.Reactions = rc.GetInt64();
+                if (root.TryGetProperty("comments", out var c) && c.TryGetProperty("summary", out var cs) &&
+                    cs.TryGetProperty("total_count", out var cc) && cc.ValueKind == JsonValueKind.Number)
+                    insights.Comments = cc.GetInt64();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse post engagement for {PostId}", postId);
+            }
+        }
+
+        return insights.Impressions.HasValue
+            || insights.Reach.HasValue
+            || insights.Views.HasValue
+            || insights.EngagedUsers.HasValue
+            || insights.Clicks.HasValue
+            || insights.Reactions.HasValue
+            || insights.Comments.HasValue
+            || insights.Shares.HasValue
+            ? insights
+            : null;
+    }
+
+    public async Task<IReadOnlyList<FacebookPublishedPostData>> GetPublishedPostsAsync(
+        string accessToken,
+        string pageId,
+        DateTime from,
+        DateTime to,
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+
+        var posts = new List<FacebookPublishedPostData>();
+        var since = new DateTimeOffset(from).ToUnixTimeSeconds();
+        var until = new DateTimeOffset(to).ToUnixTimeSeconds();
+        var fields = Uri.EscapeDataString("id,message,created_time,permalink_url,insights");
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{pageId}/published_posts?fields={fields}&since={since}&until={until}&limit={Math.Clamp(limit, 1, 100)}";
+
+        while (!string.IsNullOrWhiteSpace(url) && posts.Count < limit)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, url)
+            {
+                Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+            };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to get published posts for page {PageId}: {Error}", pageId, GetErrorMessage(content));
+                break;
+            }
+
+            var result = Deserialize<FacebookPublishedPostsResponse>(content);
+            if (result?.Data != null)
+                posts.AddRange(result.Data.Where(post => !string.IsNullOrWhiteSpace(post.Id)));
+
+            url = result?.Paging?.Next;
+        }
+
+        return posts
+            .Where(post => post.CreatedTime == null || (post.CreatedTime.Value >= from && post.CreatedTime.Value <= to))
+            .OrderByDescending(post => post.CreatedTime ?? DateTime.MinValue)
+            .Take(limit)
+            .ToList();
+    }
+
+    private async Task MergePostViewSummaryAsync(string accessToken, string postId, FacebookPostInsightData insights, CancellationToken cancellationToken)
+    {
+        var views = await GetPostLongFieldAsync(accessToken, postId, "views", cancellationToken)
+            ?? await GetPostLongFieldAsync(accessToken, postId, "view_count", cancellationToken);
+        if (views.HasValue)
+            insights.Views = Math.Max(insights.Views ?? 0, views.Value);
+    }
+
+    private async Task<long?> GetPostLongFieldAsync(string accessToken, string postId, string field, CancellationToken cancellationToken)
+    {
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}?fields={field}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogDebug("Post field {Field} is unavailable for {PostId}: {Error}", field, postId, GetErrorMessage(content));
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            return doc.RootElement.TryGetProperty(field, out var value)
+                ? ExtractInsightNumber(value)
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private async Task FetchAndMergePostInsightMetricsAsync(
+        string accessToken,
+        string postId,
+        IReadOnlyCollection<string> metrics,
+        FacebookPostInsightData insights,
+        CancellationToken cancellationToken,
+        string? period = null)
+    {
+        if (metrics.Count == 0)
+            return;
+
+        var metricParam = string.Join(",", metrics);
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}/insights?metric={Uri.EscapeDataString(metricParam)}";
+        if (!string.IsNullOrWhiteSpace(period))
+            url += $"&period={Uri.EscapeDataString(period)}";
+
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = GetErrorMessage(content);
+            if (errorMessage.Contains("valid insights metric", StringComparison.OrdinalIgnoreCase))
+            {
+                insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: unsupported metric ({errorMessage})");
+                System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | SKIP-METRIC | {postId}: {metricParam} - {errorMessage}\n");
+                return;
+            }
+
+            _logger.LogWarning(
+                "Failed to get Facebook post insight metrics {Metrics} for {PostId}: {Error}",
+                metricParam,
+                postId,
+                errorMessage);
+            insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: {errorMessage}");
+            System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | ERROR-METRIC | {postId}: {metricParam} - {errorMessage}\n");
+            return;
+        }
+
+        _logger.LogInformation(
+            "Facebook post insights raw response for {PostId}, metrics {Metrics}: {Content}",
+            postId,
+            metricParam,
+            content);
+
+        var result = Deserialize<FacebookPostInsightsResponse>(content);
+        if (result?.Data == null || result.Data.Count == 0)
+            insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: empty data");
+        MergeInsightMetrics(result?.Data, insights);
+    }
+
+    private async Task FetchAndMergePostInsightFieldsAsync(
+        string accessToken,
+        string postId,
+        IReadOnlyCollection<string> metrics,
+        FacebookPostInsightData insights,
+        CancellationToken cancellationToken)
+    {
+        if (metrics.Count == 0)
+            return;
+
+        var metricParam = string.Join(",", metrics);
+        var uriBuilder = new UriBuilder($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}");
+        var queryParams = new Dictionary<string, string>
+        {
+            ["fields"] = $"insights.metric({metricParam})",
+            ["access_token"] = accessToken
+        };
+        uriBuilder.Query = BuildQueryString(queryParams);
+        var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        try
+        {
+            var logDir = AppDomain.CurrentDomain.BaseDirectory;
+            System.IO.File.AppendAllText(System.IO.Path.Combine(logDir, "fb_insights.log"), $"{DateTime.UtcNow:O} | URL={RedactAccessToken(uriBuilder.Uri)} | Status={response.StatusCode} | Body={content}\n");
+        }
+        catch (Exception ex)
+        {
+            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fb_error.log"), $"Failed to write log: {ex.Message}\n"); } catch { }
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = GetErrorMessage(content);
+            insights.Diagnostics.Add($"{postId}:fields insights.metric({metricParam}): {errorMessage}");
+            _logger.LogWarning("Failed to get Facebook post insight fields {Metrics} for {PostId}: {Error}", metricParam, postId, errorMessage);
+            return;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            if (!doc.RootElement.TryGetProperty("insights", out var insightsElement)
+                || !insightsElement.TryGetProperty("data", out var dataElement))
+            {
+                insights.Diagnostics.Add($"{postId}:fields insights.metric({metricParam}): no insights.data");
+                return;
+            }
+
+            var metricData = JsonSerializer.Deserialize<List<FacebookPostInsightMetric>>(
+                dataElement.GetRawText(),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (metricData == null || metricData.Count == 0)
+                insights.Diagnostics.Add($"{postId}:fields insights.metric({metricParam}): empty data");
+
+            MergeInsightMetrics(metricData, insights);
+        }
+        catch (JsonException ex)
+        {
+            insights.Diagnostics.Add($"{postId}:fields insights.metric({metricParam}): parse error {ex.Message}");
+            _logger.LogWarning(ex, "Failed to parse Facebook post insight fields for {PostId}", postId);
+        }
+    }
+
+    private static string BuildQueryString(IReadOnlyDictionary<string, string> queryParams)
+    {
+        return string.Join("&", queryParams.Select(kvp =>
+            $"{EscapeGraphQueryValue(kvp.Key)}={EscapeGraphQueryValue(kvp.Value)}"));
+    }
+
+    private static string EscapeGraphQueryValue(string value)
+    {
+        return Uri.EscapeDataString(value)
+            .Replace("(", "%28", StringComparison.Ordinal)
+            .Replace(")", "%29", StringComparison.Ordinal);
+    }
+
+    private static string RedactAccessToken(Uri uri)
+    {
+        var builder = new UriBuilder(uri);
+        var pairs = builder.Query
+            .TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(pair =>
+            {
+                var separatorIndex = pair.IndexOf('=');
+                if (separatorIndex < 0)
+                    return pair;
+
+                var key = Uri.UnescapeDataString(pair[..separatorIndex]);
+                return key.Equals("access_token", StringComparison.OrdinalIgnoreCase)
+                    ? $"{pair[..separatorIndex]}=***"
+                    : pair;
+            });
+
+        builder.Query = string.Join("&", pairs);
+        return builder.Uri.ToString();
+    }
+
+    private static long? ExtractInsightNumber(object? rawValue)
+    {
+        return rawValue switch
+        {
+            long value => value,
+            int value => value,
+            double value => (long)value,
+            decimal value => (long)value,
+            string value when long.TryParse(value, out var parsed) => parsed,
+            JsonElement { ValueKind: JsonValueKind.Number } value when value.TryGetInt64(out var parsed) => parsed,
+            JsonElement { ValueKind: JsonValueKind.String } value when long.TryParse(value.GetString(), out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private static void MergeInsightMetrics(IEnumerable<FacebookPostInsightMetric>? metrics, FacebookPostInsightData insights)
+    {
+        if (metrics == null)
+            return;
+
+        foreach (var metric in metrics)
+        {
+            var rawValue = metric.Values?.FirstOrDefault()?.Value;
+            if (rawValue == null)
+                continue;
+
+            var numericValue = ExtractInsightNumber(rawValue);
+            switch (metric.Name)
+            {
+                case "post_impressions":
+                case "impressions":
+                case "post_media_view":
+                    if (numericValue.HasValue) insights.Impressions = Math.Max(insights.Impressions ?? 0, numericValue.Value);
+                    break;
+                case "post_total_media_view_unique":
+                    if (numericValue.HasValue) insights.TotalMediaViewUnique = Math.Max(insights.TotalMediaViewUnique ?? 0, numericValue.Value);
+                    if (numericValue.HasValue) insights.Reach = Math.Max(insights.Reach ?? 0, numericValue.Value);
+                    break;
+                case "post_impressions_unique":
+                case "reach":
+                    if (numericValue.HasValue) insights.Reach = Math.Max(insights.Reach ?? 0, numericValue.Value);
+                    break;
+                case "post_engaged_users":
+                case "engaged_users":
+                    if (numericValue.HasValue) insights.EngagedUsers = Math.Max(insights.EngagedUsers ?? 0, numericValue.Value);
+                    break;
+                case "post_clicks":
+                case "clicks":
+                    if (numericValue.HasValue) insights.Clicks = Math.Max(insights.Clicks ?? 0, numericValue.Value);
+                    break;
+                case "post_views":
+                case "post_video_views":
+                case "video_views":
+                    if (numericValue.HasValue) insights.Views = Math.Max(insights.Views ?? 0, numericValue.Value);
+                    break;
+                case "post_clicks_by_type":
+                    var clickTotal = ExtractInsightObjectTotal(rawValue);
+                    if (clickTotal.HasValue) insights.Clicks = Math.Max(insights.Clicks ?? 0, clickTotal.Value);
+                    break;
+                case "post_reactions_like_total":
+                case "post_reactions_love_total":
+                case "post_reactions_wow_total":
+                case "post_reactions_haha_total":
+                case "post_reactions_sorry_total":
+                case "post_reactions_anger_total":
+                case "post_reactions_by_type_total":
+                    if (numericValue.HasValue)
+                        insights.Reactions = (insights.Reactions ?? 0) + numericValue.Value;
+                    else
+                    {
+                        var objTotal = ExtractInsightObjectTotal(rawValue);
+                        if (objTotal.HasValue) insights.Reactions = Math.Max(insights.Reactions ?? 0, objTotal.Value);
+                    }
+                    break;
+            }
+        }
+    }
+
+    private static long? ExtractInsightObjectTotal(object? rawValue)
+    {
+        if (rawValue is not JsonElement { ValueKind: JsonValueKind.Object } json)
+            return null;
+
+        long total = 0;
+        var hasAnyValue = false;
+        foreach (var property in json.EnumerateObject())
+        {
+            var value = property.Value.ValueKind switch
+            {
+                JsonValueKind.Number when property.Value.TryGetInt64(out var parsed) => parsed,
+                JsonValueKind.String when long.TryParse(property.Value.GetString(), out var parsed) => parsed,
+                _ => (long?)null
+            };
+
+            if (!value.HasValue)
+                continue;
+
+            total += value.Value;
+            hasAnyValue = true;
+        }
+
+        return hasAnyValue ? total : null;
+    }
+
+    private async Task MergePostEngagementSummaryAsync(string accessToken, string postId, FacebookPostInsightData insights, CancellationToken cancellationToken)
+    {
+        var fields = Uri.EscapeDataString("reactions.limit(0).summary(true),comments.limit(0).summary(true),shares");
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}?fields={fields}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get post engagement summary for {PostId}: {Error}", postId, GetErrorMessage(content));
+        }
+        else
+        {
+            var summary = Deserialize<FacebookPostEngagementResponse>(content);
+            var reactions = summary.Reactions?.Summary?.TotalCount;
+            var comments = summary.Comments?.Summary?.TotalCount;
+            var shares = summary.Shares?.Count;
+
+            if (reactions.HasValue) insights.Reactions = Math.Max(insights.Reactions ?? 0, reactions.Value);
+            if (comments.HasValue) insights.Comments = Math.Max(insights.Comments ?? 0, comments.Value);
+            if (shares.HasValue) insights.Shares = Math.Max(insights.Shares ?? 0, shares.Value);
+        }
+
+        if (!insights.Reactions.HasValue)
+        {
+            var reactionCount = await GetSummaryEdgeCountAsync(accessToken, postId, "reactions", cancellationToken);
+            if (reactionCount.HasValue) insights.Reactions = reactionCount.Value;
+        }
+
+        if (!insights.Reactions.HasValue)
+        {
+            var likeCount = await GetSummaryEdgeCountAsync(accessToken, postId, "likes", cancellationToken);
+            if (likeCount.HasValue) insights.Reactions = likeCount.Value;
+        }
+
+        if (!insights.Comments.HasValue)
+        {
+            var commentCount = await GetSummaryEdgeCountAsync(accessToken, postId, "comments", cancellationToken);
+            if (commentCount.HasValue) insights.Comments = commentCount.Value;
+        }
+
+        if (!insights.Shares.HasValue)
+        {
+            var shareCount = await GetSharesCountAsync(accessToken, postId, cancellationToken);
+            if (shareCount.HasValue) insights.Shares = shareCount.Value;
+        }
+    }
+
+    private async Task<long?> GetSummaryEdgeCountAsync(string accessToken, string postId, string edge, CancellationToken cancellationToken)
+    {
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}/{edge}?summary=true&limit=0";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get post {Edge} summary for {PostId}: {Error}", edge, postId, GetErrorMessage(content));
+            return null;
+        }
+
+        var summary = Deserialize<FacebookSummaryListResponse>(content);
+        return summary.Summary?.TotalCount;
+    }
+
+    private async Task<long?> GetSharesCountAsync(string accessToken, string postId, CancellationToken cancellationToken)
+    {
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}?fields=shares";
+        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        {
+            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+        };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get post shares summary for {PostId}: {Error}", postId, GetErrorMessage(content));
+            return null;
+        }
+
+        var summary = Deserialize<FacebookPostEngagementResponse>(content);
+        return summary.Shares?.Count;
+    }
+
+    // ──────────────────────────────────────────────
     //  Marketing API — Delete / Cleanup
     // ──────────────────────────────────────────────
 
@@ -702,7 +1206,11 @@ public sealed class FacebookProvider : IProviderService
 
     internal sealed class FacebookPostResponse
     {
+        [JsonPropertyName("id")]
         public string? Id { get; set; }
+
+        [JsonPropertyName("post_id")]
+        public string? PostId { get; set; }
     }
 
     private async Task<bool> DeleteFacebookObjectAsync(string relativePath, string accessToken, string label, CancellationToken cancellationToken)
@@ -731,11 +1239,17 @@ public sealed class FacebookProvider : IProviderService
     private async Task<PublishResultDto> PublishFeedAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken)
     {
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{integration.ExternalId}/feed";
-        var initial = await PostFormAsync(url, new Dictionary<string, string>
+        var payload = new Dictionary<string, string>
         {
             ["message"] = post.Message,
             ["access_token"] = integration.AccessToken
-        }, cancellationToken);
+        };
+        if (!string.IsNullOrWhiteSpace(post.LinkUrl))
+        {
+            payload["link"] = post.LinkUrl;
+        }
+
+        var initial = await PostFormAsync(url, payload, cancellationToken);
 
         if (initial.Success)
         {
@@ -748,11 +1262,8 @@ public sealed class FacebookProvider : IProviderService
             return initial;
         }
 
-        var retried = await PostFormAsync(url, new Dictionary<string, string>
-        {
-            ["message"] = post.Message,
-            ["access_token"] = refreshedToken
-        }, cancellationToken);
+        payload["access_token"] = refreshedToken;
+        var retried = await PostFormAsync(url, payload, cancellationToken);
 
         if (retried.Success)
         {
@@ -864,7 +1375,7 @@ public sealed class FacebookProvider : IProviderService
         return new PublishResultDto
         {
             Success = true,
-            ProviderPostId = publishResponse.Id,
+            ProviderPostId = publishResponse.PostId ?? publishResponse.Id,
             PostedAt = DateTime.UtcNow
         };
     }
@@ -889,8 +1400,41 @@ public sealed class FacebookProvider : IProviderService
     {
         return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
         {
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            Converters = { new FacebookDateTimeConverter() }
         }) ?? throw new InvalidOperationException("Failed to parse Facebook response.");
+    }
+
+    private sealed class FacebookDateTimeConverter : JsonConverter<DateTime>
+    {
+        private static readonly string[] Formats =
+        {
+            "yyyy-MM-ddTHH:mm:sszzz",    // 2026-08-03T12:04:37+0000 (Facebook)
+            "yyyy-MM-ddTHH:mm:sszz",      // 2026-08-03T12:04:37+00 (short tz)
+            "yyyy-MM-ddTHH:mm:ssZ",       // 2026-08-03T12:04:37Z (UTC)
+            "yyyy-MM-ddTHH:mm:ss"         // 2026-08-03T12:04:37 (no tz)
+        };
+
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                var str = reader.GetString();
+                if (DateTime.TryParseExact(str, Formats,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                    out var date))
+                    return date;
+            }
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt64(out var unixMs))
+                return DateTimeOffset.FromUnixTimeMilliseconds(unixMs).UtcDateTime;
+            return default;
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.ToString("yyyy-MM-ddTHH:mm:ss+0000"));
+        }
     }
 
     private static string GetErrorMessage(string content)
