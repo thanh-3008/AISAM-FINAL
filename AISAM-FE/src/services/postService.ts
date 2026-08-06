@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
+import { parseApiUrl } from "@/services/contentService";
 
 export type PostStatus = string;
 
@@ -15,6 +16,9 @@ export interface PostItem {
   platform: string | null;
   type: string | null;
   caption: string | null;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
 }
 
 interface GenericResponse<T> {
@@ -43,6 +47,15 @@ export interface PostFilters {
   status?: PostStatus;
 }
 
+function parsePostMediaUrls(item: PostItem): PostItem {
+  return {
+    ...item,
+    imageUrl: parseApiUrl(item.imageUrl) || null,
+    videoUrl: parseApiUrl(item.videoUrl) || null,
+    thumbnailUrl: parseApiUrl(item.thumbnailUrl) || null,
+  };
+}
+
 export async function fetchPosts(params?: PostFilters): Promise<PagedResult<PostItem>> {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
@@ -51,13 +64,18 @@ export async function fetchPosts(params?: PostFilters): Promise<PagedResult<Post
   if (params?.status) query.set("status", params.status);
 
   const res: GenericResponse<PagedResult<PostItem>> = await apiClient(`/posts?${query.toString()}`);
-  if (res?.data) return res.data;
+  if (res?.data) {
+    return {
+      ...res.data,
+      data: res.data.data.map(parsePostMediaUrls),
+    };
+  }
   return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false };
 }
 
 export async function fetchPost(id: string): Promise<PostItem | null> {
   const res: GenericResponse<PostItem> = await apiClient(`/posts/${id}`);
-  if (res?.data) return res.data;
+  if (res?.data) return parsePostMediaUrls(res.data);
   return null;
 }
 

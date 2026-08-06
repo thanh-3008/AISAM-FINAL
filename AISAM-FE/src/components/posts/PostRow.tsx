@@ -33,8 +33,26 @@ function TypeBadge({ type }: { type?: string | null }) {
   );
 }
 
-function ContentIcon({ type }: { type?: string | null }) {
+function ContentIcon({ type, imageUrl, videoUrl, thumbnailUrl }: { type?: string | null; imageUrl?: string | null; videoUrl?: string | null; thumbnailUrl?: string | null }) {
   const icon = type === "VIDEO" ? "movie" : type === "IMAGE" ? "image" : "article";
+  const displayImage = thumbnailUrl || imageUrl;
+
+  if (videoUrl || displayImage) {
+    return (
+      <div className="w-12 h-10 rounded-lg overflow-hidden shrink-0 bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border border-outline-variant/20 relative">
+        {videoUrl ? (
+          <>
+            <video src={videoUrl} className="absolute inset-0 w-full h-full object-cover bg-black" muted preload="metadata" />
+            <div className="absolute inset-0 bg-black/25" />
+            <span className="material-symbols-outlined text-[16px] text-white relative z-10">play_circle</span>
+          </>
+        ) : (
+          <img src={displayImage!} alt="Post preview" className="absolute inset-0 w-full h-full object-cover" />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border border-outline-variant/20">
       <span className="material-symbols-outlined text-[20px] text-outline/30">{icon}</span>
@@ -64,7 +82,7 @@ export default function PostRow({
 
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <ContentIcon type={post.type} />
+          <ContentIcon type={post.type} imageUrl={post.imageUrl} videoUrl={post.videoUrl} thumbnailUrl={post.thumbnailUrl} />
           <div className="min-w-0 max-w-[280px]">
             <p className="text-body-sm font-semibold text-on-surface truncate">{post.contentTitle || "Untitled"}</p>
             {post.caption && (
