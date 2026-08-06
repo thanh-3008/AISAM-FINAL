@@ -11,11 +11,15 @@ namespace AISAM.Services.Service
     {
         private readonly IUserRepository _userRepository;
         private readonly ISystemSettingRepository _systemSettingRepository;
+        private readonly IAuditLogRepository _auditLogRepository;
 
-        public AdminSettingsService(IUserRepository userRepository, ISystemSettingRepository systemSettingRepository)
+        private static readonly string[] SecretMarkers = { "key", "secret", "password", "token" };
+
+        public AdminSettingsService(IUserRepository userRepository, ISystemSettingRepository systemSettingRepository, IAuditLogRepository auditLogRepository)
         {
             _userRepository = userRepository;
             _systemSettingRepository = systemSettingRepository;
+            _auditLogRepository = auditLogRepository;
         }
 
         public async Task<GenericResponse<object>> GetAllSettingsAsync(Guid adminUserId, CancellationToken cancellationToken = default)
@@ -25,7 +29,18 @@ namespace AISAM.Services.Service
                 return GenericResponse<object>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
             var settings = await _systemSettingRepository.GetAllAsync();
-            return GenericResponse<object>.CreateSuccess(settings);
+            var safeSettings = settings.Select(setting => new
+            {
+                setting.Id,
+                setting.Key,
+                Value = IsSecret(setting.Key) ? Mask(setting.Value) : setting.Value,
+                IsSecret = IsSecret(setting.Key),
+                IsConfigured = !string.IsNullOrWhiteSpace(setting.Value) && setting.Value != "{}",
+                setting.Description,
+                setting.UpdatedBy,
+                setting.UpdatedAt
+            }).ToList();
+            return GenericResponse<object>.CreateSuccess(safeSettings);
         }
 
         public async Task<GenericResponse<bool>> UpsertSettingAsync(Guid adminUserId, string key, string value, string? description, CancellationToken cancellationToken = default)
@@ -45,12 +60,36 @@ namespace AISAM.Services.Service
             if (admin?.Role != UserRoleEnum.Admin)
                 return GenericResponse<bool>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
+            if (settings.Count == 0 || settings.Count > 100)
+                return GenericResponse<bool>.CreateError("Between 1 and 100 settings are required.", HttpStatusCode.BadRequest);
+            if (settings.Any(item => string.IsNullOrWhiteSpace(item.Key) || item.Key.Length > 100 || item.Value.Length > 100_000))
+                return GenericResponse<bool>.CreateError("One or more settings are invalid.", HttpStatusCode.BadRequest);
+
             foreach (var kvp in settings)
             {
+                if (IsSecret(kvp.Key) && IsMasked(kvp.Value))
+                    continue;
+                var previous = await _systemSettingRepository.GetByKeyAsync(kvp.Key);
                 var setting = new SystemSetting { Key = kvp.Key, Value = kvp.Value, UpdatedBy = adminUserId };
-                await _systemSettingRepository.UpsertAsync(setting);
+                var saved = await _systemSettingRepository.UpsertAsync(setting);
+                await _auditLogRepository.AddAsync(new AuditLog
+                {
+                    ActorId = adminUserId,
+                    ActionType = "UPDATE_SYSTEM_SETTING",
+                    TargetTable = "system_settings",
+                    TargetId = saved.Id,
+                    OldValues = IsSecret(kvp.Key) ? null : previous?.Value,
+                    NewValues = IsSecret(kvp.Key) ? null : kvp.Value,
+                    Notes = IsSecret(kvp.Key) ? $"Updated protected setting {kvp.Key}" : $"Updated setting {kvp.Key}"
+                }, cancellationToken);
             }
             return GenericResponse<bool>.CreateSuccess(true, "Settings saved.");
         }
+
+        private static bool IsSecret(string key) => SecretMarkers.Any(marker => key.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        private static bool IsMasked(string value) => value.StartsWith("********", StringComparison.Ordinal);
+        private static string Mask(string value) => string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : $"********{value.Trim('"').TakeLast(Math.Min(4, value.Trim('"').Length)).Aggregate(string.Empty, (text, character) => text + character)}";
     }
 }
