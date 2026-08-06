@@ -13,7 +13,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
   const stats = [
     {
       label: "Total Reach",
-      description: "Tổng lượt tiếp cận: Số lượng người dùng duy nhất đã xem quảng cáo hoặc nội dung của bạn.",
+      description: "Total Reach: The unique number of users who saw your ad or content.",
       value: kpi.totalReach,
       format: (v: number) => formatCurrency(v).replace('$', ''),
       trend: kpi.totalReachTrend,
@@ -24,7 +24,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
     },
     {
       label: "Total Interactions",
-      description: "Tổng lượt tương tác: Số lượt reaction, comment và share thu về được.",
+      description: "Total Interactions: The total number of reactions, comments, and shares received.",
       value: kpi.totalInteractions,
       format: (v: number) => formatCurrency(v).replace('$', ''),
       trend: kpi.totalInteractionsTrend,
@@ -35,7 +35,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
     },
     {
       label: "Avg. CPE",
-      description: "Cost Per Engagement (Chi phí mỗi tương tác): Chi phí trung bình bạn phải bỏ ra để có một lượt tương tác.",
+      description: "Cost Per Engagement: The average cost you pay for each interaction.",
       value: kpi.avgCpe,
       format: (v: number) => formatCurrency(v),
       trend: kpi.avgCpeTrend,
@@ -46,7 +46,7 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
     },
     {
       label: "Published Posts",
-      description: "Tổng số bài viết hoặc chiến dịch đã được xuất bản trong khoảng thời gian này.",
+      description: "Published Posts: Total number of posts or campaigns published during this period.",
       value: kpi.publishedPosts,
       format: (v: number) => `${v}`,
       trend: 0,

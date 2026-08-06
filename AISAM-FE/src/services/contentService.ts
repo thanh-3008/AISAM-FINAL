@@ -139,7 +139,7 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   4: "Published",
 };
 
-const parseApiUrl = (url?: string | null): string => {
+export const parseApiUrl = (url?: string | null): string => {
   const raw = (url || "").trim();
   if (!raw) return "";
 

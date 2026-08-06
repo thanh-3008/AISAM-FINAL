@@ -97,7 +97,10 @@ public sealed class PostService : IPostService
             BrandName = post.Content.Brand?.Name,
             Platform = MapPlatform(post.Integration?.Platform),
             Type = MapAdType(post.Content.AdType),
-            Caption = post.Content.TextContent
+            Caption = post.Content.TextContent,
+            ImageUrl = post.Content.ImageUrl,
+            VideoUrl = post.Content.VideoUrl,
+            ThumbnailUrl = post.Content.ThumbnailUrl
         };
     }
 }

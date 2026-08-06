@@ -67,6 +67,17 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
               <PlatformBadge platform={post.platform} />
             </div>
 
+            {/* Media preview */}
+            {(post.videoUrl || post.imageUrl || post.thumbnailUrl) && (
+              <div className="mb-4 rounded-xl overflow-hidden bg-surface-container-low border border-outline-variant/20 max-h-[320px] flex items-center justify-center relative">
+                {post.videoUrl ? (
+                  <video src={post.videoUrl} controls className="w-full max-h-[320px] object-contain bg-black rounded-xl" />
+                ) : (
+                  <img src={post.imageUrl || post.thumbnailUrl || ""} alt={post.contentTitle || "Post media"} className="w-full max-h-[320px] object-contain rounded-xl" />
+                )}
+              </div>
+            )}
+
             {/* Details */}
             <div className="bg-surface-container-low rounded-xl px-4">
               <DetailRow label="Brand">
