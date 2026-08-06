@@ -261,7 +261,8 @@ public class ContentScheduleServiceTests
             contentRepository ?? new FakeContentRepository(),
             socialIntegrationRepository ?? new FakeSocialIntegrationRepository(),
             contentCalendarRepository ?? new FakeContentCalendarRepository(),
-            notificationRepository ?? new FakeNotificationRepository());
+            notificationRepository ?? new FakeNotificationRepository(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ContentScheduleService>.Instance);
     }
 
     private sealed class FakeContentRepository : IContentRepository

@@ -1237,7 +1237,7 @@ public class PaymentServiceTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(GenericResponse<BusinessKycVerificationResponse>.CreateSuccess(
-                new BusinessKycVerificationResponse(), "OK"));
+                new BusinessKycVerificationResponse { KycStatus = "Verified" }, "OK"));
         }
     }
 }

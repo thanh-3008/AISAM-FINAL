@@ -57,7 +57,7 @@ export default function AdminUsersPage() {
       key: "status",
       header: "Status",
       render: (u: AdminUser) => (
-        <StatusBadge status={u.isEmailVerified ? "Active" : "Inactive"} variant={u.isEmailVerified ? "success" : "warning"} />
+        <StatusBadge status={u.isActive ? "Active" : "Suspended"} variant={u.isActive ? "success" : "warning"} />
       ),
     },
     {
@@ -66,10 +66,10 @@ export default function AdminUsersPage() {
       render: (u: AdminUser) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={(e) => { e.stopPropagation(); handleToggleStatus(u.id, u.isEmailVerified); }}
+            onClick={(e) => { e.stopPropagation(); handleToggleStatus(u.id, u.isActive); }}
             className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
           >
-            {u.isEmailVerified ? "Deactivate" : "Activate"}
+            {u.isActive ? "Suspend" : "Activate"}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleRoleChange(u.id, u.role); }}

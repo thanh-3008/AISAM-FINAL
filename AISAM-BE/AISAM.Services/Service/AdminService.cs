@@ -19,6 +19,8 @@ namespace AISAM.Services.Service
         private readonly IAuditLogRepository _auditLogRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IAdCampaignRepository _adCampaignRepository;
+        private readonly ISessionRepository _sessionRepository;
+        private readonly IWorkspaceService _workspaceService;
 
         public AdminService(
             IUserRepository userRepository,
@@ -27,7 +29,9 @@ namespace AISAM.Services.Service
             IContentRepository contentRepository,
             IAuditLogRepository auditLogRepository,
             ISubscriptionRepository subscriptionRepository,
-            IAdCampaignRepository adCampaignRepository)
+            IAdCampaignRepository adCampaignRepository,
+            ISessionRepository sessionRepository,
+            IWorkspaceService workspaceService)
         {
             _userRepository = userRepository;
             _workspaceRepository = workspaceRepository;
@@ -36,6 +40,8 @@ namespace AISAM.Services.Service
             _auditLogRepository = auditLogRepository;
             _subscriptionRepository = subscriptionRepository;
             _adCampaignRepository = adCampaignRepository;
+            _sessionRepository = sessionRepository;
+            _workspaceService = workspaceService;
         }
 
         public async Task<GenericResponse<PagedResult<UserListDto>>> GetUsersAsync(
@@ -129,7 +135,8 @@ namespace AISAM.Services.Service
 
             return GenericResponse<object>.CreateSuccess(new
             {
-                user.Id, user.Email, user.FullName, user.Role, user.IsEmailVerified, user.CreatedAt,
+                user.Id, user.Email, user.FullName, user.Role, user.IsEmailVerified, user.IsActive,
+                user.SuspendedAt, user.SuspensionReason, user.CreatedAt,
                 RoleName = user.Role.ToString(),
                 Workspaces = workspaceDetails,
                 WorkspaceCount = workspaceDetails.Count,
@@ -153,12 +160,20 @@ namespace AISAM.Services.Service
             if (user == null)
                 return GenericResponse<bool>.CreateError("User not found.", HttpStatusCode.NotFound);
 
-            var oldStatus = user.IsEmailVerified;
-            user.IsEmailVerified = isActive;
+            if (user.Id == adminUserId && !isActive)
+                return GenericResponse<bool>.CreateError("You cannot suspend your own account.", HttpStatusCode.Conflict);
+
+            var oldStatus = user.IsActive;
+            user.IsActive = isActive;
+            user.SuspendedAt = isActive ? null : DateTime.UtcNow;
+            user.SuspendedBy = isActive ? null : adminUserId;
+            user.SuspensionReason = isActive ? null : "Suspended by administrator";
             await _userRepository.UpdateAsync(user);
+            if (!isActive)
+                await _sessionRepository.RevokeAllUserSessionsAsync(userId);
             await LogAuditAsync(adminUserId, isActive ? "ACTIVATE_USER" : "DEACTIVATE_USER", "users", userId,
-                oldValues: $"{{\"isEmailVerified\": {oldStatus.ToString().ToLower()}}}",
-                newValues: $"{{\"isEmailVerified\": {isActive.ToString().ToLower()}}}");
+                oldValues: $"{{\"isActive\": {oldStatus.ToString().ToLower()}}}",
+                newValues: $"{{\"isActive\": {isActive.ToString().ToLower()}}}");
             return GenericResponse<bool>.CreateSuccess(true, isActive ? "User activated." : "User deactivated.");
         }
 
@@ -196,9 +211,13 @@ namespace AISAM.Services.Service
             if (user.Id == adminUserId)
                 return GenericResponse<bool>.CreateError("Cannot change your own role.", HttpStatusCode.Forbidden);
 
+            if (!Enum.IsDefined(typeof(UserRoleEnum), role))
+                return GenericResponse<bool>.CreateError("Invalid user role.", HttpStatusCode.BadRequest);
+
             var oldRole = user.Role;
             user.Role = (UserRoleEnum)role;
             await _userRepository.UpdateAsync(user);
+            await _sessionRepository.RevokeAllUserSessionsAsync(userId);
             await LogAuditAsync(adminUserId, "CHANGE_USER_ROLE", "users", userId,
                 oldValues: $"{{\"role\": {(int)oldRole}}}",
                 newValues: $"{{\"role\": {role}}}",
@@ -294,6 +313,11 @@ namespace AISAM.Services.Service
             if (ws == null)
                 return GenericResponse<bool>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
 
+            if (!Enum.IsDefined(typeof(WorkspaceStatusEnum), status))
+                return GenericResponse<bool>.CreateError("Invalid workspace status.", HttpStatusCode.BadRequest);
+            if ((WorkspaceStatusEnum)status == WorkspaceStatusEnum.Deleted)
+                return GenericResponse<bool>.CreateError("Use the delete action so lifecycle eligibility can be verified.", HttpStatusCode.Conflict);
+
             var oldStatus = ws.Status;
             ws.Status = (WorkspaceStatusEnum)status;
             await _workspaceRepository.UpdateAsync(ws, cancellationToken);
@@ -311,10 +335,11 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError(
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
-            await _workspaceRepository.DeleteAsync(workspaceId, cancellationToken);
-            await LogAuditAsync(adminUserId, "DELETE_WORKSPACE", "workspaces", workspaceId,
-                notes: "Workspace permanently deleted");
-            return GenericResponse<bool>.CreateSuccess(true, "Workspace deleted.");
+            var result = await _workspaceService.AdminSoftDeleteAsync(workspaceId, adminUserId, cancellationToken);
+            if (!result.Success) return result;
+            await LogAuditAsync(adminUserId, "SOFT_DELETE_WORKSPACE", "workspaces", workspaceId,
+                notes: "Workspace soft deleted after lifecycle eligibility verification");
+            return GenericResponse<bool>.CreateSuccess(true, "Workspace soft deleted.");
         }
 
         public async Task<GenericResponse<object>> GetPaymentsAsync(
@@ -327,6 +352,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<object>.CreateError("Only administrators can access this resource.", System.Net.HttpStatusCode.Forbidden);
             }
 
+            if (status.HasValue && !Enum.IsDefined(typeof(PaymentStatusEnum), status.Value))
+                return GenericResponse<object>.CreateError("Invalid payment status.", HttpStatusCode.BadRequest);
             PaymentStatusEnum? statusEnum = status.HasValue ? (PaymentStatusEnum)status.Value : null;
 
             var result = await _paymentRepository.GetPagedAllAsync(request, statusEnum, cancellationToken);
@@ -341,6 +368,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<object>.CreateError(
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
+            if (status.HasValue && !Enum.IsDefined(typeof(ContentStatusEnum), status.Value))
+                return GenericResponse<object>.CreateError("Invalid content status.", HttpStatusCode.BadRequest);
             var result = await _contentRepository.GetPagedAllAsync(request, status.HasValue ? (ContentStatusEnum?)status.Value : null, cancellationToken);
             return GenericResponse<object>.CreateSuccess(result);
         }
@@ -357,6 +386,8 @@ namespace AISAM.Services.Service
             if (content == null)
                 return GenericResponse<bool>.CreateError("Content not found.", HttpStatusCode.NotFound);
 
+            if (!Enum.IsDefined(typeof(ContentStatusEnum), status))
+                return GenericResponse<bool>.CreateError("Invalid content status.", HttpStatusCode.BadRequest);
             var oldStatus = content.Status;
             content.Status = (ContentStatusEnum)status;
             await _contentRepository.UpdateAsync(content, cancellationToken);

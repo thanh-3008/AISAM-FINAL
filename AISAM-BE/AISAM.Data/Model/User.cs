@@ -37,6 +37,19 @@ namespace AISAM.Data.Model
         [Column("is_email_verified")]
         public bool IsEmailVerified { get; set; } = false;
 
+        [Column("is_active")]
+        public bool IsActive { get; set; } = true;
+
+        [Column("suspended_at")]
+        public DateTime? SuspendedAt { get; set; }
+
+        [Column("suspended_by")]
+        public Guid? SuspendedBy { get; set; }
+
+        [MaxLength(500)]
+        [Column("suspension_reason")]
+        public string? SuspensionReason { get; set; }
+
         [MaxLength(500)]
         [Column("email_verification_token")]
         public string? EmailVerificationToken { get; set; }

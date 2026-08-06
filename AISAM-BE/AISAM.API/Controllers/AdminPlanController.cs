@@ -15,11 +15,13 @@ public sealed class AdminPlanController : ControllerBase
 {
     private readonly IUserRepository _userRepository;
     private readonly ISystemSettingRepository _settingRepository;
+    private readonly IAuditLogRepository _auditLogRepository;
 
-    public AdminPlanController(IUserRepository userRepository, ISystemSettingRepository settingRepository)
+    public AdminPlanController(IUserRepository userRepository, ISystemSettingRepository settingRepository, IAuditLogRepository auditLogRepository)
     {
         _userRepository = userRepository;
         _settingRepository = settingRepository;
+        _auditLogRepository = auditLogRepository;
     }
 
     [HttpGet]
@@ -57,6 +59,16 @@ public sealed class AdminPlanController : ControllerBase
         if (admin?.Role != UserRoleEnum.Admin)
             return StatusCode(403, GenericResponse<bool>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
 
+        if (request.Plans.Count == 0 || request.Plans.Count > 20)
+            return BadRequest(GenericResponse<bool>.CreateError("Between 1 and 20 plans are required."));
+        if (request.Plans.Any(p => string.IsNullOrWhiteSpace(p.Id) || string.IsNullOrWhiteSpace(p.Name)
+            || p.Price < 0 || p.Credits < 0 || p.PostsPerMonth < 0 || p.Members < 1))
+            return BadRequest(GenericResponse<bool>.CreateError("Plan values are invalid."));
+        if (request.Plans.Select(p => p.Id.Trim().ToLowerInvariant()).Distinct().Count() != request.Plans.Count)
+            return BadRequest(GenericResponse<bool>.CreateError("Plan identifiers must be unique."));
+
+        var previous = await _settingRepository.GetByKeyAsync("subscription.plans");
+
         var json = JsonSerializer.Serialize(request.Plans);
         var setting = new Data.Model.SystemSetting
         {
@@ -66,6 +78,16 @@ public sealed class AdminPlanController : ControllerBase
             UpdatedBy = adminUserId
         };
         await _settingRepository.UpsertAsync(setting);
+        await _auditLogRepository.AddAsync(new Data.Model.AuditLog
+        {
+            ActorId = adminUserId,
+            ActionType = "UPDATE_SUBSCRIPTION_PLANS",
+            TargetTable = "system_settings",
+            TargetId = previous?.Id ?? setting.Id,
+            OldValues = previous?.Value,
+            NewValues = json,
+            Notes = $"Updated {request.Plans.Count} subscription plans"
+        }, cancellationToken);
         return Ok(GenericResponse<bool>.CreateSuccess(true, "Plans saved."));
     }
 
