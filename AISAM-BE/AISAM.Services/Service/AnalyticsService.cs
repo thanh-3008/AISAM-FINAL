@@ -254,7 +254,8 @@ public sealed class AnalyticsService : IAnalyticsService
             for (int i = 0; i < Math.Min(topPosts.Count, 4); i++)
             {
                 var p = topPosts[i];
-                sb.Append($"#{i + 1}\"{p.ContentTitle?.Length > 30 ? p.ContentTitle[..30] + ".." : p.ContentTitle ?? "?"}\"({p.Platform},{p.Engagement}eng) ");
+                var title = p.ContentTitle?.Length > 30 ? p.ContentTitle[..30] + ".." : p.ContentTitle ?? "?";
+                sb.Append($"#{i + 1}\"{title}\"({p.Platform},{p.Engagement}eng) ");
             }
             sb.AppendLine();
         }
