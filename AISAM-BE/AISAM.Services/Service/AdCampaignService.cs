@@ -1020,21 +1020,35 @@ namespace AISAM.Services.Service
 
                         string? instagramMediaId = null;
                         string? instagramActorId = igActorId;
-                        if (campaign.Platform == "instagram" && content != null)
+                        string? objectStoryId = null;
+
+                        if (content != null)
                         {
                             var posts = await _postRepository.GetPublishedByContentIdAsync(content.Id, cancellationToken);
-                            var igPost = posts.FirstOrDefault(p => p.Integration?.Platform == SocialPlatformEnum.Instagram && !string.IsNullOrWhiteSpace(p.ExternalPostId));
-                            if (igPost != null)
+                            if (campaign.Platform == "instagram")
                             {
-                                instagramMediaId = igPost.ExternalPostId;
-                                instagramActorId = igPost.Integration?.ExternalId ?? igActorId;
+                                var igPost = posts.FirstOrDefault(p => p.Integration?.Platform == SocialPlatformEnum.Instagram && !string.IsNullOrWhiteSpace(p.ExternalPostId));
+                                if (igPost != null)
+                                {
+                                    instagramMediaId = igPost.ExternalPostId;
+                                    instagramActorId = igPost.Integration?.ExternalId ?? igActorId;
+                                }
+                            }
+                            else if (campaign.Platform == "facebook")
+                            {
+                                var fbPost = posts.FirstOrDefault(p => p.Integration?.Platform == SocialPlatformEnum.Facebook && !string.IsNullOrWhiteSpace(p.ExternalPostId));
+                                if (fbPost != null)
+                                {
+                                    objectStoryId = fbPost.ExternalPostId;
+                                    _logger.LogInformation("Deploy: Using existing FB post {PostId} as object_story_id", objectStoryId);
+                                }
                             }
                         }
 
                         var fbCreativeId = await provider.CreateAdCreativeAsync(
                             campaign.AdAccountId, account.AccessToken, pageId,
                             message, linkUrl, imageUrl, null,
-                            instagramMediaId, instagramActorId, cancellationToken
+                            instagramMediaId, instagramActorId, objectStoryId, cancellationToken
                         );
 
                         creative = new AdCreative

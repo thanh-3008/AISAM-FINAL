@@ -59,7 +59,7 @@ public sealed class GoogleProvider : IProviderService
         throw new NotSupportedException("Google Ads is not available in Phase C.");
     }
 
-    public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, CancellationToken cancellationToken = default)
+    public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException("Google Ads is not available in Phase C.");
     }
