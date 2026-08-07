@@ -145,6 +145,7 @@ namespace AISAM.Repositories.Repository
                 Role = (int)u.Role,
                 RoleName = u.Role.ToString(),
                 IsEmailVerified = u.IsEmailVerified,
+                IsActive = u.IsActive,
                 CreatedAt = u.CreatedAt
             }).ToList();
 

@@ -324,74 +324,80 @@ public sealed class FacebookProvider : IProviderService
     //  Marketing API — Ad Creatives
     // ──────────────────────────────────────────────
 
-        public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, CancellationToken cancellationToken = default)
+        public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
 
         var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
 
-        var isExternalLink = !string.IsNullOrWhiteSpace(linkUrl)
-            && !linkUrl.Contains("facebook.com", StringComparison.OrdinalIgnoreCase)
-            && !linkUrl.Contains("fb.com", StringComparison.OrdinalIgnoreCase);
+        var fields = new Dictionary<string, string>();
 
-        Dictionary<string, object?> creativeObject;
-
-        if (isExternalLink)
+        if (!string.IsNullOrWhiteSpace(objectStoryId))
         {
-            var linkData = new Dictionary<string, object?>
-            {
-                ["link"] = linkUrl,
-                ["message"] = message,
-                ["call_to_action"] = new Dictionary<string, object?>
-                {
-                    ["type"] = MapCallToAction(callToAction)
-                }
-            };
-
-            if (!string.IsNullOrWhiteSpace(imageUrl))
-            {
-                var parsed = ParseImageUrl(imageUrl);
-                if (!string.IsNullOrWhiteSpace(parsed))
-                    linkData["picture"] = parsed;
-            }
-
-            creativeObject = new Dictionary<string, object?>
-            {
-                ["page_id"] = pageId,
-                ["link_data"] = linkData
-            };
+            fields["object_story_id"] = objectStoryId!;
+            _logger.LogInformation("Creating ad creative from existing post: object_story_id={StoryId}", objectStoryId);
         }
         else
         {
-            var linkData = new Dictionary<string, object?>
-            {
-                ["link"] = linkUrl,
-                ["message"] = message
-            };
+            var isExternalLink = !string.IsNullOrWhiteSpace(linkUrl)
+                && !linkUrl.Contains("facebook.com", StringComparison.OrdinalIgnoreCase)
+                && !linkUrl.Contains("fb.com", StringComparison.OrdinalIgnoreCase);
 
-            if (!string.IsNullOrWhiteSpace(imageUrl))
+            Dictionary<string, object?> creativeObject;
+
+            if (isExternalLink)
             {
-                var parsed = ParseImageUrl(imageUrl);
-                if (!string.IsNullOrWhiteSpace(parsed))
-                    linkData["picture"] = parsed;
+                var linkData = new Dictionary<string, object?>
+                {
+                    ["link"] = linkUrl,
+                    ["message"] = message,
+                    ["call_to_action"] = new Dictionary<string, object?>
+                    {
+                        ["type"] = MapCallToAction(callToAction)
+                    }
+                };
+
+                if (!string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    var parsed = ParseImageUrl(imageUrl);
+                    if (!string.IsNullOrWhiteSpace(parsed))
+                        linkData["picture"] = parsed;
+                }
+
+                creativeObject = new Dictionary<string, object?>
+                {
+                    ["page_id"] = pageId,
+                    ["link_data"] = linkData
+                };
+            }
+            else
+            {
+                var linkData = new Dictionary<string, object?>
+                {
+                    ["link"] = linkUrl,
+                    ["message"] = message
+                };
+
+                if (!string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    var parsed = ParseImageUrl(imageUrl);
+                    if (!string.IsNullOrWhiteSpace(parsed))
+                        linkData["picture"] = parsed;
+                }
+
+                creativeObject = new Dictionary<string, object?>
+                {
+                    ["page_id"] = pageId,
+                    ["link_data"] = linkData
+                };
             }
 
-            creativeObject = new Dictionary<string, object?>
-            {
-                ["page_id"] = pageId,
-                ["link_data"] = linkData
-            };
+            var jsonPayload = JsonSerializer.Serialize(creativeObject, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
+            fields["object_story_spec"] = jsonPayload;
+
+            _logger.LogInformation("Creating ad creative: link={Link} messageLen={MsgLen} image={HasImage} cta={Cta}",
+                linkUrl, message?.Length ?? 0, !string.IsNullOrWhiteSpace(imageUrl), MapCallToAction(callToAction));
         }
-
-        var jsonPayload = JsonSerializer.Serialize(creativeObject, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-
-        var fields = new Dictionary<string, string>
-        {
-            ["object_story_spec"] = jsonPayload
-        };
-
-        _logger.LogInformation("Creating ad creative: link={Link} messageLen={MsgLen} image={HasImage} cta={Cta}",
-            linkUrl, message?.Length ?? 0, !string.IsNullOrWhiteSpace(imageUrl), MapCallToAction(callToAction));
 
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/adcreatives";
         var request = new HttpRequestMessage(HttpMethod.Post, url)
@@ -1457,6 +1463,13 @@ public sealed class FacebookProvider : IProviderService
                 {
                     return "Creative khong hop le: app/content co the duoc tao khi Meta app con Development mode hoac bai viet chua public. "
                         + "Hay chuyen app sang Live mode, reconnect Facebook, tao campaign/content moi bang asset public roi deploy lai. "
+                        + $"[code={error.Error.Code}, subcode={error.Error.ErrorSubcode}]";
+                }
+
+                if (error.Error.Code == 100 && error.Error.ErrorSubcode == 1359188)
+                {
+                    return "Tai khoan quang cao Facebook chua co phuong thuc thanh toan. "
+                        + "Vui long truy cap Trung tam Lap hoa don va Thanh toan cua Facebook de them phuong thuc thanh toan hop le. "
                         + $"[code={error.Error.Code}, subcode={error.Error.ErrorSubcode}]";
                 }
 

@@ -2,7 +2,9 @@ namespace AISAM.Common.Dtos
 {
     public class PaginationRequest
     {
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue)]
         public int Page { get; set; } = 1;
+        [System.ComponentModel.DataAnnotations.Range(1, 100)]
         public int PageSize { get; set; } = 10;
         public string? SearchTerm { get; set; }
         public string? SortBy { get; set; }

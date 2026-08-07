@@ -23,6 +23,7 @@ export interface AdminUser {
   role: number;
   roleName: string;
   isEmailVerified: boolean;
+  isActive: boolean;
   createdAt: string;
 }
 

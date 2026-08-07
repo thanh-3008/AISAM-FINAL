@@ -4,6 +4,7 @@ using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
 using AISAM.Services.IServices;
+using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,11 +17,13 @@ public sealed class AdminUsersController : ControllerBase
 {
     private readonly IAdminService _adminService;
     private readonly IAuthService _authService;
+    private readonly IAuditLogRepository _auditLogRepository;
 
-    public AdminUsersController(IAdminService adminService, IAuthService authService)
+    public AdminUsersController(IAdminService adminService, IAuthService authService, IAuditLogRepository auditLogRepository)
     {
         _adminService = adminService;
         _authService = authService;
+        _auditLogRepository = auditLogRepository;
     }
 
     [HttpGet]
@@ -73,12 +76,22 @@ public sealed class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{id:guid}/impersonate")]
-    public async Task<ActionResult<GenericResponse<TokenResponse>>> ImpersonateUser(Guid id, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<GenericResponse<TokenResponse>>> ImpersonateUser(Guid id, [FromBody] ImpersonateUserRequest? request, CancellationToken cancellationToken = default)
     {
         var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
         try
         {
-            var tokenResponse = await _authService.GenerateImpersonationTokenAsync(id, adminUserId, null, null);
+            var reason = string.IsNullOrWhiteSpace(request?.Reason) ? "Administrative support session" : request.Reason.Trim();
+            var tokenResponse = await _authService.GenerateImpersonationTokenAsync(
+                id, adminUserId, Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString());
+            await _auditLogRepository.AddAsync(new AISAM.Data.Model.AuditLog
+            {
+                ActorId = adminUserId,
+                ActionType = "START_IMPERSONATION",
+                TargetTable = "users",
+                TargetId = id,
+                Notes = reason
+            }, cancellationToken);
             return Ok(GenericResponse<TokenResponse>.CreateSuccess(tokenResponse, "Impersonation successful"));
         }
         catch (UnauthorizedAccessException ex)
@@ -100,4 +113,9 @@ public class SetStatusRequest
 public class SetRoleRequest
 {
     public int Role { get; set; }
+}
+
+public sealed class ImpersonateUserRequest
+{
+    public string? Reason { get; set; }
 }

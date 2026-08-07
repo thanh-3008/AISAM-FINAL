@@ -10,4 +10,5 @@ public class UserListDto
     public int? Role { get; set; }
     public string? RoleName { get; set; }
     public bool? IsEmailVerified { get; set; }
+    public bool IsActive { get; set; }
 }

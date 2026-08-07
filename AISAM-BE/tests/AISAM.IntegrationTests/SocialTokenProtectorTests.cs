@@ -31,6 +31,8 @@ public class SocialTokenProtectorTests
         var keyDirectory = new DirectoryInfo(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
         keyDirectory.Create();
         var provider = DataProtectionProvider.Create(keyDirectory);
-        return new SocialTokenProtector(provider);
+        return new SocialTokenProtector(
+            provider,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SocialTokenProtector>.Instance);
     }
 }

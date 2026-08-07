@@ -90,6 +90,11 @@ namespace AISAM.Services.Service
                 throw new UnauthorizedAccessException("Invalid email or password");
             }
 
+            if (!user.IsActive)
+            {
+                throw new UnauthorizedAccessException("This account has been suspended. Contact support for assistance.");
+            }
+
             // Verify password
             if (!VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
             {
@@ -193,6 +198,12 @@ namespace AISAM.Services.Service
                 throw new UnauthorizedAccessException("User not found");
             }
 
+            if (!user.IsActive)
+            {
+                await _sessionRepository.RevokeAllUserSessionsAsync(user.Id);
+                throw new UnauthorizedAccessException("This account has been suspended.");
+            }
+
             await _sessionRepository.RevokeSessionAsync(session.Id);
 
             return await GenerateTokensAsync(user, userAgent, ipAddress);
@@ -205,6 +216,11 @@ namespace AISAM.Services.Service
             {
                 throw new UnauthorizedAccessException("User not found");
             }
+
+            if (!user.IsActive)
+                throw new UnauthorizedAccessException("Suspended users cannot be impersonated");
+            if (user.Role == UserRoleEnum.Admin)
+                throw new UnauthorizedAccessException("Administrator accounts cannot be impersonated");
 
             var admin = await _userRepository.GetByIdAsync(adminId);
             if (admin == null || admin.Role != UserRoleEnum.Admin)
