@@ -36,7 +36,7 @@ namespace AISAM.Repositories.Repository
             if (!string.IsNullOrEmpty(request.SearchTerm))
             {
                 var search = request.SearchTerm.ToLower();
-                query = query.Where(al => al.Actor.Email.ToLower().Contains(search) || al.Actor.FullName.ToLower().Contains(search));
+                query = query.Where(al => (al.Actor != null && al.Actor.Email != null && al.Actor.Email.ToLower().Contains(search)) || (al.Actor != null && al.Actor.FullName != null && al.Actor.FullName.ToLower().Contains(search)));
             }
 
             if (request.ActorId.HasValue)

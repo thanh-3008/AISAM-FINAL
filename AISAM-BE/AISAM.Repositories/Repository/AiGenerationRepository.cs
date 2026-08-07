@@ -62,7 +62,7 @@ public sealed class AiGenerationRepository : IAiGenerationRepository
     public async Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default)
     {
         var data = await _context.AiGenerations
-            .Where(g => g.Content != null && g.Content.WorkspaceId != null && !g.IsDeleted)
+            .Where(g => g.Content != null && !g.IsDeleted)
             .GroupBy(g => g.Content.WorkspaceId)
             .Select(g => new
             {

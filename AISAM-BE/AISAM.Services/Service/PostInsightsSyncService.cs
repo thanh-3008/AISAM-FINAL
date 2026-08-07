@@ -512,7 +512,7 @@ namespace AISAM.Services.Service
 
         private string? TryUnprotect(string? protectedToken)
         {
-            return _tokenProtector.TryUnprotect(protectedToken);
+            return string.IsNullOrEmpty(protectedToken) ? null : _tokenProtector.TryUnprotect(protectedToken);
         }
     }
 }

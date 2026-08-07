@@ -164,6 +164,8 @@ public class PhaseEQuotaIntegrationTests
             return Task.FromResult(generation);
         }
 
+        public Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default) => Task.FromResult(new List<dynamic>());
+
         public Task UpdateAsync(AiGeneration generation, CancellationToken cancellationToken = default)
         {
             StoredGenerations[generation.Id] = generation;

@@ -1,5 +1,6 @@
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Authorization;
