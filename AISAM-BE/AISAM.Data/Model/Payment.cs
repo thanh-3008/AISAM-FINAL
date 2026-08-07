@@ -68,6 +68,16 @@ namespace AISAM.Data.Model
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [Column("refunded_at")]
+        public DateTime? RefundedAt { get; set; }
+
+        [MaxLength(500)]
+        [Column("refund_reason")]
+        public string? RefundReason { get; set; }
+
+        [Column("refunded_by")]
+        public Guid? RefundedBy { get; set; }
+
         // Navigation properties
         [ForeignKey("UserId")]
         public virtual User User { get; set; } = null!;

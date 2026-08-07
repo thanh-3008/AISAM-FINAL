@@ -15,6 +15,7 @@ namespace AISAM.Services.Service
         private readonly IPaymentRepository _paymentRepository;
         private readonly IAiGenerationRepository _aiGenerationRepository;
         private readonly IPerformanceReportRepository _performanceReportRepository;
+        private readonly IAuditLogRepository _auditLogRepository;
 
         public AdminDashboardService(
             IUserRepository userRepository,
@@ -22,7 +23,8 @@ namespace AISAM.Services.Service
             IContentRepository contentRepository,
             IPaymentRepository paymentRepository,
             IAiGenerationRepository aiGenerationRepository,
-            IPerformanceReportRepository performanceReportRepository)
+            IPerformanceReportRepository performanceReportRepository,
+            IAuditLogRepository auditLogRepository)
         {
             _userRepository = userRepository;
             _workspaceRepository = workspaceRepository;
@@ -30,6 +32,7 @@ namespace AISAM.Services.Service
             _paymentRepository = paymentRepository;
             _aiGenerationRepository = aiGenerationRepository;
             _performanceReportRepository = performanceReportRepository;
+            _auditLogRepository = auditLogRepository;
         }
 
         private static Task<GenericResponse<T>> Unauthorized<T>()
@@ -64,38 +67,31 @@ namespace AISAM.Services.Service
             if (admin?.Role != UserRoleEnum.Admin) return await Unauthorized<object>();
 
             var now = DateTime.UtcNow;
-            var from7 = now.Date.AddDays(-6);
+            var from30 = now.Date.AddDays(-29);
             var to = now.Date.AddDays(1);
 
-            var userRegistrations = await _userRepository.GetDailyRegistrationsAsync(from7, to, cancellationToken);
-            var dailyRevenue = await _paymentRepository.GetDailyRevenueAsync(from7, to, cancellationToken);
-            var dailyTransactions = await _paymentRepository.GetDailyTransactionCountAsync(from7, to, cancellationToken);
-            var dailyContent = await _contentRepository.GetDailyCreatedAsync(from7, to, cancellationToken);
-            var dailyAi = await _aiGenerationRepository.GetDailyGenerationCountAsync(from7, to, cancellationToken);
-
-            var from30 = now.Date.AddDays(-29);
-            var revenue30 = await _paymentRepository.GetDailyRevenueAsync(from30, to, cancellationToken);
+            var userRegistrations = await _userRepository.GetDailyRegistrationsAsync(from30, to, cancellationToken);
+            var dailyRevenue = await _paymentRepository.GetDailyRevenueAsync(from30, to, cancellationToken);
+            var dailyTransactions = await _paymentRepository.GetDailyTransactionCountAsync(from30, to, cancellationToken);
+            var dailyContent = await _contentRepository.GetDailyCreatedAsync(from30, to, cancellationToken);
+            var dailyAi = await _aiGenerationRepository.GetDailyGenerationCountAsync(from30, to, cancellationToken);
 
             var userRegData = new List<object>();
             var revenueData = new List<object>();
             var contentData = new List<object>();
             var aiData = new List<object>();
+            var revenue30Data = new List<object>();
 
-            for (int i = 6; i >= 0; i--)
+            for (int i = 29; i >= 0; i--)
             {
                 var date = now.Date.AddDays(-i);
-                var key = date.ToString("ddd");
+                var key = date.ToString("MMM dd"); // Changed from "ddd" to "MMM dd" for 30 days to avoid duplicate day names
+                
                 userRegData.Add(new { name = key, users = userRegistrations.GetValueOrDefault(date, 0) });
                 revenueData.Add(new { name = key, revenue = dailyRevenue.GetValueOrDefault(date, 0m) });
                 contentData.Add(new { name = key, content = dailyContent.GetValueOrDefault(date, 0) });
                 aiData.Add(new { name = key, generations = dailyAi.GetValueOrDefault(date, 0) });
-            }
-
-            var revenue30Data = new List<object>();
-            for (int i = 29; i >= 0; i--)
-            {
-                var date = now.Date.AddDays(-i);
-                revenue30Data.Add(new { name = date.ToString("MMM dd"), revenue = revenue30.GetValueOrDefault(date, 0m) });
+                revenue30Data.Add(new { name = key, revenue = dailyRevenue.GetValueOrDefault(date, 0m) });
             }
 
             return GenericResponse<object>.CreateSuccess(new
@@ -187,6 +183,54 @@ namespace AISAM.Services.Service
             .ToList();
 
             return GenericResponse<object>.CreateSuccess(result);
+        }
+
+        public async Task<GenericResponse<object>> GetAiCreditBreakdownAsync(Guid adminUserId, CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin) return await Unauthorized<object>();
+
+            var topWorkspaces = await _aiGenerationRepository.GetTopWorkspacesByGenerationAsync(50, cancellationToken);
+            
+            var allWorkspaces = await _workspaceRepository.GetAllActiveAsync(cancellationToken);
+            var workspaceDict = allWorkspaces.ToDictionary(w => w.Id, w => w.Name);
+
+            var result = topWorkspaces.Select(tw =>
+            {
+                Guid wsId = tw.WorkspaceId;
+                return new
+                {
+                    WorkspaceId = wsId,
+                    WorkspaceName = workspaceDict.GetValueOrDefault(wsId, "Unknown Workspace"),
+                    TotalGenerations = tw.Count
+                };
+            }).ToList();
+
+            return GenericResponse<object>.CreateSuccess(result);
+        }
+
+        public async Task<GenericResponse<object>> GetActiveUsersStatsAsync(Guid adminUserId, CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin) return await Unauthorized<object>();
+
+            var now = DateTime.UtcNow;
+            var todayStart = now.Date;
+            var todayEnd = todayStart.AddDays(1).AddTicks(-1);
+            
+            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
+
+            var dau = await _auditLogRepository.GetActiveUsersCountAsync(todayStart, todayEnd, cancellationToken);
+            var mau = await _auditLogRepository.GetActiveUsersCountAsync(monthStart, monthEnd, cancellationToken);
+
+            return GenericResponse<object>.CreateSuccess(new
+            {
+                DAU = dau,
+                MAU = mau,
+                Date = todayStart.ToString("yyyy-MM-dd"),
+                Month = monthStart.ToString("yyyy-MM")
+            });
         }
     }
 }

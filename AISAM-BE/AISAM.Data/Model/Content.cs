@@ -63,6 +63,14 @@ namespace AISAM.Data.Model
         [Column("is_ai_generated")]
         public bool IsAiGenerated { get; set; } = false;
 
+        [MaxLength(1000)]
+        [Column("platform_rejection_reason")]
+        public string? PlatformRejectionReason { get; set; }
+
+        [MaxLength(50)]
+        [Column("rejected_platform")]
+        public string? RejectedPlatform { get; set; }
+
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;
 

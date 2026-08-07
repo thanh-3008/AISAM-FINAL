@@ -45,4 +45,20 @@ public sealed class AdminDashboardController : ControllerBase
         var result = await _adminDashboardService.GetTopWorkspacesAsync(adminUserId, limit, period, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("ai-credit-breakdown")]
+    public async Task<ActionResult<GenericResponse<object>>> GetAiCreditBreakdown(CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _adminDashboardService.GetAiCreditBreakdownAsync(adminUserId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("active-users")]
+    public async Task<ActionResult<GenericResponse<object>>> GetActiveUsers(CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _adminDashboardService.GetActiveUsersStatsAsync(adminUserId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

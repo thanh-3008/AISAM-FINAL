@@ -113,6 +113,20 @@ public sealed class AdminPaymentsController : ControllerBase
         await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
         return Ok(GenericResponse<bool>.CreateSuccess(true, "Subscription updated."));
     }
+
+    [HttpPatch("{id:guid}/refund")]
+    public async Task<ActionResult<GenericResponse<bool>>> RefundPayment(
+        Guid id, [FromBody] RefundPaymentRequest request, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _adminService.RefundPaymentAsync(adminUserId, id, request.Reason, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+}
+
+public class RefundPaymentRequest
+{
+    public string Reason { get; set; } = string.Empty;
 }
 
 public class UpdateSubscriptionRequest

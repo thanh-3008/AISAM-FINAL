@@ -1,45 +1,34 @@
 using AISAM.API.Utils;
 using AISAM.Common;
-using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
 namespace AISAM.API.Controllers;
 
 [ApiController]
-[Route("api/admin/plans")]
-[Authorize(Roles = nameof(UserRoleEnum.Admin))]
-public sealed class AdminPlanController : ControllerBase
+[Route("api/pricing")]
+public sealed class PricingController : ControllerBase
 {
-    private readonly IUserRepository _userRepository;
     private readonly ISystemSettingRepository _settingRepository;
 
-    public AdminPlanController(IUserRepository userRepository, ISystemSettingRepository settingRepository)
+    public PricingController(ISystemSettingRepository settingRepository)
     {
-        _userRepository = userRepository;
         _settingRepository = settingRepository;
     }
 
-    [HttpGet]
+    [HttpGet("plans")]
     public async Task<ActionResult<GenericResponse<object>>> GetPlans(CancellationToken cancellationToken = default)
     {
-        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
-        var admin = await _userRepository.GetByIdAsync(adminUserId);
-        if (admin?.Role != UserRoleEnum.Admin)
-            return StatusCode(403, GenericResponse<object>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
-
         var setting = await _settingRepository.GetByKeyAsync("subscription.plans");
         if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
         {
-            var defaults = GetDefaultPlans();
-            return Ok(GenericResponse<object>.CreateSuccess(new { Plans = defaults }));
+            return Ok(GenericResponse<object>.CreateSuccess(new { Plans = GetDefaultPlans() }));
         }
 
         try
         {
-            var plans = JsonSerializer.Deserialize<List<AISAM.Common.Dtos.SubscriptionPlanDto>>(setting.Value);
+            var plans = JsonSerializer.Deserialize<List<SubscriptionPlanDto>>(setting.Value);
             return Ok(GenericResponse<object>.CreateSuccess(new { Plans = plans ?? GetDefaultPlans() }));
         }
         catch
@@ -48,72 +37,24 @@ public sealed class AdminPlanController : ControllerBase
         }
     }
 
-    [HttpPut]
-    public async Task<ActionResult<GenericResponse<bool>>> SavePlans(
-        [FromBody] SavePlansRequest request, CancellationToken cancellationToken = default)
-    {
-        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
-        var admin = await _userRepository.GetByIdAsync(adminUserId);
-        if (admin?.Role != UserRoleEnum.Admin)
-            return StatusCode(403, GenericResponse<bool>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
-
-        var json = JsonSerializer.Serialize(request.Plans);
-        var setting = new Data.Model.SystemSetting
-        {
-            Key = "subscription.plans",
-            Value = json,
-            Description = "Subscription plan definitions",
-            UpdatedBy = adminUserId
-        };
-        await _settingRepository.UpsertAsync(setting);
-        return Ok(GenericResponse<bool>.CreateSuccess(true, "Plans saved."));
-    }
-
     [HttpGet("credit-packs")]
     public async Task<ActionResult<GenericResponse<object>>> GetCreditPacks(CancellationToken cancellationToken = default)
     {
-        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
-        var admin = await _userRepository.GetByIdAsync(adminUserId);
-        if (admin?.Role != UserRoleEnum.Admin)
-            return StatusCode(403, GenericResponse<object>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
-
         var setting = await _settingRepository.GetByKeyAsync("credit.packs");
         if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
         {
-            var defaults = GetDefaultCreditPacks();
-            return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = defaults }));
+            return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = GetDefaultCreditPacks() }));
         }
 
         try
         {
-            var packs = JsonSerializer.Deserialize<List<AISAM.Common.Dtos.CreditPackDto>>(setting.Value);
+            var packs = JsonSerializer.Deserialize<List<CreditPackDto>>(setting.Value);
             return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = packs ?? GetDefaultCreditPacks() }));
         }
         catch
         {
             return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = GetDefaultCreditPacks() }));
         }
-    }
-
-    [HttpPut("credit-packs")]
-    public async Task<ActionResult<GenericResponse<bool>>> SaveCreditPacks(
-        [FromBody] SaveCreditPacksRequest request, CancellationToken cancellationToken = default)
-    {
-        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
-        var admin = await _userRepository.GetByIdAsync(adminUserId);
-        if (admin?.Role != UserRoleEnum.Admin)
-            return StatusCode(403, GenericResponse<bool>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
-
-        var json = JsonSerializer.Serialize(request.CreditPacks);
-        var setting = new Data.Model.SystemSetting
-        {
-            Key = "credit.packs",
-            Value = json,
-            Description = "Credit pack definitions",
-            UpdatedBy = adminUserId
-        };
-        await _settingRepository.UpsertAsync(setting);
-        return Ok(GenericResponse<bool>.CreateSuccess(true, "Credit packs saved."));
     }
 
     private List<SubscriptionPlanDto> GetDefaultPlans()
@@ -139,14 +80,3 @@ public sealed class AdminPlanController : ControllerBase
         };
     }
 }
-
-public class SavePlansRequest
-{
-    public List<AISAM.Common.Dtos.SubscriptionPlanDto> Plans { get; set; } = new();
-}
-
-public class SaveCreditPacksRequest
-{
-    public List<AISAM.Common.Dtos.CreditPackDto> CreditPacks { get; set; } = new();
-}
-

@@ -31,25 +31,35 @@ export interface AdminWorkspace {
   name: string;
   workspaceType: number;
   status: number;
+  aiCreditBalance?: number;
+  aiCreditReserved?: number;
   createdAt: string;
 }
 
 export interface AdminPayment {
   id: string;
   userId: string;
+  userEmail?: string;
   amount: number;
   currency: string;
   status: number;
   paymentType: number;
+  transactionId?: string;
+  refundedAt?: string;
+  refundReason?: string;
   createdAt: string;
 }
 
 export interface AdminContent {
   id: string;
-  title: string;
-  workspaceId: string;
+  title: string | null;
+  textContent: string;
   status: number;
+  adType: number;
   isAiGenerated: boolean;
+  platformRejectionReason?: string;
+  rejectedPlatform?: string;
+  workspaceId?: string;
   createdAt: string;
 }
 
@@ -124,6 +134,16 @@ export async function fetchAdminPayments(page = 1, pageSize = 20, status?: numbe
   } catch { return null; }
 }
 
+export async function refundAdminPayment(id: string, reason: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient(`/admin/payments/${id}/refund`, {
+      method: "PATCH",
+      data: { reason }
+    });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
 export async function fetchAdminContent(page = 1, pageSize = 20, search?: string, status?: number): Promise<{ items: AdminContent[]; total: number } | null> {
   try {
     let url = `/admin/content?page=${page}&pageSize=${pageSize}`;
@@ -175,9 +195,23 @@ export async function deleteContent(id: string): Promise<boolean> {
   } catch { return false; }
 }
 
+export async function fetchAdminAiCreditBreakdown(): Promise<{ workspaceId: string; workspaceName: string; totalGenerations: number }[] | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient("/admin/dashboard/ai-credit-breakdown");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
 export async function fetchAdminAnalyticsCharts(): Promise<{ userRegistrations: any[]; revenue: any[] } | null> {
   try {
     const res: GenericResponse<{ userRegistrations: any[]; revenue: any[] }> = await apiClient("/admin/dashboard/charts");
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function fetchAdminActiveUsers(): Promise<{ dau: number; mau: number; date: string; month: string } | null> {
+  try {
+    const res: GenericResponse<any> = await apiClient("/admin/dashboard/active-users");
     return res?.data ?? null;
   } catch { return null; }
 }
@@ -201,12 +235,56 @@ export async function fetchAdminTopWorkspaces(limit = 10, period = "month"): Pro
   }
 }
 
-export async function fetchAdminAuditLogs(page = 1, pageSize = 20): Promise<{ items: AdminAuditLog[]; total: number } | null> {
+export async function fetchAdminAuditLogs(
+  page = 1, pageSize = 20, 
+  actionType?: string, targetTable?: string, 
+  searchTerm?: string, fromDate?: string, toDate?: string,
+  actorId?: string
+): Promise<{ items: AdminAuditLog[]; total: number } | null> {
   try {
-    const res: GenericResponse<any> = await apiClient(`/admin/audit-logs?page=${page}&pageSize=${pageSize}`);
+    let url = `/admin/audit-logs?page=${page}&pageSize=${pageSize}`;
+    if (actionType) url += `&actionType=${encodeURIComponent(actionType)}`;
+    if (targetTable) url += `&targetTable=${encodeURIComponent(targetTable)}`;
+    if (searchTerm) url += `&searchTerm=${encodeURIComponent(searchTerm)}`;
+    if (fromDate) url += `&fromDate=${encodeURIComponent(fromDate)}`;
+    if (toDate) url += `&toDate=${encodeURIComponent(toDate)}`;
+    if (actorId) url += `&actorId=${encodeURIComponent(actorId)}`;
+    
+    const res: GenericResponse<any> = await apiClient(url);
     const paged = res?.data;
     return paged ? { items: paged.data ?? [], total: paged.totalCount ?? 0 } : null;
   } catch { return null; }
+}
+
+export async function exportAdminAuditLogsCsv(
+  actionType?: string, targetTable?: string, 
+  searchTerm?: string, fromDate?: string, toDate?: string
+): Promise<Blob | null> {
+  try {
+    let url = `/admin/audit-logs/export?`;
+    const params = new URLSearchParams();
+    if (actionType) params.append("actionType", actionType);
+    if (targetTable) params.append("targetTable", targetTable);
+    if (searchTerm) params.append("searchTerm", searchTerm);
+    if (fromDate) params.append("fromDate", fromDate);
+    if (toDate) params.append("toDate", toDate);
+    
+    url += params.toString();
+
+    // Since apiClient returns JSON by default, we need to handle Blob response manually
+    // Assuming apiClient can't handle Blob directly, let's fetch it using the same auth
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) return null;
+    
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
+    const response = await fetch(`${API_URL}${url}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) return null;
+    return await response.blob();
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchAdminSettings(): Promise<any[] | null> {
@@ -459,6 +537,28 @@ export async function fetchAdminPlans(): Promise<SubscriptionPlanDto[] | null> {
 export async function saveAdminPlans(plans: SubscriptionPlanDto[]): Promise<boolean> {
   try {
     const res: GenericResponse<boolean> = await apiClient("/admin/plans", { data: { plans }, method: "PUT" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+
+export interface CreditPackDto {
+  id: string;
+  name: string;
+  price: number;
+  credits: number;
+  isActive: boolean;
+}
+
+export async function fetchAdminCreditPacks(): Promise<CreditPackDto[] | null> {
+  try {
+    const res: GenericResponse<{ creditPacks: CreditPackDto[] }> = await apiClient("/admin/plans/credit-packs");
+    return res?.data?.creditPacks ?? null;
+  } catch { return null; }
+}
+
+export async function saveAdminCreditPacks(creditPacks: CreditPackDto[]): Promise<boolean> {
+  try {
+    const res: GenericResponse<boolean> = await apiClient("/admin/plans/credit-packs", { data: { creditPacks }, method: "PUT" });
     return res?.success ?? false;
   } catch { return false; }
 }
