@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminHeader from "@/components/admin/AdminHeader";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { fetchAdminUserDetail, deleteUser, impersonateUser } from "@/services/adminService";
+import { fetchAdminUserDetail, deleteUser, impersonateUser, fetchAdminAuditLogs } from "@/services/adminService";
 import { setToken, setRefreshToken, setStoredUser, getToken } from "@/lib/auth";
 
 export default function AdminUserDetailPage() {
@@ -14,11 +14,26 @@ export default function AdminUserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showAllPayments, setShowAllPayments] = useState(false);
   const [impersonating, setImpersonating] = useState(false);
+  
+  // Activity Log
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [showActivities, setShowActivities] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     fetchAdminUserDetail(id).then((data: any) => { setUser(data); setLoading(false); });
   }, [id]);
+
+  useEffect(() => {
+    if (showActivities && activities.length === 0) {
+      setLoadingActivities(true);
+      fetchAdminAuditLogs(1, 20, undefined, undefined, undefined, undefined, undefined, id).then(data => {
+        setActivities(data?.items || []);
+        setLoadingActivities(false);
+      });
+    }
+  }, [showActivities, id, activities.length]);
 
   const handleImpersonate = async () => {
     if (!confirm(`Are you sure you want to login as ${user.email}?`)) return;
@@ -193,6 +208,50 @@ export default function AdminUserDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Activity Logs */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Recent Activity Log</h3>
+            <button 
+              onClick={() => setShowActivities(!showActivities)}
+              className="text-xs text-primary font-medium hover:underline"
+            >
+              {showActivities ? "Hide Activity" : "Load Activity"}
+            </button>
+          </div>
+          
+          {showActivities && (
+            <div className="space-y-2 max-h-96 overflow-y-auto mt-4 pt-4 border-t border-gray-100">
+              {loadingActivities ? (
+                <div className="animate-pulse space-y-2">
+                  <div className="h-10 bg-gray-100 rounded-lg" />
+                  <div className="h-10 bg-gray-100 rounded-lg" />
+                </div>
+              ) : activities.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No recent activity found.</p>
+              ) : (
+                activities.map((a: any) => (
+                  <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg gap-2 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-900 mr-2">{a.actionType}</span>
+                      <span className="text-gray-500 text-xs px-2 py-0.5 bg-gray-200 rounded">{a.targetTable}</span>
+                      {a.notes && <p className="text-xs text-gray-400 mt-1">{a.notes}</p>}
+                    </div>
+                    <span className="text-gray-400 text-xs whitespace-nowrap">{new Date(a.createdAt).toLocaleString()}</span>
+                  </div>
+                ))
+              )}
+              {activities.length >= 20 && (
+                <div className="text-center mt-2">
+                  <button onClick={() => router.push(`/admin/audit-logs?searchTerm=${encodeURIComponent(user.email)}`)} className="text-xs text-blue-600 hover:underline">
+                    View full history in Audit Logs
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/admin/users")} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Back to Users</button>

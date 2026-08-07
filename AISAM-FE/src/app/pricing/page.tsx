@@ -7,7 +7,7 @@ import { invalidateWorkspaceCache, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createBusinessWorkspacePayment, createPayment, synchronizeBusinessWorkspacePayment, PLAN_CODES, CREDIT_PACK_CODES } from "@/services/paymentService";
+import { createBusinessWorkspacePayment, createPayment, synchronizeBusinessWorkspacePayment, PLAN_CODES, CREDIT_PACK_CODES, fetchPublicPricing } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
@@ -49,6 +49,8 @@ function PricingContent() {
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [processing, setProcessing] = useState<number | null>(null);
   const [syncingPayment, setSyncingPayment] = useState(false);
+  const [displayPlans, setDisplayPlans] = useState<PlanPricing[]>(PLAN_PRICING);
+  const [displayPacks, setDisplayPacks] = useState<CreditPackPricing[]>(CREDIT_PACK_PRICING);
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
@@ -70,6 +72,38 @@ function PricingContent() {
   const paymentSyncStartedRef = useRef(false);
 
   useEffect(() => { setIsClient(true); }, []);
+
+  useEffect(() => {
+    fetchPublicPricing().then((res) => {
+      if (res) {
+        setDisplayPlans(prev => prev.map(p => {
+          const matched = res.plans.find(bp => bp.name.toLowerCase() === p.name.toLowerCase());
+          if (matched) {
+            return {
+              ...p,
+              price: matched.price,
+              priceFormatted: formatCurrency(matched.price),
+              credits: matched.credits,
+              postQuota: `${matched.postsPerMonth.toLocaleString()} posts/month`
+            };
+          }
+          return p;
+        }));
+        setDisplayPacks(prev => prev.map(p => {
+          const matched = res.creditPacks.find(bp => bp.name.toLowerCase() === p.name.toLowerCase());
+          if (matched) {
+            return {
+              ...p,
+              price: matched.price,
+              priceFormatted: formatCurrency(matched.price),
+              credits: matched.credits
+            };
+          }
+          return p;
+        }));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (hasPaymentRedirect || !activeWorkspace?.id) return;
@@ -170,7 +204,7 @@ function PricingContent() {
   const isCurrentPlan = (planType: PlanType) => currentPlan === planType;
   const isLowerPlan = (planType: PlanType) => PLAN_HIERARCHY[planType] < PLAN_HIERARCHY[currentPlan];
 
-  const filteredPlans = PLAN_PRICING.filter(p => p.category === planCategory);
+  const filteredPlans = displayPlans.filter(p => p.category === planCategory);
 
   const handleUpgrade = async (plan: PlanPricing) => {
     if (!createMode && isCurrentPlan(plan.planType)) return;
@@ -664,7 +698,7 @@ function PricingContent() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {CREDIT_PACK_PRICING.map((pack) => {
+                {displayPacks.map((pack) => {
                   const pricePerCredit = (pack.price / pack.credits).toFixed(0);
                   return (
                     <div

@@ -145,7 +145,7 @@ export default function AdminSystemHealthPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { href: "/admin/audit-logs", icon: "receipt_long", title: "Audit Logs", text: "Inspect actors, targets and before/after changes." },
-            { href: "/admin/service-health", icon: "monitoring_heart", title: "Background Services", text: "Review heartbeats, successes and failures." },
+            { href: "/admin/service-health", icon: "monitor_heart", title: "Background Services", text: "Review heartbeats, successes and failures." },
             { href: "/admin/system-health", icon: "health_and_safety", title: "Platform Health", text: "Refresh infrastructure and configuration checks." },
           ].map((item) => (
             <Link key={item.href + item.title} href={item.href} className="rounded-xl border border-gray-200 bg-white p-5 hover:border-blue-300 hover:shadow-sm transition-all">

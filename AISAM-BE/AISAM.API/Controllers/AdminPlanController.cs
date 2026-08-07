@@ -1,5 +1,6 @@
 using AISAM.API.Utils;
 using AISAM.Common;
+using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Authorization;
@@ -41,7 +42,7 @@ public sealed class AdminPlanController : ControllerBase
 
         try
         {
-            var plans = JsonSerializer.Deserialize<List<SubscriptionPlanDto>>(setting.Value);
+            var plans = JsonSerializer.Deserialize<List<AISAM.Common.Dtos.SubscriptionPlanDto>>(setting.Value);
             return Ok(GenericResponse<object>.CreateSuccess(new { Plans = plans ?? GetDefaultPlans() }));
         }
         catch
@@ -91,6 +92,53 @@ public sealed class AdminPlanController : ControllerBase
         return Ok(GenericResponse<bool>.CreateSuccess(true, "Plans saved."));
     }
 
+    [HttpGet("credit-packs")]
+    public async Task<ActionResult<GenericResponse<object>>> GetCreditPacks(CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var admin = await _userRepository.GetByIdAsync(adminUserId);
+        if (admin?.Role != UserRoleEnum.Admin)
+            return StatusCode(403, GenericResponse<object>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
+
+        var setting = await _settingRepository.GetByKeyAsync("credit.packs");
+        if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
+        {
+            var defaults = GetDefaultCreditPacks();
+            return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = defaults }));
+        }
+
+        try
+        {
+            var packs = JsonSerializer.Deserialize<List<AISAM.Common.Dtos.CreditPackDto>>(setting.Value);
+            return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = packs ?? GetDefaultCreditPacks() }));
+        }
+        catch
+        {
+            return Ok(GenericResponse<object>.CreateSuccess(new { CreditPacks = GetDefaultCreditPacks() }));
+        }
+    }
+
+    [HttpPut("credit-packs")]
+    public async Task<ActionResult<GenericResponse<bool>>> SaveCreditPacks(
+        [FromBody] SaveCreditPacksRequest request, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var admin = await _userRepository.GetByIdAsync(adminUserId);
+        if (admin?.Role != UserRoleEnum.Admin)
+            return StatusCode(403, GenericResponse<bool>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
+
+        var json = JsonSerializer.Serialize(request.CreditPacks);
+        var setting = new Data.Model.SystemSetting
+        {
+            Key = "credit.packs",
+            Value = json,
+            Description = "Credit pack definitions",
+            UpdatedBy = adminUserId
+        };
+        await _settingRepository.UpsertAsync(setting);
+        return Ok(GenericResponse<bool>.CreateSuccess(true, "Credit packs saved."));
+    }
+
     private List<SubscriptionPlanDto> GetDefaultPlans()
     {
         return new List<SubscriptionPlanDto>
@@ -102,21 +150,26 @@ public sealed class AdminPlanController : ControllerBase
             new() { Id = "business-pro", Name = "Business Pro", Price = 5000, Credits = 50000, PostsPerMonth = 20000, Members = 50, Features = new List<string> { "basicAnalytics", "advancedAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "aiVideo", "trendAnalysis", "holidaySuggestion", "campaignRecommendation", "workspaceDashboard" }, IsActive = true }
         };
     }
-}
 
-public class SubscriptionPlanDto
-{
-    public string Id { get; set; } = "";
-    public string Name { get; set; } = "";
-    public decimal Price { get; set; }
-    public int Credits { get; set; }
-    public int PostsPerMonth { get; set; }
-    public int Members { get; set; }
-    public List<string> Features { get; set; } = new();
-    public bool IsActive { get; set; } = true;
+    private List<CreditPackDto> GetDefaultCreditPacks()
+    {
+        return new List<CreditPackDto>
+        {
+            new() { Id = "starter", Name = "Starter", Credits = 100, Price = 2000, IsActive = true },
+            new() { Id = "standard", Name = "Standard", Credits = 500, Price = 3000, IsActive = true },
+            new() { Id = "growth", Name = "Growth", Credits = 1500, Price = 4000, IsActive = true },
+            new() { Id = "business", Name = "Business", Credits = 5000, Price = 5000, IsActive = true }
+        };
+    }
 }
 
 public class SavePlansRequest
 {
-    public List<SubscriptionPlanDto> Plans { get; set; } = new();
+    public List<AISAM.Common.Dtos.SubscriptionPlanDto> Plans { get; set; } = new();
 }
+
+public class SaveCreditPacksRequest
+{
+    public List<AISAM.Common.Dtos.CreditPackDto> CreditPacks { get; set; } = new();
+}
+

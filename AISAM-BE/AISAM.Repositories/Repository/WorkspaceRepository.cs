@@ -69,7 +69,7 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
 
     public async Task<PagedResult<Workspace>> GetPagedAllAsync(PaginationRequest request, int? workspaceType = null, CancellationToken cancellationToken = default)
     {
-        var query = _context.Workspaces.AsNoTracking();
+        var query = _context.Workspaces.Include(w => w.CreditWallet).AsNoTracking();
 
         if (workspaceType.HasValue)
         {
@@ -115,6 +115,7 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
     {
         return _context.Workspaces
             .Include(workspace => workspace.Members)
-            .ThenInclude(member => member.User);
+            .ThenInclude(member => member.User)
+            .Include(workspace => workspace.CreditWallet);
     }
 }

@@ -113,7 +113,7 @@ public sealed class PaymentRepository : IPaymentRepository
 
     public async Task<PagedResult<Payment>> GetPagedAllAsync(PaginationRequest request, PaymentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
-        var query = _context.Payments.AsNoTracking();
+        var query = Query().AsNoTracking();
         if (status.HasValue)
         {
             query = query.Where(p => p.Status == status.Value);

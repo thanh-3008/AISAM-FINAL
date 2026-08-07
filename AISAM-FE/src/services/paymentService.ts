@@ -108,3 +108,21 @@ export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<
     return false;
   }
 }
+
+export async function fetchPublicPricing(): Promise<{ plans: any[], creditPacks: any[] } | null> {
+  try {
+    const [plansRes, creditPacksRes] = await Promise.all([
+      fetch(`${API_URL}/pricing/plans`),
+      fetch(`${API_URL}/pricing/credit-packs`)
+    ]);
+    const plansData = await plansRes.json();
+    const creditPacksData = await creditPacksRes.json();
+    return {
+      plans: plansData?.data?.plans || [],
+      creditPacks: creditPacksData?.data?.creditPacks || []
+    };
+  } catch (error) {
+    console.error("fetchPublicPricing failed", error);
+    return null;
+  }
+}

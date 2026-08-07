@@ -10,4 +10,5 @@ public interface IAiGenerationRepository
     Task UpdateAsync(AiGeneration generation, CancellationToken cancellationToken = default);
     Task<Dictionary<DateTime, int>> GetDailyGenerationCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
     Task<int> GetTotalGenerationCountAsync(CancellationToken cancellationToken = default);
+    Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default);
 }

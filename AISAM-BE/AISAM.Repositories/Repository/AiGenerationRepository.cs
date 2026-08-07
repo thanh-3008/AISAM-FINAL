@@ -58,4 +58,21 @@ public sealed class AiGenerationRepository : IAiGenerationRepository
     {
         return await _context.AiGenerations.CountAsync(cancellationToken);
     }
+
+    public async Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        var data = await _context.AiGenerations
+            .Where(g => g.Content != null && !g.IsDeleted)
+            .GroupBy(g => g.Content.WorkspaceId)
+            .Select(g => new
+            {
+                WorkspaceId = g.Key,
+                Count = g.Count()
+            })
+            .OrderByDescending(x => x.Count)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return data.Cast<dynamic>().ToList();
+    }
 }

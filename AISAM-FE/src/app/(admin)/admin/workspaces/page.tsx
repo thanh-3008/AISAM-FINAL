@@ -53,7 +53,21 @@ export default function AdminWorkspacesPage() {
   };
 
   const columns = [
-    { key: "name", header: "Name" },
+    { 
+      key: "name", 
+      header: "Name",
+      render: (w: AdminWorkspace) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-gray-900">{w.name}</span>
+          {(w.aiCreditBalance ?? 0) < 100 && (
+            <span className="text-[10px] font-semibold text-red-600 uppercase mt-0.5 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+              Low AI Credit
+            </span>
+          )}
+        </div>
+      )
+    },
     {
       key: "workspaceType",
       header: "Type",

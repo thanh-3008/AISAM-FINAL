@@ -803,7 +803,15 @@ public class PaymentServiceTests
             creditService ?? new FakeCreditService(),
             businessKycService ?? new FakeBusinessKycService(),
             Options.Create(settings ?? new PayOSSettings()),
-            httpClient ?? new HttpClient());
+            httpClient ?? new HttpClient(),
+            new FakeSystemSettingRepository());
+    }
+
+    private sealed class FakeSystemSettingRepository : ISystemSettingRepository
+    {
+        public Task<AISAM.Data.Model.SystemSetting?> GetByKeyAsync(string key) => Task.FromResult<AISAM.Data.Model.SystemSetting?>(null);
+        public Task<List<AISAM.Data.Model.SystemSetting>> GetAllAsync() => Task.FromResult(new List<AISAM.Data.Model.SystemSetting>());
+        public Task<AISAM.Data.Model.SystemSetting> UpsertAsync(AISAM.Data.Model.SystemSetting setting) => Task.FromResult(setting);
     }
 
     private static PayOSSettings CreateConfiguredSettings()

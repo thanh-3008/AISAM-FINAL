@@ -40,7 +40,7 @@ const navGroups: NavGroup[] = [
     items: [
       { label: "Overview", href: "/admin/system-health", icon: "dashboard" },
       { label: "Audit Logs", href: "/admin/audit-logs", icon: "history" },
-      { label: "Background Services", href: "/admin/service-health", icon: "monitoring_heart" },
+      { label: "Background Services", href: "/admin/service-health", icon: "monitor_heart" },
     ],
   },
   {

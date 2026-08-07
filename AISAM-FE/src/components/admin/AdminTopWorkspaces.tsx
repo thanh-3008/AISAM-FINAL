@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchAdminTopWorkspaces, AdminTopWorkspace } from "@/services/adminService";
+import { fetchAdminTopWorkspaces, fetchAdminAiCreditBreakdown, AdminTopWorkspace } from "@/services/adminService";
 import {
   BarChart,
   Bar,
@@ -15,14 +15,19 @@ import {
 
 export default function AdminTopWorkspaces() {
   const [data, setData] = useState<AdminTopWorkspace[]>([]);
+  const [aiCreditData, setAiCreditData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit] = useState(10);
   const [period, setPeriod] = useState("month");
 
   useEffect(() => {
     setLoading(true);
-    fetchAdminTopWorkspaces(limit, period).then((res) => {
-      setData(res || []);
+    Promise.all([
+      fetchAdminTopWorkspaces(limit, period),
+      fetchAdminAiCreditBreakdown()
+    ]).then(([topRes, aiRes]) => {
+      setData(topRes || []);
+      setAiCreditData(aiRes || []);
       setLoading(false);
     });
   }, [limit, period]);
@@ -134,6 +139,27 @@ export default function AdminTopWorkspaces() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* AI Credit Breakdown Chart */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mt-6">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">AI Generations Breakdown by Workspace (Top 50)</h3>
+            {aiCreditData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">No AI credit data available</div>
+            ) : (
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={aiCreditData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="workspaceName" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} width={80} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="totalGenerations" name="Total AI Generations" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         </>
       )}

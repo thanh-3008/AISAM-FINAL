@@ -30,7 +30,7 @@ public sealed class SocialTokenProtector : ISocialTokenProtector
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Stored social token could not be decrypted. The data protection key may have changed.");
+            _logger.LogDebug(ex, "Stored social token could not be decrypted. The data protection key may have changed.");
             return null;
         }
     }

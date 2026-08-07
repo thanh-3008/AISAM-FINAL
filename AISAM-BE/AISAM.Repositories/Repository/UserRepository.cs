@@ -1,4 +1,4 @@
-﻿using AISAM.Common.Dtos;
+using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
@@ -64,7 +64,8 @@ namespace AISAM.Repositories.Repository
             // Apply search filter
             if (!string.IsNullOrEmpty(request.SearchTerm))
             {
-                query = query.Where(u => u.Email!.Contains(request.SearchTerm));
+                var term = request.SearchTerm.ToLower();
+                query = query.Where(u => (u.Email != null && u.Email.ToLower().Contains(term)) || (u.FullName != null && u.FullName.ToLower().Contains(term)));
             }
 
             // Get total count

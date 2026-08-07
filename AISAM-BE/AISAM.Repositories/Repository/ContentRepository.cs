@@ -111,8 +111,12 @@ public sealed class ContentRepository : IContentRepository
         if (status.HasValue) query = query.Where(c => c.Status == status.Value);
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
-            var pattern = $"%{request.SearchTerm}%";
-            query = query.Where(c => (c.Title != null && EF.Functions.ILike(c.Title, pattern)) || EF.Functions.ILike(c.TextContent, pattern));
+            var words = request.SearchTerm.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var word in words)
+            {
+                var pattern = $"%{word}%";
+                query = query.Where(c => c.Title != null && EF.Functions.ILike(c.Title, pattern));
+            }
         }
         query = query.OrderByDescending(c => c.CreatedAt);
         var totalCount = await query.CountAsync(cancellationToken);
@@ -178,8 +182,12 @@ public sealed class ContentRepository : IContentRepository
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
-            var pattern = $"%{request.SearchTerm}%";
-            query = query.Where(c => (c.Title != null && EF.Functions.ILike(c.Title, pattern)) || EF.Functions.ILike(c.TextContent, pattern));
+            var words = request.SearchTerm.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var word in words)
+            {
+                var pattern = $"%{word}%";
+                query = query.Where(c => c.Title != null && EF.Functions.ILike(c.Title, pattern));
+            }
         }
 
         var total = await query.CountAsync(cancellationToken);

@@ -19,6 +19,7 @@ namespace AISAM.Services.Service
         private readonly IAuditLogRepository _auditLogRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IAdCampaignRepository _adCampaignRepository;
+        private readonly ISocialAccountRepository _socialAccountRepository;
         private readonly ISessionRepository _sessionRepository;
         private readonly IWorkspaceService _workspaceService;
 
@@ -30,6 +31,7 @@ namespace AISAM.Services.Service
             IAuditLogRepository auditLogRepository,
             ISubscriptionRepository subscriptionRepository,
             IAdCampaignRepository adCampaignRepository,
+            ISocialAccountRepository socialAccountRepository,
             ISessionRepository sessionRepository,
             IWorkspaceService workspaceService)
         {
@@ -40,6 +42,7 @@ namespace AISAM.Services.Service
             _auditLogRepository = auditLogRepository;
             _subscriptionRepository = subscriptionRepository;
             _adCampaignRepository = adCampaignRepository;
+            _socialAccountRepository = socialAccountRepository;
             _sessionRepository = sessionRepository;
             _workspaceService = workspaceService;
         }
@@ -243,7 +246,29 @@ namespace AISAM.Services.Service
                 return GenericResponse<object>.CreateError(
                     "Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
-            var result = await _workspaceRepository.GetPagedAllAsync(request, workspaceType, cancellationToken);
+            var pagedResult = await _workspaceRepository.GetPagedAllAsync(request, workspaceType, cancellationToken);
+            var mappedData = pagedResult.Data.Select(ws => (object)new
+            {
+                ws.Id,
+                ws.Name,
+                ws.WorkspaceType,
+                ws.Status,
+                ws.MemberLimit,
+                ws.SubscriptionExpiredAt,
+                ws.CreatedAt,
+                ws.UpdatedAt,
+                AiCreditBalance = ws.CreditWallet?.Balance ?? 0,
+                AiCreditReserved = ws.CreditWallet?.ReservedBalance ?? 0
+            }).ToList();
+
+            var result = new PagedResult<object>
+            {
+                Data = mappedData,
+                TotalCount = pagedResult.TotalCount,
+                Page = pagedResult.Page,
+                PageSize = pagedResult.PageSize
+            };
+
             Console.WriteLine($"DEBUG: GetWorkspacesAsync returning {result.TotalCount} items");
             return GenericResponse<object>.CreateSuccess(result);
         }
@@ -284,6 +309,33 @@ namespace AISAM.Services.Service
                 c.CreatedAt
             }).ToList();
 
+            var socialAccounts = await _socialAccountRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
+            var socialAccountsData = socialAccounts.Select(sa => new
+            {
+                sa.Id,
+                sa.Platform,
+                PlatformName = sa.Platform.ToString(),
+                sa.AccountId,
+                IsExpired = sa.ExpiresAt.HasValue && sa.ExpiresAt.Value < DateTime.UtcNow,
+                sa.CreatedAt
+            }).ToList();
+
+            var activeSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(workspaceId, cancellationToken);
+            var subscriptionData = activeSubscription == null ? null : new
+            {
+                activeSubscription.Id,
+                activeSubscription.Plan,
+                PlanName = activeSubscription.Plan.ToString(),
+                activeSubscription.StartDate,
+                activeSubscription.EndDate
+            };
+
+            var adCampaignsPaged = await _adCampaignRepository.GetPagedByWorkspaceIdAsync(workspaceId, new PaginationRequest { Page = 1, PageSize = 1000 }, false, cancellationToken);
+            var adCampaigns = adCampaignsPaged.Data;
+            var totalAdSpend = adCampaigns.Sum(c => c.Spend);
+            var totalAdImpressions = adCampaigns.Sum(c => c.Impressions);
+            var totalAdClicks = adCampaigns.Sum(c => c.Clicks);
+
             return GenericResponse<object>.CreateSuccess(new
             {
                 ws.Id,
@@ -297,7 +349,15 @@ namespace AISAM.Services.Service
                 TypeName = ws.WorkspaceType.ToString(),
                 StatusName = ws.Status.ToString(),
                 Members = members,
-                Posts = posts
+                Posts = posts,
+                AiCreditBalance = ws.CreditWallet?.Balance ?? 0,
+                AiCreditReserved = ws.CreditWallet?.ReservedBalance ?? 0,
+                SocialAccounts = socialAccountsData,
+                SocialAccountCount = socialAccountsData.Count,
+                ActiveSubscription = subscriptionData,
+                TotalAdSpend = totalAdSpend,
+                TotalAdImpressions = totalAdImpressions,
+                TotalAdClicks = totalAdClicks
             });
         }
 
@@ -356,7 +416,31 @@ namespace AISAM.Services.Service
                 return GenericResponse<object>.CreateError("Invalid payment status.", HttpStatusCode.BadRequest);
             PaymentStatusEnum? statusEnum = status.HasValue ? (PaymentStatusEnum)status.Value : null;
 
-            var result = await _paymentRepository.GetPagedAllAsync(request, statusEnum, cancellationToken);
+            var pagedPayments = await _paymentRepository.GetPagedAllAsync(request, statusEnum, cancellationToken);
+            
+            var items = pagedPayments.Data.Select(p => (object)new
+            {
+                p.Id,
+                p.UserId,
+                UserEmail = p.User?.Email ?? "Unknown",
+                p.Amount,
+                p.Currency,
+                p.Status,
+                p.PaymentType,
+                p.TransactionId,
+                p.RefundedAt,
+                p.RefundReason,
+                p.CreatedAt
+            }).ToList();
+
+            var result = new PagedResult<object>
+            {
+                Data = items,
+                TotalCount = pagedPayments.TotalCount,
+                Page = pagedPayments.Page,
+                PageSize = pagedPayments.PageSize
+            };
+
             return GenericResponse<object>.CreateSuccess(result);
         }
 
@@ -370,7 +454,30 @@ namespace AISAM.Services.Service
 
             if (status.HasValue && !Enum.IsDefined(typeof(ContentStatusEnum), status.Value))
                 return GenericResponse<object>.CreateError("Invalid content status.", HttpStatusCode.BadRequest);
-            var result = await _contentRepository.GetPagedAllAsync(request, status.HasValue ? (ContentStatusEnum?)status.Value : null, cancellationToken);
+
+            var pagedContent = await _contentRepository.GetPagedAllAsync(request, status.HasValue ? (ContentStatusEnum?)status.Value : null, cancellationToken);
+            
+            var items = pagedContent.Data.Select(c => (object)new
+            {
+                c.Id,
+                c.Title,
+                c.TextContent,
+                c.Status,
+                c.AdType,
+                c.IsAiGenerated,
+                c.PlatformRejectionReason,
+                c.RejectedPlatform,
+                c.WorkspaceId,
+                c.CreatedAt
+            }).ToList();
+
+            var result = new PagedResult<object>
+            {
+                Data = items,
+                TotalCount = pagedContent.TotalCount,
+                Page = pagedContent.Page,
+                PageSize = pagedContent.PageSize
+            };
             return GenericResponse<object>.CreateSuccess(result);
         }
 
@@ -407,6 +514,85 @@ namespace AISAM.Services.Service
             await LogAuditAsync(adminUserId, "DELETE_CONTENT", "contents", contentId,
                 notes: "Content deleted");
             return GenericResponse<bool>.CreateSuccess(true, "Content deleted.");
+        }
+
+        public async Task<GenericResponse<bool>> RefundPaymentAsync(Guid adminUserId, Guid paymentId, string reason, CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin)
+                return GenericResponse<bool>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
+
+            var payment = await _paymentRepository.GetByIdAsync(paymentId, cancellationToken);
+            if (payment == null)
+                return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
+
+            if (payment.Status == PaymentStatusEnum.Refunded)
+                return GenericResponse<bool>.CreateError("Payment is already refunded.", HttpStatusCode.BadRequest);
+
+            payment.Status = PaymentStatusEnum.Refunded;
+            payment.RefundedAt = DateTime.UtcNow;
+            payment.RefundReason = reason;
+            payment.RefundedBy = adminUserId;
+
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+            await LogAuditAsync(adminUserId, "REFUND_PAYMENT", "payments", paymentId,
+                notes: $"Payment refunded. Reason: {reason}");
+            return GenericResponse<bool>.CreateSuccess(true, "Payment refunded successfully.");
+        }
+
+        public async Task<GenericResponse<object>> GetAuditLogsAsync(Guid adminUserId, Common.Dtos.Request.AuditLogFilterRequest request, CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin)
+                return GenericResponse<object>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
+
+            var result = await _auditLogRepository.GetPagedAsync(request, cancellationToken);
+            
+            var mappedData = result.Data.Select(al => new
+            {
+                al.Id,
+                al.ActionType,
+                al.TargetTable,
+                al.TargetId,
+                al.CreatedAt,
+                al.Notes,
+                ActorEmail = al.Actor?.Email,
+                ActorName = al.Actor?.FullName
+            }).ToList();
+
+            var mappedResult = new PagedResult<object>
+            {
+                Data = mappedData.Cast<object>().ToList(),
+                TotalCount = result.TotalCount,
+                Page = result.Page,
+                PageSize = result.PageSize
+            };
+
+            return GenericResponse<object>.CreateSuccess(mappedResult);
+        }
+
+        public async Task<GenericResponse<string>> ExportAuditLogsCsvAsync(Guid adminUserId, Common.Dtos.Request.AuditLogFilterRequest request, CancellationToken cancellationToken = default)
+        {
+            var admin = await _userRepository.GetByIdAsync(adminUserId);
+            if (admin?.Role != UserRoleEnum.Admin)
+                return GenericResponse<string>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
+
+            // Fetch all matching data (or a large page size for export)
+            request.Page = 1;
+            request.PageSize = 10000; // Limit export to 10k rows for now
+            var result = await _auditLogRepository.GetPagedAsync(request, cancellationToken);
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Id,Date,Action,Table,TargetId,ActorEmail,ActorName,Notes");
+
+            foreach (var log in result.Data)
+            {
+                var date = log.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
+                var notes = log.Notes?.Replace("\"", "\"\"") ?? "";
+                sb.AppendLine($"{log.Id},{date},{log.ActionType},{log.TargetTable},{log.TargetId},{log.Actor?.Email},{log.Actor?.FullName},\"{notes}\"");
+            }
+
+            return GenericResponse<string>.CreateSuccess(sb.ToString());
         }
 
         private async Task LogAuditAsync(Guid actorId, string actionType, string targetTable, Guid targetId, string? notes = null, string? oldValues = null, string? newValues = null)

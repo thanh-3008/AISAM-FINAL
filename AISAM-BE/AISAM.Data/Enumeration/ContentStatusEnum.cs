@@ -7,6 +7,7 @@ namespace AISAM.Data.Enumeration
         Approved = 2,
         Rejected = 3,
         Published = 4,
-        Flagged = 5
+        Flagged = 5,
+        RejectedByPlatform = 6
     }
 }

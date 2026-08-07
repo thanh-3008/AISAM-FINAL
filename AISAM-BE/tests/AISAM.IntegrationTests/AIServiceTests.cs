@@ -490,6 +490,7 @@ public class AIServiceTests
         }
         public Task<Dictionary<DateTime, int>> GetDailyGenerationCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
         public Task<int> GetTotalGenerationCountAsync(CancellationToken cancellationToken = default) => Task.FromResult(_generations.Count);
+        public Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default) => Task.FromResult(new List<dynamic>());
     }
 
     private sealed class FakeContentRepository : IContentRepository

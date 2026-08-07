@@ -34,6 +34,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly PayOSSettings _settings;
     private readonly HttpClient _httpClient;
     private readonly AisamContext? _context;
+    private readonly ISystemSettingRepository _systemSettingRepository;
 
     public PayOSPaymentService(
         IPaymentRepository paymentRepository,
@@ -45,6 +46,7 @@ public sealed class PayOSPaymentService : IPaymentService
         IBusinessKycService businessKycService,
         IOptions<PayOSSettings> settings,
         HttpClient httpClient,
+        ISystemSettingRepository systemSettingRepository,
         AisamContext? context = null)
     {
         _paymentRepository = paymentRepository;
@@ -56,6 +58,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _businessKycService = businessKycService;
         _settings = settings.Value;
         _httpClient = httpClient;
+        _systemSettingRepository = systemSettingRepository;
         _context = context;
     }
 
@@ -144,7 +147,7 @@ public sealed class PayOSPaymentService : IPaymentService
                 "BUSINESS_KYC_NOT_VERIFIED");
         }
 
-        var planDefinition = GetPlanDefinition(WorkspaceTypeEnum.Business, plan.Value);
+        var planDefinition = await GetPlanDefinitionAsync(WorkspaceTypeEnum.Business, plan.Value);
         var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
         var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
         if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
@@ -307,7 +310,7 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Workspace not found.", HttpStatusCode.NotFound);
         }
 
-        var planDefinition = GetPlanDefinition(workspace.WorkspaceType, plan.Value);
+        var planDefinition = await GetPlanDefinitionAsync(workspace.WorkspaceType, plan.Value);
         if (planDefinition.Amount <= 0)
         {
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Selected plan does not require PayOS checkout.", HttpStatusCode.BadRequest, "PLAN_DOES_NOT_REQUIRE_PAYMENT");
@@ -418,7 +421,7 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Credit pack code is required.", HttpStatusCode.BadRequest, "CREDIT_PACK_REQUIRED");
         }
 
-        var pack = GetCreditPackDefinition(request.CreditPackCode.Value);
+        var pack = await GetCreditPackDefinitionAsync(request.CreditPackCode.Value);
         var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
         var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
         if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
@@ -854,7 +857,7 @@ public sealed class PayOSPaymentService : IPaymentService
 
         var plan = payment.RequestedPlan.Value;
         var today = DateTime.UtcNow.Date;
-        var planDefinition = GetPlanDefinition(WorkspaceTypeEnum.Business, plan);
+        var planDefinition = await GetPlanDefinitionAsync(WorkspaceTypeEnum.Business, plan);
         var workspace = await _workspaceRepository.AddAsync(new Workspace
         {
             Name = payment.PendingWorkspaceName!.Trim(),
@@ -963,23 +966,100 @@ public sealed class PayOSPaymentService : IPaymentService
             : null;
     }
 
-    private static PlanDefinition GetPlanDefinition(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
+    private async Task<PlanDefinition> GetPlanDefinitionAsync(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
     {
+        var setting = await _systemSettingRepository.GetByKeyAsync("subscription.plans");
+        if (setting != null && !string.IsNullOrWhiteSpace(setting.Value))
+        {
+            try
+            {
+                var plans = JsonSerializer.Deserialize<List<AISAM.Common.Dtos.SubscriptionPlanDto>>(setting.Value);
+                if (plans != null)
+                {
+                    // Map enum to ID
+                    string targetId = "";
+                    if (workspaceType == WorkspaceTypeEnum.Personal)
+                    {
+                        targetId = plan == SubscriptionPlanEnum.Plus ? "plus"
+                                 : plan == SubscriptionPlanEnum.Premium ? "premium"
+                                 : "free";
+                    }
+                    else
+                    {
+                        targetId = plan == SubscriptionPlanEnum.Plus ? "business-plus"
+                                 : plan == SubscriptionPlanEnum.Premium ? "business-pro"
+                                 : "free";
+                    }
+
+                    var matched = plans.FirstOrDefault(p => string.Equals(p.Id, targetId, StringComparison.OrdinalIgnoreCase));
+                    if (matched != null)
+                    {
+                        return new PlanDefinition(
+                            matched.Price,
+                            matched.Credits,
+                            matched.PostsPerMonth,
+                            0, // Users don't use this directly
+                            1,
+                            1,
+                            0,
+                            0m,
+                            0
+                        );
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+        }
+
+        // Default Fallback
         return (workspaceType, plan) switch
         {
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(2_000m, 300, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(3_000m, 1_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(2_000m, 500, 300, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(3_000m, 2_000, 1_000, 30, 3, 5, 2, 10_000_000m, 10),
             (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(4_000m, 5_000, 50, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(5_000m, 20_000, 200, 30, 3, 5, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 50, 20, 0, 1, 1, 0, 0m, 0),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(4_000m, 15_000, 5_000, 10, 2, 2, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(5_000m, 50_000, 20_000, 30, 3, 5, 2, 10_000_000m, 10),
             (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 1_000, 10, 3, 1, 1, 1, 0m, 1),
             _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
         };
     }
 
-    private static CreditPackDefinition GetCreditPackDefinition(CreditPackCodeEnum packCode)
+    private async Task<CreditPackDefinition> GetCreditPackDefinitionAsync(CreditPackCodeEnum packCode)
     {
+        var setting = await _systemSettingRepository.GetByKeyAsync("credit.packs");
+        if (setting != null && !string.IsNullOrWhiteSpace(setting.Value))
+        {
+            try
+            {
+                var packs = JsonSerializer.Deserialize<List<AISAM.Common.Dtos.CreditPackDto>>(setting.Value);
+                if (packs != null)
+                {
+                    string targetId = packCode switch
+                    {
+                        CreditPackCodeEnum.Starter => "starter",
+                        CreditPackCodeEnum.Standard => "standard",
+                        CreditPackCodeEnum.Growth => "growth",
+                        CreditPackCodeEnum.Business => "business",
+                        _ => ""
+                    };
+
+                    var matched = packs.FirstOrDefault(p => string.Equals(p.Id, targetId, StringComparison.OrdinalIgnoreCase));
+                    if (matched != null)
+                    {
+                        return new CreditPackDefinition(matched.Price, matched.Credits);
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+        }
+
         return packCode switch
         {
             CreditPackCodeEnum.Starter => new CreditPackDefinition(2_000m, 100),
