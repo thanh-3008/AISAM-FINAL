@@ -3,6 +3,7 @@ import { getWorkspaceInvitations, type WorkspaceInvitation } from "./workspaceIn
 
 export type MemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
 export type MemberStatus = "Active" | "Pending" | "Inactive";
+export type QuotaMode = "SharedPool" | "LifetimeAssigned" | "MonthlyAssigned";
 
 export interface TeamMember {
   id: string;
@@ -14,7 +15,28 @@ export interface TeamMember {
   teamIds: string[];
   lastActive: string;
   createdAt: string;
+  quotaMode: QuotaMode;
+  creditLimit: number | null;
+  creditUsed: number;
 }
+
+export const QUOTA_MODE_LABELS: Record<QuotaMode, string> = {
+  SharedPool: "Shared Pool",
+  LifetimeAssigned: "Lifetime Assigned Limit",
+  MonthlyAssigned: "Monthly Assigned Limit",
+};
+
+export const QUOTA_MODE_BE: Record<QuotaMode, number> = {
+  SharedPool: 1,
+  LifetimeAssigned: 2,
+  MonthlyAssigned: 3,
+};
+
+export const QUOTA_MODE_FROM_BE: Record<number, QuotaMode> = {
+  1: "SharedPool",
+  2: "LifetimeAssigned",
+  3: "MonthlyAssigned",
+};
 
 export interface Team {
   id: string;
@@ -39,6 +61,8 @@ export interface InviteMemberData {
   email: string;
   role: MemberRole;
   teamIds: string[];
+  quotaMode?: QuotaMode;
+  creditLimit?: number | null;
 }
 
 interface GenericResponse<T> {
@@ -100,6 +124,9 @@ function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
     teamIds: [],
     lastActive: dto.joinedAt,
     createdAt: dto.joinedAt,
+    quotaMode: QUOTA_MODE_FROM_BE[dto.quotaMode] || "SharedPool",
+    creditLimit: dto.creditLimit ?? null,
+    creditUsed: dto.creditUsed ?? 0,
   };
 }
 
@@ -152,6 +179,9 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
       teamIds: [],
       lastActive: inv.createdAt,
       createdAt: inv.createdAt,
+      quotaMode: "SharedPool" as QuotaMode,
+      creditLimit: null,
+      creditUsed: 0,
     }));
 
   const seen = new Set<string>();
@@ -201,9 +231,16 @@ export async function getTeamById(id: string): Promise<Team | null> {
 
 export async function inviteMember(data: InviteMemberData): Promise<TeamMember> {
   const roleValue = ({ Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 } as const)[data.role];
+  const payload: Record<string, unknown> = { email: data.email, role: roleValue, teamIds: data.teamIds };
+  if (data.quotaMode) {
+    payload.quotaMode = QUOTA_MODE_BE[data.quotaMode];
+  }
+  if (data.creditLimit != null && data.creditLimit > 0) {
+    payload.creditLimit = data.creditLimit;
+  }
   const res: GenericResponse<BEWorkspaceInvitationDto> = await apiClient("/workspace-invitations", {
     method: "POST",
-    data: { email: data.email, role: roleValue, teamIds: data.teamIds },
+    data: payload,
   });
 
   const inv = res?.data;
@@ -217,6 +254,9 @@ export async function inviteMember(data: InviteMemberData): Promise<TeamMember> 
     teamIds: data.teamIds,
     lastActive: inv?.createdAt || new Date().toISOString(),
     createdAt: inv?.createdAt || new Date().toISOString(),
+    quotaMode: data.quotaMode || "SharedPool",
+    creditLimit: data.creditLimit ?? null,
+    creditUsed: 0,
   };
 
   return member;
@@ -242,6 +282,23 @@ export async function removeMember(id: string, status?: MemberStatus): Promise<b
     method: "DELETE",
   });
   return res?.success === true || res?.statusCode === 200;
+}
+
+export async function updateMemberQuota(
+  memberId: string,
+  quotaMode: QuotaMode,
+  creditLimit: number | null
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res = await apiClient(`/workspace-members/${memberId}/quota`, {
+      method: "PUT",
+      data: { mode: QUOTA_MODE_BE[quotaMode], limit: creditLimit },
+    });
+    return { success: res?.success === true, message: res?.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Network error";
+    return { success: false, message };
+  }
 }
 
 export async function getMemberById(id: string): Promise<TeamMember | null> {

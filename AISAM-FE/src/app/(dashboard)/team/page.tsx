@@ -10,9 +10,11 @@ import {
   inviteMember,
   updateMemberRole,
   removeMember,
+  updateMemberQuota,
   type TeamMember,
   type MemberRole,
   type MemberStatus,
+  type QuotaMode,
   type InviteMemberData,
 } from "@/services/teamService";
 import TeamFilterBar, { type SortOption } from "@/components/team/TeamFilterBar";
@@ -45,12 +47,14 @@ export default function TeamPage() {
   const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
   const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [quotaLoading, setQuotaLoading] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
 
   const activeMemberCount = members.filter((m) => m.status === "Active").length;
+  const canAssignQuota = featureGate.canAccess("lifetimeAssignedLimit") || featureGate.canAccess("monthlyAssignedLimit");
 
   const loadData = useCallback(async () => {
     try {
@@ -152,6 +156,23 @@ export default function TeamPage() {
       showToast(message, "error");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleUpdateQuota = async (memberId: string, mode: QuotaMode, limit: number | null) => {
+    setQuotaLoading(true);
+    try {
+      const result = await updateMemberQuota(memberId, mode, limit);
+      if (result.success) {
+        setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, quotaMode: mode, creditLimit: limit } : m)));
+        showToast("Member quota updated");
+      } else {
+        showToast(result.message || "Failed to update quota", "error");
+      }
+    } catch {
+      showToast("Failed to update quota", "error");
+    } finally {
+      setQuotaLoading(false);
     }
   };
 
@@ -380,6 +401,7 @@ export default function TeamPage() {
                           <tr className="bg-surface-container/50">
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Member</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Role</th>
+                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Credits</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Status</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Joined</th>
                             <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>
@@ -422,6 +444,32 @@ export default function TeamPage() {
                                 }`}>
                                   {member.role === "ContentCreator" ? "Content Creator" : member.role}
                                 </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                {member.quotaMode !== "SharedPool" ? (
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-outline text-[14px]">toll</span>
+                                      <span className="text-body-sm text-on-surface font-semibold">{member.creditUsed.toLocaleString()}</span>
+                                      {member.creditLimit != null && (
+                                        <span className="text-label-xs text-outline">/ {member.creditLimit.toLocaleString()}</span>
+                                      )}
+                                    </div>
+                                    {member.creditLimit != null && (
+                                      <div className="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden mt-1">
+                                        <div
+                                          className="h-full bg-primary rounded-full transition-all"
+                                          style={{ width: `${Math.min(100, (member.creditUsed / member.creditLimit) * 100)}%` }}
+                                        />
+                                      </div>
+                                    )}
+                                    <span className="text-label-2xs text-outline mt-0.5">
+                                      {member.quotaMode === "LifetimeAssigned" ? "Lifetime" : "Monthly"}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-label-sm text-outline">Shared</span>
+                                )}
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
@@ -481,6 +529,9 @@ export default function TeamPage() {
           onClose={() => setEditingMember(null)}
           onUpdate={handleEditMember}
           isLoading={actionLoading === "editMember"}
+          canAssignQuota={canAssignQuota}
+          onUpdateQuota={handleUpdateQuota}
+          isUpdatingQuota={quotaLoading}
         />
 
         <DeleteMemberConfirmModal
@@ -495,8 +546,8 @@ export default function TeamPage() {
           onClose={() => setShowInviteModal(false)}
           onInvite={handleInvite}
           isLoading={actionLoading === "invite"}
-          teams={[]}
           currentMemberCount={activeMemberCount}
+          canAssignQuota={canAssignQuota}
         />
 
         {/* Toast */}

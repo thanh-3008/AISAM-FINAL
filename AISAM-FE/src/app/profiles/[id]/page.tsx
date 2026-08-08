@@ -1212,8 +1212,7 @@ export default function ProfileDetailPage() {
                                 key={idx}
                                 whileHover={reduceMotion ? undefined : { scale: 1.05, y: -2 }}
                                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-                                onClick={action.onClick as any}
-                                {...(action.href && !action.onClick ? { as: "a", href: action.href } : {})}
+                                onClick={() => action.onClick ? action.onClick() : action.href ? router.push(action.href) : undefined}
                                 className="flex flex-col items-center gap-3 p-5 rounded-xl bg-surface-container-lowest border border-outline-variant/10 hover:border-outline-variant/30 hover:shadow-md transition-all duration-200 group"
                               >
                                 <div className={`w-12 h-12 rounded-xl ${action.bg} flex items-center justify-center ring-1 ${action.ring} group-hover:ring-2 transition-all`}>
@@ -2315,9 +2314,9 @@ export default function ProfileDetailPage() {
                                     <div className="h-2 w-20 bg-surface-container rounded" />
                                   </div>
                                   <div className="h-5 w-12 bg-surface-container rounded" />
-                                </div>
-                              ))}
-                            </div>
+                          </div>
+                        ))}
+                      </div>
                           ) : creditHistory.length === 0 ? (
                             <div className="p-8 text-center">
                               <span className="material-symbols-outlined text-outline/30 text-3xl mb-2 block">history</span>
@@ -2664,40 +2663,45 @@ export default function ProfileDetailPage() {
                     <motion.div variants={reduceMotion ? undefined : item}>
                       <h3 className="text-body-lg font-semibold text-on-surface mb-4">Compare Plans</h3>
                       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${isBusinessWorkspace ? "2" : "3"} gap-4`}>
-                        {[
-                          ...(!isBusinessWorkspace ? [{
-                            name: "Free",
-                            planType: 0,
-                            price: "$0",
-                            period: "/month",
-                            current: subscriptionPlanLabel === "Free",
-                            features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
-                            cta: "Current Plan",
-                          }] : []),
-                          {
-                            name: isBusinessWorkspace ? "Business Plus" : "Personal Plus",
-                            planType: 1,
-                            price: isBusinessWorkspace ? "4,000₫" : "2,000₫",
-                            period: "/month",
-                            current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus"),
-                            popular: true,
-                            features: isBusinessWorkspace
-                              ? ["Team Management", "Shared Credits Pool", "Shared Workspace", "Workspace Dashboard", "Up to 10 Team Members", "15,000 Credits"]
-                              : ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
-                            cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus") ? "Current Plan" : "Upgrade",
-                          },
-                          {
-                            name: isBusinessWorkspace ? "Business Pro" : "Personal Pro",
-                            planType: 2,
-                            price: isBusinessWorkspace ? "5,000₫" : "3,000₫",
-                            period: "/month",
-                            current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro"),
-                            features: isBusinessWorkspace
-                              ? ["All Business Plus features", "Lifetime Assigned Limit", "Monthly Assigned Limit", "Credit Usage Report", "Up to 50 Team Members", "50,000 Credits"]
-                              : ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
-                            cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro") ? "Current Plan" : "Upgrade",
-                          },
-                        ].map((plan) => (
+                        {(() => {
+                          const plans = [
+                            ...(!isBusinessWorkspace ? [{
+                              name: "Free",
+                              planType: 0,
+                              price: "$0",
+                              period: "/month",
+                              current: subscriptionPlanLabel === "Free",
+                              features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
+                              cta: "Current Plan",
+                            }] : []),
+                            {
+                              name: isBusinessWorkspace ? "Business Plus" : "Personal Plus",
+                              planType: 1,
+                              price: isBusinessWorkspace ? "4,000₫" : "2,000₫",
+                              period: "/month",
+                              current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus"),
+                              popular: true,
+                              features: isBusinessWorkspace
+                                ? ["Team Management", "Shared Credits Pool", "Shared Workspace", "Workspace Dashboard", "Up to 10 Team Members", "15,000 Credits"]
+                                : ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
+                              cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus") ? "Current Plan" : "Upgrade",
+                            },
+                            {
+                              name: isBusinessWorkspace ? "Business Pro" : "Personal Pro",
+                              planType: 2,
+                              price: isBusinessWorkspace ? "5,000₫" : "3,000₫",
+                              period: "/month",
+                              current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro"),
+                              features: isBusinessWorkspace
+                                ? ["All Business Plus features", "Lifetime Assigned Limit", "Monthly Assigned Limit", "Credit Usage Report", "Up to 50 Team Members", "50,000 Credits"]
+                                : ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
+                              cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro") ? "Current Plan" : "Upgrade",
+                            },
+                          ];
+                          const currentTier = plans.find(p => p.current)?.planType ?? 0;
+                          return plans.map((plan) => {
+                            const isDowngrade = !plan.current && plan.planType < currentTier;
+                            return (
                           <div
                             key={plan.name}
                             className={`relative rounded-2xl border p-6 ${plan.popular
@@ -2737,13 +2741,16 @@ export default function ProfileDetailPage() {
                                   ? "bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
                                   : plan.current
                                     ? "bg-primary/10 text-primary border border-primary/20 cursor-default"
-                                    : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
+                                    : isDowngrade
+                                      ? "bg-amber-50 border border-amber-200/50 text-amber-700 hover:bg-amber-100"
+                                      : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
                                 } disabled:opacity-60 disabled:cursor-not-allowed`}
                             >
-                              {upgradingPlan && !plan.current ? "Processing..." : plan.cta}
+                              {upgradingPlan && !plan.current ? "Processing..." : isDowngrade ? "Downgrade" : plan.cta}
                             </motion.button>
                           </div>
-                        ))}
+                            );
+                          })})()}
                       </div>
                     </motion.div>
 

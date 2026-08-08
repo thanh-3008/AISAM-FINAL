@@ -147,7 +147,7 @@ namespace AISAM.Services.Service
                 Description = NormalizeOptional(request.Description),
                 ProductUrl = NormalizeUrl(request.SourceUrl),
                 Price = request.Price,
-                Stock = 0,
+                Stock = request.Stock ?? 0,
                 Images = JsonSerializer.Serialize(images),
                 PrimaryUse = benefits.Count > 0 ? string.Join("; ", benefits) : null,
                 Usp = benefits.FirstOrDefault(),

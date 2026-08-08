@@ -86,6 +86,15 @@ export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: M
           </div>
         </div>
 
+        {member.quotaMode !== "SharedPool" && (
+          <div className="flex items-center gap-1.5 text-label-xs text-outline">
+            <span className="material-symbols-outlined text-[14px]">toll</span>
+            <span className="font-semibold text-on-surface">{member.creditUsed.toLocaleString()}</span>
+            {member.creditLimit != null && <span>/ {member.creditLimit.toLocaleString()}</span>}
+            <span className="text-outline/60">({member.quotaMode === "LifetimeAssigned" ? "lifetime" : "monthly"})</span>
+          </div>
+        )}
+
         <div className="pt-3 border-t border-outline-variant/20">
           <div className="flex items-center gap-1.5 text-label-xs text-outline">
             <span className="material-symbols-outlined text-[14px]">schedule</span>
