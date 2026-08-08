@@ -1,41 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { type InviteMemberData, type MemberRole, type Team } from "@/services/teamService";
+import { type InviteMemberData, type MemberRole, type QuotaMode, QUOTA_MODE_LABELS } from "@/services/teamService";
 
 interface InviteMemberModalProps {
   open: boolean;
   onClose: () => void;
   onInvite: (data: InviteMemberData) => void;
   isLoading: boolean;
-  teams: Team[];
   currentMemberCount?: number;
   maxMembers?: number;
+  canAssignQuota?: boolean;
 }
 
-export default function InviteMemberModal({ open, onClose, onInvite, isLoading, teams, currentMemberCount = 0, maxMembers = Infinity }: InviteMemberModalProps) {
+export default function InviteMemberModal({ open, onClose, onInvite, isLoading, currentMemberCount = 0, maxMembers = Infinity, canAssignQuota = false }: InviteMemberModalProps) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("Viewer");
-  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [quotaMode, setQuotaMode] = useState<QuotaMode>("SharedPool");
+  const [creditLimit, setCreditLimit] = useState<string>("");
 
   if (!open) return null;
 
   const atLimit = currentMemberCount >= maxMembers;
+
+  const showCreditInput = canAssignQuota && quotaMode !== "SharedPool";
+  const parsedCreditLimit = showCreditInput && creditLimit ? Number(creditLimit) : null;
 
   const handleSubmit = () => {
     if (!email.trim() || atLimit) return;
     onInvite({
       email: email.trim(),
       role,
-      teamIds: selectedTeams,
+      teamIds: [],
+      quotaMode: canAssignQuota ? quotaMode : undefined,
+      creditLimit: showCreditInput && parsedCreditLimit && parsedCreditLimit > 0 ? parsedCreditLimit : undefined,
     });
     setEmail("");
     setRole("Viewer");
-    setSelectedTeams([]);
-  };
-
-  const toggleTeam = (id: string) => {
-    setSelectedTeams((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+    setQuotaMode("SharedPool");
+    setCreditLimit("");
   };
 
   const isValid = email.trim() && email.includes("@");
@@ -91,36 +94,36 @@ export default function InviteMemberModal({ open, onClose, onInvite, isLoading, 
                 <option value="Owner">Owner</option>
               </select>
             </div>
-            <div>
-              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Assign to Teams</label>
-              <div className="space-y-2">
-                {teams.map((team) => (
-                  <button
-                    key={team.id}
-                    type="button"
-                    onClick={() => toggleTeam(team.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
-                      selectedTeams.includes(team.id)
-                        ? "border-primary bg-primary/5"
-                        : "border-outline-variant/20 hover:border-outline-variant/40"
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold ${
-                      selectedTeams.includes(team.id) ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
-                    }`}>
-                      {team.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
-                    </div>
-                    <div>
-                      <span className="text-label-sm font-semibold text-on-surface">{team.name}</span>
-                      <p className="text-label-2xs text-outline">{team.memberIds.length} members</p>
-                    </div>
-                    {selectedTeams.includes(team.id) && (
-                      <span className="material-symbols-outlined text-primary text-[18px] ml-auto">check_circle</span>
+            {canAssignQuota && (
+              <div>
+                <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Credit Quota Mode</label>
+                <select
+                  value={quotaMode}
+                  onChange={(e) => { setQuotaMode(e.target.value as QuotaMode); if (e.target.value === "SharedPool") setCreditLimit(""); }}
+                  className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
+                >
+                  <option value="SharedPool">{QUOTA_MODE_LABELS.SharedPool}</option>
+                  <option value="LifetimeAssigned">{QUOTA_MODE_LABELS.LifetimeAssigned}</option>
+                  <option value="MonthlyAssigned">{QUOTA_MODE_LABELS.MonthlyAssigned}</option>
+                </select>
+                {showCreditInput && (
+                  <div className="mt-2">
+                    <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Credit Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={creditLimit}
+                      onChange={(e) => setCreditLimit(e.target.value)}
+                      placeholder={quotaMode === "MonthlyAssigned" ? "e.g. 500 credits/month" : "e.g. 10000 lifetime credits"}
+                      className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 placeholder:text-outline/40 transition-all"
+                    />
+                    {creditLimit && Number(creditLimit) <= 0 && (
+                      <p className="text-label-2xs text-error mt-1">Credit limit must be greater than 0</p>
                     )}
-                  </button>
-                ))}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
           <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 sticky bottom-0 bg-surface-container-lowest">
             <button

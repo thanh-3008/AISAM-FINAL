@@ -16,6 +16,9 @@ public sealed class ProductImportReviewRequest
 
     public decimal? Price { get; set; }
 
+    [Range(0, int.MaxValue, ErrorMessage = "Stock must be greater than or equal to 0")]
+    public int? Stock { get; set; }
+
     public List<string> Images { get; set; } = new();
 
     [MaxLength(2000, ErrorMessage = "Source URL must not exceed 2000 characters")]
