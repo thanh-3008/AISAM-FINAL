@@ -106,7 +106,7 @@ async function handleResponse(response: Response) {
           window.location.href = "/login";
         }
       }
-      return;
+      // Do not return here. Let it fall through and throw the error so the caller can catch it
     }
 
     const trimmed = errorMessage.trim();
@@ -121,6 +121,15 @@ async function handleResponse(response: Response) {
 async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<unknown> {
   const newToken = await refreshAccessToken();
   if (!newToken) {
+    removeToken();
+    removeRefreshToken();
+    clearActiveWorkspace();
+    if (typeof window !== "undefined") {
+      document.cookie = "aisam_role=; path=/; max-age=0";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
   }
   const workspace = getStoredActiveWorkspace();
@@ -154,7 +163,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
-  if (response.status === 401 && token) {
+  if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
   }
 
@@ -169,7 +178,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
-  if (response.status === 401 && token) {
+  if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
   }
 

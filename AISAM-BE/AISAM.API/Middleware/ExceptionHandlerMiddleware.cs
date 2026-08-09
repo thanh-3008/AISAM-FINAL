@@ -23,8 +23,19 @@ namespace AISAM.API.Middleware
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unhandled exception occurred");
-                await HandleExceptionAsync(context, ex);
+                if (ex is OperationCanceledException)
+                {
+                    _logger.LogInformation("Request was cancelled by the client.");
+                }
+                else
+                {
+                    _logger.LogError(ex, "An unhandled exception occurred");
+                }
+
+                if (!context.Response.HasStarted)
+                {
+                    await HandleExceptionAsync(context, ex);
+                }
             }
         }
 
@@ -52,6 +63,11 @@ namespace AISAM.API.Middleware
                     status = HttpStatusCode.NotFound;
                     message = exception.Message;
                     errorCode = "NOT_FOUND";
+                    break;
+                case OperationCanceledException:
+                    status = (HttpStatusCode)499; // Client Closed Request
+                    message = "Request was cancelled";
+                    errorCode = "REQUEST_CANCELLED";
                     break;
                 default:
                     status = HttpStatusCode.InternalServerError;

@@ -320,3 +320,10 @@
     font-size: 24px;
   }
 }
+
+/* Hide native Edge clear and reveal icons */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+

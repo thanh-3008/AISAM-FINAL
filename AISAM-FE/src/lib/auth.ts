@@ -92,6 +92,11 @@ export async function refreshAccessToken(): Promise<string | null> {
       }
       return result.data.accessToken;
     }
+    if (res.status === 401 || res.status === 403) {
+      removeToken();
+      removeRefreshToken();
+      removeStoredUser();
+    }
     return null;
   } catch {
     return null;
@@ -110,6 +115,7 @@ export async function ensureValidToken(): Promise<string | null> {
       if (Date.now() >= expiresAt - fiveMin) {
         const newToken = await refreshAccessToken();
         if (newToken) return newToken;
+        return null;
       }
     }
   } catch {

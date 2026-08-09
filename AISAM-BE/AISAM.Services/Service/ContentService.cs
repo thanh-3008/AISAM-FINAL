@@ -613,9 +613,19 @@ public sealed class ContentService : IContentService
 
     private static PostDto BuildPostDto(Content content)
     {
+        var cleanMessage = content.TextContent;
+        if (!string.IsNullOrWhiteSpace(cleanMessage))
+        {
+            cleanMessage = System.Text.RegularExpressions.Regex.Replace(
+                cleanMessage, 
+                @"\[VIDEO_SCRIPT\].*?\[/VIDEO_SCRIPT\]", 
+                string.Empty, 
+                System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+        }
+
         var postDto = new PostDto
         {
-            Message = content.TextContent
+            Message = cleanMessage
         };
 
         if (content.AdType == AdTypeEnum.ImageText && !string.IsNullOrWhiteSpace(content.ImageUrl))

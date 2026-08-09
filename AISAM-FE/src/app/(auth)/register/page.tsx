@@ -36,19 +36,19 @@ export default function RegisterPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       newErrors.email = "Please enter a valid email address";
     }
-    
+
     if (!form.password) {
       newErrors.password = "Password is required";
     } else if (form.password.length < 8) {
       newErrors.password = "Password must be at least 8 characters";
     }
-    
+
     if (!form.confirm_password) {
       newErrors.confirm_password = "Confirm password is required";
     } else if (form.password !== form.confirm_password) {
       newErrors.confirm_password = "Confirm password does not match";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -106,7 +106,7 @@ export default function RegisterPage() {
     setError(null);
     if (!validate()) return;
     setIsLoading(true);
-    
+
     try {
       const result = await apiClient("/auth/register", {
         data: {
@@ -276,11 +276,10 @@ export default function RegisterPage() {
               value={form.confirm_password}
               onChange={handleChange}
               placeholder="Re-enter your password"
-              className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${
-                errors.confirm_password
+              className={`w-full h-12 px-4 rounded-lg bg-surface-container-lowest border focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all placeholder:text-outline/50 text-body-md text-on-surface pr-12 ${errors.confirm_password
                   ? "border-error focus:ring-error"
                   : "border-outline-variant"
-              }`}
+                }`}
             />
             <button
               type="button"

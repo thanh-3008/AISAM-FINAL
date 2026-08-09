@@ -144,7 +144,8 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       setDateError("End date must be after start date");
       return;
     }
-    if (budget && parseFloat(budget) < 30000) {
+    const numericBudget = budget ? parseFloat(budget.replace(/\D/g, "")) : null;
+    if (numericBudget && numericBudget < 30000) {
       setBudgetError("Budget must be at least 30.000");
       return;
     }
@@ -170,7 +171,7 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
       adAccountId: selectedAdAccount,
       adAccountCurrency: adAccounts.find(a => a.id === selectedAdAccount)?.currency ?? null,
       objective,
-      budget: budget ? parseFloat(budget) : null,
+      budget: numericBudget,
       startDate: startDate || null,
       endDate: endDate || null,
       landingUrl: landingUrl || null,
@@ -413,11 +414,17 @@ export default function CreateCampaignModal({ open, onClose, onCreate, isLoading
                 Total Budget{selectedAdAccount ? ` (${adAccounts.find(a => a.id === selectedAdAccount)?.currency === "USD" ? "USD" : "VND"})` : ""}
               </label>
               <input
-                type="number"
+                type="text"
                 value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder={adAccounts.find(a => a.id === selectedAdAccount)?.currency === "USD" ? "e.g. 100" : "e.g. 5000000"}
-                min="30000"
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/\D/g, "");
+                  if (!rawValue) {
+                    setBudget("");
+                    return;
+                  }
+                  setBudget(new Intl.NumberFormat("vi-VN").format(Number(rawValue)));
+                }}
+                placeholder={adAccounts.find(a => a.id === selectedAdAccount)?.currency === "USD" ? "e.g. 100" : "e.g. 5.000.000"}
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40"
               />
               <p className="text-label-3xs text-outline mt-1">Facebook range: 30.000đ – 3.000.000đ/day</p>

@@ -90,7 +90,7 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
 
                 try
                 {
-                    var existing = await _context.ContentCalendars.FirstOrDefaultAsync(value => value.ContentId == content.Id && value.IntegrationId == integration.Id && value.IsActive && !value.IsDeleted, cancellationToken);
+                    var existing = await _context.ContentCalendars.Where(value => value.ContentId == content.Id && value.IntegrationId == integration.Id && value.IsActive && !value.IsDeleted).OrderBy(value => value.Id).FirstOrDefaultAsync(cancellationToken);
                     if (existing is not null)
                     {
                         item.ContentCalendarId ??= existing.Id;
