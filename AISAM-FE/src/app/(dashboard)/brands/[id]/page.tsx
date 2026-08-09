@@ -81,6 +81,29 @@ function formatVndPrice(value: number | null | undefined) {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
+function normalizeSearchText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function productMatchesSearch(product: Product, query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const searchableText = [
+    product.name,
+    product.description,
+    product.productUrl,
+  ]
+    .map(normalizeSearchText)
+    .join(" ");
+
+  return searchableText.includes(normalizedQuery);
+}
+
 const inputClass =
   "w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 outline-none transition-all";
 
@@ -290,9 +313,7 @@ export default function BrandDetailPage() {
   const platforms: { icon: string; label: string; color: string }[] = [];
   const gradient = "from-primary/80 to-primary/40";
 
-  const filteredProducts = productSearch.trim()
-    ? products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
-    : products;
+  const filteredProducts = products.filter((product) => productMatchesSearch(product, productSearch));
 
   const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE").length;
 
@@ -428,16 +449,24 @@ export default function BrandDetailPage() {
 
             {/* ═══ PRODUCTS ═══ */}
             {activeTab === "products" && (
-              filteredProducts.length > 0 ? (
-                <div>
+              <div>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3 w-full max-w-lg">
                       <div className="relative flex-1">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-                        <input className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-10 pr-4 py-2 text-body-sm focus:border-primary/50 focus:ring-2 focus:ring-primary/10 outline-none transition-all"
-                          placeholder="Filter products..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
+                        <input className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-10 pr-10 py-2 text-body-sm focus:border-primary/50 focus:ring-2 focus:ring-primary/10 outline-none transition-all"
+                          placeholder="Filter products..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+                        {productSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setProductSearch("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            aria-label="Clear product search">
+                            <span className="material-symbols-outlined text-[18px]">close</span>
+                          </button>
+                        )}
                         </div>
-                        <button className="p-2 border border-outline-variant rounded-xl hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+                        <button type="button" className="p-2 border border-outline-variant rounded-xl hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
                           <span className="material-symbols-outlined">filter_list</span>
                         </button>
                     </div>
@@ -448,6 +477,7 @@ export default function BrandDetailPage() {
                     </button>
                   </div>
 
+                {filteredProducts.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredProducts.map((product, i) => {
                       const inStock = (product.stock ?? 0) > 0;
@@ -509,9 +539,8 @@ export default function BrandDetailPage() {
                       );
                     })}
                   </div>
-                </div>
-              ) : (
-                <motion.div {...fadeUp} transition={{ duration: 0.4, ease: easeOut }}
+                ) : (
+                  <motion.div {...fadeUp} transition={{ duration: 0.4, ease: easeOut }}
                   className="flex flex-col items-center justify-center py-20 text-center gap-4">
                   <div className="w-16 h-16 rounded-2xl bg-surface-container-high flex items-center justify-center">
                     <span className="material-symbols-outlined text-outline/50 text-3xl">inventory</span>
@@ -522,15 +551,24 @@ export default function BrandDetailPage() {
                       {productSearch ? "Try a different search term" : "Products associated with this brand will appear here"}
                     </p>
                   </div>
-                  {!productSearch && (
+                  {productSearch ? (
+                    <button
+                      type="button"
+                      onClick={() => setProductSearch("")}
+                      className="border border-outline-variant text-on-surface px-5 py-2.5 rounded-xl text-label-md hover:bg-surface-container active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                      Clear search
+                    </button>
+                  ) : (
                     <button onClick={() => setShowAddModal(true)}
                       className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-md flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       <span className="material-symbols-outlined text-[18px]">add</span>
                       Add Product
                     </button>
                   )}
-                </motion.div>
-              )
+                  </motion.div>
+                )}
+              </div>
             )}
 
             {/* ═══ CAMPAIGNS ═══ */}
