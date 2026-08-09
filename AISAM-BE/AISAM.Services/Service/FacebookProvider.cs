@@ -1544,4 +1544,36 @@ public sealed class FacebookProvider : IProviderService
             _ => "LEARN_MORE"
         };
     }
+
+    private static readonly HashSet<string> ConversionActionTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "purchase", "lead", "complete_registration", "add_to_cart",
+        "initiate_checkout", "add_payment_info", "omni_purchase",
+        "omni_complete_registration", "omni_add_to_cart", "omni_initiated_checkout",
+        "subscribe", "start_trial", "submit_application", "schedule",
+        "contact", "donate", "find_location", "customize_product",
+    };
+
+    internal static long ExtractConversions(FacebookInsightData insights)
+    {
+        if (insights.Actions == null || insights.Actions.Count == 0)
+            return 0;
+
+        long total = 0;
+        foreach (var action in insights.Actions)
+        {
+            if (string.IsNullOrWhiteSpace(action.ActionType))
+                continue;
+
+            if (ConversionActionTypes.Contains(action.ActionType)
+                || action.ActionType.StartsWith("offsite_conversion.", StringComparison.OrdinalIgnoreCase)
+                || action.ActionType.StartsWith("app_custom_event.", StringComparison.OrdinalIgnoreCase))
+            {
+                if (long.TryParse(action.Value, out var val))
+                    total += val;
+            }
+        }
+        return total;
+    }
 }
+

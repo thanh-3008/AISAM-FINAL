@@ -8,6 +8,7 @@ import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import { fetchSchedules } from "@/services/scheduleService";
+import { fetchWorkspaceMembers, type WorkspaceMember } from "@/services/workspaceService";
 import {
   PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig,
   getBrandColor,
@@ -29,11 +30,8 @@ type ApprovalListItem = Omit<ContentItem, "status"> & {
   attemptCount?: number;
 };
 
-const TEAM = [
-  { name: "Alex C.", color: "bg-blue-500" },
-  { name: "Jamie L.", color: "bg-emerald-500" },
-  { name: "Sam R.", color: "bg-amber-500" },
-  { name: "Taylor K.", color: "bg-purple-500" },
+const TEAM_COLORS = [
+  "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-pink-500", "bg-cyan-500"
 ];
 
 const DOT_COLORS: Record<TabKey, string> = {
@@ -392,6 +390,7 @@ export default function ApprovalsPage() {
   const featureGate = useFeatureGate();
   const canReview = featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator;
   const [items, setItems] = useState<ApprovalListItem[]>([]);
+  const [teamMembers, setTeamMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "undo"; id?: string; undo?: () => void } | null>(null);
@@ -431,6 +430,16 @@ export default function ApprovalsPage() {
   useEffect(() => {
     void Promise.resolve().then(() => load());
   }, [load]);
+
+  useEffect(() => {
+    if (activeWorkspace?.workspaceType === 2) {
+      fetchWorkspaceMembers().then(res => {
+        if (res?.data) {
+          setTeamMembers(res.data);
+        }
+      });
+    }
+  }, [activeWorkspace]);
 
   const showToast = (message: string, type: "success" | "error" | "undo" = "success", undo?: () => void) => {
     setToast({ message, type, undo });
@@ -643,16 +652,18 @@ export default function ApprovalsPage() {
               <p className="text-body-md text-on-surface-variant ml-11">Review and manage AI-generated marketing assets across your portfolio.</p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center -space-x-2">
-                {TEAM.map((m, i) => (
-                  <span key={i}
-                    className={`w-8 h-8 rounded-full ${m.color} text-white text-label-xs font-bold flex items-center justify-center ring-2 ring-surface-container-lowest`}
-                    title={m.name}>{getInitials(m.name)}</span>
-                ))}
-                <span className="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant text-[14px] font-medium flex items-center justify-center ring-2 ring-surface-container-lowest cursor-pointer hover:bg-surface-container-high transition-all">
-                  <span className="material-symbols-outlined text-[14px]">add</span>
-                </span>
-              </div>
+              {activeWorkspace?.workspaceType === 2 && (
+                <div className="flex items-center -space-x-2">
+                  {teamMembers.map((m, i) => (
+                    <span key={i}
+                      className={`w-8 h-8 rounded-full ${TEAM_COLORS[i % TEAM_COLORS.length]} text-white text-label-xs font-bold flex items-center justify-center ring-2 ring-surface-container-lowest`}
+                      title={m.name}>{getInitials(m.name)}</span>
+                  ))}
+                  <span onClick={() => router.push("/team")} className="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant text-[14px] font-medium flex items-center justify-center ring-2 ring-surface-container-lowest cursor-pointer hover:bg-surface-container-high transition-all">
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                  </span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <button onClick={() => {
                   const csv = ["Title,Brand,Type,Status,Platforms,Created"];
@@ -1286,7 +1297,7 @@ export default function ApprovalsPage() {
                     <div className="space-y-0">
                       {[
                         { icon: drawerItem.isAiGenerated ? "auto_awesome" : "edit_note", color: drawerItem.isAiGenerated ? "bg-primary/10 text-primary" : "bg-surface-container-high text-on-surface-variant", label: drawerItem.isAiGenerated ? "AI generated content" : "Manual content", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: drawerItem.isAiGenerated ? "AI-generated marketing asset created" : "Content created manually" },
-                        { icon: "assignment", color: "bg-sky-500/10 text-sky-500", label: "Content review assigned", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: `Assigned to ${TEAM.map((t) => t.name).join(", ")}` },
+                        { icon: "assignment", color: "bg-sky-500/10 text-sky-500", label: "Content review assigned", time: new Date(drawerItem.createdAt).toLocaleString("en-GB"), desc: `Assigned to ${teamMembers.length ? teamMembers.map((t) => t.name).join(", ") : "Workspace Team"}` },
                         isPublishFailedStatus(drawerItem.status)
                           ? {
                               icon: "error",

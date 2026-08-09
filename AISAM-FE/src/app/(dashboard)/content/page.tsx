@@ -34,13 +34,6 @@ const SORT_OPTIONS: { label: string; value: SortKey }[] = [
 
 const PAGE_SIZE = 9;
 
-const AI_QUICK_ASSISTANT_ACTIONS = [
-  { icon: "auto_awesome", label: "Generate Caption", desc: "AI writes engaging captions" },
-  { icon: "refresh", label: "Rewrite Content", desc: "Rephrase for better reach" },
-  { icon: "translate", label: "Translate", desc: "Expand to new languages" },
-  { icon: "trending_up", label: "Optimize", desc: "Boost engagement scores" },
-];
-
 let toastId = 0;
 
 export default function ContentPage() {
@@ -162,8 +155,9 @@ export default function ContentPage() {
     total: allContent.length,
     published: allContent.filter((c) => c.status === "Published").length,
     scheduled: scheduledCount,
-    draft: allContent.filter((c) => c.status === "Draft" || c.status === "Awaiting Approval").length,
-  }), [allContent]);
+    draft: allContent.filter((c) => c.status === "Draft").length,
+    pendingApproval: allContent.filter((c) => c.status === "Awaiting Approval").length,
+  }), [allContent, scheduledCount]);
 
   const availableProducts = useMemo(() => {
     if (!brandFilter) return [];
@@ -235,10 +229,6 @@ export default function ContentPage() {
     }
     if (action === "AI Generate") {
       router.push("/content/ai-generate");
-      return;
-    }
-    if (action === "Import Content") {
-      router.push("/automation");
       return;
     }
     addToast(`${action} — coming soon`, "construction");
@@ -387,7 +377,7 @@ export default function ContentPage() {
               { label: "Total Content", value: stats.total, icon: "library_books", iconBg: "from-primary/20 to-primary/10", iconColor: "text-primary", bar: "bg-primary" },
               { label: "Published", value: stats.published, icon: "check_circle", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", bar: "bg-emerald-500" },
               { label: "Scheduled", value: stats.scheduled, icon: "schedule", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", bar: "bg-blue-500" },
-              { label: "Draft / Review", value: stats.draft, icon: "edit_note", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", bar: "bg-amber-500" },
+              { label: "Draft / Review", value: stats.draft + stats.pendingApproval, icon: "edit_note", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", bar: "bg-amber-500" },
             ].map((s, i) => (
               <div key={s.label}
                 className={`relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden group ${visible ? "animate-fade-up" : ""} card-hover`}
@@ -745,56 +735,35 @@ export default function ContentPage() {
               </div>
             </div>
 
-            {/* AI Quick Assistant */}
-            <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ai-glow ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.56s" }}>
+            {/* Quick Filters */}
+            <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.56s" }}>
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-purple-600/10 flex items-center justify-center text-purple-500">
-                    <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center text-blue-500">
+                    <span className="material-symbols-outlined text-[18px]">filter_alt</span>
                   </div>
-                  <div>
-                    <h3 className="text-label-md text-on-surface font-semibold">AI Quick Assistant</h3>
-                    <p className="text-label-xs text-on-surface-variant">Smart tools for your content</p>
-                  </div>
+                  <h3 className="text-label-md text-on-surface font-semibold">Quick Filters</h3>
                 </div>
                 <div className="space-y-2">
-                  {AI_QUICK_ASSISTANT_ACTIONS.map((action) => (
-                    <button key={action.label} onClick={() => addToast(`${action.label} — coming soon`, "construction")}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container transition-all group text-left active:scale-[0.98]">
-                      <div className="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-outline group-hover:text-purple-500 group-hover:bg-purple-50 transition-all">
-                        <span className="material-symbols-outlined text-[16px]">{action.icon}</span>
+                  {[
+                    { label: "Pending Approval", value: stats.pendingApproval, icon: "hourglass_top", color: "text-amber-500", bg: "bg-amber-500/10", status: "Awaiting Approval" as ContentStatus },
+                    { label: "Draft", value: stats.draft, icon: "edit_note", color: "text-slate-500", bg: "bg-slate-500/10", status: "Draft" as ContentStatus },
+                    { label: "Scheduled", value: stats.scheduled, icon: "schedule", color: "text-blue-500", bg: "bg-blue-500/10", status: "Scheduled" as ContentStatus },
+                    { label: "Published", value: stats.published, icon: "check_circle", color: "text-emerald-500", bg: "bg-emerald-500/10", status: "Published" as ContentStatus },
+                  ].map((f) => (
+                    <button
+                      key={f.label}
+                      onClick={() => setStatusFilter(statusFilter === f.status ? "" : f.status)}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-container transition-all group text-left active:scale-[0.98] ${
+                        statusFilter === f.status ? "bg-surface-container ring-1 ring-primary/20" : ""
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg ${f.bg} flex items-center justify-center ${f.color} group-hover:scale-110 transition-transform`}>
+                        <span className="material-symbols-outlined text-[16px]">{f.icon}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-label-sm text-on-surface font-medium group-hover:text-purple-600 transition-colors">{action.label}</p>
-                        <p className="text-label-xs text-on-surface-variant">{action.desc}</p>
-                      </div>
-                      <span className="material-symbols-outlined text-[14px] text-outline/30 group-hover:text-purple-400 transition-colors">arrow_forward</span>
+                      <span className="flex-1 text-label-sm text-on-surface font-medium">{f.label}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-label-2xs font-bold ${f.color} ${f.bg}`}>{f.value}</span>
                     </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.64s" }}>
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center text-amber-500">
-                    <span className="material-symbols-outlined text-[18px]">history</span>
-                  </div>
-                  <h3 className="text-label-md text-on-surface font-semibold">Recent Activity</h3>
-                </div>
-                <div className="space-y-0">
-                  {[].map((act: any, i: number) => (
-                    <div key={i} className="flex items-start gap-3 py-3 border-b border-outline-variant/10 last:border-0">
-                      <div className={`w-8 h-8 rounded-lg ${act.bg} flex items-center justify-center ${act.color} shrink-0 mt-0.5`}>
-                        <span className="material-symbols-outlined text-[16px]">{act.icon}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-body-sm text-on-surface">{act.text}</p>
-                        <p className="text-label-xs text-outline mt-0.5">{act.time}</p>
-                      </div>
-                    </div>
                   ))}
                 </div>
               </div>
@@ -827,17 +796,7 @@ export default function ContentPage() {
                   <p className="text-label-md text-on-surface font-semibold">AI Generate</p>
                   <p className="text-label-xs text-on-surface-variant">Let AI create content for you</p>
                 </div>
-              </button>
-              <div className="h-px bg-outline-variant/10 mx-4" />
-              <button onClick={() => handleCreateAction("Import Content")} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container transition-colors text-left group">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-[18px]">post_add</span>
-                </div>
-                <div>
-                  <p className="text-label-md text-on-surface font-semibold">Import Content</p>
-                  <p className="text-label-xs text-on-surface-variant">Upload from external sources</p>
-                </div>
-              </button>
+               </button>
             </div>
           </div>
         </>

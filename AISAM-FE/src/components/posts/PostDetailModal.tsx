@@ -35,9 +35,9 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className="w-full max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="w-full max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
-          <div className="px-6 py-5 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest">
+          <div className="px-6 py-5 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-[18px] text-primary">article</span>
@@ -114,7 +114,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-outline-variant/20 flex items-center justify-end bg-surface-container-lowest">
+          <div className="px-6 py-4 border-t border-outline-variant/20 flex items-center justify-end bg-surface-container-lowest sticky bottom-0">
             <button
               onClick={onClose}
               className="px-5 py-2.5 border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all"

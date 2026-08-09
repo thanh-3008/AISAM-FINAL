@@ -85,6 +85,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     description: product?.description || "",
     productUrl: product?.productUrl || "",
     price: product?.price != null ? formatVndInput(product.price) : "",
+    stock: product?.stock != null ? String(product.stock) : "",
   });
   const [files, setFiles] = useState<File[]>([]);
   const [importUrl, setImportUrl] = useState("");
@@ -102,6 +103,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       description: product?.description || "",
       productUrl: product?.productUrl || "",
       price: product?.price != null ? formatVndInput(product.price) : "",
+      stock: product?.stock != null ? String(product.stock) : "",
     });
     setFiles([]);
     setImportUrl("");
@@ -165,6 +167,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
     fd.append("description", form.description.trim());
     fd.append("productUrl", form.productUrl.trim());
     fd.append("price", String(parseVndInput(form.price)));
+    const parsedStock = parseInt(form.stock, 10);
+    if (!isNaN(parsedStock) && parsedStock >= 0) {
+      fd.append("stock", String(parsedStock));
+    }
     if (mode === "add") {
       if (benefits.length > 0) fd.append("primaryUse", benefits.join("; "));
       if (benefits[0]) fd.append("usp", benefits[0]);
@@ -235,6 +241,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
         description: data.description || "",
         productUrl: data.sourceUrl || parsed.toString(),
         price: data.price != null ? formatVndInput(data.price) : "",
+        stock: "",
       });
       setFiles([]);
     } catch (err: any) {
@@ -278,6 +285,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
             tone: importForm.tone,
             keywords: importForm.keywords,
             recommendedCTA: importForm.recommendedCTA,
+            stock: parseInt(form.stock, 10) || 0,
           }),
         });
       } else {
@@ -375,6 +383,10 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                   <input className={`${inputClass} pr-14`} placeholder="0" type="text" inputMode="numeric" value={form.price} onChange={(e) => updatePriceField(e.target.value)} />
                   <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-outline/50 text-label-sm font-semibold">VND</span>
                 </div>
+              </div>
+              <div className="space-y-1">
+                <label className={labelClass}>Stock</label>
+                <input className={inputClass} placeholder="0" type="number" min="0" value={form.stock} onChange={(e) => updateField("stock", e.target.value)} />
               </div>
 
               {!isImportedReview && (

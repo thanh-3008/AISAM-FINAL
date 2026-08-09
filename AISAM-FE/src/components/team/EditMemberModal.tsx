@@ -1,28 +1,49 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { type TeamMember, type MemberRole } from "@/services/teamService";
+import { type TeamMember, type MemberRole, type QuotaMode, QUOTA_MODE_LABELS } from "@/services/teamService";
 
 interface EditMemberModalProps {
   member: TeamMember | null;
   onClose: () => void;
   onUpdate: (id: string, role: MemberRole) => void;
   isLoading: boolean;
+  canAssignQuota?: boolean;
+  onUpdateQuota?: (id: string, mode: QuotaMode, limit: number | null) => void;
+  isUpdatingQuota?: boolean;
 }
 
-export default function EditMemberModal({ member, onClose, onUpdate, isLoading }: EditMemberModalProps) {
+export default function EditMemberModal({ member, onClose, onUpdate, isLoading, canAssignQuota = false, onUpdateQuota, isUpdatingQuota = false }: EditMemberModalProps) {
   const [role, setRole] = useState<MemberRole>("Viewer");
+  const [quotaMode, setQuotaMode] = useState<QuotaMode>("SharedPool");
+  const [creditLimit, setCreditLimit] = useState<string>("");
+  const [quotaChanged, setQuotaChanged] = useState(false);
 
   useEffect(() => {
     if (member) {
       setRole(member.role);
+      setQuotaMode(member.quotaMode || "SharedPool");
+      setCreditLimit(member.creditLimit != null ? String(member.creditLimit) : "");
+      setQuotaChanged(false);
     }
   }, [member]);
 
   if (!member) return null;
 
+  const showCreditInput = canAssignQuota && quotaMode !== "SharedPool";
+  const parsedCreditLimit = showCreditInput && creditLimit ? Number(creditLimit) : null;
+
   const handleSubmit = () => {
     onUpdate(member.id, role);
+    if (quotaChanged && onUpdateQuota) {
+      onUpdateQuota(member.id, quotaMode, showCreditInput && parsedCreditLimit && parsedCreditLimit > 0 ? parsedCreditLimit : null);
+    }
+  };
+
+  const handleQuotaModeChange = (mode: QuotaMode) => {
+    setQuotaMode(mode);
+    setQuotaChanged(true);
+    if (mode === "SharedPool") setCreditLimit("");
   };
 
   return (
@@ -99,6 +120,47 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading }
                 ))}
               </div>
             </div>
+            {canAssignQuota && member.status === "Active" && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-[16px] text-outline">toll</span>
+                  <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Credit Quota</label>
+                </div>
+                {member.quotaMode !== "SharedPool" && (
+                  <div className="p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl mb-3">
+                    <div className="flex items-center justify-between text-label-xs text-outline mb-1">
+                      <span>Current usage</span>
+                      <span className="font-semibold">{member.creditUsed.toLocaleString()} / {member.creditLimit?.toLocaleString() || "—"}</span>
+                    </div>
+                    <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{ width: `${member.creditLimit ? Math.min(100, (member.creditUsed / member.creditLimit) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <select
+                  value={quotaMode}
+                  onChange={(e) => handleQuotaModeChange(e.target.value as QuotaMode)}
+                  className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all mb-2"
+                >
+                  <option value="SharedPool">{QUOTA_MODE_LABELS.SharedPool}</option>
+                  <option value="LifetimeAssigned">{QUOTA_MODE_LABELS.LifetimeAssigned}</option>
+                  <option value="MonthlyAssigned">{QUOTA_MODE_LABELS.MonthlyAssigned}</option>
+                </select>
+                {showCreditInput && (
+                  <input
+                    type="number"
+                    min="1"
+                    value={creditLimit}
+                    onChange={(e) => { setCreditLimit(e.target.value); setQuotaChanged(true); }}
+                    placeholder={quotaMode === "MonthlyAssigned" ? "e.g. 500 credits/month" : "e.g. 10000 lifetime credits"}
+                    className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 placeholder:text-outline/40 transition-all"
+                  />
+                )}
+              </div>
+            )}
           </div>
           <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 shrink-0">
             <button
@@ -109,10 +171,10 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading }
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading || isUpdatingQuota}
               className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2"
             >
-              {isLoading ? (
+              {(isLoading || isUpdatingQuota) ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <span className="material-symbols-outlined text-[16px]">save</span>

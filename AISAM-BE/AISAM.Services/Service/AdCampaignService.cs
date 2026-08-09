@@ -672,11 +672,12 @@ namespace AISAM.Services.Service
                     long.TryParse(insights.Impressions, out var impressions);
                     long.TryParse(insights.Clicks, out var clicks);
                     decimal.TryParse(insights.Spend, out var spend);
+                    var conversions = FacebookProvider.ExtractConversions(insights);
 
-                    await _campaignRepository.UpdateCampaignInsightsAsync(campaign.Id, impressions, clicks, spend, 0, cancellationToken);
+                    await _campaignRepository.UpdateCampaignInsightsAsync(campaign.Id, impressions, clicks, spend, conversions, cancellationToken);
 
-                    _logger.LogInformation("Synced insights for campaign {CampaignId}: impressions={Impressions}, clicks={Clicks}, spend={Spend}",
-                        campaign.Id, impressions, clicks, spend);
+                    _logger.LogInformation("Synced insights for campaign {CampaignId}: impressions={Impressions}, clicks={Clicks}, spend={Spend}, conversions={Conversions}",
+                        campaign.Id, impressions, clicks, spend, conversions);
                 }
                 else
                 {

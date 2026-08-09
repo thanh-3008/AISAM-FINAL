@@ -7,9 +7,11 @@ import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type WorkspaceDashboard } from "@/services/workspaceService";
 import { fetchUpcomingSchedules, onScheduleChange, ScheduleItem } from "@/services/scheduleService";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
+import { fetchPost, type PostItem } from "@/services/postService";
+import PostDetailModal from "@/components/posts/PostDetailModal";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import { apiFetch } from "@/lib/apiClient";
-import { fetchChannelBreakdown, fetchAudienceBreakdown, type ChannelBreakdownItem, type AudienceBreakdown } from "@/services/analyticsService";
+import { fetchChannelBreakdown, fetchTopPosts, type ChannelBreakdownItem, type TopPostItem } from "@/services/analyticsService";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
@@ -78,11 +80,10 @@ const PLATFORM_DISPLAY: Record<string, { color: string; bg: string }> = {
   tiktok: { color: "text-white", bg: "bg-neutral-900" },
 };
 
-const aiSuggestions = [
-  { icon: "trending_up", bg: "from-blue-500/10 to-blue-600/5", color: "text-blue-500", title: "Eco-Friendly Packaging", desc: "Trending in your niche. 85% predicted engagement for video content." },
-  { icon: "schedule", bg: "from-purple-500/10 to-purple-600/5", color: "text-purple-500", title: "Morning Routine Series", desc: "High conversion potential for Instagram Stories between 7-9 AM." },
-  { icon: "psychology", bg: "from-orange-500/10 to-orange-600/5", color: "text-orange-500", title: "Behind the Scenes", desc: "Builds brand trust. Highly engaging across all platforms." },
-  { icon: "celebration", bg: "from-emerald-500/10 to-emerald-600/5", color: "text-emerald-500", title: "Holiday Gift Guide", desc: "Early interest detected. Start teaser campaigns this week." },
+const RANK_GRADIENTS = [
+  "from-amber-400 to-orange-500",
+  "from-slate-400 to-slate-500",
+  "from-amber-700 to-amber-800",
 ];
 
 export default function DashboardPage() {
@@ -98,7 +99,9 @@ export default function DashboardPage() {
   const [usageDays, setUsageDays] = useState(7);
   const [dashboardCampaigns, setDashboardCampaigns] = useState<Campaign[]>([]);
   const [platformBreakdown, setPlatformBreakdown] = useState<ChannelBreakdownItem[]>([]);
-  const [audience, setAudience] = useState<AudienceBreakdown | null>(null);
+  const [topPostsByPlatform, setTopPostsByPlatform] = useState<Record<string, TopPostItem[]>>({});
+  const [detailPost, setDetailPost] = useState<PostItem | null>(null);
+  const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
@@ -123,7 +126,20 @@ export default function DashboardPage() {
       if (res) setDashboardCampaigns(res.data.slice(0, 5));
     });
     fetchChannelBreakdown("90d").then(d => { console.log("Channel breakdown:", d); setPlatformBreakdown(d); }).catch(() => setPlatformBreakdown([]));
-    fetchAudienceBreakdown().then(setAudience);
+  }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    const platforms = ["facebook", "instagram", "tiktok"];
+    const fetchTop = async () => {
+      const results: Record<string, TopPostItem[]> = {};
+      await Promise.all(platforms.map(async (p) => {
+        results[p] = await fetchTopPosts("90d", "impressions", p, 3);
+      }));
+      setTopPostsByPlatform(results);
+    };
+    fetchTop();
+    const interval = setInterval(fetchTop, 30000);
+    return () => clearInterval(interval);
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
@@ -519,89 +535,71 @@ export default function DashboardPage() {
 
         {/* ===== BOTTOM GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
-          {(() => {
-            const geo = audience?.geographic?.length ? audience.geographic : [
-              { country: "United States", percentage: 38 }, { country: "United Kingdom", percentage: 22 }, { country: "Germany", percentage: 15 }, { country: "Japan", percentage: 12 }, { country: "Others", percentage: 13 }
-            ];
-            const demo = audience?.demographics?.length ? audience.demographics : [
-              { group: "18-24", percentage: 28 }, { group: "25-34", percentage: 42 }, { group: "35-44", percentage: 20 }, { group: "45+", percentage: 10 }
-            ];
-            const dev = audience?.devices?.length ? audience.devices : [
-              { device: "Desktop", percentage: 52 }, { device: "Mobile", percentage: 38 }, { device: "Tablet", percentage: 10 }
-            ];
-            const cards = [
-              { title: "Geographic Distribution", icon: "map", color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", data: geo.map(g => ({ label: g.country, value: Math.round(g.percentage) })) },
-              { title: "Top Demographics", icon: "pie_chart", color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", data: demo.map(d => ({ label: d.group, value: Math.round(d.percentage) })) },
-              { title: "Device Breakdown", icon: "devices", color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", data: dev.map(d => ({ label: d.device, value: Math.round(d.percentage), color: "bg-gradient-to-r from-blue-500 to-blue-400" })) },
-            ];
-            return cards.map((item, i) => (
-            <div
-              key={item.title}
-              className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""} card-hover`}
-              style={{ animationDelay: `${0.56 + 0.08 * i}s` }}
-            >
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center ${item.iconColor}`}>
-                  <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                </div>
-                <h5 className="text-label-md text-on-surface font-semibold">{item.title}</h5>
-              </div>
-              <div className="space-y-3">
-                {item.data.map((d, j) => (
-                  <div key={d.label} className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-label-sm text-on-surface-variant">{d.label}</span>
-                      <span className="text-label-sm text-on-surface font-semibold">{d.value}%</span>
-                    </div>
-                    <AnimatedBar
-                      value={d.value}
-                      color={(d as any).color || "bg-gradient-to-r from-blue-500 to-blue-400"}
-                      delay={900 + i * 100 + j * 50}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            ));
-          })()}
-        </div>
-
-        {/* ===== AI SUGGESTIONS ===== */}
-        <div className={`${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.8s" }}>
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" />
-              <h4 className="text-headline-sm text-on-surface">AI Content Suggestions</h4>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center hover:bg-surface-container hover:border-primary/30 transition-all hover:shadow-sm">
-                <span className="material-symbols-outlined text-[16px] text-outline">chevron_left</span>
-              </button>
-              <button className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center hover:bg-surface-container hover:border-primary/30 transition-all hover:shadow-sm">
-                <span className="material-symbols-outlined text-[16px] text-outline">chevron_right</span>
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
-            {aiSuggestions.map((item, i) => (
+          {(["facebook", "instagram", "tiktok"] as const).map((platform, i) => {
+            const posts = topPostsByPlatform[platform] || [];
+            const config = PLATFORM_CONFIG[platform];
+            return (
               <div
-                key={item.title}
-                className="group bg-surface-container-lowest rounded-xl border border-outline-variant/20 shadow-sm p-5 card-hover cursor-pointer relative overflow-hidden"
-                style={{ animation: `fade-up 0.5s ease-out ${0.88 + i * 0.08}s forwards`, opacity: 0 }}
+                key={platform}
+                className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-6 ${visible ? "animate-fade-up" : ""} card-hover`}
+                style={{ animationDelay: `${0.56 + 0.08 * i}s` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.bg} flex items-center justify-center ${item.color} mb-4 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
-                  <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                <div className="flex items-center gap-2.5 mb-5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-surface-container-highest to-surface-container flex items-center justify-center">
+                    <PlatformIcon platform={platform} className="w-[20px] h-[20px]" />
+                  </div>
+                  <h5 className="text-label-md text-on-surface font-semibold">{config.label}</h5>
                 </div>
-                <h6 className="text-label-md text-on-surface font-semibold mb-2 group-hover:text-primary transition-colors">{item.title}</h6>
-                <p className="text-[12px] text-on-surface-variant leading-relaxed">{item.desc}</p>
-                <div className="mt-3 flex items-center gap-1 text-label-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0">
-                  View insights <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
-                </div>
-                <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary/[0.03] to-transparent rounded-bl-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                {posts.length === 0 ? (
+                  <p className="text-label-sm text-outline italic">No posts yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {posts.map((post, j) => {
+                      const isLoading = loadingPostId === post.postId;
+                      return (
+                      <div
+                        key={post.postId}
+                        className={`group relative p-3 rounded-xl border transition-all duration-300 cursor-pointer ${
+                          isLoading
+                            ? "bg-primary/5 border-primary/20 animate-pulse"
+                            : "bg-surface-container/50 border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/30 hover:shadow-md hover:-translate-y-0.5"
+                        }`}
+                        onClick={async () => {
+                          if (isLoading) return;
+                          setLoadingPostId(post.postId);
+                          const detail = await fetchPost(post.postId);
+                          if (detail) setDetailPost(detail);
+                          setLoadingPostId(null);
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-6 h-6 rounded-md bg-gradient-to-br ${RANK_GRADIENTS[j]} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300`}>
+                            <span className="text-[11px] font-bold text-white">#{j + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-label-sm text-on-surface font-medium truncate group-hover:text-primary transition-colors duration-300">
+                              {post.contentTitle || "Untitled"}
+                            </p>
+                            <div className="flex items-center gap-3 text-label-xs text-outline mt-1">
+                              <span className="flex items-center gap-1 group-hover:text-blue-500 transition-colors duration-300">
+                                <span className="material-symbols-outlined text-[12px]">visibility</span>
+                                {post.impressions.toLocaleString()}
+                              </span>
+                              <span className="flex items-center gap-1 group-hover:text-pink-500 transition-colors duration-300">
+                                <span className="material-symbols-outlined text-[12px]">favorite</span>
+                                {post.engagement.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
         {/* ===== PLATFORM DISTRIBUTION ===== */}
@@ -675,6 +673,9 @@ export default function DashboardPage() {
           </div>
         </footer>
       </main>
+      {detailPost && (
+        <PostDetailModal post={detailPost} onClose={() => setDetailPost(null)} />
+      )}
     </>
   );
 }
