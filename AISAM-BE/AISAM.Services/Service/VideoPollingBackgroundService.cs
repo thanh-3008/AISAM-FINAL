@@ -82,6 +82,7 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                             // Fallback: find the workspace owner
                             var owner = await dbContext.WorkspaceMembers
                                 .Where(m => m.WorkspaceId == workspaceId && m.IsActive && m.Role == WorkspaceMemberRoleEnum.Owner)
+                                .OrderBy(m => m.Id)
                                 .FirstOrDefaultAsync(stoppingToken);
                             if (owner == null)
                             {

@@ -876,11 +876,17 @@ export default function ContentPage() {
       {previewItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150" onClick={() => setPreviewItem(null)}>
           <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="relative aspect-video bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center">
-              <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(previewItem.type)} flex items-center justify-center text-white shadow-lg`}>
-                <span className="material-symbols-outlined text-4xl">{getTypeConfig(previewItem.type).icon}</span>
-              </div>
-              <span className={`absolute top-3 right-3 px-2 py-0.5 rounded-md text-label-xs font-semibold text-white ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
+            <div className="relative aspect-video bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
+              {previewItem.type === "VIDEO" && (previewItem.videoUrl || previewItem.thumbnail) ? (
+                <video src={previewItem.videoUrl || previewItem.thumbnail} className="w-full h-full object-cover" controls autoPlay muted loop playsInline />
+              ) : previewItem.type === "IMAGE" && (previewItem.imageUrl || previewItem.thumbnail) ? (
+                <img src={previewItem.imageUrl || previewItem.thumbnail} alt={previewItem.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(previewItem.type)} flex items-center justify-center text-white shadow-lg`}>
+                  <span className="material-symbols-outlined text-4xl">{getTypeConfig(previewItem.type).icon}</span>
+                </div>
+              )}
+              <span className={`absolute top-3 right-3 z-10 px-2 py-0.5 rounded-md text-label-xs font-semibold text-white shadow-sm ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
             </div>
             <div className="p-5">
               <div className="flex items-start justify-between mb-3">
@@ -1052,7 +1058,16 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
     <>
       <div className="cursor-pointer" onClick={() => onAction("View Details", item)}>
         <div className="relative aspect-[4/3] bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden">
-          {item.thumbnail && !imgError ? (
+          {item.type === "VIDEO" && (item.videoUrl || item.thumbnail) && !imgError ? (
+            <video 
+              src={item.videoUrl || item.thumbnail} 
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              muted loop playsInline 
+              onMouseEnter={(e) => e.currentTarget.play()} 
+              onMouseLeave={(e) => e.currentTarget.pause()} 
+              onError={() => setImgError(true)} 
+            />
+          ) : item.thumbnail && !imgError ? (
             <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={() => setImgError(true)} />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

@@ -69,6 +69,12 @@ namespace AISAM.Services.Service
                     var adToken = await _socialService.GetFacebookUserAccessTokenAsync(campaign.ProfileId, cancellationToken);
                     if (!string.IsNullOrWhiteSpace(adToken)) account.AccessToken = adToken;
 
+                    if (string.IsNullOrWhiteSpace(account.AccessToken))
+                    {
+                        _logger.LogWarning("Skipping insight sync for campaign {CampaignId}: missing access token.", campaign.Id);
+                        continue;
+                    }
+
                     var insights = await provider.GetCampaignInsightsAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, cancellationToken);
 
                     if (insights != null)
@@ -110,6 +116,12 @@ namespace AISAM.Services.Service
 
                     var adToken = await _socialService.GetFacebookUserAccessTokenAsync(campaign.ProfileId, cancellationToken);
                     if (!string.IsNullOrWhiteSpace(adToken)) account.AccessToken = adToken;
+
+                    if (string.IsNullOrWhiteSpace(account.AccessToken))
+                    {
+                        _logger.LogWarning("Skipping review check for campaign {CampaignId}: missing access token.", campaign.Id);
+                        continue;
+                    }
 
                     var adSets = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
                     if (adSets.Count == 0) continue;

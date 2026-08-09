@@ -31,11 +31,12 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
 
                 var autoPlans = await context.AutomationPlans.AsNoTracking()
                     .Where(plan => plan.AutoApprove && plan.Status == AutomationPlanStatusEnum.AwaitingApproval && !plan.IsDeleted)
+                    .OrderBy(plan => plan.CreatedAt)
                     .Select(plan => new { plan.Id, plan.WorkspaceId, plan.ProfileId })
                     .Take(5).ToListAsync(stoppingToken);
                 foreach (var plan in autoPlans)
                 {
-                    var userId = await context.Profiles.Where(profile => profile.Id == plan.ProfileId).Select(profile => profile.UserId).FirstOrDefaultAsync(stoppingToken);
+                    var userId = await context.Profiles.Where(profile => profile.Id == plan.ProfileId).OrderBy(profile => profile.Id).Select(profile => profile.UserId).FirstOrDefaultAsync(stoppingToken);
                     if (userId != Guid.Empty) await approval.ApproveAsync(plan.WorkspaceId, plan.Id, userId, cancellationToken: stoppingToken);
                 }
 
@@ -45,6 +46,7 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                     .Where(item => item.ContentCalendarId != null && item.Status == AutomationItemStatusEnum.Scheduled &&
                                    item.ContentCalendar != null &&
                                    (item.ContentCalendar.Status == ScheduleStatusEnum.Completed || item.ContentCalendar.Status == ScheduleStatusEnum.Failed))
+                    .OrderBy(item => item.Id)
                     .Take(100).ToListAsync(stoppingToken);
 
                 var cancelledSchedules = await context.AutomationItems
@@ -52,11 +54,12 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                     .Include(item => item.ContentCalendar)
                     .Where(item => item.ContentCalendarId != null && item.Status == AutomationItemStatusEnum.Scheduled &&
                                    item.ContentCalendar != null && (item.ContentCalendar.IsDeleted || !item.ContentCalendar.IsActive))
+                    .OrderBy(item => item.Id)
                     .Take(100).ToListAsync(stoppingToken);
                 foreach (var item in cancelledSchedules)
                 {
                     var replacement = item.ContentId.HasValue
-                        ? await context.ContentCalendars.FirstOrDefaultAsync(value => value.ContentId == item.ContentId && value.IsActive && !value.IsDeleted, stoppingToken)
+                        ? await context.ContentCalendars.Where(value => value.ContentId == item.ContentId && value.IsActive && !value.IsDeleted).OrderBy(value => value.Id).FirstOrDefaultAsync(stoppingToken)
                         : null;
                     if (replacement is not null)
                     {

@@ -1292,7 +1292,7 @@ Latest user message:
         var cleaned = value.Trim();
         cleaned = Regex.Replace(
             cleaned,
-            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:title|tiêu đề|tieu de)\s*:?\s*(?:\*\*)?\s*",
+            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:title|tiêu đề|tieu de)\s*:?\s*(?:\*\*)?\s*.*(?:\r?\n)?",
             string.Empty,
             RegexOptions.CultureInvariant);
         cleaned = Regex.Replace(

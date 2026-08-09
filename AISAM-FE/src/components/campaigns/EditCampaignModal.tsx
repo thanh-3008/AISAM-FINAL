@@ -25,7 +25,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
   const [name, setName] = useState(campaign?.name || "");
   const [brandId, setBrandId] = useState(campaign?.brandId || "");
   const [objective, setObjective] = useState<CampaignObjective>(campaign?.objective || "AWARENESS");
-  const [budget, setBudget] = useState(campaign?.budget?.toString() || "");
+  const [budget, setBudget] = useState(campaign?.budget ? new Intl.NumberFormat("vi-VN").format(campaign.budget) : "");
   const [startDate, setStartDate] = useState(campaign?.startDate ? campaign.startDate.split("T")[0] : "");
   const [endDate, setEndDate] = useState(campaign?.endDate ? campaign.endDate.split("T")[0] : "");
   const [dateError, setDateError] = useState("");
@@ -102,6 +102,8 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
       ? customTargeting
       : selectedTargeting;
 
+    const numericBudget = budget ? parseFloat(budget.replace(/\D/g, "")) : null;
+
     onUpdate(campaign.id, {
       name,
       brandId,
@@ -112,7 +114,7 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
       targeting: finalTargeting || null,
       adAccountId: selectedAdAccount.trim(),
       objective,
-      budget: budget ? parseFloat(budget) : null,
+      budget: numericBudget,
       startDate: startDate || null,
       endDate: endDate || null,
       landingUrl: landingUrl || null,
@@ -319,11 +321,17 @@ export default function EditCampaignModal({ campaign, onClose, onUpdate, isLoadi
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-1.5">Total Budget (VND)</label>
               <input
-                type="number"
+                type="text"
                 value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="e.g. 5000"
-                min="1"
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/\D/g, "");
+                  if (!rawValue) {
+                    setBudget("");
+                    return;
+                  }
+                  setBudget(new Intl.NumberFormat("vi-VN").format(Number(rawValue)));
+                }}
+                placeholder="e.g. 5.000.000"
                 disabled={isDeployed}
                 className="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/10 placeholder:text-outline/40 disabled:opacity-50"
               />

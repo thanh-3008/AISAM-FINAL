@@ -341,7 +341,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         var cleaned = value.Trim();
         cleaned = System.Text.RegularExpressions.Regex.Replace(
             cleaned,
-            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:title|tiêu đề|tieu de)\s*:?\s*(?:\*\*)?\s*",
+            @"(?im)^\s*(?:#+\s*)?(?:\*\*)?\s*(?:title|tiêu đề|tieu de)\s*:?\s*(?:\*\*)?\s*.*(?:\r?\n)?",
             string.Empty,
             System.Text.RegularExpressions.RegexOptions.CultureInvariant);
         cleaned = System.Text.RegularExpressions.Regex.Replace(

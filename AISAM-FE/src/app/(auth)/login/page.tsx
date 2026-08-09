@@ -214,7 +214,7 @@ export default function LoginPage() {
         setError("Login failed, please try again.");
       }
     } catch (err: any) {
-      setError("Tài khoản hoặc mật khẩu không đúng, vui lòng thử lại");
+      setError(err.message || "Tài khoản hoặc mật khẩu không đúng, vui lòng thử lại");
     } finally {
       setIsLoading(false);
     }
@@ -346,8 +346,8 @@ export default function LoginPage() {
           type="submit"
           disabled={isLoading || isSuccess || isCheckingSession}
           className={`w-full h-12 font-label-md text-label-md rounded-lg hover:shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed ${isSuccess
-              ? "bg-success-green text-white"
-              : "bg-primary-container text-on-primary-container"
+            ? "bg-success-green text-white"
+            : "bg-primary-container text-on-primary-container"
             }`}
         >
           {isCheckingSession ? (

@@ -41,20 +41,20 @@ namespace AISAM.Services.Service
         public async Task<TokenResponse> RegisterAsync(RegisterRequest request, string? userAgent, string? ipAddress)
         {
             // Check if user already exists
-            var existingUser = await _userRepository.GetByEmailAsync(request.Email);
+            var existingUser = await _userRepository.GetByEmailAsync(request.Email.Trim());
             if (existingUser != null)
             {
                 throw new InvalidOperationException("User with this email already exists");
             }
 
             // Create password hash and salt
-            CreatePasswordHash(request.Password, out string passwordHash, out string passwordSalt);
+            CreatePasswordHash(request.Password.Trim(), out string passwordHash, out string passwordSalt);
 
             // Create new user
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                Email = request.Email,
+                Email = request.Email.Trim(),
                 FullName = request.FullName,
                 PasswordHash = passwordHash,
                 PasswordSalt = passwordSalt,
@@ -84,7 +84,7 @@ namespace AISAM.Services.Service
         public async Task<TokenResponse> LoginAsync(LoginRequest request, string? userAgent, string? ipAddress)
         {
             // Get user by email
-            var user = await _userRepository.GetByEmailAsync(request.Email);
+            var user = await _userRepository.GetByEmailAsync(request.Email.Trim());
             if (user == null)
             {
                 throw new UnauthorizedAccessException("Invalid email or password");
@@ -96,7 +96,7 @@ namespace AISAM.Services.Service
             }
 
             // Verify password
-            if (!VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
+            if (!VerifyPasswordHash(request.Password.Trim(), user.PasswordHash, user.PasswordSalt))
             {
                 throw new UnauthorizedAccessException("Invalid email or password");
             }
@@ -277,7 +277,7 @@ namespace AISAM.Services.Service
             }
 
             // Create new password hash
-            CreatePasswordHash(request.NewPassword, out string passwordHash, out string passwordSalt);
+            CreatePasswordHash(request.NewPassword.Trim(), out string passwordHash, out string passwordSalt);
 
             user.PasswordHash = passwordHash;
             user.PasswordSalt = passwordSalt;
@@ -335,7 +335,7 @@ namespace AISAM.Services.Service
             }
 
             // Create new password hash
-            CreatePasswordHash(request.NewPassword, out string passwordHash, out string passwordSalt);
+            CreatePasswordHash(request.NewPassword.Trim(), out string passwordHash, out string passwordSalt);
 
             user.PasswordHash = passwordHash;
             user.PasswordSalt = passwordSalt;
