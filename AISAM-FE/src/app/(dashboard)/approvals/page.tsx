@@ -401,6 +401,8 @@ export default function ApprovalsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const [confirmItem, setConfirmItem] = useState<ApprovalListItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<ApprovalListItem | null>(null);
   const [drawerPreviewPlatform, setDrawerPreviewPlatform] = useState("facebook");
@@ -578,7 +580,7 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelectAll = () => {
-    const selectableIds = filtered.filter((item) => !isScheduleFailureItem(item)).map((item) => item.id);
+    const selectableIds = paged.filter((item) => !isScheduleFailureItem(item)).map((item) => item.id);
     if (selectableIds.length === 0) return;
     const allSelected = selectableIds.every((id) => selected.has(id));
     setSelected((prev) => {
@@ -607,8 +609,11 @@ export default function ApprovalsPage() {
     sortKey, sortDir,
   );
 
-  const paged = filtered;
-  const selectableFiltered = filtered.filter((item) => !isScheduleFailureItem(item));
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+  const paged = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
+  
+  const selectableFiltered = paged.filter((item) => !isScheduleFailureItem(item));
   const allSelectableSelected = selectableFiltered.length > 0 && selectableFiltered.every((item) => selected.has(item.id));
 
   const tabCounts: Record<TabKey, number> = {
@@ -697,7 +702,7 @@ export default function ApprovalsPage() {
               { key: "failed", label: "Failed" },
               { key: "rejected", label: "Rejected" },
             ] as { key: TabKey; label: string }[]).map((t) => (
-              <button key={t.key} onClick={() => { setTab(t.key); setSelected(new Set()); }}
+              <button key={t.key} onClick={() => { setTab(t.key); setSelected(new Set()); setCurrentPage(1); }}
                 className={`pb-3 text-label-sm font-semibold transition-all border-b-2 ${
                   tab === t.key
                     ? "border-primary text-primary"
@@ -716,17 +721,17 @@ export default function ApprovalsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline/40 text-[16px]">search</span>
-              <input value={search} onChange={(e) => setSearch(e.target.value)}
+              <input value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 placeholder="Search by title or brand..."
                 className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-9 pr-9 py-2 text-body-sm text-on-surface placeholder:text-outline/40 focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all" />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline/40 hover:text-outline">
+                <button onClick={() => { setSearch(""); setCurrentPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline/40 hover:text-outline">
                   <span className="material-symbols-outlined text-[14px]">close</span>
                 </button>
               )}
             </div>
             <div className="relative">
-              <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}
+              <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
                 className="appearance-none bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-4 pr-10 py-2 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all min-w-[140px]">
                 <option value="">Brand: All</option>
                 {brands.map((b) => (
@@ -736,7 +741,7 @@ export default function ApprovalsPage() {
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[14px]">expand_more</span>
             </div>
             <div className="relative">
-              <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}
+              <select value={priorityFilter} onChange={(e) => { setPriorityFilter(e.target.value); setCurrentPage(1); }}
                 className="appearance-none bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-4 pr-10 py-2 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all min-w-[140px]">
                 <option value="">Priority: All</option>
                 <option value="Urgent">Urgent</option>
@@ -794,11 +799,11 @@ export default function ApprovalsPage() {
                 {search || brandFilter || priorityFilter ? "Try adjusting your search or filters." : "Your queue is empty. High five your team!"}
               </p>
               {(search || brandFilter || priorityFilter) && (
-                <button onClick={() => { setSearch(""); setBrandFilter(""); setPriorityFilter(""); }}
+                <button onClick={() => { setSearch(""); setBrandFilter(""); setPriorityFilter(""); setCurrentPage(1); }}
                   className="text-label-sm text-primary font-semibold hover:underline">Clear all filters</button>
               )}
               {tab !== "all" && !search && !brandFilter && (
-                <button onClick={() => setTab("all")}
+                <button onClick={() => { setTab("all"); setCurrentPage(1); }}
                   className="text-label-sm text-primary font-semibold hover:underline">View all assets</button>
               )}
             </div>
@@ -1018,6 +1023,65 @@ export default function ApprovalsPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-body-sm text-outline">
+                    Showing {(safeCurrentPage - 1) * pageSize + 1} to {Math.min(safeCurrentPage * pageSize, filtered.length)} of {filtered.length} entries
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={safeCurrentPage === 1}
+                      className="p-2 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container disabled:opacity-40 disabled:hover:bg-transparent transition-all flex items-center"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </button>
+                    
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= safeCurrentPage - 1 && page <= safeCurrentPage + 1)
+                      ) {
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-9 h-9 rounded-lg text-label-sm font-semibold transition-all ${
+                              safeCurrentPage === page
+                                ? "bg-primary text-white"
+                                : "text-on-surface-variant hover:bg-surface-container"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      }
+                      if (
+                        page === safeCurrentPage - 2 ||
+                        page === safeCurrentPage + 2
+                      ) {
+                        return (
+                          <span key={page} className="w-9 h-9 flex items-center justify-center text-outline">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    })}
+
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={safeCurrentPage === totalPages}
+                      className="p-2 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container disabled:opacity-40 disabled:hover:bg-transparent transition-all flex items-center"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </>
           )}
