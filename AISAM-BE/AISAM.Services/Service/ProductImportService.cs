@@ -205,7 +205,7 @@ public sealed class ProductImportService : IProductImportService
     {
         if (!element.TryGetProperty("@type", out var type)) return false;
         if (type.ValueKind == JsonValueKind.String) return type.GetString()?.Contains("Product", StringComparison.OrdinalIgnoreCase) == true;
-        if (type.ValueKind == JsonValueKind.Array) return type.EnumerateArray().Any(t => t.GetString()?.Contains("Product", StringComparison.OrdinalIgnoreCase) == true);
+        if (type.ValueKind == JsonValueKind.Array) return type.EnumerateArray().Any(t => t.ValueKind == JsonValueKind.String && t.GetString()?.Contains("Product", StringComparison.OrdinalIgnoreCase) == true);
         return false;
     }
 

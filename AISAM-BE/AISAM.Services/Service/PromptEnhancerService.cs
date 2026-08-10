@@ -54,7 +54,8 @@ User's original request (may be in any language):
 Output rules:
 - Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
 - The prompt must be a single cohesive paragraph or structured sentence block.
-- Always include at the end: "No text, no watermark, no logo text, no readable letters, no humans, no faces, no hands, no body parts, no gibberish typography, no broken-font characters, commercial product photography, 4K ultra-realistic."
+- CRITICAL RULE: NEVER include any text, typography, letters, branding, names, prices, or watermarks in the generated image. The final image MUST BE COMPLETELY TEXT-FREE, even if the product name or brand is provided in the context.
+- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, completely text-free, no readable text, no typography, no watermark, no letters, no words, no numbers, no humans, no faces, no hands."
 - If reference images exist: include "Preserve exact product identity: shape, silhouette, proportions, color scheme, material, and label layout from the reference image. Do not redesign or replace the product."
 """;
 

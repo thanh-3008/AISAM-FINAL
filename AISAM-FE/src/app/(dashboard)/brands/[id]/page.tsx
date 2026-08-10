@@ -319,7 +319,7 @@ export default function BrandDetailPage() {
           <div className="bg-gradient-to-br from-surface-container to-surface-container-lowest p-8">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="flex items-start gap-6">
-                <div className="w-24 h-24 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant overflow-hidden p-2 shrink-0">
+                <div className={`w-24 h-24 rounded-2xl ${safeBrand.logoUrl ? 'bg-white' : 'bg-surface-container'} flex items-center justify-center border border-outline-variant overflow-hidden p-2 shrink-0`}>
                   {safeBrand.logoUrl ? (
                     <img src={safeBrand.logoUrl} alt={safeBrand.name} className="w-full h-full object-contain" />
                   ) : (

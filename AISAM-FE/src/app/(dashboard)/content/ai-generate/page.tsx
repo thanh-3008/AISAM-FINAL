@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -378,6 +378,9 @@ export default function AIGeneratePage() {
       payload.adType = 1;
     } else if (isVideo) {
       payload.adType = 2;
+      if (videoUrl) {
+        payload.videoUrl = videoUrl;
+      }
     } else {
       payload.adType = 0;
     }
@@ -458,7 +461,7 @@ export default function AIGeneratePage() {
     }
 
     const titleMatch = text.match(/^Title:\s*(.+)$/im);
-    const captionMatch = text.match(/Caption:\s*([\s\S]*)$/i);
+    const captionMatch = text.match(/Caption:\s*([\s\S]*?)(?=\n\nStoryboard:|$)/i);
     if (titleMatch || captionMatch) {
       return {
         title: titleMatch?.[1]?.trim(),

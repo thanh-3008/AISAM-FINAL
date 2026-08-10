@@ -56,7 +56,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting campaigns");
-                return StatusCode(500, GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
