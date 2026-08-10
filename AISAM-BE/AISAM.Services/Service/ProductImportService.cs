@@ -211,19 +211,67 @@ public sealed class ProductImportService : IProductImportService
 
     private static decimal? ReadOfferPrice(JsonElement product)
     {
+        // "offers" can be a single Offer object or an array of Offers
         if (!product.TryGetProperty("offers", out var offers)) return null;
         if (offers.ValueKind == JsonValueKind.Array) offers = offers.EnumerateArray().FirstOrDefault();
         if (offers.ValueKind != JsonValueKind.Object) return null;
-        return ParsePrice(ReadString(offers, "price") ?? ReadString(offers, "lowPrice"));
+
+        // price may be a string, a number, or nested inside priceSpecification
+        if (offers.TryGetProperty("price", out var priceEl))
+        {
+            if (priceEl.ValueKind == JsonValueKind.String) return ParsePrice(priceEl.GetString());
+            if (priceEl.ValueKind == JsonValueKind.Number) return priceEl.GetDecimal();
+        }
+
+        if (offers.TryGetProperty("lowPrice", out var lowEl))
+        {
+            if (lowEl.ValueKind == JsonValueKind.String) return ParsePrice(lowEl.GetString());
+            if (lowEl.ValueKind == JsonValueKind.Number) return lowEl.GetDecimal();
+        }
+
+        // priceSpecification (used by some automotive/real-estate sites)
+        if (offers.TryGetProperty("priceSpecification", out var spec))
+        {
+            if (spec.ValueKind == JsonValueKind.Array) spec = spec.EnumerateArray().FirstOrDefault();
+            if (spec.ValueKind == JsonValueKind.Object)
+                return ReadOfferPrice(spec); // recurse to handle price / lowPrice inside spec
+        }
+
+        return null;
     }
 
     private static List<string> ReadImages(JsonElement product)
     {
         if (!product.TryGetProperty("image", out var image)) return new List<string>();
         if (image.ValueKind == JsonValueKind.String) return [image.GetString() ?? string.Empty];
-        if (image.ValueKind == JsonValueKind.Array) return image.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).ToList();
+        if (image.ValueKind == JsonValueKind.Object) { var u = ReadImageUrl(image); return u != null ? new List<string> { u } : new List<string>(); }
+        if (image.ValueKind == JsonValueKind.Array)
+            return image.EnumerateArray()
+                .Select(ReadImageUrl)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!)
+                .ToList();
         return new List<string>();
     }
+
+    /// <summary>
+    /// Safely reads an image URL from a JSON element that may be a plain string
+    /// or an ImageObject with a "url" / "contentUrl" property.
+    /// </summary>
+    private static string? ReadImageUrl(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String) return element.GetString();
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in new[] { "url", "contentUrl", "src" })
+            {
+                if (element.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String)
+                    return v.GetString();
+            }
+        }
+        return null;
+    }
+
 
     private static ProductUrlExtractResponseDto BuildFallback(RawProductData raw, string sourceUrl)
     {
@@ -319,9 +367,23 @@ public sealed class ProductImportService : IProductImportService
 
     private static string? ReadString(JsonElement element, string property)
     {
-        return element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
-            ? CleanText(value.GetString())
-            : null;
+        if (!element.TryGetProperty(property, out var value)) return null;
+
+        // Plain string — most common case
+        if (value.ValueKind == JsonValueKind.String) return CleanText(value.GetString());
+
+        // Some sites put description / name as an array of strings — join them
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            var parts = value.EnumerateArray()
+                .Where(x => x.ValueKind == JsonValueKind.String)
+                .Select(x => x.GetString())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+            return parts.Count > 0 ? CleanText(string.Join(" ", parts)) : null;
+        }
+
+        return null;
     }
 
     private static List<string> ReadStringArray(JsonElement element, string property)
@@ -330,7 +392,21 @@ public sealed class ProductImportService : IProductImportService
         if (value.ValueKind == JsonValueKind.Array)
         {
             return value.EnumerateArray()
-                .Select(x => x.ValueKind == JsonValueKind.String ? CleanText(x.GetString()) : null)
+                .Select(x =>
+                {
+                    // Plain string item
+                    if (x.ValueKind == JsonValueKind.String) return CleanText(x.GetString());
+                    // Object item — try common string-value keys (e.g. {"name":"..."})
+                    if (x.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var key in new[] { "name", "value", "text", "description", "label" })
+                        {
+                            if (x.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String)
+                                return CleanText(v.GetString());
+                        }
+                    }
+                    return null;
+                })
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x!)
                 .ToList();
