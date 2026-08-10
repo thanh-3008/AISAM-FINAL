@@ -421,9 +421,10 @@ export async function fetchAnalytics(
       }))
     : [];
 
+  const engagementBase = totals?.reach || totals?.impressions || 0;
   const engagementRate =
-    (totals?.publishedPosts || 0) > 0
-      ? Math.round(((totals?.engagement || 0) / totals!.publishedPosts) * 1000) / 10
+    engagementBase > 0
+      ? Math.round(((totals?.engagement || 0) / engagementBase) * 10000) / 100
       : 0;
 
   return {
@@ -468,9 +469,7 @@ export async function fetchAnalytics(
     efficiency: [
       {
         label: "Engagement Rate",
-        value: totals?.engagement
-          ? Math.round(totals.engagement)
-          : 0,
+        value: engagementRate,
         color: "bg-primary",
       },
       {
