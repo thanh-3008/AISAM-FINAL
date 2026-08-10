@@ -258,8 +258,11 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       return;
     }
     const parsedPrice = parseVndInput(form.price);
-    if (!form.price.trim() || isNaN(parsedPrice)) {
-      setError("Valid price is required");
+    const safePrice = isNaN(parsedPrice) || !isFinite(parsedPrice) || parsedPrice < 0
+      ? null
+      : Math.round(parsedPrice);
+    if (safePrice === null) {
+      setError("Đơn giá không hợp lệ. Vui lòng nhập số dương.");
       return;
     }
 
@@ -275,17 +278,17 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
           body: JSON.stringify({
             brandId,
             productName: form.name.trim(),
-            description: form.description.trim(),
-            price: parsedPrice,
+            description: form.description.trim() || null,
+            price: safePrice,
             images: selectedImageUrls.filter((url) => !brokenImageUrls.includes(url)),
-            sourceUrl: form.productUrl.trim() || extracted.sourceUrl,
-            benefits: importForm.benefits,
-            features: importForm.features,
-            targetAudience: importForm.targetAudience,
-            tone: importForm.tone,
-            keywords: importForm.keywords,
-            recommendedCTA: importForm.recommendedCTA,
-            stock: parseInt(form.stock, 10) || 0,
+            sourceUrl: form.productUrl.trim() || extracted.sourceUrl || null,
+            benefits: importForm.benefits.filter(Boolean),
+            features: importForm.features.filter(Boolean),
+            targetAudience: importForm.targetAudience.trim() || null,
+            tone: importForm.tone.trim() || null,
+            keywords: importForm.keywords.filter(Boolean),
+            recommendedCTA: importForm.recommendedCTA.trim() || null,
+            stock: Math.max(0, parseInt(form.stock, 10) || 0),
           }),
         });
       } else {
