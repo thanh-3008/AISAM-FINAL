@@ -5,6 +5,7 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using System.Net;
 using System.Text.Json;
 
 namespace AISAM.Services.Service
@@ -129,6 +130,12 @@ namespace AISAM.Services.Service
             {
                 return GenericResponse<ProductResponseDto>.CreateError(access.Message);
             }
+
+            if (string.IsNullOrWhiteSpace(request.ProductName))
+                return GenericResponse<ProductResponseDto>.CreateError("Product name is required.", HttpStatusCode.BadRequest);
+
+            if (request.Price.HasValue && (request.Price.Value < 0 || request.Price.Value > 999_999_999_999m))
+                return GenericResponse<ProductResponseDto>.CreateError("Đơn giá không hợp lệ.", HttpStatusCode.BadRequest);
 
             var images = request.Images
                 .Where(IsHttpUrl)

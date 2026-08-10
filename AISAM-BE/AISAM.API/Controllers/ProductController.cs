@@ -59,7 +59,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting products");
-                return StatusCode(500, GenericResponse<PagedResult<ProductResponseDto>>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<PagedResult<ProductResponseDto>>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -79,7 +79,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting product {ProductId}", id);
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -106,7 +106,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating product");
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -126,7 +126,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error extracting product from URL {Url}", request.Url);
-                return StatusCode(500, GenericResponse<ProductUrlExtractResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductUrlExtractResponseDto>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -152,7 +152,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving reviewed imported product");
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -174,7 +174,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating product {ProductId}", id);
-                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<ProductResponseDto>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -194,7 +194,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting product {ProductId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<bool>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 
@@ -214,7 +214,7 @@ namespace AISAM.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error restoring product {ProductId}", id);
-                return StatusCode(500, GenericResponse<bool>.CreateError("System error", HttpStatusCode.InternalServerError));
+                return StatusCode(500, GenericResponse<bool>.CreateError($"Lỗi hệ thống: {ex.Message}", HttpStatusCode.InternalServerError));
             }
         }
 

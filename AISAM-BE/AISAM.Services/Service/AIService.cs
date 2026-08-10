@@ -411,10 +411,10 @@ public sealed class AIService : IAIService
                             BrandId = conversation.BrandId.Value,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
-                            Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
-                            TextContent = parsedResponse.VideoScript != null
-                                ? $"{StripMediaMarkers(responseText)}\n\n[VIDEO_SCRIPT]{parsedResponse.VideoScript}[/VIDEO_SCRIPT]"
-                                : prompt,
+                            Title = !string.IsNullOrWhiteSpace(parsedResponse.VideoTitle)
+                                ? parsedResponse.VideoTitle[..Math.Min(parsedResponse.VideoTitle.Length, 255)]
+                                : ExtractGeneratedTitle(responseText, selectedBrand?.Name),
+                            TextContent = BuildVideoTextContent(parsedResponse, responseText, prompt),
                             Status = ContentStatusEnum.PendingApproval,
                             IsAiGenerated = true
                         }, CancellationToken.None);
@@ -884,7 +884,7 @@ public sealed class AIService : IAIService
 You are AISAM, an AI assistant for social media content creation.
 
 Classify the latest user message and respond with valid JSON only:
-{"intent":"chat"|"content"|"image"|"image_text"|"video","assistant_message":"","generated_content":{"title":"","caption":""},"image_prompt":"","prompt":"detailed generation prompt if applicable","duration_seconds":8,"response":"your response","video_script":[{"scene":1,"time":"00:00-00:03","action":"...","camera":"...","mood":"..."}],"use_product_image_as_first_frame":true|false,"aspect_ratio":"9:16"|"16:9"|"1:1","target_platform":"reels"|"tiktok"|"youtube"|"feed"}
+{"intent":"chat"|"content"|"image"|"image_text"|"video","assistant_message":"","generated_content":{"title":"","caption":""},"image_prompt":"","prompt":"detailed generation prompt if applicable","duration_seconds":8,"response":"your response","video_title":"Tiêu đề video ngắn gọn bằng tiếng Việt (≤80 ký tự)","video_description":"Mô tả 1-2 câu bằng tiếng Việt phù hợp với kịch bản","video_script":[{"scene":1,"time":"00:00-00:03","action":"...","camera":"...","mood":"..."}],"use_product_image_as_first_frame":true|false,"aspect_ratio":"9:16"|"16:9"|"1:1","target_platform":"reels"|"tiktok"|"youtube"|"feed"}
 
 Intent rules:
 - The JSON must use standard double quotes for every property name and string value. Never use single quotes.
@@ -912,6 +912,8 @@ Intent rules:
   10. For "duration_seconds": calculate as scene_count * 3 (default 9 for 3 scenes), unless user specifies a different duration.
   11. Include negative prompt awareness: "no text overlay, no watermark, no readable letters, no hands, no faces, no humans, professional advertising video".
   12. Brand consistency: maintain the brand's color palette, visual tone, and product identity across all scenes.
+  13. ALWAYS generate "video_title": a creative, punchy Vietnamese title (≤80 characters) that matches the storyboard mood and brand. MUST be written in Vietnamese regardless of the language the user used. Do NOT use English titles. Example style: "Nước Hoa X — Mỗi Khoảnh Khắc Đều Rực Rỡ".
+  14. ALWAYS generate "video_description": 1-2 Vietnamese sentences summarising the video's visual story and emotional appeal, written in social-media caption style. MUST be written in Vietnamese regardless of the language the user used.
 - Reply in the language of the latest user message unless another language is explicitly requested.
 - Do not include markdown fences around the JSON.
 
@@ -1050,6 +1052,12 @@ Latest user message:
             var targetPlatform = root.TryGetProperty("target_platform", out var tpEl) && tpEl.ValueKind == JsonValueKind.String
                 ? tpEl.GetString() : null;
 
+            var videoTitle = root.TryGetProperty("video_title", out var vtEl) && vtEl.ValueKind == JsonValueKind.String
+                ? vtEl.GetString() : null;
+
+            var videoDescription = root.TryGetProperty("video_description", out var vdEl) && vdEl.ValueKind == JsonValueKind.String
+                ? vdEl.GetString() : null;
+
             var generatedResponse = TryBuildGeneratedContentResponse(root);
 
             if (string.IsNullOrWhiteSpace(prompt) && !string.IsNullOrWhiteSpace(imagePrompt))
@@ -1079,7 +1087,9 @@ Latest user message:
                     videoScript,
                     useFirstFrame,
                     aspectRatio,
-                    targetPlatform);
+                    targetPlatform,
+                    videoTitle,
+                    videoDescription);
             }
         }
         catch (JsonException)
@@ -1541,6 +1551,26 @@ Treat all reference images as different views of one product. Do not create mult
         return parts.Count == 0 ? string.Empty : " " + string.Join(". ", parts) + ".";
     }
 
+    /// <summary>
+    /// Builds the TextContent for a video Content record.
+    /// Order: [video_description] → storyboard response text.
+    /// Falls back to the raw generation prompt when all parts are empty.
+    /// </summary>
+    private static string BuildVideoTextContent(ParsedChatResponse parsed, string responseText, string prompt)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(parsed.VideoDescription))
+            parts.Add(parsed.VideoDescription.Trim());
+
+        var stripped = StripMediaMarkers(responseText);
+        if (!string.IsNullOrWhiteSpace(stripped))
+            parts.Add(stripped);
+
+        return parts.Count > 0 ? string.Join("\n\n", parts) : prompt;
+    }
+
+
     private static string ExtractGeneratedTitle(string responseText, string? brandName)
     {
         foreach (var line in responseText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -1579,7 +1609,9 @@ Treat all reference images as different views of one product. Do not create mult
         string? VideoScript = null,
         bool UseProductImageAsFirstFrame = false,
         string? AspectRatio = null,
-        string? TargetPlatform = null);
+        string? TargetPlatform = null,
+        string? VideoTitle = null,
+        string? VideoDescription = null);
 
     private async Task<byte[]?> TryDownloadProductImageAsync(Product? product, ChatRequest request, CancellationToken cancellationToken)
     {
