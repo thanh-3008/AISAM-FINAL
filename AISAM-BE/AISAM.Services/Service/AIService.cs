@@ -390,6 +390,10 @@ public sealed class AIService : IAIService
                             : GetProductImageUrls(selectedProduct).FirstOrDefault();
                 }
 
+                var title = parsedResponse.VideoTitle ?? "Video";
+                var desc = parsedResponse.VideoDescription ?? "Video caption";
+                responseText = $"Title: {title}\nCaption: {desc}\n\nStoryboard:\n{responseText}";
+
                 if (!conversation.BrandId.HasValue)
                 {
                     responseText += "\n\n(Vui lòng chọn Brand để tạo video)";

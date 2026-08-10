@@ -45,7 +45,7 @@ namespace AISAM.Data.Model
         [Column("product_url")]
         public string? ProductUrl { get; set; }
 
-        [Column("price", TypeName = "decimal(10,2)")]
+        [Column("price", TypeName = "decimal(18,2)")]
         public decimal? Price { get; set; }
 
         [Column("stock")]
