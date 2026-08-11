@@ -22,6 +22,9 @@ namespace AISAM.Data.Model
         [Column("engagement")]
         public long Engagement { get; set; } = 0; // Likes + comments + shares
 
+        [Column("clicks")]
+        public long Clicks { get; set; } = 0; // From Facebook API or internal tracking
+
         [Column("ctr", TypeName = "decimal(5,4)")]
         public decimal Ctr { get; set; } = 0; // Click-Through Rate
 

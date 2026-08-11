@@ -263,6 +263,14 @@ namespace AISAM.Repositories.Repository
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<IReadOnlyList<Ad>> GetAdsByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Ads
+                .Where(a => !a.IsDeleted && a.AdSet != null && a.AdSet.CampaignId == campaignId && !a.AdSet.IsDeleted)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
         // ─── Cleanup ───
 
         public async Task HardDeleteAdAsync(Guid adId, CancellationToken cancellationToken = default)

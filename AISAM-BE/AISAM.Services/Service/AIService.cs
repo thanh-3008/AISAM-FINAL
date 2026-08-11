@@ -144,7 +144,7 @@ public sealed class AIService : IAIService
         }
 
         var generations = await _generationRepository.GetByContentIdAsync(contentId, cancellationToken);
-        return GenericResponse<IEnumerable<AiGenerationResponse>>.CreateSuccess(generations.Select(MapGeneration), "AI generations retrieved.");
+        return GenericResponse<IEnumerable<AiGenerationResponse>>.CreateSuccess(generations.Select(MapGenerationListDto), "AI generations retrieved.");
     }
 
     public async Task<GenericResponse<ChatResponse>> ChatAsync(Guid profileId, ChatRequest request, CancellationToken cancellationToken = default)
@@ -784,7 +784,7 @@ public sealed class AIService : IAIService
     {
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<IEnumerable<AiGenerationResponse>>.CreateError("Content not found.", HttpStatusCode.NotFound);
-        return GenericResponse<IEnumerable<AiGenerationResponse>>.CreateSuccess((await _generationRepository.GetByContentIdAsync(contentId, cancellationToken)).Select(MapGeneration), "AI generations retrieved.");
+        return GenericResponse<IEnumerable<AiGenerationResponse>>.CreateSuccess((await _generationRepository.GetByContentIdAsync(contentId, cancellationToken)).Select(MapGenerationListDto), "AI generations retrieved.");
     }
 
     private async Task<GenericResponse<AiGenerationResponse>> ChargeSuccessfulGenerationAsync(
@@ -863,6 +863,23 @@ public sealed class AIService : IAIService
             if (product.BrandId != brandId) return GenericResponse<bool>.CreateError("Product does not belong to the selected brand.", HttpStatusCode.BadRequest);
         }
         return GenericResponse<bool>.CreateSuccess(true);
+    }
+
+    private static AiGenerationResponse MapGenerationListDto(AiGenerationListDto generation)
+    {
+        return new AiGenerationResponse
+        {
+            AiGenerationId = generation.Id,
+            ContentId = generation.ContentId,
+            GeneratedText = generation.GeneratedText,
+            GeneratedImageUrl = generation.GeneratedImageUrl,
+            GeneratedVideoUrl = generation.GeneratedVideoUrl,
+            VideoJobId = generation.VideoJobId,
+            ProviderUsed = generation.ProviderName,
+            Status = generation.Status,
+            ErrorMessage = generation.ErrorMessage,
+            CreatedAt = generation.CreatedAt
+        };
     }
 
     private static AiGenerationResponse MapGeneration(AiGeneration generation)

@@ -124,51 +124,46 @@ namespace AISAM.Services.Service
                         continue;
                     }
 
-                    var adSets = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
-                    if (adSets.Count == 0) continue;
+                    var ads = await _campaignRepository.GetAdsByCampaignIdAsync(campaign.Id, cancellationToken);
+                    if (ads.Count == 0) continue;
 
                     var rejected = false;
                     var pending = false;
                     var hasCheckedAd = false;
                     var rejectionReason = string.Empty;
 
-                    foreach (var adSet in adSets)
+                    foreach (var ad in ads)
                     {
-                        var ads = await _campaignRepository.GetAdsByAdSetIdAsync(adSet.Id, cancellationToken);
-                        foreach (var ad in ads)
+                        if (string.IsNullOrWhiteSpace(ad.AdId)) continue;
+                        hasCheckedAd = true;
+                        var effectiveStatus = (await provider.GetAdEffectiveStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, cancellationToken))
+                            ?.ToUpperInvariant();
+
+                        if (string.IsNullOrWhiteSpace(effectiveStatus))
                         {
-                            if (string.IsNullOrWhiteSpace(ad.AdId)) continue;
-                            hasCheckedAd = true;
-                            var effectiveStatus = (await provider.GetAdEffectiveStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, cancellationToken))
-                                ?.ToUpperInvariant();
-
-                            if (string.IsNullOrWhiteSpace(effectiveStatus))
-                            {
-                                pending = true;
-                                continue;
-                            }
-
-                            if (effectiveStatus is "REJECTED" or "DISAPPROVED" or "WITH_ISSUES")
-                            {
-                                rejected = true;
-                                rejectionReason = "Ad was rejected by Meta review. Please check your creative and content compliance.";
-                                break;
-                            }
-
-                            if (effectiveStatus is "PENDING_REVIEW" or "IN_PROCESS" or "PROCESSING")
-                            {
-                                pending = true;
-                            }
-                            else if (effectiveStatus == "ACTIVE" || effectiveStatus == "PAUSED" || effectiveStatus == "CAMPAIGN_PAUSED" || effectiveStatus == "ADSET_PAUSED")
-                            {
-                            }
-                            else
-                            {
-                                pending = true;
-                                _logger.LogInformation("Campaign {CampaignId} ad {AdId} has non-terminal Meta status {Status}", campaign.Id, ad.AdId, effectiveStatus);
-                            }
+                            pending = true;
+                            continue;
                         }
-                        if (rejected) break;
+
+                        if (effectiveStatus is "REJECTED" or "DISAPPROVED" or "WITH_ISSUES")
+                        {
+                            rejected = true;
+                            rejectionReason = "Ad was rejected by Meta review. Please check your creative and content compliance.";
+                            break;
+                        }
+
+                        if (effectiveStatus is "PENDING_REVIEW" or "IN_PROCESS" or "PROCESSING")
+                        {
+                            pending = true;
+                        }
+                        else if (effectiveStatus == "ACTIVE" || effectiveStatus == "PAUSED" || effectiveStatus == "CAMPAIGN_PAUSED" || effectiveStatus == "ADSET_PAUSED")
+                        {
+                        }
+                        else
+                        {
+                            pending = true;
+                            _logger.LogInformation("Campaign {CampaignId} ad {AdId} has non-terminal Meta status {Status}", campaign.Id, ad.AdId, effectiveStatus);
+                        }
                     }
 
                     if (!hasCheckedAd || pending)

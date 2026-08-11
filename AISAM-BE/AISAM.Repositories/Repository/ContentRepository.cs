@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -27,7 +28,7 @@ public sealed class ContentRepository : IContentRepository
             .FirstOrDefaultAsync(content => content.Id == id, cancellationToken);
     }
 
-    public async Task<PagedResult<Content>> GetPagedByProfileIdAsync(
+    public async Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(
         Guid profileId,
         PaginationRequest request,
         Guid? brandId = null,
@@ -80,9 +81,28 @@ public sealed class ContentRepository : IContentRepository
         var data = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(c => new ContentListDto
+            {
+                Id = c.Id,
+                ProfileId = c.ProfileId,
+                BrandId = c.BrandId,
+                WorkspaceId = c.WorkspaceId,
+                AdType = c.AdType,
+                Title = c.Title,
+                TextContent = c.TextContent,
+                ImageUrl = c.ImageUrl,
+                VideoUrl = c.VideoUrl,
+                ThumbnailUrl = c.ThumbnailUrl,
+                IsAiGenerated = c.IsAiGenerated,
+                PlatformRejectionReason = c.PlatformRejectionReason,
+                RejectedPlatform = c.RejectedPlatform,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt
+            })
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<Content>
+        return new PagedResult<ContentListDto>
         {
             Data = data,
             TotalCount = totalCount,
@@ -100,7 +120,7 @@ public sealed class ContentRepository : IContentRepository
         return content;
     }
 
-    public async Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ContentListDto>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
@@ -120,8 +140,26 @@ public sealed class ContentRepository : IContentRepository
         }
         query = query.OrderByDescending(c => c.CreatedAt);
         var totalCount = await query.CountAsync(cancellationToken);
-        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
-        return new PagedResult<Content> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
+        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(c => new ContentListDto
+        {
+            Id = c.Id,
+            ProfileId = c.ProfileId,
+            BrandId = c.BrandId,
+            WorkspaceId = c.WorkspaceId,
+            AdType = c.AdType,
+            Title = c.Title,
+            TextContent = c.TextContent,
+            ImageUrl = c.ImageUrl,
+            VideoUrl = c.VideoUrl,
+            ThumbnailUrl = c.ThumbnailUrl,
+            IsAiGenerated = c.IsAiGenerated,
+            PlatformRejectionReason = c.PlatformRejectionReason,
+            RejectedPlatform = c.RejectedPlatform,
+            Status = c.Status,
+            CreatedAt = c.CreatedAt,
+            UpdatedAt = c.UpdatedAt
+        }).ToListAsync(cancellationToken);
+        return new PagedResult<ContentListDto> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
     }
 
     public async Task UpdateAsync(Content content, CancellationToken cancellationToken = default)
@@ -171,7 +209,7 @@ public sealed class ContentRepository : IContentRepository
                 cancellationToken);
     }
 
-    public async Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ContentListDto>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         var query = _context.Contents.AsNoTracking().Where(c => !c.IsDeleted);
         
@@ -206,9 +244,28 @@ public sealed class ContentRepository : IContentRepository
         var items = await query
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
+            .Select(c => new ContentListDto
+            {
+                Id = c.Id,
+                ProfileId = c.ProfileId,
+                BrandId = c.BrandId,
+                WorkspaceId = c.WorkspaceId,
+                AdType = c.AdType,
+                Title = c.Title,
+                TextContent = c.TextContent,
+                ImageUrl = c.ImageUrl,
+                VideoUrl = c.VideoUrl,
+                ThumbnailUrl = c.ThumbnailUrl,
+                IsAiGenerated = c.IsAiGenerated,
+                PlatformRejectionReason = c.PlatformRejectionReason,
+                RejectedPlatform = c.RejectedPlatform,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt
+            })
             .ToListAsync(cancellationToken);
             
-        return new PagedResult<Content> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
+        return new PagedResult<ContentListDto> { Data = items, TotalCount = total, Page = request.Page, PageSize = request.PageSize };
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)

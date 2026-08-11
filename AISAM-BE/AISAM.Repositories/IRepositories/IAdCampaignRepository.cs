@@ -30,6 +30,7 @@ namespace AISAM.Repositories.IRepositories
         // ─── Cleanup ───
         Task<IReadOnlyList<AdSet>> GetAdSetsByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default);
         Task<IReadOnlyList<Ad>> GetAdsByAdSetIdAsync(Guid adSetId, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<Ad>> GetAdsByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default);
         Task HardDeleteAdAsync(Guid adId, CancellationToken cancellationToken = default);
         Task HardDeleteAdCreativeAsync(Guid creativeId, CancellationToken cancellationToken = default);
         Task HardDeleteAdSetAsync(Guid adSetId, CancellationToken cancellationToken = default);

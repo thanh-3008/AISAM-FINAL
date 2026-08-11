@@ -1,11 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/brand_model.dart';
 import '../models/brand_request.dart';
-
 part 'brand_repository.g.dart';
+
+List<BrandResponseModel> _parseBrandList(List<dynamic> items) {
+  return items.map((e) => BrandResponseModel.fromJson(e)).toList();
+}
 
 class BrandRepository {
   final Dio _dio;
@@ -18,7 +22,8 @@ class BrandRepository {
       final response = await _dio.get('/Brands');
       final data = response.data['data'];
       final items = data != null ? data['data'] as List? : null;
-      return items?.map((e) => BrandResponseModel.fromJson(e)).toList() ?? [];
+      if (items == null || items.isEmpty) return [];
+      return await compute(_parseBrandList, items);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }

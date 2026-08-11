@@ -309,6 +309,7 @@ namespace AISAM.Services.Service
                 PostId = post.Id,
                 Impressions = impressions,
                 Engagement = engagement,
+                Clicks = clicks,
                 Ctr = ctr,
                 EstimatedRevenue = engagement * 0.01m,
                 ReportDate = DateTime.UtcNow.Date,

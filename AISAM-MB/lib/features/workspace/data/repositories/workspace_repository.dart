@@ -1,11 +1,19 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/workspace_model.dart';
 import '../models/workspace_request.dart';
-
 part 'workspace_repository.g.dart';
+
+List<WorkspaceResponseModel> _parseWorkspaceList(List<dynamic> items) {
+  return items.map((e) => WorkspaceResponseModel.fromJson(e)).toList();
+}
+
+List<WorkspaceMemberResponseModel> _parseWorkspaceMemberList(List<dynamic> items) {
+  return items.map((e) => WorkspaceMemberResponseModel.fromJson(e)).toList();
+}
 
 class WorkspaceRepository {
   final Dio _dio;
@@ -16,7 +24,8 @@ class WorkspaceRepository {
     try {
       final response = await _dio.get('/Workspaces');
       final data = response.data['data'] as List?;
-      return data?.map((e) => WorkspaceResponseModel.fromJson(e)).toList() ?? [];
+      if (data == null || data.isEmpty) return [];
+      return await compute(_parseWorkspaceList, data);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }
@@ -61,7 +70,8 @@ class WorkspaceRepository {
     try {
       final response = await _dio.get('/workspace-members');
       final data = response.data['data'] as List?;
-      return data?.map((e) => WorkspaceMemberResponseModel.fromJson(e)).toList() ?? [];
+      if (data == null || data.isEmpty) return [];
+      return await compute(_parseWorkspaceMemberList, data);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }
