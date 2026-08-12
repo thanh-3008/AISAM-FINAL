@@ -115,6 +115,15 @@ ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TIMEOUT", "VideoPro
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_FALLBACK_ENABLED", "VideoProviderSettings:EnableColabFallback");
 ApplyEnvironmentOverride(builder.Configuration, "TAX_LOOKUP_ENDPOINT_TEMPLATE", "TaxLookup:EndpointTemplate");
 
+// === Beeknoee AI Media API (Phương án 1 — sync-first) ===
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_BASE_URL", "BeeknoeeSettings:BaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_API_KEY", "BeeknoeeSettings:ApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_IMAGE_MODEL", "BeeknoeeSettings:DefaultImageModel");
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_TIMEOUT_SECONDS", "BeeknoeeSettings:TimeoutSeconds");
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_VIDEO_MODEL", "BeeknoeeSettings:DefaultVideoModel");
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_VIDEO_DURATION", "BeeknoeeSettings:DefaultVideoDuration");
+ApplyEnvironmentOverride(builder.Configuration, "BEEKNOEE_VIDEO_RESOLUTION", "BeeknoeeSettings:DefaultVideoResolution");
+
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     var effectiveConnectionString = BuildDatabaseConnectionString(connectionString);
@@ -283,11 +292,14 @@ builder.Services.AddHostedService<VideoPollingBackgroundService>();
 builder.Services.AddHostedService<VideoGenerationBackgroundService>();
 builder.Services.AddHostedService<CampaignInsightsBackgroundService>();
 builder.Services.AddHostedService<PostInsightsBackgroundService>();
+builder.Services.AddHostedService<BeeknoeeImagePollingBackgroundService>(); // PA2 — poll Beeknoee image async jobs
+
 
 builder.Services.AddScoped<ICampaignInsightsSyncService, CampaignInsightsSyncService>();
 
 builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSection("ImageProviderSettings"));
 builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
+builder.Services.Configure<AISAM.Common.Models.BeeknoeeSettings>(builder.Configuration.GetSection("BeeknoeeSettings"));
 
 // Clients (HttpClient)
 builder.Services.AddHttpClient<OpenRouterImageClient>();
@@ -297,7 +309,27 @@ builder.Services.AddHttpClient<DeApiVideoClient>();
 
 builder.Services.AddHttpClient<ColabVideoStrategy>();
 
-// Providers
+// === Beeknoee (PA1 image sync + PA2 image polling + PA3 video) ===
+// HttpClient ảnh
+builder.Services.AddHttpClient<AISAM.Services.Service.BeeknoeeSyncImageClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(
+        builder.Configuration.GetValue<int?>("BeeknoeeSettings:TimeoutSeconds") ?? 120);
+});
+builder.Services.AddScoped<AISAM.Services.IServices.IBeeknoeeSyncImageClient, AISAM.Services.Service.BeeknoeeSyncImageClient>();
+builder.Services.AddHttpClient<AISAM.Services.Service.BeeknoeeImageProvider>();
+builder.Services.AddScoped<AISAM.Services.Service.BeeknoeeImageProvider>();
+
+// HttpClient video
+builder.Services.AddHttpClient<AISAM.Services.Service.BeeknoeeVideoClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(
+        builder.Configuration.GetValue<int?>("BeeknoeeSettings:VideoTimeoutSeconds") ?? 60);
+});
+builder.Services.AddScoped<AISAM.Services.Service.BeeknoeeVideoClient>();
+builder.Services.AddScoped<AISAM.Services.Service.BeeknoeeVideoProvider>();
+
+// Providers (existing)
 builder.Services.AddScoped<FallbackImageProvider>();
 builder.Services.AddScoped<FallbackVideoProvider>();
 builder.Services.AddScoped<NullVideoProvider>();

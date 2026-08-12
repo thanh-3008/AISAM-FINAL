@@ -623,6 +623,22 @@ public sealed class AIService : IAIService
             },
             cancellationToken);
 
+        if (result.RequiresAsyncHandling)
+        {
+            // Beeknoee trả PROCESSING/PENDING — background service sẽ poll tự động
+            _logger.LogWarning(
+                "[AIService.GenerateImageAsync] Provider {Provider} returned async job. JobId={JobId} | GenId={GenId}",
+                result.ProviderName, result.JobId, generation.Id);
+            generation.Status = AiStatusEnum.Processing;
+            generation.VideoJobId = result.JobId; // tái sử dụng field lưu beeknoee job_id
+            generation.ProviderName = result.ProviderName;
+            await _generationRepository.UpdateAsync(generation, cancellationToken);
+
+            return GenericResponse<AiGenerationResponse>.CreateSuccess(
+                MapGeneration(generation),
+                "Yêu cầu tạo ảnh đang được xử lý. Kiểm tra trạng thái qua GET /api/ai/generation/{id}.");
+        }
+
         if (!result.Success)
         {
             _logger.LogError("Image generation failed for ContentId {ContentId}. Provider: {Provider}. Error: {Error}", request.ContentId, result.ProviderName, result.ErrorMessage);
@@ -633,10 +649,27 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError("Lỗi hệ thống: Không thể tạo ảnh lúc này. Vui lòng thử lại sau.", HttpStatusCode.BadGateway);
         }
 
+
         try
         {
             var fileName = $"ai-image-{generation.Id}.png";
-            var url = await _mediaStorage.UploadBytesAsync(result.MediaBytes!, "ai-images", fileName, cancellationToken);
+            byte[] imageBytes;
+            if (result.MediaBytes is { Length: > 0 })
+            {
+                imageBytes = result.MediaBytes;
+            }
+            else if (!string.IsNullOrWhiteSpace(result.MediaUrl))
+            {
+                // Provider trả URL (Beeknoee/OpenAI) — download trước khi upload Cloudinary
+                using var httpClient = new System.Net.Http.HttpClient();
+                imageBytes = await httpClient.GetByteArrayAsync(result.MediaUrl, cancellationToken);
+            }
+            else
+            {
+                throw new InvalidOperationException("AIMediaResult.Success=true nhưng MediaBytes và MediaUrl đều null.");
+            }
+            var url = await _mediaStorage.UploadBytesAsync(imageBytes, "ai-images", fileName, cancellationToken);
+
             generation.GeneratedImageUrl = url;
             generation.Status = AiStatusEnum.Completed;
             generation.ProviderName = result.ProviderName;

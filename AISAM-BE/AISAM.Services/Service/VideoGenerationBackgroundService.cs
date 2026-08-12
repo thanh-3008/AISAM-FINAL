@@ -72,9 +72,27 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
 
                         // We can call orchestrator to get status, but orchestrator's CheckVideoStatusAsync doesn't upload the video.
                         // Let's check status directly via the provider.
-                        IAIVideoProvider provider = job.IsFallback 
-                            ? scope.ServiceProvider.GetRequiredService<ColabVideoStrategy>()
-                            : scope.ServiceProvider.GetRequiredService<FallbackVideoProvider>();
+                        // ── Route provider theo job.Provider ──────────────────────
+                        // Convention: Beeknoee jobs có Provider bắt đầu bằng "Beeknoee"
+                        //             DeAPI jobs: IsFallback=false, Provider != Beeknoee
+                        //             Colab jobs: IsFallback=true
+                        IAIVideoProvider provider;
+                        BeeknoeeVideoClient? beeknoeeClient = null;
+
+                        if (job.Provider != null && job.Provider.StartsWith("Beeknoee", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var beeknoeeProvider = scope.ServiceProvider.GetRequiredService<BeeknoeeVideoProvider>();
+                            beeknoeeClient = scope.ServiceProvider.GetRequiredService<BeeknoeeVideoClient>();
+                            provider = beeknoeeProvider;
+                        }
+                        else if (job.IsFallback)
+                        {
+                            provider = scope.ServiceProvider.GetRequiredService<ColabVideoStrategy>();
+                        }
+                        else
+                        {
+                            provider = scope.ServiceProvider.GetRequiredService<FallbackVideoProvider>();
+                        }
 
                         var result = await provider.CheckStatusAsync(job.ExternalJobId!, stoppingToken);
 
@@ -89,13 +107,43 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                         else if (result.Status == VideoGenerationStatus.Done && !string.IsNullOrWhiteSpace(result.MediaUrl))
                         {
                             _logger.LogInformation("[VideoGenerationBackgroundService] Job {JobId} completed. Downloading video...", job.Id);
-                            
+
                             try
                             {
-                                using var httpClient = new HttpClient();
-                                var bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, stoppingToken);
+                                byte[] bytes;
+                                var baseUrl = scope.ServiceProvider
+                                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<AISAM.Common.Models.BeeknoeeSettings>>()
+                                    .Value.BaseUrl.TrimEnd('/');
+
+                                bool isBeeknoeeProxyUrl = beeknoeeClient != null
+                                    && result.MediaUrl.StartsWith(baseUrl, StringComparison.OrdinalIgnoreCase)
+                                    && result.MediaUrl.Contains("/v1/video/generations/");
+
+                                if (isBeeknoeeProxyUrl && beeknoeeClient != null)
+                                {
+                                    // Beeknoee proxy URL — cần Authorization header
+                                    // Trích job_id an toàn từ job.ExternalJobId ("beeknoee:{id}")
+                                    var beeknoeeJobId = job.ExternalJobId != null && job.ExternalJobId.StartsWith("beeknoee:", StringComparison.OrdinalIgnoreCase)
+                                        ? job.ExternalJobId["beeknoee:".Length..]
+                                        : string.Empty;
+
+                                    if (string.IsNullOrWhiteSpace(beeknoeeJobId))
+                                    {
+                                        throw new InvalidOperationException("Cannot extract Beeknoee JobId from ExternalJobId for downloading.");
+                                    }
+
+                                    _logger.LogInformation(
+                                        "[VideoGenerationBackgroundService] Downloading via Beeknoee auth. BeeknoeeJobId={Id}", beeknoeeJobId);
+                                    bytes = await beeknoeeClient.DownloadVideoAsync(beeknoeeJobId, stoppingToken);
+                                }
+                                else
+                                {
+                                    // Source URL public (Veo, Colab, DeAPI) — không cần auth
+                                    using var httpClient = new HttpClient();
+                                    bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, stoppingToken);
+                                }
+
                                 var fileName = $"video-job-{job.Id}.mp4";
-                                
                                 var uploadedUrl = await mediaStorage.UploadBytesAsync(bytes, "ai-videos", fileName, stoppingToken);
 
                                 job.VideoUrl = uploadedUrl;
@@ -103,8 +151,9 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                                 job.CompletedAt = DateTime.UtcNow;
                                 dbContext.Update(job);
                                 await dbContext.SaveChangesAsync(stoppingToken);
-                                
-                                _logger.LogInformation("[VideoGenerationBackgroundService] Job {JobId} video uploaded to {Url}.", job.Id, uploadedUrl);
+
+                                _logger.LogInformation(
+                                    "[VideoGenerationBackgroundService] Job {JobId} video uploaded to {Url}.", job.Id, uploadedUrl);
                             }
                             catch (Exception ex)
                             {
@@ -118,11 +167,12 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                         }
                         else if (job.IsFallback && result.Status == VideoGenerationStatus.Processing)
                         {
-                            // Try to get progress if possible, for Colab we can do this inside ColabVideoStrategy or 
+                            // Try to get progress if possible, for Colab we can do this inside ColabVideoStrategy or
                             // we would need ColabVideoStrategy to return the raw object.
-                            // The current CheckStatusAsync doesn't return CurrentSegment yet. 
+                            // The current CheckStatusAsync doesn't return CurrentSegment yet.
                             // Since CheckStatusAsync returns VideoGenerationResult, we might just poll.
                         }
+
                     }
                     catch (Exception ex)
                     {

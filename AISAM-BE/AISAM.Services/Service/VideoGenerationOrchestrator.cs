@@ -14,14 +14,14 @@ namespace AISAM.Services.Service;
 
 public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
 {
-    private readonly FallbackVideoProvider _primaryProvider;
+    private readonly IAIVideoProvider _primaryProvider;
     private readonly ColabVideoStrategy _colabStrategy;
     private readonly VideoProviderSettings _settings;
     private readonly AISAM.Repositories.AisamContext _dbContext;
     private readonly ILogger<VideoGenerationOrchestrator> _logger;
 
     public VideoGenerationOrchestrator(
-        FallbackVideoProvider primaryProvider,
+        IAIVideoProvider primaryProvider,
         ColabVideoStrategy colabStrategy,
         IOptions<VideoProviderSettings> options,
         AISAM.Repositories.AisamContext dbContext,
