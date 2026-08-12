@@ -68,6 +68,7 @@ export default function ContentPage() {
   const [quota, setQuota] = useState<{ promptUsage: number; promptQuotaLimit: number; postUsage: number; postQuotaLimit: number; textContentCount: number; imageContentCount: number; videoContentCount: number } | null>(null);
   const [brandNameList, setBrandNameList] = useState<string[]>([]);
   const createBtnRef = useRef<HTMLButtonElement>(null);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
 
   const addToast = useCallback((message: string, icon: string) => {
@@ -116,7 +117,7 @@ export default function ContentPage() {
   }, [loadContent]);
 
   const filtered = useMemo(() => {
-    let list = allContent;
+    let list = [...allContent];
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((c) => c.title.toLowerCase().includes(q) || c.brandName.toLowerCase().includes(q));
@@ -147,9 +148,27 @@ export default function ContentPage() {
     return list;
   }, [allContent, search, brandFilter, productFilter, typeFilter, statusFilter, platformFilter, dateFrom, dateTo, sortBy]);
 
-  const paginated = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const hasMore = page < totalPages;
+  const firstVisibleResult = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const lastVisibleResult = Math.min(page * PAGE_SIZE, filtered.length);
+
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const changePage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(nextPage, 1), Math.max(totalPages, 1));
+    if (boundedPage === page) return;
+    setPage(boundedPage);
+    setOpenMenuId(null);
+    requestAnimationFrame(() => {
+      contentAreaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   const stats = useMemo(() => ({
     total: allContent.length,
@@ -484,7 +503,7 @@ export default function ContentPage() {
         {!loading && filtered.length > 0 && (
           <div className={`flex items-center justify-between ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.4s" }}>
             <p className="text-body-sm text-on-surface-variant">
-              Showing <span className="font-semibold text-on-surface">{paginated.length}</span> of <span className="font-semibold text-on-surface">{filtered.length}</span> results
+              Showing <span className="font-semibold text-on-surface">{firstVisibleResult}–{lastVisibleResult}</span> of <span className="font-semibold text-on-surface">{filtered.length}</span> results
             </p>
           </div>
         )}
@@ -539,7 +558,7 @@ export default function ContentPage() {
         {/* ─── Content Grid + Sidebar ─── */}
         <div className="flex flex-col xl:flex-row gap-gutter">
           {/* Content Area */}
-          <div className="flex-1 min-w-0">
+          <div ref={contentAreaRef} className="flex-1 min-w-0 scroll-mt-20">
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-gutter">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -670,19 +689,19 @@ export default function ContentPage() {
             {/* ─── Pagination ─── */}
             {!loading && filtered.length > PAGE_SIZE && (
               <div className="flex items-center justify-center gap-2 mt-6">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                <button onClick={() => changePage(page - 1)} disabled={page === 1}
                   className="w-9 h-9 flex items-center justify-center rounded-xl border border-outline-variant/20 text-outline/50 hover:bg-surface-container hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]">
                   <span className="material-symbols-outlined text-[16px]">chevron_left</span>
                 </button>
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map((p) => (
-                  <button key={p} onClick={() => setPage(p)}
+                  <button key={p} onClick={() => changePage(p)}
                     className={`min-w-[36px] h-9 flex items-center justify-center rounded-xl text-label-sm font-semibold transition-all active:scale-[0.97] ${
                       page === p ? "bg-primary text-on-primary shadow-sm" : "border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                     }`}>{p}</button>
                 ))}
                 {totalPages > 7 && <span className="text-outline/30 text-label-sm">...</span>}
                 {page < totalPages && (
-                  <button onClick={() => setPage((p) => p + 1)}
+                  <button onClick={() => changePage(page + 1)}
                     className="w-9 h-9 flex items-center justify-center rounded-xl border border-outline-variant/20 text-outline/50 hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97]">
                     <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                   </button>
