@@ -15,14 +15,29 @@ public class ScheduledPostingServiceTests
     public async Task RunDueSchedulesAsync_PublishesDueScheduleAndMarksCompleted_WhenPublishSucceeds()
     {
         var schedule = CreateDueSchedule();
+        schedule.Content = new Content
+        {
+            Id = schedule.ContentId,
+            Title = "Summer collection launch",
+            TextContent = "Discover our new summer collection.",
+            WorkspaceId = schedule.WorkspaceId
+        };
+        schedule.Integration = new SocialIntegration
+        {
+            Id = schedule.IntegrationId!.Value,
+            Platform = SocialPlatformEnum.Instagram,
+            TargetName = "AISAM Studio",
+            WorkspaceId = schedule.WorkspaceId
+        };
         var notificationRepository = new FakeNotificationRepository();
+        var postedAt = new DateTime(2026, 8, 13, 8, 30, 0, DateTimeKind.Utc);
         var contentService = new FakeContentService
         {
             PublishResult = GenericResponse<PublishResultDto>.CreateSuccess(new PublishResultDto
             {
                 Success = true,
                 ProviderPostId = "post-1",
-                PostedAt = DateTime.UtcNow
+                PostedAt = postedAt
             })
         };
         var repository = new FakeContentCalendarRepository(schedule);
@@ -58,7 +73,12 @@ public class ScheduledPostingServiceTests
         Assert.NotNull(schedule.ExecutedAt);
         Assert.Null(schedule.LastError);
         Assert.Single(notificationRepository.Notifications.Values);
-        Assert.Equal("Scheduled publish succeeded", notificationRepository.Notifications.Values.Single().Title);
+        var notification = notificationRepository.Notifications.Values.Single();
+        Assert.Equal("Post published successfully on Instagram", notification.Title);
+        Assert.Equal(
+            "Your post \"Summer collection launch\" was published to Instagram (AISAM Studio) on Aug 13, 2026 at 08:30 UTC.",
+            notification.Message);
+        Assert.Equal(NotificationTypeEnum.PostScheduled, notification.Type);
         Assert.Equal(schedule.WorkspaceId, contentService.LastWorkspaceId);
     }
 
