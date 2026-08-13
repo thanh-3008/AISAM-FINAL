@@ -47,7 +47,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                 var timeoutThreshold = DateTime.UtcNow.Subtract(timeoutLimit);
 
                 var pendingJobs = await dbContext.VideoGenerationJobs
-                    .Where(j => j.Status == AiStatusEnum.Processing && !string.IsNullOrEmpty(j.ExternalJobId))
+                    .Where(j => (j.Status == AiStatusEnum.Processing || j.Status == AiStatusEnum.Pending) && !string.IsNullOrEmpty(j.ExternalJobId))
                     .ToListAsync(stoppingToken);
 
                 if (pendingJobs.Count > 0)
@@ -74,7 +74,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                         // Let's check status directly via the provider.
                         IAIVideoProvider provider = job.IsFallback 
                             ? scope.ServiceProvider.GetRequiredService<ColabVideoStrategy>()
-                            : scope.ServiceProvider.GetRequiredService<FallbackVideoProvider>();
+                            : scope.ServiceProvider.GetRequiredService<IAIVideoProvider>();
 
                         var result = await provider.CheckStatusAsync(job.ExternalJobId!, stoppingToken);
 
@@ -123,6 +123,9 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                             // The current CheckStatusAsync doesn't return CurrentSegment yet. 
                             // Since CheckStatusAsync returns VideoGenerationResult, we might just poll.
                         }
+                        
+                        // Thêm buffer delay giữa các job để tránh DeAPI rate limit (429)
+                        await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
                     }
                     catch (Exception ex)
                     {

@@ -126,6 +126,12 @@ public sealed class DeApiVideoClient
                 errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("[DeAPI.Start] Model {Model} failed: {Status} - {Body}", m.Model, (int)response.StatusCode, errorBody);
                 
+                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogWarning("[DeAPI.Start] Rate limited (429) for model {Model}. Skipping fallback.", m.Model);
+                    return VideoGenerationResult.Fail($"HTTP 429: {errorBody}", "DeAPI");
+                }
+                
                 // Keep trying the next model if it failed...
             }
 
@@ -239,6 +245,12 @@ public sealed class DeApiVideoClient
 
         if (response == null || !response.IsSuccessStatusCode)
         {
+            if (response?.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                _logger.LogWarning("[DeAPI.Poll] Rate limited (429). Will retry next polling cycle.");
+                return VideoGenerationResult.InProgress($"deapi:{taskId}", "DeAPI");
+            }
+            
             return VideoGenerationResult.Fail($"HTTP {(int?)response?.StatusCode}: {json}", "DeAPI");
         }
 

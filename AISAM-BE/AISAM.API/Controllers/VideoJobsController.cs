@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AISAM.API.Controllers;
 
 [ApiController]
-[Route("api/workspaces/{workspaceId}/video-jobs")]
+[Route("api/ai/video-jobs")]
 [Authorize]
 public sealed class VideoJobsController : ControllerBase
 {
@@ -24,14 +24,10 @@ public sealed class VideoJobsController : ControllerBase
 
     [HttpPost]
     public async Task<ActionResult<GenericResponse<VideoJobResponseDto>>> CreateVideoJob(
-        Guid workspaceId,
         [FromBody] CreateVideoJobRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (workspaceId != WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext))
-        {
-            return Forbid();
-        }
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 
         var userId = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext).UserId;
 
@@ -60,14 +56,10 @@ public sealed class VideoJobsController : ControllerBase
 
     [HttpGet("{jobId:guid}")]
     public async Task<ActionResult<GenericResponse<VideoJobResponseDto>>> GetVideoJobStatus(
-        Guid workspaceId,
         Guid jobId,
         CancellationToken cancellationToken = default)
     {
-        if (workspaceId != WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext))
-        {
-            return Forbid();
-        }
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
 
         var result = await _orchestrator.CheckVideoStatusAsync(jobId, workspaceId, cancellationToken);
         

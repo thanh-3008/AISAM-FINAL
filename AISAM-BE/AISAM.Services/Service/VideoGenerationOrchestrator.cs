@@ -9,28 +9,34 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using AISAM.Common.Models;
 using System.Net;
+using AISAM.Data.Enumeration;
 
 namespace AISAM.Services.Service;
 
 public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
 {
-    private readonly FallbackVideoProvider _primaryProvider;
+    private readonly IAIVideoProvider _primaryProvider;
     private readonly ColabVideoStrategy _colabStrategy;
     private readonly VideoProviderSettings _settings;
     private readonly AISAM.Repositories.AisamContext _dbContext;
+    private readonly ICreditService _creditService;
     private readonly ILogger<VideoGenerationOrchestrator> _logger;
 
+    private const int VideoGenerationCredits = 20;
+
     public VideoGenerationOrchestrator(
-        FallbackVideoProvider primaryProvider,
+        IAIVideoProvider primaryProvider,
         ColabVideoStrategy colabStrategy,
         IOptions<VideoProviderSettings> options,
         AISAM.Repositories.AisamContext dbContext,
+        ICreditService creditService,
         ILogger<VideoGenerationOrchestrator> logger)
     {
         _primaryProvider = primaryProvider;
         _colabStrategy = colabStrategy;
         _settings = options.Value;
         _dbContext = dbContext;
+        _creditService = creditService;
         _logger = logger;
     }
 
@@ -40,6 +46,16 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         string prompt, 
         CancellationToken cancellationToken = default)
     {
+        // Ensure credits are available before generating
+        var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, VideoGenerationCredits, cancellationToken: cancellationToken);
+        if (!creditCheck.Success)
+        {
+            return GenericResponse<VideoGenerationJob>.CreateError(
+                creditCheck.Message ?? "Insufficient credits for video generation.",
+                (HttpStatusCode)creditCheck.StatusCode,
+                creditCheck.Error?.ErrorCode);
+        }
+
         var job = new VideoGenerationJob
         {
             WorkspaceId = workspaceId,
@@ -53,8 +69,8 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         _dbContext.VideoGenerationJobs.Add(job);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // 1. Try Primary Provider (Pollen / DeAPI)
-        _logger.LogInformation("Attempting primary video provider (Pollen/DeAPI) for job {JobId}", job.Id);
+        // 1. Try Primary Provider (OpenAI/DeAPI)
+        _logger.LogInformation("Attempting primary video provider for job {JobId}", job.Id);
         
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (_settings.PollenTimeoutSeconds > 0)
@@ -70,10 +86,18 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
                 job.Provider = primaryResult.ProviderName;
                 job.ExternalJobId = primaryResult.JobId;
                 job.IsFallback = false;
-                job.Status = AISAM.Data.Enumeration.AiStatusEnum.Processing;
-                await _dbContext.SaveChangesAsync(cancellationToken);
+                // Deduct credits ONLY after successful provider queueing
+                var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId, userId, CreditActionEnum.GenerateVideo, VideoGenerationCredits, job.Id, cancellationToken: cancellationToken);
+                if (!chargeResult.Success)
+                {
+                    job.Status = AISAM.Data.Enumeration.AiStatusEnum.Failed;
+                    job.ErrorMessage = "Failed to deduct credits after generation.";
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                    return GenericResponse<VideoGenerationJob>.CreateError(chargeResult.Message!, (HttpStatusCode)chargeResult.StatusCode, chargeResult.Error?.ErrorCode);
+                }
                 
-                return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started with Pollen/DeAPI.");
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started successfully.");
             }
             
             _logger.LogWarning("Primary provider failed. Reason: {Error}", primaryResult.ErrorMessage);
@@ -105,9 +129,17 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
             job.Provider = colabResult.ProviderName;
             job.ExternalJobId = colabResult.JobId;
             job.IsFallback = true;
-            job.Status = AISAM.Data.Enumeration.AiStatusEnum.Processing;
+            // Deduct credits ONLY after successful provider queueing
+            var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId, userId, CreditActionEnum.GenerateVideo, VideoGenerationCredits, job.Id, cancellationToken: cancellationToken);
+            if (!chargeResult.Success)
+            {
+                job.Status = AISAM.Data.Enumeration.AiStatusEnum.Failed;
+                job.ErrorMessage = "Failed to deduct credits after generation.";
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                return GenericResponse<VideoGenerationJob>.CreateError(chargeResult.Message!, (HttpStatusCode)chargeResult.StatusCode, chargeResult.Error?.ErrorCode);
+            }
+
             await _dbContext.SaveChangesAsync(cancellationToken);
-            
             return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Video generation started with fallback Colab provider.");
         }
 
@@ -155,13 +187,8 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
 
         if (result.Status == VideoGenerationStatus.Done && !string.IsNullOrWhiteSpace(result.MediaUrl))
         {
-            // Cập nhật trực tiếp nếu provider đã trả về URL.
-            // Background service sẽ upload lên Cloudinary và ghi đè VideoUrl sau.
-            job.Status = AISAM.Data.Enumeration.AiStatusEnum.Completed;
-            job.VideoUrl = result.MediaUrl;
-            job.CompletedAt = DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Job {JobId} marked Completed via status check. VideoUrl={Url}", job.Id, result.MediaUrl);
+            // Do NOT mark as Completed here. Let the BackgroundService upload to Cloudinary and mark as Completed.
+            _logger.LogInformation("Job {JobId} is Done at provider. Waiting for background service to upload and complete.", job.Id);
         }
 
         return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Job status checked.");
