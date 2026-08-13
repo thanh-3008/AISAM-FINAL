@@ -204,7 +204,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       parsed = new URL(importUrl.trim());
       if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
     } catch {
-      setError("URL sản phẩm không hợp lệ.");
+      setError("Please enter a valid product URL.");
       return;
     }
 
@@ -218,7 +218,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       });
 
       if (!result?.success || !result.data) {
-        setError(result?.message || "Không thể trích xuất sản phẩm từ URL này.");
+        setError(result?.message || "Unable to extract product information from this URL.");
         return;
       }
 
@@ -245,7 +245,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       });
       setFiles([]);
     } catch (err: any) {
-      setError(err.message || "Không thể đọc dữ liệu từ trang web này. Vui lòng nhập thủ công.");
+      setError(err.message || "Unable to read data from this website. Please enter the product details manually.");
     } finally {
       setExtracting(false);
     }
@@ -262,7 +262,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
       ? null
       : Math.round(parsedPrice);
     if (safePrice === null) {
-      setError("Đơn giá không hợp lệ. Vui lòng nhập số dương.");
+      setError("Invalid price. Please enter a positive number.");
       return;
     }
 
@@ -351,13 +351,13 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                   <span className="material-symbols-outlined text-primary">auto_awesome</span>
                   <div>
                     <p className="text-title-sm font-bold text-on-surface">AI Import Product from URL</p>
-                    <p className="text-body-sm text-on-surface-variant">Dán link Shopee, Tiki hoặc website sản phẩm để AISAM đọc metadata và tạo hồ sơ marketing nháp.</p>
+                    <p className="text-body-sm text-on-surface-variant">Paste a product page URL so AISAM can read its metadata and create a draft marketing profile.</p>
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     className={inputClass}
-                    placeholder="Dán đường dẫn sản phẩm..."
+                    placeholder="Paste a product URL..."
                     value={importUrl}
                     onChange={(e) => setImportUrl(e.target.value)}
                     disabled={extracting || loading}
@@ -368,7 +368,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                     disabled={extracting || loading || !importUrl.trim()}
                     className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-label-md font-bold text-on-primary shadow-md transition-all hover:opacity-90 disabled:opacity-50"
                   >
-                    {extracting ? "Đang phân tích..." : "Trích xuất bằng AI"}
+                    {extracting ? "Analyzing..." : "Extract with AI"}
                   </button>
                 </div>
               </div>
@@ -437,7 +437,7 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                 onChange={(e) => updateField("productUrl", e.target.value)}
               />
               <p className="text-body-xs text-on-surface-variant">
-                Nếu có link, AI sẽ tự gắn CTA/link này vào caption quảng cáo, trừ khi bạn yêu cầu không chèn link.
+                If provided, AI will automatically include this CTA link in ad captions unless you ask it not to.
               </p>
             </div>
 
@@ -447,71 +447,71 @@ export default function ProductModal({ open, mode, onClose, onSuccess, brandId, 
                   <p className="text-title-sm font-bold text-on-surface">Marketing Profile</p>
                   <p className="text-body-xs text-on-surface-variant">
                     {isImportedReview
-                      ? "AI đã trích xuất hồ sơ sản phẩm. Bạn có thể sửa lại trước khi lưu."
-                      : "Nhập thêm thông tin marketing để AI tạo caption, ảnh và quảng cáo chính xác hơn."}
+                      ? "AI has extracted the product profile. You can review and edit it before saving."
+                      : "Add marketing details to help AI create more accurate captions, images, and ads."}
                   </p>
                 </div>
 
                 {isImportedReview && (
-                <div>
-                  <label className={labelClass}>Extracted Images</label>
-                  <p className="text-body-xs text-on-surface-variant mb-2">Chọn ảnh muốn giữ lại cho product. Tối đa 5 ảnh.</p>
-                  {hiddenBrokenImageCount > 0 && (
-                    <p className="mb-2 text-body-xs text-amber-600">
-                      Đã tự ẩn {hiddenBrokenImageCount} ảnh bị lỗi hoặc không tải được.
-                    </p>
-                  )}
-                  {visibleExtractedImages.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {visibleExtractedImages.map((url) => {
-                        const checked = selectedImageUrls.includes(url);
-                        const loaded = loadedImageUrls.includes(url);
-                        return (
-                          <button
-                            type="button"
-                            key={url}
-                            onClick={() => {
-                              setSelectedImageUrls((prev) =>
-                                checked ? prev.filter((item) => item !== url) : prev.length >= 5 ? prev : [...prev, url],
-                              );
-                            }}
-                            className={`relative overflow-hidden rounded-xl border text-left transition-all ${checked ? "border-primary ring-2 ring-primary/30" : "border-outline-variant/40 opacity-70 hover:opacity-100"}`}
-                          >
-                            {!loaded && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-surface-container-high">
-                                <span className="h-6 w-6 animate-spin rounded-full border-2 border-outline-variant border-t-primary" />
-                              </div>
-                            )}
-                            <img
-                              src={url}
-                              alt=""
-                              className={`h-28 w-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
-                              loading="lazy"
-                              onLoad={() => {
-                                setLoadedImageUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+                  <div>
+                    <label className={labelClass}>Extracted Images</label>
+                    <p className="text-body-xs text-on-surface-variant mb-2">Select the product images you want to keep. Up to 5 images.</p>
+                    {hiddenBrokenImageCount > 0 && (
+                      <p className="mb-2 text-body-xs text-amber-600">
+                        Automatically hid {hiddenBrokenImageCount} broken or unavailable image(s).
+                      </p>
+                    )}
+                    {visibleExtractedImages.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {visibleExtractedImages.map((url) => {
+                          const checked = selectedImageUrls.includes(url);
+                          const loaded = loadedImageUrls.includes(url);
+                          return (
+                            <button
+                              type="button"
+                              key={url}
+                              onClick={() => {
+                                setSelectedImageUrls((prev) =>
+                                  checked ? prev.filter((item) => item !== url) : prev.length >= 5 ? prev : [...prev, url],
+                                );
                               }}
-                              onError={() => {
-                                setBrokenImageUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
-                                setSelectedImageUrls((prev) => prev.filter((item) => item !== url));
-                              }}
-                            />
-                            <span className={`absolute right-2 top-2 rounded-full px-2 py-1 text-label-xs font-bold ${checked ? "bg-primary text-on-primary" : "bg-black/50 text-white"}`}>
-                              {checked ? "Keep" : "Skip"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-outline-variant/40 p-4 text-body-sm text-on-surface-variant">Không tìm thấy ảnh từ URL.</div>
-                  )}
-                </div>
+                              className={`relative overflow-hidden rounded-xl border text-left transition-all ${checked ? "border-primary ring-2 ring-primary/30" : "border-outline-variant/40 opacity-70 hover:opacity-100"}`}
+                            >
+                              {!loaded && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-surface-container-high">
+                                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-outline-variant border-t-primary" />
+                                </div>
+                              )}
+                              <img
+                                src={url}
+                                alt=""
+                                className={`h-28 w-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+                                loading="lazy"
+                                onLoad={() => {
+                                  setLoadedImageUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+                                }}
+                                onError={() => {
+                                  setBrokenImageUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+                                  setSelectedImageUrls((prev) => prev.filter((item) => item !== url));
+                                }}
+                              />
+                              <span className={`absolute right-2 top-2 rounded-full px-2 py-1 text-label-xs font-bold ${checked ? "bg-primary text-on-primary" : "bg-black/50 text-white"}`}>
+                                {checked ? "Keep" : "Skip"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-outline-variant/40 p-4 text-body-sm text-on-surface-variant">No images were found at this URL.</div>
+                    )}
+                  </div>
 
                 )}
 
-                <ChipEditor label="Benefits" values={importForm.benefits} onChange={(values) => setImportForm((prev) => ({ ...prev, benefits: values }))} placeholder="Nhập lợi ích rồi Enter" />
-                <ChipEditor label="Features" values={importForm.features} onChange={(values) => setImportForm((prev) => ({ ...prev, features: values }))} placeholder="Nhập tính năng rồi Enter" />
-                <ChipEditor label="Keywords" values={importForm.keywords} onChange={(values) => setImportForm((prev) => ({ ...prev, keywords: values }))} placeholder="Nhập keyword rồi Enter" />
+                <ChipEditor label="Benefits" values={importForm.benefits} onChange={(values) => setImportForm((prev) => ({ ...prev, benefits: values }))} placeholder="Enter a benefit and press Enter" />
+                <ChipEditor label="Features" values={importForm.features} onChange={(values) => setImportForm((prev) => ({ ...prev, features: values }))} placeholder="Enter a feature and press Enter" />
+                <ChipEditor label="Keywords" values={importForm.keywords} onChange={(values) => setImportForm((prev) => ({ ...prev, keywords: values }))} placeholder="Enter a keyword and press Enter" />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
