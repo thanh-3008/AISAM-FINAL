@@ -35,7 +35,8 @@ public sealed class GeminiTextClient : IGeminiTextClient
             generationConfig = new
             {
                 maxOutputTokens = _settings.MaxTokens,
-                temperature = _settings.Temperature
+                temperature = _settings.Temperature,
+                responseMimeType = "application/json"
             }
         };
 
@@ -87,7 +88,8 @@ public sealed class GeminiTextClient : IGeminiTextClient
             generationConfig = new
             {
                 maxOutputTokens = _settings.MaxTokens,
-                temperature = _settings.Temperature
+                temperature = _settings.Temperature,
+                responseMimeType = "application/json"
             }
         };
 
