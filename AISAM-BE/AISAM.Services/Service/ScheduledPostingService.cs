@@ -7,6 +7,7 @@ using AISAM.Services.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using System.Globalization;
 
 namespace AISAM.Services.Service;
 
@@ -83,11 +84,12 @@ public sealed class ScheduledPostingService : IScheduledPostingService
                     await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
                     await CreateNotificationAsync(
                         schedule.ProfileId,
-                        MessageConstants.Schedule.SchedulePublishSucceeded,
-                        string.Format(MessageConstants.Schedule.ContentPublishedSuccessfully, schedule.ContentId),
+                        BuildPublishSuccessTitle(schedule),
+                        BuildPublishSuccessMessage(schedule, publishResult.Data?.PostedAt ?? schedule.ExecutedAt.Value),
                         schedule.Id,
                         cancellationToken,
-                        schedule.WorkspaceId);
+                        schedule.WorkspaceId,
+                        NotificationTypeEnum.PostScheduled);
 
                     result.SuccessCount++;
                     continue;
@@ -160,7 +162,8 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         string? message,
         Guid scheduleId,
         CancellationToken cancellationToken,
-        Guid workspaceId)
+        Guid workspaceId,
+        NotificationTypeEnum type = NotificationTypeEnum.SystemUpdate)
     {
         await _notificationRepository.AddAsync(new Notification
         {
@@ -168,11 +171,42 @@ public sealed class ScheduledPostingService : IScheduledPostingService
             WorkspaceId = workspaceId,
             Title = title,
             Message = message ?? MessageConstants.Content.PublishingFailed,
-            Type = NotificationTypeEnum.SystemUpdate,
+            Type = type,
             TargetId = scheduleId,
             TargetType = "content_schedule",
             IsRead = false
         }, cancellationToken);
+    }
+
+    private static string BuildPublishSuccessTitle(ContentCalendar schedule)
+    {
+        var platform = schedule.Integration?.Platform.ToString() ?? "social media";
+        return $"Post published successfully on {platform}";
+    }
+
+    private static string BuildPublishSuccessMessage(ContentCalendar schedule, DateTime publishedAt)
+    {
+        var content = schedule.Content;
+        var contentSummary = !string.IsNullOrWhiteSpace(content?.Title)
+            ? content.Title.Trim()
+            : CreateExcerpt(content?.TextContent);
+        var platform = schedule.Integration?.Platform.ToString() ?? "social media";
+        var destination = string.IsNullOrWhiteSpace(schedule.Integration?.TargetName)
+            ? platform
+            : $"{platform} ({schedule.Integration.TargetName.Trim()})";
+        var utcTime = publishedAt.Kind == DateTimeKind.Utc ? publishedAt : publishedAt.ToUniversalTime();
+        var formattedTime = utcTime.ToString("MMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture);
+
+        return $"Your post \"{contentSummary}\" was published to {destination} on {formattedTime}.";
+    }
+
+    private static string CreateExcerpt(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return "Untitled post";
+
+        var normalized = string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 100 ? normalized : $"{normalized[..97]}...";
     }
 
     private static bool IsDuplicateKeyError(Exception ex)
