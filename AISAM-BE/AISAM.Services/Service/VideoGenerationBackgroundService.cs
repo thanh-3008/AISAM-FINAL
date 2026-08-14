@@ -86,16 +86,24 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                             dbContext.Update(job);
                             await dbContext.SaveChangesAsync(stoppingToken);
                         }
-                        else if (result.Status == VideoGenerationStatus.Done && !string.IsNullOrWhiteSpace(result.MediaUrl))
+                        else if (result.Status == VideoGenerationStatus.Done && (!string.IsNullOrWhiteSpace(result.MediaUrl) || result.MediaBytes != null))
                         {
-                            _logger.LogInformation("[VideoGenerationBackgroundService] Job {JobId} completed. Downloading video...", job.Id);
+                            _logger.LogInformation("[VideoGenerationBackgroundService] Job {JobId} completed. Uploading video to Cloudinary...", job.Id);
                             
                             try
                             {
-                                using var httpClient = new HttpClient();
-                                var bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, stoppingToken);
-                                var fileName = $"video-job-{job.Id}.mp4";
+                                byte[] bytes;
+                                if (result.MediaBytes != null)
+                                {
+                                    bytes = result.MediaBytes;
+                                }
+                                else
+                                {
+                                    using var httpClient = new HttpClient();
+                                    bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, stoppingToken);
+                                }
                                 
+                                var fileName = $"video-job-{job.Id}.mp4";
                                 var uploadedUrl = await mediaStorage.UploadBytesAsync(bytes, "ai-videos", fileName, stoppingToken);
 
                                 job.VideoUrl = uploadedUrl;

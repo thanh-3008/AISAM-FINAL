@@ -65,14 +65,16 @@ public sealed class FallbackVideoProvider : IAIVideoProvider
             return VideoGenerationResult.Fail("JobId is null or empty.", ProviderName);
         }
 
-        if (jobId.StartsWith("openai-video:"))
+        jobId = jobId.Trim();
+
+        if (jobId.StartsWith("openai-video:", StringComparison.OrdinalIgnoreCase))
         {
-            var opName = jobId["openai-video:".Length..];
+            var opName = jobId["openai-video:".Length..].Trim();
             return await _openAI.PollAsync(opName, cancellationToken);
         }
-        if (jobId.StartsWith("deapi:"))
+        if (jobId.StartsWith("deapi:", StringComparison.OrdinalIgnoreCase))
         {
-            var opName = jobId["deapi:".Length..];
+            var opName = jobId["deapi:".Length..].Trim();
             return await _deapi.PollAsync(opName, cancellationToken);
         }
 

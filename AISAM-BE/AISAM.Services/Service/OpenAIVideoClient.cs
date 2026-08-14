@@ -124,23 +124,24 @@ public sealed class OpenAIVideoClient
                 var status = statusProp.GetString();
                 if (status == "completed")
                 {
-                    // Once completed, we need to get the actual video URL from /content endpoint, or just return the ID for download?
-                    // "Retrieve video content - GET /videos/{video_id}/content - Download the generated video bytes or a derived preview asset."
-                    // Since VideoGenerationResult.Done expects a MediaUrl, we could either give the content URL (which requires Auth header),
-                    // or download the bytes directly if AISAM can handle that. Wait, the Orchestrator expects MediaUrl to be downloaded later?
-                    // Actually, if we return the content URL, AISAM might not be able to download it without Auth header.
-                    // Let's check how DeAPI handles it. DeAPI returns a presigned URL.
-                    // For OpenAI, the API doc says "Streams the rendered video content".
-                    // Wait, maybe the video object returns a downloadable URL? 
-                    // No, the docs say GET /videos/{video_id}/content is how to download it.
-                    // Since MediaUrl must be accessible by Cloudinary without Auth header, we might need to download it here and upload?
-                    // The task didn't specify. Actually, let's just return the content URL. Wait, Cloudinary Upload from URL will fail if it needs Bearer token.
+                    // The video content requires Authorization header to download.
+                    // Since BackgroundService doesn't have the API key, we download the bytes here.
+                    var contentUrl = $"https://api.openai.com/v1/videos/{jobIdWithoutPrefix}/content";
+                    var contentReq = new HttpRequestMessage(HttpMethod.Get, contentUrl);
+                    contentReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.OpenAiApiKey);
                     
-                    // But if Cloudinary fails, it's better to download it to memory and then we'd need MediaBytes. 
-                    // Since `VideoGenerationResult` has no `MediaBytes`, only `MediaUrl`, maybe we can upload it to Cloudinary right here?
-                    // No, that's not our job here. Let's just return a placeholder or the content URL.
-                    // Let's look at `VideoGenerationResult` again. It has `MediaUrl`.
-                    return VideoGenerationResult.Done($"https://api.openai.com/v1/videos/{jobIdWithoutPrefix}/content", "OpenAI");
+                    var contentRes = await _httpClient.SendAsync(contentReq, cancellationToken);
+                    if (contentRes.IsSuccessStatusCode)
+                    {
+                        var bytes = await contentRes.Content.ReadAsByteArrayAsync(cancellationToken);
+                        return VideoGenerationResult.DoneBytes(bytes, "OpenAI");
+                    }
+                    else
+                    {
+                        var errorString = await contentRes.Content.ReadAsStringAsync(cancellationToken);
+                        _logger.LogError("[OpenAIVideoClient] Failed to download video content. Status: {Status}, Response: {Response}", contentRes.StatusCode, errorString);
+                        return VideoGenerationResult.Fail($"Failed to download video content: {contentRes.StatusCode}", "OpenAI");
+                    }
                 }
                 else if (status == "failed")
                 {
