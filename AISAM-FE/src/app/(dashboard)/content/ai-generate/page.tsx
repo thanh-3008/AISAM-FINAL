@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
-import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, type CreateContentPayload } from "@/services/contentService";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, submitForApproval, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
@@ -413,6 +413,20 @@ export default function AIGeneratePage() {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmitForApproval = async () => {
+    if (!generatedId) return;
+    setIsSubmitting(true);
+    const success = await submitForApproval(generatedId);
+    setIsSubmitting(false);
+    if (success) {
+      addToast("Post submitted for approval successfully!", "check");
+      setJustGenerated(false); // Hide the button after submit
+    } else {
+      addToast("Failed to submit for approval.", "error");
+    }
+  };
+
   const handleSendChat = () => {
     const text = chatInput.trim();
     if (!text || isGenerating) return;
@@ -640,15 +654,28 @@ export default function AIGeneratePage() {
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-4 shrink-0 flex flex-col gap-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-label-sm font-semibold text-on-surface">Edit Generated Content</span>
-                <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo && !videoUrl)}
-                  className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-xs font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
-                  {isSaving ? (
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span className="material-symbols-outlined text-[14px]">save</span>
+                <div className="flex items-center gap-2">
+                  {justGenerated && generatedId && (
+                    <button onClick={handleSubmitForApproval} disabled={isSubmitting || isSaving}
+                      className="px-4 py-2 rounded-lg bg-amber-500 text-white text-label-xs font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
+                      {isSubmitting ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[14px]">send</span>
+                      )}
+                      Submit for Approval
+                    </button>
                   )}
-                  Save Post
-                </button>
+                  <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo && !videoUrl)}
+                    className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-xs font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
+                    {isSaving ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[14px]">save</span>
+                    )}
+                    Save Post
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-[1fr,2fr] gap-3">
                 <div>

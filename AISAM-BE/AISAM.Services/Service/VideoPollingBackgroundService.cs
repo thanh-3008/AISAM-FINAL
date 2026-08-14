@@ -99,6 +99,9 @@ public sealed class VideoPollingBackgroundService : BackgroundService
 
                         _logger.LogInformation("[VideoPolling] Poll result for {GenId}: StatusCode={StatusCode} Data.Status={Status}",
                             job.Id, result.StatusCode, result.Data?.Status);
+
+                        // Thêm buffer delay giữa các job để tránh DeAPI rate limit (429)
+                        await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
                     }
                     catch (Exception ex)
                     {
@@ -113,7 +116,7 @@ public sealed class VideoPollingBackgroundService : BackgroundService
 
             try
             {
-                var delaySeconds = hasJobs ? 15 : 60; // Backoff to 60s when idle
+                var delaySeconds = hasJobs ? 45 : 120; // Tăng delay lên 45s để tránh DeAPI rate limit
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
             }
             catch (OperationCanceledException)

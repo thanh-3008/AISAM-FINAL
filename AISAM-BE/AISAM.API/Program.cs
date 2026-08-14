@@ -34,7 +34,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 var envPath = Path.Combine(builder.Environment.ContentRootPath, ".env");
-if (File.Exists(envPath))
+if (!builder.Environment.IsEnvironment("Testing") && File.Exists(envPath))
 {
     DotNetEnv.Env.Load(envPath);
 }
@@ -85,6 +85,14 @@ ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "Cloudi
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
+
+// === OpenAI (Primary Image + Video) ===
+ApplyEnvironmentOverride(builder.Configuration, "OPENAI_API_KEY", "ImageProviderSettings:OpenAiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "OPENAI_API_KEY", "VideoProviderSettings:OpenAiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "OPENAI_IMAGE_MODEL", "ImageProviderSettings:OpenAiImageModel");
+ApplyEnvironmentOverride(builder.Configuration, "OPENAI_IMAGE_QUALITY", "ImageProviderSettings:OpenAiImageQuality");
+ApplyEnvironmentOverride(builder.Configuration, "OPENAI_VIDEO_MODEL", "VideoProviderSettings:OpenAiVideoModel");
+ApplyEnvironmentOverride(builder.Configuration, "OPENAI_VIDEO_TIMEOUT_MINUTES", "VideoProviderSettings:OpenAiVideoTimeoutMinutes");
 
 // === AI Image (DeAPI primary I2I + OpenRouter T2I fallback + HuggingFace fallback) ===
 ApplyEnvironmentOverride(builder.Configuration, "IMAGE_DEAPI_KEY", "ImageProviderSettings:DeApiApiKey");
@@ -290,6 +298,8 @@ builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSecti
 builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
 
 // Clients (HttpClient)
+builder.Services.AddHttpClient<OpenAIImageClient>();
+builder.Services.AddHttpClient<OpenAIVideoClient>();
 builder.Services.AddHttpClient<OpenRouterImageClient>();
 builder.Services.AddHttpClient<HuggingFaceImageClient>();
 builder.Services.AddHttpClient<GeminiVideoClient>();
@@ -300,6 +310,7 @@ builder.Services.AddHttpClient<ColabVideoStrategy>();
 // Providers
 builder.Services.AddScoped<FallbackImageProvider>();
 builder.Services.AddScoped<FallbackVideoProvider>();
+builder.Services.AddScoped<IAIVideoProvider, FallbackVideoProvider>();
 builder.Services.AddScoped<NullVideoProvider>();
 builder.Services.AddScoped<ColabVideoStrategy>();
 builder.Services.AddScoped<IVideoGenerationOrchestrator, VideoGenerationOrchestrator>();
@@ -413,6 +424,26 @@ if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("SEED_
     AISAM.API.Infrastructure.DevDataSeeder.SeedDevData(app.Services);
 }
 
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
+    try
+    {
+        var conn = context.Database.GetDbConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT trigger_name FROM information_schema.triggers WHERE event_object_table = 'approvals';";
+        using var reader = cmd.ExecuteReader();
+        var triggers = new List<string>();
+        while(reader.Read()) { triggers.Add(reader.GetString(0)); }
+        System.IO.File.WriteAllText("triggers.txt", "Triggers on approvals: " + string.Join(", ", triggers));
+    }
+    catch (Exception ex)
+    {
+        System.IO.File.WriteAllText("triggers.txt", "Error: " + ex.Message);
+    }
+}
+
 app.Run();
 
 static void ApplyEnvironmentOverride(IConfiguration configuration, string environmentKey, string configurationKey)
@@ -480,4 +511,7 @@ static string[] BuildAllowedOrigins(IConfiguration configuration)
 
     return origins.ToArray();
 }
+
+
+public partial class Program { }
 

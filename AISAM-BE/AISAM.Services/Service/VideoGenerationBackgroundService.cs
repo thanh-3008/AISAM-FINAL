@@ -47,7 +47,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                 var timeoutThreshold = DateTime.UtcNow.Subtract(timeoutLimit);
 
                 var pendingJobs = await dbContext.VideoGenerationJobs
-                    .Where(j => j.Status == AiStatusEnum.Processing && !string.IsNullOrEmpty(j.ExternalJobId))
+                    .Where(j => (j.Status == AiStatusEnum.Processing || j.Status == AiStatusEnum.Pending) && !string.IsNullOrEmpty(j.ExternalJobId))
                     .ToListAsync(stoppingToken);
 
                 if (pendingJobs.Count > 0)
@@ -74,7 +74,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                         // Let's check status directly via the provider.
                         IAIVideoProvider provider = job.IsFallback 
                             ? scope.ServiceProvider.GetRequiredService<ColabVideoStrategy>()
-                            : scope.ServiceProvider.GetRequiredService<FallbackVideoProvider>();
+                            : scope.ServiceProvider.GetRequiredService<IAIVideoProvider>();
 
                         var result = await provider.CheckStatusAsync(job.ExternalJobId!, stoppingToken);
 
@@ -86,16 +86,24 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                             dbContext.Update(job);
                             await dbContext.SaveChangesAsync(stoppingToken);
                         }
-                        else if (result.Status == VideoGenerationStatus.Done && !string.IsNullOrWhiteSpace(result.MediaUrl))
+                        else if (result.Status == VideoGenerationStatus.Done && (!string.IsNullOrWhiteSpace(result.MediaUrl) || result.MediaBytes != null))
                         {
-                            _logger.LogInformation("[VideoGenerationBackgroundService] Job {JobId} completed. Downloading video...", job.Id);
+                            _logger.LogInformation("[VideoGenerationBackgroundService] Job {JobId} completed. Uploading video to Cloudinary...", job.Id);
                             
                             try
                             {
-                                using var httpClient = new HttpClient();
-                                var bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, stoppingToken);
-                                var fileName = $"video-job-{job.Id}.mp4";
+                                byte[] bytes;
+                                if (result.MediaBytes != null)
+                                {
+                                    bytes = result.MediaBytes;
+                                }
+                                else
+                                {
+                                    using var httpClient = new HttpClient();
+                                    bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, stoppingToken);
+                                }
                                 
+                                var fileName = $"video-job-{job.Id}.mp4";
                                 var uploadedUrl = await mediaStorage.UploadBytesAsync(bytes, "ai-videos", fileName, stoppingToken);
 
                                 job.VideoUrl = uploadedUrl;
@@ -123,6 +131,9 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                             // The current CheckStatusAsync doesn't return CurrentSegment yet. 
                             // Since CheckStatusAsync returns VideoGenerationResult, we might just poll.
                         }
+                        
+                        // Thêm buffer delay giữa các job để tránh DeAPI rate limit (429)
+                        await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
                     }
                     catch (Exception ex)
                     {
