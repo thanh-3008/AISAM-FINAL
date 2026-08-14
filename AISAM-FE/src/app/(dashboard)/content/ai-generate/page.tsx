@@ -312,7 +312,7 @@ export default function AIGeneratePage() {
       messages.map(m => ({ role: m.role, text: m.text })),
       {
         generationMode,
-        uploadedPrimaryImageUrl: generationMode === "normal_generation" ? uploadedPrimaryImageUrl : null,
+        uploadedPrimaryImageUrl: generationMode === "normal_generation" ? (uploadedPrimaryImageUrl || imageUrl || null) : null,
         selectedProductImageUrl: null,
         useOriginalProductImages: generationMode === "exact_product_reference" && useOriginalProductImages,
       }
