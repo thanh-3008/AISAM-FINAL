@@ -424,6 +424,26 @@ if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("SEED_
     AISAM.API.Infrastructure.DevDataSeeder.SeedDevData(app.Services);
 }
 
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AISAM.Repositories.AisamContext>();
+    try
+    {
+        var conn = context.Database.GetDbConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT trigger_name FROM information_schema.triggers WHERE event_object_table = 'approvals';";
+        using var reader = cmd.ExecuteReader();
+        var triggers = new List<string>();
+        while(reader.Read()) { triggers.Add(reader.GetString(0)); }
+        System.IO.File.WriteAllText("triggers.txt", "Triggers on approvals: " + string.Join(", ", triggers));
+    }
+    catch (Exception ex)
+    {
+        System.IO.File.WriteAllText("triggers.txt", "Error: " + ex.Message);
+    }
+}
+
 app.Run();
 
 static void ApplyEnvironmentOverride(IConfiguration configuration, string environmentKey, string configurationKey)

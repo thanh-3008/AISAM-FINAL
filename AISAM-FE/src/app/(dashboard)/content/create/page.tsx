@@ -33,7 +33,7 @@ export default function CreateContentPage() {
     brandId: "",
     productId: "",
     type: "TEXT" as ContentType,
-    status: "Awaiting Approval" as ContentStatus,
+    status: "Draft" as ContentStatus,
     platforms: [] as string[],
     tags: [] as string[],
     hashtags: [] as string[],
@@ -204,7 +204,7 @@ export default function CreateContentPage() {
       thumbnailUrl: thumbnailUrl || undefined,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
-      status: form.status === "Awaiting Approval" ? 1 : 0,
+      status: 0, // Always Draft on creation
       tags: form.tags.length > 0 ? form.tags : undefined,
     };
 
@@ -213,7 +213,7 @@ export default function CreateContentPage() {
       if (result) {
         setSaved(true);
         addToast("Content created successfully", "check");
-        setTimeout(() => router.push("/content"), 1000);
+        setTimeout(() => router.push(`/content/${result.id}`), 1000);
       } else {
         setSaveError("Failed to save content. Check console (F12) for details.");
         addToast("Failed to create content", "error");

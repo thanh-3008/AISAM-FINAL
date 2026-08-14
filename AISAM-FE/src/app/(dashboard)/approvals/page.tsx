@@ -557,7 +557,7 @@ export default function ApprovalsPage() {
   const submitRevision = async () => {
     if (!revisionDrawer || !revisionNote.trim()) return;
     setActionId(revisionDrawer.id);
-    const success = await rejectContent(revisionDrawer.id);
+    const success = await rejectContent(revisionDrawer.id, revisionNote);
     if (success) {
       applyItemStatus(revisionDrawer.id, "Rejected");
       showToast("Revision requested", "success");

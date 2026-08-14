@@ -87,7 +87,7 @@ public sealed class AIService : IAIService
             AdType = request.AdType,
             Title = request.Title,
             TextContent = string.Empty,
-            Status = ContentStatusEnum.PendingApproval,
+            Status = ContentStatusEnum.Draft,
             IsAiGenerated = true
         }, cancellationToken);
 
@@ -130,7 +130,7 @@ public sealed class AIService : IAIService
         }
 
         generation.Content.TextContent = generation.GeneratedText;
-        generation.Content.Status = ContentStatusEnum.PendingApproval;
+        generation.Content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(generation.Content), "AI generation approved.");
     }
@@ -304,7 +304,7 @@ public sealed class AIService : IAIService
                                 Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Original Product Images",
                                 TextContent = StripMediaMarkers(responseText),
                                 ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
-                                Status = ContentStatusEnum.PendingApproval,
+                                Status = ContentStatusEnum.Draft,
                                 IsAiGenerated = true
                             }, CancellationToken.None);
 
@@ -339,7 +339,7 @@ public sealed class AIService : IAIService
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
                             Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Chat Image Generation",
                             TextContent = isImageTextRequest ? responseText : prompt,
-                            Status = ContentStatusEnum.PendingApproval,
+                            Status = ContentStatusEnum.Draft,
                             IsAiGenerated = true
                         }, CancellationToken.None);
                         var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Pending }, CancellationToken.None);
@@ -413,7 +413,7 @@ public sealed class AIService : IAIService
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
                             Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
                             TextContent = StripMediaMarkers(responseText),
-                            Status = ContentStatusEnum.PendingApproval,
+                            Status = ContentStatusEnum.Draft,
                             IsAiGenerated = true
                         }, CancellationToken.None);
                         var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, Status = AiStatusEnum.Processing }, CancellationToken.None);
@@ -472,7 +472,7 @@ public sealed class AIService : IAIService
                         Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
                         TextContent = StripMediaMarkers(responseText),
                         ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
-                        Status = ContentStatusEnum.PendingApproval,
+                        Status = ContentStatusEnum.Draft,
                         IsAiGenerated = true
                     }, CancellationToken.None);
 
@@ -569,7 +569,7 @@ public sealed class AIService : IAIService
         if (generation == null || generation.Content.WorkspaceId != workspaceId) return GenericResponse<ContentResponseDto>.CreateError("AI generation not found.", HttpStatusCode.NotFound);
         if (generation.Status != AiStatusEnum.Completed || string.IsNullOrWhiteSpace(generation.GeneratedText)) return GenericResponse<ContentResponseDto>.CreateError("AI generation is not completed.", HttpStatusCode.BadRequest);
         generation.Content.TextContent = generation.GeneratedText;
-        generation.Content.Status = ContentStatusEnum.PendingApproval;
+        generation.Content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(generation.Content), "AI generation approved.");
     }

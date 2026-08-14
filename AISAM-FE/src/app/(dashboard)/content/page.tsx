@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContents, createContent, updateContent, deleteContentWithResult, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import { fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
 import { apiFetch } from "@/lib/apiClient";
@@ -61,6 +61,7 @@ export default function ContentPage() {
   const [deletingItem, setDeletingItem] = useState<ContentItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [postNowItem, setPostNowItem] = useState<ContentItem | null>(null);
+  const [submitItem, setSubmitItem] = useState<ContentItem | null>(null);
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   const [batchStatus, setBatchStatus] = useState<ContentStatus | "">("");
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
@@ -281,11 +282,25 @@ export default function ContentPage() {
         router.push(`/calendar?contentId=${item.id}`);
         break;
       }
+      case "Submit for Approval": {
+        submitContent(item);
+        break;
+      }
     }
   };
 
   // Edit save
   const [editingSaving, setEditingSaving] = useState(false);
+  const submitContent = async (item: ContentItem) => {
+    const success = await submitForApproval(item.id);
+    if (success) {
+      addToast(`"${item.title}" submitted for approval`, "check_circle");
+      loadContent();
+    } else {
+      addToast(`Failed to submit "${item.title}"`, "error");
+    }
+  };
+
   const handleEditSave = async (updated: ContentItem) => {
     setEditingSaving(true);
     try {
@@ -1002,6 +1017,12 @@ function TableMenu({ item, onClose, onAction }: { item: ContentItem; onClose: ()
           Duplicate
         </button>
         <div className="h-px bg-outline-variant/10 mx-3" />
+        {(item.status === "Draft" || item.status === "Rejected") && (
+          <button onClick={(e) => { e.stopPropagation(); onAction("Submit for Approval", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+            <span className="material-symbols-outlined text-[14px] text-amber-500 group-hover:text-amber-600">send</span>
+            Submit for Approval
+          </button>
+        )}
         {item.status === "Approved" && (
           <>
             <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">

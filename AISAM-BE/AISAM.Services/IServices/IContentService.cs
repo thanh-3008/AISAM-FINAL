@@ -16,6 +16,9 @@ public interface IContentService
     Task<GenericResponse<ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<bool>> SubmitForApprovalAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid id, Guid workspaceId, Guid approverUserId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<ContentResponseDto>> RejectAsync(Guid id, Guid workspaceId, Guid approverUserId, string? notes, CancellationToken cancellationToken = default);
     Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<PublishResultDto>> PublishAsync(Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default);
     Task<GenericResponse<PublishResultDto>> PublishScheduledAsync(Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId, CancellationToken cancellationToken = default)

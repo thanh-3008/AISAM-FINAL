@@ -33,29 +33,19 @@ public sealed class FallbackVideoProvider : IAIVideoProvider
         _logger.LogInformation("Options: AspectRatio={AR}, Duration={Dur}", options?.AspectRatio ?? "9:16", options?.DurationSeconds > 0 ? $"{options.DurationSeconds}s" : "N/A (Default/Segmented)");
         _logger.LogInformation("Provider: OpenAI -> DeAPI");
 
-        // === Provider 1: OpenAI ===
-        _logger.LogInformation("[1/2] Attempting OpenAI video start...");
-        var openAiResult = await _openAI.StartAsync(prompt, options, cancellationToken);
-        if (openAiResult.Success)
-        {
-            _logger.LogInformation("[1/2] ✅ OpenAI SUCCESS. JobId={JobId}", openAiResult.JobId);
-            return openAiResult;
-        }
-        _logger.LogWarning("[1/2] ❌ OpenAI FAILED: {Error}", openAiResult.ErrorMessage);
-
-        // === Provider 2: DeAPI ===
-        _logger.LogInformation("[2/2] Attempting DeAPI video start...");
+        // === Tạm thời khóa OpenAI và nhảy thẳng tới DeAPI theo yêu cầu ===
+        _logger.LogInformation("Attempting DeAPI video start (OpenAI bypassed)...");
         var deapiResult = await _deapi.StartAsync(prompt, options, cancellationToken);
         if (deapiResult.Success)
         {
-            _logger.LogInformation("[2/2] ✅ DeAPI SUCCESS. JobId={JobId}", deapiResult.JobId);
+            _logger.LogInformation("✅ DeAPI SUCCESS. JobId={JobId}", deapiResult.JobId);
             return deapiResult;
         }
-        _logger.LogWarning("[2/2] ❌ DeAPI FAILED: {Error}", deapiResult.ErrorMessage);
-
-        var error = $"OpenAI failed: [{openAiResult.ErrorMessage}] | DeAPI failed: [{deapiResult.ErrorMessage}]";
-        _logger.LogError("========= VIDEO GENERATION FAILED ========= {Error}", error);
-        return VideoGenerationResult.Fail(error, ProviderName);
+        
+        _logger.LogWarning("❌ DeAPI FAILED: {Error}", deapiResult.ErrorMessage);
+        _logger.LogError("========= VIDEO GENERATION FAILED ========= DeAPI Error: {Error}", deapiResult.ErrorMessage);
+        
+        return VideoGenerationResult.Fail(deapiResult.ErrorMessage, "DeAPI");
     }
 
     public async Task<VideoGenerationResult> CheckStatusAsync(string jobId, CancellationToken cancellationToken = default)
