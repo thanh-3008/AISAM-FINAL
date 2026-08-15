@@ -376,7 +376,7 @@ export default function AIGeneratePage() {
       adType: 0,
       title: title || brandName || "Untitled Post",
       textContent: content || "",
-      status: 1, // Awaiting Approval
+      status: 0, // Draft
       isAiGenerated: true,
     };
 
