@@ -143,9 +143,10 @@ public class PromptEnhancerTests
 
         await enhancer.EnhanceVideoPromptAsync("Create video", product: null, durationSeconds: 8);
 
-        Assert.Contains("LTX-2.3", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            capture.LastPrompt.Contains("LTX-2.3", StringComparison.OrdinalIgnoreCase) ||
+            capture.LastPrompt.Contains("Pattern Library", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("camera", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("no watermark", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

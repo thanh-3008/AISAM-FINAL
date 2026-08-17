@@ -37,6 +37,11 @@ public sealed class GeminiTextClient : IGeminiTextClient
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
                 responseMimeType = "application/json"
+            },
+            safetySettings = new[]
+            {
+                new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
             }
         };
 
@@ -90,6 +95,11 @@ public sealed class GeminiTextClient : IGeminiTextClient
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
                 responseMimeType = "application/json"
+            },
+            safetySettings = new[]
+            {
+                new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
             }
         };
 
