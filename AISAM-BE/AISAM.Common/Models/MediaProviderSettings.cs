@@ -48,7 +48,9 @@ public sealed class VideoProviderSettings
     public string? DeApiApiKeyFallback { get; set; }
     public string? DeApiModelFallback { get; set; }
 
-
+    // === MiniMax H3 (Image-to-Video) ===
+    public string DeApiImg2VideoModel { get; set; } = "MiniMaxH3_33B_Turbo_INT8";
+    public string? DeApiImg2VideoBaseUrl { get; set; } = "https://api.deapi.ai/api/v2";
 
     // === Colab Fallback ===
     public bool EnableColabFallback { get; set; } = true;

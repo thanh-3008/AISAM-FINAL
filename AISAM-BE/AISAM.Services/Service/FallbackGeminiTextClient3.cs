@@ -6,12 +6,12 @@ using System.Text.Json;
 
 namespace AISAM.Services.Service;
 
-public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
+public sealed class FallbackGeminiTextClient3 : IGeminiTextClient
 {
     private readonly HttpClient _httpClient;
     private readonly GeminiSettings _settings;
 
-    public FallbackGeminiTextClient2(HttpClient httpClient, IOptions<GeminiSettings> settings)
+    public FallbackGeminiTextClient3(HttpClient httpClient, IOptions<GeminiSettings> settings)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
@@ -19,13 +19,13 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
 
     public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey2))
+        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey3))
         {
-            throw new InvalidOperationException("Gemini Fallback API key 2 is not configured.");
+            throw new InvalidOperationException("Gemini Fallback API key 3 is not configured.");
         }
 
         var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey2}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey3}";
         var requestBody = new
         {
             contents = new[]
@@ -65,13 +65,13 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
 
     public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey2))
+        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey3))
         {
-            throw new InvalidOperationException("Gemini Fallback API key 2 is not configured.");
+            throw new InvalidOperationException("Gemini Fallback API key 3 is not configured.");
         }
 
         var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey2}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey3}";
         var requestBody = new
         {
             contents = new[]

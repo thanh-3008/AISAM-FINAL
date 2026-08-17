@@ -8,17 +8,23 @@ public sealed class FallbackTextProvider : IGeminiTextClient
     private readonly GeminiTextClient _geminiClient;
     private readonly FallbackGeminiTextClient _fallbackGeminiClient;
     private readonly FallbackGeminiTextClient2 _fallbackGeminiClient2;
+    private readonly FallbackGeminiTextClient3 _fallbackGeminiClient3;
+    private readonly FallbackGeminiTextClient4 _fallbackGeminiClient4;
     private readonly ILogger<FallbackTextProvider> _logger;
 
     public FallbackTextProvider(
         GeminiTextClient geminiClient,
         FallbackGeminiTextClient fallbackGeminiClient,
         FallbackGeminiTextClient2 fallbackGeminiClient2,
+        FallbackGeminiTextClient3 fallbackGeminiClient3,
+        FallbackGeminiTextClient4 fallbackGeminiClient4,
         ILogger<FallbackTextProvider> logger)
     {
         _geminiClient = geminiClient;
         _fallbackGeminiClient = fallbackGeminiClient;
         _fallbackGeminiClient2 = fallbackGeminiClient2;
+        _fallbackGeminiClient3 = fallbackGeminiClient3;
+        _fallbackGeminiClient4 = fallbackGeminiClient4;
         _logger = logger;
     }
 
@@ -47,8 +53,26 @@ public sealed class FallbackTextProvider : IGeminiTextClient
                 }
                 catch (Exception fallback2Ex)
                 {
-                    _logger.LogError(fallback2Ex, "All AI text providers failed.");
-                    throw new Exception($"All AI text providers failed. Primary Gemini: {ex.Message} | Fallback 1: {fallback1Ex.Message} | Fallback 2: {fallback2Ex.Message}", fallback2Ex);
+                    _logger.LogWarning(fallback2Ex, "Fallback 2 Gemini text generation failed. Trying tertiary Fallback Gemini API...");
+
+                    try
+                    {
+                        return await _fallbackGeminiClient3.GenerateAsync(prompt, cancellationToken);
+                    }
+                    catch (Exception fallback3Ex)
+                    {
+                        _logger.LogWarning(fallback3Ex, "Fallback 3 Gemini text generation failed. Trying quaternary Fallback Gemini API...");
+
+                        try
+                        {
+                            return await _fallbackGeminiClient4.GenerateAsync(prompt, cancellationToken);
+                        }
+                        catch (Exception fallback4Ex)
+                        {
+                            _logger.LogError(fallback4Ex, "All AI text providers failed.");
+                            throw new Exception($"All AI text providers failed. Primary Gemini: {ex.Message} | Fallback 1: {fallback1Ex.Message} | Fallback 2: {fallback2Ex.Message} | Fallback 3: {fallback3Ex.Message} | Fallback 4: {fallback4Ex.Message}", fallback4Ex);
+                        }
+                    }
                 }
             }
         }
@@ -79,9 +103,27 @@ public sealed class FallbackTextProvider : IGeminiTextClient
                 }
                 catch (Exception fallback2Ex)
                 {
-                    _logger.LogError(fallback2Ex, "All Vision providers failed. Falling back to text-only generation.");
-                    // Final fallback: call text-only (ignoring image bytes, generating script from text context)
-                    return await GenerateAsync(textPrompt, cancellationToken);
+                    _logger.LogWarning(fallback2Ex, "Fallback 2 Vision generation failed. Trying tertiary Fallback Gemini API...");
+
+                    try
+                    {
+                        return await _fallbackGeminiClient3.GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, cancellationToken);
+                    }
+                    catch (Exception fallback3Ex)
+                    {
+                        _logger.LogWarning(fallback3Ex, "Fallback 3 Vision generation failed. Trying quaternary Fallback Gemini API...");
+
+                        try
+                        {
+                            return await _fallbackGeminiClient4.GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, cancellationToken);
+                        }
+                        catch (Exception fallback4Ex)
+                        {
+                            _logger.LogError(fallback4Ex, "All Vision providers failed. Falling back to text-only generation.");
+                            // Final fallback: call text-only (ignoring image bytes, generating script from text context)
+                            return await GenerateAsync(textPrompt, cancellationToken);
+                        }
+                    }
                 }
             }
         }

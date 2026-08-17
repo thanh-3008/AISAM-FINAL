@@ -1,6 +1,8 @@
 using AISAM.Data.Model;
 using AISAM.Services.IServices;
+using AISAM.Services.Utilities;
 using Microsoft.Extensions.Logging;
+using System.IO;
 
 namespace AISAM.Services.Service;
 
@@ -26,6 +28,13 @@ public sealed class PromptEnhancerService : IPromptEnhancerService
         bool hasReferenceImages,
         CancellationToken cancellationToken = default)
     {
+        var cleanPrompt = PromptGuard.SanitizePromptInput(rawPrompt);
+        if (PromptGuard.ContainsInjectionPattern(cleanPrompt))
+        {
+            _logger.LogWarning("[PromptEnhancer] Potential prompt injection detected in EnhanceImagePromptAsync. Sanitizing.");
+            cleanPrompt = "High quality commercial product advertising photography";
+        }
+
         var productContext = BuildProductContext(product);
         var referenceMode = hasReferenceImages
             ? "The user will supply one or more reference images of the actual product. The product identity (shape, silhouette, color palette, material, label/packaging layout, and distinctive visible details) MUST be preserved exactly. Only the background, lighting, camera angle, and scene composition may change."
@@ -49,7 +58,7 @@ Reference image handling:
 {referenceMode}
 
 User's original request (may be in any language):
-"{rawPrompt}"
+"{cleanPrompt}"
 
 Output rules:
 - Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
@@ -78,6 +87,29 @@ Output rules:
         return rawPrompt;
     }
 
+    private static string? _videoContextCache;
+    private static readonly object _contextLock = new object();
+
+    private static string GetVideoContext()
+    {
+        if (_videoContextCache != null) return _videoContextCache;
+        lock (_contextLock)
+        {
+            if (_videoContextCache != null) return _videoContextCache;
+            
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Prompts", "VideoContext.md");
+            if (File.Exists(path))
+            {
+                _videoContextCache = File.ReadAllText(path);
+            }
+            else
+            {
+                _videoContextCache = string.Empty;
+            }
+            return _videoContextCache;
+        }
+    }
+
     /// <inheritdoc />
     public async Task<string> EnhanceVideoPromptAsync(
         string rawPrompt,
@@ -86,10 +118,35 @@ Output rules:
         string? aspectRatio = null,
         CancellationToken cancellationToken = default)
     {
-        var productContext = BuildProductContext(product);
-        var aspectHint = string.IsNullOrWhiteSpace(aspectRatio) ? "9:16 vertical (social media short-form)" : aspectRatio;
+        var videoContext = GetVideoContext();
+        var cleanPrompt = PromptGuard.SanitizePromptInput(rawPrompt);
+        if (PromptGuard.ContainsInjectionPattern(cleanPrompt))
+        {
+            _logger.LogWarning("[PromptEnhancer] Potential prompt injection detected in EnhanceVideoPromptAsync. Sanitizing.");
+            cleanPrompt = "Cinematic social media product advertisement video";
+        }
 
-        var metaPrompt = $"""
+        string metaPrompt;
+        
+        if (!string.IsNullOrWhiteSpace(videoContext))
+        {
+            metaPrompt = $@"{videoContext}
+
+Product name: {product?.Name ?? "No product name"}
+Product description: {product?.Description ?? "No description available"}
+Target audience: {product?.TargetAudience ?? "General audience"}
+Recently used patterns to avoid repeating: none
+
+User's original request (incorporate into the script if possible):
+""{rawPrompt}""
+";
+        }
+        else
+        {
+            var productContext = BuildProductContext(product);
+            var aspectHint = string.IsNullOrWhiteSpace(aspectRatio) ? "9:16 vertical (social media short-form)" : aspectRatio;
+
+            metaPrompt = $"""
 You are an expert advertising creative director and AI video generation prompt engineer.
 Your task: rewrite the user's request into a single, highly detailed English video generation prompt optimized for LTX-2.3 (a DiT-based audio-video foundation model by Lightricks).
 
@@ -110,7 +167,7 @@ Video parameters:
 - Aspect ratio: {aspectHint}
 
 User's original request (may be in any language):
-"{rawPrompt}"
+"{cleanPrompt}"
 
 Output rules:
 - Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
@@ -118,6 +175,7 @@ Output rules:
 - The product must be the central hero subject. Do not replace or redesign the product.
 - Always include at the end: "No text overlay, no watermark, no readable letters, no watermark on screen, no people, no hands, no faces, professional social media advertising video."
 """;
+        }
 
         try
         {
@@ -146,9 +204,16 @@ Output rules:
         string? aspectRatio = "9:16",
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(rawPrompt) && string.IsNullOrWhiteSpace(videoScript))
+        var cleanPrompt = PromptGuard.SanitizePromptInput(rawPrompt);
+        if (PromptGuard.ContainsInjectionPattern(cleanPrompt))
         {
-            return rawPrompt ?? string.Empty;
+            _logger.LogWarning("[PromptEnhancer] Potential prompt injection detected in EnhanceVideoPromptWithScriptAsync. Sanitizing.");
+            cleanPrompt = "Cinematic commercial product advertisement video";
+        }
+
+        if (string.IsNullOrWhiteSpace(cleanPrompt) && string.IsNullOrWhiteSpace(videoScript))
+        {
+            return cleanPrompt;
         }
 
         var productContext = BuildProductContext(product);
@@ -177,7 +242,7 @@ Video Parameters:
 - Aspect Ratio: {aspectHint}
 
 Original User Prompt / Direction:
-"{rawPrompt}"
+"{cleanPrompt}"
 
 Output Rules:
 - Output ONLY the final, continuous English prompt paragraph combining all 6 layers. No explanation, no markdown fences, no layer labels.

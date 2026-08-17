@@ -115,6 +115,7 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
     if (loading || cooldown) return;
     setLoading(true);
     setError(null);
+    setAiResponse(null);
     try {
       const response = await fetchAiRecommendations(dateRange);
       if (response) {

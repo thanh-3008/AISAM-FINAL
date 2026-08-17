@@ -6,12 +6,12 @@ using System.Text.Json;
 
 namespace AISAM.Services.Service;
 
-public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
+public sealed class FallbackGeminiTextClient4 : IGeminiTextClient
 {
     private readonly HttpClient _httpClient;
     private readonly GeminiSettings _settings;
 
-    public FallbackGeminiTextClient2(HttpClient httpClient, IOptions<GeminiSettings> settings)
+    public FallbackGeminiTextClient4(HttpClient httpClient, IOptions<GeminiSettings> settings)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
@@ -19,13 +19,13 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
 
     public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey2))
+        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey4))
         {
-            throw new InvalidOperationException("Gemini Fallback API key 2 is not configured.");
+            throw new InvalidOperationException("Gemini Fallback API key 4 is not configured.");
         }
 
         var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey2}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey4}";
         var requestBody = new
         {
             contents = new[]
@@ -49,7 +49,7 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"Fallback Gemini API returned {(int)response.StatusCode}: {GeminiTextClient.ExtractErrorMessage(errorBody)}");
+            throw new HttpRequestException($"Fallback 4 Gemini API returned {(int)response.StatusCode}: {GeminiTextClient.ExtractErrorMessage(errorBody)}");
         }
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -65,13 +65,13 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
 
     public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey2))
+        if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey4))
         {
-            throw new InvalidOperationException("Gemini Fallback API key 2 is not configured.");
+            throw new InvalidOperationException("Gemini Fallback API key 4 is not configured.");
         }
 
         var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey2}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey4}";
         var requestBody = new
         {
             contents = new[]
@@ -102,7 +102,7 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"Fallback Gemini API returned {(int)response.StatusCode}: {GeminiTextClient.ExtractErrorMessage(errorBody)}");
+            throw new HttpRequestException($"Fallback 4 Gemini API returned {(int)response.StatusCode}: {GeminiTextClient.ExtractErrorMessage(errorBody)}");
         }
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));

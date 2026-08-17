@@ -73,6 +73,8 @@ ApplyEnvironmentOverride(builder.Configuration, "TEXT_OPENROUTER_KEY", "GeminiSe
 ApplyEnvironmentOverride(builder.Configuration, "TEXT_OPENROUTER_MODEL", "GeminiSettings:OpenRouterModel");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY", "GeminiSettings:FallbackApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY_2", "GeminiSettings:FallbackApiKey2");
+ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY_3", "GeminiSettings:FallbackApiKey3");
+ApplyEnvironmentOverride(builder.Configuration, "GEMINI_FALLBACK_API_KEY_4", "GeminiSettings:FallbackApiKey4");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CLIENT_ID", "PayOSSettings:ClientId");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_API_KEY", "PayOSSettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSettings:ChecksumKey");
@@ -114,8 +116,12 @@ ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_KEY", "VideoProvid
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_MODEL", "VideoProviderSettings:GeminiModel");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_GEMINI_TIMEOUT", "VideoProviderSettings:GeminiTimeoutSeconds");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_KEY", "VideoProviderSettings:DeApiApiKey");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_KEY_FALLBACK", "VideoProviderSettings:DeApiApiKeyFallback");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_MODEL", "VideoProviderSettings:DeApiModel");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_MODEL_FALLBACK", "VideoProviderSettings:DeApiModelFallback");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_BASE_URL", "VideoProviderSettings:DeApiBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_IMG2VIDEO_MODEL", "VideoProviderSettings:DeApiImg2VideoModel");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_IMG2VIDEO_BASE_URL", "VideoProviderSettings:DeApiImg2VideoBaseUrl");
 
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_BASE_URL", "VideoProviderSettings:ColabBaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TOKEN", "VideoProviderSettings:ColabToken");
@@ -257,6 +263,8 @@ builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleP
 builder.Services.AddHttpClient<GeminiTextClient>();
 builder.Services.AddHttpClient<FallbackGeminiTextClient>();
 builder.Services.AddHttpClient<FallbackGeminiTextClient2>();
+builder.Services.AddHttpClient<FallbackGeminiTextClient3>();
+builder.Services.AddHttpClient<FallbackGeminiTextClient4>();
 builder.Services.AddHttpClient<OpenRouterTextClient>();
 builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());

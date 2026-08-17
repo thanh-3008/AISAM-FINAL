@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using AISAM.Services.Utilities;
 
 namespace AISAM.Services.Service;
 
@@ -155,10 +156,20 @@ public sealed class AIService : IAIService
 
     private async Task<GenericResponse<ChatResponse>> ChatInternalAsync(Guid profileId, Guid? workspaceId, Guid? userId, ChatRequest request, CancellationToken cancellationToken)
     {
-        var userMessage = request.Message?.Trim();
+        var userMessage = PromptGuard.SanitizePromptInput(request.Message);
         if (string.IsNullOrWhiteSpace(userMessage))
         {
             return GenericResponse<ChatResponse>.CreateError("Message is required.", HttpStatusCode.BadRequest);
+        }
+
+        if (PromptGuard.ContainsInjectionPattern(userMessage))
+        {
+            return GenericResponse<ChatResponse>.CreateSuccess(new ChatResponse
+            {
+                Response = "Yêu cầu của bạn chứa các câu lệnh không hợp lệ hoặc vi phạm chính sách bảo mật hệ thống AISAM. Vui lòng nhập nội dung phù hợp với mục đích sáng tạo nội dung tiếp thị.",
+                ConversationId = request.ConversationId ?? Guid.Empty,
+                ShouldCreateContent = false
+            }, "Processed with safety guardrails.");
         }
 
         Console.WriteLine($"[AIService.ChatInternalAsync] profileId={profileId}, workspaceId={workspaceId}, userId={userId}, message={userMessage[..Math.Min(userMessage.Length, 50)]}");
@@ -536,21 +547,39 @@ public sealed class AIService : IAIService
 
     private async Task<AiGenerationResponse> GenerateForContentAsync(Content content, string prompt, CancellationToken cancellationToken)
     {
+        var sanitizedPrompt = PromptGuard.SanitizePromptInput(prompt);
+        if (PromptGuard.ContainsInjectionPattern(sanitizedPrompt))
+        {
+            sanitizedPrompt = "Tạo một bài viết quảng cáo giới thiệu sản phẩm chuyên nghiệp, tự nhiên và thu hút.";
+        }
+
+        var systemWrappedPrompt = $"""
+            Bạn là trợ lý AI chuyên nghiệp về sáng tạo nội dung tiếp thị cho doanh nghiệp AISAM.
+            Hãy viết nội dung hoàn chỉnh, hấp dẫn dựa trên yêu cầu sau.
+            Quy tắc an toàn:
+            - Tuyệt đối không đưa ra các tuyên bố y tế, tài chính chưa được kiểm chứng.
+            - Không sử dụng các từ ngữ cam kết tuyệt đối như "100% hiệu quả", "chữa khỏi hoàn toàn".
+            - Tuân thủ quy định pháp luật và chuẩn mực đạo đức quảng cáo.
+
+            Yêu cầu từ người dùng:
+            {sanitizedPrompt}
+            """;
+
         var generation = await _generationRepository.AddAsync(new AiGeneration
         {
             ContentId = content.Id,
             Content = content,
-            AiPrompt = prompt,
+            AiPrompt = sanitizedPrompt,
             Status = AiStatusEnum.Pending
         }, cancellationToken);
 
         try
         {
-            var generatedText = await _geminiTextClient.GenerateAsync(prompt, cancellationToken);
+            var generatedText = await _geminiTextClient.GenerateAsync(systemWrappedPrompt, cancellationToken);
             var selectedProduct = content.Product ?? (content.ProductId.HasValue
                 ? await _productRepository.GetByIdAsync(content.ProductId.Value, cancellationToken)
                 : null);
-            generation.GeneratedText = EnsureProductLandingUrlInGeneratedResponse(generatedText, "content", selectedProduct, prompt);
+            generation.GeneratedText = EnsureProductLandingUrlInGeneratedResponse(generatedText, "content", selectedProduct, sanitizedPrompt);
             generation.Status = AiStatusEnum.Completed;
         }
         catch (Exception ex)
