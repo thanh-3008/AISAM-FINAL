@@ -17,15 +17,21 @@ public sealed class GeminiTextClient : IGeminiTextClient
         _settings = settings.Value;
     }
 
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+    public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+        => GenerateAsync(prompt, "application/json", cancellationToken);
+
+    public async Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
             throw new InvalidOperationException("Gemini API key is not configured.");
         }
 
-        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
+        var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var modelsToTry = primaryModel == "gemini-2.5-flash" 
+            ? new[] { primaryModel } 
+            : new[] { primaryModel, "gemini-2.5-flash" };
+
         var requestBody = new
         {
             contents = new[]
@@ -36,7 +42,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "application/json"
+                responseMimeType = responseMimeType ?? "text/plain"
             },
             safetySettings = new[]
             {
@@ -45,38 +51,67 @@ public sealed class GeminiTextClient : IGeminiTextClient
             }
         };
 
-        var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        HttpRequestException? lastException = null;
+
+        foreach (var model in modelsToTry)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}: {ExtractErrorMessage(errorBody)}");
+            try
+            {
+                var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
+                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    lastException = new HttpRequestException($"Gemini API ({model}) returned {(int)response.StatusCode}: {ExtractErrorMessage(errorBody)}");
+                    
+                    if ((int)response.StatusCode >= 500 || (int)response.StatusCode == 404 || (int)response.StatusCode == 429)
+                    {
+                        continue;
+                    }
+                    throw lastException;
+                }
+
+                using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+                var text = document.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    throw new InvalidOperationException($"Gemini API ({model}) returned an empty response.");
+                }
+
+                return text.Trim();
+            }
+            catch (HttpRequestException ex)
+            {
+                lastException = ex;
+            }
         }
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        var text = document.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            throw new InvalidOperationException("Gemini API returned an empty response.");
-        }
-
-        return text.Trim();
+        if (lastException != null) throw lastException;
+        throw new InvalidOperationException("Failed to generate content from any Gemini model.");
     }
 
-    public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+    public Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+        => GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, "application/json", cancellationToken);
+
+    public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType, string? responseMimeType, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
             throw new InvalidOperationException("Gemini API key is not configured.");
         }
 
-        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
+        var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var modelsToTry = primaryModel == "gemini-2.5-flash" 
+            ? new[] { primaryModel } 
+            : new[] { primaryModel, "gemini-2.5-flash" };
+
         var requestBody = new
         {
             contents = new[]
@@ -94,7 +129,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "application/json"
+                responseMimeType = responseMimeType ?? "text/plain"
             },
             safetySettings = new[]
             {
@@ -103,27 +138,50 @@ public sealed class GeminiTextClient : IGeminiTextClient
             }
         };
 
-        var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        HttpRequestException? lastException = null;
+
+        foreach (var model in modelsToTry)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"Gemini Vision API returned {(int)response.StatusCode}: {ExtractErrorMessage(errorBody)}");
+            try
+            {
+                var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
+                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    lastException = new HttpRequestException($"Gemini Vision API ({model}) returned {(int)response.StatusCode}: {ExtractErrorMessage(errorBody)}");
+                    
+                    if ((int)response.StatusCode >= 500 || (int)response.StatusCode == 404 || (int)response.StatusCode == 429)
+                    {
+                        continue;
+                    }
+                    throw lastException;
+                }
+
+                using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+                var text = document.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    throw new InvalidOperationException($"Gemini Vision API ({model}) returned an empty response.");
+                }
+
+                return text.Trim();
+            }
+            catch (HttpRequestException ex)
+            {
+                lastException = ex;
+            }
         }
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        var text = document.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            throw new InvalidOperationException("Gemini Vision API returned an empty response.");
-        }
-
-        return text.Trim();
+        if (lastException != null) throw lastException;
+        throw new InvalidOperationException("Failed to generate content from any Gemini Vision model.");
     }
 
     public static string ExtractErrorMessage(string responseBody)
