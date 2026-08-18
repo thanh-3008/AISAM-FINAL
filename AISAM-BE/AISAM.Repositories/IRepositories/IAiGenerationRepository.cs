@@ -12,4 +12,5 @@ public interface IAiGenerationRepository
     Task<Dictionary<DateTime, int>> GetDailyGenerationCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
     Task<int> GetTotalGenerationCountAsync(CancellationToken cancellationToken = default);
     Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default);
+    Task<List<string>> GetRecentVideoPatternIdsByProductAsync(Guid productId, int limit = 3, CancellationToken cancellationToken = default);
 }

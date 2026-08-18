@@ -95,24 +95,61 @@ public class PromptEnhancerTests
     [Fact]
     public async Task EnhanceVideoPromptAsync_ReturnsEnhancedEnglishPrompt_WhenGeminiSucceeds()
     {
-        const string geminiResponse = "A premium skincare bottle slowly rotates on a marble surface, camera dolly-in, soft studio lighting.";
+        const string visualText = "A premium skincare bottle slowly rotates on a marble surface, camera dolly-in, soft studio lighting.";
+        const string geminiResponse = "{\"pattern_id\": \"test_pattern\", \"integrated_multimodal_description\": \"" + visualText + "\"}";
         var enhancer = CreateEnhancer(new StubGeminiClient(geminiResponse));
 
         var result = await enhancer.EnhanceVideoPromptAsync(
             "Tạo video quảng cáo mỹ phẩm", product: null, durationSeconds: 8);
 
-        Assert.Equal(geminiResponse, result);
+        Assert.Equal(visualText.TrimEnd('.') + ", no text overlay, no watermark, no readable letters, no faces, no hands", result.Prompt);
+        Assert.Equal("test_pattern", result.PatternId);
     }
 
     [Fact]
     public async Task EnhanceVideoPromptAsync_FallsBackToRawPrompt_WhenGeminiThrows()
     {
-        const string raw = "Tạo video sản phẩm";
+        const string raw = "Create a product video"; // Must be English for fallback safety
         var enhancer = CreateEnhancer(new StubGeminiClient(new Exception("timeout")));
 
         var result = await enhancer.EnhanceVideoPromptAsync(raw, product: null, durationSeconds: 8);
 
-        Assert.Equal(raw, result);
+        Assert.Contains(raw, result.Prompt);
+    }
+
+    [Fact]
+    public async Task EnhanceVideoPromptAsync_FallsBackToDefaultSafeEnglish_WhenRawPromptIsVietnamese()
+    {
+        // Arrange: Gemini T2VA throws (simulate failure), and rawPrompt is Vietnamese
+        var vietnameseRawPrompt = "Quảng cáo bình giữ nhiệt Rạng Đông cao cấp";
+        var enhancer = CreateEnhancer(new StubGeminiClient(new Exception("Gemini unavailable")));
+
+        // Act
+        var result = await enhancer.EnhanceVideoPromptAsync(
+            vietnameseRawPrompt, product: null, durationSeconds: 8);
+
+        // Assert: phải fallback về DefaultSafeEnglish, không được trả tiếng Việt
+        Assert.DoesNotContain("ă", result.Prompt);
+        Assert.DoesNotContain("ơ", result.Prompt);
+        Assert.DoesNotContain("ệ", result.Prompt);
+        Assert.Null(result.PatternId);
+        // Verify prompt là ASCII thuần
+        Assert.True(result.Prompt.All(c => c <= 127), "Fallback prompt must be pure ASCII.");
+    }
+
+    [Fact]
+    public async Task EnhanceVideoPromptAsync_FallsBackToDefaultSafeEnglish_WhenT2vaReturnsVietnamese()
+    {
+        // Arrange: Gemini T2VA trả JSON với integrated_multimodal_description chứa tiếng Việt
+        var t2vaOutput = """{"pattern_id":"macro_detail","integrated_multimodal_description":"Bình giữ nhiệt được quay cận cảnh, ánh sáng mềm, nền trắng"}""";
+        var enhancer = CreateEnhancer(new StubGeminiClient(t2vaOutput));
+
+        // Act
+        var result = await enhancer.EnhanceVideoPromptAsync(
+            "Quảng cáo bình giữ nhiệt", product: null, durationSeconds: 8);
+
+        // Assert: EnforceVideoSafety reject T2VA output → fallback
+        Assert.True(result.Prompt.All(c => c <= 127), "Final prompt must be ASCII even when T2VA returns Vietnamese.");
     }
 
     [Fact]

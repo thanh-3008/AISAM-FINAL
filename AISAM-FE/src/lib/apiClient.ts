@@ -96,17 +96,21 @@ async function handleResponse(response: Response) {
     }
 
     if (response.status === 401 || errorMessage === "Authentication is required.") {
-      const isOnLoginPage = typeof window !== "undefined" && window.location.pathname === "/login";
-      if (!isOnLoginPage) {
+      const isLoginRequest = response.url.includes("/auth/login");
+      if (!isLoginRequest) {
         removeToken();
         removeRefreshToken();
         clearActiveWorkspace();
         if (typeof window !== "undefined") {
           document.cookie = "aisam_role=; path=/; max-age=0";
-          window.location.href = "/login";
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
+          // Return a hanging promise to stop execution and prevent unhandled rejections while the browser redirects
+          return new Promise(() => {});
         }
       }
-      // Do not return here. Let it fall through and throw the error so the caller can catch it
+      // If server-side or already on login page (and is a login request), let it fall through and throw
     }
 
     const trimmed = errorMessage.trim();
@@ -127,7 +131,8 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
     if (typeof window !== "undefined") {
       document.cookie = "aisam_role=; path=/; max-age=0";
       if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+        window.location.replace("/login");
+        return new Promise(() => {});
       }
     }
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");

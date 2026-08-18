@@ -24,11 +24,12 @@ public interface IPromptEnhancerService
     /// Incorporates product context, motion/camera direction, and LTX-2.3 prompting style.
     /// Falls back to the raw prompt if Gemini is unavailable.
     /// </summary>
-    Task<string> EnhanceVideoPromptAsync(
+    Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(
         string rawPrompt,
         Product? product,
         int durationSeconds = 8,
         string? aspectRatio = null,
+        List<string>? recentlyUsedPrompts = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

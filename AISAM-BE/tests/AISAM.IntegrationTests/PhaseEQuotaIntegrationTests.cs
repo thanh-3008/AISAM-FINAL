@@ -95,8 +95,8 @@ public class PhaseEQuotaIntegrationTests
         public Task<string> EnhanceImagePromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, bool hasReferenceImages, CancellationToken cancellationToken = default)
             => Task.FromResult(rawPrompt);
 
-        public Task<string> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, CancellationToken cancellationToken = default)
-            => Task.FromResult(rawPrompt);
+        public Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, List<string>? recentlyUsedPrompts = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<(string Prompt, string? PatternId)>((rawPrompt, "fake_pattern"));
 
         public Task<string> EnhanceVideoPromptWithScriptAsync(string rawPrompt, string? videoScript, AISAM.Data.Model.Product? product, int durationSeconds = 9, string? aspectRatio = "9:16", CancellationToken cancellationToken = default)
             => Task.FromResult(!string.IsNullOrWhiteSpace(rawPrompt) ? rawPrompt : videoScript ?? string.Empty);
@@ -158,6 +158,9 @@ public class PhaseEQuotaIntegrationTests
 
         public Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
             => Task.FromResult<IEnumerable<AiGenerationListDto>>(StoredGenerations.Values.Where(g => g.ContentId == contentId).Select(g => new AiGenerationListDto { Id = g.Id, ContentId = g.ContentId, GeneratedText = g.GeneratedText, Status = g.Status, ErrorMessage = g.ErrorMessage }).ToList());
+
+        public Task<List<string>> GetRecentVideoPatternIdsByProductAsync(Guid productId, int limit = 3, CancellationToken cancellationToken = default)
+            => Task.FromResult(new List<string>());
 
         public Task<AiGeneration> AddAsync(AiGeneration generation, CancellationToken cancellationToken = default)
         {

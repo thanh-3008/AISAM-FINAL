@@ -212,18 +212,22 @@ export default function AIGeneratePage() {
   useEffect(() => {
     if (!generatedId || !isVideo) return;
 
+    let interval: ReturnType<typeof setInterval>;
+
     const pollVideoStatus = async () => {
       try {
         const generations = await fetchContentGenerations(generatedId);
         if (!generations || generations.length === 0) return;
+
+        const gen = generations.find((g) => g.status === 1 || g.status === 2);
 
         setMessages((prev) => {
           let changed = false;
           const updated = prev.map((msg) => {
             const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
             if (!vidMatch) return msg;
-            const gen = generations.find((g) => g.status === 1 || g.status === 2);
             if (!gen) return msg; // If 0 (Pending) or 3 (Processing), wait.
+            
             if (gen.status === 1) { // 1 = Completed
               changed = true;
               return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `[VIDEO_URL: ${gen.generatedVideoUrl || ''}]`).trim(), canApply: true };
@@ -236,12 +240,17 @@ export default function AIGeneratePage() {
           });
           return changed ? updated : prev;
         });
+
+        if (gen) {
+            clearInterval(interval);
+            setIsVideo(false);
+        }
       } catch {
         /* ignore polling errors */
       }
     };
 
-    const interval = setInterval(pollVideoStatus, 10000);
+    interval = setInterval(pollVideoStatus, 10000);
     return () => clearInterval(interval);
   }, [generatedId, isVideo]);
 

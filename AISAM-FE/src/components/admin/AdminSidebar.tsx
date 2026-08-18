@@ -62,7 +62,8 @@ export default function AdminSidebar() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login");
+    window.location.href = "/login";
+ window.location.href = "/login";
   };
 
   const isItemActive = (href: string) =>
@@ -147,3 +148,5 @@ export default function AdminSidebar() {
     </aside>
   );
 }
+
+

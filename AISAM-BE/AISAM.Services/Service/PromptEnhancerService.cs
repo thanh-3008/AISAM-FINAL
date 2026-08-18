@@ -3,6 +3,7 @@ using AISAM.Services.IServices;
 using AISAM.Services.Utilities;
 using Microsoft.Extensions.Logging;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace AISAM.Services.Service;
 
@@ -111,11 +112,12 @@ Output rules:
     }
 
     /// <inheritdoc />
-    public async Task<string> EnhanceVideoPromptAsync(
+    public async Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(
         string rawPrompt,
         Product? product,
         int durationSeconds = 8,
         string? aspectRatio = null,
+        List<string>? recentlyUsedPrompts = null,
         CancellationToken cancellationToken = default)
     {
         var videoContext = GetVideoContext();
@@ -130,12 +132,16 @@ Output rules:
         
         if (!string.IsNullOrWhiteSpace(videoContext))
         {
+            var usedPatternsStr = recentlyUsedPrompts != null && recentlyUsedPrompts.Any() 
+                ? string.Join(", ", recentlyUsedPrompts) 
+                : "none";
+
             metaPrompt = $@"{videoContext}
 
 Product name: {product?.Name ?? "No product name"}
 Product description: {product?.Description ?? "No description available"}
 Target audience: {product?.TargetAudience ?? "General audience"}
-Recently used patterns to avoid repeating: none
+Recently used patterns to avoid repeating: {usedPatternsStr}
 
 User's original request (incorporate into the script if possible):
 ""{rawPrompt}""
@@ -182,18 +188,35 @@ Output rules:
             var enhanced = await _gemini.GenerateAsync(metaPrompt, cancellationToken);
             if (!string.IsNullOrWhiteSpace(enhanced))
             {
-                _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}",
-                    rawPrompt.Length, enhanced.Trim().Length);
-                return enhanced.Trim();
+                var (parsedPrompt, patternId) = ExtractVisualPromptFromT2va(enhanced);
+                var safePrompt = EnforceVideoSafety(parsedPrompt);
+                _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}, Final length={FinalLen}, Pattern={PatternId}",
+                    rawPrompt.Length, enhanced.Trim().Length, safePrompt.Length, patternId);
+                return (safePrompt, patternId);
             }
+        }
+        catch (InvalidOperationException ioe) when (ioe.Message.Contains("non-ASCII"))
+        {
+            _logger.LogWarning("[PromptEnhancer][NonAscii] PromptEnhancer output contained non-ASCII. Falling back. Source=T2VA");
+            // Fall through to rawPrompt fallback
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[PromptEnhancer] Gemini failed during video prompt enhancement. Falling back to raw prompt.");
+            _logger.LogError(ex, "[PromptEnhancer] Gemini failed during video prompt enhancement. Falling back to safe prompt.");
         }
 
-        // Fallback: return raw prompt so video generation is not blocked
-        return rawPrompt;
+        // Fallback: Check if the raw prompt is safe. If it contains non-ASCII (e.g. Vietnamese), we must fallback to a generic English prompt.
+        try
+        {
+            var fallbackSafe = EnforceVideoSafety(rawPrompt);
+            return (fallbackSafe, null);
+        }
+        catch (InvalidOperationException ioe) when (ioe.Message.Contains("non-ASCII"))
+        {
+            _logger.LogWarning("[PromptEnhancer][NonAscii] rawPrompt from Chat Orchestrator contained non-ASCII. Using DefaultSafeEnglish. RawPromptLength={Len}", rawPrompt?.Length ?? 0);
+            var defaultSafeEnglish = "A high-quality commercial advertising video showcasing the product in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
+            return (defaultSafeEnglish, null);
+        }
     }
 
     public async Task<string> EnhanceVideoPromptWithScriptAsync(
@@ -291,5 +314,68 @@ Output Rules:
     {
         if (!string.IsNullOrWhiteSpace(value))
             parts.Add($"- {label}: {value}");
+    }
+
+    private static (string VisualText, string PatternId) ExtractVisualPromptFromT2va(string enhanced)
+    {
+        if (string.IsNullOrWhiteSpace(enhanced)) throw new FormatException("Gemini output is empty.");
+
+        // 1. Parse JSON from Gemini (it might be wrapped in ```json ... ```)
+        var jsonSpan = enhanced;
+        var startIndex = jsonSpan.IndexOf("{");
+        var endIndex = jsonSpan.LastIndexOf("}");
+        if (startIndex >= 0 && endIndex > startIndex)
+        {
+            jsonSpan = jsonSpan.Substring(startIndex, endIndex - startIndex + 1);
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonSpan);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("integrated_multimodal_description", out var descEl) &&
+                root.TryGetProperty("pattern_id", out var patternEl))
+            {
+                var visualText = descEl.GetString() ?? string.Empty;
+                var patternId = patternEl.GetString() ?? string.Empty;
+                
+                // Strip <d>...</d> (dialogue) just in case
+                visualText = Regex.Replace(visualText, @"<d>.*?</d>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                // Strip text in quotes to avoid LTX-2.3 hallucinating on-screen text
+                visualText = Regex.Replace(visualText, @"""[^""]*""", ""); 
+                
+                return (visualText.Trim(), patternId);
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Parse JSON failed
+        }
+        
+        throw new FormatException("Gemini did not return the expected JSON format or missing integrated_multimodal_description/pattern_id.");
+    }
+
+    private static string EnforceVideoSafety(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt)) return string.Empty;
+
+        // Validate & Reject if there's Vietnamese (non-ASCII)
+        if (Regex.IsMatch(prompt, @"[^\x00-\x7F]"))
+        {
+            throw new InvalidOperationException("Prompt contains non-ASCII characters. Rejecting to fallback.");
+        }
+
+        var safePrompt = prompt;
+
+        // Append missing safety clauses
+        string[] requiredClauses = { "no text overlay", "no watermark", "no readable letters", "no faces", "no hands" };
+        var missing = requiredClauses.Where(c => !safePrompt.Contains(c, StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        if (missing.Any())
+        {
+            safePrompt = safePrompt.TrimEnd('.', ',', ' ') + ", " + string.Join(", ", missing);
+        }
+
+        return safePrompt.Trim();
     }
 }

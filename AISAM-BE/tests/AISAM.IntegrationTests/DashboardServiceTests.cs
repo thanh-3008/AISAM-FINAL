@@ -225,6 +225,14 @@ public class DashboardServiceTests
             IReadOnlyList<SocialAccount> data = _accounts.Where(account => account.WorkspaceId == workspaceId && !account.IsDeleted).ToList();
             return Task.FromResult(data);
         }
+
+        public Task<IReadOnlyList<SocialAccount>> GetByProfileIdsAsync(IEnumerable<Guid> profileIds, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<SocialAccount> data = _accounts.Where(account => profileIds.Contains(account.ProfileId)).ToList();
+            return Task.FromResult(data);
+        }
+
+        
     }
 
     private sealed class FakePostRepository : IPostRepository
@@ -329,6 +337,8 @@ public class DashboardServiceTests
             => Task.FromResult(_failedCount);
     }
 }
+
+
 
 
 
