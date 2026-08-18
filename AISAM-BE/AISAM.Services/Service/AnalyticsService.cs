@@ -261,7 +261,7 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         var prompt = BuildAnalyticsPrompt(totals, prevTotals, channels, topPosts.Items, campaigns.Items, brandContext);
-        var response = await _geminiTextClient.GenerateAsync(prompt, cancellationToken);
+        var response = await _geminiTextClient.GenerateAsync(prompt, "text/plain", cancellationToken);
 
         _cache.Set(cacheKey, response, TimeSpan.FromHours(12));
 
