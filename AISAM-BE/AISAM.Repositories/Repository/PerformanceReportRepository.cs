@@ -100,16 +100,15 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             {
                 Impressions = g.Sum(pr => pr.Impressions),
                 Engagement = g.Sum(pr => pr.Engagement),
-                Revenue = g.Sum(pr => pr.EstimatedRevenue)
+                Revenue = g.Sum(pr => pr.EstimatedRevenue),
+                Clicks = g.Sum(pr => pr.Clicks)
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         // [HOTFIX]: Tạm thời bỏ qua kéo RawData về RAM để tránh lỗi Egress Overuse / OOM.
-        long perfClicks = 0;
         long perfReach = 0;
-        
         var totalImpressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0);
-        var totalClicks = (campaignAgg?.Clicks ?? 0) + perfClicks;
+        var totalClicks = (campaignAgg?.Clicks ?? 0) + (perfAgg?.Clicks ?? 0);
 
         var perfReportCount = await perfReportsQuery.CountAsync(cancellationToken);
 
@@ -197,6 +196,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 pr.Impressions,
                 pr.Engagement,
                 pr.EstimatedRevenue,
+                pr.Clicks,
                 pr.RawData
             })
             .ToListAsync(cancellationToken);
@@ -210,7 +210,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                     Impressions = g.Sum(pr => pr.Impressions),
                     Engagement = g.Sum(pr => pr.Engagement),
                     Revenue = g.Sum(pr => pr.EstimatedRevenue),
-                    Clicks = g.Sum(pr => ExtractClicks(pr.RawData)),
+                    Clicks = g.Sum(pr => pr.Clicks),
                     Reach = g.Sum(pr => ExtractReach(pr.RawData))
                 });
 
@@ -458,7 +458,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 Date = pr.ReportDate.Date,
                 pr.Impressions,
                 pr.Engagement,
-                pr.RawData
+                pr.Clicks
             })
             .ToListAsync(cancellationToken);
 
@@ -470,7 +470,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 {
                     Impressions = g.Sum(pr => pr.Impressions),
                     Engagement = g.Sum(pr => pr.Engagement),
-                    Clicks = g.Sum(pr => ExtractClicks(pr.RawData))
+                    Clicks = g.Sum(pr => pr.Clicks)
                 });
 
         return new AnalyticsSparklines
@@ -575,6 +575,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         {
             existing.Impressions = report.Impressions;
             existing.Engagement = report.Engagement;
+            existing.Clicks = report.Clicks;
             existing.Ctr = report.Ctr;
             existing.EstimatedRevenue = report.EstimatedRevenue;
             existing.RawData = PreserveTrackedClicks(report.RawData, existing.RawData);

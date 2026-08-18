@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos.Response;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
@@ -155,8 +156,8 @@ public class PhaseEQuotaIntegrationTests
         public Task<AiGeneration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult(StoredGenerations.GetValueOrDefault(id));
 
-        public Task<IEnumerable<AiGeneration>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
-            => Task.FromResult(StoredGenerations.Values.Where(generation => generation.ContentId == contentId).AsEnumerable());
+        public Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IEnumerable<AiGenerationListDto>>(StoredGenerations.Values.Where(g => g.ContentId == contentId).Select(g => new AiGenerationListDto { Id = g.Id, ContentId = g.ContentId, GeneratedText = g.GeneratedText, Status = g.Status, ErrorMessage = g.ErrorMessage }).ToList());
 
         public Task<AiGeneration> AddAsync(AiGeneration generation, CancellationToken cancellationToken = default)
         {
@@ -185,7 +186,7 @@ public class PhaseEQuotaIntegrationTests
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
             => GetByIdAsync(id, cancellationToken);
 
-        public Task<PagedResult<Content>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
 
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default)
@@ -203,7 +204,7 @@ public class PhaseEQuotaIntegrationTests
         public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
@@ -282,3 +283,7 @@ public class PhaseEQuotaIntegrationTests
             => Task.CompletedTask;
     }
 }
+
+
+
+

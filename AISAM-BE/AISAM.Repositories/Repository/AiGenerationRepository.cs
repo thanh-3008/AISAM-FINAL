@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -20,12 +21,25 @@ public sealed class AiGenerationRepository : IAiGenerationRepository
             .FirstOrDefaultAsync(generation => generation.Id == id && !generation.IsDeleted, cancellationToken);
     }
 
-    public async Task<IEnumerable<AiGeneration>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
     {
         return await _context.AiGenerations
-            .Include(generation => generation.Content)
             .Where(generation => generation.ContentId == contentId && !generation.IsDeleted)
             .OrderByDescending(generation => generation.CreatedAt)
+            .Select(generation => new AiGenerationListDto
+            {
+                Id = generation.Id,
+                ContentId = generation.ContentId,
+                AiPrompt = generation.AiPrompt,
+                GeneratedImageUrl = generation.GeneratedImageUrl,
+                GeneratedVideoUrl = generation.GeneratedVideoUrl,
+                GeneratedText = generation.GeneratedText,
+                VideoJobId = generation.VideoJobId,
+                ProviderName = generation.ProviderName,
+                Status = generation.Status,
+                ErrorMessage = generation.ErrorMessage,
+                CreatedAt = generation.CreatedAt
+            })
             .ToListAsync(cancellationToken);
     }
 

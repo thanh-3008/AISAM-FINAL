@@ -1,11 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/content_model.dart';
 import '../models/content_request.dart';
-
 part 'content_repository.g.dart';
+
+List<ContentResponseModel> _parseContentList(List<dynamic> items) {
+  return items.map((e) => ContentResponseModel.fromJson(e)).toList();
+}
 
 class ContentRepository {
   final Dio _dio;
@@ -23,7 +27,8 @@ class ContentRepository {
       final response = await _dio.get('/Content', queryParameters: queryParams);
       final data = response.data['data'];
       final items = data != null ? data['data'] as List? : null;
-      return items?.map((e) => ContentResponseModel.fromJson(e)).toList() ?? [];
+      if (items == null || items.isEmpty) return [];
+      return await compute(_parseContentList, items);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }

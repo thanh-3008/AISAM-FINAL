@@ -37,3 +37,7 @@ internal sealed class EmptyUserRepository : IUserRepository
     public Task<IReadOnlyList<Session>> GetSessionsAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Session>>(Array.Empty<Session>());
     public Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<User>>(Array.Empty<User>());
 }
+
+
+
+

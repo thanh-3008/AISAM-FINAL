@@ -1,13 +1,19 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/conversation_model.dart';
 import '../models/conversation_detail_model.dart';
+
 import '../models/chat_request.dart';
 import '../models/chat_response.dart';
 
 part 'chat_repository.g.dart';
+
+List<ConversationModel> _parseConversationList(List<dynamic> items) {
+  return items.map((e) => ConversationModel.fromJson(e)).toList();
+}
 
 class ChatRepository {
   final Dio _dio;
@@ -28,7 +34,8 @@ class ChatRepository {
       final response = await _dio.get('/conversations', queryParameters: queryParams);
       // Expected: GenericResponse<PagedResult<ConversationResponseDto>>
       final items = response.data['data']['items'] as List;
-      return items.map((e) => ConversationModel.fromJson(e)).toList();
+      if (items.isEmpty) return [];
+      return await compute(_parseConversationList, items);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }

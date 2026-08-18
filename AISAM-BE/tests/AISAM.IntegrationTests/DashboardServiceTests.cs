@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos.Response;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
@@ -152,7 +153,7 @@ public class DashboardServiceTests
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<PagedResult<Content>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
             var query = _contents.Where(content => content.ProfileId == profileId);
             if (!includeDeleted)
@@ -166,9 +167,9 @@ public class DashboardServiceTests
             }
 
             var data = query.ToList();
-            return Task.FromResult(new PagedResult<Content>
+            return Task.FromResult(new PagedResult<ContentListDto>
             {
-                Data = data,
+                Data = data.Select(c => new ContentListDto { Id = c.Id, ProfileId = c.ProfileId, WorkspaceId = c.WorkspaceId, Status = c.Status }).ToList(),
                 TotalCount = data.Count,
                 Page = request.Page,
                 PageSize = request.PageSize
@@ -181,16 +182,16 @@ public class DashboardServiceTests
         public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        public Task<PagedResult<ContentListDto>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
             var query = _contents.Where(content => content.WorkspaceId == workspaceId);
             if (!includeDeleted) query = query.Where(content => !content.IsDeleted);
             if (status.HasValue) query = query.Where(content => content.Status == status.Value);
             var data = query.ToList();
-            return Task.FromResult(new PagedResult<Content> { Data = data, TotalCount = data.Count, Page = request.Page, PageSize = request.PageSize });
+            return Task.FromResult(new PagedResult<ContentListDto> { Data = data.Select(c => new ContentListDto { Id = c.Id, ProfileId = c.ProfileId, WorkspaceId = c.WorkspaceId, Status = c.Status }).ToList(), TotalCount = data.Count, Page = request.Page, PageSize = request.PageSize });
         }
 
-        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
@@ -328,3 +329,7 @@ public class DashboardServiceTests
             => Task.FromResult(_failedCount);
     }
 }
+
+
+
+

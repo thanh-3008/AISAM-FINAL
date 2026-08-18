@@ -120,16 +120,15 @@ public sealed class ContentService : IContentService
         return GenericResponse<List<string>>.CreateSuccess(tags);
     }
 
-    public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PagedResult<ContentListDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         if (brandId.HasValue)
         {
             var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, brandId.Value, null, cancellationToken);
-            if (!validation.Success) return GenericResponse<PagedResult<ContentResponseDto>>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+            if (!validation.Success) return GenericResponse<PagedResult<ContentListDto>>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         }
         var result = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, brandId, adType, includeDeleted, status, cancellationToken);
-        return GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>
-        { Data = result.Data.Select(MapToDto).ToList(), TotalCount = result.TotalCount, Page = result.Page, PageSize = result.PageSize }, MessageConstants.Content.ListRetrievedSuccess);
+        return GenericResponse<PagedResult<ContentListDto>>.CreateSuccess(result, MessageConstants.Content.ListRetrievedSuccess);
     }
 
     public async Task<GenericResponse<ContentResponseDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
@@ -296,25 +295,19 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content rejected successfully.");
     }
 
-    public async Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PagedResult<ContentListDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
     {
         if (brandId.HasValue)
         {
             var validation = await ValidateBrandAndProductAsync(profileId, brandId.Value, null, cancellationToken);
             if (!validation.Success)
             {
-                return GenericResponse<PagedResult<ContentResponseDto>>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+                return GenericResponse<PagedResult<ContentListDto>>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
             }
         }
 
         var result = await _contentRepository.GetPagedByProfileIdAsync(profileId, request, brandId, adType, includeDeleted, status, cancellationToken);
-        return GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>
-        {
-            Data = result.Data.Select(MapToDto).ToList(),
-            TotalCount = result.TotalCount,
-            Page = result.Page,
-            PageSize = result.PageSize
-        }, MessageConstants.Content.ListRetrievedSuccess);
+        return GenericResponse<PagedResult<ContentListDto>>.CreateSuccess(result, MessageConstants.Content.ListRetrievedSuccess);
     }
 
     public async Task<GenericResponse<ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
