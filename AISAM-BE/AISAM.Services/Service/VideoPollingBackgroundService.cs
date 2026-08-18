@@ -46,6 +46,28 @@ public sealed class VideoPollingBackgroundService : BackgroundService
 
                 _logger.LogInformation("[VideoPolling] Found {Count} pending/sync-needed video jobs.", pendingJobs.Count);
 
+                var workspaceIdsToFetch = pendingJobs
+                    .Where(j => j.Content != null && j.Content.Profile == null)
+                    .Select(j => j.Content!.WorkspaceId)
+                    .Distinct()
+                    .ToList();
+
+                var ownerDict = new Dictionary<Guid, Guid>();
+                if (workspaceIdsToFetch.Count > 0)
+                {
+                    var owners = await dbContext.WorkspaceMembers
+                        .Where(m => workspaceIdsToFetch.Contains(m.WorkspaceId) && m.IsActive && m.Role == WorkspaceMemberRoleEnum.Owner)
+                        .ToListAsync(stoppingToken);
+
+                    foreach (var owner in owners)
+                    {
+                        if (!ownerDict.ContainsKey(owner.WorkspaceId))
+                        {
+                            ownerDict[owner.WorkspaceId] = owner.UserId;
+                        }
+                    }
+                }
+
                 foreach (var job in pendingJobs)
                 {
                     try
@@ -79,17 +101,12 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                         }
                         else
                         {
-                            // Fallback: find the workspace owner
-                            var owner = await dbContext.WorkspaceMembers
-                                .Where(m => m.WorkspaceId == workspaceId && m.IsActive && m.Role == WorkspaceMemberRoleEnum.Owner)
-                                .OrderBy(m => m.Id)
-                                .FirstOrDefaultAsync(stoppingToken);
-                            if (owner == null)
+                            // Fallback: find the workspace owner from pre-fetched dictionary
+                            if (!ownerDict.TryGetValue(workspaceId, out userId))
                             {
                                 _logger.LogWarning("[VideoPolling] Job {JobId}: Cannot resolve UserId for WorkspaceId {WorkspaceId}, skipping.", job.Id, workspaceId);
                                 continue;
                             }
-                            userId = owner.UserId;
                         }
 
                         _logger.LogInformation("[VideoPolling] Polling job {GenId} VideoJobId={VideoJobId}", job.Id, job.VideoJobId);

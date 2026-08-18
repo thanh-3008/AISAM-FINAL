@@ -105,8 +105,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        // [HOTFIX]: Tạm thời bỏ qua kéo RawData về RAM để tránh lỗi Egress Overuse / OOM.
-        long perfReach = 0;
+        long perfReach = await perfReportsQuery.SumAsync(pr => pr.Reach, cancellationToken);
         var totalImpressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0);
         var totalClicks = (campaignAgg?.Clicks ?? 0) + (perfAgg?.Clicks ?? 0);
 
@@ -197,7 +196,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 pr.Engagement,
                 pr.EstimatedRevenue,
                 pr.Clicks,
-                pr.RawData
+                pr.Reach
             })
             .ToListAsync(cancellationToken);
 
@@ -211,7 +210,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                     Engagement = g.Sum(pr => pr.Engagement),
                     Revenue = g.Sum(pr => pr.EstimatedRevenue),
                     Clicks = g.Sum(pr => pr.Clicks),
-                    Reach = g.Sum(pr => ExtractReach(pr.RawData))
+                    Reach = g.Sum(pr => pr.Reach)
                 });
 
         var points = days.Select(day =>
@@ -265,8 +264,8 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 var reports = g.SelectMany(p => p.PerformanceReports).ToList();
                 var impressions = reports.Sum(pr => pr.Impressions);
                 var engagement = reports.Sum(pr => pr.Engagement);
-                var clicks = reports.Sum(pr => ExtractClicks(pr.RawData));
-                var reach = reports.Sum(pr => ExtractReach(pr.RawData));
+                var clicks = reports.Sum(pr => pr.Clicks);
+                var reach = reports.Sum(pr => pr.Reach);
                 return new AnalyticsChannelBreakdownDto
                 {
                     Platform = platformStr,
@@ -385,7 +384,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             var latestReport = GetLatestReport(p);
             var impressions = latestReport?.Impressions ?? 0;
             var clicks = GetPostClicks(p);
-            var reach = ExtractReach(latestReport?.RawData);
+            var reach = latestReport?.Reach ?? 0;
             var totalMediaViewUnique = ExtractTotalMediaViewUnique(latestReport?.RawData);
             return new TopPostItemDto
         {
@@ -576,6 +575,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             existing.Impressions = report.Impressions;
             existing.Engagement = report.Engagement;
             existing.Clicks = report.Clicks;
+            existing.Reach = report.Reach;
             existing.Ctr = report.Ctr;
             existing.EstimatedRevenue = report.EstimatedRevenue;
             existing.RawData = PreserveTrackedClicks(report.RawData, existing.RawData);
@@ -677,18 +677,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .ToListAsync(cancellationToken);
     }
 
-    private static long ExtractClicks(string? rawData)
-    {
-        var metaClicks = ExtractMetaClicks(rawData);
-        var trackedClicks = ExtractTrackedClicks(rawData);
-        return Math.Max(metaClicks, trackedClicks);
-    }
 
-    private static long ExtractMetaClicks(string? rawData) =>
-        ReadLongProperty(rawData, "clicks");
-
-    private static long ExtractTrackedClicks(string? rawData) =>
-        ReadLongProperty(rawData, "trackedClicks");
 
     private static long ExtractEngagement(string? rawData, long fallback)
     {
@@ -700,10 +689,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         return calculated > 0 ? calculated : fallback;
     }
 
-    private static long ExtractReach(string? rawData)
-    {
-        return ReadLongProperty(rawData, "reach");
-    }
+
 
     private static long ExtractTotalMediaViewUnique(string? rawData) =>
         ReadLongProperty(rawData, "total_media_view_unique");
@@ -721,10 +707,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
     private static long GetPostClicks(Post post)
     {
-        var latestReport = GetLatestReport(post);
-        var latestMetaClicks = ExtractMetaClicks(latestReport?.RawData);
-        var trackedClicks = post.PerformanceReports.Sum(report => ExtractTrackedClicks(report.RawData));
-        return Math.Max(latestMetaClicks, trackedClicks);
+        return post.PerformanceReports.Sum(report => report.Clicks);
     }
 
     private static long GetPostEngagement(Post post)
