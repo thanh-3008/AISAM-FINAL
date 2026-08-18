@@ -104,14 +104,10 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var perfClicks = (await perfReportsQuery
-                .Select(pr => pr.RawData)
-                .ToListAsync(cancellationToken))
-            .Sum(ExtractClicks);
-        var perfReach = (await perfReportsQuery
-                .Select(pr => pr.RawData)
-                .ToListAsync(cancellationToken))
-            .Sum(ExtractReach);
+        // [HOTFIX]: Tạm thời bỏ qua kéo RawData về RAM để tránh lỗi Egress Overuse / OOM.
+        long perfClicks = 0;
+        long perfReach = 0;
+        
         var totalImpressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0);
         var totalClicks = (campaignAgg?.Clicks ?? 0) + perfClicks;
 

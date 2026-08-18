@@ -127,11 +127,12 @@ public sealed class AnalyticsController : ControllerBase
         [FromQuery] DateTime to,
         [FromQuery] Guid? brandId = null,
         [FromQuery] string? platform = null,
+        [FromQuery] bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
         var result = await _analyticsService.GetAiRecommendationsAsync(
             WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
-            ToUtc(from), ToUtc(to), brandId, platform, cancellationToken);
+            ToUtc(from), ToUtc(to), brandId, platform, forceRefresh, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

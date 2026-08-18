@@ -268,14 +268,15 @@ export async function fetchTopPosts(
 }
 
 export async function fetchAiRecommendations(
-  dateRange?: DateRange
+  dateRange?: DateRange,
+  forceRefresh?: boolean
 ): Promise<string> {
   const { from, to } = getDateRange(dateRange || "30d");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {
     const res: GenericResponse<string> = await apiClient(
-      `/analytics/ai-recommendations?from=${from}&to=${to}`,
+      `/analytics/ai-recommendations?from=${from}&to=${to}${forceRefresh ? '&forceRefresh=true' : ''}`,
       { signal: controller.signal } as RequestInit
     );
     return res?.data || "";
