@@ -89,4 +89,16 @@ public sealed class AiGenerationRepository : IAiGenerationRepository
 
         return data.Cast<dynamic>().ToList();
     }
+    public async Task<List<string>> GetRecentVideoPatternIdsByProductAsync(Guid productId, int limit = 3, CancellationToken cancellationToken = default)
+    {
+        var patternIds = await _context.AiGenerations
+            .Include(g => g.Content)
+            .Where(g => g.Content != null && g.Content.ProductId == productId && !g.IsDeleted && !string.IsNullOrWhiteSpace(g.PatternId) && (g.VideoJobId != null || g.GeneratedVideoUrl != null))
+            .OrderByDescending(g => g.CreatedAt)
+            .Select(g => g.PatternId)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return patternIds.Where(p => p != null).Select(p => p!).ToList();
+    }
 }

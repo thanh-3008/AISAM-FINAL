@@ -477,6 +477,12 @@ public class SocialServiceTests
             return Task.FromResult<IReadOnlyList<SocialAccount>>(Accounts.Values.Where(account => account.WorkspaceId == workspaceId && !account.IsDeleted).ToList());
         }
 
+        public Task<IReadOnlyList<SocialAccount>> GetByProfileIdsAsync(IEnumerable<Guid> profileIds, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<SocialAccount> data = Accounts.Values.Where(account => profileIds.Contains(account.ProfileId)).ToList();
+            return Task.FromResult(data);
+        }
+
         public Task<SocialAccount> AddAsync(SocialAccount account, CancellationToken cancellationToken = default)
         {
             Accounts[account.Id] = account;
@@ -696,6 +702,9 @@ public class SocialServiceTests
         public string? TryUnprotect(string ciphertext) => null;
     }
 }
+
+
+
 
 
 

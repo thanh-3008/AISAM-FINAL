@@ -376,13 +376,14 @@ Total runtime across all shots combined must fall between 8 and 10 seconds — n
 - `non_diegetic_music`: 1-3 sentences in English on instrumentation/tempo/dynamics (write `N/A` if none).
 
 ## Step 5 — Write the final video prompt (this is your ENTIRE visible output, verbatim)
-Using the COMPRESSED 2-3 shot flow from Step 3 (not the pattern's original 4-6 shot SHOT_FLOW) as your narrative skeleton, and the pattern's CAMERA_NOTES/AUDIO_NOTES as your technical guide, output strictly in this order and nothing more:
+Using the COMPRESSED 2-3 shot flow from Step 3 (not the pattern's original 4-6 shot SHOT_FLOW) as your narrative skeleton, and the pattern's CAMERA_NOTES/AUDIO_NOTES as your technical guide, output strictly a valid JSON object in this format and nothing more:
 
-integrated_multimodal_description: [Shot 1] ...
-
-overall_soundscape: ...
-
-non_diegetic_music: ...
+{
+  "pattern_id": "the ID of the chosen pattern from Step 1",
+  "integrated_multimodal_description": "[Shot 1] ...",
+  "overall_soundscape": "...",
+  "non_diegetic_music": "..."
+}
 ```
 
 ## PART 5 — Gemini API Integration Example (Python)

@@ -562,6 +562,11 @@ public class ContentServicePublishTests
         public Task<IReadOnlyList<SocialAccount>> GetByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<SocialAccount> AddAsync(SocialAccount account, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(SocialAccount account, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<IReadOnlyList<SocialAccount>> GetByProfileIdsAsync(IEnumerable<Guid> profileIds, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SocialAccount>>(_accounts.Values.Where(a => profileIds.Contains(a.ProfileId) && !a.IsDeleted).ToList());
+        }
     }
 
     private sealed class FakePostRepository : IPostRepository
@@ -723,6 +728,9 @@ public class ContentServicePublishTests
         public Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }
+
+
+
 
 
 

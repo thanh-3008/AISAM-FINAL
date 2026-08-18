@@ -45,6 +45,10 @@ namespace AISAM.Data.Model
         [Column("error_message")]
         public string? ErrorMessage { get; set; }
 
+        [MaxLength(100)]
+        [Column("pattern_id")]
+        public string? PatternId { get; set; }
+
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;
 

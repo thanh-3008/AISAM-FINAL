@@ -96,19 +96,21 @@ async function handleResponse(response: Response) {
     }
 
     if (response.status === 401 || errorMessage === "Authentication is required.") {
-      const isOnLoginPage = typeof window !== "undefined" && window.location.pathname === "/login";
-      if (!isOnLoginPage) {
+      const isLoginRequest = response.url.includes("/auth/login");
+      if (!isLoginRequest) {
         removeToken();
         removeRefreshToken();
         clearActiveWorkspace();
         if (typeof window !== "undefined") {
           document.cookie = "aisam_role=; path=/; max-age=0";
-          window.location.replace("/login");
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
           // Return a hanging promise to stop execution and prevent unhandled rejections while the browser redirects
           return new Promise(() => {});
         }
       }
-      // If server-side or already on login page, let it fall through and throw
+      // If server-side or already on login page (and is a login request), let it fall through and throw
     }
 
     const trimmed = errorMessage.trim();
