@@ -34,7 +34,12 @@ public sealed class GeminiVideoClient
         var payload = new
         {
             contents = new[] { new { parts = new[] { new { text = prompt } } } },
-            generationConfig = new { responseModalities = new[] { "VIDEO" } }
+            generationConfig = new { responseModalities = new[] { "VIDEO" } },
+            safetySettings = new[]
+            {
+                new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
+            }
         };
 
         try

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
-import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, type CreateContentPayload } from "@/services/contentService";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, submitForApproval, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
@@ -100,6 +100,8 @@ export default function AIGeneratePage() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   const [chatInput, setChatInput] = useState("");
+  const [chatPanelWidth, setChatPanelWidth] = useState(320);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -116,8 +118,13 @@ export default function AIGeneratePage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatImageInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const availableProducts = brandList.length > 0 ? productList : [];
+
+  useEffect(() => {
+    if (!chatInput && chatInputRef.current) chatInputRef.current.style.height = "28px";
+  }, [chatInput]);
 
   useEffect(() => {
     fetchBrands().then(list => {
@@ -305,7 +312,7 @@ export default function AIGeneratePage() {
       messages.map(m => ({ role: m.role, text: m.text })),
       {
         generationMode,
-        uploadedPrimaryImageUrl: generationMode === "normal_generation" ? uploadedPrimaryImageUrl : null,
+        uploadedPrimaryImageUrl: generationMode === "normal_generation" ? (uploadedPrimaryImageUrl || imageUrl || null) : null,
         selectedProductImageUrl: null,
         useOriginalProductImages: generationMode === "exact_product_reference" && useOriginalProductImages,
       }
@@ -369,7 +376,7 @@ export default function AIGeneratePage() {
       adType: 0,
       title: title || brandName || "Untitled Post",
       textContent: content || "",
-      status: 1, // Awaiting Approval
+      status: 0, // Draft
       isAiGenerated: true,
     };
 
@@ -403,6 +410,20 @@ export default function AIGeneratePage() {
       addToast(e?.message || "Failed to save post");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmitForApproval = async () => {
+    if (!generatedId) return;
+    setIsSubmitting(true);
+    const success = await submitForApproval(generatedId);
+    setIsSubmitting(false);
+    if (success) {
+      addToast("Post submitted for approval successfully!", "check");
+      setJustGenerated(false); // Hide the button after submit
+    } else {
+      addToast("Failed to submit for approval.", "error");
     }
   };
 
@@ -511,7 +532,7 @@ export default function AIGeneratePage() {
         { label: "AI Generate" },
       ]} />
 
-      <main className="ml-0 p-6 h-[calc(100vh-64px)] overflow-hidden flex flex-col">
+      <main className="ml-0 p-4 sm:p-6 h-[calc(100vh-64px)] overflow-auto flex flex-col">
         <div className="flex items-center justify-between mb-5 shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => router.push("/content")}
@@ -525,9 +546,13 @@ export default function AIGeneratePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[260px_minmax(0,1fr)_320px] gap-gutter flex-1 min-h-0 overflow-hidden">
+        <div
+          className="grid grid-cols-1 xl:grid-cols-[260px_minmax(360px,1fr)_var(--assistant-width)] gap-gutter flex-1 min-h-0"
+          style={{ "--assistant-width": `${chatPanelWidth}px` } as React.CSSProperties}
+        >
           {/* Left Column: Chat History */}
-          <div className="min-w-0 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col overflow-hidden">
+          {isChatExpanded && <button type="button" aria-label="Close expanded AI Assistant" className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px]" onClick={() => setIsChatExpanded(false)} />}
+          <div className={`${isChatExpanded ? "fixed inset-3 sm:inset-6 z-50" : "min-w-0 min-h-[520px] xl:min-h-0"} bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-xl flex flex-col overflow-hidden`}>
             <div className="p-4 border-b border-outline-variant/10">
               <h2 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px] text-outline">history</span>
@@ -629,15 +654,28 @@ export default function AIGeneratePage() {
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-4 shrink-0 flex flex-col gap-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-label-sm font-semibold text-on-surface">Edit Generated Content</span>
-                <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo && !videoUrl)}
-                  className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-xs font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
-                  {isSaving ? (
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span className="material-symbols-outlined text-[14px]">save</span>
+                <div className="flex items-center gap-2">
+                  {justGenerated && generatedId && (
+                    <button onClick={handleSubmitForApproval} disabled={isSubmitting || isSaving}
+                      className="px-4 py-2 rounded-lg bg-amber-500 text-white text-label-xs font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
+                      {isSubmitting ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[14px]">send</span>
+                      )}
+                      Submit for Approval
+                    </button>
                   )}
-                  Save Post
-                </button>
+                  <button onClick={handleManualSave} disabled={isSaving || (!title && !content && !imageUrl && !isVideo && !videoUrl)}
+                    className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-xs font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center gap-1.5">
+                    {isSaving ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[14px]">save</span>
+                    )}
+                    Save Post
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-[1fr,2fr] gap-3">
                 <div>
@@ -830,9 +868,51 @@ export default function AIGeneratePage() {
           {/* Right Column: AI Assistant Chat */}
           <div className="min-w-0 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col overflow-hidden">
             <div className="p-4 border-b border-outline-variant/10 space-y-1.5 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
-                <h2 className="text-label-md font-semibold text-on-surface">AI Assistant</h2>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
+                  <h2 className="truncate text-label-md font-semibold text-on-surface">AI Assistant</h2>
+                </div>
+                <div className="hidden xl:flex items-center gap-1" aria-label="Resize AI Assistant">
+                  <button
+                    type="button"
+                    onClick={() => setChatPanelWidth((width) => Math.max(280, width - 40))}
+                    disabled={chatPanelWidth <= 280}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-outline hover:bg-surface-container hover:text-primary disabled:opacity-30"
+                    aria-label="Shrink AI Assistant"
+                    title="Shrink panel"
+                  >
+                    <span className="material-symbols-outlined text-[17px]">remove</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatPanelWidth(320)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-outline hover:bg-surface-container hover:text-primary"
+                    aria-label="Reset AI Assistant size"
+                    title="Reset panel size"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatPanelWidth((width) => Math.min(560, width + 40))}
+                    disabled={chatPanelWidth >= 560}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-outline hover:bg-surface-container hover:text-primary disabled:opacity-30"
+                    aria-label="Expand AI Assistant"
+                    title="Expand panel"
+                  >
+                    <span className="material-symbols-outlined text-[17px]">add</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsChatExpanded((expanded) => !expanded)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-outline hover:bg-surface-container hover:text-primary"
+                  aria-label={isChatExpanded ? "Minimize AI Assistant" : "Maximize AI Assistant"}
+                  title={isChatExpanded ? "Minimize panel" : "Maximize panel"}
+                >
+                  <span className="material-symbols-outlined text-[17px]">{isChatExpanded ? "close_fullscreen" : "open_in_full"}</span>
+                </button>
               </div>
               <div className="flex items-center gap-1.5 text-label-xs text-outline/60">
                 <span className="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-medium">{brandName}</span>
@@ -854,7 +934,7 @@ export default function AIGeneratePage() {
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${msg.role === "user"
+                    <div className={`min-w-0 max-w-[92%] rounded-xl px-3 py-2 ${msg.role === "user"
                       ? "bg-primary/10 text-on-surface"
                       : "bg-surface-container text-on-surface"
                       }`}>
@@ -866,7 +946,7 @@ export default function AIGeneratePage() {
                       )}
                       {msg.text.includes("[IMAGE:") || msg.text.includes("[VIDEO_JOB:") || msg.text.includes("[UPLOADED_IMAGE:") || msg.text.includes("[VIDEO_URL:") ? (
                         <>
-                          <p className="text-[12px] leading-relaxed whitespace-pre-line">
+                          <p className="text-[12px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                             {msg.text.replace(/\[IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_JOB:\s*.+?\]/g, '').replace(/\[UPLOADED_IMAGE:\s*.+?\]/g, '').replace(/\[VIDEO_URL:\s*.+?\]/g, '').trim()}
                           </p>
                           {(() => {
@@ -882,7 +962,7 @@ export default function AIGeneratePage() {
                           })()}
                         </>
                       ) : (
-                        <p className="text-[12px] leading-relaxed whitespace-pre-line">{msg.text}</p>
+                        <p className="text-[12px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
                       )}
                       {msg.role === "assistant" && (
                         <button onClick={() => handleApplyVariation({ id: msg.id, prompt: "", result: msg.text })}
@@ -1038,7 +1118,7 @@ export default function AIGeneratePage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5 transition-all">
+              <div className="flex items-end gap-2 bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5 transition-all">
                 {generationMode === "normal_generation" && (
                   <>
                     <input ref={chatImageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleChatImageChange} />
@@ -1053,9 +1133,14 @@ export default function AIGeneratePage() {
                     </button>
                   </>
                 )}
-                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                <textarea ref={chatInputRef} value={chatInput} onChange={(e) => {
+                  setChatInput(e.target.value);
+                  e.currentTarget.style.height = "0px";
+                  e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 144)}px`;
+                }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
-                  className="flex-1 bg-transparent border-none outline-none text-body-sm text-on-surface placeholder:text-outline/30"
+                  rows={1}
+                  className="min-h-7 max-h-36 flex-1 resize-none overflow-y-auto bg-transparent border-none py-1 outline-none text-body-sm leading-5 text-on-surface placeholder:text-outline/30 break-words [overflow-wrap:anywhere]"
                   placeholder="Ask AI to generate content..." disabled={isGenerating} />
                 <button onClick={handleSendChat} disabled={!chatInput.trim() || isGenerating}
                   className="w-7 h-7 rounded-lg bg-primary text-on-primary flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-all active:scale-[0.95]">

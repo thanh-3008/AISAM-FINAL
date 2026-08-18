@@ -165,8 +165,49 @@ public sealed class ContentRepository : IContentRepository
     public async Task UpdateAsync(Content content, CancellationToken cancellationToken = default)
     {
         content.UpdatedAt = DateTime.UtcNow;
-        _context.Contents.Update(content);
-        await _context.SaveChangesAsync(cancellationToken);
+        var entry = _context.Entry(content);
+        if (entry.State == EntityState.Detached)
+        {
+            _context.Contents.Attach(content);
+            entry.State = EntityState.Modified;
+        }
+
+        foreach (var approval in content.Approvals)
+        {
+            var approvalEntry = _context.Entry(approval);
+            // EF Core might infer 'Modified' for newly added items with a non-empty Guid.
+            // If the approval is not Unchanged, we check if it was recently created.
+            if (approvalEntry.State != EntityState.Unchanged)
+            {
+                // If the approval was created recently, we can safely assume it's a new entry that needs to be inserted.
+                if (approval.CreatedAt >= DateTime.UtcNow.AddMinutes(-5))
+                {
+                    approvalEntry.State = EntityState.Added;
+                }
+                else
+                {
+                    // Existing approvals are immutable
+                    approvalEntry.State = EntityState.Unchanged;
+                }
+            }
+        }
+        
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
+        {
+            var failedEntry = ex.Entries.FirstOrDefault();
+            var entity = failedEntry?.Entity;
+            var entityType = entity?.GetType().Name;
+            var entityId = "unknown";
+            var state = failedEntry?.State.ToString();
+            if (entity is AISAM.Data.Model.Content c) entityId = c.Id.ToString();
+            else if (entity is AISAM.Data.Model.Approval a) entityId = a.Id.ToString();
+            
+            throw new Exception($"Concurrency exception on {entityType} with ID {entityId}, State: {state}", ex);
+        }
     }
 
     public async Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)

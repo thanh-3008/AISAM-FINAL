@@ -301,12 +301,34 @@ export async function updateContent(id: string, data: UpdateContentPayload): Pro
   }
 }
 
-export async function approveContent(id: string): Promise<boolean> {
-  return updateContent(id, { status: 2 });
+export async function submitForApproval(id: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<null> = await apiClient(`/content/${id}/submit`, { method: "POST" });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
 }
 
-export async function rejectContent(id: string): Promise<boolean> {
-  return updateContent(id, { status: 3 });
+export async function approveContent(id: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/approve`, { method: "POST" });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function rejectContent(id: string, notes?: string): Promise<boolean> {
+  try {
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/reject`, {
+      method: "POST",
+      data: { notes: notes || "" }
+    });
+    return res?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function deleteContent(id: string): Promise<boolean> {

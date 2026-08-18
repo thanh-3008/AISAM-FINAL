@@ -83,7 +83,7 @@ public sealed class ContentService : IContentService
             StyleDescription = request.StyleDescription,
             ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter,
-            Status = request.Status ?? ContentStatusEnum.PendingApproval,
+            Status = request.Status ?? ContentStatusEnum.Draft,
             IsAiGenerated = request.IsAiGenerated,
             Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
@@ -106,7 +106,7 @@ public sealed class ContentService : IContentService
             ImageUrl = FormatImageUrlForJsonb(request.ImageUrl), VideoUrl = request.VideoUrl,
             ThumbnailUrl = request.ThumbnailUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
-            RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.PendingApproval,
+            RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.Draft,
             IsAiGenerated = request.IsAiGenerated,
             Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
@@ -223,6 +223,76 @@ public sealed class ContentService : IContentService
 
         await _contentRepository.UpdateAsync(content, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, deleted ? MessageConstants.Content.DeletedSuccess : MessageConstants.Content.RestoredSuccess);
+    }
+
+    public async Task<GenericResponse<bool>> SubmitForApprovalAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId)
+        {
+            return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+        }
+
+        if (content.Status != ContentStatusEnum.Draft && content.Status != ContentStatusEnum.Rejected)
+        {
+            return GenericResponse<bool>.CreateError("Only draft or rejected content can be submitted for approval.", HttpStatusCode.BadRequest);
+        }
+
+        content.Status = ContentStatusEnum.PendingApproval;
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "Content submitted for approval successfully.");
+    }
+
+    public async Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid id, Guid workspaceId, Guid approverUserId, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+        }
+
+        if (content.Status != ContentStatusEnum.PendingApproval)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError("Only pending approval content can be approved.", HttpStatusCode.BadRequest);
+        }
+
+        content.Status = ContentStatusEnum.Approved;
+        content.Approvals.Add(new Approval
+        {
+            ContentId = content.Id,
+            ApproverUserId = approverUserId,
+            Status = ContentStatusEnum.Approved,
+            ApprovedAt = DateTime.UtcNow
+        });
+
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content approved successfully.");
+    }
+
+    public async Task<GenericResponse<ContentResponseDto>> RejectAsync(Guid id, Guid workspaceId, Guid approverUserId, string? notes, CancellationToken cancellationToken = default)
+    {
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (content == null || content.WorkspaceId != workspaceId)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+        }
+
+        if (content.Status != ContentStatusEnum.PendingApproval)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError("Only pending approval content can be rejected.", HttpStatusCode.BadRequest);
+        }
+
+        content.Status = ContentStatusEnum.Rejected;
+        content.Approvals.Add(new Approval
+        {
+            ContentId = content.Id,
+            ApproverUserId = approverUserId,
+            Status = ContentStatusEnum.Rejected,
+            Notes = notes
+        });
+
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content rejected successfully.");
     }
 
     public async Task<GenericResponse<PagedResult<ContentListDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
@@ -589,13 +659,13 @@ public sealed class ContentService : IContentService
 
     private static GenericResponse<bool> ValidateCreateStatus(ContentStatusEnum? status)
     {
-        if (status is null or ContentStatusEnum.Draft or ContentStatusEnum.PendingApproval)
+        if (status is null or ContentStatusEnum.Draft)
         {
             return GenericResponse<bool>.CreateSuccess(true);
         }
 
         return GenericResponse<bool>.CreateError(
-            MessageConstants.Content.InvalidSelectedStatus,
+            "Only Draft status can be selected when creating content.",
             HttpStatusCode.BadRequest);
     }
 

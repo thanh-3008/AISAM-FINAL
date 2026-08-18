@@ -20,9 +20,8 @@ namespace AISAM.Data.Model
         public Guid? ApproverProfileId { get; set; }
 
         // New: approver by userId (team member)
-        [Required]
         [Column("approver_user_id")]
-        public Guid ApproverUserId { get; set; }
+        public Guid? ApproverUserId { get; set; }
 
         [Required]
         [Column("status")]
@@ -48,6 +47,6 @@ namespace AISAM.Data.Model
         public virtual Profile? ApproverProfile { get; set; }
 
         [ForeignKey("ApproverUserId")]
-        public virtual User ApproverUser { get; set; } = null!;
+        public virtual User? ApproverUser { get; set; }
     }
 }

@@ -160,6 +160,8 @@ public sealed class ContentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+
+
     [HttpGet("{contentId:guid}")]
     public async Task<ActionResult<GenericResponse<ContentResponseDto>>> GetById(
         Guid contentId,
@@ -177,6 +179,36 @@ public sealed class ContentController : ControllerBase
     {
         var membership = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
         var result = await _contentService.UpdateInWorkspaceAsync(contentId, GetWorkspaceId(), request, membership.Role, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{contentId:guid}/submit")]
+    public async Task<ActionResult<GenericResponse<bool>>> Submit(
+        Guid contentId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _contentService.SubmitForApprovalAsync(contentId, GetWorkspaceId(), cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{contentId:guid}/approve")]
+    public async Task<ActionResult<GenericResponse<ContentResponseDto>>> Approve(
+        Guid contentId,
+        CancellationToken cancellationToken = default)
+    {
+        var approverUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _contentService.ApproveAsync(contentId, GetWorkspaceId(), approverUserId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{contentId:guid}/reject")]
+    public async Task<ActionResult<GenericResponse<ContentResponseDto>>> Reject(
+        Guid contentId,
+        [FromBody] RejectContentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var approverUserId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _contentService.RejectAsync(contentId, GetWorkspaceId(), approverUserId, request.Notes, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

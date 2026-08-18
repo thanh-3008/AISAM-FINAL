@@ -100,10 +100,39 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
             if (item.UsedCredits < 1 || string.IsNullOrWhiteSpace(content.TextContent))
             {
-                var generatedText = await _textClient.GenerateAsync(BuildTextPrompt(item), cancellationToken);
-                if (string.IsNullOrWhiteSpace(generatedText)) throw new InvalidOperationException("AI returned empty content.");
-                content.TextContent = EnsureProductLandingUrlInCaption(generatedText.Trim(), item.Product, $"{item.Notes}\n{item.Cta}");
+                var textPrompt = BuildTextPrompt(item);
+                var aiGen = new AiGeneration
+                {
+                    Id = Guid.NewGuid(),
+                    ContentId = content.Id,
+                    AiPrompt = textPrompt,
+                    ProviderName = "Gemini",
+                    Status = AiStatusEnum.Processing,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.AiGenerations.Add(aiGen);
                 await _context.SaveChangesAsync(cancellationToken);
+
+                try
+                {
+                    var generatedText = await _textClient.GenerateAsync(textPrompt, cancellationToken);
+                    if (string.IsNullOrWhiteSpace(generatedText)) throw new InvalidOperationException("AI returned empty content.");
+                    content.TextContent = EnsureProductLandingUrlInCaption(generatedText.Trim(), item.Product, $"{item.Notes}\n{item.Cta}");
+                    aiGen.GeneratedText = content.TextContent;
+                    aiGen.Status = AiStatusEnum.Completed;
+                    aiGen.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    aiGen.Status = AiStatusEnum.Failed;
+                    aiGen.ErrorMessage = ex.Message;
+                    aiGen.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync(cancellationToken);
+                    throw;
+                }
+
                 if (item.UsedCredits < 1)
                 {
                     var textCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateText, 1, 1, cancellationToken);
@@ -228,7 +257,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         Tone: {item.Tone ?? "Natural and professional"}
         CTA: {item.Cta ?? "Choose a suitable call to action"}
         Notes: {item.Notes ?? "None"}
-        Return only the final caption, including a concise CTA and relevant hashtags. Write the post naturally. DO NOT include structural labels like "Title:", "Caption:", or "Nội dung:". Just output the final text ready to be posted. The backend will append the exact Product landing URL after generation when one is available, so do not invent, shorten, rewrite, or add fake URLs yourself. Do not explain your answer. Do not include assistant-talk such as "Được thôi", "Tôi sẽ", or "Dưới đây là".
+        Return only the final caption, including a concise CTA and relevant hashtags. Write the post naturally. DO NOT include structural labels like "Title:", "Caption:", or "Nội dung:". Just output the final text ready to be posted. The backend will append the exact Product landing URL after generation when one is available, so do not invent, shorten, rewrite, or add fake URLs yourself. Tuyệt đối không đưa ra các tuyên bố y tế, tài chính chưa được kiểm chứng, không sử dụng các từ ngữ cam kết tuyệt đối như '100% hiệu quả', 'chữa khỏi hoàn toàn', và không vi phạm chính sách nội dung quảng cáo. Do not explain your answer. Do not include assistant-talk such as "Được thôi", "Tôi sẽ", or "Dưới đây là".
         """;
 
     private static string BuildImagePrompt(AutomationItem item) => $"""

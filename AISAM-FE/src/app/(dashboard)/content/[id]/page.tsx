@@ -7,7 +7,7 @@ import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, AiGenerationResponse } from "@/services/contentService";
+import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse } from "@/services/contentService";
 
 export default function ContentDetailPage() {
   const params = useParams();
@@ -22,6 +22,7 @@ export default function ContentDetailPage() {
 
   const [item, setItem] = useState<ContentDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
 
   const [form, setForm] = useState<{
@@ -94,6 +95,18 @@ export default function ContentDetailPage() {
   const handleDelete = async () => {
     const ok = await deleteContent(params.id as string);
     if (ok) router.push("/content");
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    const success = await submitForApproval(params.id as string);
+    setIsSubmitting(false);
+    if (success) {
+      setToast({ message: "Content submitted for approval successfully.", type: "success" });
+      if (item) setItem({ ...item, status: "Awaiting Approval" });
+    } else {
+      setToast({ message: "Failed to submit content.", type: "error" });
+    }
   };
 
   if (loading) {
@@ -170,6 +183,17 @@ export default function ContentDetailPage() {
                       Schedule
                     </button>
                   </>
+                )}
+                {(item.status === "Draft" || item.status === "Rejected") && (
+                  <button onClick={handleSubmit} disabled={isSubmitting}
+                    className="px-4 py-2 rounded-xl bg-amber-500 text-white text-label-sm font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5">
+                    {isSubmitting ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[16px]">send</span>
+                    )}
+                    Submit for Approval
+                  </button>
                 )}
                 <button onClick={() => setEditing(true)}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">

@@ -21,12 +21,14 @@ public class VideoGenerationResult
     public VideoGenerationStatus Status { get; set; }
     public string? JobId { get; set; }
     public string? MediaUrl { get; set; }
+    public byte[]? MediaBytes { get; set; }
     public string? ErrorMessage { get; set; }
     public string ProviderName { get; set; } = string.Empty;
 
     public static VideoGenerationResult Queued(string jobId, string providerName) => new() { Status = VideoGenerationStatus.Queued, JobId = jobId, ProviderName = providerName };
     public static VideoGenerationResult InProgress(string jobId, string providerName) => new() { Status = VideoGenerationStatus.Processing, JobId = jobId, ProviderName = providerName };
     public static VideoGenerationResult Done(string mediaUrl, string providerName) => new() { Status = VideoGenerationStatus.Done, MediaUrl = mediaUrl, ProviderName = providerName };
+    public static VideoGenerationResult DoneBytes(byte[] mediaBytes, string providerName) => new() { Status = VideoGenerationStatus.Done, MediaBytes = mediaBytes, ProviderName = providerName };
     public static VideoGenerationResult Fail(string error, string providerName) => new() { Status = VideoGenerationStatus.Failed, ErrorMessage = error, ProviderName = providerName };
 }
 

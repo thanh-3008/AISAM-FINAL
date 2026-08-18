@@ -232,27 +232,36 @@ namespace AISAM.Services.Service
                         continue;
                     }
 
-                    var pageAccessToken = await ResolveAccessTokenAsync(integration, cancellationToken);
-                    if (string.IsNullOrWhiteSpace(pageAccessToken))
+                    var accessToken = await ResolveAccessTokenAsync(integration, cancellationToken);
+                    if (string.IsNullOrWhiteSpace(accessToken))
                     {
                         skipped++;
-                        errors.Add($"{post.ExternalPostId}: missing or undecryptable page access token. Reconnect this brand/page.");
+                        errors.Add($"{post.ExternalPostId}: missing or undecryptable access token. Reconnect this brand/page.");
                         continue;
                     }
 
                     FacebookPostInsightData? insights = null;
-                    var attemptedExternalIds = BuildExternalPostIdCandidates(post.ExternalPostId, integration.ExternalId).ToList();
-                    foreach (var externalPostId in attemptedExternalIds)
+                    var platformName = integration.Platform.ToString().ToLowerInvariant();
+
+                    if (platformName == "instagram")
                     {
-                        insights = await provider.GetPostInsightsAsync(pageAccessToken, externalPostId, cancellationToken);
-                        if (insights != null)
-                            break;
+                        insights = await provider.GetPostInsightsAsync(accessToken, post.ExternalPostId, cancellationToken);
+                    }
+                    else
+                    {
+                        var attemptedExternalIds = BuildExternalPostIdCandidates(post.ExternalPostId, integration.ExternalId).ToList();
+                        foreach (var externalPostId in attemptedExternalIds)
+                        {
+                            insights = await provider.GetPostInsightsAsync(accessToken, externalPostId, cancellationToken);
+                            if (insights != null)
+                                break;
+                        }
                     }
 
                     if (insights == null)
                     {
                         skipped++;
-                        errors.Add($"{post.ExternalPostId}: provider returned no insights or engagement summary. Tried: {string.Join(", ", attemptedExternalIds)}.");
+                        errors.Add($"{post.ExternalPostId}: provider returned no insights or engagement summary.");
                         continue;
                     }
 
@@ -322,6 +331,9 @@ namespace AISAM.Services.Service
 
         private static long CalculateEngagement(FacebookPostInsightData insights)
         {
+            if (insights.EngagedUsers.HasValue && insights.EngagedUsers.Value > 0)
+                return insights.EngagedUsers.Value;
+
             return (insights.Reactions ?? 0)
                 + (insights.Comments ?? 0)
                 + (insights.Shares ?? 0);
@@ -456,6 +468,21 @@ namespace AISAM.Services.Service
 
         private async Task<string?> ResolveAccessTokenAsync(SocialIntegration integration, CancellationToken cancellationToken)
         {
+            var platformName = integration.Platform.ToString().ToLowerInvariant();
+
+            if (platformName == "instagram")
+            {
+                var token = TryUnprotect(integration.AccessToken);
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    System.IO.File.AppendAllText("instagram_debug.log", $"{DateTime.UtcNow:O} | TOKEN-SOURCE=integration.AccessToken | IntegrationId={integration.Id}\n");
+                    return token;
+                }
+
+                System.IO.File.AppendAllText("instagram_debug.log", $"{DateTime.UtcNow:O} | TOKEN-NOT-FOUND | IntegrationId={integration.Id}\n");
+                return null;
+            }
+
             var current = TryUnprotect(integration.AccessToken);
             if (!string.IsNullOrWhiteSpace(current))
             {

@@ -408,7 +408,7 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("approver_profile_id");
 
-                    b.Property<Guid>("ApproverUserId")
+                    b.Property<Guid?>("ApproverUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("approver_user_id");
 
@@ -2758,9 +2758,7 @@ namespace AISAM.Repositories.Migrations
 
                     b.HasOne("AISAM.Data.Model.User", "ApproverUser")
                         .WithMany()
-                        .HasForeignKey("ApproverUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("ApproverUserId");
 
                     b.HasOne("AISAM.Data.Model.Content", "Content")
                         .WithMany("Approvals")

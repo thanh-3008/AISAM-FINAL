@@ -4,8 +4,12 @@ namespace AISAM.Common.Models;
 public sealed class ImageProviderSettings
 {
 
+    // === Primary: OpenAI ===
+    public string? OpenAiApiKey { get; set; }
+    public string OpenAiImageModel { get; set; } = "gpt-image-2";
+    public string OpenAiImageQuality { get; set; } = "standard";
 
-    // === Primary: Image-to-Image Edit (DeAPI / FLUX.2 Klein) ===
+    // === Fallback 1: Image-to-Image Edit (DeAPI / FLUX.2 Klein) ===
     public string? DeApiApiKey { get; set; }
     public string? DeApiModel { get; set; }
     public string OpenRouterEditModel { get; set; } = "Flux_2_Klein_4B_BF16";
@@ -27,7 +31,12 @@ public sealed class ImageProviderSettings
 /// <summary>Cấu hình AI Video Provider. Section: "VideoProviderSettings"</summary>
 public sealed class VideoProviderSettings
 {
-    // === Primary: Gemini Veo ===
+    // === Primary: OpenAI ===
+    public string? OpenAiApiKey { get; set; }
+    public string OpenAiVideoModel { get; set; } = "sora-2";
+    public int OpenAiVideoTimeoutMinutes { get; set; } = 30;
+
+    // === Fallback 1: Gemini Veo ===
     public string GeminiApiKey { get; set; } = string.Empty;
     public string GeminiModel { get; set; } = "veo-2.0-generate-001";
     public int GeminiTimeoutSeconds { get; set; } = 60;
@@ -39,7 +48,9 @@ public sealed class VideoProviderSettings
     public string? DeApiApiKeyFallback { get; set; }
     public string? DeApiModelFallback { get; set; }
 
-
+    // === MiniMax H3 (Image-to-Video) ===
+    public string DeApiImg2VideoModel { get; set; } = "MiniMaxH3_33B_Turbo_INT8";
+    public string? DeApiImg2VideoBaseUrl { get; set; } = "https://api.deapi.ai/api/v2";
 
     // === Colab Fallback ===
     public bool EnableColabFallback { get; set; } = true;

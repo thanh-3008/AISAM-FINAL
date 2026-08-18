@@ -508,8 +508,137 @@ public sealed class InstagramProvider : IProviderService
         public static ApiResult Fail(string error) => new(false, null, error);
     }
 
-    public Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
+    public async Task<FacebookPostInsightData?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<FacebookPostInsightData?>(null);
+        EnsureConfigured();
+
+        var insights = new FacebookPostInsightData();
+
+        var metrics = "views,total_interactions,likes,comments,shares,saved,reach";
+        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{postId}/insights?metric={Uri.EscapeDataString(metrics)}&access_token={Uri.EscapeDataString(accessToken)}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = TryDeserialize<ErrorResponse>(content);
+                insights.Diagnostics.Add($"Instagram insights request failed: {error?.Error?.Message ?? content}");
+                return insights.Impressions.HasValue || insights.Reach.HasValue || insights.EngagedUsers.HasValue ? insights : null;
+            }
+
+            var result = TryDeserialize<InstagramInsightsResponse>(content);
+            if (result?.Data == null)
+            {
+                insights.Diagnostics.Add("Instagram returned no insights data.");
+                return insights.Impressions.HasValue || insights.Reach.HasValue || insights.EngagedUsers.HasValue ? insights : null;
+            }
+
+            foreach (var metric in result.Data)
+            {
+                if (string.IsNullOrWhiteSpace(metric.Name))
+                    continue;
+
+                var value = metric.Values?.LastOrDefault()?.Value;
+                var numericValue = ExtractInsightNumber(value);
+
+                switch (metric.Name)
+                {
+                    case "views":
+                        if (numericValue.HasValue)
+                        {
+                            insights.Views = Math.Max(insights.Views ?? 0, numericValue.Value);
+                            insights.Impressions = insights.Views;
+                        }
+                        break;
+
+                    case "total_interactions":
+                        if (numericValue.HasValue) insights.EngagedUsers = Math.Max(insights.EngagedUsers ?? 0, numericValue.Value);
+                        break;
+
+                    case "reach":
+                        if (numericValue.HasValue) insights.Reach = Math.Max(insights.Reach ?? 0, numericValue.Value);
+                        break;
+
+                    case "likes":
+                        if (numericValue.HasValue) insights.Reactions = Math.Max(insights.Reactions ?? 0, numericValue.Value);
+                        break;
+
+                    case "comments":
+                        if (numericValue.HasValue) insights.Comments = Math.Max(insights.Comments ?? 0, numericValue.Value);
+                        break;
+
+                    case "shares":
+                        if (numericValue.HasValue) insights.Shares = Math.Max(insights.Shares ?? 0, numericValue.Value);
+                        break;
+
+                    case "saved":
+                        if (numericValue.HasValue)
+                            insights.Diagnostics.Add($"Saved: {numericValue.Value}");
+                        break;
+                }
+            }
+
+            if (!insights.Reach.HasValue && insights.Impressions.HasValue)
+                insights.Reach = insights.Impressions;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            insights.Diagnostics.Add($"Exception fetching Instagram insights: {ex.Message}");
+        }
+
+        return insights.Impressions.HasValue
+            || insights.Reach.HasValue
+            || insights.Views.HasValue
+            || insights.EngagedUsers.HasValue
+            || insights.Reactions.HasValue
+            || insights.Comments.HasValue
+            || insights.Shares.HasValue
+            ? insights
+            : null;
+    }
+
+    private static long? ExtractInsightNumber(object? rawValue)
+    {
+        return rawValue switch
+        {
+            null => null,
+            long value => value,
+            int value => value,
+            decimal value => (long)value,
+            double value => (long)value,
+            float value => (long)value,
+            string value when long.TryParse(value, out var parsed) => parsed,
+            JsonElement { ValueKind: JsonValueKind.Number } element when element.TryGetInt64(out var parsed) => parsed,
+            JsonElement { ValueKind: JsonValueKind.String } element when long.TryParse(element.GetString(), out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private sealed class InstagramInsightsResponse
+    {
+        [JsonPropertyName("data")]
+        public List<InstagramInsightMetric>? Data { get; set; }
+    }
+
+    private sealed class InstagramInsightMetric
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("values")]
+        public List<InstagramInsightValue>? Values { get; set; }
+    }
+
+    private sealed class InstagramInsightValue
+    {
+        [JsonPropertyName("value")]
+        public object? Value { get; set; }
     }
 }

@@ -31,7 +31,7 @@ public class ContentServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(profileId, repository.Added.Single().ProfileId);
-        Assert.Equal(ContentStatusEnum.PendingApproval, repository.Added.Single().Status);
+        Assert.Equal(ContentStatusEnum.Draft, repository.Added.Single().Status);
     }
 
     [Fact]
@@ -50,8 +50,9 @@ public class ContentServiceTests
             Status = ContentStatusEnum.PendingApproval
         });
 
-        Assert.True(result.Success);
-        Assert.Equal(ContentStatusEnum.PendingApproval, repository.Added.Single().Status);
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("Only Draft status can be selected when creating content.", result.Message);
     }
 
     [Fact]

@@ -128,6 +128,31 @@ export default function AuthShell({
 
       {/* Right Column: Form */}
       <section className="flex items-center justify-center p-margin-mobile md:p-margin-desktop bg-surface relative">
+        {/* Back to Home */}
+        <Link
+          href="/"
+          aria-label="Back to Home"
+          className="group absolute right-margin-mobile top-margin-mobile z-20 inline-flex items-center gap-2.5 rounded-xl border border-outline-variant/70 bg-surface-container-lowest/80 p-1.5 pr-3.5 font-label-md text-label-md font-semibold text-on-surface-variant shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-surface-container-lowest hover:text-primary hover:shadow-[0_12px_30px_rgba(37,99,235,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:right-margin-desktop md:top-margin-desktop"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-on-primary">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-[18px] w-[18px] transition-transform duration-300 group-hover:-translate-x-0.5"
+            >
+              <path d="m15 18-6-6 6-6" />
+              <path d="M9 12h10" />
+            </svg>
+          </span>
+          <span className="hidden sm:inline">Back home</span>
+          <span className="sm:hidden">Home</span>
+        </Link>
+
         {/* Mobile Logo */}
         <div className="absolute top-margin-mobile left-margin-mobile lg:hidden flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">

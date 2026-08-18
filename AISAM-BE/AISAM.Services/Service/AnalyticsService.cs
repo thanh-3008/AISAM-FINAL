@@ -212,6 +212,13 @@ public sealed class AnalyticsService : IAnalyticsService
         CancellationToken cancellationToken = default)
     {
         var totals = await _performanceReportRepo.GetAggregatedTotalsAsync(workspaceId, from, to, brandId, platform);
+        if (totals.PublishedPosts == 0 && totals.Impressions == 0 && totals.ActiveCampaigns == 0)
+        {
+            return GenericResponse<string>.CreateSuccess(
+                "📊 Cần thêm dữ liệu hoạt động (bài viết đã đăng, lượt tiếp cận, chiến dịch) để hệ thống AI có thể đưa ra đề xuất marketing chính xác và tối ưu nhất cho bạn.",
+                "AI recommendations retrieved successfully.");
+        }
+
         var channels = await _performanceReportRepo.GetChannelBreakdownAsync(workspaceId, from, to, brandId);
         var topPosts = await _performanceReportRepo.GetTopPostsPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3);
         var campaigns = await _performanceReportRepo.GetCampaignBreakdownPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3);

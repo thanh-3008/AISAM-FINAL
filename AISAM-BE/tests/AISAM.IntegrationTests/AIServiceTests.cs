@@ -150,7 +150,7 @@ public class AIServiceTests
 
         Assert.True(result.Success);
         Assert.Equal("Approved AI text", content.TextContent);
-        Assert.Equal(ContentStatusEnum.PendingApproval, content.Status);
+        Assert.Equal(ContentStatusEnum.Draft, content.Status);
     }
 
     [Fact]

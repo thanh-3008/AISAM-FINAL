@@ -5,19 +5,22 @@ namespace AISAM.Services.Service;
 
 public sealed class FallbackImageProvider : IAIImageProvider
 {
+    private readonly OpenAIImageClient _openAI;
     private readonly OpenRouterImageClient _openRouter;
     private readonly HuggingFaceImageClient _huggingFace;
     private readonly HttpClient _httpClient;
     private readonly ILogger<FallbackImageProvider> _logger;
 
-    public string ProviderName => "OpenRouter→HuggingFace";
+    public string ProviderName => "OpenAI→OpenRouter→HuggingFace";
 
     public FallbackImageProvider(
+        OpenAIImageClient openAI,
         OpenRouterImageClient openRouter,
         HuggingFaceImageClient huggingFace,
         HttpClient httpClient,
         ILogger<FallbackImageProvider> logger)
     {
+        _openAI = openAI;
         _openRouter = openRouter;
         _huggingFace = huggingFace;
         _httpClient = httpClient;
@@ -32,7 +35,15 @@ public sealed class FallbackImageProvider : IAIImageProvider
             .ToList() ?? new List<string>();
         var requiresReferenceImage = referenceUrls.Count > 0;
 
-        _logger.LogInformation("Attempting primary image generation (Image-to-Image when references exist, otherwise Text-to-Image)...");
+        _logger.LogInformation("Attempting primary image generation (OpenAI)...");
+        var openAIResult = await _openAI.GenerateAsync(prompt, options, cancellationToken);
+        if (openAIResult.Bytes != null)
+        {
+            return AIMediaResult.OkBytes(openAIResult.Bytes, requiresReferenceImage ? "OpenAI Image-to-Image (Edit)" : "OpenAI Text-to-Image");
+        }
+        
+        _logger.LogWarning("OpenAI image generation failed: {Error}. Falling back to OpenRouter...", openAIResult.Error);
+
         var orResult = await _openRouter.GenerateAsync(prompt, options, cancellationToken);
         if (orResult.Bytes != null)
         {
@@ -110,8 +121,8 @@ public sealed class FallbackImageProvider : IAIImageProvider
         var hfError = huggingFaceResult.Error ?? "Download failed or no result";
 
         var errorMessage = requiresReferenceImage && textToImageError != null
-            ? $"All providers failed. Primary I2I (FLUX.2 Klein): [{orResult.Error}] | Fallback T2I: [{textToImageError}] | Hugging Face T2I: [{hfError}]"
-            : $"All providers failed. OpenRouter: [{orResult.Error}] | Hugging Face: [{hfError}]";
+            ? $"All providers failed. OpenAI: [{openAIResult.Error}] | Primary I2I (FLUX.2 Klein): [{orResult.Error}] | Fallback T2I: [{textToImageError}] | Hugging Face T2I: [{hfError}]"
+            : $"All providers failed. OpenAI: [{openAIResult.Error}] | OpenRouter: [{orResult.Error}] | Hugging Face: [{hfError}]";
         _logger.LogError(errorMessage);
         return AIMediaResult.Fail(errorMessage, ProviderName);
     }

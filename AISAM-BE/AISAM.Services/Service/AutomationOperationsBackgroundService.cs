@@ -29,13 +29,48 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                 var context = scope.ServiceProvider.GetRequiredService<AisamContext>();
                 var approval = scope.ServiceProvider.GetRequiredService<IAutomationApprovalService>();
 
-                var autoPlans = await context.AutomationPlans.AsNoTracking()
+                var autoPlans = await context.AutomationPlans
+                    .Include(plan => plan.Items).ThenInclude(item => item.Content)
                     .Where(plan => plan.AutoApprove && plan.Status == AutomationPlanStatusEnum.AwaitingApproval && !plan.IsDeleted)
                     .OrderBy(plan => plan.CreatedAt)
-                    .Select(plan => new { plan.Id, plan.WorkspaceId, plan.ProfileId })
                     .Take(5).ToListAsync(stoppingToken);
+
+                var bannedPhrases = new[]
+                {
+                    "chữa khỏi", "điều trị triệt để", "đặc trị", "khỏi hẳn", "thuốc trị",
+                    "100% hiệu quả", "100%", "cam kết tuyệt đối", "chắc chắn 100%",
+                    "đảm bảo sinh lời", "chắc chắn có lãi", "lợi nhuận cam kết", "không rủi ro"
+                };
+
                 foreach (var plan in autoPlans)
                 {
+                    var hasBannedPhrase = plan.Items.Any(item =>
+                        item.Content != null &&
+                        !string.IsNullOrWhiteSpace(item.Content.TextContent) &&
+                        bannedPhrases.Any(phrase => item.Content.TextContent.Contains(phrase, StringComparison.OrdinalIgnoreCase)));
+
+                    if (hasBannedPhrase)
+                    {
+                        plan.AutoApprove = false;
+                        plan.UpdatedAt = DateTime.UtcNow;
+                        
+                        var notification = new AISAM.Data.Model.Notification
+                        {
+                            ProfileId = plan.ProfileId,
+                            WorkspaceId = plan.WorkspaceId,
+                            Title = "Hệ thống dừng duyệt tự động",
+                            Message = $"Kế hoạch '{plan.Name}' (ID: {plan.Id}) bị vô hiệu hóa tự động duyệt do phát hiện chứa các từ ngữ nhạy cảm hoặc cam kết tuyệt đối. Vui lòng duyệt thủ công.",
+                            Type = NotificationTypeEnum.ApprovalNeeded,
+                            TargetId = plan.Id,
+                            TargetType = "AutomationPlan"
+                        };
+                        context.Notifications.Add(notification);
+
+                        _logger.LogWarning("AutomationPlan {PlanId} contains banned marketing phrases (medical/financial/unverified claims). AutoApprove has been disabled for safety review.", plan.Id);
+                        await context.SaveChangesAsync(stoppingToken);
+                        continue;
+                    }
+
                     var userId = await context.Profiles.Where(profile => profile.Id == plan.ProfileId).OrderBy(profile => profile.Id).Select(profile => profile.UserId).FirstOrDefaultAsync(stoppingToken);
                     if (userId != Guid.Empty) await approval.ApproveAsync(plan.WorkspaceId, plan.Id, userId, cancellationToken: stoppingToken);
                 }
