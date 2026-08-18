@@ -220,7 +220,7 @@ public sealed class AnalyticsService : IAnalyticsService
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
-        string cacheKey = $"AiRec_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
+        string cacheKey = $"AiRec_v3_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
         
         if (!forceRefresh && _cache.TryGetValue(cacheKey, out string? cachedResponse) && !string.IsNullOrEmpty(cachedResponse))
         {
@@ -284,8 +284,8 @@ public sealed class AnalyticsService : IAnalyticsService
             sb.AppendLine($"NGỮ CẢNH THƯƠNG HIỆU: {brandContext}");
         }
 
-        sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt. Format: BẮT BUỘC bắt đầu bằng tag [HIGH], [MID], hoặc [LOW] để thể hiện độ ưu tiên, sau đó là emoji + tiêu đề + 2 câu giải thích.");
-        sb.AppendLine("CẤM: lời chào, giới thiệu, markdown. CẤM nói 'thiếu dữ liệu', 'giai đoạn đầu', 'chưa có'. Tập trung vào hành động.");
+        sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt.");
+        sb.AppendLine("Format: Sử dụng văn bản Markdown rõ ràng, dễ đọc (dùng tiêu đề, in đậm, danh sách...). CẤM: lời chào, giới thiệu ở đầu và cuối. CẤM nói 'thiếu dữ liệu', 'giai đoạn đầu', 'chưa có'. Tập trung thẳng vào hành động.");
         sb.AppendLine();
 
         Func<long, long, string> pctStr = (curr, prev) => prev == 0 ? (curr > 0 ? "(+100%)" : "") : (curr - prev) * 100.0 / prev > 0 ? $"(+{(curr - prev) * 100.0 / prev:F1}%)" : $"({(curr - prev) * 100.0 / prev:F1}%)";

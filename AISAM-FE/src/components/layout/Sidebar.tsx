@@ -170,7 +170,7 @@ export default function Sidebar() {
       {/* Logout */}
       <div className="shrink-0 border-t border-outline-variant/20 px-4 pt-3 pb-3">
         <button
-            onClick={async () => { await logout(); window.location.href = "/login"; }}
+            onClick={async () => { await logout(); window.location.replace("/login"); }}
             className="w-full group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-on-surface-variant hover:bg-surface-container hover:text-danger-red text-left"
           >
             <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform duration-200">logout</span>

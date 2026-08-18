@@ -289,7 +289,12 @@ public sealed class AIService : IAIService
 
             if (workspaceId.HasValue && userId.HasValue && IsImageIntent(parsedResponse.Intent))
             {
-                var prompt = BuildSafeImagePrompt(parsedResponse.Prompt ?? userMessage, selectedBrand, selectedProduct, userMessage, request);
+                var safePrompt = parsedResponse.Prompt;
+                if (string.IsNullOrWhiteSpace(safePrompt))
+                {
+                    safePrompt = "A premium commercial advertising photo showcasing the product in a professional studio setting, high quality, 4k resolution.";
+                }
+                var prompt = BuildSafeImagePrompt(safePrompt, selectedBrand, selectedProduct, userMessage, request);
                 var isImageTextRequest = string.Equals(parsedResponse.Intent, "image_text", StringComparison.OrdinalIgnoreCase);
                 if (!conversation.BrandId.HasValue)
                 {
@@ -380,7 +385,7 @@ public sealed class AIService : IAIService
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = imgResult.ErrorMessage;
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
-                            responseText += $"\n\n(Hệ thống đang bận hoặc quá tải, không thể tạo ảnh lúc này. Vui lòng thử lại sau.)";
+                            responseText += $"\n\n(Lỗi khởi tạo ảnh: {imgResult.ErrorMessage})";
                         }
                     }
                     }
@@ -388,7 +393,11 @@ public sealed class AIService : IAIService
             }
             else if (workspaceId.HasValue && userId.HasValue && string.Equals(parsedResponse.Intent, "video", StringComparison.OrdinalIgnoreCase))
             {
-                var prompt = parsedResponse.Prompt ?? userMessage;
+                var prompt = parsedResponse.Prompt;
+                if (string.IsNullOrWhiteSpace(prompt))
+                {
+                    prompt = "A high-quality commercial advertising video showcasing the product in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
+                }
                 var videoAspectRatio = parsedResponse.AspectRatio ?? "9:16";
 
                 string? firstFrameUrl = null;
@@ -460,7 +469,7 @@ public sealed class AIService : IAIService
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = vidResult.ErrorMessage;
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
-                            responseText += $"\n\n(Hệ thống đang bận hoặc quá tải, không thể khởi tạo video lúc này. Vui lòng thử lại sau.)";
+                            responseText += $"\n\n(Lỗi khởi tạo video: {vidResult.ErrorMessage})";
                         }
                     }
                 }
@@ -946,7 +955,7 @@ Intent rules:
   1. Set "use_product_image_as_first_frame" to true when reference images exist and the user has not explicitly asked for a fully AI-generated creative.
   2. Set "aspect_ratio" based on the user's request or default to "9:16" for social media.
   3. Set "target_platform" if the user specifies (reels, tiktok, youtube, feed). Default to "reels".
-  4. The "prompt" field must be a single cohesive English paragraph describing the video optimized for LTX-2.3: "[Subject] [action], camera [movement], [lighting], [style], [quality modifiers]". Incorporate real visual attributes from the product profile if available. Include negative prompt awareness: "no text overlay, no watermark, no readable letters, no hands, no faces, no humans, professional advertising video".
+  4. The "prompt" field must be a single cohesive English paragraph describing the video optimized for LTX-2.3: "[Subject] [action], camera [movement], [lighting], [style], [quality modifiers]". Incorporate real visual attributes from the product profile if available. CRITICAL: If visual appearance is not provided in the product profile and there are no reference images, DO NOT invent or hallucinate visual details. Instead, use intent "chat" and ask the user to provide visual descriptions first, unless they force generation. Include negative prompt awareness: "no text overlay, no watermark, no readable letters, no hands, no faces, no humans, professional advertising video".
   5. The "response" field must contain the complete ready-to-publish post (Title and Caption) in Vietnamese, following the same quality rules as "content" and "image_text".
   6. For "duration_seconds": default to 9 unless user specifies a different duration.
   7. Brand consistency: maintain the brand's color palette, visual tone, and product identity.

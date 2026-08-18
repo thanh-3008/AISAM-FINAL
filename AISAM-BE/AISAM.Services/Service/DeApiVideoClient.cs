@@ -41,17 +41,17 @@ public sealed class DeApiVideoClient
             primaryModel = _settings.DeApiImg2VideoModel;
         }
 
-        var primaryKey = primaryModel.Contains("MiniMax", StringComparison.OrdinalIgnoreCase) 
-            ? _settings.DeApiApiKey 
-            : (_settings.DeApiApiKeyFallback ?? _settings.DeApiApiKey);
-            
-        var fallbackKey = !string.IsNullOrEmpty(fallbackModel) && fallbackModel.Contains("MiniMax", StringComparison.OrdinalIgnoreCase) 
-            ? _settings.DeApiApiKey 
-            : (_settings.DeApiApiKeyFallback ?? _settings.DeApiApiKey);
+        var primaryKey = _settings.DeApiApiKey;
+        var fallbackKey = _settings.DeApiApiKeyFallback ?? _settings.DeApiApiKey;
 
-        var modelsToTry = primaryModel == fallbackModel || string.IsNullOrEmpty(fallbackModel)
-            ? new[] { (Model: primaryModel, Key: primaryKey) } 
-            : new[] { (Model: primaryModel, Key: primaryKey), (Model: fallbackModel, Key: fallbackKey) };
+        var modelsToTry = new List<(string Model, string Key)> { (primaryModel, primaryKey) };
+        if (primaryModel != fallbackModel || primaryKey != fallbackKey)
+        {
+            if (!string.IsNullOrEmpty(fallbackModel))
+            {
+                modelsToTry.Add((fallbackModel, fallbackKey));
+            }
+        }
 
         try
         {
@@ -67,41 +67,37 @@ public sealed class DeApiVideoClient
 
             foreach (var m in modelsToTry)
             {
-                bool isMiniMax = m.Model.Contains("MiniMax", StringComparison.OrdinalIgnoreCase);
-                
                 string url;
                 int reqFrames;
                 int reqW, reqH;
                 int fps = 24;
                 HttpContent requestContent;
 
-                if (isMiniMax)
+                // LTX implementation (v1)
+                var endpoint = isImg2Video ? "/client/img2video" : "/client/txt2video";
+                url = baseUrl.EndsWith("/client/img2video") || baseUrl.EndsWith("/client/txt2video")
+                    ? baseUrl.Replace("/client/img2video", endpoint).Replace("/client/txt2video", endpoint)
+                    : $"{baseUrl.TrimEnd('/')}{endpoint}";
+
+                reqW = 576; reqH = 1024;
+                var ratio = options?.AspectRatio ?? "9:16";
+                if (ratio == "16:9") { reqW = 1024; reqH = 576; }
+                else if (ratio == "1:1") { reqW = 768; reqH = 768; }
+
+                reqFrames = 193; 
+                if (options?.DurationSeconds > 0)
                 {
-                    // MiniMax H3 implementation (v2)
-                    var baseUrlImg = _settings.DeApiImg2VideoBaseUrl ?? "https://api.deapi.ai/api/v2";
-                    var endpoint = "/videos/animations";
-                    url = $"{baseUrlImg.TrimEnd('/')}{endpoint}";
+                    int requestedFrames = options.DurationSeconds * fps;
+                    int n = (int)Math.Round(requestedFrames / 8.0);
+                    reqFrames = (n * 8) + 1;
+                }
 
-                    reqFrames = 8 * fps; // Default 8 seconds (192 frames)
-                    if (options?.DurationSeconds > 0)
-                    {
-                        reqFrames = options.DurationSeconds * fps;
-                    }
-                    if (reqFrames > 243) reqFrames = 243; // MiniMax H3 max frames = 243
-
-                    var ratio = options?.AspectRatio ?? "9:16";
-                    if (ratio == "16:9") { reqW = 1344; reqH = 768; }
-                    else if (ratio == "1:1") { reqW = 768; reqH = 768; }
-                    else { reqW = 768; reqH = 1344; }
-
+                if (isImg2Video && imageBytes != null)
+                {
                     var form = new MultipartFormDataContent();
-                    
-                    if (isImg2Video && imageBytes != null)
-                    {
-                        var imageContent = new ByteArrayContent(imageBytes);
-                        imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
-                        form.Add(imageContent, "first_frame_image", "frame.jpg");
-                    }
+                    var imageContent = new ByteArrayContent(imageBytes);
+                    imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                    form.Add(imageContent, "first_frame_image", "frame.jpg");
                     
                     form.Add(new StringContent(reqFrames.ToString()), "frames");
                     form.Add(new StringContent(reqW.ToString()), "width");
@@ -117,58 +113,17 @@ public sealed class DeApiVideoClient
                 }
                 else
                 {
-                    // LTX implementation (v1)
-                    var endpoint = isImg2Video ? "/client/img2video" : "/client/txt2video";
-                    url = baseUrl.EndsWith("/client/img2video") || baseUrl.EndsWith("/client/txt2video")
-                        ? baseUrl.Replace("/client/img2video", endpoint).Replace("/client/txt2video", endpoint)
-                        : $"{baseUrl.TrimEnd('/')}{endpoint}";
-
-                    reqW = 576; reqH = 1024;
-                    var ratio = options?.AspectRatio ?? "9:16";
-                    if (ratio == "16:9") { reqW = 1024; reqH = 576; }
-                    else if (ratio == "1:1") { reqW = 768; reqH = 768; }
-
-                    reqFrames = 193; 
-                    if (options?.DurationSeconds > 0)
+                    var payload = new
                     {
-                        int requestedFrames = options.DurationSeconds * fps;
-                        int n = (int)Math.Round(requestedFrames / 8.0);
-                        reqFrames = (n * 8) + 1;
-                    }
-
-                    if (isImg2Video && imageBytes != null)
-                    {
-                        var form = new MultipartFormDataContent();
-                        var imageContent = new ByteArrayContent(imageBytes);
-                        imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
-                        form.Add(imageContent, "first_frame_image", "frame.jpg");
-                        
-                        form.Add(new StringContent(reqFrames.ToString()), "frames");
-                        form.Add(new StringContent(reqW.ToString()), "width");
-                        form.Add(new StringContent(reqH.ToString()), "height");
-                        form.Add(new StringContent(fps.ToString()), "fps");
-                        form.Add(new StringContent(Random.Shared.Next(1, int.MaxValue).ToString()), "seed");
-                        form.Add(new StringContent(m.Model), "model");
-
-                        if (!string.IsNullOrWhiteSpace(prompt))
-                            form.Add(new StringContent(prompt), "prompt");
-
-                        requestContent = form;
-                    }
-                    else
-                    {
-                        var payload = new
-                        {
-                            prompt = prompt ?? "",
-                            frames = reqFrames,
-                            width = reqW,
-                            height = reqH,
-                            fps = fps,
-                            seed = Random.Shared.Next(1, int.MaxValue),
-                            model = m.Model
-                        };
-                        requestContent = JsonContent.Create(payload);
-                    }
+                        prompt = prompt ?? "",
+                        frames = reqFrames,
+                        width = reqW,
+                        height = reqH,
+                        fps = fps,
+                        seed = Random.Shared.Next(1, int.MaxValue),
+                        model = m.Model
+                    };
+                    requestContent = JsonContent.Create(payload);
                 }
 
                 var request = new HttpRequestMessage(HttpMethod.Post, url);

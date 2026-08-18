@@ -2,109 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { type AiInsight, type DateRange, fetchAiRecommendations } from "@/services/analyticsService";
+import ReactMarkdown from "react-markdown";
 
 interface AnalyticsAiInsightsProps {
   insights: AiInsight[];
   dateRange?: DateRange;
-}
-
-function parseAiResponse(text: string): { icon: string; message: string; priority: "high" | "mid" | "low" }[] {
-  const lines = text.split("\n").filter(l => l.trim());
-  const items: { icon: string; message: string; priority: "high" | "mid" | "low" }[] = [];
-  const emojiIconMap: Record<string, string> = {
-    "🔥": "local_fire_department",
-    "📈": "trending_up",
-    "⚡": "bolt",
-    "📝": "edit_note",
-    "🎯": "my_location",
-    "💰": "payments",
-    "🚀": "rocket_launch",
-    "⚠️": "warning",
-  };
-
-  let current: { icon: string; message: string; priority: "high" | "mid" | "low" } | null = null;
-
-  for (const line of lines) {
-    let trimmed = line
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/__(.*?)__/g, "$1")
-      .replace(/^\d+\.\s*/, "")
-      .replace(/^[-•]\s*/, "")
-      .trim();
-
-    if (!trimmed) continue;
-
-    let linePriority: "high" | "mid" | "low" | null = null;
-    const priorityMatch = trimmed.match(/^\[(HIGH|MID|LOW)\]/i);
-    if (priorityMatch) {
-      linePriority = priorityMatch[1].toLowerCase() as "high" | "mid" | "low";
-      trimmed = trimmed.replace(priorityMatch[0], "").trim();
-    }
-
-    let matchedIcon: string | null = null;
-    for (const [emoji, icon] of Object.entries(emojiIconMap)) {
-      if (trimmed.startsWith(emoji) || trimmed.replace(/^\p{Emoji}+/u, "").length < trimmed.length) {
-        if (trimmed.startsWith(emoji) || trimmed.match(new RegExp(`^${emoji}`))) {
-          matchedIcon = icon;
-          trimmed = trimmed.slice(emoji.length).trim();
-          if (trimmed.startsWith(":")) trimmed = trimmed.slice(1).trim();
-          break;
-        }
-      }
-    }
-
-    if (matchedIcon || linePriority) {
-      if (current && current.message) {
-        items.push(current);
-      }
-      current = { 
-        icon: matchedIcon || "lightbulb", 
-        message: trimmed, 
-        priority: linePriority || "mid" 
-      };
-    } else if (current) {
-      if (trimmed.length >= 3) {
-        current.message += " " + trimmed;
-      }
-    }
-  }
-
-  if (current && current.message) {
-    items.push(current);
-  }
-
-  // Fallback: if no items parsed, treat each line as a separate tip
-  if (items.length === 0) {
-    for (const line of lines) {
-      let trimmed = line
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/__(.*?)__/g, "$1")
-        .replace(/^\d+\.\s*/, "")
-        .replace(/^[-•]\s*/, "")
-        .trim();
-      if (!trimmed || trimmed.length < 10) continue;
-
-      let priority: "high" | "mid" | "low" = "mid";
-      const priorityMatch = trimmed.match(/^\[(HIGH|MID|LOW)\]/i);
-      if (priorityMatch) {
-        priority = priorityMatch[1].toLowerCase() as "high" | "mid" | "low";
-        trimmed = trimmed.replace(priorityMatch[0], "").trim();
-      }
-
-      let icon = "lightbulb";
-      let message = trimmed;
-      for (const [emoji, icn] of Object.entries(emojiIconMap)) {
-        if (trimmed.includes(emoji)) {
-          icon = icn;
-          message = trimmed.replace(emoji, "").trim();
-          break;
-        }
-      }
-      items.push({ icon, message, priority });
-    }
-  }
-
-  return items;
 }
 
 const COOLDOWN_MS = 8000;
@@ -149,8 +51,7 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
     }
   };
 
-  const aiItems = aiResponse ? parseAiResponse(aiResponse) : [];
-  const showAiResults = aiItems.length > 0;
+  const showAiResults = !!aiResponse;
 
   const getBorderColor = (type: AiInsight["type"]) => {
     switch (type) {
@@ -227,28 +128,37 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
             ))}
           </div>
         ) : showAiResults ? (
-          aiItems.map((item, index) => (
-            <div
-              key={index}
-              className="group relative animate-fade-up"
-              style={{ animationDelay: `${0.6 + index * 0.1}s` }}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-r ${item.priority === 'high' ? 'from-red-500 via-orange-500 to-red-500' : item.priority === 'low' ? 'from-slate-400 via-gray-400 to-slate-400' : 'from-primary via-secondary to-primary'} rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm`} />
-              
-              <div className={`relative ${item.priority === 'high' ? 'bg-orange-500/5' : item.priority === 'low' ? 'bg-surface-container-low/50' : 'bg-surface-container-low/80'} backdrop-blur-sm p-4 rounded-xl border ${item.priority === 'high' ? 'border-orange-500/30' : item.priority === 'low' ? 'border-outline-variant/20' : 'border-outline-variant/30'} hover:border-transparent transition-all duration-500 hover:shadow-xl hover:-translate-y-1`}>
-                <div className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${item.priority === 'high' ? 'from-red-500 to-orange-500' : item.priority === 'low' ? 'from-slate-400 to-gray-400' : 'from-primary to-secondary'} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-500`}>
-                    <span className="material-symbols-outlined text-white text-label-md">
-                      {item.icon}
-                    </span>
-                  </div>
-                  <p className="text-body-sm leading-relaxed text-on-surface-variant flex-1 pt-1">
-                    {item.message}
-                  </p>
+          <div className="group relative animate-fade-up">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-primary rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
+            
+            <div className="relative bg-surface-container-low/80 backdrop-blur-sm p-6 rounded-xl border border-outline-variant/30 hover:border-transparent transition-all duration-500 hover:shadow-xl">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-500">
+                  <span className="material-symbols-outlined text-white text-lg">
+                    auto_awesome
+                  </span>
+                </div>
+                <div className="flex-1 text-on-surface-variant overflow-hidden">
+                  <ReactMarkdown
+                    components={{
+                      h1: ({node, ...props}) => <h1 className="text-xl font-bold text-on-surface mt-6 mb-3" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="text-lg font-bold text-on-surface mt-5 mb-2" {...props} />,
+                      h3: ({node, ...props}) => <h3 className="text-base font-bold text-on-surface mt-4 mb-2" {...props} />,
+                      p: ({node, ...props}) => <p className="mb-3 leading-relaxed" {...props} />,
+                      ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1" {...props} />,
+                      li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                      strong: ({node, ...props}) => <strong className="font-semibold text-on-surface" {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary/50 pl-4 italic bg-surface-container-high/30 p-2 rounded-r-lg my-3" {...props} />,
+                      code: ({node, ...props}) => <code className="bg-surface-container-high px-1.5 py-0.5 rounded text-sm font-mono text-primary" {...props} />
+                    }}
+                  >
+                    {aiResponse}
+                  </ReactMarkdown>
                 </div>
               </div>
             </div>
-          ))
+          </div>
         ) : insights.length > 0 ? (
           insights.map((insight, index) => (
             <div
