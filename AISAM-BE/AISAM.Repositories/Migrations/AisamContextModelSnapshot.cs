@@ -1540,6 +1540,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("ad_id");
 
+                    b.Property<long>("Clicks")
+                        .HasColumnType("bigint")
+                        .HasColumnName("clicks");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1571,6 +1575,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<string>("RawData")
                         .HasColumnType("jsonb")
                         .HasColumnName("raw_data");
+
+                    b.Property<long>("Reach")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reach");
 
                     b.Property<DateTime>("ReportDate")
                         .HasColumnType("date")

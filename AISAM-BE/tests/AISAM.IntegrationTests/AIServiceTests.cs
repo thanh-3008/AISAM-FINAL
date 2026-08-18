@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos.Response;
 using AISAM.Common.Dtos;
 using AISAM.Common;
 using AISAM.Common.Models;
@@ -477,7 +478,7 @@ public class AIServiceTests
         public Guid StoredContentId => _generations.Values.Single().ContentId;
         public FakeAiGenerationRepository(params AiGeneration[] generations) => _generations = generations.ToDictionary(generation => generation.Id);
         public Task<AiGeneration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_generations.GetValueOrDefault(id));
-        public Task<IEnumerable<AiGeneration>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.FromResult(_generations.Values.Where(generation => generation.ContentId == contentId).AsEnumerable());
+        public Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<AiGenerationListDto>>(_generations.Values.Where(g => g.ContentId == contentId).Select(g => new AiGenerationListDto { Id = g.Id, ContentId = g.ContentId, GeneratedText = g.GeneratedText, Status = g.Status, ErrorMessage = g.ErrorMessage }).ToList());
         public Task<AiGeneration> AddAsync(AiGeneration generation, CancellationToken cancellationToken = default)
         {
             _generations[generation.Id] = generation;
@@ -499,7 +500,7 @@ public class AIServiceTests
         public FakeContentRepository(params Content[] contents) => _contents = contents.ToDictionary(content => content.Id);
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_contents.GetValueOrDefault(id));
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
-        public Task<PagedResult<Content>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default)
         {
             _contents[content.Id] = content;
@@ -513,7 +514,7 @@ public class AIServiceTests
         public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
@@ -629,3 +630,7 @@ public class AIServiceTests
             => Task.FromResult(!string.IsNullOrWhiteSpace(rawPrompt) ? rawPrompt : videoScript ?? string.Empty);
     }
 }
+
+
+
+

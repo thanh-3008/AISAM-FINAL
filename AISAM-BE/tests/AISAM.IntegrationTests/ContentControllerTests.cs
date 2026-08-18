@@ -38,7 +38,7 @@ public class ContentControllerTests
         var profileId = Guid.NewGuid();
         var service = new FakeContentService
         {
-            PagedResult = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>())
+            PagedResult = GenericResponse<PagedResult<ContentListDto>>.CreateSuccess(new PagedResult<ContentListDto>())
         };
         var controller = CreateController(service, profileId);
 
@@ -63,7 +63,7 @@ public class ContentControllerTests
     {
         public Guid LastProfileId { get; private set; }
         public GenericResponse<ContentResponseDto> CreateResult { get; set; } = GenericResponse<ContentResponseDto>.CreateSuccess(new ContentResponseDto());
-        public GenericResponse<PagedResult<ContentResponseDto>> PagedResult { get; set; } = GenericResponse<PagedResult<ContentResponseDto>>.CreateSuccess(new PagedResult<ContentResponseDto>());
+        public GenericResponse<PagedResult<ContentListDto>> PagedResult { get; set; } = GenericResponse<PagedResult<ContentListDto>>.CreateSuccess(new PagedResult<ContentListDto>());
 
         public Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
         {
@@ -71,7 +71,7 @@ public class ContentControllerTests
             return Task.FromResult(CreateResult);
         }
 
-        public Task<GenericResponse<PagedResult<ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PagedResult<ContentListDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
         {
             LastProfileId = profileId;
             return Task.FromResult(PagedResult);
@@ -105,3 +105,7 @@ public class ContentControllerTests
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 }
+
+
+
+

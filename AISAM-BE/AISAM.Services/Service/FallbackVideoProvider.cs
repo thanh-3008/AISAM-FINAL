@@ -45,7 +45,7 @@ public sealed class FallbackVideoProvider : IAIVideoProvider
         _logger.LogWarning("❌ DeAPI FAILED: {Error}", deapiResult.ErrorMessage);
         _logger.LogError("========= VIDEO GENERATION FAILED ========= DeAPI Error: {Error}", deapiResult.ErrorMessage);
         
-        return VideoGenerationResult.Fail(deapiResult.ErrorMessage, "DeAPI");
+        return VideoGenerationResult.Fail(deapiResult.ErrorMessage ?? "Unknown error", "DeAPI");
     }
 
     public async Task<VideoGenerationResult> CheckStatusAsync(string jobId, CancellationToken cancellationToken = default)

@@ -1,11 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/product_model.dart';
 import '../models/product_request.dart';
-
 part 'product_repository.g.dart';
+
+List<ProductResponseModel> _parseProductList(List<dynamic> items) {
+  return items.map((e) => ProductResponseModel.fromJson(e)).toList();
+}
 
 class ProductRepository {
   final Dio _dio;
@@ -20,7 +24,8 @@ class ProductRepository {
       );
       final data = response.data['data'];
       final items = data != null ? data['data'] as List? : null;
-      return items?.map((e) => ProductResponseModel.fromJson(e)).toList() ?? [];
+      if (items == null || items.isEmpty) return [];
+      return await compute(_parseProductList, items);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }

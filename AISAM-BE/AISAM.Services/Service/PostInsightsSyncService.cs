@@ -307,17 +307,20 @@ namespace AISAM.Services.Service
             var engagement = CalculateEngagement(insights);
             var impressions = insights.Impressions ?? insights.Views ?? 0;
             var clicks = insights.Clicks ?? 0;
+            var reach = insights.Reach ?? 0;
             var ctr = impressions > 0 ? Math.Round((decimal)clicks / impressions, 4) : 0m;
 
             _logger.LogInformation(
-                "[INSIGHTS-SYNC] Post {PostId} computed: Impressions={Impressions}, Clicks={Clicks}, Engagement={Engagement}, CTR={Ctr}",
-                post.Id, impressions, clicks, engagement, ctr);
+                "[INSIGHTS-SYNC] Post {PostId} computed: Impressions={Impressions}, Clicks={Clicks}, Engagement={Engagement}, Reach={Reach}, CTR={Ctr}",
+                post.Id, impressions, clicks, engagement, reach, ctr);
 
             var report = new PerformanceReport
             {
                 PostId = post.Id,
                 Impressions = impressions,
                 Engagement = engagement,
+                Clicks = clicks,
+                Reach = reach,
                 Ctr = ctr,
                 EstimatedRevenue = engagement * 0.01m,
                 ReportDate = DateTime.UtcNow.Date,

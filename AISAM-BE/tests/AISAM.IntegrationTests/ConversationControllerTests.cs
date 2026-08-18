@@ -71,3 +71,7 @@ public class ConversationControllerTests
         public Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }
+
+
+
+

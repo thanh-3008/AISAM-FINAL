@@ -2,7 +2,9 @@ using AISAM.Common;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
+using AISAM.Common.Dtos;
 using AISAM.Services.IServices;
+using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
 
 namespace AISAM.Services.Service;
@@ -13,17 +15,23 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly ISocialIntegrationRepository _socialIntegrationRepo;
     private readonly IGeminiTextClient _geminiTextClient;
     private readonly FacebookProvider _facebookProvider;
+    private readonly IMemoryCache _cache;
+    private readonly IBrandRepository _brandRepo;
 
     public AnalyticsService(
         IPerformanceReportRepository performanceReportRepo,
         ISocialIntegrationRepository socialIntegrationRepo,
         IGeminiTextClient geminiTextClient,
-        FacebookProvider facebookProvider)
+        FacebookProvider facebookProvider,
+        IMemoryCache cache,
+        IBrandRepository brandRepo)
     {
         _performanceReportRepo = performanceReportRepo;
         _socialIntegrationRepo = socialIntegrationRepo;
         _geminiTextClient = geminiTextClient;
         _facebookProvider = facebookProvider;
+        _cache = cache;
+        _brandRepo = brandRepo;
     }
 
     public async Task<GenericResponse<AnalyticsOverviewDto>> GetOverviewAsync(
@@ -209,8 +217,17 @@ public sealed class AnalyticsService : IAnalyticsService
     public async Task<GenericResponse<string>> GetAiRecommendationsAsync(
         Guid workspaceId, DateTime from, DateTime to,
         Guid? brandId = null, string? platform = null,
+        bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
+        string cacheKey = $"AiRec_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
+        
+        if (!forceRefresh && _cache.TryGetValue(cacheKey, out string? cachedResponse) && !string.IsNullOrEmpty(cachedResponse))
+        {
+            return GenericResponse<string>.CreateSuccess(
+                cachedResponse, "AI recommendations retrieved successfully (from cache).");
+        }
+
         var totals = await _performanceReportRepo.GetAggregatedTotalsAsync(workspaceId, from, to, brandId, platform);
         if (totals.PublishedPosts == 0 && totals.Impressions == 0 && totals.ActiveCampaigns == 0)
         {
@@ -223,8 +240,30 @@ public sealed class AnalyticsService : IAnalyticsService
         var topPosts = await _performanceReportRepo.GetTopPostsPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3);
         var campaigns = await _performanceReportRepo.GetCampaignBreakdownPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3);
 
-        var prompt = BuildAnalyticsPrompt(totals, channels, topPosts.Items, campaigns.Items);
+        var prevTotals = await _performanceReportRepo.GetAggregatedTotalsForPreviousPeriodAsync(
+            workspaceId, from, to, brandId, platform, null, cancellationToken);
+
+        string brandContext = "";
+        if (brandId.HasValue)
+        {
+            var brand = await _brandRepo.GetByIdAsync(brandId.Value, cancellationToken);
+            if (brand != null)
+            {
+                var categories = brand.Products.Select(p => p.Category).Where(c => !string.IsNullOrEmpty(c)).Distinct();
+                brandContext = $"Ngành hàng: {string.Join(", ", categories)}. Đối tượng mục tiêu: {brand.TargetAudience}";
+            }
+        }
+        else
+        {
+            var brands = await _brandRepo.GetPagedByWorkspaceIdAsync(workspaceId, new PaginationRequest { PageSize = 5 }, false, cancellationToken);
+            var auds = brands.Data.Select(b => b.TargetAudience).Where(a => !string.IsNullOrEmpty(a)).Distinct();
+            if (auds.Any()) brandContext = $"Đối tượng mục tiêu chung: {string.Join("; ", auds)}";
+        }
+
+        var prompt = BuildAnalyticsPrompt(totals, prevTotals, channels, topPosts.Items, campaigns.Items, brandContext);
         var response = await _geminiTextClient.GenerateAsync(prompt, cancellationToken);
+
+        _cache.Set(cacheKey, response, TimeSpan.FromHours(12));
 
         return GenericResponse<string>.CreateSuccess(
             response, "AI recommendations retrieved successfully.");
@@ -232,17 +271,34 @@ public sealed class AnalyticsService : IAnalyticsService
 
     private static string BuildAnalyticsPrompt(
         AnalyticsTotals totals,
+        AnalyticsTotals prevTotals,
         IReadOnlyList<AnalyticsChannelBreakdownDto> channels,
         IReadOnlyList<TopPostItemDto> topPosts,
-        IReadOnlyList<CampaignAnalyticsItemDto> campaigns)
+        IReadOnlyList<CampaignAnalyticsItemDto> campaigns,
+        string brandContext)
     {
         var sb = new System.Text.StringBuilder();
 
-        sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt. Format: emoji + tiêu đề + 2 câu giải thích.");
+        if (!string.IsNullOrWhiteSpace(brandContext))
+        {
+            sb.AppendLine($"NGỮ CẢNH THƯƠNG HIỆU: {brandContext}");
+        }
+
+        sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt. Format: BẮT BUỘC bắt đầu bằng tag [HIGH], [MID], hoặc [LOW] để thể hiện độ ưu tiên, sau đó là emoji + tiêu đề + 2 câu giải thích.");
         sb.AppendLine("CẤM: lời chào, giới thiệu, markdown. CẤM nói 'thiếu dữ liệu', 'giai đoạn đầu', 'chưa có'. Tập trung vào hành động.");
         sb.AppendLine();
 
-        sb.AppendLine($"TỔNG QUAN: {totals.PublishedPosts} posts, {totals.Impressions} imp, {totals.Engagement} eng, CTR {totals.Ctr}%, {totals.Clicks} clicks, {totals.Conversions} conv, ${totals.Spend} spend, {totals.ActiveCampaigns} campaigns");
+        Func<long, long, string> pctStr = (curr, prev) => prev == 0 ? (curr > 0 ? "(+100%)" : "") : (curr - prev) * 100.0 / prev > 0 ? $"(+{(curr - prev) * 100.0 / prev:F1}%)" : $"({(curr - prev) * 100.0 / prev:F1}%)";
+        Func<decimal, decimal, string> pctStrDec = (curr, prev) => prev == 0 ? (curr > 0 ? "(+100%)" : "") : (curr - prev) * 100.0m / prev > 0 ? $"(+{(curr - prev) * 100.0m / prev:F1}%)" : $"({(curr - prev) * 100.0m / prev:F1}%)";
+
+        sb.AppendLine($"TỔNG QUAN: {totals.PublishedPosts} posts {pctStr(totals.PublishedPosts, prevTotals.PublishedPosts)}, " +
+                      $"{totals.Impressions} imp {pctStr(totals.Impressions, prevTotals.Impressions)}, " +
+                      $"{totals.Engagement} eng {pctStr(totals.Engagement, prevTotals.Engagement)}, " +
+                      $"CTR {totals.Ctr}% {pctStrDec(totals.Ctr, prevTotals.Ctr)}, " +
+                      $"{totals.Clicks} clicks {pctStr(totals.Clicks, prevTotals.Clicks)}, " +
+                      $"{totals.Conversions} conv {pctStr(totals.Conversions, prevTotals.Conversions)}, " +
+                      $"${totals.Spend} spend {pctStrDec(totals.Spend, prevTotals.Spend)}, " +
+                      $"{totals.ActiveCampaigns} campaigns");
 
         if (channels.Any())
         {

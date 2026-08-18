@@ -876,11 +876,17 @@ namespace AISAM.Services.Service
             if (!access.Success)
                 return GenericResponse<CampaignPreviewDto>.CreateError(access.Message);
 
-            Content? content = null;
-            if (campaign.ContentId.HasValue)
-                content = await _contentRepository.GetByIdAsync(campaign.ContentId.Value, cancellationToken);
+            string? textContent = null;
+            string? imageUrl = null;
 
-            if (content == null)
+            if (campaign.ContentId.HasValue)
+            {
+                var content = await _contentRepository.GetByIdAsync(campaign.ContentId.Value, cancellationToken);
+                textContent = content?.TextContent;
+                imageUrl = content?.ImageUrl;
+            }
+
+            if (textContent == null && imageUrl == null)
             {
                 var contentRequest = new PaginationRequest { Page = 1, PageSize = 1 };
                 var brandContent = await _contentRepository.GetPagedByProfileIdAsync(
@@ -898,7 +904,9 @@ namespace AISAM.Services.Service
                         cancellationToken: cancellationToken
                     );
                 }
-                content = brandContent.Data.FirstOrDefault();
+                var firstContent = brandContent.Data.FirstOrDefault();
+                textContent = firstContent?.TextContent;
+                imageUrl = firstContent?.ImageUrl;
             }
 
             var preview = new CampaignPreviewDto
@@ -907,8 +915,8 @@ namespace AISAM.Services.Service
                 CampaignName = campaign.Name,
                 Platform = campaign.Platform,
                 Objective = campaign.Objective,
-                Message = content?.TextContent ?? campaign.Name,
-                ImageUrl = content?.ImageUrl,
+                Message = textContent ?? campaign.Name,
+                ImageUrl = imageUrl,
                 LinkUrl = campaign.LandingUrl,
                 CallToAction = "LEARN_MORE",
                 Budget = campaign.Budget,
@@ -1140,7 +1148,11 @@ namespace AISAM.Services.Service
                         cancellationToken: cancellationToken
                     );
                 }
-                content = brandContent.Data.FirstOrDefault();
+                var firstContentDto = brandContent.Data.FirstOrDefault();
+                if (firstContentDto != null)
+                {
+                    content = await _contentRepository.GetByIdAsync(firstContentDto.Id, cancellationToken);
+                }
             }
 
             return content;

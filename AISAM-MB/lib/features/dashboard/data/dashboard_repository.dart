@@ -2,11 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/errors/generic_response.dart';
 import '../../../core/network/api_client.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/network/api_endpoints.dart';
 import '../domain/dashboard_summary.dart';
 import '../../content/data/models/content_model.dart';
-
 part 'dashboard_repository.g.dart';
+
+List<ContentResponseModel> _parseContentList(List<dynamic> items) {
+  return items.map((e) => ContentResponseModel.fromJson(e)).toList();
+}
 
 class DashboardRepository {
   final Dio _dio;
@@ -31,7 +35,8 @@ class DashboardRepository {
       };
       final response = await _dio.get('/Content', queryParameters: queryParams);
       final items = response.data['data']['items'] as List;
-      return items.map((e) => ContentResponseModel.fromJson(e)).toList();
+      if (items.isEmpty) return [];
+      return await compute(_parseContentList, items);
     } catch (e) {
       return [];
     }

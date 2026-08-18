@@ -11,6 +11,8 @@ namespace AISAM.Services.Service
         private const int BatchSize = 10;
         private readonly IAdCampaignRepository _campaignRepository;
         private readonly INotificationRepository _notificationRepository;
+        private readonly ISocialAccountRepository _socialAccountRepository;
+        private readonly ISocialTokenProtector _tokenProtector;
         private readonly ISocialService _socialService;
         private readonly Dictionary<string, IProviderService> _providers;
         private readonly ILogger<CampaignInsightsSyncService> _logger;
@@ -18,12 +20,16 @@ namespace AISAM.Services.Service
         public CampaignInsightsSyncService(
             IAdCampaignRepository campaignRepository,
             INotificationRepository notificationRepository,
+            ISocialAccountRepository socialAccountRepository,
+            ISocialTokenProtector tokenProtector,
             ISocialService socialService,
             IEnumerable<IProviderService> providers,
             ILogger<CampaignInsightsSyncService> logger)
         {
             _campaignRepository = campaignRepository;
             _notificationRepository = notificationRepository;
+            _socialAccountRepository = socialAccountRepository;
+            _tokenProtector = tokenProtector;
             _socialService = socialService;
             _providers = providers.Where(p => p.ProviderName == "facebook" || p.ProviderName == "instagram")
                 .ToDictionary(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
@@ -51,6 +57,11 @@ namespace AISAM.Services.Service
         private async Task<bool> ProcessInsightsNextAsync(CancellationToken cancellationToken)
         {
             var campaigns = await _campaignRepository.GetDeployedCampaignsForSyncAsync(BatchSize, cancellationToken);
+            if (campaigns.Count == 0) return false;
+
+            var profileIds = campaigns.Select(c => c.ProfileId).Distinct().ToList();
+            var accountList = await _socialAccountRepository.GetByProfileIdsAsync(profileIds, cancellationToken);
+            var accountsByProfile = accountList.ToLookup(a => a.ProfileId);
 
             foreach (var campaign in campaigns)
             {
@@ -62,20 +73,22 @@ namespace AISAM.Services.Service
                 try
                 {
                     var provider = GetProvider(campaign.Platform);
-                    var accounts = await _socialService.GetProfileAccountsAsync(campaign.ProfileId, cancellationToken);
-                    var account = accounts.FirstOrDefault(a => a.Provider == campaign.Platform);
+                    var platformEnum = string.Equals(campaign.Platform, "instagram", StringComparison.OrdinalIgnoreCase) 
+                        ? SocialPlatformEnum.Instagram 
+                        : SocialPlatformEnum.Facebook;
+
+                    var account = accountsByProfile[campaign.ProfileId].FirstOrDefault(a => a.Platform == platformEnum && a.IsActive);
                     if (account == null) continue;
 
-                    var adToken = await _socialService.GetFacebookUserAccessTokenAsync(campaign.ProfileId, cancellationToken);
-                    if (!string.IsNullOrWhiteSpace(adToken)) account.AccessToken = adToken;
+                    var adToken = _tokenProtector.TryUnprotect(account.UserAccessToken);
 
-                    if (string.IsNullOrWhiteSpace(account.AccessToken))
+                    if (string.IsNullOrWhiteSpace(adToken))
                     {
                         _logger.LogWarning("Skipping insight sync for campaign {CampaignId}: missing access token.", campaign.Id);
                         continue;
                     }
 
-                    var insights = await provider.GetCampaignInsightsAsync(campaign.AdAccountId, account.AccessToken, campaign.FacebookCampaignId, cancellationToken);
+                    var insights = await provider.GetCampaignInsightsAsync(campaign.AdAccountId, adToken, campaign.FacebookCampaignId, cancellationToken);
 
                     if (insights != null)
                     {
@@ -103,6 +116,11 @@ namespace AISAM.Services.Service
         private async Task<bool> ProcessReviewActivationAsync(CancellationToken cancellationToken)
         {
             var pendingCampaigns = await _campaignRepository.GetDeployedPendingActivationAsync(BatchSize, cancellationToken);
+            if (pendingCampaigns.Count == 0) return false;
+
+            var profileIds = pendingCampaigns.Select(c => c.ProfileId).Distinct().ToList();
+            var accountList = await _socialAccountRepository.GetByProfileIdsAsync(profileIds, cancellationToken);
+            var accountsByProfile = accountList.ToLookup(a => a.ProfileId);
 
             foreach (var campaign in pendingCampaigns)
             {
@@ -111,64 +129,61 @@ namespace AISAM.Services.Service
                 try
                 {
                     var provider = GetProvider(campaign.Platform);
-                    var accounts = await _socialService.GetProfileAccountsAsync(campaign.ProfileId, cancellationToken);
-                    var account = accounts.FirstOrDefault(a => a.Provider == campaign.Platform);
+                    var platformEnum = string.Equals(campaign.Platform, "instagram", StringComparison.OrdinalIgnoreCase) 
+                        ? SocialPlatformEnum.Instagram 
+                        : SocialPlatformEnum.Facebook;
+
+                    var account = accountsByProfile[campaign.ProfileId].FirstOrDefault(a => a.Platform == platformEnum && a.IsActive);
                     if (account == null) continue;
 
-                    var adToken = await _socialService.GetFacebookUserAccessTokenAsync(campaign.ProfileId, cancellationToken);
-                    if (!string.IsNullOrWhiteSpace(adToken)) account.AccessToken = adToken;
+                    var adToken = _tokenProtector.TryUnprotect(account.UserAccessToken);
 
-                    if (string.IsNullOrWhiteSpace(account.AccessToken))
+                    if (string.IsNullOrWhiteSpace(adToken))
                     {
                         _logger.LogWarning("Skipping review check for campaign {CampaignId}: missing access token.", campaign.Id);
                         continue;
                     }
 
-                    var adSets = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
-                    if (adSets.Count == 0) continue;
+                    var ads = await _campaignRepository.GetAdsByCampaignIdAsync(campaign.Id, cancellationToken);
+                    if (ads.Count == 0) continue;
 
                     var rejected = false;
                     var pending = false;
                     var hasCheckedAd = false;
                     var rejectionReason = string.Empty;
 
-                    foreach (var adSet in adSets)
+                    foreach (var ad in ads)
                     {
-                        var ads = await _campaignRepository.GetAdsByAdSetIdAsync(adSet.Id, cancellationToken);
-                        foreach (var ad in ads)
+                        if (string.IsNullOrWhiteSpace(ad.AdId)) continue;
+                        hasCheckedAd = true;
+                        var effectiveStatus = (await provider.GetAdEffectiveStatusAsync(campaign.AdAccountId, adToken, ad.AdId, cancellationToken))
+                            ?.ToUpperInvariant();
+
+                        if (string.IsNullOrWhiteSpace(effectiveStatus))
                         {
-                            if (string.IsNullOrWhiteSpace(ad.AdId)) continue;
-                            hasCheckedAd = true;
-                            var effectiveStatus = (await provider.GetAdEffectiveStatusAsync(campaign.AdAccountId, account.AccessToken, ad.AdId, cancellationToken))
-                                ?.ToUpperInvariant();
-
-                            if (string.IsNullOrWhiteSpace(effectiveStatus))
-                            {
-                                pending = true;
-                                continue;
-                            }
-
-                            if (effectiveStatus is "REJECTED" or "DISAPPROVED" or "WITH_ISSUES")
-                            {
-                                rejected = true;
-                                rejectionReason = "Ad was rejected by Meta review. Please check your creative and content compliance.";
-                                break;
-                            }
-
-                            if (effectiveStatus is "PENDING_REVIEW" or "IN_PROCESS" or "PROCESSING")
-                            {
-                                pending = true;
-                            }
-                            else if (effectiveStatus == "ACTIVE" || effectiveStatus == "PAUSED" || effectiveStatus == "CAMPAIGN_PAUSED" || effectiveStatus == "ADSET_PAUSED")
-                            {
-                            }
-                            else
-                            {
-                                pending = true;
-                                _logger.LogInformation("Campaign {CampaignId} ad {AdId} has non-terminal Meta status {Status}", campaign.Id, ad.AdId, effectiveStatus);
-                            }
+                            pending = true;
+                            continue;
                         }
-                        if (rejected) break;
+
+                        if (effectiveStatus is "REJECTED" or "DISAPPROVED" or "WITH_ISSUES")
+                        {
+                            rejected = true;
+                            rejectionReason = "Ad was rejected by Meta review. Please check your creative and content compliance.";
+                            break;
+                        }
+
+                        if (effectiveStatus is "PENDING_REVIEW" or "IN_PROCESS" or "PROCESSING")
+                        {
+                            pending = true;
+                        }
+                        else if (effectiveStatus == "ACTIVE" || effectiveStatus == "PAUSED" || effectiveStatus == "CAMPAIGN_PAUSED" || effectiveStatus == "ADSET_PAUSED")
+                        {
+                        }
+                        else
+                        {
+                            pending = true;
+                            _logger.LogInformation("Campaign {CampaignId} ad {AdId} has non-terminal Meta status {Status}", campaign.Id, ad.AdId, effectiveStatus);
+                        }
                     }
 
                     if (!hasCheckedAd || pending)

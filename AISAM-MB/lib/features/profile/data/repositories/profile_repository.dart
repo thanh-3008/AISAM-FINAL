@@ -1,13 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/profile_model.dart';
 import '../models/profile_request.dart';
-
 import '../../../../core/storage/secure_storage.dart';
-
 part 'profile_repository.g.dart';
+
+List<ProfileResponseModel> _parseProfileList(List<dynamic> items) {
+  return items.map((e) => ProfileResponseModel.fromJson(e)).toList();
+}
 
 class ProfileRepository {
   final Dio _dio;
@@ -21,7 +24,8 @@ class ProfileRepository {
       if (userId == null) throw Exception('User ID not found in secure storage');
       final response = await _dio.get('/Profiles/user/$userId');
       final data = response.data['data'] as List?;
-      return data?.map((e) => ProfileResponseModel.fromJson(e)).toList() ?? [];
+      if (data == null || data.isEmpty) return [];
+      return await compute(_parseProfileList, data);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }

@@ -8,9 +8,9 @@ interface AnalyticsAiInsightsProps {
   dateRange?: DateRange;
 }
 
-function parseAiResponse(text: string): { icon: string; message: string }[] {
+function parseAiResponse(text: string): { icon: string; message: string; priority: "high" | "mid" | "low" }[] {
   const lines = text.split("\n").filter(l => l.trim());
-  const items: { icon: string; message: string }[] = [];
+  const items: { icon: string; message: string; priority: "high" | "mid" | "low" }[] = [];
   const emojiIconMap: Record<string, string> = {
     "🔥": "local_fire_department",
     "📈": "trending_up",
@@ -22,7 +22,7 @@ function parseAiResponse(text: string): { icon: string; message: string }[] {
     "⚠️": "warning",
   };
 
-  let current: { icon: string; message: string } | null = null;
+  let current: { icon: string; message: string; priority: "high" | "mid" | "low" } | null = null;
 
   for (const line of lines) {
     let trimmed = line
@@ -34,7 +34,13 @@ function parseAiResponse(text: string): { icon: string; message: string }[] {
 
     if (!trimmed) continue;
 
-    // Check if this line starts with a known emoji (possibly with variation selector)
+    let linePriority: "high" | "mid" | "low" | null = null;
+    const priorityMatch = trimmed.match(/^\[(HIGH|MID|LOW)\]/i);
+    if (priorityMatch) {
+      linePriority = priorityMatch[1].toLowerCase() as "high" | "mid" | "low";
+      trimmed = trimmed.replace(priorityMatch[0], "").trim();
+    }
+
     let matchedIcon: string | null = null;
     for (const [emoji, icon] of Object.entries(emojiIconMap)) {
       if (trimmed.startsWith(emoji) || trimmed.replace(/^\p{Emoji}+/u, "").length < trimmed.length) {
@@ -47,13 +53,16 @@ function parseAiResponse(text: string): { icon: string; message: string }[] {
       }
     }
 
-    if (matchedIcon) {
+    if (matchedIcon || linePriority) {
       if (current && current.message) {
         items.push(current);
       }
-      current = { icon: matchedIcon, message: trimmed };
+      current = { 
+        icon: matchedIcon || "lightbulb", 
+        message: trimmed, 
+        priority: linePriority || "mid" 
+      };
     } else if (current) {
-      // Continuation line for current item
       if (trimmed.length >= 3) {
         current.message += " " + trimmed;
       }
@@ -75,6 +84,13 @@ function parseAiResponse(text: string): { icon: string; message: string }[] {
         .trim();
       if (!trimmed || trimmed.length < 10) continue;
 
+      let priority: "high" | "mid" | "low" = "mid";
+      const priorityMatch = trimmed.match(/^\[(HIGH|MID|LOW)\]/i);
+      if (priorityMatch) {
+        priority = priorityMatch[1].toLowerCase() as "high" | "mid" | "low";
+        trimmed = trimmed.replace(priorityMatch[0], "").trim();
+      }
+
       let icon = "lightbulb";
       let message = trimmed;
       for (const [emoji, icn] of Object.entries(emojiIconMap)) {
@@ -84,7 +100,7 @@ function parseAiResponse(text: string): { icon: string; message: string }[] {
           break;
         }
       }
-      items.push({ icon, message });
+      items.push({ icon, message, priority });
     }
   }
 
@@ -111,16 +127,17 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
     };
   }, []);
 
-  const handleAskAi = async () => {
-    if (loading || cooldown) return;
+  const handleAskAi = async (forceRefresh = false) => {
+    if (loading || (cooldown && !forceRefresh)) return;
     setLoading(true);
     setError(null);
     setAiResponse(null);
     try {
-      const response = await fetchAiRecommendations(dateRange);
+      const response = await fetchAiRecommendations(dateRange, forceRefresh);
       if (response) {
         setAiResponse(response);
         setCooldown(true);
+        if (cooldownRef.current) clearTimeout(cooldownRef.current);
         cooldownRef.current = setTimeout(() => setCooldown(false), COOLDOWN_MS);
       } else {
         setError("AI is not available at this time.");
@@ -216,9 +233,11 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
               className="group relative animate-fade-up"
               style={{ animationDelay: `${0.6 + index * 0.1}s` }}
             >
-              <div className="relative bg-surface-container-low/80 backdrop-blur-sm p-4 rounded-xl border border-outline-variant/30 hover:border-primary/30 transition-all duration-500 hover:shadow-xl hover:-translate-y-1">
+              <div className={`absolute inset-0 bg-gradient-to-r ${item.priority === 'high' ? 'from-red-500 via-orange-500 to-red-500' : item.priority === 'low' ? 'from-slate-400 via-gray-400 to-slate-400' : 'from-primary via-secondary to-primary'} rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm`} />
+              
+              <div className={`relative ${item.priority === 'high' ? 'bg-orange-500/5' : item.priority === 'low' ? 'bg-surface-container-low/50' : 'bg-surface-container-low/80'} backdrop-blur-sm p-4 rounded-xl border ${item.priority === 'high' ? 'border-orange-500/30' : item.priority === 'low' ? 'border-outline-variant/20' : 'border-outline-variant/30'} hover:border-transparent transition-all duration-500 hover:shadow-xl hover:-translate-y-1`}>
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-500">
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${item.priority === 'high' ? 'from-red-500 to-orange-500' : item.priority === 'low' ? 'from-slate-400 to-gray-400' : 'from-primary to-secondary'} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-500`}>
                     <span className="material-symbols-outlined text-white text-label-md">
                       {item.icon}
                     </span>
@@ -294,34 +313,56 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
         )}
       </div>
 
-      {/* CTA Button */}
-      <button
-        onClick={handleAskAi}
-        disabled={loading || cooldown}
-        className="group relative w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary text-label-sm font-semibold shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-      >
-        <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-        <span className="relative flex items-center justify-center gap-2">
-          {loading ? (
-            <>
-              <span className="material-symbols-outlined text-label-sm animate-spin">progress_activity</span>
-              Analyzing...
-            </>
-          ) : cooldown ? (
-            <>
-              <span className="material-symbols-outlined text-label-sm">check_circle</span>
-              Wait 8s to retry
-            </>
-          ) : (
-            <>
-              Ask AI Assistant
-              <span className="material-symbols-outlined text-label-sm group-hover:rotate-12 transition-transform duration-300">
-                auto_awesome
-              </span>
-            </>
-          )}
-        </span>
-      </button>
+      {showAiResults && (
+        <div className="mt-4 p-3 bg-surface-container-low/50 rounded-lg border border-outline-variant/30 flex items-start gap-2 relative z-10 animate-fade-up" style={{ animationDelay: "1s" }}>
+          <span className="material-symbols-outlined text-outline text-[16px] mt-0.5">info</span>
+          <p className="text-xs text-on-surface-variant italic leading-relaxed">
+            Lưu ý: Đề xuất trên được tạo bởi AI nhằm mục đích hỗ trợ tham khảo. Vui lòng suy nghĩ kỹ lưỡng trước khi đưa ra các quyết định marketing quan trọng.
+          </p>
+        </div>
+      )}
+
+      {/* CTA Buttons */}
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={() => handleAskAi(false)}
+          disabled={loading || cooldown}
+          className="flex-1 group relative py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary text-label-sm font-semibold shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+        >
+          <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          <span className="relative flex items-center justify-center gap-2">
+            {loading ? (
+              <>
+                <span className="material-symbols-outlined text-label-sm animate-spin">progress_activity</span>
+                Analyzing...
+              </>
+            ) : cooldown ? (
+              <>
+                <span className="material-symbols-outlined text-label-sm">check_circle</span>
+                Wait 8s to retry
+              </>
+            ) : (
+              <>
+                Ask AI Assistant
+                <span className="material-symbols-outlined text-label-sm group-hover:rotate-12 transition-transform duration-300">
+                  auto_awesome
+                </span>
+              </>
+            )}
+          </span>
+        </button>
+
+        <button
+          onClick={() => handleAskAi(true)}
+          disabled={loading}
+          className="px-4 py-3 rounded-xl bg-surface-container-high text-on-surface hover:text-primary hover:bg-primary/10 border border-outline-variant/30 text-label-sm font-semibold shadow-sm transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center"
+          title="Force refresh AI insights"
+        >
+          <span className={`material-symbols-outlined text-label-sm ${loading ? 'animate-spin' : ''}`}>
+            refresh
+          </span>
+        </button>
+      </div>
 
       <style>{`
         @keyframes fade-up {

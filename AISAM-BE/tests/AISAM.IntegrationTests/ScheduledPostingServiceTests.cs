@@ -1,3 +1,4 @@
+using AISAM.Common.Dtos.Response;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
@@ -338,7 +339,7 @@ public class ScheduledPostingServiceTests
         }
 
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CreateAsync(Guid profileId, AISAM.Common.Dtos.Request.CreateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<GenericResponse<PagedResult<AISAM.Common.Dtos.Response.ContentResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<PagedResult<ContentListDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> GetByIdAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> UpdateAsync(Guid id, Guid profileId, AISAM.Common.Dtos.Request.UpdateContentRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<GenericResponse<AISAM.Common.Dtos.Response.ContentResponseDto>> CloneAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -421,16 +422,20 @@ public class ScheduledPostingServiceTests
     {
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PagedResult<Content>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PagedResult<Content>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Content content, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default) => Task.FromResult(content);
         public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<List<string>> GetDistinctTagsByProfileAsync(Guid profileId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PagedResult<Content>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<ContentListDto>> GetPagedAllAsync(PaginationRequest request, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
     }
 }
+
+
+
+

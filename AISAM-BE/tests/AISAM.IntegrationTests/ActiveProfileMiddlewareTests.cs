@@ -267,3 +267,7 @@ public class ActiveProfileMiddlewareTests
         public Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<User>>(Array.Empty<User>());
     }
 }
+
+
+
+
