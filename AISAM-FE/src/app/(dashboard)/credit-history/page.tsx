@@ -275,11 +275,11 @@ export default function CreditHistoryPage() {
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
-                    Image generation costs 5 credits per request
+                    Image generation costs 10 credits per request
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>
-                    Video generation costs 20 credits per request
+                    Video generation costs 100 credits per request
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[14px] text-primary">check_circle</span>

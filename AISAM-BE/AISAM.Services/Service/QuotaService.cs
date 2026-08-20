@@ -94,7 +94,7 @@ public sealed class QuotaService : IQuotaService
         var postUsage = await _subscriptionRepository.CountSuccessfulPostUsageByWorkspaceIdAsync(
             workspaceId, windowStart, windowEnd, cancellationToken);
 
-        var postLimit = ResolveWorkspacePostQuota(workspace.WorkspaceType, subscription.Plan);
+        var postLimit = subscription.QuotaPostsPerMonth;
         var promptLimit = subscription.QuotaAIContentPerDay;
 
         var textCount = await _contentRepository.CountByWorkspaceAndAdTypeAsync(workspaceId, AdTypeEnum.TextOnly, cancellationToken);
@@ -193,32 +193,6 @@ public sealed class QuotaService : IQuotaService
         var cycleOffset = (elapsedDays / 7) * 7;
         var windowStart = start.AddDays(cycleOffset);
         return (windowStart, windowStart.AddDays(6));
-    }
-
-    private static int ResolveWorkspacePostQuota(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
-    {
-        return (workspaceType, plan) switch
-        {
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => 20,
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 300,
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 1_000,
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => 300,
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => 1_000,
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 5_000,
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 20_000,
-            _ => subscriptionFallback(plan)
-        };
-
-        static int subscriptionFallback(SubscriptionPlanEnum subscriptionPlan)
-        {
-            return subscriptionPlan switch
-            {
-                SubscriptionPlanEnum.Free => 20,
-                SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.PlusTrial => 300,
-                SubscriptionPlanEnum.Premium => 1_000,
-                _ => 0
-            };
-        }
     }
 
     private static string BuildWorkspacePlanName(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
