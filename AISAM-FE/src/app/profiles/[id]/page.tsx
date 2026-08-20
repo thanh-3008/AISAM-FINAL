@@ -34,6 +34,8 @@ import {
 } from "@/services/workspaceService";
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 import { updateMemberRole, removeMember } from "@/services/teamService";
+import { fetchPublicPricing } from "@/services/paymentService";
+import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 
 interface Workspace {
   id: string;
@@ -74,6 +76,14 @@ const statusConfig: Record<number, { label: string; class: string; dot: string }
   2: { label: "Suspended", class: "bg-red-50 text-red-700 border-red-200/50", dot: "bg-red-500" },
   3: { label: "Cancelled", class: "bg-surface-container-high text-on-surface-variant border-outline-variant/20", dot: "bg-outline" },
 };
+
+function formatVndCurrency(amount: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -137,6 +147,8 @@ export default function ProfileDetailPage() {
   const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [upgradingPlan, setUpgradingPlan] = useState(false);
+  const [displayPlans, setDisplayPlans] = useState<PlanPricing[]>(PLAN_PRICING);
+  const [displayCreditPacks, setDisplayCreditPacks] = useState<CreditPackPricing[]>(CREDIT_PACK_PRICING);
 
   // Team members state
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -462,6 +474,8 @@ export default function ProfileDetailPage() {
       const planCodes: Record<number, string> = {
         1: "Plus",
         2: "Premium",
+        3: "Plus",
+        4: "Premium",
       };
       const category = workspace?.workspaceType === 2 ? "business" : "personal";
       const checkout = await createCheckout({
@@ -755,6 +769,60 @@ export default function ProfileDetailPage() {
     }
   }, [activeSection, subscription]);
 
+  useEffect(() => {
+    if (activeSection !== "subscription") return;
+
+    fetchPublicPricing().then((pricing) => {
+      if (!pricing) return;
+
+      setDisplayPlans((currentPlans) => currentPlans.map((plan) => {
+        const settingIdByPlanType: Record<number, string> = {
+          0: "free",
+          1: "plus",
+          2: "premium",
+          3: "business-plus",
+          4: "business-pro",
+        };
+        const expectedId = settingIdByPlanType[plan.planType];
+        const matched = pricing.plans.find((candidate) =>
+          String(candidate.id ?? "").toLowerCase() === expectedId ||
+          String(candidate.name ?? "").toLowerCase() === plan.name.toLowerCase()
+        );
+
+        if (!matched) return plan;
+
+        const postsPerMonth = Number(matched.postsPerMonth);
+        const postQuota = Number.isFinite(postsPerMonth)
+          ? `${postsPerMonth.toLocaleString()} posts/month`
+          : plan.postQuota;
+        return {
+          ...plan,
+          price: Number(matched.price ?? plan.price),
+          priceFormatted: formatVndCurrency(Number(matched.price ?? plan.price)),
+          credits: Number(matched.credits ?? plan.credits),
+          postQuota,
+          features: Array.isArray(matched.features) && matched.features.length > 0 ? matched.features : plan.features,
+        };
+      }));
+
+      setDisplayCreditPacks((currentPacks) => currentPacks.map((pack) => {
+        const matched = pricing.creditPacks.find((candidate) =>
+          String(candidate.id ?? "").toLowerCase() === pack.id.toLowerCase() ||
+          String(candidate.name ?? "").toLowerCase() === pack.name.toLowerCase()
+        );
+
+        if (!matched) return pack;
+
+        return {
+          ...pack,
+          price: Number(matched.price ?? pack.price),
+          priceFormatted: formatVndCurrency(Number(matched.price ?? pack.price)),
+          credits: Number(matched.credits ?? pack.credits),
+        };
+      }));
+    });
+  }, [activeSection]);
+
   // Load credit wallet when billing section is active
   useEffect(() => {
     if (activeSection === "billing" && !creditWallet) {
@@ -864,6 +932,33 @@ export default function ProfileDetailPage() {
   const subscriptionPlanLabel = normalizePlanLabel(subscription?.planName);
   const initials = workspace ? getInitials(workspace.name) : "?";
   const statusInfo = workspace ? statusConfig[workspace.status] || statusConfig[0] : statusConfig[0];
+  const getDynamicPlanDisplay = (planName: string, fallbackPrice: string) => {
+    const matched = displayPlans.find((plan) => plan.name === planName);
+    return {
+      price: matched?.priceFormatted ?? fallbackPrice,
+      credits: matched?.credits,
+      postQuota: matched?.postQuota,
+    };
+  };
+
+  const getDynamicCreditPackDisplay = (packName: string, fallbackPrice: string) => {
+    const matched = displayCreditPacks.find((pack) => pack.name === packName);
+    return {
+      price: matched?.priceFormatted ?? fallbackPrice,
+      credits: matched?.credits,
+    };
+  };
+
+  const getDynamicPlanFeature = (planName: string, feature: string) => {
+    const dynamicPlan = getDynamicPlanDisplay(planName, "");
+    if (/credits?/i.test(feature) && dynamicPlan.credits !== undefined) {
+      return `${dynamicPlan.credits.toLocaleString()} Credits`;
+    }
+    if (/posts?/i.test(feature) && dynamicPlan.postQuota) {
+      return dynamicPlan.postQuota;
+    }
+    return feature;
+  };
 
   return (
     <div className="min-h-dvh bg-surface flex">
@@ -2375,11 +2470,11 @@ export default function ProfileDetailPage() {
                             </li>
                             <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
                               <span className="material-symbols-outlined text-secondary text-[16px]">image</span>
-                              Image generation costs 5 credits per request
+                              Image generation costs 10 credits per request
                             </li>
                             <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
                               <span className="material-symbols-outlined text-amber-600 text-[16px]">videocam</span>
-                              Video generation costs 20 credits per request
+                              Video generation costs 100 credits per request
                             </li>
                             <li className="flex items-center gap-2 text-label-sm text-on-surface-variant">
                               <span className="material-symbols-outlined text-outline text-[16px]">info</span>
@@ -2638,7 +2733,7 @@ export default function ProfileDetailPage() {
                                     : nextPaymentDate}
                                 </p>
                                 <p className="text-label-xs text-outline mt-1">
-                                  {subscriptionPlanLabel === "Free" ? "Free" : "Test pricing"}
+                                  {subscriptionPlanLabel === "Free" ? "Free plan" : "Renews at current pricing"}
                                 </p>
                               </div>
                               <div className="p-4 rounded-xl bg-surface-container/40">
@@ -2721,7 +2816,7 @@ export default function ProfileDetailPage() {
                             <div className="mb-4">
                               <h4 className="text-body-lg font-bold text-on-surface">{plan.name}</h4>
                               <div className="flex items-baseline gap-1 mt-2">
-                                <span className="text-3xl font-bold text-on-surface">{plan.price}</span>
+                                <span className="text-3xl font-bold text-on-surface">{getDynamicPlanDisplay(plan.name, plan.price).price}</span>
                                 <span className="text-body-sm text-outline">{plan.period}</span>
                               </div>
                             </div>
@@ -2729,7 +2824,7 @@ export default function ProfileDetailPage() {
                               {plan.features.map((feature) => (
                                 <li key={feature} className="flex items-center gap-2">
                                   <span className="material-symbols-outlined text-emerald-500 text-[16px]">check_circle</span>
-                                  <span className="text-label-sm text-on-surface-variant">{feature}</span>
+                                  <span className="text-label-sm text-on-surface-variant">{getDynamicPlanFeature(plan.name, feature)}</span>
                                 </li>
                               ))}
                             </ul>
@@ -2802,13 +2897,21 @@ export default function ProfileDetailPage() {
                               <h4 className="text-body-md font-bold text-on-surface">{pack.name}</h4>
                             </div>
                             <div className="mb-3">
-                              <span className="text-2xl font-bold text-on-surface">{pack.credits.toLocaleString()}</span>
+                              <span className="text-2xl font-bold text-on-surface">{(getDynamicCreditPackDisplay(pack.name, pack.price).credits ?? pack.credits).toLocaleString()}</span>
                               <span className="text-label-sm text-outline ml-1">Credits</span>
                             </div>
-                            <p className="text-body-lg font-semibold text-primary mb-4">{pack.price}</p>
+                            <p className="text-body-lg font-semibold text-primary mb-4">{getDynamicCreditPackDisplay(pack.name, pack.price).price}</p>
                             <motion.button
                               whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                              onClick={() => { setSelectedCreditPack(pack); setShowPurchaseConfirm(true); }}
+                              onClick={() => {
+                                const dynamicPack = getDynamicCreditPackDisplay(pack.name, pack.price);
+                                setSelectedCreditPack({
+                                  name: pack.name,
+                                  credits: dynamicPack.credits ?? pack.credits,
+                                  price: dynamicPack.price,
+                                });
+                                setShowPurchaseConfirm(true);
+                              }}
                               className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${pack.popular
                                   ? "bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
                                   : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"

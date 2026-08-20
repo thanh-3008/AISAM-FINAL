@@ -28,6 +28,14 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+const PRICING_SETTING_ID_BY_PLAN_TYPE: Record<PlanType, string> = {
+  [PlanType.Free]: "free",
+  [PlanType.PersonalPlus]: "plus",
+  [PlanType.PersonalPro]: "premium",
+  [PlanType.BusinessPlus]: "business-plus",
+  [PlanType.BusinessPro]: "business-pro",
+};
+
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,14 +85,20 @@ function PricingContent() {
     fetchPublicPricing().then((res) => {
       if (res) {
         setDisplayPlans(prev => prev.map(p => {
-          const matched = res.plans.find(bp => bp.name.toLowerCase() === p.name.toLowerCase());
+          const expectedId = PRICING_SETTING_ID_BY_PLAN_TYPE[p.planType];
+          const matched = res.plans.find(bp =>
+            String(bp.id ?? "").toLowerCase() === expectedId ||
+            String(bp.name ?? "").toLowerCase() === p.name.toLowerCase()
+          );
           if (matched) {
+            const postsPerMonth = Number(matched.postsPerMonth);
             return {
               ...p,
-              price: matched.price,
-              priceFormatted: formatCurrency(matched.price),
-              credits: matched.credits,
-              postQuota: `${matched.postsPerMonth.toLocaleString()} posts/month`
+              price: Number(matched.price ?? p.price),
+              priceFormatted: formatCurrency(Number(matched.price ?? p.price)),
+              credits: Number(matched.credits ?? p.credits),
+              postQuota: Number.isFinite(postsPerMonth) ? `${postsPerMonth.toLocaleString()} posts/month` : p.postQuota,
+              features: Array.isArray(matched.features) && matched.features.length > 0 ? matched.features : p.features,
             };
           }
           return p;
