@@ -245,8 +245,7 @@ class _BrandGridItem extends ConsumerWidget {
     }
 
     // Default status to Active for now as per mockups
-    final bool isActive = true; // In a real scenario, use brand.status
-
+    // In a real scenario, use brand.status
     final gradients = [
       const LinearGradient(colors: [_primaryColor, _secondaryColor], begin: Alignment.topLeft, end: Alignment.bottomRight),
       const LinearGradient(colors: [_primaryColor, _publishingPink], begin: Alignment.topLeft, end: Alignment.bottomRight),

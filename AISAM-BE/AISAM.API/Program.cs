@@ -297,7 +297,7 @@ builder.Services.AddSingleton<IBackgroundJobHealthService, BackgroundJobHealthSe
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 builder.Services.AddHostedService<AutomationGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationOperationsBackgroundService>();
-// builder.Services.AddHostedService<VideoPollingBackgroundService>();
+builder.Services.AddHostedService<VideoPollingBackgroundService>();
 builder.Services.AddHostedService<VideoGenerationBackgroundService>();
 builder.Services.AddHostedService<CampaignInsightsBackgroundService>();
 builder.Services.AddHostedService<PostInsightsBackgroundService>();
