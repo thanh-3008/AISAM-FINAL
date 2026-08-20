@@ -82,7 +82,11 @@ public sealed class ColabVideoStrategy : IAIVideoProvider
             _logger.LogInformation("[Colab] Prompt successfully split into {Count} segments: {Segments}", segments.Count, JsonSerializer.Serialize(segments));
 
             // 3. Trigger Colab job
-            var requestBody = new { segments = segments };
+            var requestBody = new { 
+                segments = segments, 
+                firstFrameImageUrl = options?.FirstFrameImageUrl,
+                image_url = options?.FirstFrameImageUrl
+            };
             _logger.LogInformation("[Colab] Sending job request to /generate-story-video...");
             var response = await _httpClient.PostAsJsonAsync("/generate-story-video", requestBody, cancellationToken);
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);

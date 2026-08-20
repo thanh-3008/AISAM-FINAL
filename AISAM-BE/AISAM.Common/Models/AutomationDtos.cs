@@ -11,7 +11,7 @@ public sealed class CreateAutomationPlanRequest
 
 public sealed class AutomationImportRowRequest
 {
-    public Guid BrandId { get; set; }
+    public Guid? BrandId { get; set; }
     public string? BrandName { get; set; }
     public Guid? ProductId { get; set; }
     public string? ProductName { get; set; }
@@ -51,7 +51,7 @@ public sealed class AutomationItemDto
     public Guid Id { get; set; }
     public int RowIndex { get; set; }
     public string Platform { get; set; } = string.Empty;
-    public Guid BrandId { get; set; }
+    public Guid? BrandId { get; set; }
     public string BrandName { get; set; } = string.Empty;
     public Guid? ProductId { get; set; }
     public Guid? ContentId { get; set; }
@@ -72,7 +72,14 @@ public sealed class AutomationItemDto
     public string? GeneratedImageUrl { get; set; }
     public string? GeneratedVideoUrl { get; set; }
     public string? VideoProvider { get; set; }
-    public IReadOnlyList<string> ValidationErrors { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<AutomationValidationError> ValidationErrors { get; set; } = Array.Empty<AutomationValidationError>();
+}
+
+public sealed class AutomationValidationError
+{
+    public string Code { get; set; } = string.Empty;
+    public string Field { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
 }
 
 public sealed class RejectAutomationItemRequest
@@ -100,7 +107,7 @@ public sealed class SetAutomationAutoApproveRequest
 
 public sealed class UpdateAutomationItemRequest
 {
-    public Guid BrandId { get; set; }
+    public Guid? BrandId { get; set; }
     public Guid? ProductId { get; set; }
     [Required, MaxLength(300)] public string Topic { get; set; } = string.Empty;
     [Required, MaxLength(30)] public string Platform { get; set; } = string.Empty;

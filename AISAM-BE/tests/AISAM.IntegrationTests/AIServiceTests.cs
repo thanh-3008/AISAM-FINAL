@@ -547,6 +547,7 @@ public class AIServiceTests
         public Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Brand brand, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<List<Brand>> GetByNamesAndIdsAsync(Guid workspaceId, IEnumerable<string> names, IEnumerable<Guid> ids, CancellationToken cancellationToken = default) => Task.FromResult(new List<Brand>());
     }
 
     private sealed class FakeProductRepository : IProductRepository
@@ -641,10 +642,10 @@ public class AIServiceTests
         public Task<string> EnhanceImagePromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, bool hasReferenceImages, CancellationToken cancellationToken = default)
             => Task.FromResult(rawPrompt);
 
-        public Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, List<string>? recentlyUsedPrompts = null, CancellationToken cancellationToken = default)
+        public Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, List<string>? recentlyUsedPrompts = null, string? referenceImageUrl = null, CancellationToken cancellationToken = default)
             => Task.FromResult<(string Prompt, string? PatternId)>((rawPrompt, "fake_pattern"));
 
-        public Task<string> EnhanceVideoPromptWithScriptAsync(string rawPrompt, string? videoScript, AISAM.Data.Model.Product? product, int durationSeconds = 9, string? aspectRatio = "9:16", CancellationToken cancellationToken = default)
+        public Task<string> EnhanceVideoPromptWithScriptAsync(string rawPrompt, string? videoScript, AISAM.Data.Model.Product? product, int durationSeconds = 9, string? aspectRatio = "9:16", string? referenceImageUrl = null, CancellationToken cancellationToken = default)
             => Task.FromResult(!string.IsNullOrWhiteSpace(rawPrompt) ? rawPrompt : videoScript ?? string.Empty);
     }
 }

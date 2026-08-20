@@ -1,10 +1,16 @@
 import { apiClient, apiFetch } from "@/lib/apiClient";
 
+export interface AutomationValidationError {
+  code: string;
+  field: string;
+  message: string;
+}
+
 export interface AutomationItem {
   id: string;
   rowIndex: number;
   platform: string;
-  brandId: string;
+  brandId?: string;
   brandName: string;
   productId?: string;
   contentId?: string;
@@ -25,7 +31,7 @@ export interface AutomationItem {
   generatedImageUrl?: string;
   generatedVideoUrl?: string;
   videoProvider?: string;
-  validationErrors: string[];
+  validationErrors: AutomationValidationError[];
 }
 
 export interface AutomationPlan {

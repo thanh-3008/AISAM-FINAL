@@ -12,7 +12,7 @@ public sealed class AutomationItem
     [Column("row_index")] public int RowIndex { get; set; }
     [MaxLength(30), Column("platform")] public string Platform { get; set; } = string.Empty;
     [MaxLength(64), Column("idempotency_key")] public string IdempotencyKey { get; set; } = string.Empty;
-    [Column("brand_id")] public Guid BrandId { get; set; }
+    [Column("brand_id")] public Guid? BrandId { get; set; }
     [Column("product_id")] public Guid? ProductId { get; set; }
     [Column("content_id")] public Guid? ContentId { get; set; }
     [Column("content_calendar_id")] public Guid? ContentCalendarId { get; set; }
@@ -36,7 +36,7 @@ public sealed class AutomationItem
     [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     [ForeignKey(nameof(AutomationPlanId))] public AutomationPlan AutomationPlan { get; set; } = null!;
-    [ForeignKey(nameof(BrandId))] public Brand Brand { get; set; } = null!;
+    [ForeignKey(nameof(BrandId))] public Brand? Brand { get; set; }
     [ForeignKey(nameof(ProductId))] public Product? Product { get; set; }
     [ForeignKey(nameof(ContentId))] public Content? Content { get; set; }
     [ForeignKey(nameof(ContentCalendarId))] public ContentCalendar? ContentCalendar { get; set; }
