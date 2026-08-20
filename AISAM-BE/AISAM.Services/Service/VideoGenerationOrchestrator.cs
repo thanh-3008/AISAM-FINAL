@@ -22,7 +22,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
     private readonly ICreditService _creditService;
     private readonly ILogger<VideoGenerationOrchestrator> _logger;
 
-    private const int VideoGenerationCredits = 20;
+    private const int VideoGenerationCredits = 100;
 
     public VideoGenerationOrchestrator(
         IAIVideoProvider primaryProvider,

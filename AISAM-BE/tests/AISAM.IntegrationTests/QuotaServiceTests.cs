@@ -138,6 +138,7 @@ public class QuotaServiceTests
                     Id = Guid.NewGuid(),
                     WorkspaceId = workspaceId,
                     Plan = SubscriptionPlanEnum.Premium,
+                    QuotaPostsPerMonth = 20_000,
                     QuotaAIContentPerDay = 200,
                     StartDate = new DateTime(2026, 6, 1),
                     EndDate = new DateTime(2026, 6, 30),

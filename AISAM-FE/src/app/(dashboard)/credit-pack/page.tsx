@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, CREDIT_PACK_CODES } from "@/services/paymentService";
+import { createPayment, CREDIT_PACK_CODES, fetchPublicPricing } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -17,7 +17,7 @@ interface CreditPack {
   description: string;
 }
 
-const CREDIT_PACKS: CreditPack[] = [
+const DEFAULT_CREDIT_PACKS: CreditPack[] = [
   {
     id: "starter",
     name: "Starter",
@@ -60,6 +60,7 @@ const CREDIT_PACKS: CreditPack[] = [
 export default function CreditPackPage() {
   const { activeWorkspace } = useWorkspaces();
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
+  const [creditPacks, setCreditPacks] = useState<CreditPack[]>(DEFAULT_CREDIT_PACKS);
   const [selectedPack, setSelectedPack] = useState<CreditPack | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -74,6 +75,31 @@ export default function CreditPackPage() {
     };
     loadWallet();
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    fetchPublicPricing().then((res) => {
+      if (res?.creditPacks?.length) {
+        setCreditPacks((prev) =>
+          prev.map((pack) => {
+            const matched = res.creditPacks.find(
+              (bp) =>
+                String(bp.id ?? "").toLowerCase() === pack.id.toLowerCase() ||
+                String(bp.name ?? "").toLowerCase() === pack.name.toLowerCase()
+            );
+            if (matched) {
+              return {
+                ...pack,
+                price: Number(matched.price ?? pack.price),
+                priceFormatted: `${Number(matched.price ?? pack.price).toLocaleString()}₫`,
+                credits: Number(matched.credits ?? pack.credits),
+              };
+            }
+            return pack;
+          })
+        );
+      }
+    });
+  }, []);
 
   const handleSelectPack = (pack: CreditPack) => {
     if (creditWallet && creditWallet.balance + pack.credits > creditWallet.maxBalance) {
@@ -176,7 +202,7 @@ export default function CreditPackPage() {
           <div>
             <h2 className="text-headline-sm text-on-surface mb-4">Available Packs</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {CREDIT_PACKS.map((pack) => (
+              {creditPacks.map((pack) => (
                 <div
                   key={pack.id}
                   className={`relative rounded-2xl border p-6 transition-all hover:shadow-lg ${

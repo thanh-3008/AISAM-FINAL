@@ -172,16 +172,16 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     var videoBytes = await httpClient.GetByteArrayAsync(video.MediaUrl, cancellationToken);
                     content.VideoUrl = await _mediaStorage.UploadBytesAsync(videoBytes, "automation-videos", $"{item.Id:N}.mp4", cancellationToken);
                 }
-                if (item.UsedCredits < 21)
+                if (item.UsedCredits < 101)
                 {
-                    var videoCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateVideo, 20, 21, cancellationToken);
+                    var videoCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateVideo, 100, 101, cancellationToken);
                     if (!videoCharge.Success) throw new InvalidOperationException(videoCharge.Message ?? "Unable to charge video generation credits.");
                 }
                 item.Status = AutomationItemStatusEnum.AwaitingApproval;
             }
             else if (requiresImage)
             {
-                if (item.UsedCredits < 6 || string.IsNullOrWhiteSpace(content.ImageUrl))
+                if (item.UsedCredits < 11 || string.IsNullOrWhiteSpace(content.ImageUrl))
                 {
                     item.Status = AutomationItemStatusEnum.GeneratingMedia;
                     await _context.SaveChangesAsync(cancellationToken);
@@ -199,9 +199,9 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                         $"{item.Id:N}.png", cancellationToken);
                     content.ImageUrl = JsonSerializer.Serialize(new[] { url });
                     await _context.SaveChangesAsync(cancellationToken);
-                    if (item.UsedCredits < 6)
+                    if (item.UsedCredits < 11)
                     {
-                        var imageCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateImage, 5, 6, cancellationToken);
+                        var imageCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateImage, 10, 11, cancellationToken);
                         if (!imageCharge.Success) throw new InvalidOperationException(imageCharge.Message ?? "Unable to charge image generation credits.");
                     }
                 }

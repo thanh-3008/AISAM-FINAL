@@ -31,8 +31,8 @@ public sealed class AIService : IAIService
     private readonly IPromptEnhancerService _promptEnhancer;
     private readonly ILogger<AIService> _logger;
     private const long TextGenerationCredits = 1;
-    private const long ImageGenerationCredits = 5;
-    private const long VideoGenerationCredits = 20;
+    private const long ImageGenerationCredits = 10;
+    private const long VideoGenerationCredits = 100;
 
     public AIService(
         IContentRepository contentRepository,
