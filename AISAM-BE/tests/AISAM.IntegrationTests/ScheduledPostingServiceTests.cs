@@ -354,6 +354,8 @@ public class ScheduledPostingServiceTests
 
     private sealed class FakeProfileRepository : IProfileRepository
     {
+        public Task<Profile?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IEnumerable<Profile>> GetBasicByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
         public Dictionary<Guid, Profile> Profiles { get; }
 
         public FakeProfileRepository(params Profile[] profiles)
@@ -420,6 +422,7 @@ public class ScheduledPostingServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -435,6 +438,9 @@ public class ScheduledPostingServiceTests
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
     }
 }
+
+
+
 
 
 

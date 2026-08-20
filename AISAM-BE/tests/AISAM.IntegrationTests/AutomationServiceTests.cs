@@ -143,6 +143,7 @@ public class AutomationServiceTests
 
     private sealed class FakeProductRepository : IProductRepository
     {
+        public Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Product?>(null);
         public Task<Product?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Product?>(null);
         public Task<PagedResult<Product>> GetPagedAsync(PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -153,6 +154,7 @@ public class AutomationServiceTests
         public Task UpdateAsync(Product product, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }
+
 
 
 

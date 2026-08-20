@@ -46,6 +46,7 @@ namespace AISAM.Repositories.Repository
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
             var query = _context.Brands
+                .AsNoTracking()
                 .AsSplitQuery()
                 .Include(b => b.Profile)
                 .Include(b => b.Workspace)
@@ -88,6 +89,7 @@ namespace AISAM.Repositories.Repository
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
             var query = _context.Brands
+                .AsNoTracking()
                 .AsSplitQuery()
                 .Include(b => b.Profile)
                 .Include(b => b.Products)

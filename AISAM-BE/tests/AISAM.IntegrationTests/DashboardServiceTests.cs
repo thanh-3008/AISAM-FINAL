@@ -143,6 +143,7 @@ public class DashboardServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         private readonly List<Content> _contents;
 
         public FakeContentRepository(params Content[] contents)
@@ -337,6 +338,8 @@ public class DashboardServiceTests
             => Task.FromResult(_failedCount);
     }
 }
+
+
 
 
 

@@ -30,11 +30,25 @@ namespace AISAM.Repositories.Repository
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Profile?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.Profiles
+                .FirstOrDefaultAsync(p => p.Id == id && p.Status != ProfileStatusEnum.Cancelled, cancellationToken);
+        }
+
         public async Task<IEnumerable<Profile>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
         {
             return await _context.Profiles
                 .Include(p => p.User)
                 .Include(p => p.Brands)
+                .Where(p => p.UserId == userId && p.Status != ProfileStatusEnum.Cancelled)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IEnumerable<Profile>> GetBasicByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Profiles
                 .Where(p => p.UserId == userId && p.Status != ProfileStatusEnum.Cancelled)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync(cancellationToken);

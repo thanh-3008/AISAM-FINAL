@@ -811,6 +811,18 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("AccentColor")
+                        .HasColumnType("text")
+                        .HasColumnName("accent_color");
+
+                    b.Property<string>("BodyFont")
+                        .HasColumnType("text")
+                        .HasColumnName("body_font");
+
+                    b.Property<string>("BrandValues")
+                        .HasColumnType("text")
+                        .HasColumnName("brand_values");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -818,6 +830,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
+
+                    b.Property<string>("HeadingFont")
+                        .HasColumnType("text")
+                        .HasColumnName("heading_font");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean")
@@ -834,9 +850,25 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<string>("PreferredTerms")
+                        .HasColumnType("text")
+                        .HasColumnName("preferred_terms");
+
+                    b.Property<string>("PrimaryColor")
+                        .HasColumnType("text")
+                        .HasColumnName("primary_color");
+
                     b.Property<Guid>("ProfileId")
                         .HasColumnType("uuid")
                         .HasColumnName("profile_id");
+
+                    b.Property<string>("ProhibitedTerms")
+                        .HasColumnType("text")
+                        .HasColumnName("prohibited_terms");
+
+                    b.Property<string>("SecondaryColor")
+                        .HasColumnType("text")
+                        .HasColumnName("secondary_color");
 
                     b.Property<string>("Slogan")
                         .HasMaxLength(255)
@@ -846,6 +878,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<string>("TargetAudience")
                         .HasColumnType("text")
                         .HasColumnName("target_audience");
+
+                    b.Property<string>("ToneOfVoice")
+                        .HasColumnType("text")
+                        .HasColumnName("tone_of_voice");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -868,6 +904,103 @@ namespace AISAM.Repositories.Migrations
                     b.HasIndex("WorkspaceId");
 
                     b.ToTable("brands");
+                });
+
+            modelBuilder.Entity("AISAM.Data.Model.CampaignInsightSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("AttributedRevenue")
+                        .HasColumnType("numeric")
+                        .HasColumnName("attributed_revenue");
+
+                    b.Property<string>("AttributionWindow")
+                        .HasColumnType("text")
+                        .HasColumnName("attribution_window");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("campaign_id");
+
+                    b.Property<long?>("Clicks")
+                        .HasColumnType("bigint")
+                        .HasColumnName("clicks");
+
+                    b.Property<decimal?>("Conversions")
+                        .HasColumnType("numeric")
+                        .HasColumnName("conversions");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<long?>("Engagement")
+                        .HasColumnType("bigint")
+                        .HasColumnName("engagement");
+
+                    b.Property<long?>("Impressions")
+                        .HasColumnType("bigint")
+                        .HasColumnName("impressions");
+
+                    b.Property<bool>("IsPartial")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_partial");
+
+                    b.Property<string>("Platform")
+                        .HasColumnType("text")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("RawData")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("raw_data");
+
+                    b.Property<long?>("Reach")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reach");
+
+                    b.Property<DateTime>("SnapshotDate")
+                        .HasColumnType("date")
+                        .HasColumnName("snapshot_date");
+
+                    b.Property<string>("Source")
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<decimal?>("Spend")
+                        .HasColumnType("numeric")
+                        .HasColumnName("spend");
+
+                    b.Property<DateTime?>("SyncedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("synced_at");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.HasIndex("SnapshotDate");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("CampaignId", "SnapshotDate")
+                        .IsUnique();
+
+                    b.ToTable("campaign_insight_snapshots");
                 });
 
             modelBuilder.Entity("AISAM.Data.Model.ChatMessage", b =>
@@ -941,6 +1074,11 @@ namespace AISAM.Repositories.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("GeneratedSource")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("generated_source");
 
                     b.Property<string>("ImageUrl")
                         .HasColumnType("jsonb")
@@ -1026,11 +1164,11 @@ namespace AISAM.Repositories.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("ProfileId");
-
                     b.HasIndex("Status");
 
                     b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("ProfileId", "CreatedAt");
 
                     b.ToTable("contents");
                 });
@@ -1358,6 +1496,65 @@ namespace AISAM.Repositories.Migrations
                     b.ToTable("credit_wallets");
                 });
 
+            modelBuilder.Entity("AISAM.Data.Model.HolidayEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("country_code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExactDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("exact_date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsManuallyOverridden")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_manually_overridden");
+
+                    b.Property<string>("LocalName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("local_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer")
+                        .HasColumnName("year");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountryCode");
+
+                    b.HasIndex("ExactDate");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("holiday_events");
+                });
+
             modelBuilder.Entity("AISAM.Data.Model.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1658,6 +1855,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Benefits")
+                        .HasColumnType("text")
+                        .HasColumnName("benefits");
+
                     b.Property<Guid>("BrandId")
                         .HasColumnType("uuid")
                         .HasColumnName("brand_id");
@@ -1693,6 +1894,10 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<string>("PainPoints")
+                        .HasColumnType("text")
+                        .HasColumnName("pain_points");
+
                     b.Property<decimal?>("Price")
                         .HasColumnType("decimal(18,2)")
                         .HasColumnName("price");
@@ -1706,9 +1911,21 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("product_url");
 
+                    b.Property<string>("Sku")
+                        .HasColumnType("text")
+                        .HasColumnName("sku");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
                     b.Property<int>("Stock")
                         .HasColumnType("integer")
                         .HasColumnName("stock");
+
+                    b.Property<string>("Tags")
+                        .HasColumnType("text")
+                        .HasColumnName("tags");
 
                     b.Property<string>("TargetAudience")
                         .HasColumnType("text")
@@ -1785,6 +2002,10 @@ namespace AISAM.Repositories.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
+
+                    b.Property<Guid?>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
 
                     b.HasKey("Id");
 
@@ -2481,6 +2702,18 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("archived_at");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("avatar_url");
+
+                    b.Property<string>("Bio")
+                        .HasColumnType("text")
+                        .HasColumnName("bio");
+
+                    b.Property<string>("CompanyName")
+                        .HasColumnType("text")
+                        .HasColumnName("company_name");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -2858,6 +3091,25 @@ namespace AISAM.Repositories.Migrations
                         .IsRequired();
 
                     b.Navigation("Profile");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("AISAM.Data.Model.CampaignInsightSnapshot", b =>
+                {
+                    b.HasOne("AISAM.Data.Model.AdCampaign", "AdCampaign")
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AISAM.Data.Model.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdCampaign");
 
                     b.Navigation("Workspace");
                 });

@@ -181,6 +181,7 @@ public class PhaseEQuotaIntegrationTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Dictionary<Guid, Content> StoredContents { get; } = new();
 
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -243,6 +244,7 @@ public class PhaseEQuotaIntegrationTests
 
     private sealed class FakeProductRepository : IProductRepository
     {
+        public Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult<Product?>(null);
 
@@ -286,6 +288,9 @@ public class PhaseEQuotaIntegrationTests
             => Task.CompletedTask;
     }
 }
+
+
+
 
 
 

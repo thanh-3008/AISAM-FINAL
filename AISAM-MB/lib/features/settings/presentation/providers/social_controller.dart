@@ -25,7 +25,7 @@ class SocialController extends _$SocialController {
       final brandsList = await ref.read(brandRepositoryProvider).getBrands();
       
       List<SocialIntegrationModel> allIntegrations = [];
-      if (brandsList != null) {
+      if (brandsList.isNotEmpty) {
         for (var brand in brandsList) {
           final integrations = await repository.getIntegrationsByBrand(brand.id);
           allIntegrations.addAll(integrations);

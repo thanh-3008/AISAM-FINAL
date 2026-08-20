@@ -39,6 +39,33 @@ namespace AISAM.Data.Model
         [Column("target_audience")]
         public string? TargetAudience { get; set; }
 
+        [Column("accent_color")]
+        public string? AccentColor { get; set; }
+
+        [Column("body_font")]
+        public string? BodyFont { get; set; }
+
+        [Column("brand_values")]
+        public string? BrandValues { get; set; }
+
+        [Column("heading_font")]
+        public string? HeadingFont { get; set; }
+
+        [Column("preferred_terms")]
+        public string? PreferredTerms { get; set; }
+
+        [Column("primary_color")]
+        public string? PrimaryColor { get; set; }
+
+        [Column("prohibited_terms")]
+        public string? ProhibitedTerms { get; set; }
+
+        [Column("secondary_color")]
+        public string? SecondaryColor { get; set; }
+
+        [Column("tone_of_voice")]
+        public string? ToneOfVoice { get; set; }
+
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;
 

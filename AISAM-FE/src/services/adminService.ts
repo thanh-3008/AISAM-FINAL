@@ -564,3 +564,33 @@ export async function saveAdminCreditPacks(creditPacks: CreditPackDto[]): Promis
     return res?.success ?? false;
   } catch { return false; }
 }
+
+export interface AdminHolidayDto {
+  id: string;
+  name: string;
+  localName: string;
+  exactDate: string;
+  year: number;
+  countryCode: string;
+  isActive: boolean;
+  isManuallyOverridden: boolean;
+}
+
+export async function fetchAdminHolidays(year?: number, countryCode = "VN"): Promise<AdminHolidayDto[] | null> {
+  try {
+    const params = new URLSearchParams();
+    if (year) params.append("year", year.toString());
+    params.append("countryCode", countryCode);
+    
+    const res: GenericResponse<AdminHolidayDto[]> = await apiClient(`/admin/holidays?${params.toString()}`);
+    return res?.data ?? null;
+  } catch { return null; }
+}
+
+export async function updateAdminHoliday(id: string, data: { name?: string; localName?: string; isActive: boolean }): Promise<boolean> {
+  try {
+    const res: GenericResponse<any> = await apiClient(`/admin/holidays/${id}`, { data, method: "PUT" });
+    return res?.success ?? false;
+  } catch { return false; }
+}
+

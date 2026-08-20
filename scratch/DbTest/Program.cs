@@ -10,7 +10,7 @@ namespace DbTest
     {
         static async Task Main(string[] args)
         {
-            string connectionString = "Host=aws-1-ap-northeast-1.pooler.supabase.com;Database=postgres;Username=postgres.dhzdvcnepphpjuwsyook;Password=5a704b07!10e0;SSL Mode=Require;Trust Server Certificate=true";
+            string connectionString = "Host=aws-0-ap-northeast-1.pooler.supabase.com;Database=postgres;Username=postgres.vkdzaawjejnwnehcwxnh;Password=ITSQuakOm5RSZvAn;SSL Mode=Require;Trust Server Certificate=true";
             
             await using var conn = new NpgsqlConnection(connectionString);
             await conn.OpenAsync();

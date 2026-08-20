@@ -49,6 +49,7 @@ namespace AISAM.Repositories.Repository
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
             var query = _context.AdCampaigns
+                .AsNoTracking()
                 .AsSplitQuery()
                 .Include(ac => ac.Brand)
                 .Include(ac => ac.Product)
@@ -250,6 +251,7 @@ namespace AISAM.Repositories.Repository
         public async Task<IReadOnlyList<AdSet>> GetAdSetsByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default)
         {
             return await _context.AdSets
+                .AsNoTracking()
                 .Where(ads => ads.CampaignId == campaignId && !ads.IsDeleted)
                 .OrderByDescending(ads => ads.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -258,6 +260,7 @@ namespace AISAM.Repositories.Repository
         public async Task<IReadOnlyList<Ad>> GetAdsByAdSetIdAsync(Guid adSetId, CancellationToken cancellationToken = default)
         {
             return await _context.Ads
+                .AsNoTracking()
                 .Where(a => a.AdSetId == adSetId && !a.IsDeleted)
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -266,6 +269,7 @@ namespace AISAM.Repositories.Repository
         public async Task<IReadOnlyList<Ad>> GetAdsByCampaignIdAsync(Guid campaignId, CancellationToken cancellationToken = default)
         {
             return await _context.Ads
+                .AsNoTracking()
                 .Where(a => !a.IsDeleted && a.AdSet != null && a.AdSet.CampaignId == campaignId && !a.AdSet.IsDeleted)
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -354,6 +358,7 @@ namespace AISAM.Repositories.Repository
         public async Task<IReadOnlyList<AdCampaign>> GetDeployedCampaignsForSyncAsync(int batchSize, CancellationToken cancellationToken = default)
         {
             return await _context.AdCampaigns
+                .AsNoTracking()
                 .Where(ac => !ac.IsDeleted
                     && ac.DeploymentStatus == DeploymentStatusEnum.Completed
                     && !string.IsNullOrWhiteSpace(ac.FacebookCampaignId))
@@ -365,6 +370,7 @@ namespace AISAM.Repositories.Repository
         public async Task<IReadOnlyList<AdCampaign>> GetDeployedPendingActivationAsync(int batchSize, CancellationToken cancellationToken = default)
         {
             return await _context.AdCampaigns
+                .AsNoTracking()
                 .Where(ac => !ac.IsDeleted
                     && ac.DeploymentStatus == DeploymentStatusEnum.Completed
                     && !string.IsNullOrWhiteSpace(ac.FacebookCampaignId)
@@ -378,6 +384,7 @@ namespace AISAM.Repositories.Repository
         {
             var now = DateTime.UtcNow;
             return await _context.AdCampaigns
+                .AsNoTracking()
                 .Where(ac => !ac.IsDeleted && ac.IsActive && ac.EndDate.HasValue && ac.EndDate.Value < now)
                 .ToListAsync(cancellationToken);
         }

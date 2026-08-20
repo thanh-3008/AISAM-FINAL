@@ -24,6 +24,7 @@ mixin _$ContentResponseModel {
   String get id => throw _privateConstructorUsedError;
   String get profileId => throw _privateConstructorUsedError;
   String get brandId => throw _privateConstructorUsedError;
+  String? get workspaceId => throw _privateConstructorUsedError;
   String? get brandName => throw _privateConstructorUsedError;
   String? get productId => throw _privateConstructorUsedError;
   AdTypeEnum get adType => throw _privateConstructorUsedError;
@@ -31,10 +32,13 @@ mixin _$ContentResponseModel {
   String get textContent => throw _privateConstructorUsedError;
   String? get imageUrl => throw _privateConstructorUsedError;
   String? get videoUrl => throw _privateConstructorUsedError;
+  String? get thumbnailUrl => throw _privateConstructorUsedError;
   String? get tags => throw _privateConstructorUsedError;
   String? get styleDescription => throw _privateConstructorUsedError;
   String? get contextDescription => throw _privateConstructorUsedError;
   String? get representativeCharacter => throw _privateConstructorUsedError;
+  String? get platformRejectionReason => throw _privateConstructorUsedError;
+  String? get rejectedPlatform => throw _privateConstructorUsedError;
   bool get isAiGenerated => throw _privateConstructorUsedError;
   ContentStatusEnum get status => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
@@ -61,6 +65,7 @@ abstract class $ContentResponseModelCopyWith<$Res> {
     String id,
     String profileId,
     String brandId,
+    String? workspaceId,
     String? brandName,
     String? productId,
     AdTypeEnum adType,
@@ -68,10 +73,13 @@ abstract class $ContentResponseModelCopyWith<$Res> {
     String textContent,
     String? imageUrl,
     String? videoUrl,
+    String? thumbnailUrl,
     String? tags,
     String? styleDescription,
     String? contextDescription,
     String? representativeCharacter,
+    String? platformRejectionReason,
+    String? rejectedPlatform,
     bool isAiGenerated,
     ContentStatusEnum status,
     DateTime createdAt,
@@ -100,6 +108,7 @@ class _$ContentResponseModelCopyWithImpl<
     Object? id = null,
     Object? profileId = null,
     Object? brandId = null,
+    Object? workspaceId = freezed,
     Object? brandName = freezed,
     Object? productId = freezed,
     Object? adType = null,
@@ -107,10 +116,13 @@ class _$ContentResponseModelCopyWithImpl<
     Object? textContent = null,
     Object? imageUrl = freezed,
     Object? videoUrl = freezed,
+    Object? thumbnailUrl = freezed,
     Object? tags = freezed,
     Object? styleDescription = freezed,
     Object? contextDescription = freezed,
     Object? representativeCharacter = freezed,
+    Object? platformRejectionReason = freezed,
+    Object? rejectedPlatform = freezed,
     Object? isAiGenerated = null,
     Object? status = null,
     Object? createdAt = null,
@@ -130,6 +142,10 @@ class _$ContentResponseModelCopyWithImpl<
                 ? _value.brandId
                 : brandId // ignore: cast_nullable_to_non_nullable
                       as String,
+            workspaceId: freezed == workspaceId
+                ? _value.workspaceId
+                : workspaceId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             brandName: freezed == brandName
                 ? _value.brandName
                 : brandName // ignore: cast_nullable_to_non_nullable
@@ -158,6 +174,10 @@ class _$ContentResponseModelCopyWithImpl<
                 ? _value.videoUrl
                 : videoUrl // ignore: cast_nullable_to_non_nullable
                       as String?,
+            thumbnailUrl: freezed == thumbnailUrl
+                ? _value.thumbnailUrl
+                : thumbnailUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             tags: freezed == tags
                 ? _value.tags
                 : tags // ignore: cast_nullable_to_non_nullable
@@ -173,6 +193,14 @@ class _$ContentResponseModelCopyWithImpl<
             representativeCharacter: freezed == representativeCharacter
                 ? _value.representativeCharacter
                 : representativeCharacter // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            platformRejectionReason: freezed == platformRejectionReason
+                ? _value.platformRejectionReason
+                : platformRejectionReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            rejectedPlatform: freezed == rejectedPlatform
+                ? _value.rejectedPlatform
+                : rejectedPlatform // ignore: cast_nullable_to_non_nullable
                       as String?,
             isAiGenerated: null == isAiGenerated
                 ? _value.isAiGenerated
@@ -209,6 +237,7 @@ abstract class _$$ContentResponseModelImplCopyWith<$Res>
     String id,
     String profileId,
     String brandId,
+    String? workspaceId,
     String? brandName,
     String? productId,
     AdTypeEnum adType,
@@ -216,10 +245,13 @@ abstract class _$$ContentResponseModelImplCopyWith<$Res>
     String textContent,
     String? imageUrl,
     String? videoUrl,
+    String? thumbnailUrl,
     String? tags,
     String? styleDescription,
     String? contextDescription,
     String? representativeCharacter,
+    String? platformRejectionReason,
+    String? rejectedPlatform,
     bool isAiGenerated,
     ContentStatusEnum status,
     DateTime createdAt,
@@ -244,6 +276,7 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
     Object? id = null,
     Object? profileId = null,
     Object? brandId = null,
+    Object? workspaceId = freezed,
     Object? brandName = freezed,
     Object? productId = freezed,
     Object? adType = null,
@@ -251,10 +284,13 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
     Object? textContent = null,
     Object? imageUrl = freezed,
     Object? videoUrl = freezed,
+    Object? thumbnailUrl = freezed,
     Object? tags = freezed,
     Object? styleDescription = freezed,
     Object? contextDescription = freezed,
     Object? representativeCharacter = freezed,
+    Object? platformRejectionReason = freezed,
+    Object? rejectedPlatform = freezed,
     Object? isAiGenerated = null,
     Object? status = null,
     Object? createdAt = null,
@@ -274,6 +310,10 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
             ? _value.brandId
             : brandId // ignore: cast_nullable_to_non_nullable
                   as String,
+        workspaceId: freezed == workspaceId
+            ? _value.workspaceId
+            : workspaceId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         brandName: freezed == brandName
             ? _value.brandName
             : brandName // ignore: cast_nullable_to_non_nullable
@@ -302,6 +342,10 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
             ? _value.videoUrl
             : videoUrl // ignore: cast_nullable_to_non_nullable
                   as String?,
+        thumbnailUrl: freezed == thumbnailUrl
+            ? _value.thumbnailUrl
+            : thumbnailUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         tags: freezed == tags
             ? _value.tags
             : tags // ignore: cast_nullable_to_non_nullable
@@ -317,6 +361,14 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
         representativeCharacter: freezed == representativeCharacter
             ? _value.representativeCharacter
             : representativeCharacter // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        platformRejectionReason: freezed == platformRejectionReason
+            ? _value.platformRejectionReason
+            : platformRejectionReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        rejectedPlatform: freezed == rejectedPlatform
+            ? _value.rejectedPlatform
+            : rejectedPlatform // ignore: cast_nullable_to_non_nullable
                   as String?,
         isAiGenerated: null == isAiGenerated
             ? _value.isAiGenerated
@@ -346,17 +398,21 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     required this.id,
     required this.profileId,
     required this.brandId,
+    this.workspaceId,
     this.brandName,
     this.productId,
     required this.adType,
     this.title,
-    required this.textContent,
+    this.textContent = '',
     this.imageUrl,
     this.videoUrl,
+    this.thumbnailUrl,
     this.tags,
     this.styleDescription,
     this.contextDescription,
     this.representativeCharacter,
+    this.platformRejectionReason,
+    this.rejectedPlatform,
     required this.isAiGenerated,
     required this.status,
     required this.createdAt,
@@ -373,6 +429,8 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
   @override
   final String brandId;
   @override
+  final String? workspaceId;
+  @override
   final String? brandName;
   @override
   final String? productId;
@@ -381,11 +439,14 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
   @override
   final String? title;
   @override
+  @JsonKey()
   final String textContent;
   @override
   final String? imageUrl;
   @override
   final String? videoUrl;
+  @override
+  final String? thumbnailUrl;
   @override
   final String? tags;
   @override
@@ -394,6 +455,10 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
   final String? contextDescription;
   @override
   final String? representativeCharacter;
+  @override
+  final String? platformRejectionReason;
+  @override
+  final String? rejectedPlatform;
   @override
   final bool isAiGenerated;
   @override
@@ -405,7 +470,7 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
 
   @override
   String toString() {
-    return 'ContentResponseModel(id: $id, profileId: $profileId, brandId: $brandId, brandName: $brandName, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, tags: $tags, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, isAiGenerated: $isAiGenerated, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'ContentResponseModel(id: $id, profileId: $profileId, brandId: $brandId, workspaceId: $workspaceId, brandName: $brandName, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, thumbnailUrl: $thumbnailUrl, tags: $tags, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, platformRejectionReason: $platformRejectionReason, rejectedPlatform: $rejectedPlatform, isAiGenerated: $isAiGenerated, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -417,6 +482,8 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
             (identical(other.profileId, profileId) ||
                 other.profileId == profileId) &&
             (identical(other.brandId, brandId) || other.brandId == brandId) &&
+            (identical(other.workspaceId, workspaceId) ||
+                other.workspaceId == workspaceId) &&
             (identical(other.brandName, brandName) ||
                 other.brandName == brandName) &&
             (identical(other.productId, productId) ||
@@ -429,6 +496,8 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
                 other.imageUrl == imageUrl) &&
             (identical(other.videoUrl, videoUrl) ||
                 other.videoUrl == videoUrl) &&
+            (identical(other.thumbnailUrl, thumbnailUrl) ||
+                other.thumbnailUrl == thumbnailUrl) &&
             (identical(other.tags, tags) || other.tags == tags) &&
             (identical(other.styleDescription, styleDescription) ||
                 other.styleDescription == styleDescription) &&
@@ -439,6 +508,13 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
                   representativeCharacter,
                 ) ||
                 other.representativeCharacter == representativeCharacter) &&
+            (identical(
+                  other.platformRejectionReason,
+                  platformRejectionReason,
+                ) ||
+                other.platformRejectionReason == platformRejectionReason) &&
+            (identical(other.rejectedPlatform, rejectedPlatform) ||
+                other.rejectedPlatform == rejectedPlatform) &&
             (identical(other.isAiGenerated, isAiGenerated) ||
                 other.isAiGenerated == isAiGenerated) &&
             (identical(other.status, status) || other.status == status) &&
@@ -450,11 +526,12 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     profileId,
     brandId,
+    workspaceId,
     brandName,
     productId,
     adType,
@@ -462,15 +539,18 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     textContent,
     imageUrl,
     videoUrl,
+    thumbnailUrl,
     tags,
     styleDescription,
     contextDescription,
     representativeCharacter,
+    platformRejectionReason,
+    rejectedPlatform,
     isAiGenerated,
     status,
     createdAt,
     updatedAt,
-  );
+  ]);
 
   /// Create a copy of ContentResponseModel
   /// with the given fields replaced by the non-null parameter values.
@@ -495,17 +575,21 @@ abstract class _ContentResponseModel implements ContentResponseModel {
     required final String id,
     required final String profileId,
     required final String brandId,
+    final String? workspaceId,
     final String? brandName,
     final String? productId,
     required final AdTypeEnum adType,
     final String? title,
-    required final String textContent,
+    final String textContent,
     final String? imageUrl,
     final String? videoUrl,
+    final String? thumbnailUrl,
     final String? tags,
     final String? styleDescription,
     final String? contextDescription,
     final String? representativeCharacter,
+    final String? platformRejectionReason,
+    final String? rejectedPlatform,
     required final bool isAiGenerated,
     required final ContentStatusEnum status,
     required final DateTime createdAt,
@@ -522,6 +606,8 @@ abstract class _ContentResponseModel implements ContentResponseModel {
   @override
   String get brandId;
   @override
+  String? get workspaceId;
+  @override
   String? get brandName;
   @override
   String? get productId;
@@ -536,6 +622,8 @@ abstract class _ContentResponseModel implements ContentResponseModel {
   @override
   String? get videoUrl;
   @override
+  String? get thumbnailUrl;
+  @override
   String? get tags;
   @override
   String? get styleDescription;
@@ -543,6 +631,10 @@ abstract class _ContentResponseModel implements ContentResponseModel {
   String? get contextDescription;
   @override
   String? get representativeCharacter;
+  @override
+  String? get platformRejectionReason;
+  @override
+  String? get rejectedPlatform;
   @override
   bool get isAiGenerated;
   @override

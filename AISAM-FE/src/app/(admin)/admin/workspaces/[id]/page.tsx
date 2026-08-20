@@ -225,7 +225,6 @@ export default function AdminWorkspaceDetailPage() {
                         imgs = selectedPost.imageUrl.startsWith("[") ? JSON.parse(selectedPost.imageUrl) : [selectedPost.imageUrl];
                       } catch {}
                       return imgs.map((img, idx) => (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img key={idx} src={img} alt={`Image ${idx}`} className="h-32 object-cover rounded-md border border-gray-200" />
                       ));
                     })()}

@@ -7,6 +7,7 @@ namespace AISAM.Repositories.IRepositories
     {
         Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Product?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<PagedResult<Product>> GetPagedAsync(PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default);
         Task<PagedResult<Product>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

@@ -325,6 +325,8 @@ public class QuotaServiceTests
 
     private sealed class FakeProfileRepository : IProfileRepository
     {
+        public Task<Profile?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IEnumerable<Profile>> GetBasicByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
         private readonly List<Profile> _profiles;
 
         public FakeProfileRepository(params Profile[] profiles)
@@ -356,6 +358,7 @@ public class QuotaServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -370,6 +373,9 @@ public class QuotaServiceTests
         public Task<Dictionary<DateTime, int>> GetDailyCreatedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
     }
 }
+
+
+
 
 
 

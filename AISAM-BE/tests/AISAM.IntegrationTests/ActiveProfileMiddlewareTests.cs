@@ -164,6 +164,8 @@ public class ActiveProfileMiddlewareTests
 
     private sealed class FakeProfileRepository : IProfileRepository
     {
+        public Task<Profile?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IEnumerable<Profile>> GetBasicByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
         private readonly Dictionary<Guid, Profile> _profiles;
 
         public FakeProfileRepository(params Profile[] profiles)
@@ -267,6 +269,7 @@ public class ActiveProfileMiddlewareTests
         public Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<User>>(Array.Empty<User>());
     }
 }
+
 
 
 

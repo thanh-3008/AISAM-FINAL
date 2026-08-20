@@ -309,6 +309,8 @@ public class FoundationTests
 
     private sealed class FakeProfileRepository : IProfileRepository
     {
+        public Task<Profile?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<IEnumerable<Profile>> GetBasicByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => GetByUserIdAsync(userId, cancellationToken);
         private readonly Dictionary<Guid, Profile> _profiles;
 
         public FakeProfileRepository(params Profile[] profiles)
@@ -527,6 +529,7 @@ public class FoundationTests
 
     private sealed class FakeProductRepository : IProductRepository
     {
+        public Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         private readonly Dictionary<Guid, Product> _products;
 
         public FakeProductRepository(params Product[] products)
@@ -613,6 +616,7 @@ public class FoundationTests
         }
     }
 }
+
 
 
 

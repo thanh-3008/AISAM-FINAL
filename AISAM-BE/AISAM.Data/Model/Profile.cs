@@ -41,6 +41,9 @@ namespace AISAM.Data.Model
         [Column("status")]
         public ProfileStatusEnum Status { get; set; } = ProfileStatusEnum.Pending;
 
+        [Column("workspace_id")]
+        public Guid? WorkspaceId { get; set; }
+
         // Computed property for backward compatibility
         public bool IsDeleted => Status == ProfileStatusEnum.Cancelled;
 

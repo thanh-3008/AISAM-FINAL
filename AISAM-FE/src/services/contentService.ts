@@ -23,7 +23,7 @@ interface PagedResult<T> {
 }
 
 export type AdType = 0 | 1 | 2;
-export type ContentApiStatus = 0 | 1 | 2 | 3 | 4;
+export type ContentApiStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type { ContentType, ContentStatus };
 
 export interface ContentApiItem {
@@ -137,6 +137,19 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   2: "Approved",
   3: "Rejected",
   4: "Published",
+  5: "Draft",
+  6: "Rejected",
+  7: "Failed",
+};
+
+const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
+  "Draft": 0,
+  "Awaiting Approval": 1,
+  "Approved": 2,
+  "Rejected": 3,
+  "Published": 4,
+  "Scheduled": 4,
+  "Failed": 7,
 };
 
 export const parseApiUrl = (url?: string | null): string => {

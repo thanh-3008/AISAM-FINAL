@@ -453,6 +453,7 @@ public class ContentServicePublishTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         private readonly Dictionary<Guid, Content> _contents;
 
         public FakeContentRepository(params Content[] contents)
@@ -504,6 +505,7 @@ public class ContentServicePublishTests
 
     private sealed class FakeProductRepository : IProductRepository
     {
+        public Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Product?>(null);
         public Task<Product?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Product?>(null);
         public Task<PagedResult<Product>> GetPagedAsync(PaginationRequest request, Guid? brandId = null, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -728,6 +730,9 @@ public class ContentServicePublishTests
         public Task<IReadOnlyList<Workspace>> GetAllActiveAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }
+
+
+
 
 
 

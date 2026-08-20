@@ -20,6 +20,7 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         var today = DateTime.UtcNow.Date;
 
         return await _context.Subscriptions
+            .AsNoTracking()
             .Include(subscription => subscription.Profile)
             .Where(subscription =>
                 subscription.ProfileId == profileId &&
@@ -41,6 +42,7 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         var today = DateTime.UtcNow.Date;
 
         return await _context.Subscriptions
+            .AsNoTracking()
             .Include(subscription => subscription.Workspace)
             .Where(subscription =>
                 subscription.WorkspaceId == workspaceId &&

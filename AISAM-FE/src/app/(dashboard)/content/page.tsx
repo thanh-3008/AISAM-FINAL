@@ -141,7 +141,7 @@ export default function ContentPage() {
       case "brand-asc": list.sort((a, b) => a.brandName.localeCompare(b.brandName)); break;
       case "product-asc": list.sort((a, b) => a.productName.localeCompare(b.productName)); break;
       case "status": {
-        const order: Record<ContentStatus, number> = { "Published": 0, "Scheduled": 1, "Approved": 2, "Awaiting Approval": 3, "Draft": 4, "Rejected": 5 };
+        const order: Record<ContentStatus, number> = { "Published": 0, "Scheduled": 1, "Approved": 2, "Awaiting Approval": 3, "Draft": 4, "Rejected": 5, "Failed": 6 };
         list.sort((a, b) => order[a.status] - order[b.status]); break;
       }
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -177,6 +177,7 @@ export default function ContentPage() {
     scheduled: scheduledCount,
     draft: allContent.filter((c) => c.status === "Draft").length,
     pendingApproval: allContent.filter((c) => c.status === "Awaiting Approval").length,
+    failed: allContent.filter((c) => c.status === "Failed").length,
   }), [allContent, scheduledCount]);
 
   const availableProducts = useMemo(() => {
@@ -659,7 +660,7 @@ export default function ContentPage() {
                         </td>
                         <td className="px-5 py-3.5">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${STATUS_STYLES[item.status]}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : item.status === "Failed" ? "bg-danger-red" : "bg-outline"}`} />
                             {item.status}
                           </span>
                         </td>
@@ -784,6 +785,7 @@ export default function ContentPage() {
                     { label: "Draft", value: stats.draft, icon: "edit_note", color: "text-slate-500", bg: "bg-slate-500/10", status: "Draft" as ContentStatus },
                     { label: "Scheduled", value: stats.scheduled, icon: "schedule", color: "text-blue-500", bg: "bg-blue-500/10", status: "Scheduled" as ContentStatus },
                     { label: "Published", value: stats.published, icon: "check_circle", color: "text-emerald-500", bg: "bg-emerald-500/10", status: "Published" as ContentStatus },
+                    { label: "Failed", value: stats.failed, icon: "error", color: "text-danger-red", bg: "bg-danger-red/10", status: "Failed" as ContentStatus },
                   ].map((f) => (
                     <button
                       key={f.label}
@@ -1100,7 +1102,7 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
           </div>
           <div className="flex items-center justify-between mb-3">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${STATUS_STYLES[item.status]}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : item.status === "Failed" ? "bg-danger-red" : "bg-outline"}`} />
               {item.status}
             </span>
             <span className="text-label-xs text-outline">{new Date(item.createdAt).toLocaleDateString()}</span>

@@ -912,6 +912,7 @@ public class AdCampaignServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
         public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
         public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => Task.FromResult(new PagedResult<ContentListDto> { Data = new List<ContentListDto>(), TotalCount = 0, Page = 1, PageSize = 20 });
@@ -1040,6 +1041,8 @@ public class AdCampaignServiceTests
         public Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 }
+
+
 
 
 

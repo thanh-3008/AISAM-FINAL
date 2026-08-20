@@ -1,5 +1,5 @@
 import { expect, test as base, type Page, type Route } from "@playwright/test";
-
+import { Buffer } from "buffer";
 export const IDS = {
   user: "10000000-0000-4000-8000-000000000001",
   workspace: "20000000-0000-4000-8000-000000000002",
@@ -89,7 +89,7 @@ export async function authenticate(page: Page, role: "User" | "Admin" = "User") 
 
 type Fixtures = { userPage: Page; adminPage: Page };
 export const test = base.extend<Fixtures>({
-  userPage: async ({ page }, use) => { await installApiMock(page); await authenticate(page, "User"); await use(page); },
-  adminPage: async ({ page }, use) => { await installApiMock(page); await authenticate(page, "Admin"); await use(page); },
+  userPage: async ({ page }, runTest) => { await installApiMock(page); await authenticate(page, "User"); await runTest(page); },
+  adminPage: async ({ page }, runTest) => { await installApiMock(page); await authenticate(page, "Admin"); await runTest(page); },
 });
 export { expect };

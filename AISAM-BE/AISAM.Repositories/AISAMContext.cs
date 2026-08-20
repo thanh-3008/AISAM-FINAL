@@ -47,6 +47,8 @@ namespace AISAM.Repositories
         public DbSet<AutomationItem> AutomationItems { get; set; }
         public DbSet<VideoGenerationJob> VideoGenerationJobs { get; set; }
         public DbSet<SystemSetting> SystemSettings { get; set; }
+        public DbSet<HolidayEvent> HolidayEvents { get; set; }
+        public DbSet<CampaignInsightSnapshot> CampaignInsightSnapshots { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -133,6 +135,7 @@ namespace AISAM.Repositories
                 entity.HasIndex(c => c.ProductId);
                 entity.HasIndex(c => c.Status);
                 entity.HasIndex(c => c.CreatedAt);
+                entity.HasIndex(c => new { c.ProfileId, c.CreatedAt });
                 entity.HasOne(c => c.Brand)
                       .WithMany(b => b.Contents)
                       .HasForeignKey(c => c.BrandId)
@@ -672,6 +675,27 @@ namespace AISAM.Repositories
             {
                 entity.HasKey(ss => ss.Id);
                 entity.HasIndex(ss => ss.Key).IsUnique();
+            });
+
+            // DB-02: Add missing configurations for HolidayEvent and CampaignInsightSnapshot
+            modelBuilder.Entity<HolidayEvent>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.ExactDate);
+                entity.HasIndex(e => e.CountryCode);
+                entity.HasIndex(e => e.IsActive);
+            });
+
+            modelBuilder.Entity<CampaignInsightSnapshot>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.HasIndex(s => s.CampaignId);
+                entity.HasIndex(s => s.SnapshotDate);
+                entity.HasIndex(s => new { s.CampaignId, s.SnapshotDate }).IsUnique();
+                entity.HasOne(s => s.AdCampaign)
+                      .WithMany()
+                      .HasForeignKey(s => s.CampaignId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

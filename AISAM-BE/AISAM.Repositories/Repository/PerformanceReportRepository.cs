@@ -20,8 +20,6 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     public async Task<int> CountByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default)
     {
         return await _context.PerformanceReports
-            .Include(report => report.Post)
-                .ThenInclude(post => post!.Content)
             .Where(report =>
                 !report.IsDeleted &&
                 report.Post != null &&
@@ -35,7 +33,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         Guid? brandId = null, string? platform = null, Guid? campaignId = null,
         CancellationToken cancellationToken = default)
     {
-        var postsQuery = _context.Posts
+        var postsQuery = _context.Posts.AsNoTracking()
             .Where(p => !p.IsDeleted
                 && p.PublishedAt >= from && p.PublishedAt <= to
                 && p.Content != null && !p.Content.IsDeleted
@@ -50,7 +48,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             postsQuery = postsQuery.Where(p => p.Integration.Platform == platformEnum);
         }
 
-        var campaignsQuery = _context.AdCampaigns
+        var campaignsQuery = _context.AdCampaigns.AsNoTracking()
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId);
 
         if (brandId.HasValue)
@@ -78,7 +76,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var perfReportsQuery = _context.PerformanceReports
+        var perfReportsQuery = _context.PerformanceReports.AsNoTracking()
             .Where(pr => !pr.IsDeleted
                 && pr.ReportDate >= from && pr.ReportDate <= to
                 && pr.Post != null && !pr.Post.IsDeleted
