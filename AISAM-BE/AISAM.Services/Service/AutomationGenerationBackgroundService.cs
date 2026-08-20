@@ -20,20 +20,21 @@ public sealed class AutomationGenerationBackgroundService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            var processed = false;
+            var delay = TimeSpan.FromSeconds(5);
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                processed = await scope.ServiceProvider.GetRequiredService<IAutomationGenerationService>()
+                delay = await scope.ServiceProvider.GetRequiredService<IAutomationGenerationService>()
                     .ProcessNextAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
                 _logger.LogError(exception, "Automation generation worker iteration failed.");
+                delay = TimeSpan.FromSeconds(5);
             }
 
-            try { await Task.Delay(processed ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromSeconds(5), stoppingToken); }
+            try { await Task.Delay(delay, stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
     }
