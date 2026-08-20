@@ -10,6 +10,7 @@ namespace AISAM.Repositories.IRepositories
         Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default);
         Task<PagedResult<Brand>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
+        Task<List<Brand>> GetByNamesAndIdsAsync(Guid workspaceId, IEnumerable<string> names, IEnumerable<Guid> ids, CancellationToken cancellationToken = default);
         Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default);
         Task UpdateAsync(Brand brand, CancellationToken cancellationToken = default);
         Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default);

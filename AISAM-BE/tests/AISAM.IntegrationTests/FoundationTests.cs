@@ -496,6 +496,8 @@ public class FoundationTests
             return Task.FromResult(brand);
         }
 
+        public Task<List<Brand>> GetByNamesAndIdsAsync(Guid workspaceId, IEnumerable<string> names, IEnumerable<Guid> ids, CancellationToken cancellationToken = default) => Task.FromResult(new List<Brand>());
+
         public Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default)
         {
             var exists = _brands.Values.Any(b => b.WorkspaceId == workspaceId && b.Name == name);

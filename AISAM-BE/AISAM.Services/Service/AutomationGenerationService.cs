@@ -94,7 +94,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 Id = Guid.NewGuid(),
                 ProfileId = item.AutomationPlan.ProfileId,
                 WorkspaceId = item.AutomationPlan.WorkspaceId,
-                BrandId = item.BrandId,
+                BrandId = item.BrandId.GetValueOrDefault(),
                 ProductId = item.ProductId,
                 Title = item.Topic,
                 Status = ContentStatusEnum.Draft,

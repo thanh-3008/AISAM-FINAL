@@ -118,6 +118,7 @@ Output rules:
         int durationSeconds = 8,
         string? aspectRatio = null,
         List<string>? recentlyUsedPrompts = null,
+        string? referenceImageUrl = null,
         CancellationToken cancellationToken = default)
     {
         var videoContext = GetVideoContext();
@@ -176,22 +177,37 @@ User's original request (may be in any language):
 "{cleanPrompt}"
 
 Output rules:
-- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
+- Output ONLY the final English prompt. MANDATORY RULE: The prompt text given to the video model MUST be written completely in English. Do not output Vietnamese or any other language except inside the `<d>` dialogue tags if absolutely necessary.
 - The prompt must describe: subject + motion + camera + lighting + mood.
-- The product must be the central hero subject. Do not replace or redesign the product.
-- Always include at the end: "No text overlay, no watermark, no readable letters, no watermark on screen, no people, no hands, no faces, professional social media advertising video."
+- The pattern selected is only a reference/inspiration. The video script MUST revolve primarily around the product itself as the central hero subject. Do not let the pattern overshadow the product. Do not replace or redesign the product.
+- If the user explicitly requests text or typography, you MAY include text rendering instructions (e.g. "bold text reading 'SALE'"). Otherwise, ALWAYS include at the end: "No text overlay, no watermark, no readable letters, no watermark on screen, no people, no hands, no faces, professional social media advertising video."
 """;
+        }
+
+        byte[]? imageBytes = await DownloadImageBytesAsync(referenceImageUrl, cancellationToken);
+        if (imageBytes != null)
+        {
+            metaPrompt = "[SYSTEM_NOTE: The user has attached a reference image. Preserving the exact visual identity of the product in the reference image is a HARD RULE. Ground your visual descriptions entirely on this image.]\n\n" + metaPrompt;
         }
 
         try
         {
-            var enhanced = await _gemini.GenerateAsync(metaPrompt, cancellationToken);
+            string enhanced;
+            if (imageBytes != null)
+            {
+                enhanced = await _gemini.GenerateWithVisionAsync(metaPrompt, imageBytes, "image/jpeg", "application/json", cancellationToken);
+            }
+            else
+            {
+                enhanced = await _gemini.GenerateAsync(metaPrompt, "application/json", cancellationToken);
+            }
+
             if (!string.IsNullOrWhiteSpace(enhanced))
             {
                 var (parsedPrompt, patternId) = ExtractVisualPromptFromT2va(enhanced);
                 var safePrompt = EnforceVideoSafety(parsedPrompt);
-                _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}, Final length={FinalLen}, Pattern={PatternId}",
-                    rawPrompt.Length, enhanced.Trim().Length, safePrompt.Length, patternId);
+                _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}, Final length={FinalLen}, Pattern={PatternId}, Img2Video={HasImg}",
+                    rawPrompt.Length, enhanced.Trim().Length, safePrompt.Length, patternId, imageBytes != null);
                 return (safePrompt, patternId);
             }
         }
@@ -205,7 +221,7 @@ Output rules:
             _logger.LogError(ex, "[PromptEnhancer] Gemini failed during video prompt enhancement. Falling back to safe prompt.");
         }
 
-        // Fallback: Check if the raw prompt is safe. If it contains non-ASCII (e.g. Vietnamese), we must fallback to a generic English prompt.
+        // Fallback: Check if the raw prompt is safe.
         try
         {
             var fallbackSafe = EnforceVideoSafety(rawPrompt);
@@ -214,7 +230,9 @@ Output rules:
         catch (InvalidOperationException ioe) when (ioe.Message.Contains("non-ASCII"))
         {
             _logger.LogWarning("[PromptEnhancer][NonAscii] rawPrompt from Chat Orchestrator contained non-ASCII. Using DefaultSafeEnglish. RawPromptLength={Len}", rawPrompt?.Length ?? 0);
-            var defaultSafeEnglish = "A high-quality commercial advertising video showcasing the product in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
+            var productName = product?.Name ?? "the product";
+            var productDesc = string.IsNullOrWhiteSpace(product?.Description) ? "" : $" ({product.Description})";
+            var defaultSafeEnglish = $"A high-quality commercial advertising video showcasing {productName}{productDesc} in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
             return (defaultSafeEnglish, null);
         }
     }
@@ -225,6 +243,7 @@ Output rules:
         Product? product,
         int durationSeconds = 9,
         string? aspectRatio = "9:16",
+        string? referenceImageUrl = null,
         CancellationToken cancellationToken = default)
     {
         var cleanPrompt = PromptGuard.SanitizePromptInput(rawPrompt);
@@ -269,17 +288,34 @@ Original User Prompt / Direction:
 
 Output Rules:
 - Output ONLY the final, continuous English prompt paragraph combining all 6 layers. No explanation, no markdown fences, no layer labels.
+- MANDATORY RULE: The final generated prompt MUST be strictly in English.
+- The video script and storyboard MUST revolve primarily around the product itself. Treat any pattern or script purely as an inspirational reference.
 - If a multi-scene script is provided, weave the transitions naturally: "[Scene 1 description], seamlessly transitioning to [Scene 2 description], and concluding with [Scene 3 hero composition]".
-- Always append at the very end: "commercial advertising photography, high fidelity, 4k cinematic, no text overlay, no watermark, no readable letters, no ugly morphing, no extra hands, professional social media video ad."
+- If the user explicitly requests text or typography, include it clearly. Otherwise, always append at the very end: "commercial advertising photography, high fidelity, 4k cinematic, no text overlay, no watermark, no readable letters, no ugly morphing, no extra hands, professional social media video ad."
 """;
+
+        byte[]? imageBytes = await DownloadImageBytesAsync(referenceImageUrl, cancellationToken);
+        if (imageBytes != null)
+        {
+            metaPrompt = "[SYSTEM_NOTE: The user has attached a reference image. Preserving the exact visual identity of the product in the reference image is a HARD RULE. Ground your visual descriptions entirely on this image.]\n\n" + metaPrompt;
+        }
 
         try
         {
-            var enhanced = await _gemini.GenerateAsync(metaPrompt, cancellationToken);
+            string enhanced;
+            if (imageBytes != null)
+            {
+                enhanced = await _gemini.GenerateWithVisionAsync(metaPrompt, imageBytes, "image/jpeg", "text/plain", cancellationToken);
+            }
+            else
+            {
+                enhanced = await _gemini.GenerateAsync(metaPrompt, "text/plain", cancellationToken);
+            }
+
             if (!string.IsNullOrWhiteSpace(enhanced))
             {
-                _logger.LogInformation("[PromptEnhancer] Video script prompt enhanced with 6-layer formula. Original length={OrigLen}, Enhanced length={EhLen}",
-                    (rawPrompt + videoScript).Length, enhanced.Trim().Length);
+                _logger.LogInformation("[PromptEnhancer] Video script prompt enhanced with 6-layer formula. Original length={OrigLen}, Enhanced length={EhLen}, Img2Video={HasImg}",
+                    (rawPrompt + videoScript).Length, enhanced.Trim().Length, imageBytes != null);
                 return enhanced.Trim();
             }
         }
@@ -359,16 +395,19 @@ Output Rules:
     {
         if (string.IsNullOrWhiteSpace(prompt)) return string.Empty;
 
-        // Validate & Reject if there's Vietnamese (non-ASCII)
-        if (Regex.IsMatch(prompt, @"[^\x00-\x7F]"))
+        // Count non-ASCII characters. If a large portion is non-ASCII, it's likely not translated.
+        // We allow some non-ASCII because product names (like Vietnamese names) might be retained.
+        int nonAsciiCount = prompt.Count(c => c > 127);
+        if (nonAsciiCount > 20 && nonAsciiCount > prompt.Length * 0.2)
         {
-            throw new InvalidOperationException("Prompt contains non-ASCII characters. Rejecting to fallback.");
+            throw new InvalidOperationException("Prompt contains too many non-ASCII characters. Rejecting to fallback.");
         }
 
         var safePrompt = prompt;
 
-        // Append missing safety clauses
-        string[] requiredClauses = { "no text overlay", "no watermark", "no readable letters", "no faces", "no hands" };
+        // Optionally, we could still force "no faces, no hands" here if needed, 
+        // but since we allow text now, we should not blindly append "no text overlay".
+        string[] requiredClauses = { "no faces", "no hands" };
         var missing = requiredClauses.Where(c => !safePrompt.Contains(c, StringComparison.OrdinalIgnoreCase)).ToList();
         
         if (missing.Any())
@@ -377,5 +416,20 @@ Output Rules:
         }
 
         return safePrompt.Trim();
+    }
+
+    private async Task<byte[]?> DownloadImageBytesAsync(string? url, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            return await client.GetByteArrayAsync(url, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[PromptEnhancer] Failed to download reference image bytes from {Url}. Will silently fallback to text-only generation.", url);
+            return null;
+        }
     }
 }

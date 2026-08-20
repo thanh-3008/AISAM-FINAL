@@ -30,6 +30,7 @@ public interface IPromptEnhancerService
         int durationSeconds = 8,
         string? aspectRatio = null,
         List<string>? recentlyUsedPrompts = null,
+        string? referenceImageUrl = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -42,5 +43,6 @@ public interface IPromptEnhancerService
         Product? product,
         int durationSeconds = 9,
         string? aspectRatio = "9:16",
+        string? referenceImageUrl = null,
         CancellationToken cancellationToken = default);
 }

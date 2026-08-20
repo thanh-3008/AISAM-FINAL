@@ -44,31 +44,29 @@ public sealed class AutomationService : IAutomationService
             Status = AutomationPlanStatusEnum.Validating
         };
 
-        var workspaceBrands = (await _brandRepository.GetPagedByWorkspaceIdAsync(workspaceId,
-            new PaginationRequest { Page = 1, PageSize = 100 }, cancellationToken: cancellationToken)).Data;
+        var brandNames = request.Rows.Select(r => r.BrandName ?? string.Empty).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct();
+        var brandIds = request.Rows.Where(r => r.BrandId.HasValue).Select(r => r.BrandId.Value).Distinct();
+        var workspaceBrands = await _brandRepository.GetByNamesAndIdsAsync(workspaceId, brandNames, brandIds, cancellationToken);
 
         for (var rowIndex = 0; rowIndex < request.Rows.Count; rowIndex++)
         {
             var row = request.Rows[rowIndex];
-            var resolvedBrand = row.BrandId != Guid.Empty
-                ? workspaceBrands.FirstOrDefault(brand => brand.Id == row.BrandId)
+            var resolvedBrand = row.BrandId.HasValue && row.BrandId.Value != Guid.Empty
+                ? workspaceBrands.FirstOrDefault(brand => brand.Id == row.BrandId.Value)
                 : workspaceBrands.FirstOrDefault(brand => string.Equals(brand.Name, row.BrandName?.Trim(), StringComparison.OrdinalIgnoreCase));
+            
             if (resolvedBrand is not null)
             {
                 row.BrandId = resolvedBrand.Id;
                 if (!row.ProductId.HasValue && !string.IsNullOrWhiteSpace(row.ProductName))
                     row.ProductId = resolvedBrand.Products.FirstOrDefault(product => string.Equals(product.Name, row.ProductName.Trim(), StringComparison.OrdinalIgnoreCase))?.Id;
             }
-            else
-            {
-                continue;
-            }
             var platforms = row.Platforms.Where(value => !string.IsNullOrWhiteSpace(value)).Select(NormalizePlatform).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (platforms.Count == 0) platforms.Add("unknown");
 
             foreach (var platform in platforms)
             {
-                var errors = await ValidateRowAsync(workspaceId, row, platform, cancellationToken);
+                var errors = ValidateRow(workspaceId, row, platform, resolvedBrand);
                 var type = ParseContentType(row.ContentType);
                 var item = new AutomationItem
                 {
@@ -108,34 +106,59 @@ public sealed class AutomationService : IAutomationService
     public async Task<GenericResponse<AutomationPlanDto>> ImportCsvAsync(Guid workspaceId, Guid profileId, string name, string timezone, string sourceFileName, Stream stream, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, true, leaveOpen: true);
-        var lines = new List<string>();
-        while (await reader.ReadLineAsync(cancellationToken) is { } line) lines.Add(line);
-        if (lines.Count < 2) return GenericResponse<AutomationPlanDto>.CreateError("CSV must contain a header and at least one data row.");
-
-        var headers = ParseCsvLine(lines[0]).Select(value => value.Trim()).ToList();
-        var rows = new List<AutomationImportRowRequest>();
-        for (var index = 1; index < lines.Count; index++)
+        var content = await reader.ReadToEndAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(content)) return GenericResponse<AutomationPlanDto>.CreateError("CSV is empty.");
+        var delimiter = content.Contains(';') && !content.Contains(',') ? ";" : ",";
+        
+        using var stringReader = new StringReader(content);
+        var config = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            if (string.IsNullOrWhiteSpace(lines[index])) continue;
-            var values = ParseCsvLine(lines[index]);
-            var data = headers.Select((header, column) => new { header, value = column < values.Count ? values[column] : string.Empty })
-                .ToDictionary(pair => pair.header, pair => pair.value, StringComparer.OrdinalIgnoreCase);
+            Delimiter = delimiter,
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            BadDataFound = null,
+            TrimOptions = CsvHelper.Configuration.TrimOptions.Trim,
+            IgnoreBlankLines = true
+        };
+        using var csv = new CsvHelper.CsvReader(stringReader, config);
+        
+        await csv.ReadAsync();
+        csv.ReadHeader();
+        var headers = csv.HeaderRecord;
+        if (headers == null || headers.Length == 0) return GenericResponse<AutomationPlanDto>.CreateError("CSV must contain a header.");
+        
+        var rows = new List<AutomationImportRowRequest>();
+        while (await csv.ReadAsync())
+        {
+            var data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var header in headers)
+            {
+                if (!string.IsNullOrWhiteSpace(header))
+                    data[header] = csv.TryGetField(header, out string? value) ? (value ?? string.Empty) : string.Empty;
+            }
+            
+            var brandIdText = Get(data, "BrandId");
+            var productIdText = Get(data, "ProductId");
+            var contentTypeText = Get(data, "ContentType");
+
             rows.Add(new AutomationImportRowRequest
             {
-                BrandId = Guid.TryParse(Get(data, "BrandId"), out var brandId) ? brandId : Guid.Empty,
+                BrandId = Guid.TryParse(brandIdText, out var brandId) ? brandId : null,
                 BrandName = Get(data, "Brand"),
-                ProductId = Guid.TryParse(Get(data, "ProductId"), out var productId) ? productId : null,
+                ProductId = Guid.TryParse(productIdText, out var productId) ? productId : null,
                 ProductName = Get(data, "Product"),
                 Topic = Get(data, "Topic"),
                 Objective = Get(data, "Objective"),
                 Platforms = Get(data, "Platforms").Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-                ContentType = Get(data, "ContentType", "Auto"),
+                ContentType = string.IsNullOrWhiteSpace(contentTypeText) ? "Auto" : contentTypeText,
                 Tone = Get(data, "Tone"),
                 Cta = Get(data, "CTA"),
                 Notes = Get(data, "Notes"),
                 ScheduledAt = ParseScheduledAt(data, timezone)
             });
         }
+        
+        if (rows.Count == 0) return GenericResponse<AutomationPlanDto>.CreateError("CSV must contain a header and at least one data row.");
         return await CreateAsync(workspaceId, profileId, new CreateAutomationPlanRequest { Name = name, Timezone = timezone, Rows = rows }, sourceFileName, cancellationToken);
     }
 
@@ -240,6 +263,7 @@ public sealed class AutomationService : IAutomationService
     {
         var source = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (source is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
+        if (source.Items.Count == 0) return GenericResponse<AutomationPlanDto>.CreateError("The source automation plan is empty and cannot be cloned.", HttpStatusCode.BadRequest);
         var rows = source.Items.Select(item => new AutomationImportRowRequest
         {
             BrandId = item.BrandId, ProductId = item.ProductId, Topic = item.Topic, Objective = item.Objective,
@@ -292,7 +316,8 @@ public sealed class AutomationService : IAutomationService
             ContentType = request.ContentType, Objective = request.Objective, Tone = request.Tone, Cta = request.Cta,
             Notes = request.Notes, ScheduledAt = request.ScheduledAt
         };
-        var errors = await ValidateRowAsync(workspaceId, validationRow, platform, cancellationToken);
+        var brand = request.BrandId.HasValue ? await _brandRepository.GetByIdAsync(request.BrandId.Value, cancellationToken) : null;
+        var errors = ValidateRow(workspaceId, validationRow, platform, brand);
         item.BrandId = request.BrandId; item.ProductId = request.ProductId; item.Topic = request.Topic.Trim(); item.Platform = platform;
         item.IdempotencyKey = CreateIdempotencyKey(plan.Id, item.RowIndex, platform); item.RequestedContentType = contentType;
         item.Objective = NullIfEmpty(request.Objective); item.Tone = NullIfEmpty(request.Tone); item.Cta = NullIfEmpty(request.Cta);
@@ -309,23 +334,26 @@ public sealed class AutomationService : IAutomationService
         return GenericResponse<AutomationPlanDto>.CreateSuccess(Map(refreshed), errors.Count == 0 ? "Automation item updated and validated." : "Automation item updated but still needs attention.");
     }
 
-    private async Task<List<string>> ValidateRowAsync(Guid workspaceId, AutomationImportRowRequest row, string platform, CancellationToken cancellationToken)
+    private static List<AutomationValidationError> ValidateRow(Guid workspaceId, AutomationImportRowRequest row, string platform, Brand? brand)
     {
-        var errors = new List<string>();
-        var brand = row.BrandId == Guid.Empty ? null : await _brandRepository.GetByIdAsync(row.BrandId, cancellationToken);
-        if (brand is null || brand.WorkspaceId != workspaceId || brand.IsDeleted) errors.Add("Brand does not exist in the active workspace.");
+        var errors = new List<AutomationValidationError>();
+        if (brand is null || brand.WorkspaceId != workspaceId || brand.IsDeleted) errors.Add(new AutomationValidationError { Code = "BRAND_NOT_FOUND", Field = "Brand", Message = "Brand does not exist in the active workspace." });
+        
         if (row.ProductId.HasValue)
         {
-            var product = await _productRepository.GetByIdAsync(row.ProductId.Value, cancellationToken);
-            if (product is null || product.IsDeleted || product.BrandId != row.BrandId) errors.Add("Product does not belong to the selected brand.");
+            var product = brand?.Products?.FirstOrDefault(p => p.Id == row.ProductId.Value && !p.IsDeleted);
+            if (product is null) errors.Add(new AutomationValidationError { Code = "PRODUCT_NOT_FOUND", Field = "Product", Message = "Product does not exist or does not belong to the selected brand." });
         }
-        else if (!string.IsNullOrWhiteSpace(row.ProductName)) errors.Add("Product was not found in the selected brand.");
-        if (string.IsNullOrWhiteSpace(row.Topic)) errors.Add("Topic is required.");
-        if (!SupportedPlatforms.Contains(platform)) errors.Add($"Unsupported platform: {platform}.");
-        if (!TryParseContentType(row.ContentType, out var type)) errors.Add($"Unsupported content type: {row.ContentType}.");
-        if (string.Equals(platform, "tiktok", StringComparison.OrdinalIgnoreCase) && type is not AutomationContentTypeEnum.Video and not AutomationContentTypeEnum.Auto)
-            errors.Add("TikTok requires Video or Auto content type.");
-        if (row.ScheduledAt == default || NormalizeUtc(row.ScheduledAt) <= DateTime.UtcNow) errors.Add("Date and Time must form a valid future date and time.");
+        else if (!string.IsNullOrWhiteSpace(row.ProductName)) errors.Add(new AutomationValidationError { Code = "PRODUCT_NOT_FOUND", Field = "Product", Message = "Product was not found in the selected brand." });
+        
+        if (string.IsNullOrWhiteSpace(row.Topic)) errors.Add(new AutomationValidationError { Code = "EMPTY_REQUIRED_FIELD", Field = "Topic", Message = "Topic is required." });
+        if (!SupportedPlatforms.Contains(platform)) errors.Add(new AutomationValidationError { Code = "INVALID_PLATFORM", Field = "Platform", Message = $"Unsupported platform: {platform}." });
+        
+        if (!TryParseContentType(row.ContentType, out var type)) errors.Add(new AutomationValidationError { Code = "INVALID_CONTENT_TYPE", Field = "ContentType", Message = $"Unsupported content type: {row.ContentType}." });
+        else if (string.Equals(platform, "tiktok", StringComparison.OrdinalIgnoreCase) && type is not AutomationContentTypeEnum.Video and not AutomationContentTypeEnum.Auto)
+            errors.Add(new AutomationValidationError { Code = "INVALID_CONTENT_TYPE", Field = "ContentType", Message = "TikTok requires Video or Auto content type." });
+            
+        if (row.ScheduledAt == default || NormalizeUtc(row.ScheduledAt) <= DateTime.UtcNow) errors.Add(new AutomationValidationError { Code = "SCHEDULE_IN_PAST", Field = "ScheduledAt", Message = "Date and Time must form a valid future date and time." });
         return errors;
     }
 
@@ -349,11 +377,11 @@ public sealed class AutomationService : IAutomationService
         }).ToList()
     };
 
-    private static IReadOnlyList<string> DeserializeErrors(string? json)
+    private static IReadOnlyList<AutomationValidationError> DeserializeErrors(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-        try { return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>(); }
-        catch (JsonException) { return new[] { json }; }
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<AutomationValidationError>();
+        try { return JsonSerializer.Deserialize<List<AutomationValidationError>>(json) ?? new List<AutomationValidationError>(); }
+        catch (JsonException) { return new[] { new AutomationValidationError { Code = "UNKNOWN_ERROR", Field = "Unknown", Message = json ?? "Unknown error" } }; }
     }
 
     private static string? FirstImageUrl(string? json)
@@ -404,17 +432,4 @@ public sealed class AutomationService : IAutomationService
         }
     }
 
-    private static List<string> ParseCsvLine(string line)
-    {
-        var result = new List<string>(); var current = new StringBuilder(); var quoted = false;
-        for (var index = 0; index < line.Length; index++)
-        {
-            var character = line[index];
-            if (character == '"' && quoted && index + 1 < line.Length && line[index + 1] == '"') { current.Append('"'); index++; }
-            else if (character == '"') quoted = !quoted;
-            else if (character == ',' && !quoted) { result.Add(current.ToString()); current.Clear(); }
-            else current.Append(character);
-        }
-        result.Add(current.ToString()); return result;
-    }
 }

@@ -35,6 +35,7 @@ public sealed class VideoJobsController : ControllerBase
             workspaceId, 
             userId, 
             request.Prompt, 
+            request.Options,
             cancellationToken);
 
         if (!result.Success || result.Data == null)
@@ -104,6 +105,7 @@ public sealed class VideoJobsController : ControllerBase
 public class CreateVideoJobRequest
 {
     public string Prompt { get; set; } = string.Empty;
+    public VideoGenerationOptions? Options { get; set; }
 }
 
 public class VideoJobResponseDto

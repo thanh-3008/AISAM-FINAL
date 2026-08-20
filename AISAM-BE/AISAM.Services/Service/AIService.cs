@@ -404,7 +404,9 @@ public sealed class AIService : IAIService
                 var rawPrompt = parsedResponse.Prompt;
                 if (string.IsNullOrWhiteSpace(rawPrompt))
                 {
-                    rawPrompt = "A high-quality commercial advertising video showcasing the product in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
+                    var productName = selectedProduct?.Name ?? "the product";
+                    var productDesc = string.IsNullOrWhiteSpace(selectedProduct?.Description) ? "" : $" ({selectedProduct.Description})";
+                    rawPrompt = $"A high-quality commercial advertising video showcasing {productName}{productDesc} in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
                 }
                 
                 List<string>? recentPrompts = null;
@@ -416,18 +418,14 @@ public sealed class AIService : IAIService
                 var duration = parsedResponse.DurationSeconds > 0 ? parsedResponse.DurationSeconds : 9;
                 var videoAspectRatio = parsedResponse.AspectRatio ?? "9:16";
 
-                var (prompt, patternId) = await _promptEnhancer.EnhanceVideoPromptAsync(
-                    rawPrompt, selectedProduct, duration, videoAspectRatio, recentPrompts, cancellationToken);
+                string? firstFrameUrl = IsValidImageUrl(request.UploadedPrimaryImageUrl)
+                    ? request.UploadedPrimaryImageUrl!.Trim()
+                    : IsValidImageUrl(request.SelectedProductImageUrl)
+                        ? request.SelectedProductImageUrl!.Trim()
+                        : GetProductImageUrls(selectedProduct).FirstOrDefault();
 
-                string? firstFrameUrl = null;
-                if (parsedResponse.UseProductImageAsFirstFrame)
-                {
-                    firstFrameUrl = IsValidImageUrl(request.UploadedPrimaryImageUrl)
-                        ? request.UploadedPrimaryImageUrl!.Trim()
-                        : IsValidImageUrl(request.SelectedProductImageUrl)
-                            ? request.SelectedProductImageUrl!.Trim()
-                            : GetProductImageUrls(selectedProduct).FirstOrDefault();
-                }
+                var (prompt, patternId) = await _promptEnhancer.EnhanceVideoPromptAsync(
+                    rawPrompt, selectedProduct, duration, videoAspectRatio, recentPrompts, firstFrameUrl, cancellationToken);
 
                 if (!conversation.BrandId.HasValue)
                 {
@@ -752,9 +750,11 @@ public sealed class AIService : IAIService
             recentPrompts = await _generationRepository.GetRecentVideoPatternIdsByProductAsync(content.ProductId.Value, 3, cancellationToken);
         }
 
+        string? firstFrameUrl = GetProductImageUrls(content.Product).FirstOrDefault();
+
         // Rewrite and enhance prompt using Gemini (bám sát sản phẩm + tối ưu cho LTX-2.3)
         var (prompt, patternId) = await _promptEnhancer.EnhanceVideoPromptAsync(
-            rawPrompt, content.Product, request.DurationSeconds, request.AspectRatio, recentPrompts, cancellationToken);
+            rawPrompt, content.Product, request.DurationSeconds, request.AspectRatio, recentPrompts, firstFrameUrl, cancellationToken);
 
         _logger.LogInformation("[AIService.StartVideoGenerationAsync] Prompt enhanced for LTX-2.3. ContentId={ContentId}", request.ContentId);
         var generation = await _generationRepository.AddAsync(new AiGeneration
@@ -765,7 +765,7 @@ public sealed class AIService : IAIService
             Status = AiStatusEnum.Processing
         }, cancellationToken);
 
-        var result = await _videoProvider.StartVideoGenerationAsync(prompt, new VideoGenerationOptions { DurationSeconds = request.DurationSeconds, AspectRatio = request.AspectRatio }, cancellationToken);
+        var result = await _videoProvider.StartVideoGenerationAsync(prompt, new VideoGenerationOptions { DurationSeconds = request.DurationSeconds, AspectRatio = request.AspectRatio, FirstFrameImageUrl = firstFrameUrl }, cancellationToken);
 
         if (!result.Success)
         {

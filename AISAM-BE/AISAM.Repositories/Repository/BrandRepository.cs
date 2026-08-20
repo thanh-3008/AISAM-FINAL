@@ -36,6 +36,22 @@ namespace AISAM.Repositories.Repository
                 .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
         }
 
+        public async Task<List<Brand>> GetByNamesAndIdsAsync(Guid workspaceId, IEnumerable<string> names, IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+        {
+            var lowerNames = names.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.ToLower()).ToList();
+            var idList = ids.Where(id => id != Guid.Empty).ToList();
+
+            if (lowerNames.Count == 0 && idList.Count == 0) return new List<Brand>();
+
+            return await _context.Brands
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(b => b.Products)
+                .Where(b => b.WorkspaceId == workspaceId && !b.IsDeleted)
+                .Where(b => idList.Contains(b.Id) || lowerNames.Contains(b.Name.ToLower()))
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<PagedResult<Brand>> GetPagedByWorkspaceIdAsync(
             Guid workspaceId,
             PaginationRequest request,

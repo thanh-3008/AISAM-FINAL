@@ -12,6 +12,7 @@ public interface IVideoGenerationOrchestrator
         Guid workspaceId, 
         Guid userId, 
         string prompt, 
+        VideoGenerationOptions? options = null,
         CancellationToken cancellationToken = default);
 
     Task<GenericResponse<VideoGenerationJob>> CheckVideoStatusAsync(

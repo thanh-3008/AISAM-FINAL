@@ -95,10 +95,10 @@ public class PhaseEQuotaIntegrationTests
         public Task<string> EnhanceImagePromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, bool hasReferenceImages, CancellationToken cancellationToken = default)
             => Task.FromResult(rawPrompt);
 
-        public Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, List<string>? recentlyUsedPrompts = null, CancellationToken cancellationToken = default)
+        public Task<(string Prompt, string? PatternId)> EnhanceVideoPromptAsync(string rawPrompt, AISAM.Data.Model.Product? product, int durationSeconds = 8, string? aspectRatio = null, List<string>? recentlyUsedPrompts = null, string? referenceImageUrl = null, CancellationToken cancellationToken = default)
             => Task.FromResult<(string Prompt, string? PatternId)>((rawPrompt, "fake_pattern"));
 
-        public Task<string> EnhanceVideoPromptWithScriptAsync(string rawPrompt, string? videoScript, AISAM.Data.Model.Product? product, int durationSeconds = 9, string? aspectRatio = "9:16", CancellationToken cancellationToken = default)
+        public Task<string> EnhanceVideoPromptWithScriptAsync(string rawPrompt, string? videoScript, AISAM.Data.Model.Product? product, int durationSeconds = 9, string? aspectRatio = "9:16", string? referenceImageUrl = null, CancellationToken cancellationToken = default)
             => Task.FromResult(!string.IsNullOrWhiteSpace(rawPrompt) ? rawPrompt : videoScript ?? string.Empty);
     }
 
@@ -231,6 +231,8 @@ public class PhaseEQuotaIntegrationTests
 
         public Task<bool> ExistsByNameInWorkspaceAsync(Guid workspaceId, string name, CancellationToken cancellationToken = default)
             => Task.FromResult(_brands.Values.Any(b => b.WorkspaceId == workspaceId && b.Name == name));
+
+        public Task<List<Brand>> GetByNamesAndIdsAsync(Guid workspaceId, IEnumerable<string> names, IEnumerable<Guid> ids, CancellationToken cancellationToken = default) => Task.FromResult(new List<Brand>());
 
         public Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();

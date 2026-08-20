@@ -199,5 +199,5 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
     };
 
     private static string? FirstImage(string? json) { try { return string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<List<string>>(json)?.FirstOrDefault(); } catch { return null; } }
-    private static IReadOnlyList<string> DeserializeErrors(string? json) { try { return string.IsNullOrWhiteSpace(json) ? [] : JsonSerializer.Deserialize<List<string>>(json) ?? []; } catch { return json is null ? [] : [json]; } }
+    private static IReadOnlyList<AutomationValidationError> DeserializeErrors(string? json) { try { return string.IsNullOrWhiteSpace(json) ? [] : JsonSerializer.Deserialize<List<AutomationValidationError>>(json) ?? []; } catch { return json is null ? [] : [new AutomationValidationError { Code = "UNKNOWN_ERROR", Field = "Unknown", Message = json }]; } }
 }

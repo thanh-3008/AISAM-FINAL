@@ -44,6 +44,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         Guid workspaceId, 
         Guid userId, 
         string prompt, 
+        VideoGenerationOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         // Ensure credits are available before generating
@@ -80,7 +81,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
 
         try
         {
-            var primaryResult = await _primaryProvider.StartVideoGenerationAsync(prompt, null, cts.Token);
+            var primaryResult = await _primaryProvider.StartVideoGenerationAsync(prompt, options, cts.Token);
             if (primaryResult.Success && !string.IsNullOrWhiteSpace(primaryResult.JobId))
             {
                 job.Provider = primaryResult.ProviderName;
@@ -123,7 +124,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         }
 
         _logger.LogInformation("Falling back to Colab video strategy for job {JobId}", job.Id);
-        var colabResult = await _colabStrategy.StartVideoGenerationAsync(prompt, null, cancellationToken);
+        var colabResult = await _colabStrategy.StartVideoGenerationAsync(prompt, options, cancellationToken);
         if (colabResult.Success && !string.IsNullOrWhiteSpace(colabResult.JobId))
         {
             job.Provider = colabResult.ProviderName;
