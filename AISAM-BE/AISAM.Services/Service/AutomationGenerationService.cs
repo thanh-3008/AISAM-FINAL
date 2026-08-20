@@ -1,4 +1,6 @@
 using System.Text.Json;
+using AISAM.Common.Models;
+using Microsoft.Extensions.Options;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories;
@@ -17,6 +19,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
     private readonly IMediaStorageService _mediaStorage;
     private readonly IAutomationCreditService _automationCredits;
     private readonly ILogger<AutomationGenerationService> _logger;
+    private readonly ImageProviderSettings _imageSettings;
+    private readonly VideoProviderSettings _videoSettings;
 
     public AutomationGenerationService(
         AisamContext context,
@@ -25,6 +29,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         IAIVideoProvider videoProvider,
         IMediaStorageService mediaStorage,
         IAutomationCreditService automationCredits,
+        IOptions<ImageProviderSettings> imageOptions,
+        IOptions<VideoProviderSettings> videoOptions,
         ILogger<AutomationGenerationService> logger)
     {
         _context = context;
@@ -33,10 +39,12 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         _videoProvider = videoProvider;
         _mediaStorage = mediaStorage;
         _automationCredits = automationCredits;
+        _imageSettings = imageOptions.Value;
+        _videoSettings = videoOptions.Value;
         _logger = logger;
     }
 
-    public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken = default)
+    public async Task<TimeSpan> ProcessNextAsync(CancellationToken cancellationToken = default)
     {
         var item = await _context.AutomationItems
             .Include(value => value.AutomationPlan)
@@ -51,14 +59,14 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             .ThenBy(value => value.Platform)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (item is null) return false;
+        if (item is null) return TimeSpan.FromSeconds(5);
 
         var profile = await _context.Profiles.AsNoTracking()
             .FirstOrDefaultAsync(value => value.Id == item.AutomationPlan.ProfileId, cancellationToken);
         if (profile is null)
         {
             await FailAsync(item, "The profile that created this plan no longer exists.", cancellationToken);
-            return true;
+            return TimeSpan.FromMilliseconds(250);
         }
 
         var resumingVideo = item.Status == AutomationItemStatusEnum.GeneratingMedia && !string.IsNullOrWhiteSpace(item.VideoJobId);
@@ -155,7 +163,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     item.Status = AutomationItemStatusEnum.GeneratingMedia;
                     item.UpdatedAt = DateTime.UtcNow;
                     await _context.SaveChangesAsync(cancellationToken);
-                    return false;
+                    return TimeSpan.FromSeconds(15);
                 }
                 if (string.IsNullOrWhiteSpace(video.MediaUrl))
                     throw new InvalidOperationException("Video provider completed without a media URL.");
@@ -206,6 +214,16 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
             item.UpdatedAt = DateTime.UtcNow;
             await RecalculatePlanAsync(item.AutomationPlan, cancellationToken);
+            
+            if (requiresVideo && !resumingVideo)
+            {
+                return TimeSpan.FromSeconds(_videoSettings.GenerationDelaySeconds);
+            }
+            if (requiresImage)
+            {
+                return TimeSpan.FromSeconds(_imageSettings.GenerationDelaySeconds);
+            }
+            return TimeSpan.FromSeconds(1); // Small delay for text-only items
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -215,9 +233,15 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         {
             _logger.LogError(exception, "Automation generation failed for item {AutomationItemId}", item.Id);
             await FailAsync(item, exception.Message, cancellationToken);
+            
+            if (exception.Message.Contains("429") || exception.Message.Contains("Too Many Requests", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Rate limit (429) detected. Implementing 60-second cooldown before processing next item.");
+                return TimeSpan.FromSeconds(60);
+            }
+            
+            return TimeSpan.FromSeconds(5); // Default error delay to avoid rapid cascading failures
         }
-
-        return true;
     }
 
     private async Task FailAsync(AutomationItem item, string message, CancellationToken cancellationToken)

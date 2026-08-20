@@ -21,6 +21,9 @@ public sealed class ImageProviderSettings
     public string OpenRouterModel { get; set; } = "bytedance-seed/seedream-4.5";
     public int OpenRouterEditPollingIntervalSeconds { get; set; } = 5;
     public int OpenRouterEditTimeoutMinutes { get; set; } = 10;
+    
+    // Automation delay to respect limits
+    public int GenerationDelaySeconds { get; set; } = 20;
 
     // === Fallback 1: Hugging Face ===
     public string HuggingFaceApiKey { get; set; } = string.Empty;
@@ -61,6 +64,9 @@ public sealed class VideoProviderSettings
     public string? ColabBaseUrl { get; set; }
     public string? ColabToken { get; set; }
     public int ColabTimeout { get; set; } = 300;
+    
+    // Automation delay to respect limits
+    public int GenerationDelaySeconds { get; set; } = 60;
 
     /// <summary>false = tính năng video tắt, trả về "Coming Soon". Đặt true khi có key.</summary>
     public bool Enabled { get; set; } = false;
