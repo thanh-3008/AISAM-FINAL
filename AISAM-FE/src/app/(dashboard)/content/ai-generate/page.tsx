@@ -79,6 +79,35 @@ const VideoGenerationProgress = ({ jobId }: { jobId: string }) => {
   );
 };
 
+// --- Chat Storage Helpers (7-day TTL) ---
+const CHAT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+interface ChatStorageEntry {
+  conversationId: string;
+  savedAt: number; // timestamp ms
+}
+
+function saveChatSession(key: string, conversationId: string) {
+  const entry: ChatStorageEntry = { conversationId, savedAt: Date.now() };
+  localStorage.setItem(key, JSON.stringify(entry));
+}
+
+function loadChatSession(key: string): string | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const entry: ChatStorageEntry = JSON.parse(raw);
+    if (Date.now() - entry.savedAt > CHAT_TTL_MS) {
+      localStorage.removeItem(key); // Expired -> remove
+      return null;
+    }
+    return entry.conversationId;
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
+}
+
 export default function AIGeneratePage() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -180,7 +209,7 @@ export default function AIGeneratePage() {
     if (!conversationStorageKey) return;
 
     let cancelled = false;
-    const savedId = sessionStorage.getItem(conversationStorageKey);
+    const savedId = loadChatSession(conversationStorageKey);
     if (!savedId) return;
     setConversationId(savedId);
     getConversationMessages(savedId).then(msgs => {
@@ -333,7 +362,7 @@ export default function AIGeneratePage() {
     }
     if (aiReply) {
       setConversationId(aiReply.conversationId ?? null);
-      if (conversationStorageKey && aiReply.conversationId) sessionStorage.setItem(conversationStorageKey, aiReply.conversationId);
+      if (conversationStorageKey && aiReply.conversationId) saveChatSession(conversationStorageKey, aiReply.conversationId);
 
       const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
       const canCreate = aiReply.shouldCreateContent || Boolean(aiReply.createdContentId);

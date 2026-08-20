@@ -43,6 +43,15 @@ namespace AISAM.Data.Model
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        [Column("avatar_url")]
+        public string? AvatarUrl { get; set; }
+
+        [Column("bio")]
+        public string? Bio { get; set; }
+
+        [Column("company_name")]
+        public string? CompanyName { get; set; }
+
         public virtual ICollection<WorkspaceMember> Members { get; set; } = new List<WorkspaceMember>();
         public virtual ICollection<WorkspaceInvitation> Invitations { get; set; } = new List<WorkspaceInvitation>();
         public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();

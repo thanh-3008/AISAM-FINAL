@@ -93,7 +93,15 @@ public sealed class AIService : IAIService
         }, cancellationToken);
 
         var generation = await GenerateForContentAsync(content, request.Prompt, cancellationToken);
-        return await ChargeSuccessfulGenerationAsync(generation, workspaceId, userId, CreditActionEnum.GenerateText, cancellationToken);
+        var response = await ChargeSuccessfulGenerationAsync(generation, workspaceId, userId, CreditActionEnum.GenerateText, cancellationToken);
+        
+        if (!response.Success || generation.Status == AiStatusEnum.Failed)
+        {
+            content.Status = ContentStatusEnum.Failed;
+            await _contentRepository.UpdateAsync(content, cancellationToken);
+        }
+        
+        return response;
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, Guid workspaceId, Guid userId, ImproveContentRequest request, CancellationToken cancellationToken = default)
@@ -679,6 +687,13 @@ public sealed class AIService : IAIService
             generation.ErrorMessage = result.ErrorMessage;
             generation.ProviderName = result.ProviderName;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
+            
+            if (string.IsNullOrWhiteSpace(content.TextContent))
+            {
+                content.Status = ContentStatusEnum.Failed;
+                await _contentRepository.UpdateAsync(content, cancellationToken);
+            }
+
             return GenericResponse<AiGenerationResponse>.CreateError("Lỗi hệ thống: Không thể tạo ảnh lúc này. Vui lòng thử lại sau.", HttpStatusCode.BadGateway);
         }
 
@@ -759,6 +774,13 @@ public sealed class AIService : IAIService
             generation.ErrorMessage = result.ErrorMessage;
             generation.ProviderName = result.ProviderName;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
+            
+            if (string.IsNullOrWhiteSpace(content.TextContent))
+            {
+                content.Status = ContentStatusEnum.Failed;
+                await _contentRepository.UpdateAsync(content, cancellationToken);
+            }
+
             return GenericResponse<AiGenerationResponse>.CreateError("Lỗi hệ thống: Không thể khởi tạo video lúc này. Vui lòng thử lại sau.", HttpStatusCode.BadGateway);
         }
 

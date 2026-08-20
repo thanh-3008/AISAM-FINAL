@@ -58,8 +58,8 @@ describe("useWorkspaces", () => {
 
     const { result } = renderHook(() => useWorkspaces());
 
-    expect(result.current.activeWorkspace?.id).toBe("stored-personal");
     await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.activeWorkspace?.id).toBe("stored-personal");
     expect(result.current.workspaces).toHaveLength(1);
     expect(result.current.activeWorkspace?.name).toBe("Personal Workspace");
   });

@@ -155,6 +155,8 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
   const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
 
   const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
+  const isMutation = hasJsonBody || customConfig.method === "POST" || customConfig.method === "PUT" || customConfig.method === "DELETE";
+  
   const config: RequestInit = {
     method: hasJsonBody ? "POST" : "GET",
     body: hasJsonBody ? JSON.stringify(data) : undefined,
@@ -162,7 +164,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
       ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
       ...headers,
     },
-    cache: "no-store",
+    ...(isMutation ? { cache: "no-store" } : { next: { revalidate: 30 } }),
     ...customConfig,
   };
 

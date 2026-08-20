@@ -13,6 +13,7 @@ import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import { apiFetch } from "@/lib/apiClient";
 import { fetchChannelBreakdown, fetchTopPosts, type ChannelBreakdownItem, type TopPostItem } from "@/services/analyticsService";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { HolidayBanner } from "@/components/holiday/HolidayBanner";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -125,7 +126,7 @@ export default function DashboardPage() {
     fetchCampaigns({ pageSize: 5 }).then((res) => {
       if (res) setDashboardCampaigns(res.data.slice(0, 5));
     });
-    fetchChannelBreakdown("90d").then(d => { console.log("Channel breakdown:", d); setPlatformBreakdown(d); }).catch(() => setPlatformBreakdown([]));
+    fetchChannelBreakdown("90d").then(d => { setPlatformBreakdown(d); }).catch(() => setPlatformBreakdown([]));
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
@@ -291,6 +292,12 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* ===== HOLIDAY BANNER ===== */}
+        <HolidayBanner onSuccess={() => {
+          // Could refresh content list if we had one on this page, but dashboard doesn't need to refresh just yet
+          alert("Caption suggested and saved to Content list for approval!");
+        }} />
 
         {/* ===== KPI GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">

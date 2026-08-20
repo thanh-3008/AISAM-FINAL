@@ -244,6 +244,7 @@ public class ContentServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         private readonly Dictionary<Guid, Content> _contents;
 
         public FakeContentRepository(params Content[] contents)
@@ -307,6 +308,7 @@ public class ContentServiceTests
 
     private sealed class FakeProductRepository : IProductRepository
     {
+        public Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         private readonly Dictionary<Guid, Product> _products;
         public FakeProductRepository(params Product[] products) => _products = products.ToDictionary(product => product.Id);
         public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_products.GetValueOrDefault(id));
@@ -377,6 +379,9 @@ public class ContentServiceTests
             => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
     }
 }
+
+
+
 
 
 

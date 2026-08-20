@@ -260,12 +260,12 @@ builder.Services.AddHttpClient<IPaymentService, PayOSPaymentService>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<FacebookProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<InstagramProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
-builder.Services.AddHttpClient<GeminiTextClient>();
-builder.Services.AddHttpClient<FallbackGeminiTextClient>();
-builder.Services.AddHttpClient<FallbackGeminiTextClient2>();
-builder.Services.AddHttpClient<FallbackGeminiTextClient3>();
-builder.Services.AddHttpClient<FallbackGeminiTextClient4>();
-builder.Services.AddHttpClient<OpenRouterTextClient>();
+builder.Services.AddHttpClient<GeminiTextClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<FallbackGeminiTextClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<FallbackGeminiTextClient2>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<FallbackGeminiTextClient3>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<FallbackGeminiTextClient4>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<OpenRouterTextClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
 builder.Services.AddScoped<IAIService, AIService>();
@@ -277,6 +277,8 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
+builder.Services.AddScoped<IHolidayService, HolidayService>();
+builder.Services.AddHttpClient<IHolidaySource, NagerDateHolidaySource>();
 builder.Services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 builder.Services.AddScoped<IAutomationService, AutomationService>();
 builder.Services.AddScoped<IAutomationGenerationService, AutomationGenerationService>();
@@ -306,12 +308,12 @@ builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSecti
 builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
 
 // Clients (HttpClient)
-builder.Services.AddHttpClient<OpenAIImageClient>();
-builder.Services.AddHttpClient<OpenAIVideoClient>();
-builder.Services.AddHttpClient<OpenRouterImageClient>();
-builder.Services.AddHttpClient<HuggingFaceImageClient>();
-builder.Services.AddHttpClient<GeminiVideoClient>();
-builder.Services.AddHttpClient<DeApiVideoClient>();
+builder.Services.AddHttpClient<OpenAIImageClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<OpenAIVideoClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<OpenRouterImageClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<HuggingFaceImageClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<GeminiVideoClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<DeApiVideoClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
 
 builder.Services.AddHttpClient<ColabVideoStrategy>();
 
@@ -412,13 +414,21 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
+});
+
 var app = builder.Build();
 
 app.UseResponseCompression();
 app.UseCors("CorsPolicy");
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 app.UseMiddleware<MaintenanceModeMiddleware>();

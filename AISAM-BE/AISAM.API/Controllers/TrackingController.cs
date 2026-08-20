@@ -10,13 +10,16 @@ public sealed class TrackingController : ControllerBase
 {
     private readonly IPerformanceReportRepository _performanceReportRepository;
     private readonly ILogger<TrackingController> _logger;
+    private readonly IConfiguration _configuration;
 
     public TrackingController(
         IPerformanceReportRepository performanceReportRepository,
-        ILogger<TrackingController> logger)
+        ILogger<TrackingController> logger,
+        IConfiguration configuration)
     {
         _performanceReportRepository = performanceReportRepository;
         _logger = logger;
+        _configuration = configuration;
     }
 
     [HttpGet("c/{contentId:guid}/i/{integrationId:guid}")]
@@ -28,7 +31,7 @@ public sealed class TrackingController : ControllerBase
     {
         var targetUrl = DecodeTargetUrl(encodedUrl);
         if (!IsSafeRedirectUrl(targetUrl))
-            return BadRequest("Invalid target URL.");
+            return BadRequest("Invalid or unapproved target URL.");
 
         var updated = await _performanceReportRepository.IncrementTrackedClickAsync(contentId, integrationId, cancellationToken);
         if (!updated)
@@ -59,9 +62,22 @@ public sealed class TrackingController : ControllerBase
         }
     }
 
-    private static bool IsSafeRedirectUrl(string? value)
+    private bool IsSafeRedirectUrl(string? value)
     {
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            return false;
+            
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        var allowedDomains = _configuration.GetSection("Tracking:AllowedDomains").Get<string[]>();
+        if (allowedDomains != null && allowedDomains.Length > 0)
+        {
+            return allowedDomains.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Fallback to checking against a static safe list or allow if no strict list is configured
+        // In a real SMB platform, we might allow any domain but check against Google Safe Browsing API.
+        return true;
     }
 }

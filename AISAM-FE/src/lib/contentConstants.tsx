@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 export type ContentType = "IMAGE" | "TEXT" | "VIDEO";
-export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled";
+export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled" | "Failed";
 
 export const PLATFORM_CONFIG: Record<string, { color: string; icon: string; label: string }> = {
   facebook: { color: "#1877F2", icon: "facebook", label: "Facebook" },
@@ -38,6 +38,7 @@ export const STATUS_OPTIONS: { label: string; value: ContentStatus }[] = [
   { label: "Rejected", value: "Rejected" },
   { label: "Published", value: "Published" },
   { label: "Scheduled", value: "Scheduled" },
+  { label: "Failed", value: "Failed" },
 ];
 
 export const CREATE_STATUS_OPTIONS: { label: string; value: Extract<ContentStatus, "Draft" | "Awaiting Approval"> }[] = [
@@ -52,6 +53,7 @@ export const STATUS_STYLES: Record<ContentStatus, string> = {
   "Rejected": "bg-danger-red/10 text-danger-red",
   "Published": "bg-blue-50 text-blue-600",
   "Scheduled": "bg-blue-50 text-blue-600",
+  "Failed": "bg-danger-red/10 text-danger-red",
 };
 
 export const ALL_TAGS = ["Product Launch", "Tutorial", "Seasonal", "Brand Story", "Behind the Scenes", "Testimonial", "Promotion", "Educational"];

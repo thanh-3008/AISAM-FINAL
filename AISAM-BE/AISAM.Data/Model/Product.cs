@@ -54,6 +54,21 @@ namespace AISAM.Data.Model
         [Column("images", TypeName = "jsonb")]
         public string? Images { get; set; } // JSON array of image URLs
 
+        [Column("benefits")]
+        public string? Benefits { get; set; }
+
+        [Column("pain_points")]
+        public string? PainPoints { get; set; }
+
+        [Column("sku")]
+        public string? Sku { get; set; }
+
+        [Column("status")]
+        public string? Status { get; set; }
+
+        [Column("tags")]
+        public string? Tags { get; set; }
+
         [Column("is_deleted")]
         public bool IsDeleted { get; set; } = false;
 

@@ -2,6 +2,7 @@ using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Repositories.IRepositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -9,6 +10,7 @@ namespace AISAM.API.Controllers;
 
 [ApiController]
 [Route("api/pricing")]
+[Authorize]
 public sealed class PricingController : ControllerBase
 {
     private readonly ISystemSettingRepository _settingRepository;

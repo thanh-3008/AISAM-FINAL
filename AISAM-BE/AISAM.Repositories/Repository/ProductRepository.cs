@@ -34,6 +34,12 @@ namespace AISAM.Repositories.Repository
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.Products
+                .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
+        }
+
         public async Task<PagedResult<Product>> GetPagedAsync(
             PaginationRequest request,
             Guid? brandId = null,
@@ -45,9 +51,6 @@ namespace AISAM.Repositories.Repository
 
             var query = _context.Products
                 .Include(p => p.Brand)
-                .ThenInclude(b => b.Profile)
-                .Include(p => p.Brand)
-                .ThenInclude(b => b.Workspace)
                 .AsQueryable();
 
             if (brandId.HasValue)
@@ -109,9 +112,6 @@ namespace AISAM.Repositories.Repository
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
             var query = _context.Products
                 .Include(p => p.Brand)
-                .ThenInclude(b => b.Profile)
-                .Include(p => p.Brand)
-                .ThenInclude(b => b.Workspace)
                 .Where(p => p.Brand.WorkspaceId == workspaceId);
 
             if (brandId.HasValue)

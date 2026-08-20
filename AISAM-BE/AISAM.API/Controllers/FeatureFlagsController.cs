@@ -1,11 +1,13 @@
 using AISAM.Common;
 using AISAM.Repositories.IRepositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AISAM.API.Controllers;
 
 [ApiController]
 [Route("api/feature-flags")]
+[Authorize]
 public sealed class FeatureFlagsController : ControllerBase
 {
     private readonly ISystemSettingRepository _settingRepo;

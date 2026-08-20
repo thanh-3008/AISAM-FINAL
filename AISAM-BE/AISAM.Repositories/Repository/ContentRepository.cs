@@ -39,7 +39,7 @@ public sealed class ContentRepository : IContentRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(content => content.ProfileId == profileId);
+        var query = Query().AsNoTracking().Where(content => content.ProfileId == profileId);
 
         if (brandId.HasValue)
         {
@@ -59,6 +59,10 @@ public sealed class ContentRepository : IContentRepository
         if (status.HasValue)
         {
             query = query.Where(content => content.Status == status.Value);
+        }
+        else
+        {
+            query = query.Where(content => content.Status != ContentStatusEnum.Failed);
         }
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
@@ -124,11 +128,18 @@ public sealed class ContentRepository : IContentRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(c => c.WorkspaceId == workspaceId);
+        var query = Query().AsNoTracking().Where(c => c.WorkspaceId == workspaceId);
         if (brandId.HasValue) query = query.Where(c => c.BrandId == brandId.Value);
         if (!includeDeleted) query = query.Where(c => !c.IsDeleted);
         if (adType.HasValue) query = query.Where(c => c.AdType == adType.Value);
-        if (status.HasValue) query = query.Where(c => c.Status == status.Value);
+        if (status.HasValue)
+        {
+            query = query.Where(c => c.Status == status.Value);
+        }
+        else
+        {
+            query = query.Where(c => c.Status != ContentStatusEnum.Failed);
+        }
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
             var words = request.SearchTerm.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
@@ -258,6 +269,10 @@ public sealed class ContentRepository : IContentRepository
         {
             query = query.Where(c => c.Status == status.Value);
         }
+        else
+        {
+            query = query.Where(c => c.Status != ContentStatusEnum.Failed);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
@@ -315,6 +330,16 @@ public sealed class ContentRepository : IContentRepository
         if (content != null)
         {
             content.IsDeleted = true;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var content = await _context.Contents.FindAsync(new object[] { id }, cancellationToken);
+        if (content != null)
+        {
+            _context.Contents.Remove(content);
             await _context.SaveChangesAsync(cancellationToken);
         }
     }
