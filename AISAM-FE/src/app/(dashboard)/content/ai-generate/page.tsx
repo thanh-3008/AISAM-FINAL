@@ -51,6 +51,51 @@ const AUTO_HASHTAGS: Record<string, string[]> = {
   "Pulse Finance": ["FinTech", "InvestSmart", "Wealth", "FinanceTips", "MoneyMatters"],
 };
 
+interface SuggestionContext {
+  brandName: string;
+  productName: string;
+  platformLabel: string;
+}
+
+interface QuickSuggestion {
+  id: string;
+  icon: string;
+  label: string;
+  template: (ctx: SuggestionContext) => string;
+}
+
+const BASE_SUGGESTIONS: QuickSuggestion[] = [
+  {
+    id: "caption",
+    icon: "edit_document",
+    label: "Viết caption tự động",
+    template: (ctx) => `Hãy viết một caption ngắn gọn, thu hút về sản phẩm ${ctx.productName} cho nền tảng ${ctx.platformLabel}.`
+  },
+  {
+    id: "article",
+    icon: "article",
+    label: "Viết bài viết chi tiết",
+    template: (ctx) => `Hãy viết một bài giới thiệu chi tiết, chuyên sâu về sản phẩm ${ctx.productName} của thương hiệu ${ctx.brandName}.`
+  },
+  {
+    id: "image",
+    icon: "image",
+    label: "Sinh hình ảnh minh họa",
+    template: (ctx) => `Tạo một hình ảnh mô tả sinh động về sản phẩm ${ctx.productName}.`
+  },
+];
+
+const PLATFORM_EXTRA_SUGGESTIONS: Record<string, QuickSuggestion[]> = {
+  "tiktok-video": [
+    {
+      id: "video",
+      icon: "movie",
+      label: "Tạo kịch bản video",
+      template: (ctx) => `Tạo một kịch bản video TikTok dài 15 giây giới thiệu sản phẩm ${ctx.productName} thật viral.`
+    }
+  ]
+};
+
 const VideoGenerationProgress = ({ jobId }: { jobId: string }) => {
   const [elapsed, setElapsed] = useState(0);
 
@@ -256,7 +301,7 @@ export default function AIGeneratePage() {
             const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
             if (!vidMatch) return msg;
             if (!gen) return msg; // If 0 (Pending) or 3 (Processing), wait.
-            
+
             if (gen.status === 1) { // 1 = Completed
               changed = true;
               return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `[VIDEO_URL: ${gen.generatedVideoUrl || ''}]`).trim(), canApply: true };
@@ -271,8 +316,8 @@ export default function AIGeneratePage() {
         });
 
         if (gen) {
-            clearInterval(interval);
-            setIsVideo(false);
+          clearInterval(interval);
+          setIsVideo(false);
         }
       } catch {
         /* ignore polling errors */
@@ -1153,6 +1198,55 @@ export default function AIGeneratePage() {
                   >
                     <span className="material-symbols-outlined text-[16px]">close</span>
                   </button>
+                </div>
+              )}
+
+              {/* QUICK SUGGESTIONS */}
+              {chatInput === "" && productId !== "" && (
+                <div
+                  className="flex items-center gap-2 mb-2 overflow-x-auto pb-1 scrollbar-hide animate-in fade-in duration-300"
+                  role="group"
+                  aria-label="Gợi ý nhanh"
+                  onWheel={(e) => {
+                    if (e.deltaY !== 0) {
+                      e.currentTarget.scrollLeft += e.deltaY;
+                    }
+                  }}
+                >
+                  {[...BASE_SUGGESTIONS, ...(PLATFORM_EXTRA_SUGGESTIONS[platform] || [])].map((sug) => (
+                    <button
+                      key={sug.id}
+                      type="button"
+                      aria-label={sug.label}
+                      onClick={() => {
+                        const selectedBrand = brandList.find(b => b.id === brandId);
+                        const selectedProduct = productList.find(p => p.id === productId);
+                        const platformLabel = PLATFORMS.find(p => p.value === platform)?.label || "Mạng xã hội";
+
+                        const ctx: SuggestionContext = {
+                          brandName: selectedBrand ? selectedBrand.name : (activeWorkspace?.name || "[Tên thương hiệu]"),
+                          productName: selectedProduct ? selectedProduct.name : "[Tên sản phẩm]",
+                          platformLabel,
+                        };
+
+                        setChatInput(sug.template(ctx));
+                        if (chatInputRef.current) {
+                          chatInputRef.current.focus();
+                          // Force textarea resize after React state updates
+                          setTimeout(() => {
+                            if (chatInputRef.current) {
+                              chatInputRef.current.style.height = '28px';
+                              chatInputRef.current.style.height = `${Math.min(chatInputRef.current.scrollHeight, 120)}px`;
+                            }
+                          }, 0);
+                        }
+                      }}
+                      className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-high hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/30 text-label-xs text-on-surface hover:text-primary transition-all active:scale-[0.97] whitespace-nowrap shrink-0 overflow-hidden max-w-[220px]"
+                    >
+                      <span className="material-symbols-outlined text-[14px] shrink-0">{sug.icon}</span>
+                      <span className="truncate">{sug.label}</span>
+                    </button>
+                  ))}
                 </div>
               )}
 

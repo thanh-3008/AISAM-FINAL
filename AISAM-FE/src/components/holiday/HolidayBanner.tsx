@@ -162,7 +162,7 @@ export const HolidayBanner: React.FC<HolidayBannerProps> = ({ onSuccess }) => {
         )}
 
         {/* Row 2: Custom Event */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="hidden flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1">
             <div className="w-10 h-10 rounded-xl bg-tertiary/20 flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-tertiary text-[20px]">celebration</span>

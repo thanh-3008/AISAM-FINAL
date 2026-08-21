@@ -286,11 +286,11 @@ export async function updateContentDetails(id: string, payload: Partial<CreateCo
       method: "PUT",
       data: payload,
     });
-    
+
     if (res?.success && res.data) {
       return res.data;
     }
-    
+
     throw new Error(res?.message || "Failed to update content");
   } catch (error) {
     throw error;
