@@ -8,6 +8,14 @@ import { fetchAdminSubscriptions, updateSubscription, AdminSubscription } from "
 
 const planLabels: Record<number, string> = { 0: "Free", 1: "Plus", 2: "Premium", 3: "PlusTrial" };
 
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export default function AdminSubscriptionsPage() {
   const [subs, setSubs] = useState<AdminSubscription[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,6 +48,11 @@ export default function AdminSubscriptionsPage() {
       key: "plan",
       header: "Plan",
       render: (s: AdminSubscription) => <StatusBadge status={planLabels[s.plan] ?? "Unknown"} variant={s.plan === 2 ? "error" : s.plan === 1 ? "info" : "neutral"} />,
+    },
+    {
+      key: "currentPrice",
+      header: "Current Price",
+      render: (s: AdminSubscription) => <span className="font-semibold text-gray-900">{formatCurrency(s.currentPrice ?? 0)}</span>,
     },
     {
       key: "isActive",

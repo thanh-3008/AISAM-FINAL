@@ -63,7 +63,7 @@ export default function AuthShell({
         </div>
 
         {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
+        <Link href="/" className="relative z-10 flex w-fit items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
             <span
               className="material-symbols-outlined text-on-primary text-[20px]"
@@ -75,7 +75,7 @@ export default function AuthShell({
           <h1 className="font-headline-sm text-headline-sm font-bold text-surface-bright tracking-tight">
             AISAM
           </h1>
-        </div>
+        </Link>
 
         {/* Headline */}
         <div className="relative z-10 max-w-lg mb-24">
@@ -154,7 +154,7 @@ export default function AuthShell({
         </Link>
 
         {/* Mobile Logo */}
-        <div className="absolute top-margin-mobile left-margin-mobile lg:hidden flex items-center gap-3">
+        <Link href="/" className="absolute top-margin-mobile left-margin-mobile lg:hidden flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
             <span
               className="material-symbols-outlined text-on-primary text-[20px]"
@@ -166,7 +166,7 @@ export default function AuthShell({
           <span className="font-headline-sm text-headline-sm font-bold text-on-surface tracking-tight">
             AISAM
           </span>
-        </div>
+        </Link>
 
         <div className="w-full max-w-md">
           {children}

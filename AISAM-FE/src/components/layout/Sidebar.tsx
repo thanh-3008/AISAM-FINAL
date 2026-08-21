@@ -122,7 +122,7 @@ export default function Sidebar() {
     >
       {/* Logo + Toggle */}
       <div className="shrink-0 flex items-center justify-between px-5 pt-6 pb-5 border-b border-outline-variant/20 mx-4">
-        <div className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
             <span className="material-symbols-outlined text-on-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
               psychology
@@ -132,7 +132,7 @@ export default function Sidebar() {
             <h1 className="text-headline-sm font-bold bg-gradient-to-r from-primary to-primary-container bg-clip-text text-transparent leading-none">AISAM</h1>
             <p className="text-label-sm text-outline leading-none mt-0.5">AI Ad Manager</p>
           </div>
-        </div>
+        </Link>
         <button onClick={toggle} className={`w-8 h-8 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all ${open ? "" : "hidden"}`} title="Collapse sidebar">
           <span className="material-symbols-outlined text-outline text-[18px]">chevron_left</span>
         </button>

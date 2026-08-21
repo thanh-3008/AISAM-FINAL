@@ -78,12 +78,15 @@ public sealed class WorkspaceDashboardService : IWorkspaceDashboardService
             .Take(5)
             .ToList();
 
+        var maxBalanceCap = await _creditService.GetMaximumBalanceAsync(workspaceId, cancellationToken);
+
         return GenericResponse<WorkspaceDashboardSummaryDto>.CreateSuccess(
             new WorkspaceDashboardSummaryDto
             {
                 WorkspaceId = workspaceId,
                 CreditBalance = wallet?.Balance ?? 0,
                 CreditsUsed = consumptionUsage.Sum(record => record.Credits),
+                MaxBalanceCap = maxBalanceCap,
                 PublishedPostCount = posts.TotalCount,
                 PostQuotaLimit = quota.Data!.PostQuotaLimit,
                 PostsRemaining = quota.Data.PostRemaining,

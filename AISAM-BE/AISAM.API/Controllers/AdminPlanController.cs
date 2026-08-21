@@ -127,6 +127,15 @@ public sealed class AdminPlanController : ControllerBase
         if (admin?.Role != UserRoleEnum.Admin)
             return StatusCode(403, GenericResponse<bool>.CreateError("Unauthorized", System.Net.HttpStatusCode.Forbidden));
 
+        if (request.CreditPacks.Count == 0 || request.CreditPacks.Count > 20)
+            return BadRequest(GenericResponse<bool>.CreateError("Between 1 and 20 credit packs are required."));
+        if (request.CreditPacks.Any(p => string.IsNullOrWhiteSpace(p.Id) || string.IsNullOrWhiteSpace(p.Name)
+            || p.Price < 0 || p.Credits <= 0))
+            return BadRequest(GenericResponse<bool>.CreateError("Credit pack values are invalid."));
+        if (request.CreditPacks.Select(p => p.Id.Trim().ToLowerInvariant()).Distinct().Count() != request.CreditPacks.Count)
+            return BadRequest(GenericResponse<bool>.CreateError("Credit pack identifiers must be unique."));
+
+        var previous = await _settingRepository.GetByKeyAsync("credit.packs");
         var json = JsonSerializer.Serialize(request.CreditPacks);
         var setting = new Data.Model.SystemSetting
         {
@@ -136,6 +145,16 @@ public sealed class AdminPlanController : ControllerBase
             UpdatedBy = adminUserId
         };
         await _settingRepository.UpsertAsync(setting);
+        await _auditLogRepository.AddAsync(new Data.Model.AuditLog
+        {
+            ActorId = adminUserId,
+            ActionType = "UPDATE_CREDIT_PACKS",
+            TargetTable = "system_settings",
+            TargetId = previous?.Id ?? setting.Id,
+            OldValues = previous?.Value,
+            NewValues = json,
+            Notes = $"Updated {request.CreditPacks.Count} credit packs"
+        }, cancellationToken);
         return Ok(GenericResponse<bool>.CreateSuccess(true, "Credit packs saved."));
     }
 
@@ -143,11 +162,11 @@ public sealed class AdminPlanController : ControllerBase
     {
         return new List<SubscriptionPlanDto>
         {
-            new() { Id = "free", Name = "Free", Price = 0, Credits = 50, PostsPerMonth = 20, Members = 1, Features = new List<string> { "basicAnalytics", "generateText" }, IsActive = true },
-            new() { Id = "plus", Name = "Plus", Price = 2000, Credits = 500, PostsPerMonth = 300, Members = 1, Features = new List<string> { "basicAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage" }, IsActive = true },
-            new() { Id = "premium", Name = "Premium", Price = 3000, Credits = 2000, PostsPerMonth = 1000, Members = 1, Features = new List<string> { "basicAnalytics", "advancedAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "aiVideo", "trendAnalysis", "holidaySuggestion", "campaignRecommendation" }, IsActive = true },
-            new() { Id = "business-plus", Name = "Business Plus", Price = 4000, Credits = 15000, PostsPerMonth = 5000, Members = 10, Features = new List<string> { "basicAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "workspaceDashboard" }, IsActive = true },
-            new() { Id = "business-pro", Name = "Business Pro", Price = 5000, Credits = 50000, PostsPerMonth = 20000, Members = 50, Features = new List<string> { "basicAnalytics", "advancedAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "aiVideo", "trendAnalysis", "holidaySuggestion", "campaignRecommendation", "workspaceDashboard" }, IsActive = true }
+            new() { Id = "free", Name = "Free", Price = 0, Credits = 50, PostsPerMonth = 20, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics" }, IsActive = true },
+            new() { Id = "plus", Name = "Plus", Price = 2000, Credits = 500, PostsPerMonth = 300, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish" }, IsActive = true },
+            new() { Id = "premium", Name = "Premium", Price = 3000, Credits = 2000, PostsPerMonth = 1000, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation" }, IsActive = true },
+            new() { Id = "business-plus", Name = "Business Plus", Price = 4000, Credits = 15000, PostsPerMonth = 5000, Members = 10, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation", "teamManagement", "sharedCredits", "sharedWorkspace", "workspaceDashboard" }, IsActive = true },
+            new() { Id = "business-pro", Name = "Business Pro", Price = 5000, Credits = 50000, PostsPerMonth = 20000, Members = 50, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation", "teamManagement", "sharedCredits", "sharedWorkspace", "workspaceDashboard", "lifetimeAssignedLimit", "monthlyAssignedLimit", "creditUsageReport", "topMemberAnalytics" }, IsActive = true }
         };
     }
 

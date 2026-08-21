@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, CREDIT_PACK_CODES, fetchPublicPricing } from "@/services/paymentService";
+import { createPayment, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -68,6 +68,14 @@ export default function CreditPackPage() {
 
   const [paymentError, setPaymentError] = useState("");
 
+  function formatCurrency(amount: number) {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
   useEffect(() => {
     const loadWallet = async () => {
       const wallet = await fetchCreditWallet();
@@ -116,7 +124,7 @@ export default function CreditPackPage() {
     setPurchasing(true);
 
     try {
-      const creditPackCode = CREDIT_PACK_CODES[selectedPack.name] || 1;
+      const creditPackCode = CREDIT_PACK_CODES_BY_ID[selectedPack.id] || 1;
       const payment = await createPayment({
         paymentType: 2,
         creditPackCode,
@@ -186,7 +194,7 @@ export default function CreditPackPage() {
               <div className="text-right">
                 <p className="text-label-sm text-outline">Maximum</p>
                 <p className="text-body-md font-semibold text-on-surface">
-                  {creditWallet?.maxBalance.toLocaleString() || 15000} credits
+                  {creditWallet?.maxBalance.toLocaleString() || "—"} credits
                 </p>
               </div>
             </div>

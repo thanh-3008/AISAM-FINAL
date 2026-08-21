@@ -56,6 +56,8 @@ public interface ICreditService
 
     Task<CreditWallet?> GetWalletAsync(Guid workspaceId, CancellationToken cancellationToken = default);
 
+    Task<long> GetMaximumBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default);
 
     Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default);
