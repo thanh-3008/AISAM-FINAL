@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { invalidateWorkspaceCache, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createBusinessWorkspacePayment, createPayment, synchronizeBusinessWorkspacePayment, PLAN_CODES, CREDIT_PACK_CODES, fetchPublicPricing } from "@/services/paymentService";
+import { createBusinessWorkspacePayment, createPayment, synchronizeBusinessWorkspacePayment, PLAN_CODES, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
@@ -59,6 +60,7 @@ function PricingContent() {
   const [syncingPayment, setSyncingPayment] = useState(false);
   const [displayPlans, setDisplayPlans] = useState<PlanPricing[]>(PLAN_PRICING);
   const [displayPacks, setDisplayPacks] = useState<CreditPackPricing[]>(CREDIT_PACK_PRICING);
+  const [pricingLoaded, setPricingLoaded] = useState(false);
 
   // Create workspace form state
   const [wsName, setWsName] = useState("");
@@ -82,41 +84,56 @@ function PricingContent() {
   useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
-    fetchPublicPricing().then((res) => {
-      if (res) {
-        setDisplayPlans(prev => prev.map(p => {
-          const expectedId = PRICING_SETTING_ID_BY_PLAN_TYPE[p.planType];
-          const matched = res.plans.find(bp =>
-            String(bp.id ?? "").toLowerCase() === expectedId ||
-            String(bp.name ?? "").toLowerCase() === p.name.toLowerCase()
-          );
-          if (matched) {
-            const postsPerMonth = Number(matched.postsPerMonth);
-            return {
-              ...p,
-              price: Number(matched.price ?? p.price),
-              priceFormatted: formatCurrency(Number(matched.price ?? p.price)),
-              credits: Number(matched.credits ?? p.credits),
-              postQuota: Number.isFinite(postsPerMonth) ? `${postsPerMonth.toLocaleString()} posts/month` : p.postQuota,
-              features: Array.isArray(matched.features) && matched.features.length > 0 ? matched.features : p.features,
-            };
-          }
-          return p;
-        }));
-        setDisplayPacks(prev => prev.map(p => {
-          const matched = res.creditPacks.find(bp => bp.name.toLowerCase() === p.name.toLowerCase());
-          if (matched) {
-            return {
-              ...p,
-              price: matched.price,
-              priceFormatted: formatCurrency(matched.price),
-              credits: matched.credits
-            };
-          }
-          return p;
-        }));
-      }
-    });
+    let mounted = true;
+    fetchPublicPricing()
+      .then((res) => {
+        if (!mounted) return;
+        if (res) {
+          setDisplayPlans(prev => prev.map(p => {
+            const expectedId = PRICING_SETTING_ID_BY_PLAN_TYPE[p.planType];
+            const matched = res.plans.find(bp =>
+              String(bp.id ?? "").toLowerCase() === expectedId ||
+              String(bp.name ?? "").toLowerCase() === p.name.toLowerCase()
+            );
+            if (matched) {
+              const postsPerMonth = Number(matched.postsPerMonth);
+              const price = Number(matched.price ?? p.price);
+              const credits = Number(matched.credits ?? p.credits);
+              return {
+                ...p,
+                price: Number.isFinite(price) ? price : p.price,
+                priceFormatted: formatCurrency(Number.isFinite(price) ? price : p.price),
+                credits: Number.isFinite(credits) ? credits : p.credits,
+                postQuota: Number.isFinite(postsPerMonth) ? `${postsPerMonth.toLocaleString()} posts/month` : p.postQuota,
+              };
+            }
+            return p;
+          }));
+          setDisplayPacks(prev => prev.map(p => {
+            const matched = res.creditPacks.find(bp =>
+              String(bp.id ?? "").toLowerCase() === p.id.toLowerCase() ||
+              String(bp.name ?? "").toLowerCase() === p.name.toLowerCase()
+            );
+            if (matched) {
+              const price = Number(matched.price ?? p.price);
+              const credits = Number(matched.credits ?? p.credits);
+              return {
+                ...p,
+                price: Number.isFinite(price) ? price : p.price,
+                priceFormatted: formatCurrency(Number.isFinite(price) ? price : p.price),
+                credits: Number.isFinite(credits) ? credits : p.credits
+              };
+            }
+            return p;
+          }));
+        }
+      })
+      .finally(() => {
+        if (mounted) setPricingLoaded(true);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -321,7 +338,7 @@ function PricingContent() {
     setProcessing(-1);
 
     try {
-      const creditPackCode = CREDIT_PACK_CODES[pack.name] || 1;
+      const creditPackCode = CREDIT_PACK_CODES_BY_ID[pack.id] || 1;
       const payment = await createPayment({
         paymentType: 2,
         creditPackCode,
@@ -383,12 +400,12 @@ function PricingContent() {
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             Back to {isClient && activeWorkspace ? "Dashboard" : "Overview"}
           </button>
-          <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-sm shadow-primary/20">
               <span className="material-symbols-outlined text-on-primary text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
             </div>
             <span className="text-headline-xs font-bold text-on-surface tracking-tight">AISAM</span>
-          </div>
+          </Link>
         </div>
 
         <div className="space-y-8">
@@ -578,7 +595,24 @@ function PricingContent() {
 
               {/* Plans Grid */}
               <div className="flex flex-wrap justify-center gap-4">
-                {filteredPlans.map((plan) => {
+                {!pricingLoaded ? (
+                  Array.from({ length: planCategory === "business" ? 2 : 3 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="w-[280px] sm:w-[260px] rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-5"
+                    >
+                      <div className="h-6 w-36 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-3 h-4 w-44 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-8 h-9 w-32 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-8 space-y-3">
+                        {Array.from({ length: 5 }).map((__, lineIndex) => (
+                          <div key={lineIndex} className="h-4 w-full rounded bg-surface-container-high animate-pulse" />
+                        ))}
+                      </div>
+                      <div className="mt-8 h-11 w-full rounded-xl bg-surface-container-high animate-pulse" />
+                    </div>
+                  ))
+                ) : filteredPlans.map((plan) => {
                   const current = !createMode && isCurrentPlan(plan.planType);
                   const lower = !createMode && isLowerPlan(plan.planType);
 
@@ -712,7 +746,20 @@ function PricingContent() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {displayPacks.map((pack) => {
+                {!pricingLoaded ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-5"
+                    >
+                      <div className="h-6 w-28 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-6 h-8 w-24 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-4 h-4 w-32 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-5 h-7 w-24 rounded bg-surface-container-high animate-pulse" />
+                      <div className="mt-6 h-10 w-full rounded-xl bg-surface-container-high animate-pulse" />
+                    </div>
+                  ))
+                ) : displayPacks.map((pack) => {
                   const pricePerCredit = (pack.price / pack.credits).toFixed(0);
                   return (
                     <div

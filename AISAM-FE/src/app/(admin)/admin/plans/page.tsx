@@ -6,9 +6,11 @@ import StatusBadge from "@/components/admin/StatusBadge";
 import { fetchAdminPlans, saveAdminPlans, fetchAdminCreditPacks, saveAdminCreditPacks, SubscriptionPlanDto, CreditPackDto } from "@/services/adminService";
 
 const allFeatures = [
-  "basicAnalytics", "advancedAnalytics", "generateText", "aiImage", "aiVideo",
-  "multiPlatformPublish", "schedulePost", "trendAnalysis", "holidaySuggestion",
-  "campaignRecommendation", "workspaceDashboard", "teamManagement"
+  "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar",
+  "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion",
+  "aiVideo", "advancedAnalytics", "campaignRecommendation", "teamManagement",
+  "sharedCredits", "sharedWorkspace", "workspaceDashboard",
+  "lifetimeAssignedLimit", "monthlyAssignedLimit", "creditUsageReport", "topMemberAnalytics"
 ];
 
 export default function AdminPlansPage() {

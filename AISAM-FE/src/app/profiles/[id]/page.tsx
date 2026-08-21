@@ -34,7 +34,7 @@ import {
 } from "@/services/workspaceService";
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 import { updateMemberRole, removeMember } from "@/services/teamService";
-import { fetchPublicPricing } from "@/services/paymentService";
+import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 
 interface Workspace {
@@ -170,7 +170,7 @@ export default function ProfileDetailPage() {
 
   // Credit wallet state
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
-  const [selectedCreditPack, setSelectedCreditPack] = useState<{ name: string; credits: number; price: string } | null>(null);
+  const [selectedCreditPack, setSelectedCreditPack] = useState<{ id: string; name: string; credits: number; price: string } | null>(null);
   const [showPurchaseConfirm, setShowPurchaseConfirm] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
@@ -705,9 +705,8 @@ export default function ProfileDetailPage() {
     if (!selectedCreditPack) return;
     setPurchasing(true);
     try {
-      const creditPackCodes: Record<string, number> = { Starter: 1, Standard: 2, Growth: 3, Business: 4 };
       const checkout = await createCreditPackCheckout({
-        creditPackCode: creditPackCodes[selectedCreditPack.name] || 1,
+        creditPackCode: CREDIT_PACK_CODES_BY_ID[selectedCreditPack.id] || 1,
         returnUrl: window.location.origin + "/profiles?payment=success",
         cancelUrl: window.location.origin + "/profiles?payment=cancelled",
       });
@@ -932,33 +931,6 @@ export default function ProfileDetailPage() {
   const subscriptionPlanLabel = normalizePlanLabel(subscription?.planName);
   const initials = workspace ? getInitials(workspace.name) : "?";
   const statusInfo = workspace ? statusConfig[workspace.status] || statusConfig[0] : statusConfig[0];
-  const getDynamicPlanDisplay = (planName: string, fallbackPrice: string) => {
-    const matched = displayPlans.find((plan) => plan.name === planName);
-    return {
-      price: matched?.priceFormatted ?? fallbackPrice,
-      credits: matched?.credits,
-      postQuota: matched?.postQuota,
-    };
-  };
-
-  const getDynamicCreditPackDisplay = (packName: string, fallbackPrice: string) => {
-    const matched = displayCreditPacks.find((pack) => pack.name === packName);
-    return {
-      price: matched?.priceFormatted ?? fallbackPrice,
-      credits: matched?.credits,
-    };
-  };
-
-  const getDynamicPlanFeature = (planName: string, feature: string) => {
-    const dynamicPlan = getDynamicPlanDisplay(planName, "");
-    if (/credits?/i.test(feature) && dynamicPlan.credits !== undefined) {
-      return `${dynamicPlan.credits.toLocaleString()} Credits`;
-    }
-    if (/posts?/i.test(feature) && dynamicPlan.postQuota) {
-      return dynamicPlan.postQuota;
-    }
-    return feature;
-  };
 
   return (
     <div className="min-h-dvh bg-surface flex">
@@ -2668,8 +2640,8 @@ export default function ProfileDetailPage() {
                     )}
 
                     {/* Current Plan Card */}
-                    <motion.div variants={reduceMotion ? undefined : item} className="bg-linear-to-br from-primary via-primary-container to-secondary rounded-2xl p-px shadow-lg shadow-primary/20">
-                      <div className="bg-surface-container-lowest rounded-2xl p-6">
+                    <motion.div variants={reduceMotion ? undefined : item} className="rounded-2xl shadow-lg shadow-primary/15 overflow-hidden">
+                      <div className="bg-linear-to-br from-primary/5 via-surface-container-lowest to-secondary/5 p-6">
                         {loadingSubscription ? (
                           <div className="flex items-center justify-center py-8">
                             <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mr-3" />
@@ -2677,22 +2649,22 @@ export default function ProfileDetailPage() {
                           </div>
                         ) : (
                           <>
-                            <div className="flex items-start justify-between gap-4 mb-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                               <div className="flex items-center gap-4">
-                                <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
-                                  <span className="material-symbols-outlined text-white text-[32px]">workspace_premium</span>
+                                <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/25 shrink-0">
+                                  <span className="material-symbols-outlined text-white text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
                                 </div>
                                 <div>
-                                  <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex items-center gap-2.5 flex-wrap">
                                     <h3 className="text-xl font-bold text-on-surface">
                                       {subscriptionPlanLabel} Plan
                                     </h3>
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold border ${statusInfo.class}`}>
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-label-xs font-semibold border ${statusInfo.class}`}>
                                       <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${workspace?.status === 1 ? "animate-pulse" : ""}`} />
                                       {subscription?.status || statusInfo.label}
                                     </span>
                                   </div>
-                                  <p className="text-body-sm text-on-surface-variant">
+                                  <p className="text-body-sm text-on-surface-variant mt-0.5">
                                     {subscription?.endDate
                                       ? `Active until ${new Date(subscription.endDate).toLocaleDateString()}`
                                       : "Your current subscription plan"}
@@ -2711,42 +2683,40 @@ export default function ProfileDetailPage() {
                               )}
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-outline-variant/15">
-                              <div className="p-4 rounded-xl bg-surface-container/40">
-                                <div className="flex items-center gap-2 mb-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-5 border-t border-outline-variant/15">
+                              <div className="p-3.5 rounded-xl bg-surface-container-lowest/80 border border-outline-variant/10">
+                                <div className="flex items-center gap-2 mb-1.5">
                                   <span className="material-symbols-outlined text-primary text-[18px]">autorenew</span>
                                   <p className="text-label-sm text-on-surface-variant">Billing Cycle</p>
                                 </div>
-                                <p className="text-body-md text-on-surface font-semibold">Monthly</p>
-                                <p className="text-label-xs text-outline mt-1">
-                                  Manual renewal
-                                </p>
+                                <p className="text-body-sm text-on-surface font-semibold">Monthly</p>
+                                <p className="text-label-xs text-outline mt-0.5">Manual renewal</p>
                               </div>
-                              <div className="p-4 rounded-xl bg-surface-container/40">
-                                <div className="flex items-center gap-2 mb-2">
+                              <div className="p-3.5 rounded-xl bg-surface-container-lowest/80 border border-outline-variant/10">
+                                <div className="flex items-center gap-2 mb-1.5">
                                   <span className="material-symbols-outlined text-primary text-[18px]">event</span>
                                   <p className="text-label-sm text-on-surface-variant">Next Payment</p>
                                 </div>
-                                <p className="text-body-md text-on-surface font-semibold">
+                                <p className="text-body-sm text-on-surface font-semibold">
                                   {subscription?.endDate
                                     ? new Date(subscription.endDate).toLocaleDateString()
                                     : nextPaymentDate}
                                 </p>
-                                <p className="text-label-xs text-outline mt-1">
+                                <p className="text-label-xs text-outline mt-0.5">
                                   {subscriptionPlanLabel === "Free" ? "Free plan" : "Renews at current pricing"}
                                 </p>
                               </div>
-                              <div className="p-4 rounded-xl bg-surface-container/40">
-                                <div className="flex items-center gap-2 mb-2">
+                              <div className="p-3.5 rounded-xl bg-surface-container-lowest/80 border border-outline-variant/10">
+                                <div className="flex items-center gap-2 mb-1.5">
                                   <span className="material-symbols-outlined text-primary text-[18px]">calendar_month</span>
                                   <p className="text-label-sm text-on-surface-variant">Start Date</p>
                                 </div>
-                                <p className="text-body-md text-on-surface font-semibold">
+                                <p className="text-body-sm text-on-surface font-semibold">
                                   {subscription?.startDate
                                     ? new Date(subscription.startDate).toLocaleDateString()
                                     : "—"}
                                 </p>
-                                <p className="text-label-xs text-outline mt-1">Subscription start</p>
+                                <p className="text-label-xs text-outline mt-0.5">Subscription start</p>
                               </div>
                             </div>
                           </>
@@ -2759,89 +2729,79 @@ export default function ProfileDetailPage() {
                       <h3 className="text-body-lg font-semibold text-on-surface mb-4">Compare Plans</h3>
                       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${isBusinessWorkspace ? "2" : "3"} gap-4`}>
                         {(() => {
-                          const plans = [
-                            ...(!isBusinessWorkspace ? [{
-                              name: "Free",
-                              planType: 0,
-                              price: "$0",
-                              period: "/month",
-                              current: subscriptionPlanLabel === "Free",
-                              features: ["Generate Text", "Manual Post", "Basic Analytics", "50 AI Credits/7 days", "20 Posts/week"],
-                              cta: "Current Plan",
-                            }] : []),
-                            {
-                              name: isBusinessWorkspace ? "Business Plus" : "Personal Plus",
-                              planType: 1,
-                              price: isBusinessWorkspace ? "4,000₫" : "2,000₫",
-                              period: "/month",
-                              current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus"),
-                              popular: true,
-                              features: isBusinessWorkspace
-                                ? ["Team Management", "Shared Credits Pool", "Shared Workspace", "Workspace Dashboard", "Up to 10 Team Members", "15,000 Credits"]
-                                : ["All Free features", "AI Image", "Content Calendar", "Schedule Post", "Multi Platform Publish", "500 Credits"],
-                              cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Plus" : "Personal Plus") ? "Current Plan" : "Upgrade",
-                            },
-                            {
-                              name: isBusinessWorkspace ? "Business Pro" : "Personal Pro",
-                              planType: 2,
-                              price: isBusinessWorkspace ? "5,000₫" : "3,000₫",
-                              period: "/month",
-                              current: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro"),
-                              features: isBusinessWorkspace
-                                ? ["All Business Plus features", "Lifetime Assigned Limit", "Monthly Assigned Limit", "Credit Usage Report", "Up to 50 Team Members", "50,000 Credits"]
-                                : ["All Personal Plus features", "Trend Analysis", "AI Video", "Advanced Analytics", "2,000 Credits", "1,000 Posts/month"],
-                              cta: subscriptionPlanLabel === (isBusinessWorkspace ? "Business Pro" : "Personal Pro") ? "Current Plan" : "Upgrade",
-                            },
-                          ];
-                          const currentTier = plans.find(p => p.current)?.planType ?? 0;
-                          return plans.map((plan) => {
-                            const isDowngrade = !plan.current && plan.planType < currentTier;
+                          const filteredPlans = displayPlans.filter(
+                            p => isBusinessWorkspace ? p.category === "business" : p.category === "personal"
+                          );
+                          const currentPlanFromState = filteredPlans.find(p => {
+                            const label = normalizePlanLabel(subscription?.planName);
+                            return p.name === label || (p.planType === 0 && label === "Free");
+                          });
+                          const currentTier = currentPlanFromState?.planType ?? 0;
+                          return filteredPlans.map((plan) => {
+                            const isDowngrade = plan.planType !== currentPlanFromState?.planType && plan.planType < currentTier;
+                            const isCurrent = plan.planType === currentPlanFromState?.planType;
                             return (
                           <div
-                            key={plan.name}
-                            className={`relative rounded-2xl border p-6 ${plan.popular
-                                ? "border-primary shadow-lg shadow-primary/10 bg-linear-to-b from-primary/5 to-transparent"
-                                : plan.current
-                                  ? "border-primary/30 bg-primary/5"
-                                  : "border-outline-variant/20 bg-surface-container-lowest"
-                              }`}
+                            key={plan.planType}
+                            className={`relative rounded-2xl border p-5 flex flex-col ${
+                              isCurrent
+                                ? "border-primary/40 bg-primary/5 shadow-md shadow-primary/10"
+                                : plan.popular
+                                  ? "border-primary shadow-lg shadow-primary/10 bg-linear-to-b from-primary/5 to-transparent"
+                                  : "border-outline-variant/20 bg-surface-container-lowest hover:shadow-md transition-shadow"
+                            }`}
                           >
-                            {plan.popular && (
+                            {isCurrent && (
                               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                <span className="px-3 py-1 bg-linear-to-r from-primary to-secondary text-white text-label-xs font-bold rounded-full shadow-md">
+                                <span className="px-3 py-1 bg-primary text-white text-label-2xs font-bold rounded-full shadow-sm flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                  Current Plan
+                                </span>
+                              </div>
+                            )}
+                            {plan.popular && !isCurrent && (
+                              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                                <span className="px-3 py-1 bg-linear-to-r from-primary to-secondary text-white text-label-2xs font-bold rounded-full shadow-md">
                                   Most Popular
                                 </span>
                               </div>
                             )}
-                            <div className="mb-4">
+                            <div className="mb-3 pt-1">
                               <h4 className="text-body-lg font-bold text-on-surface">{plan.name}</h4>
-                              <div className="flex items-baseline gap-1 mt-2">
-                                <span className="text-3xl font-bold text-on-surface">{getDynamicPlanDisplay(plan.name, plan.price).price}</span>
-                                <span className="text-body-sm text-outline">{plan.period}</span>
+                              <div className="flex items-baseline gap-1 mt-1.5">
+                                <span className="text-2xl font-bold text-on-surface">{plan.priceFormatted}</span>
+                                <span className="text-label-sm text-outline">{plan.period}</span>
                               </div>
                             </div>
-                            <ul className="space-y-2.5 mb-6">
+                            <ul className="space-y-2 mb-5 flex-1">
                               {plan.features.map((feature) => (
-                                <li key={feature} className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-emerald-500 text-[16px]">check_circle</span>
-                                  <span className="text-label-sm text-on-surface-variant">{getDynamicPlanFeature(plan.name, feature)}</span>
+                                <li key={feature} className="flex items-start gap-2">
+                                  <span className="material-symbols-outlined text-emerald-500 text-[16px] mt-0.5 shrink-0">check_circle</span>
+                                  <span className="text-label-sm text-on-surface-variant">{feature}</span>
                                 </li>
                               ))}
                             </ul>
                             <motion.button
                               whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                              onClick={() => !plan.current && handleUpgradePlan(plan.planType)}
-                              disabled={plan.current || upgradingPlan}
-                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all ${plan.popular
-                                  ? "bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
-                                  : plan.current
+                              onClick={() => !isCurrent && !isDowngrade && handleUpgradePlan(plan.planType)}
+                              disabled={isCurrent || isDowngrade || upgradingPlan}
+                              className={`w-full py-2.5 rounded-xl text-body-sm font-semibold transition-all disabled:cursor-not-allowed ${
+                                isCurrent
+                                  ? "bg-primary/10 text-primary border border-primary/20 cursor-default"
+                                  : isDowngrade
                                     ? "bg-primary/10 text-primary border border-primary/20 cursor-default"
-                                    : isDowngrade
-                                      ? "bg-amber-50 border border-amber-200/50 text-amber-700 hover:bg-amber-100"
+                                    : plan.popular
+                                      ? "bg-linear-to-r from-primary to-secondary text-white hover:opacity-90 shadow-md shadow-primary/20"
                                       : "bg-surface-container border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
-                                } disabled:opacity-60 disabled:cursor-not-allowed`}
+                              } disabled:opacity-70`}
                             >
-                              {upgradingPlan && !plan.current ? "Processing..." : isDowngrade ? "Downgrade" : plan.cta}
+                              {upgradingPlan && !isCurrent && !isDowngrade
+                                ? "Processing..."
+                                : isDowngrade
+                                  ? "Current Plan"
+                                  : isCurrent
+                                    ? "Current Plan"
+                                    : plan.cta}
                             </motion.button>
                           </div>
                             );
@@ -2872,14 +2832,9 @@ export default function ProfileDetailPage() {
                       )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                          { name: "Starter", credits: 100, price: "2,000₫", icon: "bolt" },
-                          { name: "Standard", credits: 500, price: "3,000₫", icon: "electric_bolt", popular: true },
-                          { name: "Growth", credits: 1500, price: "4,000₫", icon: "local_fire_department" },
-                          { name: "Business", credits: 5000, price: "5,000₫", icon: "whatshot" },
-                        ].map((pack) => (
+                        {displayCreditPacks.map((pack) => (
                           <div
-                            key={pack.name}
+                            key={pack.id}
                             className={`relative rounded-2xl border p-5 ${pack.popular
                                 ? "border-primary shadow-lg shadow-primary/10 bg-linear-to-b from-primary/5 to-transparent"
                                 : "border-outline-variant/20 bg-surface-container-lowest"
@@ -2897,18 +2852,18 @@ export default function ProfileDetailPage() {
                               <h4 className="text-body-md font-bold text-on-surface">{pack.name}</h4>
                             </div>
                             <div className="mb-3">
-                              <span className="text-2xl font-bold text-on-surface">{(getDynamicCreditPackDisplay(pack.name, pack.price).credits ?? pack.credits).toLocaleString()}</span>
+                              <span className="text-2xl font-bold text-on-surface">{pack.credits.toLocaleString()}</span>
                               <span className="text-label-sm text-outline ml-1">Credits</span>
                             </div>
-                            <p className="text-body-lg font-semibold text-primary mb-4">{getDynamicCreditPackDisplay(pack.name, pack.price).price}</p>
+                            <p className="text-body-lg font-semibold text-primary mb-4">{pack.priceFormatted}</p>
                             <motion.button
                               whileTap={reduceMotion ? undefined : { scale: 0.97 }}
                               onClick={() => {
-                                const dynamicPack = getDynamicCreditPackDisplay(pack.name, pack.price);
                                 setSelectedCreditPack({
+                                  id: pack.id,
                                   name: pack.name,
-                                  credits: dynamicPack.credits ?? pack.credits,
-                                  price: dynamicPack.price,
+                                  credits: pack.credits,
+                                  price: pack.priceFormatted,
                                 });
                                 setShowPurchaseConfirm(true);
                               }}

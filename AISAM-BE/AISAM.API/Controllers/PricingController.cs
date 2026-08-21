@@ -10,7 +10,7 @@ namespace AISAM.API.Controllers;
 
 [ApiController]
 [Route("api/pricing")]
-[Authorize]
+[AllowAnonymous]
 public sealed class PricingController : ControllerBase
 {
     private readonly ISystemSettingRepository _settingRepository;
@@ -23,6 +23,8 @@ public sealed class PricingController : ControllerBase
     [HttpGet("plans")]
     public async Task<ActionResult<GenericResponse<object>>> GetPlans(CancellationToken cancellationToken = default)
     {
+        Response.Headers.Append("Cache-Control", "no-store, no-cache, must-revalidate");
+
         var setting = await _settingRepository.GetByKeyAsync("subscription.plans");
         if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
         {
@@ -43,6 +45,8 @@ public sealed class PricingController : ControllerBase
     [HttpGet("credit-packs")]
     public async Task<ActionResult<GenericResponse<object>>> GetCreditPacks(CancellationToken cancellationToken = default)
     {
+        Response.Headers.Append("Cache-Control", "no-store, no-cache, must-revalidate");
+
         var setting = await _settingRepository.GetByKeyAsync("credit.packs");
         if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
         {
@@ -64,11 +68,11 @@ public sealed class PricingController : ControllerBase
     {
         return new List<SubscriptionPlanDto>
         {
-            new() { Id = "free", Name = "Free", Price = 0, Credits = 50, PostsPerMonth = 20, Members = 1, Features = new List<string> { "basicAnalytics", "generateText" }, IsActive = true },
-            new() { Id = "plus", Name = "Plus", Price = 2000, Credits = 500, PostsPerMonth = 300, Members = 1, Features = new List<string> { "basicAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage" }, IsActive = true },
-            new() { Id = "premium", Name = "Premium", Price = 3000, Credits = 2000, PostsPerMonth = 1000, Members = 1, Features = new List<string> { "basicAnalytics", "advancedAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "aiVideo", "trendAnalysis", "holidaySuggestion", "campaignRecommendation" }, IsActive = true },
-            new() { Id = "business-plus", Name = "Business Plus", Price = 4000, Credits = 15000, PostsPerMonth = 5000, Members = 10, Features = new List<string> { "basicAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "workspaceDashboard" }, IsActive = true },
-            new() { Id = "business-pro", Name = "Business Pro", Price = 5000, Credits = 50000, PostsPerMonth = 20000, Members = 50, Features = new List<string> { "basicAnalytics", "advancedAnalytics", "generateText", "multiPlatformPublish", "schedulePost", "aiImage", "aiVideo", "trendAnalysis", "holidaySuggestion", "campaignRecommendation", "workspaceDashboard" }, IsActive = true }
+            new() { Id = "free", Name = "Free", Price = 0, Credits = 50, PostsPerMonth = 20, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics" }, IsActive = true },
+            new() { Id = "plus", Name = "Plus", Price = 2000, Credits = 500, PostsPerMonth = 300, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish" }, IsActive = true },
+            new() { Id = "premium", Name = "Premium", Price = 3000, Credits = 2000, PostsPerMonth = 1000, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation" }, IsActive = true },
+            new() { Id = "business-plus", Name = "Business Plus", Price = 4000, Credits = 15000, PostsPerMonth = 5000, Members = 10, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation", "teamManagement", "sharedCredits", "sharedWorkspace", "workspaceDashboard" }, IsActive = true },
+            new() { Id = "business-pro", Name = "Business Pro", Price = 5000, Credits = 50000, PostsPerMonth = 20000, Members = 50, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation", "teamManagement", "sharedCredits", "sharedWorkspace", "workspaceDashboard", "lifetimeAssignedLimit", "monthlyAssignedLimit", "creditUsageReport", "topMemberAnalytics" }, IsActive = true }
         };
     }
 

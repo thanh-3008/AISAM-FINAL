@@ -392,6 +392,12 @@ public sealed class CreditService : ICreditService
             : PersonalMaximumBalance;
     }
 
+    public async Task<long> GetMaximumBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var workspace = await _workspaceRepository.GetByIdAsync(workspaceId);
+        return ResolveMaximumBalance(workspace?.WorkspaceType ?? WorkspaceTypeEnum.Personal);
+    }
+
     private async Task<GenericResponse<CreditWallet>> GrantCreditsAsync(
         Guid workspaceId,
         Guid userId,

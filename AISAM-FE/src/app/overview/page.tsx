@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
@@ -187,12 +188,12 @@ export default function OverviewPage() {
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] as const }}
           className="mb-10 md:mb-12 text-center w-full"
         >
-          <div className="flex items-center justify-center gap-2.5 mb-6">
+          <Link href="/" className="mx-auto flex w-fit items-center justify-center gap-2.5 mb-6 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
               <span className="material-symbols-outlined text-on-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
             </div>
             <span className="text-headline-sm font-bold text-on-surface tracking-tight">AISAM</span>
-          </div>
+          </Link>
           
           <h1 className="text-3xl md:text-4xl font-bold text-on-surface tracking-tight leading-tight mb-3">
             {hasWorkspaces ? "Choose your workspace" : "Get started"}
