@@ -55,6 +55,13 @@ export const CREDIT_PACK_CODES: Record<string, number> = {
   Business: 4,
 };
 
+export const CREDIT_PACK_CODES_BY_ID: Record<string, number> = {
+  starter: 1,
+  standard: 2,
+  growth: 3,
+  business: 4,
+};
+
 /* ─── API calls ─── */
 
 export async function createPayment(data: CreateCheckoutRequest): Promise<CheckoutResponse | null> {
@@ -109,17 +116,25 @@ export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<
   }
 }
 
+function readPricingList(data: any, key: "plans" | "creditPacks") {
+  const pascalKey = key === "plans" ? "Plans" : "CreditPacks";
+  return data?.data?.[key] ?? data?.data?.[pascalKey] ?? [];
+}
+
 export async function fetchPublicPricing(): Promise<{ plans: any[], creditPacks: any[] } | null> {
   try {
     const [plansRes, creditPacksRes] = await Promise.all([
-      fetch(`${API_URL}/pricing/plans`),
-      fetch(`${API_URL}/pricing/credit-packs`)
+      fetch(`${API_URL}/pricing/plans?t=${Date.now()}`, { cache: "no-store" }),
+      fetch(`${API_URL}/pricing/credit-packs?t=${Date.now()}`, { cache: "no-store" })
     ]);
+    if (!plansRes.ok || !creditPacksRes.ok) {
+      throw new Error("Pricing endpoint returned an error.");
+    }
     const plansData = await plansRes.json();
     const creditPacksData = await creditPacksRes.json();
     return {
-      plans: plansData?.data?.plans || [],
-      creditPacks: creditPacksData?.data?.creditPacks || []
+      plans: readPricingList(plansData, "plans"),
+      creditPacks: readPricingList(creditPacksData, "creditPacks")
     };
   } catch (error) {
     console.error("fetchPublicPricing failed", error);

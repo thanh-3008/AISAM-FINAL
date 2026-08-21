@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
 
@@ -94,8 +95,10 @@ export default function AdminSidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-gray-950 text-gray-100 flex flex-col z-50">
       <div className="p-6 border-b border-gray-800">
-        <h1 className="text-xl font-bold text-white">AISAM</h1>
-        <p className="text-xs text-gray-500 mt-1">Admin Panel</p>
+        <Link href="/admin/dashboard" className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+          <h1 className="text-xl font-bold text-white">AISAM</h1>
+          <p className="text-xs text-gray-500 mt-1">Admin Panel</p>
+        </Link>
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

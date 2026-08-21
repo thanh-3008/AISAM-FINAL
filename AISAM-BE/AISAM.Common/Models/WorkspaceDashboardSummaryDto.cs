@@ -5,6 +5,7 @@ public sealed class WorkspaceDashboardSummaryDto
     public Guid WorkspaceId { get; set; }
     public long CreditBalance { get; set; }
     public long CreditsUsed { get; set; }
+    public long MaxBalanceCap { get; set; }
     public int PublishedPostCount { get; set; }
     public int PostQuotaLimit { get; set; }
     public int PostsRemaining { get; set; }

@@ -762,7 +762,8 @@ public sealed class PayOSPaymentService : IPaymentService
                         if (workspace != null)
                         {
                             var wallet = await _creditWalletRepository.GetByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
-                            var planCredits = ResolvePlanCreditAmount(workspace.WorkspaceType, subscription.Plan);
+                            var activePlanDefinition = await GetPlanDefinitionAsync(workspace.WorkspaceType, subscription.Plan);
+                            var planCredits = activePlanDefinition.CreditAmount;
                             if (wallet == null || wallet.Balance < planCredits)
                             {
                                 await _creditService.GrantSubscriptionCreditsAsync(
@@ -998,7 +999,8 @@ public sealed class PayOSPaymentService : IPaymentService
                             matched.Price,
                             matched.Credits,
                             matched.PostsPerMonth,
-                            0, // Users don't use this directly
+                            matched.PostsPerMonth,
+                            1,
                             1,
                             1,
                             0,
@@ -1017,14 +1019,14 @@ public sealed class PayOSPaymentService : IPaymentService
         // Default Fallback
         return (workspaceType, plan) switch
         {
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(2_000m, 500, 300, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(3_000m, 2_000, 1_000, 30, 3, 5, 2, 10_000_000m, 10),
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 0m, 1),
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 50, 20, 0, 1, 1, 0, 0m, 0),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(4_000m, 15_000, 5_000, 10, 2, 2, 1, 3_000_000m, 3),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(5_000m, 50_000, 20_000, 30, 3, 5, 2, 10_000_000m, 10),
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 1_000, 10, 3, 1, 1, 1, 0m, 1),
-            _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 0, 0m, 0)
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => new PlanDefinition(2_000m, 500, 300, 10, 2, 2, 1, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => new PlanDefinition(3_000m, 2_000, 1_000, 30, 3, 5, 2, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 300, 10, 3, 1, 1, 1, 1, 0m, 1),
+            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => new PlanDefinition(0m, 50, 20, 0, 1, 1, 1, 0, 0m, 0),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => new PlanDefinition(4_000m, 15_000, 5_000, 10, 2, 2, 1, 1, 3_000_000m, 3),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => new PlanDefinition(5_000m, 50_000, 20_000, 30, 3, 5, 2, 2, 10_000_000m, 10),
+            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => new PlanDefinition(0m, 1_000, 10, 3, 1, 1, 1, 1, 0m, 1),
+            _ => new PlanDefinition(0m, 20, 0, 0, 1, 1, 1, 0, 0m, 0)
         };
     }
 
@@ -1082,21 +1084,6 @@ public sealed class PayOSPaymentService : IPaymentService
             SubscriptionPlanEnum.Premium => 50,
             SubscriptionPlanEnum.Plus => 10,
             _ => 1
-        };
-    }
-
-    private static long ResolvePlanCreditAmount(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
-    {
-        return (workspaceType, plan) switch
-        {
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Free) => 50,
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Plus) => 500,
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.Premium) => 2_000,
-            (WorkspaceTypeEnum.Personal, SubscriptionPlanEnum.PlusTrial) => 100,
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Plus) => 15_000,
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.PlusTrial) => 1_000,
-            (WorkspaceTypeEnum.Business, SubscriptionPlanEnum.Premium) => 50_000,
-            _ => 0
         };
     }
 
@@ -1199,6 +1186,7 @@ public sealed class PayOSPaymentService : IPaymentService
 
     private sealed record PlanDefinition(
         decimal Amount,
+        long CreditAmount,
         int PostQuota,
         int PromptQuota,
         int ImageQuota,

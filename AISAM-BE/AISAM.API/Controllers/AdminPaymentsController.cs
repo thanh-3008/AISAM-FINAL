@@ -6,6 +6,7 @@ using AISAM.Services.IServices;
 using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace AISAM.API.Controllers;
 
@@ -20,6 +21,7 @@ public sealed class AdminPaymentsController : ControllerBase
     private readonly IUserRepository _userRepository;
     private readonly ILogger<AdminPaymentsController> _logger;
     private readonly IAuditLogRepository _auditLogRepository;
+    private readonly ISystemSettingRepository _settingRepository;
 
     public AdminPaymentsController(
         IAdminService adminService,
@@ -27,7 +29,8 @@ public sealed class AdminPaymentsController : ControllerBase
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
         ILogger<AdminPaymentsController> logger,
-        IAuditLogRepository auditLogRepository)
+        IAuditLogRepository auditLogRepository,
+        ISystemSettingRepository settingRepository)
     {
         _adminService = adminService;
         _dashboardService = dashboardService;
@@ -35,6 +38,7 @@ public sealed class AdminPaymentsController : ControllerBase
         _userRepository = userRepository;
         _logger = logger;
         _auditLogRepository = auditLogRepository;
+        _settingRepository = settingRepository;
     }
 
         [HttpGet]
@@ -79,6 +83,7 @@ public sealed class AdminPaymentsController : ControllerBase
 
         var request = new PaginationRequest { Page = page, PageSize = pageSize };
         var result = await _subscriptionRepository.GetPagedAllAsync(request, cancellationToken);
+        var planPrices = await GetCurrentPlanPricesAsync();
         var items = result.Data.Select(s => new
         {
             s.Id,
@@ -88,7 +93,9 @@ public sealed class AdminPaymentsController : ControllerBase
             s.IsActive,
             s.CreatedAt,
             WorkspaceName = s.Workspace?.Name ?? "N/A",
-            WorkspaceId = s.WorkspaceId
+            WorkspaceId = s.WorkspaceId,
+            WorkspaceType = s.Workspace?.WorkspaceType,
+            CurrentPrice = planPrices.GetValueOrDefault(GetPlanSettingId(s.Workspace?.WorkspaceType ?? WorkspaceTypeEnum.Personal, s.Plan), 0m)
         }).ToList();
 
         return Ok(GenericResponse<object>.CreateSuccess(new { Items = items, Total = result.TotalCount }));
@@ -147,6 +154,57 @@ public sealed class AdminPaymentsController : ControllerBase
             Notes = string.IsNullOrWhiteSpace(request.Reason) ? "Administrative subscription update" : request.Reason.Trim()
         }, cancellationToken);
         return Ok(GenericResponse<bool>.CreateSuccess(true, "Subscription updated."));
+    }
+
+    private async Task<Dictionary<string, decimal>> GetCurrentPlanPricesAsync()
+    {
+        var setting = await _settingRepository.GetByKeyAsync("subscription.plans");
+        if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
+        {
+            return GetDefaultPlanPrices();
+        }
+
+        try
+        {
+            var plans = JsonSerializer.Deserialize<List<SubscriptionPlanDto>>(setting.Value);
+            return plans?
+                .Where(plan => !string.IsNullOrWhiteSpace(plan.Id))
+                .ToDictionary(plan => plan.Id.Trim().ToLowerInvariant(), plan => plan.Price)
+                ?? GetDefaultPlanPrices();
+        }
+        catch
+        {
+            return GetDefaultPlanPrices();
+        }
+    }
+
+    private static Dictionary<string, decimal> GetDefaultPlanPrices() => new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["free"] = 0m,
+        ["plus"] = 2_000m,
+        ["premium"] = 3_000m,
+        ["business-plus"] = 4_000m,
+        ["business-pro"] = 5_000m
+    };
+
+    private static string GetPlanSettingId(WorkspaceTypeEnum workspaceType, SubscriptionPlanEnum plan)
+    {
+        if (workspaceType == WorkspaceTypeEnum.Business)
+        {
+            return plan switch
+            {
+                SubscriptionPlanEnum.Plus => "business-plus",
+                SubscriptionPlanEnum.Premium => "business-pro",
+                _ => "free"
+            };
+        }
+
+        return plan switch
+        {
+            SubscriptionPlanEnum.Plus => "plus",
+            SubscriptionPlanEnum.Premium => "premium",
+            _ => "free"
+        };
     }
 
     [HttpPatch("{id:guid}/refund")]

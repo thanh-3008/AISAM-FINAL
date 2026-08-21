@@ -436,6 +436,8 @@ export interface AdminSubscription {
   createdAt: string;
   workspaceName: string;
   workspaceId: string;
+  workspaceType?: number;
+  currentPrice: number;
 }
 
 export async function fetchAdminSubscriptions(page = 1, pageSize = 20): Promise<{ items: AdminSubscription[]; total: number } | null> {
@@ -553,8 +555,8 @@ export interface CreditPackDto {
 
 export async function fetchAdminCreditPacks(): Promise<CreditPackDto[] | null> {
   try {
-    const res: GenericResponse<{ creditPacks: CreditPackDto[] }> = await apiClient("/admin/plans/credit-packs");
-    return res?.data?.creditPacks ?? null;
+    const res: GenericResponse<{ creditPacks?: CreditPackDto[]; CreditPacks?: CreditPackDto[] }> = await apiClient("/admin/plans/credit-packs");
+    return res?.data?.creditPacks ?? res?.data?.CreditPacks ?? null;
   } catch { return null; }
 }
 

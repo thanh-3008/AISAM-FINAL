@@ -112,6 +112,7 @@ export async function fetchCreditWallet(): Promise<{
       workspaceId?: string;
       creditBalance?: number;
       creditsUsed?: number;
+      maxBalanceCap?: number;
       publishedPostCount?: number;
       postQuotaLimit?: number;
       postsRemaining?: number;
@@ -130,7 +131,7 @@ export async function fetchCreditWallet(): Promise<{
       id: sub?.subscriptionId || "",
       workspaceId: dash?.workspaceId || wallet?.workspaceId || "",
       balance,
-      maxBalance: (dash?.creditBalance ?? wallet?.balance ?? 0) + (dash?.creditsUsed ?? 0),
+      maxBalance: dash?.maxBalanceCap ?? (balance + (dash?.creditsUsed ?? 0)),
       creditsUsed: dash?.creditsUsed ?? 0,
       publishedPostCount: dash?.publishedPostCount ?? 0,
       postQuotaLimit: dash?.postQuotaLimit ?? 0,
