@@ -66,12 +66,6 @@ interface QuickSuggestion {
 
 const BASE_SUGGESTIONS: QuickSuggestion[] = [
   {
-    id: "caption",
-    icon: "edit_document",
-    label: "Viết caption tự động",
-    template: (ctx) => `Hãy viết một caption ngắn gọn, thu hút về sản phẩm ${ctx.productName} cho nền tảng ${ctx.platformLabel}.`
-  },
-  {
     id: "article",
     icon: "article",
     label: "Viết bài viết chi tiết",
@@ -81,7 +75,7 @@ const BASE_SUGGESTIONS: QuickSuggestion[] = [
     id: "image",
     icon: "image",
     label: "Sinh hình ảnh minh họa",
-    template: (ctx) => `Tạo một hình ảnh mô tả sinh động về sản phẩm ${ctx.productName}.`
+    template: (ctx) => `Tạo một hình ảnh mô tả sinh động về sản phẩm ${ctx.productName}, đồng thời sinh ra tiêu đề và caption phù hợp cho bài viết trên ${ctx.platformLabel}.`
   },
 ];
 
@@ -91,7 +85,7 @@ const PLATFORM_EXTRA_SUGGESTIONS: Record<string, QuickSuggestion[]> = {
       id: "video",
       icon: "movie",
       label: "Tạo kịch bản video",
-      template: (ctx) => `Tạo một kịch bản video TikTok dài 15 giây giới thiệu sản phẩm ${ctx.productName} thật viral.`
+      template: (ctx) => `Tạo một kịch bản video TikTok dài 15 giây giới thiệu sản phẩm ${ctx.productName} thật viral, đồng thời sinh ra tiêu đề và caption phù hợp.`
     }
   ]
 };
