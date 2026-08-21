@@ -327,3 +327,13 @@ input::-ms-clear {
   display: none;
 }
 
+
+@keyframes slideLeftRight {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(calc(-100% + 140px)); }
+  100% { transform: translateX(0); }
+}
+.animate-slide-lr {
+  display: inline-block;
+  animation: slideLeftRight 5s linear infinite;
+}

@@ -101,6 +101,7 @@ namespace AISAM.Services.Service
                 ProductUrl = NormalizeUrl(request.ProductUrl),
                 Price = request.Price,
                 Stock = request.Stock,
+                Status = "Active",
                 Images = JsonSerializer.Serialize(new List<string>())
             };
 
@@ -147,12 +148,18 @@ namespace AISAM.Services.Service
             var features = CleanList(request.Features);
             var keywords = CleanList(request.Keywords);
 
+            var productName = request.ProductName.Trim();
+            if (productName.Length > 255) productName = productName.Substring(0, 255);
+            var sourceUrl = NormalizeUrl(request.SourceUrl);
+            if (sourceUrl?.Length > 2000) sourceUrl = sourceUrl.Substring(0, 2000);
+
             var product = new Product
             {
                 BrandId = request.BrandId,
-                Name = request.ProductName.Trim(),
+                Name = productName,
+                Status = "Active",
                 Description = NormalizeOptional(request.Description),
-                ProductUrl = NormalizeUrl(request.SourceUrl),
+                ProductUrl = sourceUrl,
                 Price = request.Price,
                 Stock = request.Stock ?? 0,
                 Images = JsonSerializer.Serialize(images),
