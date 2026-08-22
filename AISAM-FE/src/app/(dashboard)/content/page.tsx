@@ -604,7 +604,7 @@ export default function ContentPage() {
             ) : viewMode === "grid" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-gutter">
                 {paginated.map((item, i) => (
-                  <div key={item.id} className={`relative group bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden card-hover ${visible ? "animate-fade-up" : ""}`}
+                  <div key={item.id} className={`relative group bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-visible card-hover ${visible ? "animate-fade-up" : ""}`}
                     style={{ animationDelay: `${0.16 + i * 0.06}s` }}>
                     {item.id && (
                       <div className="absolute top-3 left-3 z-10">
@@ -619,7 +619,7 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : (
-              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden">
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-visible">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-label-sm text-outline border-b border-outline-variant/10">
@@ -1057,8 +1057,8 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
 
   return (
     <>
-      <div className="cursor-pointer" onClick={() => onAction("View Details", item)}>
-        <div className="relative aspect-[4/3] bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden">
+      <div className="cursor-pointer relative" onClick={() => onAction("View Details", item)}>
+        <div className="relative aspect-[4/3] bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden rounded-t-2xl">
           {item.type === "VIDEO" && (item.videoUrl || item.thumbnail) && !imgError ? (
             <video 
               src={item.videoUrl || item.thumbnail} 
@@ -1083,15 +1083,15 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
               {item.type}
             </span>
           </div>
-          <div className="absolute top-3 right-3">
-            <button onClick={(e) => { e.stopPropagation(); onToggleMenu(openMenuId === item.id ? null : item.id); }}
-              className="w-7 h-7 rounded-lg bg-black/30 backdrop-blur-[2px] flex items-center justify-center text-white hover:bg-black/50 transition-colors active:scale-[0.95] opacity-0 group-hover:opacity-100">
-              <span className="material-symbols-outlined text-[14px]">more_vert</span>
-            </button>
-            {openMenuId === item.id && (
-              <TableMenu item={item} onClose={() => onToggleMenu(null)} onAction={onAction} />
-            )}
-          </div>
+        </div>
+        <div className="absolute top-3 right-3">
+          <button onClick={(e) => { e.stopPropagation(); onToggleMenu(openMenuId === item.id ? null : item.id); }}
+            className="w-7 h-7 rounded-lg bg-black/30 backdrop-blur-[2px] flex items-center justify-center text-white hover:bg-black/50 transition-colors active:scale-[0.95] opacity-0 group-hover:opacity-100">
+            <span className="material-symbols-outlined text-[14px]">more_vert</span>
+          </button>
+          {openMenuId === item.id && (
+            <TableMenu item={item} onClose={() => onToggleMenu(null)} onAction={onAction} />
+          )}
         </div>
         <div className="p-5">
           <h3 className="text-body-sm font-semibold text-on-surface group-hover:text-primary transition-colors line-clamp-1 mb-1">{item.title}</h3>
