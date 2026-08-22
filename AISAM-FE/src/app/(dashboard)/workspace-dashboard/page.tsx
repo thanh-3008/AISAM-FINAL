@@ -252,7 +252,14 @@ export default function WorkspaceDashboardPage() {
                 <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6">
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-secondary text-[20px]">pie_chart</span>
+                      <span
+                        aria-hidden="true"
+                        className="relative h-5 w-5 rounded-full bg-secondary/15 ring-1 ring-secondary/25"
+                      >
+                        <span className="absolute bottom-1 left-1 h-2.5 w-1 rounded-full bg-secondary/70" />
+                        <span className="absolute bottom-1 left-2.5 h-3.5 w-1 rounded-full bg-secondary" />
+                        <span className="absolute bottom-1 right-1 h-2 w-1 rounded-full bg-secondary/50" />
+                      </span>
                       <h3 className="text-headline-sm text-on-surface">Usage Breakdown</h3>
                     </div>
                     <button
@@ -264,12 +271,7 @@ export default function WorkspaceDashboardPage() {
                     </button>
                   </div>
                   <div className="space-y-4">
-                    {(usageBreakdown.length > 0 ? usageBreakdown : [
-                      { category: "Text Generation", count: 45, percentage: 45 },
-                      { category: "Image Generation", count: 30, percentage: 30 },
-                      { category: "Video Generation", count: 15, percentage: 15 },
-                      { category: "Other", count: 10, percentage: 10 },
-                    ]).map((item) => {
+                    {usageBreakdown.length > 0 ? usageBreakdown.map((item) => {
                       const colors: Record<string, string> = {
                         "Text Generation": "from-blue-400 to-blue-500",
                         "Image Generation": "from-purple-400 to-purple-500",
@@ -297,13 +299,25 @@ export default function WorkspaceDashboardPage() {
                             <div className="h-1.5 bg-surface-container rounded-full overflow-hidden">
                               <div
                                 className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-500`}
-                                style={{ width: `${item.percentage}%` }}
+                                style={{ width: `${Math.max(0, item.percentage)}%` }}
                               />
                             </div>
                           </div>
                         </div>
                       );
-                    })}
+                    }) : (
+                      <div className="text-center py-8">
+                        <div
+                          aria-hidden="true"
+                          className="mx-auto mb-3 flex h-12 w-12 items-end justify-center gap-1 rounded-2xl bg-surface-container text-outline/40"
+                        >
+                          <span className="mb-3 h-3 w-1.5 rounded-full bg-current" />
+                          <span className="mb-3 h-5 w-1.5 rounded-full bg-current" />
+                          <span className="mb-3 h-2 w-1.5 rounded-full bg-current" />
+                        </div>
+                        <p className="text-body-sm text-on-surface-variant">No usage data yet</p>
+                      </div>
+                    )}
                   </div>
                   <div className="mt-4 flex justify-end">
                     <button

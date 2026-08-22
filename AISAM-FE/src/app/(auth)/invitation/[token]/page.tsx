@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { acceptInvitation, validateInvitation } from "@/services/workspaceInvitationService";
-import { getToken } from "@/lib/auth";
+import { acceptInvitation, validateInvitation, type WorkspaceInvitation } from "@/services/workspaceInvitationService";
+import { getToken, getUserFromToken, logout } from "@/lib/auth";
+import { storeActiveWorkspace } from "@/stores/workspace-store";
 
 type Status = "ready" | "accepting" | "success" | "error";
 
@@ -15,6 +16,8 @@ export default function AcceptInvitationPage() {
   const [status, setStatus] = useState<Status>("ready");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [successWorkspace, setSuccessWorkspace] = useState<string>("");
+  const [invitation, setInvitation] = useState<WorkspaceInvitation | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string>("");
 
   const [isMounted, setIsMounted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -31,8 +34,11 @@ export default function AcceptInvitationPage() {
         setIsMounted(true);
         return;
       }
+
+      setInvitation(res.invitation || null);
       
       const loggedIn = !!getToken();
+      setCurrentEmail(getUserFromToken()?.email || "");
       setIsLoggedIn(loggedIn);
       setIsMounted(true);
       if (!loggedIn) {
@@ -67,11 +73,25 @@ export default function AcceptInvitationPage() {
       setStatus("success");
       setSuccessWorkspace(result.workspaceId || "");
       if (result.workspaceId) {
+        storeActiveWorkspace({
+          id: result.workspaceId,
+          name: result.workspaceName || "Workspace",
+          workspaceType: 2,
+        });
         setTimeout(() => {
           router.push(`/overview`);
         }, 2000);
       }
     } else {
+      if (result.message?.includes("Invitation email does not match")) {
+        setStatus("error");
+        setErrorMessage(
+          invitation?.email
+            ? `This invitation is for ${invitation.email}. You are currently signed in${currentEmail ? ` as ${currentEmail}` : " with another account"}.`
+            : "This invitation belongs to a different email address. Please sign in with the invited email."
+        );
+        return;
+      }
       if (result.message?.includes("Phiên đăng nhập hết hạn") || result.message?.includes("Authentication is required")) {
         router.push(`/login?redirect=/invitation/${token}`);
         return;
@@ -79,6 +99,12 @@ export default function AcceptInvitationPage() {
       setStatus("error");
       setErrorMessage(result.message || "Failed to accept invitation");
     }
+  };
+
+  const handleSwitchAccount = async () => {
+    await logout();
+    const emailQuery = invitation?.email ? `&email=${encodeURIComponent(invitation.email)}` : "";
+    router.push(`/login?redirect=/invitation/${token}${emailQuery}`);
   };
 
   return (
@@ -115,14 +141,26 @@ export default function AcceptInvitationPage() {
                   <span className="material-symbols-outlined text-red-500 text-3xl">error_outline</span>
                 </div>
                 <p className="text-body-md text-on-surface font-medium mb-2">{errorMessage}</p>
-                <p className="text-body-sm text-on-surface-variant mb-6">Please check the link or contact the workspace owner.</p>
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
-                >
-                  <span className="material-symbols-outlined text-[18px]">login</span>
-                  Go to Login
-                </Link>
+                <p className="text-body-sm text-on-surface-variant mb-6">
+                  {invitation?.email ? "Sign in with the invited email to accept this workspace invitation." : "Please check the link or contact the workspace owner."}
+                </p>
+                {invitation?.email ? (
+                  <button
+                    onClick={handleSwitchAccount}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">login</span>
+                    Sign in as {invitation.email}
+                  </button>
+                ) : (
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">login</span>
+                    Go to Login
+                  </Link>
+                )}
               </div>
             )}
 
@@ -134,7 +172,14 @@ export default function AcceptInvitationPage() {
                     <span className="material-symbols-outlined text-primary text-2xl">workspaces</span>
                   </div>
                   <h2 className="text-body-lg font-bold text-on-surface">Workspace Invitation</h2>
-                  <p className="text-body-sm text-on-surface-variant mt-1">You have been invited to join a workspace</p>
+                  <p className="text-body-sm text-on-surface-variant mt-1">
+                    You have been invited to join {invitation?.workspaceName || "a workspace"}
+                  </p>
+                  {invitation?.email && (
+                    <p className="text-label-xs text-outline mt-2">
+                      Invited email: <span className="font-semibold text-on-surface">{invitation.email}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3 pt-2">
                   <Link

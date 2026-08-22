@@ -6,6 +6,8 @@ public class NotificationListItemDto
     public string Type { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
+    public Guid? TargetId { get; set; }
+    public string? TargetType { get; set; }
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; }
 }

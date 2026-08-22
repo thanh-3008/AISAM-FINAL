@@ -110,6 +110,7 @@ export default function CreateProfileModal({ open, onClose }: Props) {
           updatedAt: String(w.updatedAt || new Date().toISOString()),
           isOwner: w.currentUserRole === 0 || w.currentUserRole === 1 || typeof w.currentUserRole !== "number",
           memberRole: "Owner",
+          memberLimit: workspaceType === 2 ? 10 : 1,
         };
         addWorkspaceToCache(wsData);
         selectWorkspace(wsData);

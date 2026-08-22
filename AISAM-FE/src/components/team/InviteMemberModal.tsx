@@ -91,7 +91,6 @@ export default function InviteMemberModal({ open, onClose, onInvite, isLoading, 
                 <option value="Viewer">Viewer</option>
                 <option value="Manager">Manager</option>
                 <option value="ContentCreator">Content Creator</option>
-                <option value="Owner">Owner</option>
               </select>
             </div>
             {canAssignQuota && (

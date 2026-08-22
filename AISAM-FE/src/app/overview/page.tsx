@@ -81,6 +81,7 @@ export default function OverviewPage() {
         updatedAt: wsResult.data.updatedAt || new Date().toISOString(),
         isOwner: true,
         memberRole: "Owner",
+        memberLimit: workspaceType === 2 ? 10 : 1,
       };
       addWorkspaceToCache(wsData);
       selectWorkspace(wsData);

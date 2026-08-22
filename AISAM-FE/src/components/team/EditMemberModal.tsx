@@ -30,11 +30,15 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading, 
 
   if (!member) return null;
 
-  const showCreditInput = canAssignQuota && quotaMode !== "SharedPool";
+  const isOwnerRole = member.role === "Owner";
+  const canEditQuota = canAssignQuota && !isOwnerRole;
+  const showCreditInput = canEditQuota && quotaMode !== "SharedPool";
   const parsedCreditLimit = showCreditInput && creditLimit ? Number(creditLimit) : null;
 
   const handleSubmit = () => {
-    onUpdate(member.id, role);
+    if (!isOwnerRole) {
+      onUpdate(member.id, role);
+    }
     if (quotaChanged && onUpdateQuota) {
       onUpdateQuota(member.id, quotaMode, showCreditInput && parsedCreditLimit && parsedCreditLimit > 0 ? parsedCreditLimit : null);
     }
@@ -87,8 +91,14 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading, 
             )}
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Role</label>
-              <div className="space-y-2">
-                {(["Owner", "Manager", "ContentCreator", "Viewer"] as MemberRole[]).map((r) => (
+              {isOwnerRole && (
+                <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-start gap-2 mb-2">
+                  <span className="material-symbols-outlined text-primary text-[18px] shrink-0">info</span>
+                  <p className="text-label-xs text-primary">Owner role cannot be changed here. Use Transfer Ownership instead.</p>
+                </div>
+              )}
+              <div className={`space-y-2 ${isOwnerRole ? "opacity-50 pointer-events-none" : ""}`}>
+                {(["Manager", "ContentCreator", "Viewer"] as MemberRole[]).map((r) => (
                   <button
                     key={r}
                     type="button"
@@ -120,17 +130,18 @@ export default function EditMemberModal({ member, onClose, onUpdate, isLoading, 
                 ))}
               </div>
             </div>
-            {canAssignQuota && member.status === "Active" && (
+            {canEditQuota && member.status === "Active" && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-[16px] text-outline">toll</span>
                   <label className="text-label-2xs text-outline uppercase font-bold tracking-widest">Credit Quota</label>
                 </div>
                 {member.quotaMode !== "SharedPool" && (
                   <div className="p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl mb-3">
                     <div className="flex items-center justify-between text-label-xs text-outline mb-1">
                       <span>Current usage</span>
-                      <span className="font-semibold">{member.creditUsed.toLocaleString()} / {member.creditLimit?.toLocaleString() || "—"}</span>
+                      <span className="font-semibold">
+                        {member.creditUsed.toLocaleString()} used / {member.creditLimit?.toLocaleString() ?? "unlimited"} limit
+                      </span>
                     </div>
                     <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
                       <div

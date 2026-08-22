@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useWorkspaces, getWorkspaceTypeLabel, invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import {
   fetchMembers,
   inviteMember,
   updateMemberRole,
+  transferWorkspaceOwnership,
   removeMember,
   updateMemberQuota,
   type TeamMember,
@@ -22,6 +23,7 @@ import TeamEmptyState from "@/components/team/TeamEmptyState";
 import EditMemberModal from "@/components/team/EditMemberModal";
 import MemberDetailModal from "@/components/team/MemberDetailModal";
 import DeleteMemberConfirmModal from "@/components/team/DeleteMemberConfirmModal";
+import TransferOwnershipConfirmModal from "@/components/team/TransferOwnershipConfirmModal";
 import InviteMemberModal from "@/components/team/InviteMemberModal";
 import RoleDonutChart from "@/components/team/RoleDonutChart";
 import MemberCard from "@/components/team/MemberCard";
@@ -46,15 +48,17 @@ export default function TeamPage() {
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
   const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
+  const [transferringOwnerMember, setTransferringOwnerMember] = useState<TeamMember | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const featureGate = useFeatureGate();
-  const { activeWorkspace } = useWorkspaces();
+  const { activeWorkspace, refetch: refetchWorkspaces } = useWorkspaces();
 
   const activeMemberCount = members.filter((m) => m.status === "Active").length;
   const canAssignQuota = featureGate.canAccess("lifetimeAssignedLimit") || featureGate.canAccess("monthlyAssignedLimit");
+  const isOwner = activeWorkspace?.isOwner === true;
 
   const loadData = useCallback(async () => {
     try {
@@ -176,6 +180,34 @@ export default function TeamPage() {
     }
   };
 
+  const handleOpenTransferOwnership = (member: TeamMember) => {
+    if (member.status !== "Active" || member.role !== "Manager") {
+      showToast("Ownership can only be transferred to an active manager", "error");
+      return;
+    }
+
+    setTransferringOwnerMember(member);
+  };
+
+  const handleConfirmTransferOwnership = async () => {
+    if (!transferringOwnerMember) return;
+
+    setActionLoading("transferOwnership");
+    try {
+      await transferWorkspaceOwnership(transferringOwnerMember.id);
+      setDetailMember(null);
+      setTransferringOwnerMember(null);
+      invalidateWorkspaceCache();
+      await Promise.all([loadData(), refetchWorkspaces()]);
+      showToast(`Ownership transferred to ${transferringOwnerMember.name}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to transfer ownership";
+      showToast(message, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const filteredMembers = useMemo(() => {
     let result = [...members];
     if (search) {
@@ -275,13 +307,15 @@ export default function TeamPage() {
               >
                 <span className="material-symbols-outlined text-[16px]">refresh</span>
               </button>
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[16px]">person_add</span>
-                Invite Member
-              </button>
+              {isOwner && (
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[16px]">person_add</span>
+                  Invite Member
+                </button>
+              )}
             </div>
           </div>
 
@@ -371,6 +405,7 @@ export default function TeamPage() {
               <TeamEmptyState
                 hasFilters={hasFilters}
                 onInvite={() => setShowInviteModal(true)}
+                isOwner={isOwner}
               />
             ) : (
               <>
@@ -390,6 +425,7 @@ export default function TeamPage() {
                         onEdit={setEditingMember}
                         onDelete={handleDeleteMember}
                         onViewDetail={setDetailMember}
+                        isOwner={isOwner}
                       />
                     ))}
                   </div>
@@ -404,7 +440,7 @@ export default function TeamPage() {
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Credits</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Status</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Joined</th>
-                            <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>
+                            {isOwner && <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-outline-variant/10">
@@ -449,11 +485,10 @@ export default function TeamPage() {
                                 {member.quotaMode !== "SharedPool" ? (
                                   <div className="flex flex-col">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="material-symbols-outlined text-outline text-[14px]">toll</span>
-                                      <span className="text-body-sm text-on-surface font-semibold">{member.creditUsed.toLocaleString()}</span>
-                                      {member.creditLimit != null && (
-                                        <span className="text-label-xs text-outline">/ {member.creditLimit.toLocaleString()}</span>
-                                      )}
+                                      <span className="text-label-xs text-outline">
+                                        <span className="text-body-sm text-on-surface font-semibold">{member.creditUsed.toLocaleString()}</span>
+                                        {member.creditLimit != null ? ` / ${member.creditLimit.toLocaleString()} credits` : " credits"}
+                                      </span>
                                     </div>
                                     {member.creditLimit != null && (
                                       <div className="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden mt-1">
@@ -480,6 +515,7 @@ export default function TeamPage() {
                               <td className="px-6 py-4">
                                 <span className="text-label-xs text-outline">{calcTimeAgo(now, member.lastActive)}</span>
                               </td>
+                              {isOwner && (
                               <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
@@ -503,6 +539,7 @@ export default function TeamPage() {
                                   </button>
                                 </div>
                               </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -522,6 +559,9 @@ export default function TeamPage() {
           onClose={() => setDetailMember(null)}
           onEdit={setEditingMember}
           onDelete={handleDeleteMember}
+          onTransferOwnership={handleOpenTransferOwnership}
+          isOwner={isOwner}
+          isTransferringOwnership={actionLoading === "transferOwnership"}
         />
 
         <EditMemberModal
@@ -541,12 +581,20 @@ export default function TeamPage() {
           onCancel={() => setDeletingMembers([])}
         />
 
+        <TransferOwnershipConfirmModal
+          member={transferringOwnerMember}
+          isLoading={actionLoading === "transferOwnership"}
+          onConfirm={handleConfirmTransferOwnership}
+          onCancel={() => setTransferringOwnerMember(null)}
+        />
+
         <InviteMemberModal
           open={showInviteModal}
           onClose={() => setShowInviteModal(false)}
           onInvite={handleInvite}
           isLoading={actionLoading === "invite"}
           currentMemberCount={activeMemberCount}
+          maxMembers={activeWorkspace?.memberLimit ?? 1}
           canAssignQuota={canAssignQuota}
         />
 

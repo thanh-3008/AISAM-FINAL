@@ -66,6 +66,13 @@ public sealed class ActiveWorkspaceMiddleware
             return;
         }
 
+        if (context.Request.Method == HttpMethods.Get &&
+            context.Request.Path.StartsWithSegments("/api/workspace-invitations/validate", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         if (!ProtectedPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix)))
         {
             await _next(context);

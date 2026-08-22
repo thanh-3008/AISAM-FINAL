@@ -255,14 +255,15 @@ public sealed class AIService : IAIService
                 ? await _geminiTextClient.GenerateWithVisionAsync(chatPrompt, productImageBytes, "image/jpeg", cancellationToken)
                 : await _geminiTextClient.GenerateAsync(chatPrompt, cancellationToken);
             var parsedResponse = ParseChatResponse(rawResponse);
+            var effectiveIntent = ResolveEffectiveIntent(parsedResponse.Intent, userMessage);
             var responseText = parsedResponse.Response;
-            responseText = EnsureProductLandingUrlInGeneratedResponse(responseText, parsedResponse.Intent, selectedProduct, userMessage);
+            responseText = EnsureProductLandingUrlInGeneratedResponse(responseText, effectiveIntent, selectedProduct, userMessage);
 
-            Console.WriteLine($"[AIService.ChatInternalAsync] Parsed AI intent={parsedResponse.Intent}. ConversationId={conversation.Id}");
+            Console.WriteLine($"[AIService.ChatInternalAsync] Parsed AI intent={parsedResponse.Intent}, effectiveIntent={effectiveIntent}. ConversationId={conversation.Id}");
 
             if (workspaceId.HasValue && userId.HasValue &&
-                !string.Equals(parsedResponse.Intent, "image", StringComparison.OrdinalIgnoreCase) &&
-                !IsVideoIntent(parsedResponse.Intent))
+                !IsImageIntent(effectiveIntent) &&
+                !IsVideoIntent(effectiveIntent))
             {
                 Console.WriteLine($"[AIService.ChatInternalAsync] Attempting to deduct credits. workspaceId={workspaceId}, userId={userId}");
                 var chargeResult = await _creditService.ConsumeCreditsAsync(
@@ -295,7 +296,7 @@ public sealed class AIService : IAIService
                     .ToList()
                 : new List<string>();
 
-            if (workspaceId.HasValue && userId.HasValue && IsImageIntent(parsedResponse.Intent))
+            if (workspaceId.HasValue && userId.HasValue && IsImageIntent(effectiveIntent))
             {
                 var safePrompt = parsedResponse.Prompt;
                 if (string.IsNullOrWhiteSpace(safePrompt))
@@ -303,7 +304,7 @@ public sealed class AIService : IAIService
                     safePrompt = "A premium commercial advertising photo showcasing the product in a professional studio setting, high quality, 4k resolution.";
                 }
                 var prompt = BuildSafeImagePrompt(safePrompt, selectedBrand, selectedProduct, userMessage, request);
-                var isImageTextRequest = string.Equals(parsedResponse.Intent, "image_text", StringComparison.OrdinalIgnoreCase);
+                var isImageTextRequest = string.Equals(effectiveIntent, "image_text", StringComparison.OrdinalIgnoreCase);
                 if (!conversation.BrandId.HasValue)
                 {
                     responseText += "\n\n(Vui lòng chọn Brand để tạo ảnh)";
@@ -399,7 +400,7 @@ public sealed class AIService : IAIService
                     }
                 }
             }
-            else if (workspaceId.HasValue && userId.HasValue && string.Equals(parsedResponse.Intent, "video", StringComparison.OrdinalIgnoreCase))
+            else if (workspaceId.HasValue && userId.HasValue && string.Equals(effectiveIntent, "video", StringComparison.OrdinalIgnoreCase))
             {
                 var rawPrompt = parsedResponse.Prompt;
                 if (string.IsNullOrWhiteSpace(rawPrompt))
@@ -495,7 +496,7 @@ public sealed class AIService : IAIService
             if (!createdContentId.HasValue &&
                 request.UseOriginalProductImages &&
                 originalProductImageUrls.Count > 0 &&
-                string.Equals(parsedResponse.Intent, "content", StringComparison.OrdinalIgnoreCase))
+                string.Equals(effectiveIntent, "content", StringComparison.OrdinalIgnoreCase))
             {
                 if (workspaceId.HasValue && conversation.BrandId.HasValue)
                 {
@@ -1312,6 +1313,61 @@ Latest user message:
 
     private static bool IsVideoIntent(string? intent) =>
         string.Equals(intent, "video", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ResolveEffectiveIntent(string? modelIntent, string userMessage)
+    {
+        if (IsVideoIntent(modelIntent) || IsImageIntent(modelIntent))
+        {
+            return modelIntent;
+        }
+
+        var normalized = NormalizeIntentText(userMessage);
+        if (ContainsAny(normalized, "tao video", "lam video", "sinh video", "generate video", "create video", "make video"))
+        {
+            return "video";
+        }
+
+        if (ContainsAny(
+                normalized,
+                "tao anh",
+                "tao hinh",
+                "tao hinh anh",
+                "ve anh",
+                "ve hinh",
+                "sinh anh",
+                "sinh hinh",
+                "thiet ke anh",
+                "lam anh",
+                "lam hinh",
+                "generate image",
+                "create image",
+                "make image",
+                "draw image"))
+        {
+            return "image";
+        }
+
+        return modelIntent;
+    }
+
+    private static bool ContainsAny(string value, params string[] needles)
+        => needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
+
+    private static string NormalizeIntentText(string value)
+    {
+        var formD = value.ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(formD.Length);
+        foreach (var ch in formD)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (category != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(ch == 'đ' ? 'd' : ch);
+            }
+        }
+
+        return Regex.Replace(builder.ToString().Normalize(NormalizationForm.FormC), @"\s+", " ");
+    }
 
     private static string FormatProductImagesForPrompt(Product? product)
     {

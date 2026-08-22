@@ -4,9 +4,10 @@ interface TeamEmptyStateProps {
   hasFilters: boolean;
   onCreate?: () => void;
   onInvite: () => void;
+  isOwner?: boolean;
 }
 
-export default function TeamEmptyState({ hasFilters, onCreate, onInvite }: TeamEmptyStateProps) {
+export default function TeamEmptyState({ hasFilters, onCreate, onInvite, isOwner = false }: TeamEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center gap-6 animate-fade-up">
       <div className="relative">
@@ -54,7 +55,7 @@ export default function TeamEmptyState({ hasFilters, onCreate, onInvite }: TeamE
         </div>
       )}
 
-      {!hasFilters && (
+      {!hasFilters && isOwner && (
         <div className="flex gap-3 mt-4">
           <button
             onClick={onInvite}

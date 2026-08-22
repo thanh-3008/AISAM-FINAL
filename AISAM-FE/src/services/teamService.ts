@@ -20,6 +20,17 @@ export interface TeamMember {
   creditUsed: number;
 }
 
+export interface MemberCreditUsageRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  credits: number;
+  featureUsed: string;
+  status: "Success" | "Failed";
+  createdAt: string;
+}
+
 export const QUOTA_MODE_LABELS: Record<QuotaMode, string> = {
   SharedPool: "Shared Pool",
   LifetimeAssigned: "Lifetime Assigned Limit",
@@ -179,8 +190,8 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
       teamIds: [],
       lastActive: inv.createdAt,
       createdAt: inv.createdAt,
-      quotaMode: "SharedPool" as QuotaMode,
-      creditLimit: null,
+      quotaMode: (inv.quotaMode != null ? QUOTA_MODE_FROM_BE[inv.quotaMode] : "SharedPool") as QuotaMode,
+      creditLimit: inv.creditLimit ?? null,
       creditUsed: 0,
     }));
 
@@ -274,6 +285,19 @@ export async function updateMemberRole(id: string, role: MemberRole): Promise<Te
   throw new Error(res?.error?.errorMessage || "Failed to update member role");
 }
 
+export async function transferWorkspaceOwnership(targetMemberId: string): Promise<TeamMember> {
+  const res: GenericResponse<BEWorkspaceMemberDto> = await apiClient("/workspace-members/ownership-transfer", {
+    method: "POST",
+    data: { targetMemberId },
+  });
+
+  if (res?.data) {
+    return mapMember(res.data);
+  }
+
+  throw new Error(res?.error?.errorMessage || res?.message || "Failed to transfer ownership");
+}
+
 export async function removeMember(id: string, status?: MemberStatus): Promise<boolean> {
   const endpoint = status === "Pending"
     ? `/workspace-invitations/${id}`
@@ -292,13 +316,36 @@ export async function updateMemberQuota(
   try {
     const res = await apiClient(`/workspace-members/${memberId}/quota`, {
       method: "PUT",
-      data: { mode: QUOTA_MODE_BE[quotaMode], limit: creditLimit },
+      data: { quotaMode: QUOTA_MODE_BE[quotaMode], creditLimit: creditLimit },
     });
     return { success: res?.success === true, message: res?.message };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Network error";
     return { success: false, message };
   }
+}
+
+export async function fetchMemberCreditUsage(
+  memberId: string,
+  page = 1,
+  pageSize = 6
+): Promise<{ data: MemberCreditUsageRecord[]; totalCount: number }> {
+  try {
+    const res: GenericResponse<{ data: MemberCreditUsageRecord[]; totalCount: number }> = await apiClient(
+      `/credit-usage?memberId=${encodeURIComponent(memberId)}&page=${page}&pageSize=${pageSize}`
+    );
+
+    if (res?.success && res.data) {
+      return {
+        data: res.data.data || [],
+        totalCount: res.data.totalCount || 0,
+      };
+    }
+  } catch {
+    // Keep member detail usable if history cannot be loaded.
+  }
+
+  return { data: [], totalCount: 0 };
 }
 
 export async function getMemberById(id: string): Promise<TeamMember | null> {
