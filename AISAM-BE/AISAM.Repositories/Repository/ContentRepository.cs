@@ -361,6 +361,7 @@ public sealed class ContentRepository : IContentRepository
     private IQueryable<Content> Query()
     {
         return _context.Contents
+            .Include(content => content.Profile)
             .Include(content => content.Brand)
             .Include(content => content.Product)
             .Include(content => content.Approvals);

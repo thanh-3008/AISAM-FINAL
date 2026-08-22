@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { type Team, type TeamMember } from "@/services/teamService";
+import { fetchMemberCreditUsage, QUOTA_MODE_LABELS, type MemberCreditUsageRecord, type Team, type TeamMember } from "@/services/teamService";
 import { getInitials, formatDate, calcTimeAgo, ROLE_CONFIG, STATUS_CONFIG } from "./teamUtils";
 
 interface MemberDetailModalProps {
@@ -10,21 +10,64 @@ interface MemberDetailModalProps {
   onClose: () => void;
   onEdit: (member: TeamMember) => void;
   onDelete: (member: TeamMember) => void;
+  onTransferOwnership?: (member: TeamMember) => void;
+  isOwner?: boolean;
+  isTransferringOwnership?: boolean;
 }
 
-export default function MemberDetailModal({ member, teams, onClose, onEdit, onDelete }: MemberDetailModalProps) {
+export default function MemberDetailModal({
+  member,
+  teams,
+  onClose,
+  onEdit,
+  onDelete,
+  onTransferOwnership,
+  isOwner = false,
+  isTransferringOwnership = false,
+}: MemberDetailModalProps) {
   const [now, setNow] = React.useState(() => Date.now());
+  const [usage, setUsage] = React.useState<MemberCreditUsageRecord[]>([]);
+  const [usageTotal, setUsageTotal] = React.useState(0);
+  const [usageLoading, setUsageLoading] = React.useState(false);
 
   React.useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(interval);
   }, []);
 
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!member || member.status !== "Active") {
+      setUsage([]);
+      setUsageTotal(0);
+      return;
+    }
+
+    setUsageLoading(true);
+    fetchMemberCreditUsage(member.id)
+      .then((result) => {
+        if (cancelled) return;
+        setUsage(result.data);
+        setUsageTotal(result.totalCount);
+      })
+      .finally(() => {
+        if (!cancelled) setUsageLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [member?.id, member?.status]);
+
   if (!member) return null;
 
   const roleConfig = ROLE_CONFIG[member.role];
   const statusConfig = STATUS_CONFIG[member.status];
   const memberTeams = teams.filter((t) => member.teamIds.includes(t.id));
+  const hasAssignedQuota = member.quotaMode !== "SharedPool";
+  const remainingCredits = member.creditLimit != null ? Math.max(0, member.creditLimit - member.creditUsed) : null;
+  const usagePercent = member.creditLimit ? Math.min(100, (member.creditUsed / member.creditLimit) * 100) : 0;
+  const canTransferOwnership = isOwner && member.status === "Active" && member.role === "Manager";
 
   return (
     <>
@@ -76,6 +119,79 @@ export default function MemberDetailModal({ member, teams, onClose, onEdit, onDe
             )}
 
             <div>
+              <h3 className="text-label-sm font-bold text-on-surface mb-3">Credit Usage</h3>
+              <div className="bg-surface-container-low rounded-xl divide-y divide-outline-variant/10 overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between gap-4">
+                  <span className="text-label-xs text-outline flex items-center gap-2">
+                    Quota Mode
+                  </span>
+                  <span className="text-label-xs text-on-surface font-semibold text-right">
+                    {QUOTA_MODE_LABELS[member.quotaMode]}
+                  </span>
+                </div>
+                <div className="px-4 py-3">
+                  {hasAssignedQuota ? (
+                    <>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-label-xs text-outline">Used credits</span>
+                        <span className="text-label-xs text-on-surface font-semibold">
+                          {member.creditUsed.toLocaleString()} used / {member.creditLimit?.toLocaleString() ?? "unlimited"} limit
+                        </span>
+                      </div>
+                      {member.creditLimit != null && (
+                        <>
+                          <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden mt-2">
+                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${usagePercent}%` }} />
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-label-2xs text-outline">Remaining</span>
+                            <span className="text-label-2xs text-on-surface font-semibold">{remainingCredits?.toLocaleString()} credits</span>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-label-xs text-outline">
+                      Uses the shared workspace credit pool. This member has no personal credit limit.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {member.status === "Active" && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-label-sm font-bold text-on-surface">Recent Credit Activity</h3>
+                  {usageTotal > usage.length && (
+                    <span className="text-label-2xs text-outline">{usageTotal.toLocaleString()} total</span>
+                  )}
+                </div>
+                <div className="bg-surface-container-low rounded-xl divide-y divide-outline-variant/10 overflow-hidden">
+                  {usageLoading ? (
+                    <div className="px-4 py-4 text-label-xs text-outline">Loading usage...</div>
+                  ) : usage.length === 0 ? (
+                    <div className="px-4 py-4 text-label-xs text-outline">No credit activity yet.</div>
+                  ) : (
+                    usage.map((record) => (
+                      <div key={record.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-label-xs text-on-surface font-semibold truncate">{record.action}</p>
+                          <p className="text-label-2xs text-outline">
+                            {record.featureUsed} - {calcTimeAgo(now, record.createdAt)}
+                          </p>
+                        </div>
+                        <span className={`text-label-xs font-bold ${record.status === "Success" ? "text-danger-red" : "text-outline"}`}>
+                          {record.status === "Success" ? "-" : ""}{record.credits.toLocaleString()}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
               <h3 className="text-label-sm font-bold text-on-surface mb-3">Details</h3>
               <div className="bg-surface-container-low rounded-xl divide-y divide-outline-variant/10">
                 <div className="flex items-center justify-between px-4 py-3">
@@ -97,6 +213,18 @@ export default function MemberDetailModal({ member, teams, onClose, onEdit, onDe
           </div>
 
           <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 sticky bottom-0 bg-surface-container-lowest">
+            {isOwner && (
+            <>
+            {canTransferOwnership && (
+              <button
+                onClick={() => onTransferOwnership?.(member)}
+                disabled={isTransferringOwnership}
+                className="px-5 py-2.5 border border-primary/20 rounded-xl text-label-sm font-semibold text-primary hover:bg-primary/5 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[16px]">workspace_premium</span>
+                {isTransferringOwnership ? "Transferring..." : "Transfer Owner"}
+              </button>
+            )}
             <button
               onClick={() => { onDelete(member); onClose(); }}
               className="px-5 py-2.5 border border-outline-variant/20 rounded-xl text-label-sm font-semibold text-danger-red hover:bg-danger-red/5 transition-all flex items-center gap-2"
@@ -117,6 +245,8 @@ export default function MemberDetailModal({ member, teams, onClose, onEdit, onDe
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Edit Role
             </button>
+            </>
+            )}
             <button
               onClick={onClose}
               className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95"

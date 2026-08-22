@@ -8,12 +8,34 @@ type ApiOptions = RequestInit & {
   data?: any;
 };
 
+const PUBLIC_AUTH_ENDPOINTS = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/change-password-with-token",
+  "/auth/verify-email",
+  "/auth/resend-verification",
+];
+
+function isPublicAuthEndpoint(endpoint: string): boolean {
+  return PUBLIC_AUTH_ENDPOINTS.some((publicEndpoint) => endpoint.startsWith(publicEndpoint));
+}
+
+function responsePath(response: Response): string {
+  try {
+    return new URL(response.url).pathname.replace(/^\/api/, "");
+  } catch {
+    return "";
+  }
+}
+
 function isValidGuid(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
-async function buildHeaders(customHeaders?: Record<string, string>) {
-  const token = getToken();
+async function buildHeaders(customHeaders?: Record<string, string>, includeAuth = true) {
+  const token = includeAuth ? getToken() : null;
   let workspace = getStoredActiveWorkspace();
   if (workspace && !isValidGuid(workspace.id)) {
     clearActiveWorkspace();
@@ -95,7 +117,7 @@ async function handleResponse(response: Response) {
       }
     }
 
-    if (response.status === 401 || errorMessage === "Authentication is required.") {
+    if ((response.status === 401 || errorMessage === "Authentication is required.") && !isPublicAuthEndpoint(responsePath(response))) {
       const isLoginRequest = response.url.includes("/auth/login");
       if (!isLoginRequest) {
         removeToken();
@@ -150,9 +172,12 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
 }
 
 export async function apiClient(endpoint: string, options: ApiOptions = {}) {
-  await ensureValidToken();
+  const isPublic = isPublicAuthEndpoint(endpoint);
+  if (!isPublic) {
+    await ensureValidToken();
+  }
   const { data, headers: customHeaders, ...customConfig } = options;
-  const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
+  const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined, !isPublic);
 
   const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
   const isMutation = hasJsonBody || customConfig.method === "POST" || customConfig.method === "PUT" || customConfig.method === "DELETE";
@@ -170,7 +195,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
-  if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
+  if (response.status === 401 && token && !isPublic && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
   }
 

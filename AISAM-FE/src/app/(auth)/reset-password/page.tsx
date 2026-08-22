@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import AuthShell from "@/components/auth/AuthShell";
 
 function ResetPasswordForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const [form, setForm] = useState({ newPassword: "", confirmPassword: "" });
@@ -58,7 +57,6 @@ function ResetPasswordForm() {
         },
       });
       setIsSuccess(true);
-      setTimeout(() => router.push("/login"), 3000);
     } catch (err: any) {
       setError(err.message || "Invalid or expired reset token.");
     } finally {
@@ -119,7 +117,6 @@ function ResetPasswordForm() {
           <p className="font-body-md text-body-md text-on-surface-variant mb-2">
             Your password has been successfully reset.
           </p>
-          <p className="font-body-sm text-body-sm text-on-surface-variant">Redirecting to Sign In...</p>
           <Link href="/login" className="mt-6 inline-flex items-center gap-2 text-primary font-bold hover:underline">
             <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
             Go to Sign In

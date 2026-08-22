@@ -61,4 +61,5 @@ public interface ICreditService
     Task<IReadOnlyList<DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default);
 
     Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageByUserAsync(Guid workspaceId, Guid userId, PaginationRequest request, CancellationToken cancellationToken = default);
 }

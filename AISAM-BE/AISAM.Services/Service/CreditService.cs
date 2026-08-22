@@ -572,6 +572,18 @@ public sealed class CreditService : ICreditService
         };
     }
 
+    public async Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageByUserAsync(Guid workspaceId, Guid userId, PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _creditUsageRecordRepository.GetPagedByWorkspaceAndUserIdAsync(workspaceId, userId, request, cancellationToken);
+        return new PagedResult<CreditUsageRecordDto>
+        {
+            Data = result.Data.Select(MapRecord).ToList(),
+            TotalCount = result.TotalCount,
+            Page = result.Page,
+            PageSize = result.PageSize
+        };
+    }
+
     private static CreditUsageRecordDto MapRecord(Data.Model.CreditUsageRecord record)
     {
         return new CreditUsageRecordDto

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useWorkspaces, getWorkspaceTypeLabel, invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
 import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
@@ -33,6 +33,7 @@ import {
   type WorkspaceDashboard,
 } from "@/services/workspaceService";
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
+import { fetchUsageBreakdown, type UsageBreakdownItem } from "@/services/analyticsService";
 import { updateMemberRole, removeMember } from "@/services/teamService";
 import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
@@ -109,7 +110,7 @@ export default function ProfileDetailPage() {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>(
     ["overview", "my-profile", "team", "security", "billing", "subscription"].includes(initialSection) ? initialSection : "overview"
   );
-  const { selectWorkspace, activeWorkspace } = useWorkspaces();
+  const { selectWorkspace, activeWorkspace, refetch: refetchWorkspaces } = useWorkspaces();
   const reduceMotion = useReducedMotion();
   const { showToast } = useToast();
 
@@ -170,6 +171,7 @@ export default function ProfileDetailPage() {
 
   // Credit wallet state
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
+  const [usageBreakdown, setUsageBreakdown] = useState<UsageBreakdownItem[]>([]);
   const [selectedCreditPack, setSelectedCreditPack] = useState<{ id: string; name: string; credits: number; price: string } | null>(null);
   const [showPurchaseConfirm, setShowPurchaseConfirm] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -270,6 +272,7 @@ export default function ProfileDetailPage() {
             updatedAt: w.updatedAt,
             isOwner: w.isOwner,
             memberRole: w.memberRole,
+            memberLimit: w.memberLimit ?? 1,
           });
           setForm({
             name: w.name,
@@ -350,6 +353,7 @@ export default function ProfileDetailPage() {
           memberRole: typeof data.currentUserRole === "number"
             ? ["", "Owner", "Manager", "ContentCreator", "Viewer"][data.currentUserRole] ?? "Viewer"
             : workspace?.memberRole ?? "Viewer",
+          memberLimit: workspace?.memberLimit ?? 1,
         });
       } else {
         setError(result?.message || "Update failed");
@@ -634,6 +638,9 @@ export default function ProfileDetailPage() {
           if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
           return m;
         }));
+        setWorkspace(prev => prev ? { ...prev, isOwner: false, memberRole: "Manager" } : prev);
+        invalidateWorkspaceCache();
+        await refetchWorkspaces();
         setShowTransferModal(false);
         setSelectedNewOwner(null);
         showToast({ type: "success", title: "Ownership transferred", message: `Ownership has been transferred to ${selectedNewOwner.name}.` });
@@ -660,7 +667,10 @@ export default function ProfileDetailPage() {
     if (!quotaMember) return;
     setSavingQuota(true);
     try {
-      const result = await updateMemberQuota(quotaMember.id, { mode: quotaMode, limit: quotaLimit });
+      const result = await updateMemberQuota(quotaMember.id, {
+        quotaMode,
+        creditLimit: quotaMode === "SharedPool" ? null : quotaLimit,
+      });
       if (result.success) {
         showToast({
           type: "success",
@@ -699,6 +709,12 @@ export default function ProfileDetailPage() {
   const handleLoadCreditWallet = async () => {
     const wallet = await fetchCreditWallet();
     setCreditWallet(wallet);
+    await handleLoadUsageBreakdown();
+  };
+
+  const handleLoadUsageBreakdown = async () => {
+    const usage = await fetchUsageBreakdown();
+    setUsageBreakdown(usage);
   };
 
   const handlePurchaseCredits = async () => {
@@ -848,7 +864,10 @@ export default function ProfileDetailPage() {
     if (activeSection === "overview" && !dashboardData) {
       handleLoadOverview();
     }
-  }, [activeSection, dashboardData]);
+    if (activeSection === "overview" && usageBreakdown.length === 0) {
+      handleLoadUsageBreakdown();
+    }
+  }, [activeSection, dashboardData, usageBreakdown.length]);
 
   const nextPaymentDate = "2026-07-08";
 
@@ -1209,7 +1228,14 @@ export default function ProfileDetailPage() {
                             <div className="flex items-center justify-between mb-6">
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-linear-to-br from-secondary/10 to-secondary/5 flex items-center justify-center ring-1 ring-secondary/20">
-                                  <span className="material-symbols-outlined text-secondary text-[20px]">pie_chart</span>
+                                  <span
+                                    aria-hidden="true"
+                                    className="relative h-5 w-5 rounded-full bg-secondary/15 ring-1 ring-secondary/25"
+                                  >
+                                    <span className="absolute bottom-1 left-1 h-2.5 w-1 rounded-full bg-secondary/70" />
+                                    <span className="absolute bottom-1 left-2.5 h-3.5 w-1 rounded-full bg-secondary" />
+                                    <span className="absolute bottom-1 right-1 h-2 w-1 rounded-full bg-secondary/50" />
+                                  </span>
                                 </div>
                                 <div>
                                   <h3 className="text-body-lg font-bold text-on-surface">Usage Breakdown</h3>
@@ -1218,12 +1244,16 @@ export default function ProfileDetailPage() {
                               </div>
                             </div>
                             <div className="space-y-5">
-                              {[
-                                { label: "Text Generation", value: 45, color: "from-blue-400 to-blue-500", icon: "text_fields", bgColor: "bg-blue-50", textColor: "text-blue-500" },
-                                { label: "Image Generation", value: 30, color: "from-purple-400 to-purple-500", icon: "image", bgColor: "bg-purple-50", textColor: "text-purple-500" },
-                                { label: "Video Generation", value: 15, color: "from-pink-400 to-pink-500", icon: "videocam", bgColor: "bg-pink-50", textColor: "text-pink-500" },
-                                { label: "Other", value: 10, color: "from-gray-400 to-gray-500", icon: "more_horiz", bgColor: "bg-gray-50", textColor: "text-gray-500" },
-                              ].map((item, idx) => (
+                              {usageBreakdown.map((item, idx) => {
+                                const colorMap: Record<string, { color: string; icon: string; bgColor: string; textColor: string }> = {
+                                  "Text Generation": { color: "from-blue-400 to-blue-500", icon: "text_fields", bgColor: "bg-blue-50", textColor: "text-blue-500" },
+                                  "Image Generation": { color: "from-purple-400 to-purple-500", icon: "image", bgColor: "bg-purple-50", textColor: "text-purple-500" },
+                                  "Video Generation": { color: "from-pink-400 to-pink-500", icon: "videocam", bgColor: "bg-pink-50", textColor: "text-pink-500" },
+                                  "Other": { color: "from-gray-400 to-gray-500", icon: "more_horiz", bgColor: "bg-gray-50", textColor: "text-gray-500" },
+                                };
+                                const cfg = colorMap[item.category] || colorMap["Other"];
+                                return { label: item.category, value: Math.max(0, item.percentage), color: cfg.color, icon: cfg.icon, bgColor: cfg.bgColor, textColor: cfg.textColor };
+                              }).map((item, idx) => (
                                 <motion.div
                                   key={item.label}
                                   initial={reduceMotion ? undefined : { opacity: 0, x: -20 }}
@@ -1250,6 +1280,19 @@ export default function ProfileDetailPage() {
                                   </div>
                                 </motion.div>
                               ))}
+                              {usageBreakdown.length === 0 && (
+                                <div className="text-center py-8">
+                                  <div
+                                    aria-hidden="true"
+                                    className="mx-auto mb-3 flex h-12 w-12 items-end justify-center gap-1 rounded-2xl bg-surface-container text-outline/40"
+                                  >
+                                    <span className="mb-3 h-3 w-1.5 rounded-full bg-current" />
+                                    <span className="mb-3 h-5 w-1.5 rounded-full bg-current" />
+                                    <span className="mb-3 h-2 w-1.5 rounded-full bg-current" />
+                                  </div>
+                                  <p className="text-body-sm text-on-surface-variant">No usage data yet</p>
+                                </div>
+                              )}
                             </div>
                           </motion.div>
                         </div>

@@ -16,6 +16,14 @@ namespace AISAM.Services.Service;
 
 public sealed class ContentService : IContentService
 {
+    private enum ApprovalNotificationEvent
+    {
+        None,
+        Submitted,
+        Approved,
+        Rejected
+    }
+
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _publishLocks = new();
 
     private readonly IContentRepository _contentRepository;
@@ -29,6 +37,7 @@ public sealed class ContentService : IContentService
     private readonly IQuotaService _quotaService;
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly INotificationRepository? _notificationRepository;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -41,7 +50,8 @@ public sealed class ContentService : IContentService
         ISocialTokenProtector tokenProtector,
         IQuotaService quotaService,
         IContentCalendarRepository contentCalendarRepository,
-        IWorkspaceRepository workspaceRepository)
+        IWorkspaceRepository workspaceRepository,
+        INotificationRepository? notificationRepository = null)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -54,6 +64,7 @@ public sealed class ContentService : IContentService
         _quotaService = quotaService;
         _contentCalendarRepository = contentCalendarRepository;
         _workspaceRepository = workspaceRepository;
+        _notificationRepository = notificationRepository;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -89,6 +100,10 @@ public sealed class ContentService : IContentService
         };
 
         await _contentRepository.AddAsync(content, cancellationToken);
+        if (content.Status == ContentStatusEnum.PendingApproval)
+        {
+            await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
+        }
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.CreatedSuccess);
     }
 
@@ -111,6 +126,10 @@ public sealed class ContentService : IContentService
             Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
         await _contentRepository.AddAsync(content, cancellationToken);
+        if (content.Status == ContentStatusEnum.PendingApproval)
+        {
+            await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
+        }
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.CreatedSuccess);
     }
 
@@ -155,6 +174,7 @@ public sealed class ContentService : IContentService
         if (request.Tags != null) content.Tags = request.Tags.Count > 0 ? JsonSerializer.Serialize(request.Tags) : null;
         if (request.Status.HasValue)
         {
+            var previousStatus = content.Status;
             if (role == WorkspaceMemberRoleEnum.Viewer)
             {
                 return GenericResponse<ContentResponseDto>.CreateError("Viewer role cannot approve or reject content.", HttpStatusCode.Forbidden);
@@ -163,6 +183,12 @@ public sealed class ContentService : IContentService
             if (!statusValidation.Success)
                 return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
             content.Status = request.Status.Value;
+            await _contentRepository.UpdateAsync(content, cancellationToken);
+            if (previousStatus != content.Status)
+            {
+                await CreateApprovalNotificationAsync(content, MapStatusToNotificationEvent(content.Status), null, cancellationToken);
+            }
+            return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.UpdatedSuccess);
         }
         else if (content.Status == ContentStatusEnum.Approved)
         {
@@ -240,6 +266,7 @@ public sealed class ContentService : IContentService
 
         content.Status = ContentStatusEnum.PendingApproval;
         await _contentRepository.UpdateAsync(content, cancellationToken);
+        await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Content submitted for approval successfully.");
     }
 
@@ -266,6 +293,7 @@ public sealed class ContentService : IContentService
         });
 
         await _contentRepository.UpdateAsync(content, cancellationToken);
+        await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Approved, null, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content approved successfully.");
     }
 
@@ -292,6 +320,7 @@ public sealed class ContentService : IContentService
         });
 
         await _contentRepository.UpdateAsync(content, cancellationToken);
+        await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Rejected, notes, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Content rejected successfully.");
     }
 
@@ -672,6 +701,67 @@ public sealed class ContentService : IContentService
     private static GenericResponse<ContentResponseDto> NotFound()
     {
         return GenericResponse<ContentResponseDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+    }
+
+    private async Task CreateApprovalNotificationAsync(
+        Content content,
+        ApprovalNotificationEvent notificationEvent,
+        string? notes,
+        CancellationToken cancellationToken)
+    {
+        if (_notificationRepository == null ||
+            content.WorkspaceId == Guid.Empty ||
+            notificationEvent == ApprovalNotificationEvent.None)
+        {
+            return;
+        }
+
+        var contentTitle = GetContentDisplayTitle(content);
+        var (title, message) = notificationEvent switch
+        {
+            ApprovalNotificationEvent.Submitted => (
+                "Content pending approval",
+                $"\"{contentTitle}\" is ready for Owner or Manager review."),
+            ApprovalNotificationEvent.Approved => (
+                "Content approved",
+                $"\"{contentTitle}\" has been approved and is ready to publish."),
+            ApprovalNotificationEvent.Rejected => (
+                "Content needs changes",
+                string.IsNullOrWhiteSpace(notes)
+                    ? $"\"{contentTitle}\" was rejected and needs changes."
+                    : $"\"{contentTitle}\" was rejected: {notes.Trim()}"),
+            _ => (string.Empty, string.Empty)
+        };
+
+        if (string.IsNullOrWhiteSpace(title)) return;
+
+        await _notificationRepository.AddAsync(new Notification
+        {
+            ProfileId = content.ProfileId,
+            WorkspaceId = content.WorkspaceId,
+            Title = title,
+            Message = message,
+            Type = NotificationTypeEnum.ApprovalNeeded,
+            TargetId = content.Id,
+            TargetType = "content"
+        }, cancellationToken);
+    }
+
+    private static ApprovalNotificationEvent MapStatusToNotificationEvent(ContentStatusEnum status) => status switch
+    {
+        ContentStatusEnum.PendingApproval => ApprovalNotificationEvent.Submitted,
+        ContentStatusEnum.Approved => ApprovalNotificationEvent.Approved,
+        ContentStatusEnum.Rejected => ApprovalNotificationEvent.Rejected,
+        _ => ApprovalNotificationEvent.None
+    };
+
+    private static string GetContentDisplayTitle(Content content)
+    {
+        if (!string.IsNullOrWhiteSpace(content.Title)) return content.Title.Trim();
+        var text = content.TextContent?.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return "Untitled content";
+        text = string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return text.Length <= 80 ? text : $"{text[..77]}...";
     }
 
     private static PostDto BuildPostDto(Content content)

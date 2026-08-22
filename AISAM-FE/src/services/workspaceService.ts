@@ -322,7 +322,7 @@ export async function transferOwnership(targetMemberId: string): Promise<{ succe
 
 export async function updateMemberQuota(
   memberId: string,
-  data: { mode: string; limit: number }
+  data: { quotaMode: string; creditLimit: number | null }
 ): Promise<{ success: boolean; message?: string }> {
   try {
     const res = await apiClient(`/workspace-members/${memberId}/quota`, {

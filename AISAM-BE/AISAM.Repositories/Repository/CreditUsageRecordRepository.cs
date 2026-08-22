@@ -61,6 +61,29 @@ public sealed class CreditUsageRecordRepository : ICreditUsageRecordRepository
         };
     }
 
+    public async Task<PagedResult<CreditUsageRecord>> GetPagedByWorkspaceAndUserIdAsync(Guid workspaceId, Guid userId, PaginationRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = _context.CreditUsageRecords
+            .Include(record => record.User)
+            .Where(record => record.WorkspaceId == workspaceId && record.UserId == userId);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var data = await query
+            .OrderByDescending(record => record.CreatedAt)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<CreditUsageRecord>
+        {
+            Data = data,
+            TotalCount = totalCount,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+    }
+
     public async Task<IReadOnlyList<AISAM.Common.Models.DailyCreditUsageDto>> GetDailyUsageAsync(Guid workspaceId, int days, CancellationToken cancellationToken = default)
     {
         var summary = await GetDailySummaryAsync(workspaceId, days, cancellationToken);

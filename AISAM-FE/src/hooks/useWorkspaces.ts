@@ -19,6 +19,7 @@ export interface WorkspaceData {
   updatedAt: string;
   isOwner: boolean;
   memberRole: string | null;
+  memberLimit?: number;
 }
 
 const workspaceTypeLabels: Record<number, string> = {
@@ -91,6 +92,7 @@ function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null
     updatedAt: "",
     isOwner: true,
     memberRole: "Owner",
+    memberLimit: stored.workspaceType === 2 ? 10 : 1,
   };
 }
 
@@ -178,6 +180,7 @@ export function useWorkspaces() {
           createdAt: String(w.createdAt), updatedAt: String(w.updatedAt),
           isOwner: isOwnerRole(w.currentUserRole),
           memberRole: resolveMemberRole(w.currentUserRole),
+          memberLimit: typeof w.memberLimit === "number" ? w.memberLimit : 1,
         }));
       }
     } catch (err) {

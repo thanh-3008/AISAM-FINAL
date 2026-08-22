@@ -9,9 +9,10 @@ interface MemberCardProps {
   onEdit: (member: TeamMember) => void;
   onDelete: (member: TeamMember) => void;
   onViewDetail?: (member: TeamMember) => void;
+  isOwner?: boolean;
 }
 
-export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: MemberCardProps) {
+export default function MemberCard({ member, onEdit, onDelete, onViewDetail, isOwner = false }: MemberCardProps) {
   const roleConfig = ROLE_CONFIG[member.role];
   const statusConfig = STATUS_CONFIG[member.status];
   const [now, setNow] = useState(() => Date.now());
@@ -48,6 +49,7 @@ export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: M
             </div>
           )}
         </div>
+        {isOwner && (
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(member); }}
@@ -68,6 +70,7 @@ export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: M
             <span className="material-symbols-outlined text-[16px]">delete</span>
           </button>
         </div>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -87,11 +90,21 @@ export default function MemberCard({ member, onEdit, onDelete, onViewDetail }: M
         </div>
 
         {member.quotaMode !== "SharedPool" && (
-          <div className="flex items-center gap-1.5 text-label-xs text-outline">
-            <span className="material-symbols-outlined text-[14px]">toll</span>
-            <span className="font-semibold text-on-surface">{member.creditUsed.toLocaleString()}</span>
-            {member.creditLimit != null && <span>/ {member.creditLimit.toLocaleString()}</span>}
-            <span className="text-outline/60">({member.quotaMode === "LifetimeAssigned" ? "lifetime" : "monthly"})</span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-label-xs text-outline">
+              <span>
+                <span className="font-semibold text-on-surface">{member.creditUsed.toLocaleString()}</span>
+                {member.creditLimit != null ? ` / ${member.creditLimit.toLocaleString()} credits` : " credits"}
+              </span>
+            </div>
+            {member.creditLimit != null && (
+              <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full"
+                  style={{ width: `${Math.min(100, (member.creditUsed / member.creditLimit) * 100)}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 

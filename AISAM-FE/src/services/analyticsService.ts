@@ -242,8 +242,12 @@ export async function fetchUsageBreakdown(): Promise<UsageBreakdownItem[]> {
   try {
     const res: GenericResponse<{ items: UsageBreakdownItem[] }> =
       await apiClient("/analytics/usage-breakdown");
-    return res?.data?.items || [];
-  } catch {
+    console.log("[fetchUsageBreakdown] API response:", res);
+    const items = res?.data?.items || [];
+    console.log("[fetchUsageBreakdown] Parsed items:", items);
+    return items;
+  } catch (err) {
+    console.error("[fetchUsageBreakdown] Error:", err);
     return [];
   }
 }

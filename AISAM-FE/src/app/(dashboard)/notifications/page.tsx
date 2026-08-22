@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
@@ -87,6 +88,7 @@ function TimeAgo({ dateStr }: { dateStr: string }) {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { activeWorkspace } = useWorkspaces();
   const { addToast } = useToast();
@@ -155,6 +157,13 @@ export default function NotificationsPage() {
       addToast("Notification deleted", "check");
     } else {
       addToast("Failed to delete notification", "error");
+    }
+  };
+
+  const handleOpenTarget = () => {
+    if (detail?.targetType === "content") {
+      setDetailId(null);
+      router.push("/approvals");
     }
   };
 
@@ -442,6 +451,14 @@ export default function NotificationsPage() {
                   <div className="p-6 space-y-4">
                     <p className="text-body-md text-on-surface-variant leading-relaxed">{detail.message}</p>
                     <div className="flex items-center gap-2 pt-2">
+                      {detail.targetType === "content" && (
+                        <button
+                          onClick={handleOpenTarget}
+                          className="px-4 py-2 bg-primary text-on-primary rounded-xl text-label-sm font-semibold hover:bg-primary/90 transition-all"
+                        >
+                          View Approvals
+                        </button>
+                      )}
                       <button
                         onClick={() => setDetailId(null)}
                         className="px-4 py-2 bg-surface-container border border-outline-variant/30 text-on-surface rounded-xl text-label-sm font-semibold hover:bg-surface-container-high transition-all"

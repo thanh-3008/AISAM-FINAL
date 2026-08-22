@@ -515,19 +515,25 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     public async Task<UsageBreakdownDto> GetUsageBreakdownAsync(
         Guid workspaceId, CancellationToken cancellationToken = default)
     {
-        var totalAi = await _context.AiGenerations
-            .Where(a => a.Content != null && !a.Content.IsDeleted && a.Content.WorkspaceId == workspaceId)
-            .CountAsync(cancellationToken);
-
-        var totalContents = await _context.Contents
-            .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId)
+        var usageRecords = await _context.CreditUsageRecords
+            .AsNoTracking()
+            .Where(record =>
+                record.WorkspaceId == workspaceId &&
+                record.Status == CreditUsageStatusEnum.Success &&
+                record.Credits > 0 &&
+                record.Action != CreditActionEnum.SubscriptionGrant &&
+                record.Action != CreditActionEnum.CreditPackGrant &&
+                record.Action != CreditActionEnum.AdminAdjust)
+            .Select(record => record.Action)
             .ToListAsync(cancellationToken);
 
-        var totalCount = totalContents.Count;
+        var totalCount = usageRecords.Count;
 
-        var textCount = totalContents.Count(c => c.AdType == AdTypeEnum.TextOnly);
-        var imageCount = totalContents.Count(c => c.AdType == AdTypeEnum.ImageText);
-        var videoCount = totalContents.Count(c => c.AdType == AdTypeEnum.VideoText);
+        var textCount = usageRecords.Count(action =>
+            action == CreditActionEnum.GenerateText ||
+            action == CreditActionEnum.RegenerateText);
+        var imageCount = usageRecords.Count(action => action == CreditActionEnum.GenerateImage);
+        var videoCount = usageRecords.Count(action => action == CreditActionEnum.GenerateVideo);
         var otherCount = totalCount - textCount - imageCount - videoCount;
 
         return new UsageBreakdownDto

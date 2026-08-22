@@ -186,6 +186,8 @@ public sealed class NotificationService : INotificationService
             Type = display.Type.ToString(),
             Title = display.Title,
             Message = display.Message,
+            TargetId = notification.TargetId,
+            TargetType = notification.TargetType,
             IsRead = notification.IsRead,
             CreatedAt = notification.CreatedAt
         };
@@ -200,6 +202,8 @@ public sealed class NotificationService : INotificationService
             Type = display.Type.ToString(),
             Title = display.Title,
             Message = display.Message,
+            TargetId = notification.TargetId,
+            TargetType = notification.TargetType,
             IsRead = notification.IsRead,
             CreatedAt = notification.CreatedAt
         };

@@ -15,6 +15,8 @@ export interface WorkspaceInvitation {
   workspaceName: string;
   email: string;
   role: WorkspaceMemberRole;
+  quotaMode?: number;
+  creditLimit?: number | null;
   status: "Pending" | "Accepted" | "Expired" | "Cancelled";
   invitedBy: string;
   invitedByName: string;
@@ -39,13 +41,30 @@ export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: 
   }
 }
 
-export async function validateInvitation(token: string): Promise<{ valid: boolean; message?: string }> {
+export async function validateInvitation(token: string): Promise<{ valid: boolean; invitation?: WorkspaceInvitation; message?: string }> {
   try {
     const res = await apiClient(`/workspace-invitations/validate/${token}`, {
       method: "GET",
     });
     if (res?.success) {
-      return { valid: true };
+      const item = res.data;
+      return {
+        valid: true,
+        invitation: item ? {
+          id: item.id,
+          workspaceId: item.workspaceId,
+          workspaceName: item.workspaceName,
+          email: item.email,
+          role: ENUM_TO_ROLE[item.role] ?? "Viewer",
+          quotaMode: item.quotaMode,
+          creditLimit: item.creditLimit,
+          status: "Pending",
+          invitedBy: item.invitedByUserId,
+          invitedByName: item.invitedByName || "",
+          createdAt: item.createdAt,
+          expiresAt: item.expiresAt,
+        } : undefined,
+      };
     }
     return { valid: false, message: res?.message || "Invalid invitation" };
   } catch (err: any) {
@@ -53,14 +72,14 @@ export async function validateInvitation(token: string): Promise<{ valid: boolea
   }
 }
 
-export async function acceptInvitation(token: string): Promise<{ success: boolean; workspaceId?: string; message?: string }> {
+export async function acceptInvitation(token: string): Promise<{ success: boolean; workspaceId?: string; workspaceName?: string; message?: string }> {
   try {
     const res = await apiClient("/workspace-invitations/accept", {
       method: "POST",
       data: { token },
     });
     if (res?.success) {
-      return { success: true, workspaceId: res.data?.workspaceId };
+      return { success: true, workspaceId: res.data?.workspaceId, workspaceName: res.data?.workspaceName };
     }
     const serverMsg = res?.message || res?.error?.errorMessage || res?.error?.message || "";
     return { success: false, message: serverMsg || "Failed to accept invitation" };
@@ -93,6 +112,8 @@ export async function getWorkspaceInvitations(): Promise<WorkspaceInvitation[]> 
       workspaceName: item.workspaceName,
       email: item.email,
       role: ENUM_TO_ROLE[item.role] ?? "Viewer",
+      quotaMode: item.quotaMode,
+      creditLimit: item.creditLimit,
       status: item.status || "Pending",
       invitedBy: item.invitedByUserId,
       invitedByName: item.invitedByName || "",

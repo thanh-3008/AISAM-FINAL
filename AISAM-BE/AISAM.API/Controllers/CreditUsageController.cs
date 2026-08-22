@@ -15,10 +15,12 @@ namespace AISAM.API.Controllers;
 public sealed class CreditUsageController : ControllerBase
 {
     private readonly ICreditService _creditService;
+    private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
 
-    public CreditUsageController(ICreditService creditService)
+    public CreditUsageController(ICreditService creditService, IWorkspaceMemberRepository workspaceMemberRepository)
     {
         _creditService = creditService;
+        _workspaceMemberRepository = workspaceMemberRepository;
     }
 
     [HttpGet("wallet")]
@@ -51,12 +53,27 @@ public sealed class CreditUsageController : ControllerBase
     public async Task<ActionResult<GenericResponse<PagedResult<CreditUsageRecordDto>>>> GetPaged(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] Guid? memberId = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _creditService.GetPagedUsageAsync(
-            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
-            new PaginationRequest { Page = page, PageSize = pageSize },
-            cancellationToken);
+        var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        var request = new PaginationRequest { Page = page, PageSize = pageSize };
+        PagedResult<CreditUsageRecordDto> result;
+
+        if (memberId.HasValue)
+        {
+            var member = await _workspaceMemberRepository.GetByIdAsync(memberId.Value, cancellationToken);
+            if (member == null || member.WorkspaceId != workspaceId)
+            {
+                return NotFound(GenericResponse<PagedResult<CreditUsageRecordDto>>.CreateError("Workspace member not found.", System.Net.HttpStatusCode.NotFound));
+            }
+
+            result = await _creditService.GetPagedUsageByUserAsync(workspaceId, member.UserId, request, cancellationToken);
+        }
+        else
+        {
+            result = await _creditService.GetPagedUsageAsync(workspaceId, request, cancellationToken);
+        }
 
         return Ok(GenericResponse<PagedResult<CreditUsageRecordDto>>.CreateSuccess(result));
     }
