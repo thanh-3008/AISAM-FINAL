@@ -107,7 +107,7 @@ async function handleResponse(response: Response) {
             window.location.href = "/login";
           }
           // Return a hanging promise to stop execution and prevent unhandled rejections while the browser redirects
-          return new Promise(() => {});
+          return new Promise(() => { });
         }
       }
       // If server-side or already on login page (and is a login request), let it fall through and throw
@@ -132,7 +132,7 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
       document.cookie = "aisam_role=; path=/; max-age=0";
       if (window.location.pathname !== "/login") {
         window.location.replace("/login");
-        return new Promise(() => {});
+        return new Promise(() => { });
       }
     }
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -156,7 +156,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
   const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
   const isMutation = hasJsonBody || customConfig.method === "POST" || customConfig.method === "PUT" || customConfig.method === "DELETE";
-  
+
   const config: RequestInit = {
     method: hasJsonBody ? "POST" : "GET",
     body: hasJsonBody ? JSON.stringify(data) : undefined,
