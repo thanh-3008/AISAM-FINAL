@@ -24,7 +24,7 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
             throw new InvalidOperationException("Fallback Gemini API key is not configured.");
         }
 
-        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey}";
         var requestBody = new
         {
@@ -36,7 +36,7 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "application/json"
+                responseMimeType = "text/plain"
             },
             safetySettings = new[]
             {
@@ -53,14 +53,29 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
         }
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        var text = document.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
+        
+        if (document.RootElement.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+        {
+            var candidate = candidates[0];
+            if (candidate.TryGetProperty("finishReason", out var fr))
+            {
+                Console.WriteLine($"[FallbackGeminiTextClient] finishReason: {fr.GetString()}");
+            }
+            else
+            {
+                Console.WriteLine("[FallbackGeminiTextClient] finishReason: (missing)");
+            }
 
-        return text ?? string.Empty;
+            var text = candidate
+                .GetProperty("content")
+                .GetProperty("parts")[0]
+                .GetProperty("text")
+                .GetString();
+                
+            return text ?? string.Empty;
+        }
+
+        return string.Empty;
     }
 
     public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
@@ -70,7 +85,7 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
             throw new InvalidOperationException("Fallback Gemini API key is not configured.");
         }
 
-        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey}";
         var requestBody = new
         {
@@ -89,7 +104,7 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "application/json"
+                responseMimeType = "text/plain"
             },
             safetySettings = new[]
             {

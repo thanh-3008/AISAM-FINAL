@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
-import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, submitForApproval, type CreateContentPayload } from "@/services/contentService";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, submitForApproval, deleteContent, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet } from "@/services/workspaceService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { getStoredAutosave } from "@/hooks/useSettings";
 
 interface ChatMessage {
   id: string;
@@ -183,6 +184,19 @@ export default function AIGeneratePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
   const [lastSavedContent, setLastSavedContent] = useState({ title: "", content: "", imageUrl: "" as string | null, videoUrl: "" as string | null });
+
+  const unsavedGeneratedIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      if (!getStoredAutosave()) {
+        const idsToDelete = Array.from(unsavedGeneratedIdsRef.current);
+        idsToDelete.forEach(id => {
+          deleteContent(id).catch(() => {});
+        });
+      }
+    };
+  }, []);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatImageInputRef = useRef<HTMLInputElement>(null);
@@ -429,6 +443,7 @@ export default function AIGeneratePage() {
       if (aiReply.createdContentId) {
         setGeneratedId(aiReply.createdContentId ?? null);
         setJustGenerated(true); // Automatically show "View Post" so the user can navigate to see the processing status
+        unsavedGeneratedIdsRef.current.add(aiReply.createdContentId);
       }
       if (aiReply.shouldCreateContent || aiReply.createdContentId) {
         handleApplyVariation(variation);
@@ -481,6 +496,7 @@ export default function AIGeneratePage() {
         setGeneratedId(result.id);
         setJustGenerated(true);
         setLastSavedContent({ title, content, imageUrl, videoUrl });
+        unsavedGeneratedIdsRef.current.delete(result.id);
         addToast("Post saved successfully!");
       }
     } catch (e: any) {
@@ -499,6 +515,7 @@ export default function AIGeneratePage() {
     if (success) {
       addToast("Post submitted for approval successfully!", "check");
       setJustGenerated(false); // Hide the button after submit
+      unsavedGeneratedIdsRef.current.delete(generatedId);
     } else {
       addToast("Failed to submit for approval.", "error");
     }
@@ -719,7 +736,10 @@ export default function AIGeneratePage() {
                 </span>
               )}
               {justGenerated && generatedId && (
-                <button onClick={() => router.push(`/content/${generatedId}`)}
+                <button onClick={() => {
+                  unsavedGeneratedIdsRef.current.delete(generatedId);
+                  router.push(`/content/${generatedId}`);
+                }}
                   className="ml-auto px-3 py-1.5 rounded-lg bg-success-green text-white text-label-xs font-semibold hover:bg-success-green/90 transition-all active:scale-[0.97] flex items-center gap-1">
                   <span className="material-symbols-outlined text-[12px]">open_in_new</span>
                   View Post

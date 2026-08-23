@@ -81,6 +81,13 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
         try
         {
+            if (!item.BrandId.HasValue || item.BrandId.Value == Guid.Empty)
+            {
+                _logger.LogWarning("AutomationItem {ItemId} is missing a valid BrandId. Failing generation.", item.Id);
+                await FailAsync(item, "Missing BrandId — cannot create Content.", cancellationToken);
+                return TimeSpan.FromMilliseconds(250);
+            }
+
             var requiresImage = item.RequestedContentType is AutomationContentTypeEnum.Image or AutomationContentTypeEnum.Auto &&
                                 !item.Platform.Equals("tiktok", StringComparison.OrdinalIgnoreCase);
             var requiresVideo = item.RequestedContentType == AutomationContentTypeEnum.Video ||
@@ -94,7 +101,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 Id = Guid.NewGuid(),
                 ProfileId = item.AutomationPlan.ProfileId,
                 WorkspaceId = item.AutomationPlan.WorkspaceId,
-                BrandId = item.BrandId.GetValueOrDefault(),
+                BrandId = item.BrandId.Value,
                 ProductId = item.ProductId,
                 Title = item.Topic,
                 Status = ContentStatusEnum.Draft,
@@ -271,7 +278,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
     private static string BuildTextPrompt(AutomationItem item) => $"""
         Create a ready-to-publish social media caption in Vietnamese.
         Platform: {item.Platform}
-        Brand: {item.Brand.Name}
+        Brand: {item.Brand?.Name ?? "the brand"}
         Product: {item.Product?.Name ?? "Not specified"}
         Product knowledge profile:
         {BuildProductKnowledgeContext(item.Product)}
@@ -286,7 +293,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
     private static string BuildImagePrompt(AutomationItem item) => $"""
         {BuildProductImageReferenceInstruction(item.Product)}
-        Create a polished social media advertising image for {item.Brand.Name}.
+        Create a polished social media advertising image for {item.Brand?.Name ?? "the brand"}.
         Topic: {item.Topic}. Product: {item.Product?.Name ?? "brand offering"}.
         Product knowledge profile:
         {BuildProductKnowledgeContext(item.Product)}
@@ -304,7 +311,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         """;
 
     private static string BuildVideoPrompt(AutomationItem item) => $"""
-        A premium advertising video showcasing {item.Product?.Name ?? item.Brand.Name} as the central hero subject.
+        A premium advertising video showcasing {item.Product?.Name ?? item.Brand?.Name ?? "the brand"} as the central hero subject.
         {BuildProductKnowledgeContext(item.Product)}
         Topic: {item.Topic}. Objective: {item.Objective ?? "engagement"}. Platform: {item.Platform}.
         The product performs a subtle and elegant motion (slowly rotates, gleams under light, or is gently handled in context).

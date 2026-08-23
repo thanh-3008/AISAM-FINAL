@@ -18,7 +18,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
     }
 
     public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
-        => GenerateAsync(prompt, "application/json", cancellationToken);
+        => GenerateAsync(prompt, null, cancellationToken);
 
     public async Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
     {
@@ -27,10 +27,10 @@ public sealed class GeminiTextClient : IGeminiTextClient
             throw new InvalidOperationException("Gemini API key is not configured.");
         }
 
-        var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var modelsToTry = primaryModel == "gemini-2.5-flash" 
+        var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
+        var modelsToTry = primaryModel == "gemini-3.6-flash" 
             ? new[] { primaryModel } 
-            : new[] { primaryModel, "gemini-2.5-flash" };
+            : new[] { primaryModel, "gemini-3.6-flash" };
 
         var requestBody = new
         {
@@ -98,7 +98,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
     }
 
     public Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
-        => GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, "application/json", cancellationToken);
+        => GenerateWithVisionAsync(textPrompt, imageBytes, mimeType, null, cancellationToken);
 
     public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType, string? responseMimeType, CancellationToken cancellationToken = default)
     {
@@ -107,10 +107,10 @@ public sealed class GeminiTextClient : IGeminiTextClient
             throw new InvalidOperationException("Gemini API key is not configured.");
         }
 
-        var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
-        var modelsToTry = primaryModel == "gemini-2.5-flash" 
+        var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
+        var modelsToTry = primaryModel == "gemini-3.6-flash" 
             ? new[] { primaryModel } 
-            : new[] { primaryModel, "gemini-2.5-flash" };
+            : new[] { primaryModel, "gemini-3.6-flash" };
 
         var requestBody = new
         {

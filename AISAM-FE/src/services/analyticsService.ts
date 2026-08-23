@@ -53,6 +53,20 @@ export interface AiInsight {
   highlight?: string;
 }
 
+export interface AiRecommendationItem {
+  priority: 'HIGH' | 'MID' | 'LOW';
+  title: string;
+  rationale: string;
+  actionable_steps: string[];
+  kpi_target: string;
+}
+
+export interface AiRecommendationsResponse {
+  recommendations?: AiRecommendationItem[];
+  error?: string;
+  message?: string;
+}
+
 export interface EfficiencyMetric {
   label: string;
   value: number;
@@ -274,7 +288,7 @@ export async function fetchTopPosts(
 export async function fetchAiRecommendations(
   dateRange?: DateRange,
   forceRefresh?: boolean
-): Promise<string> {
+): Promise<AiRecommendationsResponse> {
   const { from, to } = getDateRange(dateRange || "30d");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -283,9 +297,15 @@ export async function fetchAiRecommendations(
       `/analytics/ai-recommendations?from=${from}&to=${to}${forceRefresh ? '&forceRefresh=true' : ''}`,
       { signal: controller.signal } as RequestInit
     );
-    return res?.data || "";
-  } catch {
-    return "";
+    const rawData = res?.data || "";
+    if (!rawData) return { error: "EMPTY", message: "No data returned." };
+    try {
+      return JSON.parse(rawData) as AiRecommendationsResponse;
+    } catch (e) {
+      return { error: "PARSE_ERROR", message: "Failed to parse AI output." };
+    }
+  } catch (e) {
+    return { error: "NETWORK_ERROR", message: "Network error occurred." };
   } finally {
     clearTimeout(timeout);
   }

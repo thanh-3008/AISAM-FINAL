@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { getUserIdFromToken, getUserFromToken, getStoredUser } from "@/lib/auth";
 import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
+import { useSettings } from "@/hooks/useSettings";
 import { apiClient } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
 
@@ -49,6 +50,7 @@ export default function OverviewPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const reduceMotion = useReducedMotion();
+  const { autosaveEnabled, toggleAutosave } = useSettings();
 
   const createAndSelectWorkspace = async (name: string, workspaceType: number, companyName?: string) => {
     setCreating(true);
@@ -117,7 +119,7 @@ export default function OverviewPage() {
 
   if (loading || creating) {
     return (
-      <main className="min-h-[100dvh] bg-surface flex items-center justify-center">
+      <main className="min-h-dvh bg-surface flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -174,11 +176,34 @@ export default function OverviewPage() {
   const MotionDiv = motion.div;
 
   return (
-    <main className="min-h-[100dvh] bg-surface flex flex-col relative overflow-hidden">
+    <main className="min-h-dvh bg-surface flex flex-col relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/[0.03] rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/[0.03] rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
+        <div className="absolute top-0 right-0 w-150 h-150 bg-primary/3 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
+        <div className="absolute bottom-0 left-0 w-125 h-125 bg-secondary/3 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
+      </div>
+
+      {/* Global Settings (Top Right) */}
+      <div className="absolute top-6 right-6 z-20">
+        <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/20 shadow-sm">
+          <span className="material-symbols-outlined text-[16px] text-on-surface-variant">save_as</span>
+          <span className="text-label-sm text-on-surface-variant font-medium">Auto-save posts</span>
+          <button
+            onClick={() => toggleAutosave(!autosaveEnabled)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              autosaveEnabled ? "bg-primary" : "bg-outline/30"
+            }`}
+            role="switch"
+            aria-checked={autosaveEnabled}
+            title={autosaveEnabled ? "Auto-save enabled" : "Auto-save disabled"}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${
+                autosaveEnabled ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 px-6 md:px-8 lg:px-12 max-w-5xl mx-auto w-full flex flex-col justify-center items-center py-12 md:py-16 relative z-10">
@@ -190,7 +215,7 @@ export default function OverviewPage() {
           className="mb-10 md:mb-12 text-center w-full"
         >
           <Link href="/" className="mx-auto flex w-fit items-center justify-center gap-2.5 mb-6 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+            <div className="w-10 h-10 bg-linear-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
               <span className="material-symbols-outlined text-on-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
             </div>
             <span className="text-headline-sm font-bold text-on-surface tracking-tight">AISAM</span>
@@ -262,7 +287,7 @@ export default function OverviewPage() {
                   isActive 
                     ? "border-primary ring-2 ring-primary/20 shadow-lg shadow-primary/10" 
                     : "border-outline-variant/30 hover:border-primary/30 hover:shadow-lg hover:shadow-black/5"
-                } p-5 rounded-2xl flex flex-col justify-between overflow-hidden transition-colors min-h-[240px]`}
+                } p-5 rounded-2xl flex flex-col justify-between overflow-hidden transition-colors min-h-60`}
               >
                 {/* Active indicator */}
                 {isActive && (
@@ -279,9 +304,9 @@ export default function OverviewPage() {
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                       isPending
                         ? (workspace as PendingWorkspace).workspaceType === 1
-                          ? "bg-gradient-to-br from-secondary/10 to-secondary/5"
-                          : "bg-gradient-to-br from-primary/10 to-primary/5"
-                        : "bg-gradient-to-br from-primary/10 to-primary/5"
+                          ? "bg-linear-to-br from-secondary/10 to-secondary/5"
+                          : "bg-linear-to-br from-primary/10 to-primary/5"
+                        : "bg-linear-to-br from-primary/10 to-primary/5"
                     }`}>
                       <span className={`material-symbols-outlined text-[20px] ${
                         isPending
@@ -348,8 +373,8 @@ export default function OverviewPage() {
                 {isPending && (
                   <div className={`absolute -bottom-12 -right-12 w-32 h-32 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
                     (workspace as PendingWorkspace).workspaceType === 1 
-                      ? "bg-gradient-to-bl from-secondary/10 to-transparent" 
-                      : "bg-gradient-to-bl from-primary/10 to-transparent"
+                      ? "bg-linear-to-bl from-secondary/10 to-transparent" 
+                      : "bg-linear-to-bl from-primary/10 to-transparent"
                   }`} />
                 )}
               </MotionDiv>

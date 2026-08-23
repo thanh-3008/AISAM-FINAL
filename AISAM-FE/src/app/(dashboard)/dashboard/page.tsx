@@ -294,10 +294,10 @@ export default function DashboardPage() {
         </div>
 
         {/* ===== HOLIDAY BANNER ===== */}
-        <HolidayBanner onSuccess={() => {
+        {/* <HolidayBanner onSuccess={() => {
           // Could refresh content list if we had one on this page, but dashboard doesn't need to refresh just yet
           alert("Caption suggested and saved to Content list for approval!");
-        }} />
+        }} /> */}
 
         {/* ===== KPI GRID ===== */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">

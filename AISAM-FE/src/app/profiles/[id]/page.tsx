@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSettings } from "@/hooks/useSettings";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { useWorkspaces, getWorkspaceTypeLabel, invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
@@ -110,6 +111,7 @@ export default function ProfileDetailPage() {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>(
     ["overview", "my-profile", "team", "security", "billing", "subscription"].includes(initialSection) ? initialSection : "overview"
   );
+  const { autosaveEnabled, toggleAutosave } = useSettings();
   const { selectWorkspace, activeWorkspace, refetch: refetchWorkspaces } = useWorkspaces();
   const reduceMotion = useReducedMotion();
   const { showToast } = useToast();
@@ -997,6 +999,30 @@ export default function ProfileDetailPage() {
                           <h2 className="text-2xl font-bold text-on-surface tracking-tight">Workspace Overview</h2>
                           <p className="text-body-sm text-on-surface-variant mt-0.5">{workspace?.name || "Workspace"} - Analytics & Insights</p>
                         </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Autosave Toggle + Refresh Row */}
+                    <motion.div variants={reduceMotion ? undefined : item} className="flex items-center justify-end gap-3">
+                      {/* Autosave Toggle */}
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/20">
+                        <span className="material-symbols-outlined text-[16px] text-on-surface-variant">save_as</span>
+                        <span className="text-label-sm text-on-surface-variant font-medium">Auto-save posts</span>
+                        <button
+                          onClick={() => toggleAutosave(!autosaveEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            autosaveEnabled ? "bg-primary" : "bg-outline/30"
+                          }`}
+                          role="switch"
+                          aria-checked={autosaveEnabled}
+                          title={autosaveEnabled ? "Auto-save enabled" : "Auto-save disabled"}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${
+                              autosaveEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
                       </div>
                       <motion.button
                         whileHover={reduceMotion ? undefined : { scale: 1.02 }}
