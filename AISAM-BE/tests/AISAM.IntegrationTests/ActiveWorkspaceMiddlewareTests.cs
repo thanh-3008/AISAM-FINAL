@@ -225,6 +225,38 @@ public class ActiveWorkspaceMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_AllowsFreePlanToReadContentSchedules()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.ContentCreator);
+        var context = CreateContext(userId, "/api/content-schedules");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(
+                new Subscription
+                {
+                    WorkspaceId = membership.WorkspaceId,
+                    Plan = SubscriptionPlanEnum.Free,
+                    IsActive = true,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(7)
+                }));
+
+        Assert.True(nextCalled);
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode == 0 ? StatusCodes.Status200OK : context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ReturnsForbidden_WhenFreePlanUsesAiImageFeature()
     {
         var userId = Guid.NewGuid();

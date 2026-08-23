@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon, isFailedOrRejectedStatus } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
@@ -177,7 +177,7 @@ export default function ContentPage() {
     scheduled: scheduledCount,
     draft: allContent.filter((c) => c.status === "Draft").length,
     pendingApproval: allContent.filter((c) => c.status === "Awaiting Approval").length,
-    failed: allContent.filter((c) => c.status === "Failed").length,
+    failed: allContent.filter((c) => isFailedOrRejectedStatus(c.status)).length,
   }), [allContent, scheduledCount]);
 
   const availableProducts = useMemo(() => {

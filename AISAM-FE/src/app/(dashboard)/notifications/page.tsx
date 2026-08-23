@@ -13,6 +13,8 @@ import {
   markAllNotificationsRead,
   getUnreadCount,
   deleteNotification,
+  getNotificationTargetPath,
+  shouldShowFullNotificationMessage,
   type NotificationListItem,
   type NotificationDetail,
 } from "@/services/notificationService";
@@ -161,9 +163,10 @@ export default function NotificationsPage() {
   };
 
   const handleOpenTarget = () => {
-    if (detail?.targetType === "content") {
+    const targetPath = detail ? getNotificationTargetPath(detail) : null;
+    if (targetPath) {
       setDetailId(null);
-      router.push("/approvals");
+      router.push(targetPath);
     }
   };
 
@@ -326,7 +329,11 @@ export default function NotificationsPage() {
                               <p className="text-body-sm font-semibold truncate text-on-surface">
                                 {notification.title}
                               </p>
-                              <p className="text-body-sm text-on-surface-variant mt-0.5 line-clamp-2">
+                              <p className={`text-body-sm text-on-surface-variant mt-0.5 ${
+                                shouldShowFullNotificationMessage(notification)
+                                  ? "whitespace-pre-line break-words"
+                                  : "line-clamp-2"
+                              }`}>
                                 {notification.message}
                               </p>
                             </div>
@@ -451,7 +458,7 @@ export default function NotificationsPage() {
                   <div className="p-6 space-y-4">
                     <p className="text-body-md text-on-surface-variant leading-relaxed">{detail.message}</p>
                     <div className="flex items-center gap-2 pt-2">
-                      {detail.targetType === "content" && (
+                      {getNotificationTargetPath(detail) && (
                         <button
                           onClick={handleOpenTarget}
                           className="px-4 py-2 bg-primary text-on-primary rounded-xl text-label-sm font-semibold hover:bg-primary/90 transition-all"

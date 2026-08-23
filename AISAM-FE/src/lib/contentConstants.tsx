@@ -3,6 +3,10 @@ import { useId } from "react";
 export type ContentType = "IMAGE" | "TEXT" | "VIDEO";
 export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled" | "Failed";
 
+export function isFailedOrRejectedStatus(status: string): boolean {
+  return status === "Failed" || status === "Rejected";
+}
+
 export const PLATFORM_CONFIG: Record<string, { color: string; icon: string; label: string }> = {
   facebook: { color: "#1877F2", icon: "facebook", label: "Facebook" },
   instagram: { color: "#DD2A7B", icon: "instagram", label: "Instagram" },

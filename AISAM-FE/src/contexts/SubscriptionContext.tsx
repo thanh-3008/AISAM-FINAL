@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { fetchCreditWallet } from "@/services/workspaceService";
+import { getCurrentSubscription } from "@/services/profileSettingsService";
 
 export type SubscriptionStatus = "active" | "expired" | "limited" | "archived" | "none";
 
@@ -31,14 +31,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const checkSubscription = useCallback(async () => {
     try {
-      const wallet = await fetchCreditWallet();
-      if (wallet?.subscriptionEndDate) {
-        setSubscriptionEndDate(wallet.subscriptionEndDate);
+      const subscription = await getCurrentSubscription();
+      if (subscription?.endDate) {
+        setSubscriptionEndDate(subscription.endDate);
         const now = new Date();
-        const endDate = new Date(wallet.subscriptionEndDate);
+        const endDate = new Date(subscription.endDate);
         const daysDiff = Math.floor((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-        if (wallet.subscriptionStatus === "Active" || daysDiff > 0) {
+        if (subscription.status === "Active" || daysDiff > 0) {
           setStatus("active");
         } else if (daysDiff <= -180) {
           setStatus("archived");
@@ -47,7 +47,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         } else {
           setStatus("limited");
         }
-      } else if (wallet?.balance !== undefined) {
+      } else {
         setStatus("active");
       }
     } catch {

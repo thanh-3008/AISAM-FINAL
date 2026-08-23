@@ -34,6 +34,15 @@ export interface NotificationDetail extends NotificationListItem {
   profileId: string;
 }
 
+export function getNotificationTargetPath(notification: Pick<NotificationListItem, "targetId" | "targetType">): string | null {
+  if (notification.targetType !== "content") return null;
+  return notification.targetId ? `/content/${encodeURIComponent(notification.targetId)}` : "/approvals";
+}
+
+export function shouldShowFullNotificationMessage(notification: Pick<NotificationListItem, "type" | "targetType">): boolean {
+  return notification.targetType === "content" && notification.type.toUpperCase() === "APPROVAL";
+}
+
 export interface UnreadCount {
   count: number;
 }
