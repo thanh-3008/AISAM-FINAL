@@ -272,7 +272,6 @@ public sealed class ActiveWorkspaceMiddleware
         WorkspaceMember membership,
         ISubscriptionRepository subscriptionRepository)
     {
-        // Reading schedules is available to every plan; only schedule mutations are gated below.
         if (context.Request.Method == HttpMethods.Get &&
             context.Request.Path.StartsWithSegments("/api/content-schedules"))
         {
