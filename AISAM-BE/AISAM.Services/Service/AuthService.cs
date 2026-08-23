@@ -54,7 +54,7 @@ namespace AISAM.Services.Service
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                Email = request.Email.Trim(),
+                Email = request.Email.Trim().ToLowerInvariant(),
                 FullName = request.FullName,
                 PasswordHash = passwordHash,
                 PasswordSalt = passwordSalt,
@@ -141,7 +141,7 @@ namespace AISAM.Services.Service
                     user = new User
                     {
                         Id = Guid.NewGuid(),
-                        Email = payload.Email,
+                        Email = payload.Email.ToLowerInvariant(),
                         FullName = payload.Name,
                         Role = UserRoleEnum.User,
                         IsEmailVerified = true, // Google already verified this
