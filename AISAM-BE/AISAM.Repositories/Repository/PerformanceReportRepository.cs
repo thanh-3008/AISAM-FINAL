@@ -515,7 +515,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     public async Task<UsageBreakdownDto> GetUsageBreakdownAsync(
         Guid workspaceId, CancellationToken cancellationToken = default)
     {
-        var usageRecords = await _context.CreditUsageRecords
+        var actionCounts = await _context.CreditUsageRecords
             .AsNoTracking()
             .Where(record =>
                 record.WorkspaceId == workspaceId &&
@@ -524,16 +524,15 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
                 record.Action != CreditActionEnum.SubscriptionGrant &&
                 record.Action != CreditActionEnum.CreditPackGrant &&
                 record.Action != CreditActionEnum.AdminAdjust)
-            .Select(record => record.Action)
+            .GroupBy(record => record.Action)
+            .Select(g => new { Action = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
 
-        var totalCount = usageRecords.Count;
+        var totalCount = actionCounts.Sum(x => x.Count);
 
-        var textCount = usageRecords.Count(action =>
-            action == CreditActionEnum.GenerateText ||
-            action == CreditActionEnum.RegenerateText);
-        var imageCount = usageRecords.Count(action => action == CreditActionEnum.GenerateImage);
-        var videoCount = usageRecords.Count(action => action == CreditActionEnum.GenerateVideo);
+        var textCount = actionCounts.Where(x => x.Action == CreditActionEnum.GenerateText || x.Action == CreditActionEnum.RegenerateText).Sum(x => x.Count);
+        var imageCount = actionCounts.Where(x => x.Action == CreditActionEnum.GenerateImage).Sum(x => x.Count);
+        var videoCount = actionCounts.Where(x => x.Action == CreditActionEnum.GenerateVideo).Sum(x => x.Count);
         var otherCount = totalCount - textCount - imageCount - videoCount;
 
         return new UsageBreakdownDto

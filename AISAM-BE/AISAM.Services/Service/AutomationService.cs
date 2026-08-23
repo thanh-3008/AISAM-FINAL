@@ -45,7 +45,7 @@ public sealed class AutomationService : IAutomationService
         };
 
         var brandNames = request.Rows.Select(r => r.BrandName ?? string.Empty).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct();
-        var brandIds = request.Rows.Where(r => r.BrandId.HasValue).Select(r => r.BrandId.Value).Distinct();
+        var brandIds = request.Rows.Where(r => r.BrandId.HasValue).Select(r => r.BrandId!.Value).Distinct();
         var workspaceBrands = await _brandRepository.GetByNamesAndIdsAsync(workspaceId, brandNames, brandIds, cancellationToken);
 
         for (var rowIndex = 0; rowIndex < request.Rows.Count; rowIndex++)
