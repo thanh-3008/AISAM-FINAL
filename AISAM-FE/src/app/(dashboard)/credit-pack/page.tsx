@@ -97,8 +97,9 @@ export default function CreditPackPage() {
     if (!hasPayOSRedirect || !activeWorkspace?.id || paymentSyncStartedRef.current) return;
 
     const redirectStatus = searchParams.get("status")?.toUpperCase();
-    const redirectPaid = searchParams.get("cancel") !== "true" &&
-      (Boolean(pendingReference) || redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+    const isCancelled = searchParams.get("cancel") === "true" || redirectStatus === "CANCELLED" || searchParams.get("payment") === "cancelled";
+    const redirectPaid = !isCancelled &&
+      (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
 
     paymentSyncStartedRef.current = true;
     setSyncingPayment(true);

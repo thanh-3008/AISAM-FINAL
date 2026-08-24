@@ -20,6 +20,10 @@ function getActionIcon(action: string): string {
       return "trending_up";
     case "campaign recommendation":
       return "campaign";
+    case "subscription grant":
+    case "credit pack purchase":
+    case "adminadjust":
+      return "add_circle";
     default:
       return "auto_awesome";
   }
@@ -40,6 +44,10 @@ function getActionColor(action: string): string {
       return "text-emerald-500 bg-emerald-50";
     case "campaign recommendation":
       return "text-indigo-500 bg-indigo-50";
+    case "subscription grant":
+    case "credit pack purchase":
+    case "adminadjust":
+      return "text-emerald-500 bg-emerald-50";
     default:
       return "text-primary bg-primary/5";
   }
@@ -86,7 +94,7 @@ export default function CreditHistoryPage() {
   });
 
   const totalCreditsUsed = history
-    .filter((r) => r.status === "Success")
+    .filter((r) => r.status === "Success" && !["Subscription Grant", "Credit Pack Purchase", "AdminAdjust"].includes(r.action))
     .reduce((sum, r) => sum + r.credits, 0);
 
   return (
@@ -207,13 +215,17 @@ export default function CreditHistoryPage() {
                       <div className="col-span-2 flex items-center justify-center">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
                           record.status === "Success"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-red-50 text-red-700"
+                            ? ["Subscription Grant", "Credit Pack Purchase", "AdminAdjust"].includes(record.action)
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-red-50 text-red-700"
+                            : "bg-surface-container text-on-surface-variant"
                         }`}>
                           {record.status === "Failed" && (
                             <span className="material-symbols-outlined text-[14px]">close</span>
                           )}
-                          {record.status === "Success" ? `-${record.credits}` : "0"}
+                          {record.status === "Success" 
+                            ? `${["Subscription Grant", "Credit Pack Purchase", "AdminAdjust"].includes(record.action) ? "+" : "-"}${record.credits}` 
+                            : "0"}
                         </span>
                       </div>
 

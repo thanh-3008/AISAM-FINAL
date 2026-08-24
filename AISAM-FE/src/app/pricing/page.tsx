@@ -150,8 +150,9 @@ function PricingContent() {
     const pendingPricingPaymentType = window.sessionStorage.getItem(PRICING_PAYMENT_TYPE_KEY) as PricingPaymentType | null;
     const pendingPricingReference = window.sessionStorage.getItem(PRICING_PAYMENT_REFERENCE_KEY);
     const redirectStatus = searchParams.get("status")?.toUpperCase();
-    const redirectPaid = searchParams.get("cancel") !== "true" &&
-      (Boolean(pendingPricingReference) || redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+    const isCancelled = searchParams.get("cancel") === "true" || redirectStatus === "CANCELLED" || searchParams.get("payment") === "cancelled";
+    const redirectPaid = !isCancelled &&
+      (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
     if (!hasPaymentRedirect || (!activeWorkspace?.id && !isBusinessCreation)) return;
     if (paymentSyncStartedRef.current) return;
 
