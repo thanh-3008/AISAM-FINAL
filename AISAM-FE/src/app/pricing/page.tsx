@@ -16,6 +16,8 @@ import { getCurrentSubscription } from "@/services/profileSettingsService";
 type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
 const CREATED_WORKSPACE_PAYMENT_KEY = "aisam-created-workspace-payment";
+const PRICING_PAYMENT_TYPE_KEY = "aisam-pricing-payment-type";
+type PricingPaymentType = "subscription" | "credits";
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -144,6 +146,7 @@ function PricingContent() {
   useEffect(() => {
     const pendingBusinessReference = window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY);
     const isBusinessCreation = Boolean(pendingBusinessReference);
+    const pendingPricingPaymentType = window.sessionStorage.getItem(PRICING_PAYMENT_TYPE_KEY) as PricingPaymentType | null;
     const redirectStatus = searchParams.get("status")?.toUpperCase();
     const redirectPaid = searchParams.get("cancel") !== "true" &&
       (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
@@ -158,6 +161,7 @@ function PricingContent() {
           if (isBusinessCreation) {
             window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
           }
+          window.sessionStorage.removeItem(PRICING_PAYMENT_TYPE_KEY);
           showToast({ type: "info", title: "Payment not completed", message: "No workspace or subscription was activated." });
           router.replace(isBusinessCreation ? "/pricing?create=business" : "/pricing");
           return;
@@ -183,6 +187,7 @@ function PricingContent() {
         }
 
         const reference = searchParams.get("orderCode") || searchParams.get("id");
+        const subscriptionBefore = await getCurrentSubscription();
         const success = reference ? await synchronizeBusinessWorkspacePayment(reference) : false;
         if (!success) {
           showToast({ type: "error", title: "Payment sync failed", message: "Payment was received but could not be synchronized. Please contact support." });
@@ -193,17 +198,30 @@ function PricingContent() {
         const subscription = await getCurrentSubscription();
         const wallet = await fetchCreditWallet();
 
-        if (subscription?.planName) {
-          updateWorkspacePlan(activeWorkspace.id, subscription.planName);
+        const subscriptionPlanName = subscription?.planName;
+        if (pendingPricingPaymentType === "subscription" && !subscriptionPlanName) {
+          window.sessionStorage.removeItem(PRICING_PAYMENT_TYPE_KEY);
+          showToast({ type: "error", title: "Subscription refresh failed", message: "Payment was synchronized, but the active subscription could not be loaded." });
+          router.replace("/pricing");
+          return;
+        }
+
+        const isSubscriptionUpgrade = Boolean(subscriptionPlanName &&
+          (pendingPricingPaymentType === "subscription" ||
+            (!pendingPricingPaymentType && subscriptionPlanName !== subscriptionBefore?.planName)));
+        if (isSubscriptionUpgrade && subscriptionPlanName) {
+          window.sessionStorage.removeItem(PRICING_PAYMENT_TYPE_KEY);
+          updateWorkspacePlan(activeWorkspace.id, subscriptionPlanName);
           showToast({
             type: "success",
             title: "Payment successful",
-            message: `${subscription.planName} is now active for this workspace.`,
+            message: `${subscriptionPlanName} is now active for this workspace.`,
           });
           router.replace("/dashboard");
           return;
         }
 
+        window.sessionStorage.removeItem(PRICING_PAYMENT_TYPE_KEY);
         if (wallet) setCreditWallet(wallet);
         showToast({
           type: "success",
@@ -311,6 +329,7 @@ function PricingContent() {
       });
 
       if (payment?.checkoutUrl) {
+        window.sessionStorage.setItem(PRICING_PAYMENT_TYPE_KEY, "subscription");
         setQrData({
           checkoutUrl: payment.checkoutUrl,
           amount: plan.price,
@@ -347,6 +366,7 @@ function PricingContent() {
       });
 
       if (payment?.checkoutUrl) {
+        window.sessionStorage.setItem(PRICING_PAYMENT_TYPE_KEY, "credits");
         setQrData({
           checkoutUrl: payment.checkoutUrl,
           amount: pack.price,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
+import { createPayment, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, syncPayOSCallback } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -58,15 +59,19 @@ const DEFAULT_CREDIT_PACKS: CreditPack[] = [
 ];
 
 export default function CreditPackPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { activeWorkspace } = useWorkspaces();
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [creditPacks, setCreditPacks] = useState<CreditPack[]>(DEFAULT_CREDIT_PACKS);
   const [selectedPack, setSelectedPack] = useState<CreditPack | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [syncingPayment, setSyncingPayment] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
   const [paymentError, setPaymentError] = useState("");
+  const paymentSyncStartedRef = useRef(false);
 
   function formatCurrency(amount: number) {
     return new Intl.NumberFormat("vi-VN", {
@@ -83,6 +88,50 @@ export default function CreditPackPage() {
     };
     loadWallet();
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    const hasPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id");
+    if (!hasPayOSRedirect || !activeWorkspace?.id || paymentSyncStartedRef.current) return;
+
+    const redirectStatus = searchParams.get("status")?.toUpperCase();
+    const redirectPaid = searchParams.get("cancel") !== "true" &&
+      (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+
+    paymentSyncStartedRef.current = true;
+    setSyncingPayment(true);
+
+    const synchronizePayment = async () => {
+      try {
+        if (!redirectPaid) {
+          setPaymentError("Payment was not completed.");
+          router.replace("/credit-pack?payment=cancelled");
+          return;
+        }
+
+        const synced = await syncPayOSCallback(searchParams);
+        if (!synced) {
+          paymentSyncStartedRef.current = false;
+          setPaymentError("Payment was received, but credits could not be synchronized yet. Please refresh or contact support.");
+          return;
+        }
+
+        const wallet = await fetchCreditWallet();
+        setCreditWallet(wallet);
+        setPurchaseSuccess(true);
+        setShowConfirmDialog(false);
+        setSelectedPack(null);
+        router.replace("/credit-pack?payment=success");
+        setTimeout(() => setPurchaseSuccess(false), 4000);
+      } catch {
+        paymentSyncStartedRef.current = false;
+        setPaymentError("Payment sync failed. Please try refreshing the page.");
+      } finally {
+        setSyncingPayment(false);
+      }
+    };
+
+    synchronizePayment();
+  }, [activeWorkspace?.id, router, searchParams]);
 
   useEffect(() => {
     fetchPublicPricing().then((res) => {
@@ -174,6 +223,16 @@ export default function CreditPackPage() {
             <div className="fixed top-20 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-600 text-white shadow-lg animate-in slide-in-from-right">
               <span className="material-symbols-outlined text-[20px]">check_circle</span>
               <span className="text-body-sm font-semibold">Credits added successfully!</span>
+            </div>
+          )}
+
+          {syncingPayment && (
+            <div className="fixed top-20 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl bg-primary text-white shadow-lg">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span className="text-body-sm font-semibold">Syncing payment...</span>
             </div>
           )}
 
