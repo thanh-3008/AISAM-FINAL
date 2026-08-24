@@ -46,14 +46,14 @@ export default function ContentDetailPage() {
       const currentItem = itemRef.current;
       const currentForm = formRef.current;
       if (getStoredAutosave() && currentItem && currentForm.title) {
-        const STATUS_TO_API: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
-        // Fire-and-forget save in background
+        // Autosave only content fields, NOT status.
+        // Status changes must go through explicit actions (submit/approve/reject/handleSave)
+        // to prevent race conditions where unmount cleanup overwrites approval transitions.
         updateContent(currentItem.id, {
           title: currentForm.title,
           adType: CONTENTTYPE_TO_ADTYPE[currentItem.type],
           textContent: currentForm.caption,
           contextDescription: currentForm.description,
-          status: STATUS_TO_API[currentForm.status] as any,
         }).catch(() => {});
       }
     };
@@ -130,7 +130,12 @@ export default function ContentDetailPage() {
     setIsSubmitting(false);
     if (success) {
       setToast({ message: "Content submitted for approval successfully.", type: "success" });
-      if (item) setItem({ ...item, status: "Awaiting Approval" });
+      if (item) {
+        const updatedItem = { ...item, status: "Awaiting Approval" as ContentStatus };
+        setItem(updatedItem);
+        // Synchronize form status to prevent autosave cleanup from overwriting server status
+        setForm(prev => ({ ...prev, status: "Awaiting Approval" }));
+      }
     } else {
       setToast({ message: "Failed to submit content.", type: "error" });
     }
