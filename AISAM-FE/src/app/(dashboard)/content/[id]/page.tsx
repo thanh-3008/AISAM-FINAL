@@ -102,29 +102,18 @@ export default function ContentDetailPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const STATUS_TO_API: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
     const ok = await updateContent(params.id as string, {
       title: form.title,
       adType: item ? CONTENTTYPE_TO_ADTYPE[item.type] : undefined,
       textContent: form.caption,
       contextDescription: form.description,
-      status: STATUS_TO_API[form.status] as any,
     });
     if (ok && item) {
-      setItem({
-        ...item,
-        title: form.title,
-        status: form.status,
-        description: form.description || undefined,
-        platforms: form.platforms,
-        caption: form.caption || undefined,
-        textContent: form.caption || undefined,
-        ctaLink: form.ctaLink || undefined,
-        scheduledAt: form.scheduledAt || undefined,
-        internalNotes: form.internalNotes || undefined,
-        hashtags: form.hashtags,
-      });
       setEditing(false);
+      setToast({ message: "Save successful! Reloading to update status...", type: "success" });
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     }
     setSaving(false);
   };
@@ -424,22 +413,15 @@ export default function ContentDetailPage() {
                 {/* Status */}
                 <div>
                   <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Status</p>
-                  {editing ? (
-                    <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ContentStatus }))}
-                      className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
-                      {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  ) : (
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-                      item.status === "Published" ? "bg-emerald-50 text-emerald-600" :
-                      item.status === "Scheduled" ? "bg-blue-50 text-blue-600" :
-                      item.status === "Awaiting Approval" ? "bg-amber-50 text-amber-600" :
-                      "bg-surface-container-high text-on-surface-variant"
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
-                      {item.status}
-                    </span>
-                  )}
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                    item.status === "Published" ? "bg-emerald-50 text-emerald-600" :
+                    item.status === "Scheduled" ? "bg-blue-50 text-blue-600" :
+                    item.status === "Awaiting Approval" ? "bg-amber-50 text-amber-600" :
+                    "bg-surface-container-high text-on-surface-variant"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
+                    {item.status}
+                  </span>
                 </div>
 
                 {/* Created / Updated */}

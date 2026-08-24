@@ -20,7 +20,14 @@ namespace AISAM.Services.Service
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
 
             while (!stoppingToken.IsCancellationRequested)
             {

@@ -31,6 +31,10 @@ public sealed class ScheduledPostingBackgroundService : BackgroundService
                 var result = await scheduledPostingService.RunDueSchedulesAsync(20, stoppingToken);
                 hasJobs = result.ScannedCount > 0;
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, MessageConstants.Schedule.WorkerIterationFailed);

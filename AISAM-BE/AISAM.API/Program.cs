@@ -414,11 +414,6 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.Configure<HostOptions>(options =>
-{
-    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
-});
-
 var app = builder.Build();
 
 app.UseResponseCompression();

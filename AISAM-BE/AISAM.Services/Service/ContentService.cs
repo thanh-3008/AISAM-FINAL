@@ -190,7 +190,7 @@ public sealed class ContentService : IContentService
             }
             return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.UpdatedSuccess);
         }
-        else if (content.Status == ContentStatusEnum.Approved)
+        else if (content.Status == ContentStatusEnum.Approved || content.Status == ContentStatusEnum.Rejected)
         {
             content.Status = ContentStatusEnum.Draft;
         }
@@ -385,7 +385,7 @@ public sealed class ContentService : IContentService
         if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
         if (request.Tags != null) content.Tags = request.Tags.Count > 0 ? JsonSerializer.Serialize(request.Tags) : null;
 
-        if (content.Status == ContentStatusEnum.Approved)
+        if (content.Status == ContentStatusEnum.Approved || content.Status == ContentStatusEnum.Rejected)
         {
             content.Status = ContentStatusEnum.Draft;
         }
