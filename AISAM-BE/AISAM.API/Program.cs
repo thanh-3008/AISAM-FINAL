@@ -188,6 +188,34 @@ builder.Services
             IssuerSigningKey = jwtSigningKey,
             ClockSkew = TimeSpan.FromMinutes(5)
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning("JWT Authentication Failed: {Message}", context.Exception.Message);
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                if (context.AuthenticateFailure != null)
+                {
+                    logger.LogWarning("JWT Challenge Failed: {Message}", context.AuthenticateFailure.Message);
+                }
+                else
+                {
+                    logger.LogWarning("JWT Challenge Triggered without specific failure details (Token may be missing or invalid).");
+                }
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogInformation("JWT Token Validated Successfully for user: {User}", context.Principal?.Identity?.Name ?? "Unknown");
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();

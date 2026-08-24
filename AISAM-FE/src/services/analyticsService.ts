@@ -301,11 +301,14 @@ export async function fetchAiRecommendations(
     if (!rawData) return { error: "EMPTY", message: "No data returned." };
     try {
       return JSON.parse(rawData) as AiRecommendationsResponse;
-    } catch (e) {
+    } catch (e: any) {
       return { error: "PARSE_ERROR", message: "Failed to parse AI output." };
     }
-  } catch (e) {
-    return { error: "NETWORK_ERROR", message: "Network error occurred." };
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      return { error: "TIMEOUT", message: "Request timed out." };
+    }
+    return { error: "NETWORK_ERROR", message: e.message || "Network error occurred." };
   } finally {
     clearTimeout(timeout);
   }

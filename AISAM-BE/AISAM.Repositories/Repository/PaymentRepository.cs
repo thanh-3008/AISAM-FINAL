@@ -41,9 +41,9 @@ public sealed class PaymentRepository : IPaymentRepository
         var query = Query()
             .Where(payment =>
                 !payment.IsDeleted &&
-                payment.Subscription != null &&
                 payment.Subscription.ProfileId == profileId &&
-                !payment.Subscription.IsDeleted)
+                !payment.Subscription.IsDeleted &&
+                payment.Status == PaymentStatusEnum.Success)
             .OrderByDescending(payment => payment.CreatedAt);
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -71,7 +71,8 @@ public sealed class PaymentRepository : IPaymentRepository
         var query = Query()
             .Where(payment =>
                 !payment.IsDeleted &&
-                payment.WorkspaceId == workspaceId)
+                payment.WorkspaceId == workspaceId &&
+                payment.Status == PaymentStatusEnum.Success)
             .OrderByDescending(payment => payment.CreatedAt);
 
         var totalCount = await query.CountAsync(cancellationToken);
