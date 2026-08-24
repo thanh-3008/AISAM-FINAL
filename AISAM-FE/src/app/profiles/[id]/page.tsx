@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
@@ -36,7 +36,7 @@ import {
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 import { fetchUsageBreakdown, type UsageBreakdownItem } from "@/services/analyticsService";
 import { updateMemberRole, removeMember } from "@/services/teamService";
-import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, syncPayOSCallback } from "@/services/paymentService";
+import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, synchronizeBusinessWorkspacePayment } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 
 interface Workspace {
@@ -96,6 +96,8 @@ const item = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] as const } },
 };
+
+const WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY = "aisam-workspace-settings-credit-payment-reference";
 
 export default function ProfileDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -736,6 +738,9 @@ export default function ProfileDetailPage() {
         cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
       });
       if (checkout?.checkoutUrl) {
+        if (checkout.orderCode) {
+          window.sessionStorage.setItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY, checkout.orderCode);
+        }
         window.location.href = checkout.checkoutUrl;
       } else {
         throw new Error("Backend did not return a PayOS checkout URL.");
@@ -750,12 +755,13 @@ export default function ProfileDetailPage() {
   };
 
   useEffect(() => {
-    const hasPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id");
+    const pendingReference = window.sessionStorage.getItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
+    const hasPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id") || Boolean(pendingReference);
     if (!hasPayOSRedirect || activeSection !== "subscription" || creditPaymentSyncStartedRef.current) return;
 
     const redirectStatus = searchParams.get("status")?.toUpperCase();
     const redirectPaid = searchParams.get("cancel") !== "true" &&
-      (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+      (Boolean(pendingReference) || redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
 
     creditPaymentSyncStartedRef.current = true;
     setSyncingCreditPayment(true);
@@ -763,12 +769,14 @@ export default function ProfileDetailPage() {
     const synchronizeCreditPayment = async () => {
       try {
         if (!redirectPaid) {
+          window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
           showToast({ type: "info", title: "Payment not completed", message: "Credits were not added." });
           router.replace(`/profiles/${id}?section=subscription&payment=cancelled`);
           return;
         }
 
-        const synced = await syncPayOSCallback(searchParams);
+        const reference = searchParams.get("orderCode") || pendingReference || searchParams.get("id");
+        const synced = reference ? await synchronizeBusinessWorkspacePayment(reference) : false;
         if (!synced) {
           creditPaymentSyncStartedRef.current = false;
           showToast({ type: "error", title: "Payment sync failed", message: "Payment was received but credits could not be synchronized yet." });
@@ -779,6 +787,7 @@ export default function ProfileDetailPage() {
         setCreditWallet(wallet);
         await handleLoadUsageBreakdown();
         setPurchaseSuccess(true);
+        window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
         showToast({ type: "success", title: "Purchase successful", message: "Your credit balance has been updated." });
         router.replace(`/profiles/${id}?section=subscription&payment=success`);
         setTimeout(() => setPurchaseSuccess(false), 3000);

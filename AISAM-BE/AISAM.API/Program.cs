@@ -468,7 +468,7 @@ static string BuildDatabaseConnectionString(string connectionString)
 
     if (!configuredMaxPoolSize)
     {
-        var maxPoolSize = 10;
+        var maxPoolSize = 5;
         var envMaxPoolSize = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
         if (int.TryParse(envMaxPoolSize, out var parsedMaxPoolSize) && parsedMaxPoolSize > 0)
         {
@@ -476,6 +476,16 @@ static string BuildDatabaseConnectionString(string connectionString)
         }
 
         builder.MaxPoolSize = maxPoolSize;
+    }
+
+    if (!builder.ContainsKey("Timeout"))
+    {
+        builder.Timeout = 10;
+    }
+
+    if (!builder.ContainsKey("Command Timeout"))
+    {
+        builder.CommandTimeout = 30;
     }
 
     return builder.ConnectionString;
