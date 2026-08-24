@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, syncPayOSCallback } from "@/services/paymentService";
+import { createPayment, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, synchronizeBusinessWorkspacePayment } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -58,6 +58,8 @@ const DEFAULT_CREDIT_PACKS: CreditPack[] = [
   },
 ];
 
+const CREDIT_PACK_PAYMENT_REFERENCE_KEY = "aisam-credit-pack-payment-reference";
+
 export default function CreditPackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,12 +92,13 @@ export default function CreditPackPage() {
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
-    const hasPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id");
+    const pendingReference = window.sessionStorage.getItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY);
+    const hasPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id") || Boolean(pendingReference);
     if (!hasPayOSRedirect || !activeWorkspace?.id || paymentSyncStartedRef.current) return;
 
     const redirectStatus = searchParams.get("status")?.toUpperCase();
     const redirectPaid = searchParams.get("cancel") !== "true" &&
-      (redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+      (Boolean(pendingReference) || redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
 
     paymentSyncStartedRef.current = true;
     setSyncingPayment(true);
@@ -103,12 +106,14 @@ export default function CreditPackPage() {
     const synchronizePayment = async () => {
       try {
         if (!redirectPaid) {
+          window.sessionStorage.removeItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY);
           setPaymentError("Payment was not completed.");
           router.replace("/credit-pack?payment=cancelled");
           return;
         }
 
-        const synced = await syncPayOSCallback(searchParams);
+        const reference = searchParams.get("orderCode") || pendingReference || searchParams.get("id");
+        const synced = reference ? await synchronizeBusinessWorkspacePayment(reference) : false;
         if (!synced) {
           paymentSyncStartedRef.current = false;
           setPaymentError("Payment was received, but credits could not be synchronized yet. Please refresh or contact support.");
@@ -120,6 +125,7 @@ export default function CreditPackPage() {
         setPurchaseSuccess(true);
         setShowConfirmDialog(false);
         setSelectedPack(null);
+        window.sessionStorage.removeItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY);
         router.replace("/credit-pack?payment=success");
         setTimeout(() => setPurchaseSuccess(false), 4000);
       } catch {
@@ -182,6 +188,9 @@ export default function CreditPackPage() {
       });
 
       if (payment?.checkoutUrl) {
+        if (payment.orderCode) {
+          window.sessionStorage.setItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY, payment.orderCode);
+        }
         window.location.href = payment.checkoutUrl;
       } else {
         setPaymentError("Failed to create payment. Please try again.");
