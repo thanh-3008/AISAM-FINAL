@@ -93,7 +93,37 @@ public class NotificationsControllerTests
             return Task.FromResult(CountResult);
         }
 
-        public Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<PagedResult<NotificationListItemDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
+        {
+            LastProfileId = profileId;
+            return Task.FromResult(PagedResult);
+        }
+
+        public Task<GenericResponse<NotificationDetailDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid notificationId, CancellationToken cancellationToken = default)
+        {
+            LastProfileId = profileId;
+            return Task.FromResult(DetailResult);
+        }
+
+        public Task<GenericResponse<bool>> MarkReadInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid notificationId, CancellationToken cancellationToken = default)
+        {
+            LastProfileId = profileId;
+            return Task.FromResult(MarkReadResult);
+        }
+
+        public Task<GenericResponse<bool>> MarkAllReadInWorkspaceAsync(Guid workspaceId, Guid profileId, CancellationToken cancellationToken = default)
+        {
+            LastProfileId = profileId;
+            return Task.FromResult(MarkAllReadResult);
+        }
+
+        public Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, Guid profileId, CancellationToken cancellationToken = default)
+        {
+            LastProfileId = profileId;
+            return Task.FromResult(CountResult);
+        }
+
+        public Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid notificationId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(GenericResponse<bool>.CreateSuccess(true, "Deleted."));
         }

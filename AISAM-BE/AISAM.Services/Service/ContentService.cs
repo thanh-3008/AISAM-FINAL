@@ -299,6 +299,16 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> RejectAsync(Guid id, Guid workspaceId, Guid approverUserId, string? notes, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(notes) || notes.Trim().Length < 5)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError("Rejection notes are required and must be at least 5 characters.", HttpStatusCode.BadRequest);
+        }
+
+        if (notes.Trim().Length > 1000)
+        {
+            return GenericResponse<ContentResponseDto>.CreateError("Rejection notes must not exceed 1000 characters.", HttpStatusCode.BadRequest);
+        }
+
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {

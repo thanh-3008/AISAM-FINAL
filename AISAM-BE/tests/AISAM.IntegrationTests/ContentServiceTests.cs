@@ -183,12 +183,77 @@ public class ContentServiceTests
         Assert.Equal(ContentStatusEnum.Draft, content.Status);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("....")]
+    public async Task RejectAsync_ReturnsBadRequest_WhenNotesAreMissingOrTooShort(string? notes)
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            BrandId = brand.Id,
+            Brand = brand,
+            TextContent = "Pending content",
+            Status = ContentStatusEnum.PendingApproval
+        };
+        var repository = new FakeContentRepository(content);
+        var notifications = new FakeNotificationRepository();
+        var service = CreateService(repository, new FakeBrandRepository(brand), notificationRepository: notifications);
+
+        var result = await service.RejectAsync(content.Id, workspaceId, Guid.NewGuid(), notes);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal(ContentStatusEnum.PendingApproval, content.Status);
+        Assert.Empty(content.Approvals);
+        Assert.Empty(notifications.Notifications);
+    }
+
+    [Fact]
+    public async Task RejectAsync_PersistsNotesAndIncludesThemInNotification()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var content = new Content
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            BrandId = brand.Id,
+            Brand = brand,
+            Title = "Campaign copy",
+            TextContent = "Pending content",
+            Status = ContentStatusEnum.PendingApproval
+        };
+        var repository = new FakeContentRepository(content);
+        var notifications = new FakeNotificationRepository();
+        var service = CreateService(repository, new FakeBrandRepository(brand), notificationRepository: notifications);
+
+        var result = await service.RejectAsync(content.Id, workspaceId, Guid.NewGuid(), "Fix the CTA");
+
+        Assert.True(result.Success);
+        var approval = Assert.Single(content.Approvals);
+        Assert.Equal("Fix the CTA", approval.Notes);
+        var notification = Assert.Single(notifications.Notifications);
+        Assert.Equal(profileId, notification.ProfileId);
+        Assert.Contains("Fix the CTA", notification.Message);
+    }
+
     private static ContentService CreateService(
         IContentRepository contentRepository,
         IBrandRepository brandRepository,
         IProductRepository? productRepository = null,
         IContentCalendarRepository? contentCalendarRepository = null,
-        IWorkspaceRepository? workspaceRepository = null)
+        IWorkspaceRepository? workspaceRepository = null,
+        INotificationRepository? notificationRepository = null)
     {
         return new ContentService(
             contentRepository,
@@ -201,7 +266,43 @@ public class ContentServiceTests
             new FakeSocialTokenProtector(),
             new FakeQuotaService(),
             contentCalendarRepository ?? new FakeContentCalendarRepository(),
-            workspaceRepository ?? new FakeWorkspaceRepository());
+            workspaceRepository ?? new FakeWorkspaceRepository(),
+            notificationRepository);
+    }
+
+    private sealed class FakeNotificationRepository : INotificationRepository
+    {
+        public List<Notification> Notifications { get; } = new();
+
+        public Task<Notification?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => Task.FromResult(Notifications.FirstOrDefault(notification => notification.Id == id));
+
+        public Task<PagedResult<Notification>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PagedResult<Notification>());
+
+        public Task<int> GetUnreadCountAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+
+        public Task<Notification> AddAsync(Notification notification, CancellationToken cancellationToken = default)
+        {
+            Notifications.Add(notification);
+            return Task.FromResult(notification);
+        }
+
+        public Task AddRangeAsync(IEnumerable<Notification> notifications, CancellationToken cancellationToken = default)
+        {
+            Notifications.AddRange(notifications);
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAsync(Notification notification, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task MarkAllAsReadAsync(Guid profileId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class FakeWorkspaceRepository : IWorkspaceRepository

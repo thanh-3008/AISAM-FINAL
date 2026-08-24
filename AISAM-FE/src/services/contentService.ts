@@ -333,15 +333,11 @@ export async function approveContent(id: string): Promise<boolean> {
 }
 
 export async function rejectContent(id: string, notes?: string): Promise<boolean> {
-  try {
-    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/reject`, {
-      method: "POST",
-      data: { notes: notes || "" }
-    });
-    return res?.success === true;
-  } catch {
-    return false;
-  }
+  const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}/reject`, {
+    method: "POST",
+    data: { notes: notes || "" }
+  });
+  return res?.success === true;
 }
 
 export async function deleteContent(id: string): Promise<boolean> {
