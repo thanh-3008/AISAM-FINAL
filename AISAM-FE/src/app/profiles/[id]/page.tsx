@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
@@ -36,7 +36,7 @@ import {
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 import { fetchUsageBreakdown, type UsageBreakdownItem } from "@/services/analyticsService";
 import { updateMemberRole, removeMember } from "@/services/teamService";
-import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
+import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, synchronizeBusinessWorkspacePayment } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 
 interface Workspace {
@@ -96,6 +96,8 @@ const item = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] as const } },
 };
+
+const WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY = "aisam-workspace-settings-credit-payment-reference";
 
 export default function ProfileDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -177,7 +179,9 @@ export default function ProfileDetailPage() {
   const [selectedCreditPack, setSelectedCreditPack] = useState<{ id: string; name: string; credits: number; price: string } | null>(null);
   const [showPurchaseConfirm, setShowPurchaseConfirm] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [syncingCreditPayment, setSyncingCreditPayment] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const creditPaymentSyncStartedRef = useRef(false);
 
   // Role management state
   const [memberActionMenu, setMemberActionMenu] = useState<string | null>(null);
@@ -721,31 +725,82 @@ export default function ProfileDetailPage() {
 
   const handlePurchaseCredits = async () => {
     if (!selectedCreditPack) return;
+    if (creditWallet && creditWallet.balance + selectedCreditPack.credits > creditWallet.maxBalance) {
+      showToast({ type: "error", title: "Cannot purchase", message: `Balance would exceed the maximum of ${creditWallet.maxBalance.toLocaleString()} credits.` });
+      setShowPurchaseConfirm(false);
+      return;
+    }
     setPurchasing(true);
     try {
       const checkout = await createCreditPackCheckout({
         creditPackCode: CREDIT_PACK_CODES_BY_ID[selectedCreditPack.id] || 1,
-        returnUrl: window.location.origin + "/profiles?payment=success",
-        cancelUrl: window.location.origin + "/profiles?payment=cancelled",
+        returnUrl: `${window.location.origin}/profiles/${id}?section=subscription`,
+        cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
       });
       if (checkout?.checkoutUrl) {
+        if (checkout.orderCode) {
+          window.sessionStorage.setItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY, checkout.orderCode);
+        }
         window.location.href = checkout.checkoutUrl;
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setPurchaseSuccess(true);
-        if (creditWallet) {
-          setCreditWallet({ ...creditWallet, balance: creditWallet.balance + selectedCreditPack.credits });
-        }
-        showToast({ type: "success", title: "Purchase successful", message: `${selectedCreditPack.credits.toLocaleString()} credits added to your workspace.` });
-        setTimeout(() => setPurchaseSuccess(false), 3000);
+        throw new Error("Backend did not return a PayOS checkout URL.");
       }
-    } catch {
-      showToast({ type: "error", title: "Payment failed", message: "Failed to process credit pack purchase." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to process credit pack purchase.";
+      showToast({ type: "error", title: "Payment failed", message });
     } finally {
       setPurchasing(false);
       setShowPurchaseConfirm(false);
     }
   };
+
+  useEffect(() => {
+    const pendingReference = window.sessionStorage.getItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
+    const hasPayOSRedirect = searchParams.has("orderCode") || searchParams.has("id") || Boolean(pendingReference);
+    if (!hasPayOSRedirect || activeSection !== "subscription" || creditPaymentSyncStartedRef.current) return;
+
+    const redirectStatus = searchParams.get("status")?.toUpperCase();
+    const redirectPaid = searchParams.get("cancel") !== "true" &&
+      (Boolean(pendingReference) || redirectStatus === "PAID" || redirectStatus === "SUCCESS" || redirectStatus === "COMPLETED" || searchParams.get("code") === "00");
+
+    creditPaymentSyncStartedRef.current = true;
+    setSyncingCreditPayment(true);
+
+    const synchronizeCreditPayment = async () => {
+      try {
+        if (!redirectPaid) {
+          window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
+          showToast({ type: "info", title: "Payment not completed", message: "Credits were not added." });
+          router.replace(`/profiles/${id}?section=subscription&payment=cancelled`);
+          return;
+        }
+
+        const reference = searchParams.get("orderCode") || pendingReference || searchParams.get("id");
+        const synced = reference ? await synchronizeBusinessWorkspacePayment(reference) : false;
+        if (!synced) {
+          creditPaymentSyncStartedRef.current = false;
+          showToast({ type: "error", title: "Payment sync failed", message: "Payment was received but credits could not be synchronized yet." });
+          return;
+        }
+
+        const wallet = await fetchCreditWallet();
+        setCreditWallet(wallet);
+        await handleLoadUsageBreakdown();
+        setPurchaseSuccess(true);
+        window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
+        showToast({ type: "success", title: "Purchase successful", message: "Your credit balance has been updated." });
+        router.replace(`/profiles/${id}?section=subscription&payment=success`);
+        setTimeout(() => setPurchaseSuccess(false), 3000);
+      } catch {
+        creditPaymentSyncStartedRef.current = false;
+        showToast({ type: "error", title: "Payment sync failed", message: "Please refresh the page or contact support." });
+      } finally {
+        setSyncingCreditPayment(false);
+      }
+    };
+
+    synchronizeCreditPayment();
+  }, [activeSection, id, router, searchParams, showToast]);
 
   // Overview section handlers
   const handleLoadOverview = async () => {
@@ -2897,6 +2952,16 @@ export default function ProfileDetailPage() {
                         <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-600 text-white mb-4 animate-in slide-in-from-top-2">
                           <span className="material-symbols-outlined text-[20px]">check_circle</span>
                           <span className="text-body-sm font-semibold">Credits added successfully!</span>
+                        </div>
+                      )}
+
+                      {syncingCreditPayment && (
+                        <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-primary text-white mb-4">
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <span className="text-body-sm font-semibold">Syncing payment...</span>
                         </div>
                       )}
 

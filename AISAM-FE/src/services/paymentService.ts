@@ -121,21 +121,60 @@ function readPricingList(data: any, key: "plans" | "creditPacks") {
   return data?.data?.[key] ?? data?.data?.[pascalKey] ?? [];
 }
 
+const PRICING_CACHE_KEY = "aisam_pricing_cache";
+const PRICING_CACHE_TTL = 5 * 60 * 1000;
+
+async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) return res;
+      if (res.status >= 500 && i < retries - 1) {
+        await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+        continue;
+      }
+      return res;
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
 export async function fetchPublicPricing(): Promise<{ plans: any[], creditPacks: any[] } | null> {
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem(PRICING_CACHE_KEY);
+    if (cached) {
+      try {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < PRICING_CACHE_TTL) {
+          return data;
+        }
+      } catch {}
+    }
+  }
+
   try {
     const [plansRes, creditPacksRes] = await Promise.all([
-      fetch(`${API_URL}/pricing/plans?t=${Date.now()}`, { cache: "no-store" }),
-      fetch(`${API_URL}/pricing/credit-packs?t=${Date.now()}`, { cache: "no-store" })
+      fetchWithRetry(`${API_URL}/pricing/plans?t=${Date.now()}`),
+      fetchWithRetry(`${API_URL}/pricing/credit-packs?t=${Date.now()}`)
     ]);
     if (!plansRes.ok || !creditPacksRes.ok) {
       throw new Error("Pricing endpoint returned an error.");
     }
     const plansData = await plansRes.json();
     const creditPacksData = await creditPacksRes.json();
-    return {
+    const result = {
       plans: readPricingList(plansData, "plans"),
       creditPacks: readPricingList(creditPacksData, "creditPacks")
     };
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PRICING_CACHE_KEY, JSON.stringify({ data: result, timestamp: Date.now() }));
+    }
+
+    return result;
   } catch (error) {
     console.error("fetchPublicPricing failed", error);
     return null;
