@@ -116,7 +116,8 @@ public sealed class CreditService : ICreditService
             credits,
             CreditActionEnum.CreditPackGrant,
             "Credit pack applied successfully.",
-            cancellationToken);
+            cancellationToken,
+            bypassCap: true);
     }
 
     public async Task<GenericResponse<CreditWallet>> AdminAdjustCreditsAsync(
@@ -405,9 +406,10 @@ public sealed class CreditService : ICreditService
         long credits,
         CreditActionEnum action,
         string successMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool bypassCap = false)
         => await ExecuteInTransactionAsync(
-            () => GrantCreditsCoreAsync(workspaceId, userId, workspaceType, credits, action, successMessage, cancellationToken),
+            () => GrantCreditsCoreAsync(workspaceId, userId, workspaceType, credits, action, successMessage, cancellationToken, bypassCap),
             cancellationToken);
 
     private async Task<GenericResponse<CreditWallet>> GrantCreditsCoreAsync(
@@ -417,16 +419,20 @@ public sealed class CreditService : ICreditService
         long credits,
         CreditActionEnum action,
         string successMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool bypassCap = false)
     {
         var walletToUpdate = await EnsureWalletAsync(workspaceId, cancellationToken);
-        var maximumBalance = ResolveMaximumBalance(workspaceType);
-        if (walletToUpdate.Balance + credits > maximumBalance)
+        if (!bypassCap)
         {
-            return GenericResponse<CreditWallet>.CreateError(
-                "Wallet balance exceeds workspace maximum balance.",
-                HttpStatusCode.BadRequest,
-                "CREDIT_BALANCE_LIMIT_EXCEEDED");
+            var maximumBalance = ResolveMaximumBalance(workspaceType);
+            if (walletToUpdate.Balance + credits > maximumBalance)
+            {
+                return GenericResponse<CreditWallet>.CreateError(
+                    "Wallet balance exceeds workspace maximum balance.",
+                    HttpStatusCode.BadRequest,
+                    "CREDIT_BALANCE_LIMIT_EXCEEDED");
+            }
         }
 
         walletToUpdate.Balance += credits;

@@ -15,6 +15,7 @@ using AISAM.Repositories;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Data;
 
@@ -35,6 +36,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly HttpClient _httpClient;
     private readonly AisamContext? _context;
     private readonly ISystemSettingRepository _systemSettingRepository;
+    private readonly ILogger<PayOSPaymentService> _logger;
 
     public PayOSPaymentService(
         IPaymentRepository paymentRepository,
@@ -47,6 +49,7 @@ public sealed class PayOSPaymentService : IPaymentService
         IOptions<PayOSSettings> settings,
         HttpClient httpClient,
         ISystemSettingRepository systemSettingRepository,
+        ILogger<PayOSPaymentService> logger,
         AisamContext? context = null)
     {
         _paymentRepository = paymentRepository;
@@ -59,6 +62,7 @@ public sealed class PayOSPaymentService : IPaymentService
         _settings = settings.Value;
         _httpClient = httpClient;
         _systemSettingRepository = systemSettingRepository;
+        _logger = logger;
         _context = context;
     }
 
@@ -204,6 +208,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         if (!httpResponse.IsSuccessStatusCode)
         {
+            _logger.LogError("PayOS business workspace checkout HTTP failure. Status: {StatusCode}, ResponseBody: {ResponseBody}", (int)httpResponse.StatusCode, responseBody);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -215,6 +220,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var payOsResponse = ParseCreatePaymentResponse(responseBody);
         if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
         {
+            _logger.LogError("PayOS business workspace checkout response missing checkoutUrl. ResponseBody: {ResponseBody}", responseBody);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -252,6 +258,8 @@ public sealed class PayOSPaymentService : IPaymentService
         var payment = await _paymentRepository.GetByReferenceAsync(reference.Trim(), cancellationToken);
         if (payment == null || payment.UserId != userId)
         {
+            _logger.LogError("SynchronizeBusinessWorkspaceCheckout: Payment not found or userId mismatch. Reference: {Reference}, Found: {Found}, ExpectedUserId: {ExpectedUserId}, ActualUserId: {ActualUserId}", 
+                reference, payment != null, userId, payment?.UserId);
             return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
         }
 
@@ -271,6 +279,9 @@ public sealed class PayOSPaymentService : IPaymentService
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("SynchronizeBusinessWorkspaceCheckout: PayOS verify failed. Reference: {Reference}, Status: {StatusCode}, ResponseBody: {ResponseBody}", 
+                reference, (int)response.StatusCode, errorBody);
             return GenericResponse<bool>.CreateError(
                 "Unable to verify the payment with PayOS.",
                 HttpStatusCode.BadGateway,
@@ -278,18 +289,25 @@ public sealed class PayOSPaymentService : IPaymentService
         }
 
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        _logger.LogInformation("SynchronizeBusinessWorkspaceCheckout: PayOS verify success. Reference: {Reference}, ResponseBody: {ResponseBody}", reference, responseBody);
+        
         using var document = JsonDocument.Parse(responseBody);
         var root = document.RootElement;
         var data = root.TryGetProperty("data", out var dataElement) ? dataElement : root;
         var status = FirstNonEmpty(TryGetString(data, "status"), TryGetString(root, "status"), TryGetString(root, "code"));
         var transactionId = FirstNonEmpty(TryGetString(data, "id"), TryGetString(data, "reference"));
 
-        return await ApplyPaymentStatusAsync(
+        var result = await ApplyPaymentStatusAsync(
             reference.Trim(),
             status,
             transactionId,
             acknowledgeMissingPayment: false,
             cancellationToken);
+        
+        _logger.LogInformation("SynchronizeBusinessWorkspaceCheckout: ApplyPaymentStatusAsync result. Reference: {Reference}, Success: {Success}, Message: {Message}", 
+            reference, result.Success, result.Message);
+        
+        return result;
     }
 
     private async Task<GenericResponse<PayOSCheckoutResponse>> CreateSubscriptionCheckoutAsync(
@@ -386,6 +404,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         if (!httpResponse.IsSuccessStatusCode)
         {
+            _logger.LogError("PayOS subscription checkout HTTP failure. Status: {StatusCode}, ResponseBody: {ResponseBody}", (int)httpResponse.StatusCode, responseBody);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -397,6 +416,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var payOsResponse = ParseCreatePaymentResponse(responseBody);
         if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
         {
+            _logger.LogError("PayOS subscription checkout response missing checkoutUrl. ResponseBody: {ResponseBody}", responseBody);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS response did not contain a checkout URL.", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
@@ -475,6 +495,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         if (!httpResponse.IsSuccessStatusCode)
         {
+            _logger.LogError("PayOS credit pack checkout HTTP failure. Status: {StatusCode}, ResponseBody: {ResponseBody}", (int)httpResponse.StatusCode, responseBody);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -486,6 +507,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var payOsResponse = ParseCreatePaymentResponse(responseBody);
         if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
         {
+            _logger.LogError("PayOS credit pack checkout response missing checkoutUrl. ResponseBody: {ResponseBody}", responseBody);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS response did not contain a checkout URL.", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
@@ -759,23 +781,10 @@ public sealed class PayOSPaymentService : IPaymentService
 
                     if (subscription.IsActive)
                     {
-                        if (workspace != null)
-                        {
-                            var wallet = await _creditWalletRepository.GetByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
-                            var activePlanDefinition = await GetPlanDefinitionAsync(workspace.WorkspaceType, subscription.Plan);
-                            var planCredits = activePlanDefinition.CreditAmount;
-                            if (wallet == null || wallet.Balance < planCredits)
-                            {
-                                await _creditService.GrantSubscriptionCreditsAsync(
-                                    workspace.Id,
-                                    payment.UserId,
-                                    workspace.WorkspaceType,
-                                    subscription.Plan,
-                                    cancellationToken);
-                            }
-                        }
+                        _logger.LogWarning("Subscription {SubscriptionId} is already active. Payment {PaymentId} marked as duplicate.", subscription.Id, payment.Id);
+                        payment.Status = PaymentStatusEnum.Success;
                         await _paymentRepository.UpdateAsync(payment, cancellationToken);
-                        return GenericResponse<bool>.CreateSuccess(true, "PayOS payment status synchronized.");
+                        return GenericResponse<bool>.CreateSuccess(true, "Subscription already active. Payment acknowledged as duplicate.");
                     }
 
                     var currentSubscription = await _subscriptionRepository.GetCurrentActiveByWorkspaceIdAsync(subscription.WorkspaceId, cancellationToken);
@@ -832,6 +841,11 @@ public sealed class PayOSPaymentService : IPaymentService
                         await _profileRepository.UpdateAsync(profile, cancellationToken);
                     }
                 }
+            }
+            else
+            {
+                _logger.LogWarning("Payment {PaymentId} has no matching handler: PaymentType={PaymentType}, SubscriptionId={SubscriptionId}, PendingWorkspaceName={PendingWorkspaceName}", 
+                    payment.Id, payment.PaymentType, payment.SubscriptionId, payment.PendingWorkspaceName);
             }
         }
         else if (IsFailedStatus(status))
