@@ -896,6 +896,11 @@ public sealed class ContentService : IContentService
             IsAiGenerated = content.IsAiGenerated,
             Tags = content.Tags,
             Status = content.Status,
+            RejectionReason = content.Status == ContentStatusEnum.Rejected 
+                ? content.Approvals?.Where(a => a.Status == ContentStatusEnum.Rejected && !a.IsDeleted)
+                    .OrderByDescending(a => a.CreatedAt)
+                    .FirstOrDefault()?.Notes 
+                : null,
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt
         };

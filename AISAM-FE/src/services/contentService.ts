@@ -45,6 +45,7 @@ export interface ContentApiItem {
   status: ContentApiStatus;
   isAiGenerated: boolean;
   tags: string | null;
+  rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -89,6 +90,7 @@ export interface ContentDetail {
   description?: string;
   caption?: string;
   ctaLink?: string;
+  rejectionReason?: string;
   scheduledAt?: string;
   internalNotes?: string;
   hashtags?: string[];
@@ -228,6 +230,7 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     description: api.contextDescription || undefined,
     tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
+    rejectionReason: api.rejectionReason || undefined,
   };
 }
 

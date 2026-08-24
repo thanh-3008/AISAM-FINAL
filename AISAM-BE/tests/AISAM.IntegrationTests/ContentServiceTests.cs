@@ -116,6 +116,67 @@ public class ContentServiceTests
     }
 
     [Fact]
+    public async Task GetByIdInWorkspaceAsync_MapsRejectionReason_Correctly_WhenRejected()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var content = new Content 
+        { 
+            Id = Guid.NewGuid(), 
+            WorkspaceId = workspaceId,
+            ProfileId = profileId,
+            BrandId = brand.Id,
+            Status = ContentStatusEnum.Rejected,
+            Approvals = new List<Approval>
+            {
+                new Approval { Status = ContentStatusEnum.Rejected, Notes = "Old rejection", CreatedAt = DateTime.UtcNow.AddDays(-1) },
+                new Approval { Status = ContentStatusEnum.Rejected, Notes = "New rejection", CreatedAt = DateTime.UtcNow }
+            }
+        };
+        var repository = new FakeContentRepository(content);
+        var service = CreateService(repository, new FakeBrandRepository(brand));
+
+        var result = await service.GetByIdInWorkspaceAsync(content.Id, workspaceId);
+        
+        Assert.True(result.Success);
+        Assert.Equal("New rejection", result.Data!.RejectionReason);
+    }
+
+    [Fact]
+    public async Task GetByIdInWorkspaceAsync_MapsRejectionReason_Null_WhenNotRejected()
+    {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var content = new Content 
+        { 
+            Id = Guid.NewGuid(), 
+            WorkspaceId = workspaceId,
+            ProfileId = profileId,
+            BrandId = brand.Id,
+            Status = ContentStatusEnum.Approved,
+            Approvals = new List<Approval>
+            {
+                new Approval { Status = ContentStatusEnum.Rejected, Notes = "Old rejection", CreatedAt = DateTime.UtcNow.AddDays(-1) },
+            }
+        };
+        var repository = new FakeContentRepository(content);
+        var service = CreateService(repository, new FakeBrandRepository(brand));
+
+        // Approved -> null
+        var result1 = await service.GetByIdInWorkspaceAsync(content.Id, workspaceId);
+        Assert.True(result1.Success);
+        Assert.Null(result1.Data!.RejectionReason);
+
+        // Awaiting Approval -> null
+        content.Status = ContentStatusEnum.PendingApproval;
+        var result2 = await service.GetByIdInWorkspaceAsync(content.Id, workspaceId);
+        Assert.True(result2.Success);
+        Assert.Null(result2.Data!.RejectionReason);
+    }
+
+    [Fact]
     public async Task CreateAsync_FormatsSingleImageUrl_ForJsonbColumn()
     {
         var profileId = Guid.NewGuid();

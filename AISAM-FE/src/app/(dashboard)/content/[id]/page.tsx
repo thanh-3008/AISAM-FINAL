@@ -10,6 +10,19 @@ import type { ContentDetail, ContentType, ContentStatus } from "@/services/conte
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse } from "@/services/contentService";
 
+interface FormState {
+  title: string;
+  status: ContentStatus;
+  description: string;
+  platforms: string[];
+  caption: string;
+  ctaLink: string;
+  scheduledAt: string;
+  internalNotes: string;
+  hashtags: string[];
+  rejectionReason?: string;
+}
+
 export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -26,10 +39,7 @@ export default function ContentDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
 
-  const [form, setForm] = useState<{
-    title: string; status: ContentStatus; description: string; platforms: string[];
-    caption: string; ctaLink: string; scheduledAt: string; internalNotes: string; hashtags: string[];
-  }>({ title: "", status: "Draft", description: "", platforms: [], caption: "", ctaLink: "", scheduledAt: "", internalNotes: "", hashtags: [] });
+  const [form, setForm] = useState<FormState>({ title: "", status: "Draft", description: "", platforms: [], caption: "", ctaLink: "", scheduledAt: "", internalNotes: "", hashtags: [] });
 
   const notFound = !item && !loading;
 
@@ -87,7 +97,7 @@ export default function ContentDetailPage() {
   }, [generations, params.id]);
 
   useEffect(() => {
-    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] });
+    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" });
   }, [item?.id]);
 
   const handleSave = async () => {
@@ -192,6 +202,16 @@ export default function ContentDetailPage() {
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Content Library", href: "/content" }, { label: item.title }]} />
       <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-6">
 
+        {form.status === "Rejected" && form.rejectionReason && (
+          <div className={`bg-danger-red/10 border border-danger-red/20 rounded-xl p-4 flex gap-3 text-danger-red ${visible ? "animate-fade-up" : ""}`}>
+            <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">error</span>
+            <div>
+              <h4 className="text-label-sm font-bold mb-1">Content needs revision</h4>
+              <p className="text-body-sm leading-relaxed whitespace-pre-wrap">{form.rejectionReason}</p>
+            </div>
+          </div>
+        )}
+
         {/* Back + Actions */}
         <div className={`flex items-center justify-between ${visible ? "animate-fade-up" : ""}`}>
           <button onClick={() => router.push("/content")}
@@ -240,7 +260,7 @@ export default function ContentDetailPage() {
               </>
             ) : (
               <>
-                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] }); }}
+                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" }); }}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] text-label-sm font-semibold">
                   Cancel
                 </button>
