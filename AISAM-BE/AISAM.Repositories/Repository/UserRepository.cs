@@ -25,7 +25,20 @@ namespace AISAM.Repositories.Repository
 
         public async Task<User?> GetByEmailAsync(string email)
         {
-            var normalizedEmail = email.Trim().ToLower();
+            var trimmedEmail = email.Trim();
+            
+            // Fast path: Exact match to utilize the B-Tree index on Email
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == trimmedEmail);
+
+            if (user != null)
+            {
+                return user;
+            }
+
+            // Slow path: Fallback to case-insensitive match (Sequential Scan)
+            var normalizedEmail = trimmedEmail.ToLower();
             return await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);

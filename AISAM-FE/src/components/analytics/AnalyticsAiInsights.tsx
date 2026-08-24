@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { type AiInsight, type DateRange, fetchAiRecommendations } from "@/services/analyticsService";
-import ReactMarkdown from "react-markdown";
+import { type AiInsight, type DateRange, fetchAiRecommendations, type AiRecommendationsResponse } from "@/services/analyticsService";
 
 interface AnalyticsAiInsightsProps {
   insights: AiInsight[];
@@ -12,7 +11,7 @@ interface AnalyticsAiInsightsProps {
 const COOLDOWN_MS = 8000;
 
 export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAiInsightsProps) {
-  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [aiResponse, setAiResponse] = useState<AiRecommendationsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(false);
@@ -36,11 +35,13 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
     setAiResponse(null);
     try {
       const response = await fetchAiRecommendations(dateRange, forceRefresh);
-      if (response) {
+      if (response && !response.error) {
         setAiResponse(response);
         setCooldown(true);
         if (cooldownRef.current) clearTimeout(cooldownRef.current);
         cooldownRef.current = setTimeout(() => setCooldown(false), COOLDOWN_MS);
+      } else if (response?.error) {
+        setError(response.message || "Failed to parse AI output.");
       } else {
         setError("AI is not available at this time.");
       }
@@ -127,37 +128,64 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
               </div>
             ))}
           </div>
-        ) : showAiResults ? (
-          <div className="group relative animate-fade-up">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-primary rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
-            
-            <div className="relative bg-surface-container-low/80 backdrop-blur-sm p-6 rounded-xl border border-outline-variant/30 hover:border-transparent transition-all duration-500 hover:shadow-xl">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-500">
-                  <span className="material-symbols-outlined text-white text-lg">
-                    auto_awesome
-                  </span>
+        ) : showAiResults && aiResponse?.recommendations ? (
+          <div className="space-y-4 animate-fade-up">
+            {aiResponse.recommendations.map((rec, index) => {
+              const colors = 
+                rec.priority === "HIGH" ? "border-red-500/30 bg-red-500/5 text-red-500" :
+                rec.priority === "MID" ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-500" :
+                "border-green-500/30 bg-green-500/5 text-green-500";
+              const icon = 
+                rec.priority === "HIGH" ? "priority_high" :
+                rec.priority === "MID" ? "warning" : "check_circle";
+
+              return (
+                <div key={index} className="group relative" style={{ animationDelay: `${0.1 + index * 0.1}s` }}>
+                  <div className={`relative p-5 rounded-xl border ${colors} hover:shadow-lg transition-all duration-300`}>
+                    <div className="flex items-start gap-4">
+                      <div className="shrink-0 mt-1">
+                        <span className="material-symbols-outlined text-[24px]">
+                          {icon}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-current/10 ${colors.split(" ")[2]}`}>
+                            {rec.priority} PRIORITY
+                          </span>
+                        </div>
+                        <h4 className="text-on-surface font-bold mb-2 text-lg">{rec.title}</h4>
+                        <p className="text-on-surface-variant text-sm mb-4 leading-relaxed bg-surface-container-high/30 p-3 rounded-lg italic border-l-2 border-current">
+                          {rec.rationale}
+                        </p>
+                        
+                        <div className="mb-4">
+                          <h5 className="text-sm font-semibold text-on-surface mb-2 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[18px]">format_list_bulleted</span>
+                            Actionable Steps
+                          </h5>
+                          <ul className="space-y-2">
+                            {rec.actionable_steps.map((step, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-sm text-on-surface-variant">
+                                <span className="material-symbols-outlined text-[16px] text-primary shrink-0 mt-0.5">check</span>
+                                <span>{step}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {rec.kpi_target && (
+                          <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg border border-primary/10">
+                            <span className="material-symbols-outlined text-[18px]">track_changes</span>
+                            Target: {rec.kpi_target}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 text-on-surface-variant overflow-hidden">
-                  <ReactMarkdown
-                    components={{
-                      h1: ({node, ...props}) => <h1 className="text-xl font-bold text-on-surface mt-6 mb-3" {...props} />,
-                      h2: ({node, ...props}) => <h2 className="text-lg font-bold text-on-surface mt-5 mb-2" {...props} />,
-                      h3: ({node, ...props}) => <h3 className="text-base font-bold text-on-surface mt-4 mb-2" {...props} />,
-                      p: ({node, ...props}) => <p className="mb-3 leading-relaxed" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
-                      ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1" {...props} />,
-                      li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                      strong: ({node, ...props}) => <strong className="font-semibold text-on-surface" {...props} />,
-                      blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary/50 pl-4 italic bg-surface-container-high/30 p-2 rounded-r-lg my-3" {...props} />,
-                      code: ({node, ...props}) => <code className="bg-surface-container-high px-1.5 py-0.5 rounded text-sm font-mono text-primary" {...props} />
-                    }}
-                  >
-                    {aiResponse}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
         ) : insights.length > 0 ? (
           insights.map((insight, index) => (

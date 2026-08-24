@@ -64,14 +64,14 @@ public sealed class DashboardService : IDashboardService
         }, "Dashboard summary retrieved successfully.");
     }
 
-    public async Task<GenericResponse<DashboardSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<DashboardSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default)
     {
         var countRequest = new PaginationRequest { Page = 1, PageSize = 1 };
         var draftCount = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, status: ContentStatusEnum.Draft, cancellationToken: cancellationToken);
         var pendingApprovalCount = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, status: ContentStatusEnum.PendingApproval, cancellationToken: cancellationToken);
         var publishedCount = await _contentRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, status: ContentStatusEnum.Published, cancellationToken: cancellationToken);
         var postsCount = await _postRepository.GetPagedByWorkspaceIdAsync(workspaceId, countRequest, cancellationToken: cancellationToken);
-        var unreadCount = await _notificationRepository.GetUnreadCountByWorkspaceIdAsync(workspaceId, cancellationToken);
+        var unreadCount = await _notificationRepository.GetUnreadCountByWorkspaceIdAsync(workspaceId, currentProfileId, cancellationToken);
         var socialAccounts = await _socialAccountRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
         var upcomingSchedulesCount = await _contentCalendarRepository.CountUpcomingByWorkspaceIdAsync(workspaceId, DateTime.UtcNow, cancellationToken);
         var failedSchedulesCount = await _contentCalendarRepository.CountFailedByWorkspaceIdAsync(workspaceId, cancellationToken);

@@ -1219,6 +1219,8 @@ public class PaymentServiceTests
 
         public Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
+        public Task<long> GetMaximumBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<CreditUsageRecordDto>> GetPagedUsageByUserAsync(Guid workspaceId, Guid userId, PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

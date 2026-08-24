@@ -53,22 +53,22 @@ public sealed class NotificationRepository : INotificationRepository
                 cancellationToken);
     }
 
-    public async Task<PagedResult<Notification>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Notification>> GetPagedByWorkspaceIdAsync(Guid workspaceId, Guid currentProfileId, PaginationRequest request, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(n => n.WorkspaceId == workspaceId && !n.IsDeleted).OrderByDescending(n => n.CreatedAt);
+        var query = Query().Where(n => n.WorkspaceId == workspaceId && !n.IsDeleted && (n.ProfileId == Guid.Empty || n.ProfileId == currentProfileId)).OrderByDescending(n => n.CreatedAt);
         var totalCount = await query.CountAsync(cancellationToken);
         var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return new PagedResult<Notification> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
     }
 
-    public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-        => Query().CountAsync(n => n.WorkspaceId == workspaceId && !n.IsDeleted && !n.IsRead, cancellationToken);
+    public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default)
+        => Query().CountAsync(n => n.WorkspaceId == workspaceId && !n.IsDeleted && !n.IsRead && (n.ProfileId == Guid.Empty || n.ProfileId == currentProfileId), cancellationToken);
 
-    public async Task MarkAllAsReadByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    public async Task MarkAllAsReadByWorkspaceIdAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default)
     {
-        var notifications = await Query().Where(n => n.WorkspaceId == workspaceId && !n.IsDeleted && !n.IsRead).ToListAsync(cancellationToken);
+        var notifications = await Query().Where(n => n.WorkspaceId == workspaceId && !n.IsDeleted && !n.IsRead && (n.ProfileId == Guid.Empty || n.ProfileId == currentProfileId)).ToListAsync(cancellationToken);
         foreach (var notification in notifications) notification.IsRead = true;
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -122,7 +122,6 @@ public sealed class NotificationRepository : INotificationRepository
 
     private IQueryable<Notification> Query()
     {
-        return _context.Notifications
-            .Include(notification => notification.Profile);
+        return _context.Notifications;
     }
 }

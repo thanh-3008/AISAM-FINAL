@@ -24,7 +24,7 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
             throw new InvalidOperationException("Gemini Fallback API key 2 is not configured.");
         }
 
-        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey2}";
         var requestBody = new
         {
@@ -36,7 +36,7 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "application/json"
+                responseMimeType = "text/plain"
             },
             safetySettings = new[]
             {
@@ -70,7 +70,7 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
             throw new InvalidOperationException("Gemini Fallback API key 2 is not configured.");
         }
 
-        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-2.5-flash" : _settings.Model;
+        var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey2}";
         var requestBody = new
         {
@@ -89,7 +89,7 @@ public sealed class FallbackGeminiTextClient2 : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "application/json"
+                responseMimeType = "text/plain"
             },
             safetySettings = new[]
             {

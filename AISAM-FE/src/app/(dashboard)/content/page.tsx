@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon, isFailedOrRejectedStatus } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
@@ -177,7 +177,7 @@ export default function ContentPage() {
     scheduled: scheduledCount,
     draft: allContent.filter((c) => c.status === "Draft").length,
     pendingApproval: allContent.filter((c) => c.status === "Awaiting Approval").length,
-    failed: allContent.filter((c) => c.status === "Failed").length,
+    failed: allContent.filter((c) => isFailedOrRejectedStatus(c.status)).length,
   }), [allContent, scheduledCount]);
 
   const availableProducts = useMemo(() => {
@@ -871,9 +871,15 @@ export default function ContentPage() {
       {previewItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150" onClick={() => setPreviewItem(null)}>
           <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="relative aspect-video bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
-              {previewItem.type === "VIDEO" && (previewItem.videoUrl || previewItem.thumbnail) ? (
-                <video src={previewItem.videoUrl || previewItem.thumbnail} className="w-full h-full object-cover" controls autoPlay muted loop playsInline />
+            {/* Use dynamic aspect ratio based on platform */}
+            {(() => {
+              const isVertical = previewItem.platforms?.some(p => p.includes("tiktok") || p.includes("instagram")) || previewItem.tags?.some(t => t.toLowerCase().includes("tiktok") || t.toLowerCase().includes("instagram") || t.toLowerCase().includes("reels"));
+              const aspectClass = isVertical ? "aspect-[9/16] max-w-sm mx-auto" : "aspect-video";
+              
+              return (
+                <div className={`relative ${aspectClass} bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden`}>
+                  {previewItem.type === "VIDEO" && (previewItem.videoUrl || previewItem.thumbnail) ? (
+                    <video src={previewItem.videoUrl || previewItem.thumbnail} className="w-full h-full object-cover" controls autoPlay muted loop playsInline />
               ) : previewItem.type === "IMAGE" && (previewItem.imageUrl || previewItem.thumbnail) ? (
                 <img src={previewItem.imageUrl || previewItem.thumbnail} alt={previewItem.title} className="w-full h-full object-cover" />
               ) : (
@@ -883,6 +889,8 @@ export default function ContentPage() {
               )}
               <span className={`absolute top-3 right-3 z-10 px-2 py-0.5 rounded-md text-label-xs font-semibold text-white shadow-sm ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
             </div>
+            );
+          })()}
             <div className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -1058,9 +1066,14 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
   return (
     <>
       <div className="cursor-pointer relative" onClick={() => onAction("View Details", item)}>
-        <div className="relative aspect-[4/3] bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden rounded-t-2xl">
-          {item.type === "VIDEO" && (item.videoUrl || item.thumbnail) && !imgError ? (
-            <video 
+        {(() => {
+          const isVertical = item.platforms?.some(p => p.includes("tiktok") || p.includes("instagram")) || item.tags?.some(t => t.toLowerCase().includes("tiktok") || t.toLowerCase().includes("instagram") || t.toLowerCase().includes("reels"));
+          const aspectClass = isVertical ? "aspect-[9/16]" : "aspect-[4/3]";
+          
+          return (
+            <div className={`relative ${aspectClass} bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden rounded-t-2xl`}>
+              {item.type === "VIDEO" && (item.videoUrl || item.thumbnail) && !imgError ? (
+                <video 
               src={item.videoUrl || item.thumbnail} 
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               muted loop playsInline 
@@ -1084,6 +1097,8 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
             </span>
           </div>
         </div>
+        );
+      })()}
         <div className="absolute top-3 right-3">
           <button onClick={(e) => { e.stopPropagation(); onToggleMenu(openMenuId === item.id ? null : item.id); }}
             className="w-7 h-7 rounded-lg bg-black/30 backdrop-blur-[2px] flex items-center justify-center text-white hover:bg-black/50 transition-colors active:scale-[0.95] opacity-0 group-hover:opacity-100">

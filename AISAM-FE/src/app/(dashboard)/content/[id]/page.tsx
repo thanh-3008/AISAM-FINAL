@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { getStoredAutosave } from "@/hooks/useSettings";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
@@ -8,6 +9,19 @@ import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse } from "@/services/contentService";
+
+interface FormState {
+  title: string;
+  status: ContentStatus;
+  description: string;
+  platforms: string[];
+  caption: string;
+  ctaLink: string;
+  scheduledAt: string;
+  internalNotes: string;
+  hashtags: string[];
+  rejectionReason?: string;
+}
 
 export default function ContentDetailPage() {
   const params = useParams();
@@ -25,12 +39,35 @@ export default function ContentDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
 
-  const [form, setForm] = useState<{
-    title: string; status: ContentStatus; description: string; platforms: string[];
-    caption: string; ctaLink: string; scheduledAt: string; internalNotes: string; hashtags: string[];
-  }>({ title: "", status: "Draft", description: "", platforms: [], caption: "", ctaLink: "", scheduledAt: "", internalNotes: "", hashtags: [] });
+  const [form, setForm] = useState<FormState>({ title: "", status: "Draft", description: "", platforms: [], caption: "", ctaLink: "", scheduledAt: "", internalNotes: "", hashtags: [] });
 
   const notFound = !item && !loading;
+
+  const formRef = useRef(form);
+  const itemRef = useRef(item);
+
+  useEffect(() => {
+    formRef.current = form;
+    itemRef.current = item;
+  }, [form, item]);
+
+  useEffect(() => {
+    return () => {
+      const currentItem = itemRef.current;
+      const currentForm = formRef.current;
+      if (getStoredAutosave() && currentItem && currentForm.title) {
+        // Autosave only content fields, NOT status.
+        // Status changes must go through explicit actions (submit/approve/reject/handleSave)
+        // to prevent race conditions where unmount cleanup overwrites approval transitions.
+        updateContent(currentItem.id, {
+          title: currentForm.title,
+          adType: CONTENTTYPE_TO_ADTYPE[currentItem.type],
+          textContent: currentForm.caption,
+          contextDescription: currentForm.description,
+        }).catch(() => {});
+      }
+    };
+  }, []);
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 80); return () => clearTimeout(t); }, []);
 
@@ -60,7 +97,7 @@ export default function ContentDetailPage() {
   }, [generations, params.id]);
 
   useEffect(() => {
-    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] });
+    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" });
   }, [item?.id]);
 
   const handleSave = async () => {
@@ -103,7 +140,12 @@ export default function ContentDetailPage() {
     setIsSubmitting(false);
     if (success) {
       setToast({ message: "Content submitted for approval successfully.", type: "success" });
-      if (item) setItem({ ...item, status: "Awaiting Approval" });
+      if (item) {
+        const updatedItem = { ...item, status: "Awaiting Approval" as ContentStatus };
+        setItem(updatedItem);
+        // Synchronize form status to prevent autosave cleanup from overwriting server status
+        setForm(prev => ({ ...prev, status: "Awaiting Approval" }));
+      }
     } else {
       setToast({ message: "Failed to submit content.", type: "error" });
     }
@@ -160,6 +202,16 @@ export default function ContentDetailPage() {
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Content Library", href: "/content" }, { label: item.title }]} />
       <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-6">
 
+        {form.status === "Rejected" && form.rejectionReason && (
+          <div className={`bg-danger-red/10 border border-danger-red/20 rounded-xl p-4 flex gap-3 text-danger-red ${visible ? "animate-fade-up" : ""}`}>
+            <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">error</span>
+            <div>
+              <h4 className="text-label-sm font-bold mb-1">Content needs revision</h4>
+              <p className="text-body-sm leading-relaxed whitespace-pre-wrap">{form.rejectionReason}</p>
+            </div>
+          </div>
+        )}
+
         {/* Back + Actions */}
         <div className={`flex items-center justify-between ${visible ? "animate-fade-up" : ""}`}>
           <button onClick={() => router.push("/content")}
@@ -208,7 +260,7 @@ export default function ContentDetailPage() {
               </>
             ) : (
               <>
-                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [] }); }}
+                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" }); }}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] text-label-sm font-semibold">
                   Cancel
                 </button>
@@ -228,25 +280,41 @@ export default function ContentDetailPage() {
         {/* Main Content */}
         <div className="flex flex-col xl:flex-row gap-gutter">
           {/* Preview Area */}
-          <div className="flex-1 min-w-0 space-y-gutter">
+          <div className={`flex-1 min-w-0 ${item.type === "VIDEO" ? 'grid grid-cols-1 lg:grid-cols-12 gap-gutter' : 'space-y-gutter'}`}>
+            {/* Description */}
+            <div className={`lg:col-span-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.08s" }}>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-label-md text-on-surface font-semibold">Description</h3>
+                </div>
+                {editing ? (
+                  <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                    className="w-full bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-body-sm text-on-surface placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-25 resize-y"
+                    placeholder="Add a description..." />
+                ) : (
+                  <p className="text-body-sm text-on-surface-variant leading-relaxed">{item.description || "No description provided."}</p>
+                )}
+              </div>
+            </div>
+
             {/* Content Preview */}
-            <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.08s" }}>
+            <div className={`lg:col-span-8 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.16s" }}>
               <div className="p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-label-sm text-outline font-semibold uppercase tracking-wider">Preview</span>
-                  <span className="px-2 py-0.5 rounded-md bg-gradient-to-br text-white text-label-xs font-semibold flex items-center gap-1" style={{ background: `linear-gradient(135deg, var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-500), var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-400))` }}>
+                  <span className="px-2 py-0.5 rounded-md bg-linear-to-br text-white text-label-xs font-semibold flex items-center gap-1" style={{ background: `linear-gradient(135deg, var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-500), var(--color-${item.type === "IMAGE" ? "blue" : item.type === "TEXT" ? "purple" : "rose"}-400))` }}>
                     <span className="material-symbols-outlined text-label-xs">{typeIcon}</span>
                     {item.type}
                   </span>
                 </div>
 
                 {item.type === "IMAGE" && (
-                  <div className="w-full max-w-2xl mx-auto aspect-video bg-gradient-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center">
+                  <div className="w-full max-w-2xl mx-auto aspect-video bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center">
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt={item.title} className="w-full h-full object-contain rounded-xl" />
                     ) : (
                       <div className="text-center">
-                        <div className={`w-24 h-24 mx-auto rounded-2xl bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg mb-3`}>
+                        <div className={`w-24 h-24 mx-auto rounded-2xl bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg mb-3`}>
                           <span className="material-symbols-outlined text-4xl">{typeIcon}</span>
                         </div>
                         <p className="text-body-sm text-outline">No image uploaded</p>
@@ -257,7 +325,7 @@ export default function ContentDetailPage() {
 
                 {item.type === "TEXT" && (
                   <div className="w-full max-w-2xl mx-auto">
-                    <div className="bg-surface-container rounded-xl p-6 min-h-[200px]">
+                    <div className="bg-surface-container rounded-xl p-6 min-h-50">
                       <p className="text-body-md text-on-surface leading-relaxed whitespace-pre-line">
                         {item.textContent || "No content yet."}
                       </p>
@@ -270,12 +338,12 @@ export default function ContentDetailPage() {
                 )}
 
                 {item.type === "VIDEO" && (
-                  <div className="w-full max-w-2xl mx-auto">
-                    <div className="aspect-video bg-gradient-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden">
+                  <div className="w-full mx-auto flex justify-center">
+                    <div className="w-full bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden" style={{ minHeight: "250px" }}>
                       {item.videoUrl ? (
-                        <video src={item.videoUrl} controls className="w-full h-full object-contain bg-black rounded-xl" />
+                        <video src={item.videoUrl} controls className="w-full h-auto max-h-[75vh] object-contain bg-black rounded-xl" />
                       ) : (
-                        <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-110 transition-transform`}>
+                        <div className={`w-24 h-24 my-12 mx-auto rounded-full bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-110 transition-transform`}>
                           <span className="material-symbols-outlined text-4xl">play_arrow</span>
                         </div>
                       )}
@@ -285,27 +353,13 @@ export default function ContentDetailPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
-                      {item.duration && <span>{item.duration}</span>}
-                      {item.fileSize && <span>{item.fileSize}</span>}
-                    </div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Description */}
-            <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.16s" }}>
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-label-md text-on-surface font-semibold">Description</h3>
-                </div>
-                {editing ? (
-                  <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                    className="w-full bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-body-sm text-on-surface placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[100px] resize-y"
-                    placeholder="Add a description..." />
-                ) : (
-                  <p className="text-body-sm text-on-surface-variant leading-relaxed">{item.description || "No description provided."}</p>
+                {item.type === "VIDEO" && (
+                  <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
+                    {item.duration && <span>{item.duration}</span>}
+                    {item.fileSize && <span>{item.fileSize}</span>}
+                  </div>
                 )}
               </div>
             </div>
@@ -461,7 +515,7 @@ export default function ContentDetailPage() {
                     <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
                     {editing ? (
                       <textarea value={form.caption} onChange={(e) => setForm((p) => ({ ...p, caption: e.target.value }))}
-                        className="w-full bg-surface-container border border-outline-variant/20 rounded-xl p-3 text-body-sm text-on-surface placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[120px] resize-y"
+                        className="w-full bg-surface-container border border-outline-variant/20 rounded-xl p-3 text-body-sm text-on-surface placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-30 resize-y"
                         placeholder="Write a caption..." />
                     ) : (
                       <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption || item.textContent}</p>
@@ -562,7 +616,7 @@ export default function ContentDetailPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-inverse-surface text-inverse-on-surface px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-100 flex items-center gap-3 bg-inverse-surface text-inverse-on-surface px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
           <span className={`material-symbols-outlined text-[18px] ${toast.type === "success" ? "text-emerald-400" : "text-danger-red"}`}>
             {toast.type === "success" ? "check_circle" : "error"}
           </span>

@@ -272,6 +272,12 @@ public sealed class ActiveWorkspaceMiddleware
         WorkspaceMember membership,
         ISubscriptionRepository subscriptionRepository)
     {
+        if (context.Request.Method == HttpMethods.Get &&
+            context.Request.Path.StartsWithSegments("/api/content-schedules"))
+        {
+            return null;
+        }
+
         var feature = ResolveFeature(context.Request.Path);
         if (!feature.HasValue)
         {

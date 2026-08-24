@@ -21,6 +21,7 @@ public sealed class ContentResponseDto
     public string? RepresentativeCharacter { get; set; }
     public bool IsAiGenerated { get; set; }
     public ContentStatusEnum Status { get; set; }
+    public string? RejectionReason { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

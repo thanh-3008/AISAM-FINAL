@@ -220,7 +220,7 @@ public sealed class AnalyticsService : IAnalyticsService
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
-        string cacheKey = $"AiRec_v3_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
+        string cacheKey = $"AiRec_v4_json_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
         
         if (!forceRefresh && _cache.TryGetValue(cacheKey, out string? cachedResponse) && !string.IsNullOrEmpty(cachedResponse))
         {
@@ -261,12 +261,100 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         var prompt = BuildAnalyticsPrompt(totals, prevTotals, channels, topPosts.Items, campaigns.Items, brandContext);
-        var response = await _geminiTextClient.GenerateAsync(prompt, "text/plain", cancellationToken);
+        var response = await _geminiTextClient.GenerateAsync(prompt, null, cancellationToken);
+        Console.WriteLine($"Raw Gemini Response Length: {response?.Length ?? 0}");
+        Console.WriteLine($"Raw Gemini Response (first 200 chars): {(response?.Length > 200 ? response.Substring(0, 200) : response)}");
+        Console.WriteLine($"Raw Gemini Response (last 200 chars): {(response?.Length > 200 ? response.Substring(response.Length - 200) : response)}");
 
-        _cache.Set(cacheKey, response, TimeSpan.FromHours(12));
+        string CleanJson(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            
+            var json = text.Trim();
+            
+            // Extract content between ```json and ``` if it exists
+            var startIndex = json.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
+            if (startIndex >= 0)
+            {
+                startIndex += 7;
+                var endIndex = json.LastIndexOf("```");
+                if (endIndex > startIndex)
+                {
+                    json = json.Substring(startIndex, endIndex - startIndex).Trim();
+                }
+            }
+            else
+            {
+                // Try just ```
+                startIndex = json.IndexOf("```");
+                if (startIndex >= 0)
+                {
+                    startIndex += 3;
+                    var endIndex = json.LastIndexOf("```");
+                    if (endIndex > startIndex)
+                    {
+                        json = json.Substring(startIndex, endIndex - startIndex).Trim();
+                    }
+                }
+            }
+
+            // Fallback: extract from first { to last } or first [ to last ]
+            if (!json.StartsWith("{") && !json.StartsWith("["))
+            {
+                var firstBrace = json.IndexOf('{');
+                var lastBrace = json.LastIndexOf('}');
+                var firstBracket = json.IndexOf('[');
+                var lastBracket = json.LastIndexOf(']');
+
+                if (firstBrace >= 0 && lastBrace > firstBrace && (firstBracket == -1 || firstBrace < firstBracket))
+                {
+                    json = json.Substring(firstBrace, lastBrace - firstBrace + 1);
+                }
+                else if (firstBracket >= 0 && lastBracket > firstBracket)
+                {
+                    json = json.Substring(firstBracket, lastBracket - firstBracket + 1);
+                }
+            }
+
+            return json.Trim();
+        }
+
+        string cleanedJson = CleanJson(response ?? string.Empty);
+        bool parseSuccess = false;
+        try
+        {
+            JsonSerializer.Deserialize<object>(cleanedJson);
+            parseSuccess = true;
+        }
+        catch { }
+
+        if (!parseSuccess)
+        {
+            var retryPrompt = "CRITICAL: Respond ONLY with raw JSON. No code fences, no markdown, no explanations.\n\n" + prompt;
+            response = await _geminiTextClient.GenerateAsync(retryPrompt, null, cancellationToken);
+            cleanedJson = CleanJson(response ?? string.Empty);
+            try
+            {
+                JsonSerializer.Deserialize<object>(cleanedJson);
+                parseSuccess = true;
+            }
+            catch (Exception ex)
+            { 
+                Console.WriteLine("JSON Parse Error: " + ex.Message + "\nRaw output: " + cleanedJson);
+            }
+        }
+
+        if (!parseSuccess)
+        {
+            var errorJson = "{ \"error\": \"AI_PARSE_FAILED\", \"message\": \"Không thể phân tích kết quả AI. Vui lòng thử lại.\" }";
+            return GenericResponse<string>.CreateSuccess(
+                errorJson, "AI recommendations retrieved successfully.");
+        }
+
+        _cache.Set(cacheKey, cleanedJson, TimeSpan.FromHours(12));
 
         return GenericResponse<string>.CreateSuccess(
-            response, "AI recommendations retrieved successfully.");
+            cleanedJson, "AI recommendations retrieved successfully.");
     }
 
     private static string BuildAnalyticsPrompt(
@@ -285,7 +373,21 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt.");
-        sb.AppendLine("Format: Sử dụng văn bản Markdown rõ ràng, dễ đọc (dùng tiêu đề, in đậm, danh sách...). CẤM: lời chào, giới thiệu ở đầu và cuối. CẤM nói 'thiếu dữ liệu', 'giai đoạn đầu', 'chưa có'. Tập trung thẳng vào hành động.");
+        sb.AppendLine("Return ONLY a valid JSON object matching this schema. Do NOT output any markdown blocks, conversational text, or explanations outside the JSON:");
+        sb.AppendLine(@"{
+  ""recommendations"": [
+    {
+      ""priority"": ""HIGH"",
+      ""title"": ""..."",
+      ""rationale"": ""... (BẮT BUỘC trích dẫn ít nhất 1 con số cụ thể từ TỔNG QUAN, KÊNH, TOP POSTS, hoặc CAMPAIGNS ở dưới)"",
+      ""actionable_steps"": [""..."", ""...""],
+      ""kpi_target"": ""...""
+    },
+    ""... (THÊM 3-5 OBJECTS TƯƠNG TỰ VÀO MẢNG NÀY ĐỂ ĐẠT 4-6 ĐỀ XUẤT) ...""
+  ]
+}");
+        sb.AppendLine("Rules for 'priority': Ưu tiên khi xung đột theo thứ tự Conversions > CTR > Engagement > Impressions. Nếu chỉ số ưu tiên giảm mạnh (>=10%) so với kỳ trước -> HIGH. Nếu tín hiệu mâu thuẫn (như Impressions tăng nhưng CTR flat) -> MID. Nếu ổn định hoặc tăng đều -> LOW.");
+        sb.AppendLine("Rules cho 'rationale': CẤM nói chung chung kiểu 'dựa trên dữ liệu', 'thiếu dữ liệu', 'giai đoạn đầu'. Bắt buộc đưa số liệu cụ thể (VD: 'CTR giảm 15%', 'Tương tác đạt 2000').");
         sb.AppendLine();
 
         Func<long, long, string> pctStr = (curr, prev) => prev == 0 ? (curr > 0 ? "(+100%)" : "") : (curr - prev) * 100.0 / prev > 0 ? $"(+{(curr - prev) * 100.0 / prev:F1}%)" : $"({(curr - prev) * 100.0 / prev:F1}%)";

@@ -41,6 +41,26 @@ public class NotificationServiceTests
     }
 
     [Fact]
+    public async Task GetByIdInWorkspaceAsync_ReturnsNotFound_ForAnotherProfileNotification()
+    {
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = Guid.NewGuid(),
+            ProfileId = Guid.NewGuid(),
+            Title = "Private",
+            Message = "Private notification",
+            Type = NotificationTypeEnum.ApprovalNeeded
+        };
+        var service = new NotificationService(new FakeNotificationRepository(notification));
+
+        var result = await service.GetByIdInWorkspaceAsync(notification.WorkspaceId, Guid.NewGuid(), notification.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal((int)HttpStatusCode.NotFound, result.StatusCode);
+    }
+
+    [Fact]
     public async Task MarkReadAsync_ReturnsNotFound_ForAnotherProfilesNotification()
     {
         var notification = new Notification

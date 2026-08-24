@@ -76,48 +76,48 @@ public sealed class NotificationService : INotificationService
         }, "Unread notification count retrieved successfully.");
     }
 
-    public async Task<GenericResponse<PagedResult<NotificationListItemDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<PagedResult<NotificationListItemDto>>> GetPagedByWorkspaceAsync(Guid workspaceId, Guid currentProfileId, PaginationRequest request, CancellationToken cancellationToken = default)
     {
-        var notifications = await _notificationRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, cancellationToken);
+        var notifications = await _notificationRepository.GetPagedByWorkspaceIdAsync(workspaceId, currentProfileId, request, cancellationToken);
         return GenericResponse<PagedResult<NotificationListItemDto>>.CreateSuccess(new PagedResult<NotificationListItemDto>
         {
             Data = await MapListItemsAsync(notifications.Data, cancellationToken), TotalCount = notifications.TotalCount, Page = notifications.Page, PageSize = notifications.PageSize
         }, "Notifications retrieved successfully.");
     }
 
-    public async Task<GenericResponse<NotificationDetailDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<NotificationDetailDto>> GetByIdInWorkspaceAsync(Guid workspaceId, Guid currentProfileId, Guid notificationId, CancellationToken cancellationToken = default)
     {
         var notification = await _notificationRepository.GetByIdAsync(notificationId, cancellationToken);
-        return notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted
+        return notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted || (notification.ProfileId != Guid.Empty && notification.ProfileId != currentProfileId)
             ? GenericResponse<NotificationDetailDto>.CreateError("Notification not found.", HttpStatusCode.NotFound)
             : GenericResponse<NotificationDetailDto>.CreateSuccess(
                 MapDetail(notification, await GetDisplayContentAsync(notification, cancellationToken)),
                 "Notification retrieved successfully.");
     }
 
-    public async Task<GenericResponse<bool>> MarkReadInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> MarkReadInWorkspaceAsync(Guid workspaceId, Guid currentProfileId, Guid notificationId, CancellationToken cancellationToken = default)
     {
         var notification = await _notificationRepository.GetByIdAsync(notificationId, cancellationToken);
-        if (notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted)
+        if (notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted || (notification.ProfileId != Guid.Empty && notification.ProfileId != currentProfileId))
             return GenericResponse<bool>.CreateError("Notification not found.", HttpStatusCode.NotFound);
         notification.IsRead = true;
         await _notificationRepository.UpdateAsync(notification, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Notification marked as read.");
     }
 
-    public async Task<GenericResponse<bool>> MarkAllReadInWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> MarkAllReadInWorkspaceAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default)
     {
-        await _notificationRepository.MarkAllAsReadByWorkspaceIdAsync(workspaceId, cancellationToken);
+        await _notificationRepository.MarkAllAsReadByWorkspaceIdAsync(workspaceId, currentProfileId, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "All notifications marked as read.");
     }
 
-    public async Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-        => GenericResponse<UnreadNotificationCountDto>.CreateSuccess(new UnreadNotificationCountDto { Count = await _notificationRepository.GetUnreadCountByWorkspaceIdAsync(workspaceId, cancellationToken) }, "Unread notification count retrieved successfully.");
+    public async Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default)
+        => GenericResponse<UnreadNotificationCountDto>.CreateSuccess(new UnreadNotificationCountDto { Count = await _notificationRepository.GetUnreadCountByWorkspaceIdAsync(workspaceId, currentProfileId, cancellationToken) }, "Unread notification count retrieved successfully.");
 
-    public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid currentProfileId, Guid notificationId, CancellationToken cancellationToken = default)
     {
         var notification = await _notificationRepository.GetByIdAsync(notificationId, cancellationToken);
-        if (notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted)
+        if (notification == null || notification.WorkspaceId != workspaceId || notification.IsDeleted || (notification.ProfileId != Guid.Empty && notification.ProfileId != currentProfileId))
             return GenericResponse<bool>.CreateError("Notification not found.", HttpStatusCode.NotFound);
         await _notificationRepository.DeleteAsync(notification, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Notification deleted successfully.");

@@ -586,36 +586,7 @@ export default function CreateContentPage() {
                     placeholder="Notes for your team (not published)..." />
                 </div>
 
-                {/* Thumbnail */}
-                <div>
-                  <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Thumbnail</label>
-                  <input ref={thumbnailInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange("thumbnail", e)} />
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setDragOver("thumb"); }}
-                    onDragLeave={() => setDragOver(null)}
-                    onDrop={(e) => handleDrop("thumbnail", e)}
-                    onClick={() => handleFileSelect("thumbnail")}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-                      dragOver === "thumb" ? "border-primary bg-primary/5" : form.thumbnail ? "border-transparent bg-surface-container" : "border-outline-variant/30 hover:border-primary/40 hover:bg-surface-container/50"
-                    }`}>
-                    {form.thumbnail ? (
-                      <div className="relative inline-block">
-                        <div className="w-40 h-24 rounded-lg overflow-hidden">
-                          <img src={form.thumbnail} alt="Thumbnail" className="w-full h-full object-cover" />
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); clearFile("thumbnail"); }}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-danger-red/80 transition-all">
-                          <span className="material-symbols-outlined text-[12px]">close</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 justify-center">
-                        <span className="material-symbols-outlined text-outline/40 text-2xl">image</span>
-                        <span className="text-body-sm text-outline/60">Click to upload thumbnail image</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+
               </div>
             </div>
 

@@ -42,7 +42,7 @@ public class RemainingWorkspaceOwnershipTests
         var posts = await new PostRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
         var schedules = await new ContentCalendarRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
         var conversations = await new ConversationRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
-        var notifications = await new NotificationRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
+        var notifications = await new NotificationRepository(context).GetPagedByWorkspaceIdAsync(first, first, new PaginationRequest());
         var socialAccounts = await new SocialAccountRepository(context).GetByWorkspaceIdAsync(first);
 
         Assert.All(contents.Data, item => Assert.Equal(first, item.WorkspaceId));
