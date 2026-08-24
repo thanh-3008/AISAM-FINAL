@@ -29,6 +29,7 @@ public class DashboardControllerTests
     {
         var context = new DefaultHttpContext();
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = workspaceId;
+        context.Items[ProfileContextHelper.ActiveProfileItemKey] = workspaceId;
 
         return new DashboardController(service)
         {
@@ -48,7 +49,7 @@ public class DashboardControllerTests
             return Task.FromResult(Result);
         }
 
-        public Task<GenericResponse<DashboardSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        public Task<GenericResponse<DashboardSummaryDto>> GetWorkspaceSummaryAsync(Guid workspaceId, Guid profileId, CancellationToken cancellationToken = default)
         {
             LastWorkspaceId = workspaceId;
             return Task.FromResult(Result);

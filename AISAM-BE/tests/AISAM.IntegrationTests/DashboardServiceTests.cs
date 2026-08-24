@@ -75,7 +75,7 @@ public class DashboardServiceTests
             notificationRepository: new FakeNotificationRepository(workspaceId, 3, otherWorkspaceId, 8),
             contentCalendarRepository: new FakeContentCalendarRepository(upcomingCount: 4, failedCount: 1));
 
-        var result = await service.GetWorkspaceSummaryAsync(workspaceId);
+        var result = await service.GetWorkspaceSummaryAsync(workspaceId, workspaceId);
 
         Assert.True(result.Success);
         Assert.Equal(1, result.Data!.DraftContentCount);
@@ -297,7 +297,7 @@ public class DashboardServiceTests
             return Task.FromResult(count);
         }
 
-        public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        public Task<int> GetUnreadCountByWorkspaceIdAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default)
             => GetUnreadCountAsync(workspaceId, cancellationToken);
 
         public Task DeleteAsync(Notification notification, CancellationToken cancellationToken = default)

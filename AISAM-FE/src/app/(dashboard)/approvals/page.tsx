@@ -408,6 +408,8 @@ export default function ApprovalsPage() {
   const [drawerPreviewPlatform, setDrawerPreviewPlatform] = useState("facebook");
   const [postNowItem, setPostNowItem] = useState<ApprovalListItem | null>(null);
   const [revisionDrawer, setRevisionDrawer] = useState<ApprovalListItem | null>(null);
+  const [noteMode, setNoteMode] = useState<"revision" | "reject">("revision");
+  const [batchRejectIds, setBatchRejectIds] = useState<string[]>([]);
   const [revisionNote, setRevisionNote] = useState("");
   const revisionsRef = useRef<HTMLTextAreaElement>(null);
 
@@ -476,21 +478,12 @@ export default function ApprovalsPage() {
     setActionId(null);
   };
 
-  const handleReject = async (id: string) => {
+  const openRejectModal = (item: ApprovalListItem) => {
     setConfirmItem(null);
-    setActionId(id);
-    const item = items.find((i) => i.id === id);
-    const success = await rejectContent(id);
-    if (success) {
-      applyItemStatus(id, "Rejected");
-      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
-      if (drawerItem?.id === id) setDrawerItem(null);
-      if (revisionDrawer?.id === id) { setRevisionDrawer(null); setRevisionNote(""); }
-      showToast(`"${item?.title || "Asset"}" rejected`, "error");
-    } else {
-      showToast("Failed to reject content", "error");
-    }
-    setActionId(null);
+    setNoteMode("reject");
+    setRevisionDrawer(item);
+    setRevisionNote("");
+    setTimeout(() => revisionsRef.current?.focus(), 100);
   };
 
   const handleDeleteRejected = async (item: ApprovalListItem) => {
@@ -531,18 +524,10 @@ export default function ApprovalsPage() {
 
   const batchReject = async () => {
     const selectedIds = Array.from(selected);
-    let successCount = 0;
-    for (const id of selectedIds) {
-      setActionId(id);
-      const success = await rejectContent(id);
-      if (success) {
-        setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status: "Rejected" } : item)));
-        successCount++;
-      }
-      setActionId(null);
-    }
-    showToast(`${successCount} assets rejected`, "error");
-    setSelected(new Set());
+    const firstItem = items.find((item) => item.id === selectedIds[0]);
+    if (!firstItem) return;
+    setBatchRejectIds(selectedIds);
+    openRejectModal(firstItem);
   };
 
   const handleSort = (key: SortKey) => {
@@ -551,24 +536,37 @@ export default function ApprovalsPage() {
   };
 
   const handleRequestChanges = (item: ApprovalListItem) => {
+    setNoteMode("revision");
     setRevisionDrawer(item);
     setRevisionNote("");
     setTimeout(() => revisionsRef.current?.focus(), 100);
   };
 
   const submitRevision = async () => {
-    if (!revisionDrawer || !revisionNote.trim()) return;
+    if (!revisionDrawer || revisionNote.trim().length < 5) return;
+    const ids = batchRejectIds.length > 0 ? batchRejectIds : [revisionDrawer.id];
     setActionId(revisionDrawer.id);
-    const success = await rejectContent(revisionDrawer.id, revisionNote);
-    if (success) {
-      applyItemStatus(revisionDrawer.id, "Rejected");
-      showToast("Revision requested", "success");
-    } else {
-      showToast("Failed to request revision", "error");
+    try {
+      let successCount = 0;
+      for (const id of ids) {
+        if (await rejectContent(id, revisionNote.trim())) {
+          applyItemStatus(id, "Rejected");
+          successCount++;
+        }
+      }
+      if (successCount === ids.length) {
+        showToast(ids.length > 1 ? `${successCount} assets rejected` : noteMode === "reject" ? "Content rejected" : "Revision requested", "success");
+        setSelected(new Set());
+      } else {
+        showToast(`Rejected ${successCount} of ${ids.length} assets`, "error");
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to submit rejection note", "error");
     }
     setActionId(null);
     setRevisionDrawer(null);
     setRevisionNote("");
+    setBatchRejectIds([]);
   };
 
   const toggleSelect = (id: string) => {
@@ -1103,7 +1101,7 @@ export default function ApprovalsPage() {
                 <div className="flex items-center gap-3">
                   <button onClick={() => setConfirmItem(null)}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all">Cancel</button>
-                  <button onClick={() => handleReject(confirmItem.id)} disabled={actionId === confirmItem.id}
+                  <button onClick={() => openRejectModal(confirmItem)} disabled={actionId === confirmItem.id}
                     className="flex-1 py-2.5 rounded-xl bg-danger-red text-white text-label-sm font-bold hover:bg-danger-red/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                     {actionId === confirmItem.id ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1471,8 +1469,8 @@ export default function ApprovalsPage() {
                     <span className="material-symbols-outlined text-[18px]">rate_review</span>
                   </div>
                   <div>
-                    <h3 className="text-label-sm font-bold text-on-surface">Request Changes</h3>
-                    <p className="text-label-xs text-outline">Send feedback for AI revision</p>
+                    <h3 className="text-label-sm font-bold text-on-surface">{noteMode === "reject" ? "Reject Asset" : "Request Changes"}</h3>
+                    <p className="text-label-xs text-outline">{noteMode === "reject" ? "Add feedback for the content writer" : "Send feedback for AI revision"}</p>
                   </div>
                 </div>
                 <button onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }} className="p-2 hover:bg-surface-container rounded-lg transition-all">
@@ -1547,7 +1545,7 @@ export default function ApprovalsPage() {
 
                 <div>
                   <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">
-                    Revision Notes <span className="text-danger-red">*</span>
+                    {noteMode === "reject" ? "Rejection Notes" : "Revision Notes"} <span className="text-danger-red">*</span>
                   </label>
                   <div className="relative">
                     <textarea ref={revisionsRef} value={revisionNote} onChange={(e) => setRevisionNote(e.target.value.slice(0, 500))}
@@ -1574,14 +1572,14 @@ export default function ApprovalsPage() {
               <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
                 <button onClick={() => { setRevisionDrawer(null); setRevisionNote(""); }}
                   className="px-5 py-2.5 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container rounded-xl transition-all">Cancel</button>
-                <button onClick={submitRevision} disabled={!revisionNote.trim() || actionId === revisionDrawer.id}
+                <button onClick={submitRevision} disabled={revisionNote.trim().length < 5 || actionId === revisionDrawer.id}
                   className="flex-1 bg-gradient-to-r from-warning-amber to-amber-500 text-white py-2.5 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:from-warning-amber/90 hover:to-amber-500/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
                   {actionId === revisionDrawer.id ? (
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <span className="material-symbols-outlined text-[16px]">send</span>
                   )}
-                  Submit Revision Request
+                  {noteMode === "reject" ? "Reject with Feedback" : "Submit Revision Request"}
                 </button>
               </div>
             </div>
