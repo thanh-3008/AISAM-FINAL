@@ -326,7 +326,7 @@ public sealed class AIService : IAIService
                                 BrandId = conversation.BrandId.Value,
                                 ProductId = conversation.ProductId,
                                 AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
-                                Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedProduct?.Name) : "Original Product Images",
+                                Title = isImageTextRequest ? ExtractGeneratedTitle(responseText) : "Original Product Images",
                                 TextContent = StripMediaMarkers(responseText),
                                 ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
                                 Status = ContentStatusEnum.Draft,
@@ -362,7 +362,7 @@ public sealed class AIService : IAIService
                             BrandId = conversation.BrandId.Value,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
-                            Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedProduct?.Name) : "Chat Image Generation",
+                            Title = isImageTextRequest ? ExtractGeneratedTitle(responseText) : "Chat Image Generation",
                             TextContent = isImageTextRequest ? responseText : prompt,
                             Status = ContentStatusEnum.Draft,
                             IsAiGenerated = true
@@ -449,7 +449,7 @@ public sealed class AIService : IAIService
                             BrandId = conversation.BrandId.Value,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
-                            Title = ExtractGeneratedTitle(responseText, selectedProduct?.Name),
+                            Title = ExtractGeneratedTitle(responseText),
                             TextContent = StripMediaMarkers(responseText),
                             Status = ContentStatusEnum.Draft,
                             IsAiGenerated = true
@@ -507,7 +507,7 @@ public sealed class AIService : IAIService
                         BrandId = conversation.BrandId.Value,
                         ProductId = conversation.ProductId,
                         AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
-                        Title = ExtractGeneratedTitle(responseText, selectedProduct?.Name),
+                        Title = ExtractGeneratedTitle(responseText),
                         TextContent = StripMediaMarkers(responseText),
                         ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
                         Status = ContentStatusEnum.Draft,
@@ -1676,7 +1676,7 @@ Treat all reference images as different views of one product. Do not create mult
     }
 
 
-    private static string ExtractGeneratedTitle(string responseText, string? productName = null)
+    private static string ExtractGeneratedTitle(string responseText)
     {
         foreach (var line in responseText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -1694,19 +1694,44 @@ Treat all reference images as different views of one product. Do not create mult
                     }
                 }
             }
-
-            if (!normalized.StartsWith("#", StringComparison.Ordinal) && normalized.Length is > 0 and <= 120)
-            {
-                return normalized[..Math.Min(normalized.Length, 255)];
-            }
         }
 
-        if (!string.IsNullOrWhiteSpace(productName))
+        var firstSentence = ExtractFirstMeaningfulSentence(responseText);
+        if (!string.IsNullOrWhiteSpace(firstSentence))
         {
-            return productName.Trim()[..Math.Min(productName.Trim().Length, 255)];
+            return firstSentence[..Math.Min(firstSentence.Length, 255)];
         }
 
         return "Untitled Post";
+    }
+
+    private static string? ExtractFirstMeaningfulSentence(string text)
+    {
+        var cleanedText = Regex.Replace(text ?? string.Empty, @"^\s+", string.Empty);
+        var lines = cleanedText
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => Regex.Replace(line, @"^\s*(?:Caption|Title|Content|Hashtags|Description|Message|Tiêu đề|Nội dung|Mô tả|Hashtag)\s*:\s*", string.Empty, RegexOptions.IgnoreCase))
+            .Where(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("#", StringComparison.Ordinal) && !IsPureMetadata(line))
+            .ToList();
+
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        var sentenceMatch = Regex.Match(string.Join(" ", lines), @"^(.*?[.!?])", RegexOptions.Singleline);
+        if (sentenceMatch.Success)
+        {
+            return sentenceMatch.Groups[1].Value.Trim();
+        }
+
+        return lines[0].Trim();
+    }
+
+    private static bool IsPureMetadata(string line)
+    {
+        var normalized = Regex.Replace(line.Trim(), @"[:\s]+$", string.Empty);
+        return Regex.IsMatch(normalized, @"^(?:Caption|Title|Content|Hashtags|Description|Message|Tiêu đề|Nội dung|Mô tả|Hashtag)$", RegexOptions.IgnoreCase);
     }
 
     private sealed record ParsedChatResponse(
