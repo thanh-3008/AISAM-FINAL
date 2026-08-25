@@ -1,5 +1,6 @@
 using AISAM.Common.Models;
 using AISAM.Services.IServices;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -10,11 +11,16 @@ public sealed class FallbackGeminiTextClient4 : IGeminiTextClient
 {
     private readonly HttpClient _httpClient;
     private readonly GeminiSettings _settings;
+    private readonly ILogger<FallbackGeminiTextClient4> _logger;
 
-    public FallbackGeminiTextClient4(HttpClient httpClient, IOptions<GeminiSettings> settings)
+    public FallbackGeminiTextClient4(
+        HttpClient httpClient,
+        IOptions<GeminiSettings> settings,
+        ILogger<FallbackGeminiTextClient4>? logger = null)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FallbackGeminiTextClient4>.Instance;
     }
 
     public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
@@ -25,6 +31,7 @@ public sealed class FallbackGeminiTextClient4 : IGeminiTextClient
         }
 
         var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
+        const string effectiveResponseMimeType = "text/plain";
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey4}";
         var requestBody = new
         {
@@ -36,7 +43,7 @@ public sealed class FallbackGeminiTextClient4 : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = "text/plain"
+                responseMimeType = effectiveResponseMimeType
             },
             safetySettings = new[]
             {
@@ -44,6 +51,14 @@ public sealed class FallbackGeminiTextClient4 : IGeminiTextClient
                 new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
             }
         };
+
+        GeminiDiagnosticLogging.LogRequestConfiguration(
+            _logger,
+            "FallbackGemini4",
+            model,
+            _settings.MaxTokens,
+            _settings.Temperature,
+            effectiveResponseMimeType);
 
         var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -53,6 +68,7 @@ public sealed class FallbackGeminiTextClient4 : IGeminiTextClient
         }
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        GeminiDiagnosticLogging.LogResponseMetadata(_logger, "FallbackGemini4", model, document.RootElement);
         var text = document.RootElement
             .GetProperty("candidates")[0]
             .GetProperty("content")
