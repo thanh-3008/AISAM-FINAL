@@ -12,6 +12,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet } from "@/services/workspaceService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { getStoredAutosave } from "@/hooks/useSettings";
+import { deriveTitleFromCaption } from "@/lib/generatedPostTitle";
 
 interface ChatMessage {
   id: string;
@@ -610,7 +611,7 @@ export default function AIGeneratePage() {
       }
     }
     const parsedPost = parseGeneratedPost(cleanContent);
-    setTitle(parsedPost.title || "Untitled Post");
+    setTitle(deriveTitleFromCaption(parsedPost.caption));
     setContent(parsedPost.caption);
     setHashtags(h);
     setSelectedVariation(variation.id);
