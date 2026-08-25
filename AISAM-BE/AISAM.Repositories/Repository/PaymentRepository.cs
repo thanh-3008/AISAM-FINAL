@@ -41,6 +41,7 @@ public sealed class PaymentRepository : IPaymentRepository
         var query = Query()
             .Where(payment =>
                 !payment.IsDeleted &&
+                payment.Subscription != null &&
                 payment.Subscription.ProfileId == profileId &&
                 !payment.Subscription.IsDeleted &&
                 payment.Status == PaymentStatusEnum.Success)

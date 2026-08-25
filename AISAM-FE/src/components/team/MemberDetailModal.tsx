@@ -2,6 +2,7 @@
 
 import React from "react";
 import { fetchMemberCreditUsage, QUOTA_MODE_LABELS, type MemberCreditUsageRecord, type Team, type TeamMember } from "@/services/teamService";
+import { getCreditTransactionPresentation } from "@/lib/billingFormatters";
 import { getInitials, formatDate, calcTimeAgo, ROLE_CONFIG, STATUS_CONFIG } from "./teamUtils";
 
 interface MemberDetailModalProps {
@@ -173,7 +174,9 @@ export default function MemberDetailModal({
                   ) : usage.length === 0 ? (
                     <div className="px-4 py-4 text-label-xs text-outline">No credit activity yet.</div>
                   ) : (
-                    usage.map((record) => (
+                    usage.map((record) => {
+                      const transaction = getCreditTransactionPresentation(record);
+                      return (
                       <div key={record.id} className="px-4 py-3 flex items-center justify-between gap-4">
                         <div className="min-w-0">
                           <p className="text-label-xs text-on-surface font-semibold truncate">{record.action}</p>
@@ -181,11 +184,17 @@ export default function MemberDetailModal({
                             {record.featureUsed} - {calcTimeAgo(now, record.createdAt)}
                           </p>
                         </div>
-                        <span className={`text-label-xs font-bold ${record.status === "Success" ? "text-danger-red" : "text-outline"}`}>
-                          {record.status === "Success" ? "-" : ""}{record.credits.toLocaleString()}
+                        <span className={`text-label-xs font-bold ${transaction.tone === "positive"
+                            ? "text-emerald-700"
+                            : transaction.tone === "negative"
+                              ? "text-danger-red"
+                              : "text-outline"
+                          }`}>
+                          {transaction.label}
                         </span>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

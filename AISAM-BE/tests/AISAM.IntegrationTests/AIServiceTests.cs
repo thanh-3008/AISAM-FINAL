@@ -286,10 +286,112 @@ public class AIServiceTests
         var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
 
-        var title = (string)method!.Invoke(null, new object?[] { "   ", null })!;
+        var title = (string)method!.Invoke(null, new object?[] { "   " })!;
 
         Assert.Equal("Untitled Post", title);
         Assert.NotEqual("Apple Store Vietnam", title);
+    }
+
+    // ── Regression Tests: Caption-first-sentence as title fallback ──────────
+
+    [Fact]
+    public void ExtractGeneratedTitle_AiTitleIsPrioritized_WhenBothTitleAndCaptionExist()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "Title: Tiêu đề do AI tạo\n\nCaption: Câu đầu tiên của caption. Câu thứ hai.";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Tiêu đề do AI tạo", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_UsesCaptionFirstSentence_WhenNoAiTitle()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "Khám phá sức mạnh camera iPhone 16 Pro. Ghi lại mọi khoảnh khắc.";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        // Must return the first meaningful sentence, not Product Name or Brand Name
+        Assert.Equal("Khám phá sức mạnh camera iPhone 16 Pro.", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_UsesFirstSentence_WhenAiTitleIsWhitespace()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "Title:    \n\nTận hưởng hành trình xanh cùng VinFast VF 3! Di chuyển thông minh hơn mỗi ngày.";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Tận hưởng hành trình xanh cùng VinFast VF 3!", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_SkipsLeadingEmptyLines_InCaption()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "\n\nKhám phá Coca-Cola Zero ngay hôm nay. Hương vị sảng khoái.";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Khám phá Coca-Cola Zero ngay hôm nay.", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_HandlesTextWithoutPunctuation()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "Khám phá trải nghiệm mới cùng sản phẩm của chúng tôi";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Khám phá trải nghiệm mới cùng sản phẩm của chúng tôi", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_ReturnsUntitledPost_WhenNeitherTitleNorCaptionExist()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var title = (string)method!.Invoke(null, new object?[] { "   " })!;
+
+        Assert.Equal("Untitled Post", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_DoesNotUseBrandOrProductName_AsContentTitleFallback()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "Khám phá camera chuyên nghiệp với khả năng chụp ảnh ấn tượng. Lưu giữ mọi khoảnh khắc.";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Khám phá camera chuyên nghiệp với khả năng chụp ảnh ấn tượng.", title);
+        Assert.NotEqual("Apple Store Vietnam", title); // Brand Name must NOT be fallback
+        Assert.NotEqual("iPhone 16 Pro", title);       // Product Name must NOT be fallback
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_ProductNameNotUsedAsFallback_WhenOnlyWhitespaceInput()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        // Even when Product Name is contextually known, helper does NOT accept it
+        var aiResponse = "   ";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Untitled Post", title);
+        Assert.NotEqual("iPhone 16 Pro", title); // Product Name is NOT a fallback
     }
 
     [Fact]
