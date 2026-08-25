@@ -1,5 +1,6 @@
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace AISAM.Services.Service;
 
@@ -30,53 +31,51 @@ public sealed class FallbackTextProvider : IGeminiTextClient
 
     public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
     {
-        try
+        var providers = new (string Name, Func<Task<string>> Generate)[]
         {
-            _logger.LogInformation("Attempting to generate text with Gemini...");
-            return await _geminiClient.GenerateAsync(prompt, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Gemini text generation failed. Trying first fallback Gemini API...");
+            ("Gemini", () => _geminiClient.GenerateAsync(prompt, cancellationToken)),
+            ("FallbackGemini1", () => _fallbackGeminiClient.GenerateAsync(prompt, cancellationToken)),
+            ("FallbackGemini2", () => _fallbackGeminiClient2.GenerateAsync(prompt, cancellationToken)),
+            ("FallbackGemini3", () => _fallbackGeminiClient3.GenerateAsync(prompt, cancellationToken)),
+            ("FallbackGemini4", () => _fallbackGeminiClient4.GenerateAsync(prompt, cancellationToken))
+        };
 
+        Exception? lastException = null;
+        for (var index = 0; index < providers.Length; index++)
+        {
+            var provider = providers[index];
+            var timer = Stopwatch.StartNew();
             try
             {
-                return await _fallbackGeminiClient.GenerateAsync(prompt, cancellationToken);
+                var result = await provider.Generate();
+                _logger.LogInformation(
+                    "AskAI.LLM.ProviderAttempt ProviderName={ProviderName} AttemptOrder={AttemptOrder} DurationMs={DurationMs} Success={Success} FailureCategory={FailureCategory} Cancelled={Cancelled}",
+                    provider.Name, index + 1, timer.ElapsedMilliseconds, true, null, false);
+                return result;
             }
-            catch (Exception fallback1Ex)
+            catch (OperationCanceledException ex)
             {
-                _logger.LogWarning(fallback1Ex, "Fallback Gemini text generation failed. Trying secondary Fallback Gemini API...");
-
-                try
-                {
-                    return await _fallbackGeminiClient2.GenerateAsync(prompt, cancellationToken);
-                }
-                catch (Exception fallback2Ex)
-                {
-                    _logger.LogWarning(fallback2Ex, "Fallback 2 Gemini text generation failed. Trying tertiary Fallback Gemini API...");
-
-                    try
-                    {
-                        return await _fallbackGeminiClient3.GenerateAsync(prompt, cancellationToken);
-                    }
-                    catch (Exception fallback3Ex)
-                    {
-                        _logger.LogWarning(fallback3Ex, "Fallback 3 Gemini text generation failed. Trying quaternary Fallback Gemini API...");
-
-                        try
-                        {
-                            return await _fallbackGeminiClient4.GenerateAsync(prompt, cancellationToken);
-                        }
-                        catch (Exception fallback4Ex)
-                        {
-                            _logger.LogError(fallback4Ex, "All AI text providers failed.");
-                            throw new Exception($"All AI text providers failed. Primary Gemini: {ex.Message} | Fallback 1: {fallback1Ex.Message} | Fallback 2: {fallback2Ex.Message} | Fallback 3: {fallback3Ex.Message} | Fallback 4: {fallback4Ex.Message}", fallback4Ex);
-                        }
-                    }
-                }
+                _logger.LogInformation(
+                    "AskAI.LLM.ProviderAttempt ProviderName={ProviderName} AttemptOrder={AttemptOrder} DurationMs={DurationMs} Success={Success} FailureCategory={FailureCategory} Cancelled={Cancelled} ExceptionType={ExceptionType}",
+                    provider.Name, index + 1, timer.ElapsedMilliseconds, false, "CLIENT_CANCELLED", true, ex.GetType().Name);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(
+                    ex,
+                    "AskAI.LLM.ProviderAttempt ProviderName={ProviderName} AttemptOrder={AttemptOrder} DurationMs={DurationMs} Success={Success} FailureCategory={FailureCategory} Cancelled={Cancelled}",
+                    provider.Name, index + 1, timer.ElapsedMilliseconds, false, ClassifyProviderFailure(ex), false);
             }
         }
+
+        _logger.LogError(lastException, "All AI text providers failed.");
+        throw new InvalidOperationException("All AI text providers failed.", lastException);
     }
+
+    private static string ClassifyProviderFailure(Exception exception)
+        => exception is TaskCanceledException ? "LLM_TIMEOUT" : exception is HttpRequestException ? "LLM_PROVIDER_FAILURE" : exception.GetType().Name;
 
     public async Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
     {

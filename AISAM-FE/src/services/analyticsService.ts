@@ -67,6 +67,11 @@ export interface AiRecommendationsResponse {
   message?: string;
 }
 
+export interface AiRequestOptions {
+  signal?: AbortSignal;
+  correlationId?: string;
+}
+
 export interface EfficiencyMetric {
   label: string;
   value: number;
@@ -287,30 +292,87 @@ export async function fetchTopPosts(
 
 export async function fetchAiRecommendations(
   dateRange?: DateRange,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  requestOptions?: AiRequestOptions
 ): Promise<AiRecommendationsResponse> {
   const { from, to } = getDateRange(dateRange || "30d");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const correlationId = requestOptions?.correlationId ||
+    (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `ask-ai-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const requestStart = new Date().toISOString();
+  const startedAt = Date.now();
+  let timeoutTriggered = false;
+  let abortTriggered = false;
+  let status: number | undefined;
+  let outcome = "INTERNAL_ERROR";
+  let errorCategory: string | undefined;
+  const onExternalAbort = () => {
+    abortTriggered = true;
+    controller.abort();
+  };
+  requestOptions?.signal?.addEventListener("abort", onExternalAbort, { once: true });
+  const timeout = setTimeout(() => {
+    timeoutTriggered = true;
+    controller.abort();
+  }, 65000);
   try {
     const res: GenericResponse<string> = await apiClient(
       `/analytics/ai-recommendations?from=${from}&to=${to}${forceRefresh ? '&forceRefresh=true' : ''}`,
-      { signal: controller.signal } as RequestInit
+      {
+        signal: controller.signal,
+        headers: { "X-Correlation-ID": correlationId },
+      } as RequestInit
     );
+    status = (res as GenericResponse<string> & { __httpStatus?: number }).__httpStatus;
     const rawData = res?.data || "";
-    if (!rawData) return { error: "EMPTY", message: "No data returned." };
+    if (!rawData) {
+      outcome = "LLM_PARSE_FAILURE";
+      errorCategory = "EMPTY_RESPONSE";
+      return { error: "EMPTY", message: "No data returned." };
+    }
     try {
+      outcome = "SUCCESS";
       return JSON.parse(rawData) as AiRecommendationsResponse;
-    } catch (e: any) {
+    } catch {
+      outcome = "LLM_PARSE_FAILURE";
+      errorCategory = "INVALID_JSON";
       return { error: "PARSE_ERROR", message: "Failed to parse AI output." };
     }
-  } catch (e: any) {
-    if (e.name === "AbortError") {
-      return { error: "TIMEOUT", message: "Request timed out." };
+  } catch (error: unknown) {
+    const typedError = error as Error & { status?: number; category?: string };
+    status = typedError.status;
+    if (typedError.name === "AbortError" || typedError.name === "CanceledError") {
+      outcome = timeoutTriggered ? "FRONTEND_TIMEOUT" : "CLIENT_CANCELLED";
+      errorCategory = timeoutTriggered ? "TIMEOUT" : "ABORT";
+      return timeoutTriggered
+        ? { error: "TIMEOUT", message: "Request timed out." }
+        : { error: "CLIENT_CANCELLED", message: "Request cancelled." };
     }
-    return { error: "NETWORK_ERROR", message: e.message || "Network error occurred." };
+    outcome = status ? "INTERNAL_ERROR" : "INTERNAL_ERROR";
+    errorCategory = typedError.category || "NETWORK_ERROR";
+    return { error: "NETWORK_ERROR", message: typedError.message || "Network error occurred." };
   } finally {
     clearTimeout(timeout);
+    requestOptions?.signal?.removeEventListener("abort", onExternalAbort);
+    const requestEnd = new Date().toISOString();
+    const telemetry = {
+      correlationId,
+      requestStart,
+      requestEnd,
+      durationMs: Date.now() - startedAt,
+      timeoutTriggered,
+      abortTriggered,
+      status,
+      outcome,
+      errorCategory,
+    };
+    if (outcome === "SUCCESS") {
+      console.info("[AskAI.Telemetry]", telemetry);
+    } else {
+      console.warn("[AskAI.Telemetry]", telemetry);
+    }
   }
 }
 
@@ -365,28 +427,24 @@ export async function fetchAnalytics(
   let timeSeries: TimeSeriesResponse | null = null;
   let channelBreakdown: ChannelBreakdownItem[] = [];
 
-  try {
-    const res1: GenericResponse<AnalyticsOverviewResponse> = await apiClient(
-      `/analytics/overview?${filterQuery}`
-    );
+  // Fetch all analytics data in parallel to reduce total DB connection hold time
+  const [overviewResult, timeSeriesResult, channelResult, campaignsResult] = await Promise.allSettled([
+    apiClient(`/analytics/overview?${filterQuery}`) as Promise<GenericResponse<AnalyticsOverviewResponse>>,
+    apiClient(`/analytics/time-series?${filterQuery}&granularity=day`) as Promise<GenericResponse<TimeSeriesResponse>>,
+    fetchChannelBreakdown(range, brandId),
+    fetchCampaigns({ pageSize: 50 }),
+  ]);
+
+  if (overviewResult.status === "fulfilled") {
+    const res1 = overviewResult.value as GenericResponse<AnalyticsOverviewResponse>;
     if (res1?.data) overview = res1.data;
-  } catch {
-    /* graceful fallback */
   }
-
-  try {
-    const res2: GenericResponse<TimeSeriesResponse> = await apiClient(
-      `/analytics/time-series?${filterQuery}&granularity=day`
-    );
+  if (timeSeriesResult.status === "fulfilled") {
+    const res2 = timeSeriesResult.value as GenericResponse<TimeSeriesResponse>;
     if (res2?.data) timeSeries = res2.data;
-  } catch {
-    /* graceful fallback */
   }
-
-  try {
-    channelBreakdown = await fetchChannelBreakdown(range, brandId);
-  } catch {
-    /* ignore */
+  if (channelResult.status === "fulfilled") {
+    channelBreakdown = channelResult.value as ChannelBreakdownItem[];
   }
 
   const totals = overview?.totals;
@@ -395,7 +453,9 @@ export async function fetchAnalytics(
 
   let campaignPerformance: CampaignPerformance[] = [];
   try {
-    const res = await fetchCampaigns({ pageSize: 50 });
+    const res = campaignsResult.status === "fulfilled"
+      ? (campaignsResult.value as Awaited<ReturnType<typeof fetchCampaigns>>)
+      : await fetchCampaigns({ pageSize: 50 });
     let campaigns = res.data;
     const campaignFilter = options?.campaignFilter;
     if (campaignFilter && campaignFilter !== "all") {

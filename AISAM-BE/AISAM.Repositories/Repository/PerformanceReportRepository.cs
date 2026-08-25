@@ -405,6 +405,183 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<AnalyticsChannelBreakdownDto>> GetChannelBreakdownForAIAsync(
+        Guid workspaceId, DateTime from, DateTime to,
+        Guid? brandId = null, CancellationToken cancellationToken = default)
+    {
+        var postsQuery = _context.Posts.AsNoTracking()
+            .Where(p => !p.IsDeleted && p.Content != null && p.Content.WorkspaceId == workspaceId
+                && p.PublishedAt >= from && p.PublishedAt <= to);
+
+        if (brandId.HasValue)
+            postsQuery = postsQuery.Where(p => p.Content!.BrandId == brandId.Value);
+
+        var reportRowsQuery = _context.PerformanceReports.AsNoTracking()
+            .Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to
+                && pr.Post != null && !pr.Post.IsDeleted
+                && pr.Post.Content != null && !pr.Post.Content.IsDeleted
+                && pr.Post.Content.WorkspaceId == workspaceId);
+
+        if (brandId.HasValue)
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Content!.BrandId == brandId.Value);
+
+        var campaignsQuery = _context.AdCampaigns.AsNoTracking()
+            .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
+                && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from);
+
+        if (brandId.HasValue)
+            campaignsQuery = campaignsQuery.Where(c => c.BrandId == brandId.Value);
+
+        var postsByChannel = await postsQuery
+            .GroupBy(p => p.Integration.Platform)
+            .Select(g => new { Platform = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.Platform, g => g.Count, cancellationToken);
+
+        var latestReportsQuery = reportRowsQuery
+            .Where(pr => pr.ReportDate == reportRowsQuery
+                .Where(pr2 => pr2.PostId == pr.PostId)
+                .Max(pr2 => (DateTime?)pr2.ReportDate));
+
+        var reportByChannel = await latestReportsQuery
+            .GroupBy(pr => pr.Post!.Integration.Platform)
+            .Select(g => new
+            {
+                Platform = g.Key,
+                Impressions = g.Sum(pr => pr.Impressions),
+                Clicks = g.Sum(pr => pr.Clicks),
+                Engagement = g.Sum(pr => pr.Engagement)
+            })
+            .ToDictionaryAsync(g => g.Platform, cancellationToken);
+
+        var campaignByChannel = await campaignsQuery
+            .GroupBy(c => c.Platform.ToLower())
+            .Select(g => new
+            {
+                Platform = g.Key,
+                Impressions = g.Sum(c => c.Impressions),
+                Clicks = g.Sum(c => c.Clicks),
+                Spend = g.Sum(c => c.Spend)
+            })
+            .ToDictionaryAsync(g => g.Platform, cancellationToken);
+
+        var allPlatforms = postsByChannel.Keys.Select(k => k.ToString().ToLower())
+            .Union(reportByChannel.Keys.Select(k => k.ToString().ToLower()))
+            .Union(campaignByChannel.Keys)
+            .Distinct()
+            .ToList();
+
+        var result = new List<AnalyticsChannelBreakdownDto>();
+        foreach (var plat in allPlatforms)
+        {
+            var pEnum = Enum.TryParse<SocialPlatformEnum>(plat, true, out var e) ? e : (SocialPlatformEnum?)null;
+            var pPosts = pEnum.HasValue && postsByChannel.TryGetValue(pEnum.Value, out var cVal) ? cVal : 0;
+            var pRep = pEnum.HasValue && reportByChannel.TryGetValue(pEnum.Value, out var rVal) ? rVal : null;
+            var cRep = campaignByChannel.TryGetValue(plat, out var cr) ? cr : null;
+
+            var imp = (pRep?.Impressions ?? 0) + (cRep?.Impressions ?? 0);
+            var clicks = (pRep?.Clicks ?? 0) + (cRep?.Clicks ?? 0);
+            var spend = cRep?.Spend ?? 0;
+
+            result.Add(new AnalyticsChannelBreakdownDto
+            {
+                Platform = plat,
+                PublishedPosts = pPosts,
+                Impressions = imp,
+                Engagement = pRep?.Engagement ?? 0,
+                Clicks = clicks,
+                Spend = spend,
+                Ctr = imp > 0 ? Math.Round((decimal)clicks / imp * 100, 2) : 0
+            });
+        }
+        return result;
+    }
+
+    public async Task<IReadOnlyList<TopPostItemDto>> GetTopPostsForAIAsync(
+        Guid workspaceId, DateTime from, DateTime to,
+        Guid? brandId = null, string? platform = null, int take = 3,
+        CancellationToken cancellationToken = default)
+    {
+        var reportRowsQuery = _context.PerformanceReports.AsNoTracking()
+            .Where(pr => !pr.IsDeleted && pr.ReportDate >= from && pr.ReportDate <= to
+                && pr.Post != null && !pr.Post.IsDeleted
+                && pr.Post.Content != null && !pr.Post.Content.IsDeleted
+                && pr.Post.Content.WorkspaceId == workspaceId);
+
+        if (brandId.HasValue)
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Content!.BrandId == brandId.Value);
+
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            var platformEnum = ParsePlatform(platform);
+            reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Integration.Platform == platformEnum);
+        }
+
+        // Get the latest report for each post in the time frame using Max
+        var latestReportsQuery = reportRowsQuery
+            .Where(pr => pr.ReportDate == reportRowsQuery
+                .Where(pr2 => pr2.PostId == pr.PostId)
+                .Max(pr2 => (DateTime?)pr2.ReportDate));
+
+        // Now take the top ones by Engagement from the latest reports
+        var topReports = await latestReportsQuery
+            .OrderByDescending(pr => pr!.Engagement)
+            .Take(take)
+            .Select(pr => new
+            {
+                pr!.PostId,
+                pr.Impressions,
+                pr.Reach,
+                pr.Engagement,
+                pr.Clicks
+            })
+            .ToListAsync(cancellationToken);
+
+        var topPostIds = topReports.Select(x => x.PostId).ToList();
+
+        if (!topPostIds.Any())
+            return new List<TopPostItemDto>();
+
+        var postsInfo = await _context.Posts.AsNoTracking()
+            .Where(p => topPostIds.Contains(p.Id))
+            .Select(p => new
+            {
+                p.Id,
+                p.ContentId,
+                ContentTitle = p.Content!.Title,
+                BrandName = p.Content.Brand!.Name,
+                Platform = p.Integration.Platform.ToString(),
+                p.PublishedAt,
+                p.ExternalPostId
+            })
+            .ToListAsync(cancellationToken);
+
+        var result = new List<TopPostItemDto>();
+        foreach (var r in topReports)
+        {
+            var pInfo = postsInfo.FirstOrDefault(p => p.Id == r.PostId);
+            if (pInfo != null)
+            {
+                result.Add(new TopPostItemDto
+                {
+                    PostId = pInfo.Id,
+                    ContentId = pInfo.ContentId,
+                    ContentTitle = pInfo.ContentTitle,
+                    BrandName = pInfo.BrandName,
+                    Platform = pInfo.Platform.ToLower(),
+                    PublishedAt = pInfo.PublishedAt,
+                    ExternalPostId = pInfo.ExternalPostId,
+                    Impressions = r.Impressions,
+                    Reach = r.Reach,
+                    Engagement = r.Engagement,
+                    Clicks = r.Clicks,
+                    TotalMediaViewUnique = 0,
+                    Ctr = r.Impressions > 0 ? Math.Round((decimal)r.Clicks / r.Impressions * 100, 2) : 0
+                });
+            }
+        }
+        return result;
+    }
+
     public async Task<AnalyticsSparklines> GetSparklinesAsync(
         Guid workspaceId, DateTime from, DateTime to, int days = 7,
         Guid? brandId = null, string? platform = null, Guid? campaignId = null,

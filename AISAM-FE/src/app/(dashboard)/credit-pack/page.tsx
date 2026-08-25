@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createPayment, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, synchronizeBusinessWorkspacePayment } from "@/services/paymentService";
+import { createPayment, CREDIT_PACK_CODES_BY_ID, exitPayment, fetchPublicPricing, synchronizeBusinessWorkspacePayment, syncPayOSCallback } from "@/services/paymentService";
 
 interface CreditPack {
   id: string;
@@ -59,11 +60,13 @@ const DEFAULT_CREDIT_PACKS: CreditPack[] = [
 ];
 
 const CREDIT_PACK_PAYMENT_REFERENCE_KEY = "aisam-credit-pack-payment-reference";
+const CREDIT_PACK_PAYMENT_ACTIVE_KEY = "aisam-credit-pack-payment-active";
 
 export default function CreditPackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { activeWorkspace } = useWorkspaces();
+  const { showToast } = useToast();
   const [creditWallet, setCreditWallet] = useState<CreditWallet | null>(null);
   const [creditPacks, setCreditPacks] = useState<CreditPack[]>(DEFAULT_CREDIT_PACKS);
   const [selectedPack, setSelectedPack] = useState<CreditPack | null>(null);
@@ -106,10 +109,25 @@ export default function CreditPackPage() {
 
     const synchronizePayment = async () => {
       try {
-        if (!redirectPaid) {
+        const activeReference = window.sessionStorage.getItem(CREDIT_PACK_PAYMENT_ACTIVE_KEY);
+        if (!searchParams.has("orderCode") && !searchParams.has("id") && activeReference) {
+          const result = await exitPayment(activeReference);
+          window.sessionStorage.removeItem(CREDIT_PACK_PAYMENT_ACTIVE_KEY);
           window.sessionStorage.removeItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY);
-          setPaymentError("Payment was not completed.");
-          router.replace("/credit-pack?payment=cancelled");
+          showToast(result?.status === "Success"
+            ? { type: "success", title: "Payment successful", message: "Your payment was confirmed." }
+            : { type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+          router.replace("/credit-pack");
+          return;
+        }
+        if (!redirectPaid) {
+          // Gọi backend để cập nhật trạng thái giao dịch từ Pending → Failed
+          try { await syncPayOSCallback(searchParams); } catch { /* ignore */ }
+          window.sessionStorage.removeItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY);
+          window.sessionStorage.removeItem(CREDIT_PACK_PAYMENT_ACTIVE_KEY);
+          showToast({ type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+          setPaymentError("You have cancelled the payment.");
+          router.replace("/credit-pack");
           return;
         }
 
@@ -138,7 +156,7 @@ export default function CreditPackPage() {
     };
 
     synchronizePayment();
-  }, [activeWorkspace?.id, router, searchParams]);
+  }, [activeWorkspace?.id, router, searchParams, showToast]);
 
   useEffect(() => {
     fetchPublicPricing().then((res) => {
@@ -191,6 +209,7 @@ export default function CreditPackPage() {
       if (payment?.checkoutUrl) {
         if (payment.orderCode) {
           window.sessionStorage.setItem(CREDIT_PACK_PAYMENT_REFERENCE_KEY, payment.orderCode);
+          window.sessionStorage.setItem(CREDIT_PACK_PAYMENT_ACTIVE_KEY, payment.orderCode);
         }
         window.location.href = payment.checkoutUrl;
       } else {

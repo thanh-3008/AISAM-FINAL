@@ -16,14 +16,20 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(false);
   const cooldownRef = useRef<NodeJS.Timeout | null>(null);
+  const activeRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
     setAiResponse(null);
     setError(null);
+    setLoading(false);
   }, [dateRange]);
 
   useEffect(() => {
     return () => {
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
       if (cooldownRef.current) clearTimeout(cooldownRef.current);
     };
   }, []);
@@ -33,8 +39,11 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
     setLoading(true);
     setError(null);
     setAiResponse(null);
+    const requestController = new AbortController();
+    activeRequestRef.current = requestController;
     try {
-      const response = await fetchAiRecommendations(dateRange, forceRefresh);
+      const response = await fetchAiRecommendations(dateRange, forceRefresh, { signal: requestController.signal });
+      if (activeRequestRef.current !== requestController) return;
       if (response && !response.error) {
         setAiResponse(response);
         setCooldown(true);
@@ -46,9 +55,14 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
         setError("AI is not available at this time.");
       }
     } catch {
-      setError("Failed to get AI recommendations.");
+      if (activeRequestRef.current === requestController) {
+        setError("Failed to get AI recommendations.");
+      }
     } finally {
-      setLoading(false);
+      if (activeRequestRef.current === requestController) {
+        activeRequestRef.current = null;
+        setLoading(false);
+      }
     }
   };
 

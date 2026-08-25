@@ -138,9 +138,21 @@ async function handleResponse(response: Response) {
     const trimmed = errorMessage.trim();
     const mappedError = ERROR_MAP[trimmed]
       ?? Object.entries(ERROR_MAP).find(([k]) => k.toLowerCase() === trimmed.toLowerCase())?.[1];
-    throw new Error(mappedError ?? (trimmed || `Request failed (${response.status})`));
+    const error = new Error(mappedError ?? (trimmed || `Request failed (${response.status})`)) as Error & {
+      status?: number;
+      category?: string;
+    };
+    error.status = response.status;
+    error.category = "HTTP_ERROR";
+    throw error;
   }
 
+  if (result && typeof result === "object") {
+    Object.defineProperty(result, "__httpStatus", {
+      value: response.status,
+      enumerable: false,
+    });
+  }
   return result;
 }
 

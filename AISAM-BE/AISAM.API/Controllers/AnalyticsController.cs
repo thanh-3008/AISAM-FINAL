@@ -13,10 +13,12 @@ namespace AISAM.API.Controllers;
 public sealed class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analyticsService;
+    private readonly ILogger<AnalyticsController> _logger;
 
-    public AnalyticsController(IAnalyticsService analyticsService)
+    public AnalyticsController(IAnalyticsService analyticsService, ILogger<AnalyticsController> logger)
     {
         _analyticsService = analyticsService;
+        _logger = logger;
     }
 
     private static DateTime ToUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc);
@@ -130,10 +132,26 @@ public sealed class AnalyticsController : ControllerBase
         [FromQuery] bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
-        var result = await _analyticsService.GetAiRecommendationsAsync(
-            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
-            ToUtc(from), ToUtc(to), brandId, platform, forceRefresh, cancellationToken);
-        return StatusCode(result.StatusCode, result);
+        var correlationId = Request.Headers["X-Correlation-ID"].FirstOrDefault();
+        if (!Guid.TryParse(correlationId, out _))
+        {
+            correlationId = Guid.NewGuid().ToString("D");
+        }
+
+        Response.Headers["X-Correlation-ID"] = correlationId;
+        HttpContext.TraceIdentifier = correlationId;
+
+        using (_logger.BeginScope(new Dictionary<string, object>
+        {
+            ["CorrelationId"] = correlationId,
+            ["Endpoint"] = "GET /api/analytics/ai-recommendations"
+        }))
+        {
+            var result = await _analyticsService.GetAiRecommendationsAsync(
+                WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+                ToUtc(from), ToUtc(to), brandId, platform, forceRefresh, cancellationToken, correlationId);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 
     [HttpGet("audience")]

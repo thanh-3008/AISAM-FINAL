@@ -52,6 +52,17 @@ public sealed class PaymentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("checkout/exit")]
+    [Authorize]
+    public async Task<ActionResult<GenericResponse<PaymentExitResult>>> ExitCheckout(
+        [FromBody] ExitCheckoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _paymentService.ExitCheckoutAsync(userId, request.Reference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("callback")]
     [AllowAnonymous]
     public async Task<ActionResult<GenericResponse<bool>>> HandleCallback(CancellationToken cancellationToken = default)

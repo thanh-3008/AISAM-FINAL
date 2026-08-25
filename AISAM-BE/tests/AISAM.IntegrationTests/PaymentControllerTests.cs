@@ -137,6 +137,11 @@ public class PaymentControllerTests
             return Task.FromResult(CallbackResult);
         }
 
+        public Task<GenericResponse<PaymentExitResult>> ExitCheckoutAsync(Guid userId, string reference, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GenericResponse<PaymentExitResult>.CreateSuccess(new PaymentExitResult { Status = "Failed", Cancelled = true }));
+        }
+
         public Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(WebhookResult);

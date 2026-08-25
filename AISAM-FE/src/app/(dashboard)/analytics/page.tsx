@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
@@ -33,6 +33,7 @@ export default function AnalyticsPage() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [brandOptions, setBrandOptions] = useState<{ label: string; value: string }[]>([{ label: "All Brands", value: "all" }]);
+  const analyticsRequestIdRef = useRef(0);
 
   useEffect(() => {
     fetchBrands().then((brands) => {
@@ -45,6 +46,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const requestId = ++analyticsRequestIdRef.current;
     const load = async () => {
       setLoading(true);
       try {
@@ -54,9 +56,9 @@ export default function AnalyticsPage() {
           brandId: brandFilter,
           platform: platformFilter,
         });
-        if (!cancelled) setData(res);
+        if (!cancelled && analyticsRequestIdRef.current === requestId) setData(res);
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && analyticsRequestIdRef.current === requestId) {
           console.error("Failed to load analytics:", err);
           setData(null);
         }
@@ -64,11 +66,11 @@ export default function AnalyticsPage() {
 
       try {
         const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined);
-        if (!cancelled) setTopPosts(posts);
+        if (!cancelled && analyticsRequestIdRef.current === requestId) setTopPosts(posts);
       } catch (err) {
-        if (!cancelled) console.error("Failed to load top posts:", err);
+        if (!cancelled && analyticsRequestIdRef.current === requestId) console.error("Failed to load top posts:", err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && analyticsRequestIdRef.current === requestId) setLoading(false);
       }
     };
     load();
@@ -76,16 +78,23 @@ export default function AnalyticsPage() {
   }, [dateRange, campaignFilter, brandFilter, platformFilter, activeWorkspace?.id]);
 
   const handleRefresh = () => {
+    const requestId = ++analyticsRequestIdRef.current;
     setData(null);
     setTopPosts([]);
     setLoading(true);
-    fetchAnalytics({ dateRange, campaignFilter, brandId: brandFilter, platform: platformFilter }).then((res) => {
-      setData(res);
-      setLoading(false);
-    });
-    fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined).then((posts) => {
-      setTopPosts(posts);
-    });
+    const load = async () => {
+      try {
+        const res = await fetchAnalytics({ dateRange, campaignFilter, brandId: brandFilter, platform: platformFilter });
+        if (analyticsRequestIdRef.current === requestId) setData(res);
+        const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined);
+        if (analyticsRequestIdRef.current === requestId) setTopPosts(posts);
+      } catch (err) {
+        if (analyticsRequestIdRef.current === requestId) console.error("Failed to refresh analytics:", err);
+      } finally {
+        if (analyticsRequestIdRef.current === requestId) setLoading(false);
+      }
+    };
+    load();
   };
 
   const handleExport = async () => {

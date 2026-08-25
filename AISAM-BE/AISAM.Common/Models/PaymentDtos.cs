@@ -26,6 +26,17 @@ public sealed class SynchronizeBusinessWorkspaceCheckoutRequest
     public string Reference { get; set; } = string.Empty;
 }
 
+public sealed class ExitCheckoutRequest
+{
+    public string Reference { get; set; } = string.Empty;
+}
+
+public sealed class PaymentExitResult
+{
+    public string Status { get; set; } = string.Empty;
+    public bool Cancelled { get; set; }
+}
+
 public sealed class PayOSCheckoutResponse
 {
     public string CheckoutUrl { get; set; } = string.Empty;
