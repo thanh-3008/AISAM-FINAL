@@ -33,6 +33,15 @@ export interface ChartDataPoint {
   publishedPosts: number;
 }
 
+export interface ScheduledPublishingPoint {
+  date: string;
+  completed: number;
+  failed: number;
+  pending: number;
+  retryAttempts: number;
+  successRate: number;
+}
+
 export interface CampaignPerformance {
   id: string;
   name: string;
@@ -53,16 +62,17 @@ export interface AiInsight {
   highlight?: string;
 }
 
-export interface AiRecommendationItem {
-  priority: 'HIGH' | 'MID' | 'LOW';
-  title: string;
-  rationale: string;
-  actionable_steps: string[];
-  kpi_target: string;
-}
-
 export interface AiRecommendationsResponse {
-  recommendations?: AiRecommendationItem[];
+  summary?: string;
+  strengths?: Array<{ title: string; evidence: string; meaning: string }>;
+  weaknesses?: Array<{ title: string; evidence: string; impact: string }>;
+  next_post_actions?: Array<{
+    priority: "HIGH" | "MEDIUM" | "LOW";
+    action: string;
+    reason: string;
+    kpi_target: string;
+  }>;
+  data_note?: string;
   error?: string;
   message?: string;
 }
@@ -116,6 +126,7 @@ export interface AnalyticsData {
   channelBreakdown: ChannelBreakdownItem[];
   aiInsights: AiInsight[];
   efficiency: EfficiencyMetric[];
+  scheduledPublishing: ScheduledPublishingPoint[];
 }
 
 interface GenericResponse<T> {
@@ -287,14 +298,19 @@ export async function fetchTopPosts(
 
 export async function fetchAiRecommendations(
   dateRange?: DateRange,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  brandId?: string,
+  platform?: string,
 ): Promise<AiRecommendationsResponse> {
   const { from, to } = getDateRange(dateRange || "30d");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), 90000);
   try {
     const res: GenericResponse<string> = await apiClient(
-      `/analytics/ai-recommendations?from=${from}&to=${to}${forceRefresh ? '&forceRefresh=true' : ''}`,
+      `/analytics/ai-recommendations?${buildFilterQuery(from, to, {
+        brandId: brandId && brandId !== "all" ? brandId : undefined,
+        platform: platform && platform !== "all" ? platform : undefined,
+      })}${forceRefresh ? '&forceRefresh=true' : ''}`,
       { signal: controller.signal } as RequestInit
     );
     const rawData = res?.data || "";
@@ -306,7 +322,7 @@ export async function fetchAiRecommendations(
     }
   } catch (e: any) {
     if (e.name === "AbortError") {
-      return { error: "TIMEOUT", message: "Request timed out." };
+      return { error: "TIMEOUT", message: "AI đang xử lý lâu hơn dự kiến. Vui lòng thử lại sau ít phút." };
     }
     return { error: "NETWORK_ERROR", message: e.message || "Network error occurred." };
   } finally {
@@ -364,6 +380,7 @@ export async function fetchAnalytics(
   let overview: AnalyticsOverviewResponse | null = null;
   let timeSeries: TimeSeriesResponse | null = null;
   let channelBreakdown: ChannelBreakdownItem[] = [];
+  let scheduledPublishing: ScheduledPublishingPoint[] = [];
 
   try {
     const res1: GenericResponse<AnalyticsOverviewResponse> = await apiClient(
@@ -387,6 +404,14 @@ export async function fetchAnalytics(
     channelBreakdown = await fetchChannelBreakdown(range, brandId);
   } catch {
     /* ignore */
+  }
+
+  try {
+    const scheduledResponse: GenericResponse<{ points: ScheduledPublishingPoint[] }> =
+      await apiClient(`/analytics/scheduled-publishing?${filterQuery}`);
+    scheduledPublishing = scheduledResponse?.data?.points || [];
+  } catch {
+    /* graceful fallback */
   }
 
   const totals = overview?.totals;
@@ -489,9 +514,9 @@ export async function fetchAnalytics(
       {
         id: "insight-2",
         type: "trend" as const,
-        title: "Campaign Status",
-        message: `${totals?.activeCampaigns || 0} active campaigns, ${totals?.estimatedRevenue?.toLocaleString() || 0} VND estimated revenue`,
-        highlight: `${totals?.activeCampaigns || 0} active`,
+        title: "Content Engagement",
+        message: `${totals?.engagement?.toLocaleString() || 0} interactions across ${totals?.publishedPosts || 0} published posts, with ${totals?.clicks?.toLocaleString() || 0} clicks`,
+        highlight: `${totals?.clicks?.toLocaleString() || 0} clicks`,
       },
     ],
     efficiency: [
@@ -506,5 +531,6 @@ export async function fetchAnalytics(
         color: "bg-secondary",
       },
     ],
+    scheduledPublishing,
   };
 }
