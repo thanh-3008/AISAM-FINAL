@@ -207,7 +207,7 @@ export default function AnalyticsPage() {
 
               <div className="grid grid-cols-12 gap-6">
                 <div className="col-span-12 lg:col-span-8 space-y-6">
-                  <AnalyticsChart data={data.chartData} />
+                  <AnalyticsChart data={data.scheduledPublishing} />
                   <AnalyticsPerformanceTable campaigns={data.campaignPerformance} onViewFullReport={handleExport} />
                   <AnalyticsTopPosts posts={topPosts} />
                 </div>
@@ -215,7 +215,12 @@ export default function AnalyticsPage() {
                 <aside className="col-span-12 lg:col-span-4 space-y-6">
                   {featureGate.canAccess("advancedAnalytics") ? (
                     <>
-                      <AnalyticsAiInsights insights={data.aiInsights} dateRange={dateRange} />
+                      <AnalyticsAiInsights
+                        insights={data.aiInsights}
+                        dateRange={dateRange}
+                        brandId={brandFilter}
+                        platform={platformFilter}
+                      />
                       <AnalyticsEfficiencyCard metrics={data.efficiency} />
                     </>
                   ) : (

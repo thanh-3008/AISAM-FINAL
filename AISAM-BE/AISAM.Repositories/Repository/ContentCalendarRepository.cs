@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -112,6 +113,60 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
                 !schedule.IsDeleted &&
                 schedule.Status == ScheduleStatusEnum.Failed)
             .CountAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ScheduledPublishingPointDto>> GetPublishingPerformanceAsync(
+        Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null,
+        string? platform = null, CancellationToken cancellationToken = default)
+    {
+        var query = _context.ContentCalendars
+            .AsNoTracking()
+            .Where(schedule =>
+                schedule.WorkspaceId == workspaceId &&
+                !schedule.IsDeleted &&
+                (schedule.ScheduledAt ?? schedule.ScheduledDate) >= from &&
+                (schedule.ScheduledAt ?? schedule.ScheduledDate) <= to);
+
+        if (brandId.HasValue)
+            query = query.Where(schedule => schedule.Content.BrandId == brandId.Value);
+
+        if (!string.IsNullOrWhiteSpace(platform) &&
+            Enum.TryParse<SocialPlatformEnum>(platform, true, out var parsedPlatform))
+        {
+            query = query.Where(schedule =>
+                schedule.Integration != null && schedule.Integration.Platform == parsedPlatform);
+        }
+
+        var points = await query
+            .GroupBy(schedule => (schedule.ScheduledAt ?? schedule.ScheduledDate).Date)
+            .Select(group => new
+            {
+                Date = group.Key,
+                Completed = group.Count(schedule => schedule.Status == ScheduleStatusEnum.Completed),
+                Failed = group.Count(schedule => schedule.Status == ScheduleStatusEnum.Failed),
+                Pending = group.Count(schedule =>
+                    schedule.Status == ScheduleStatusEnum.Pending ||
+                    schedule.Status == ScheduleStatusEnum.Processing),
+                RetryAttempts = group.Sum(schedule => schedule.AttemptCount)
+            })
+            .OrderBy(point => point.Date)
+            .ToListAsync(cancellationToken);
+
+        return points.Select(point =>
+        {
+            var finished = point.Completed + point.Failed;
+            return new ScheduledPublishingPointDto
+            {
+                Date = point.Date.ToString("yyyy-MM-dd"),
+                Completed = point.Completed,
+                Failed = point.Failed,
+                Pending = point.Pending,
+                RetryAttempts = point.RetryAttempts,
+                SuccessRate = finished == 0
+                    ? 0
+                    : Math.Round((decimal)point.Completed / finished * 100, 1)
+            };
+        }).ToList();
     }
 
     public async Task<IReadOnlyList<ContentCalendar>> GetDueSchedulesAsync(DateTime utcNow, int limit, CancellationToken cancellationToken = default)

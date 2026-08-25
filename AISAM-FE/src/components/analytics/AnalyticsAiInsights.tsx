@@ -6,11 +6,13 @@ import { type AiInsight, type DateRange, fetchAiRecommendations, type AiRecommen
 interface AnalyticsAiInsightsProps {
   insights: AiInsight[];
   dateRange?: DateRange;
+  brandId?: string;
+  platform?: string;
 }
 
 const COOLDOWN_MS = 8000;
 
-export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAiInsightsProps) {
+export default function AnalyticsAiInsights({ insights, dateRange, brandId, platform }: AnalyticsAiInsightsProps) {
   const [aiResponse, setAiResponse] = useState<AiRecommendationsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
   useEffect(() => {
     setAiResponse(null);
     setError(null);
-  }, [dateRange]);
+  }, [dateRange, brandId, platform]);
 
   useEffect(() => {
     return () => {
@@ -34,7 +36,7 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
     setError(null);
     setAiResponse(null);
     try {
-      const response = await fetchAiRecommendations(dateRange, forceRefresh);
+      const response = await fetchAiRecommendations(dateRange, forceRefresh, brandId, platform);
       if (response && !response.error) {
         setAiResponse(response);
         setCooldown(true);
@@ -94,10 +96,10 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
         </div>
         <div className="flex-1">
           <h4 className="text-headline-sm text-on-surface">
-            {showAiResults ? "AI Recommendations" : "AI Performance Summary"}
+            {showAiResults ? "AI Content Review" : "AI Performance Summary"}
           </h4>
           <p className="text-body-sm text-outline mt-0.5">
-            {showAiResults ? "Real-time analysis from Gemini" : "Click to get AI-powered insights"}
+            {showAiResults ? "Strengths, weaknesses and next-post actions" : "Analyze performance data for better posts"}
           </p>
         </div>
         {showAiResults && (
@@ -128,64 +130,59 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
               </div>
             ))}
           </div>
-        ) : showAiResults && aiResponse?.recommendations ? (
+        ) : showAiResults ? (
           <div className="space-y-4 animate-fade-up">
-            {aiResponse.recommendations.map((rec, index) => {
-              const colors = 
-                rec.priority === "HIGH" ? "border-red-500/30 bg-red-500/5 text-red-500" :
-                rec.priority === "MID" ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-500" :
-                "border-green-500/30 bg-green-500/5 text-green-500";
-              const icon = 
-                rec.priority === "HIGH" ? "priority_high" :
-                rec.priority === "MID" ? "warning" : "check_circle";
+            {aiResponse.summary && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-1">Tổng quan</p>
+                <p className="text-sm leading-relaxed text-on-surface">{aiResponse.summary}</p>
+              </div>
+            )}
 
-              return (
-                <div key={index} className="group relative" style={{ animationDelay: `${0.1 + index * 0.1}s` }}>
-                  <div className={`relative p-5 rounded-xl border ${colors} hover:shadow-lg transition-all duration-300`}>
-                    <div className="flex items-start gap-4">
-                      <div className="shrink-0 mt-1">
-                        <span className="material-symbols-outlined text-[24px]">
-                          {icon}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-current/10 ${colors.split(" ")[2]}`}>
-                            {rec.priority} PRIORITY
-                          </span>
-                        </div>
-                        <h4 className="text-on-surface font-bold mb-2 text-lg">{rec.title}</h4>
-                        <p className="text-on-surface-variant text-sm mb-4 leading-relaxed bg-surface-container-high/30 p-3 rounded-lg italic border-l-2 border-current">
-                          {rec.rationale}
-                        </p>
-                        
-                        <div className="mb-4">
-                          <h5 className="text-sm font-semibold text-on-surface mb-2 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[18px]">format_list_bulleted</span>
-                            Actionable Steps
-                          </h5>
-                          <ul className="space-y-2">
-                            {rec.actionable_steps.map((step, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-sm text-on-surface-variant">
-                                <span className="material-symbols-outlined text-[16px] text-primary shrink-0 mt-0.5">check</span>
-                                <span>{step}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+            <AnalysisSection
+              title="Điểm mạnh"
+              icon="thumb_up"
+              tone="positive"
+              items={(aiResponse.strengths || []).map((item) => ({
+                title: item.title,
+                evidence: item.evidence,
+                detail: item.meaning,
+              }))}
+            />
 
-                        {rec.kpi_target && (
-                          <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg border border-primary/10">
-                            <span className="material-symbols-outlined text-[18px]">track_changes</span>
-                            Target: {rec.kpi_target}
-                          </div>
-                        )}
+            <AnalysisSection
+              title="Điểm yếu"
+              icon="warning"
+              tone="negative"
+              items={(aiResponse.weaknesses || []).map((item) => ({
+                title: item.title,
+                evidence: item.evidence,
+                detail: item.impact,
+              }))}
+            />
+
+            {(aiResponse.next_post_actions || []).length > 0 && (
+              <section className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                <h5 className="mb-3 flex items-center gap-2 text-sm font-bold text-blue-700">
+                  <span className="material-symbols-outlined text-[19px]">rocket_launch</span>
+                  Cải thiện cho bài đăng tiếp theo
+                </h5>
+                <div className="space-y-3">
+                  {aiResponse.next_post_actions!.map((item, index) => (
+                    <div key={`${item.action}-${index}`} className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-blue-100">
+                      <div className="mb-1 flex items-start justify-between gap-2">
+                        <p className="text-sm font-bold text-on-surface">{index + 1}. {item.action}</p>
+                        <PriorityBadge priority={item.priority} />
                       </div>
+                      <p className="text-xs leading-relaxed text-on-surface-variant">{item.reason}</p>
+                      {item.kpi_target && <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-blue-700"><span className="material-symbols-outlined text-[15px]">track_changes</span>Mục tiêu: {item.kpi_target}</p>}
                     </div>
-                  </div>
+                  ))}
                 </div>
-              );
-            })}
+              </section>
+            )}
+
+            {aiResponse.data_note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-100">{aiResponse.data_note}</p>}
           </div>
         ) : insights.length > 0 ? (
           insights.map((insight, index) => (
@@ -263,7 +260,7 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
       {/* CTA Buttons */}
       <div className="flex gap-3 mt-6">
         <button
-          onClick={() => handleAskAi(false)}
+          onClick={() => handleAskAi(true)}
           disabled={loading || cooldown}
           className="flex-1 group relative py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary text-label-sm font-semibold shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
@@ -281,7 +278,7 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
               </>
             ) : (
               <>
-                Ask AI Assistant
+                Analyze Posts
                 <span className="material-symbols-outlined text-label-sm group-hover:rotate-12 transition-transform duration-300">
                   auto_awesome
                 </span>
@@ -321,4 +318,43 @@ export default function AnalyticsAiInsights({ insights, dateRange }: AnalyticsAi
       `}</style>
     </div>
   );
+}
+
+function AnalysisSection({
+  title,
+  icon,
+  tone,
+  items,
+}: {
+  title: string;
+  icon: string;
+  tone: "positive" | "negative";
+  items: Array<{ title: string; evidence: string; detail: string }>;
+}) {
+  if (items.length === 0) return null;
+  const styles = tone === "positive"
+    ? { section: "border-emerald-200 bg-emerald-50/50", heading: "text-emerald-700", dot: "bg-emerald-500", evidence: "text-emerald-700 bg-emerald-100/70" }
+    : { section: "border-rose-200 bg-rose-50/50", heading: "text-rose-700", dot: "bg-rose-500", evidence: "text-rose-700 bg-rose-100/70" };
+
+  return (
+    <section className={`rounded-xl border p-4 ${styles.section}`}>
+      <h5 className={`mb-3 flex items-center gap-2 text-sm font-bold ${styles.heading}`}>
+        <span className="material-symbols-outlined text-[19px]">{icon}</span>{title}
+      </h5>
+      <div className="space-y-3">
+        {items.map((item, index) => (
+          <div key={`${item.title}-${index}`} className="rounded-lg bg-white p-3 shadow-sm">
+            <p className="flex items-start gap-2 text-sm font-bold text-on-surface"><i className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`} />{item.title}</p>
+            <p className={`my-2 rounded-md px-2 py-1 text-xs font-semibold ${styles.evidence}`}>{item.evidence}</p>
+            <p className="text-xs leading-relaxed text-on-surface-variant">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PriorityBadge({ priority }: { priority: "HIGH" | "MEDIUM" | "LOW" }) {
+  const color = priority === "HIGH" ? "bg-rose-100 text-rose-700" : priority === "MEDIUM" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600";
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider ${color}`}>{priority}</span>;
 }
