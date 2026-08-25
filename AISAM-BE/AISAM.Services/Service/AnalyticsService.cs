@@ -317,18 +317,17 @@ public sealed class AnalyticsService : IAnalyticsService
             totals, prevTotals, channels, topPosts, weakPosts.Items, campaigns.Items, brandContext, forceRefresh ? cachedResponse : null);
         LogStage("AskAI.PromptBuild", correlationId, workspaceId, promptTimer.ElapsedMilliseconds, "SUCCESS", false, null);
 
-        using var generationBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        generationBudget.CancelAfter(TimeSpan.FromSeconds(25));
-        var generationToken = generationBudget.Token;
+        using var primaryBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        primaryBudget.CancelAfter(TimeSpan.FromSeconds(30));
 
         string response;
         try
         {
             response = await TrackStageAsync(
-                correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, generationToken,
-                () => _geminiTextClient.GenerateAsync(prompt, "application/json", generationToken));
+                correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, primaryBudget.Token,
+                () => _geminiTextClient.GenerateAsync(prompt, "application/json", primaryBudget.Token));
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && generationBudget.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && primaryBudget.IsCancellationRequested)
         {
             _logger.LogWarning("AskAI.GenerationBudgetExceeded ReturningCached={ReturningCached}", !string.IsNullOrEmpty(cachedResponse));
             LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "LLM_TIMEOUT", true, nameof(OperationCanceledException));
@@ -372,13 +371,15 @@ public sealed class AnalyticsService : IAnalyticsService
         if (!parseSuccess)
         {
             var retryPrompt = "CRITICAL: Respond ONLY with raw JSON. No code fences, no markdown, no explanations.\n\n" + prompt;
+            using var retryBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            retryBudget.CancelAfter(TimeSpan.FromSeconds(30));
             try
             {
                 response = await TrackStageAsync(
-                    correlationId, "AskAI.LLM.SecondGeneration", workspaceId, generationToken,
-                    () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", generationToken));
+                    correlationId, "AskAI.LLM.SecondGeneration", workspaceId, retryBudget.Token,
+                    () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", retryBudget.Token));
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && generationBudget.IsCancellationRequested)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && retryBudget.IsCancellationRequested)
             {
                 _logger.LogWarning("AskAI.SecondGenerationBudgetExceeded ReturningCached={ReturningCached}", !string.IsNullOrEmpty(cachedResponse));
                 LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "LLM_TIMEOUT", true, nameof(OperationCanceledException));
@@ -589,6 +590,9 @@ public sealed class AnalyticsService : IAnalyticsService
                 sb.Append($"{c.Name}(imp{c.Impressions},CTR{c.Ctr}%) ");
             sb.AppendLine();
         }
+
+        sb.AppendLine();
+        sb.AppendLine("CRITICAL: Respond ONLY with raw JSON. No code fences, no markdown, no explanations.");
 
         return sb.ToString();
     }
