@@ -323,6 +323,7 @@ public sealed class AnalyticsService : IAnalyticsService
         string response;
         try
         {
+            using var diagnosticGeneration = GeminiDiagnosticLogging.BeginGeneration(correlationId, "Initial");
             response = await TrackStageAsync(
                 correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, primaryBudget.Token,
                 () => _geminiTextClient.GenerateAsync(prompt, "application/json", primaryBudget.Token));
@@ -375,6 +376,7 @@ public sealed class AnalyticsService : IAnalyticsService
             retryBudget.CancelAfter(TimeSpan.FromSeconds(30));
             try
             {
+                using var diagnosticGeneration = GeminiDiagnosticLogging.BeginGeneration(correlationId, "Retry");
                 response = await TrackStageAsync(
                     correlationId, "AskAI.LLM.SecondGeneration", workspaceId, retryBudget.Token,
                     () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", retryBudget.Token));
