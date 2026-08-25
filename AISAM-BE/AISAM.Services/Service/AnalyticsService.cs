@@ -253,8 +253,8 @@ public sealed class AnalyticsService : IAnalyticsService
         _logger.LogInformation("AskAI.RequestStarted");
         string cacheKey = $"AiRec_v4_json_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
         var cacheTimer = Stopwatch.StartNew();
-        string? cachedResponse = null;
-        var cacheHit = !forceRefresh && _cache.TryGetValue(cacheKey, out cachedResponse) && !string.IsNullOrEmpty(cachedResponse);
+        _cache.TryGetValue(cacheKey, out string? cachedResponse);
+        var cacheHit = !forceRefresh && !string.IsNullOrEmpty(cachedResponse);
         LogStage("AskAI.CacheCheck", correlationId, workspaceId, cacheTimer.ElapsedMilliseconds, "SUCCESS", false, null);
 
         if (cacheHit)
@@ -318,9 +318,31 @@ public sealed class AnalyticsService : IAnalyticsService
             totals, prevTotals, channels, topPosts, weakPosts.Items, campaigns.Items, brandContext, forceRefresh ? cachedResponse : null);
         LogStage("AskAI.PromptBuild", correlationId, workspaceId, promptTimer.ElapsedMilliseconds, "SUCCESS", false, null);
 
-        var response = await TrackStageAsync(
-            correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, cancellationToken,
-            () => _geminiTextClient.GenerateAsync(prompt, "application/json", cancellationToken));
+        using var generationBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        generationBudget.CancelAfter(TimeSpan.FromSeconds(25));
+        var generationToken = generationBudget.Token;
+
+        string response;
+        try
+        {
+            response = await TrackStageAsync(
+                correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, generationToken,
+                () => _geminiTextClient.GenerateAsync(prompt, "application/json", generationToken));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && generationBudget.IsCancellationRequested)
+        {
+            _logger.LogWarning("AskAI.GenerationBudgetExceeded ReturningCached={ReturningCached}", !string.IsNullOrEmpty(cachedResponse));
+            LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "LLM_TIMEOUT", true, nameof(OperationCanceledException));
+            if (!string.IsNullOrEmpty(cachedResponse))
+            {
+                return GenericResponse<string>.CreateSuccess(
+                    cachedResponse,
+                    "AI generation exceeded the production time budget; returned the latest analysis.");
+            }
+
+            const string timeoutJson = "{\"error\":\"AI_TIMEOUT\",\"message\":\"AI đang xử lý lâu hơn dự kiến. Vui lòng thử lại sau ít phút.\"}";
+            return GenericResponse<string>.CreateSuccess(timeoutJson, "AI generation timed out safely.");
+        }
 
         string CleanJson(string text)
         {
@@ -381,9 +403,26 @@ public sealed class AnalyticsService : IAnalyticsService
         if (!parseSuccess)
         {
             var retryPrompt = "CRITICAL: Respond ONLY with raw JSON. No code fences, no markdown, no explanations.\n\n" + prompt;
-            response = await TrackStageAsync(
-                correlationId, "AskAI.LLM.SecondGeneration", workspaceId, cancellationToken,
-                () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", cancellationToken));
+            try
+            {
+                response = await TrackStageAsync(
+                    correlationId, "AskAI.LLM.SecondGeneration", workspaceId, generationToken,
+                    () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", generationToken));
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && generationBudget.IsCancellationRequested)
+            {
+                _logger.LogWarning("AskAI.SecondGenerationBudgetExceeded ReturningCached={ReturningCached}", !string.IsNullOrEmpty(cachedResponse));
+                LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "LLM_TIMEOUT", true, nameof(OperationCanceledException));
+                if (!string.IsNullOrEmpty(cachedResponse))
+                {
+                    return GenericResponse<string>.CreateSuccess(
+                        cachedResponse,
+                        "AI regeneration exceeded the production time budget; returned the latest analysis.");
+                }
+
+                const string retryTimeoutJson = "{\"error\":\"AI_TIMEOUT\",\"message\":\"AI đang xử lý lâu hơn dự kiến. Vui lòng thử lại sau ít phút.\"}";
+                return GenericResponse<string>.CreateSuccess(retryTimeoutJson, "AI regeneration timed out safely.");
+            }
             cleanedJson = CleanJson(response ?? string.Empty);
             var retryParseTimer = Stopwatch.StartNew();
             parseSuccess = TryParseJson(cleanedJson);
