@@ -22,9 +22,15 @@ public sealed class GeminiTextClient : IGeminiTextClient
     }
 
     public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
-        => GenerateAsync(prompt, null, cancellationToken);
+        => GenerateWithOptionsAsync(prompt, new GeminiGenerationOptions(), cancellationToken);
 
-    public async Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
+    public Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
+        => GenerateWithOptionsAsync(prompt, new GeminiGenerationOptions(ResponseMimeType: responseMimeType), cancellationToken);
+
+    public async Task<string> GenerateWithOptionsAsync(
+        string prompt,
+        GeminiGenerationOptions options,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
@@ -32,7 +38,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
         }
 
         var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
-        var effectiveResponseMimeType = responseMimeType ?? "text/plain";
+        var effectiveConfig = GeminiGenerationConfigFactory.Create(_settings, options);
         var modelsToTry = primaryModel == "gemini-3.6-flash" 
             ? new[] { primaryModel } 
             : new[] { primaryModel, "gemini-3.6-flash" };
@@ -43,12 +49,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
             {
                 new { parts = new[] { new { text = prompt } } }
             },
-            generationConfig = new
-            {
-                maxOutputTokens = _settings.MaxTokens,
-                temperature = _settings.Temperature,
-                responseMimeType = effectiveResponseMimeType
-            },
+            generationConfig = effectiveConfig.RequestPayload,
             safetySettings = new[]
             {
                 new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
@@ -67,9 +68,9 @@ public sealed class GeminiTextClient : IGeminiTextClient
                     _logger,
                     "Gemini",
                     model,
-                    _settings.MaxTokens,
-                    _settings.Temperature,
-                    effectiveResponseMimeType);
+                    effectiveConfig.MaxOutputTokens,
+                    effectiveConfig.Temperature,
+                    effectiveConfig.ResponseMimeType);
 
                 var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
                 var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);

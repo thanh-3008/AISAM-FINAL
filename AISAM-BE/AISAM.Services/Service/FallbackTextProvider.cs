@@ -29,15 +29,24 @@ public sealed class FallbackTextProvider : IGeminiTextClient
         _logger = logger;
     }
 
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+    public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+        => GenerateWithOptionsAsync(prompt, new GeminiGenerationOptions(), cancellationToken);
+
+    public Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
+        => GenerateWithOptionsAsync(prompt, new GeminiGenerationOptions(ResponseMimeType: responseMimeType), cancellationToken);
+
+    public async Task<string> GenerateWithOptionsAsync(
+        string prompt,
+        GeminiGenerationOptions options,
+        CancellationToken cancellationToken = default)
     {
         var providers = new (string Name, Func<Task<string>> Generate)[]
         {
-            ("Gemini", () => _geminiClient.GenerateAsync(prompt, cancellationToken)),
-            ("FallbackGemini1", () => _fallbackGeminiClient.GenerateAsync(prompt, cancellationToken)),
-            ("FallbackGemini2", () => _fallbackGeminiClient2.GenerateAsync(prompt, cancellationToken)),
-            ("FallbackGemini3", () => _fallbackGeminiClient3.GenerateAsync(prompt, cancellationToken)),
-            ("FallbackGemini4", () => _fallbackGeminiClient4.GenerateAsync(prompt, cancellationToken))
+            ("Gemini", () => _geminiClient.GenerateWithOptionsAsync(prompt, options, cancellationToken)),
+            ("FallbackGemini1", () => _fallbackGeminiClient.GenerateWithOptionsAsync(prompt, options, cancellationToken)),
+            ("FallbackGemini2", () => _fallbackGeminiClient2.GenerateWithOptionsAsync(prompt, options, cancellationToken)),
+            ("FallbackGemini3", () => _fallbackGeminiClient3.GenerateWithOptionsAsync(prompt, options, cancellationToken)),
+            ("FallbackGemini4", () => _fallbackGeminiClient4.GenerateWithOptionsAsync(prompt, options, cancellationToken))
         };
 
         Exception? lastException = null;

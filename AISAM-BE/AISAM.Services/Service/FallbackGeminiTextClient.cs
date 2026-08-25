@@ -23,7 +23,16 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FallbackGeminiTextClient>.Instance;
     }
 
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+    public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+        => GenerateWithOptionsAsync(prompt, new GeminiGenerationOptions(), cancellationToken);
+
+    public Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
+        => GenerateWithOptionsAsync(prompt, new GeminiGenerationOptions(ResponseMimeType: responseMimeType), cancellationToken);
+
+    public async Task<string> GenerateWithOptionsAsync(
+        string prompt,
+        GeminiGenerationOptions options,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_settings.FallbackApiKey))
         {
@@ -31,7 +40,7 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
         }
 
         var model = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
-        const string effectiveResponseMimeType = "text/plain";
+        var effectiveConfig = GeminiGenerationConfigFactory.Create(_settings, options);
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.FallbackApiKey}";
         var requestBody = new
         {
@@ -39,12 +48,7 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
             {
                 new { parts = new[] { new { text = prompt } } }
             },
-            generationConfig = new
-            {
-                maxOutputTokens = _settings.MaxTokens,
-                temperature = _settings.Temperature,
-                responseMimeType = effectiveResponseMimeType
-            },
+            generationConfig = effectiveConfig.RequestPayload,
             safetySettings = new[]
             {
                 new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
@@ -56,9 +60,9 @@ public sealed class FallbackGeminiTextClient : IGeminiTextClient
             _logger,
             "FallbackGemini1",
             model,
-            _settings.MaxTokens,
-            _settings.Temperature,
-            effectiveResponseMimeType);
+            effectiveConfig.MaxOutputTokens,
+            effectiveConfig.Temperature,
+            effectiveConfig.ResponseMimeType);
 
         var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
         if (!response.IsSuccessStatusCode)
