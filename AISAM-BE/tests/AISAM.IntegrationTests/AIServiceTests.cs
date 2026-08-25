@@ -295,15 +295,27 @@ public class AIServiceTests
     // ── Regression Tests: Caption-first-sentence as title fallback ──────────
 
     [Fact]
-    public void ExtractGeneratedTitle_AiTitleIsPrioritized_WhenBothTitleAndCaptionExist()
+    public void ExtractGeneratedTitle_UsesUppercaseCaptionHeadline_InsteadOfAiTitle()
     {
         var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
 
-        var aiResponse = "Title: Tiêu đề do AI tạo\n\nCaption: Câu đầu tiên của caption. Câu thứ hai.";
+        var aiResponse = "Title: New product introduction\n\nCaption: 🔥 TẠO DẤU ẤN ĐƯỜNG PHỐ CỰC CHẤT\nCÙNG NIKE AIR MAX 95 BIG BUBBLE!\n\nCác sneakerhead đã sẵn sàng.";
         var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
 
-        Assert.Equal("Tiêu đề do AI tạo", title);
+        Assert.Equal("🔥 TẠO DẤU ẤN ĐƯỜNG PHỐ CỰC CHẤT CÙNG NIKE AIR MAX 95 BIG BUBBLE!", title);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_UsesCaptionFirstSentence_InsteadOfExplicitAiTitle_WhenNoUppercaseHeadline()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var aiResponse = "Title: New product introduction\n\nCaption: Câu đầu tiên của caption. Câu thứ hai.";
+        var title = (string)method!.Invoke(null, new object?[] { aiResponse })!;
+
+        Assert.Equal("Câu đầu tiên của caption.", title);
     }
 
     [Fact]

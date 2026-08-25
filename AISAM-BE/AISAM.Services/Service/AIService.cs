@@ -1678,31 +1678,75 @@ Treat all reference images as different views of one product. Do not create mult
 
     private static string ExtractGeneratedTitle(string responseText)
     {
-        foreach (var line in responseText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        var lines = responseText
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n')
+            .Select((line, sourceIndex) => new { SourceIndex = sourceIndex, Text = NormalizeCaptionLineForTitle(line) })
+            .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+            .Select(line => new { line.SourceIndex, Text = line.Text! })
+            .ToList();
+
+        var uppercaseStart = lines
+            .Take(3)
+            .Select((line, index) => new { Line = line, Index = index })
+            .FirstOrDefault(item => IsUppercaseCaptionHeadline(item.Line.Text));
+
+        if (uppercaseStart != null)
         {
-            var normalized = line.Trim().Trim('#', '*', '-', ' ');
-            var separatorIndex = normalized.IndexOf(':');
-            if (separatorIndex >= 0)
+            var headlineLines = new List<(int SourceIndex, string Text)>
             {
-                var label = normalized[..separatorIndex].Trim().ToLowerInvariant();
-                if (label is "title" or "tiêu đề" or "headline")
-                {
-                    var value = normalized[(separatorIndex + 1)..].Trim();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        return value[..Math.Min(value.Length, 255)];
-                    }
-                }
+                (uppercaseStart.Line.SourceIndex, uppercaseStart.Line.Text)
+            };
+
+            for (var index = uppercaseStart.Index + 1; index < lines.Count; index++)
+            {
+                var current = lines[index];
+                var previous = headlineLines[^1];
+                if (current.SourceIndex != previous.SourceIndex + 1 || !IsUppercaseCaptionHeadline(current.Text)) break;
+                headlineLines.Add((current.SourceIndex, current.Text));
             }
+
+            var headline = string.Join(" ", headlineLines.Select(line => line.Text));
+            return headline[..Math.Min(headline.Length, 255)];
         }
 
-        var firstSentence = ExtractFirstMeaningfulSentence(responseText);
+        var firstSentence = ExtractFirstMeaningfulSentence(string.Join('\n', lines.Select(line => line.Text)));
         if (!string.IsNullOrWhiteSpace(firstSentence))
         {
             return firstSentence[..Math.Min(firstSentence.Length, 255)];
         }
 
         return "Untitled Post";
+    }
+
+    private static string? NormalizeCaptionLineForTitle(string line)
+    {
+        var normalized = line.Trim().Trim('#', '*', '-', ' ');
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            Regex.IsMatch(normalized, @"^\[(?:IMAGE|VIDEO_URL|VIDEO_JOB):", RegexOptions.IgnoreCase))
+        {
+            return null;
+        }
+
+        var separatorIndex = normalized.IndexOf(':');
+        if (separatorIndex >= 0)
+        {
+            var label = normalized[..separatorIndex].Trim().ToLowerInvariant();
+            if (label is "title" or "tiêu đề" or "headline") return null;
+            if (label is "caption" or "content" or "nội dung" or "noi dung" or "description" or "mô tả")
+            {
+                normalized = normalized[(separatorIndex + 1)..].Trim();
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static bool IsUppercaseCaptionHeadline(string line)
+    {
+        var letters = line.Where(char.IsLetter).ToArray();
+        return letters.Length > 0 && letters.All(letter => !char.IsLower(letter));
     }
 
     private static string? ExtractFirstMeaningfulSentence(string text)
