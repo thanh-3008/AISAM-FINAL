@@ -128,7 +128,7 @@ export default function AnalyticsAiInsights({ insights, dateRange, brandId, plat
       </div>
 
       {/* AI Response or Default Insights */}
-      <div className="space-y-4 relative z-10">
+      <div className={`space-y-4 relative z-10 ${showAiResults ? "ai-review-scroll max-h-[620px] overflow-y-auto overscroll-contain pr-2" : ""}`}>
         {loading && !aiResponse ? (
           <div className="space-y-3 animate-pulse">
             {[1, 2, 3].map((i) => (
@@ -328,6 +328,25 @@ export default function AnalyticsAiInsights({ insights, dateRange, brandId, plat
         }
         .animate-pulse-slow {
           animation: pulse-slow 3s ease-in-out infinite;
+        }
+        .ai-review-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(79, 70, 229, 0.55) rgba(226, 232, 240, 0.65);
+        }
+        .ai-review-scroll::-webkit-scrollbar {
+          width: 7px;
+        }
+        .ai-review-scroll::-webkit-scrollbar-track {
+          background: rgba(226, 232, 240, 0.65);
+          border-radius: 999px;
+        }
+        .ai-review-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #6366f1, #7c3aed);
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+        .ai-review-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #4f46e5, #6d28d9);
         }
       `}</style>
     </div>
