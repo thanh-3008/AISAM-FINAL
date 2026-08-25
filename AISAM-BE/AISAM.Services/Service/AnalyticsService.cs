@@ -12,6 +12,11 @@ namespace AISAM.Services.Service;
 
 public sealed class AnalyticsService : IAnalyticsService
 {
+    private static readonly GeminiGenerationOptions AnalyticsGenerationOptions = new(
+        ResponseMimeType: "application/json",
+        MaxOutputTokens: 4096,
+        ThinkingLevel: "low");
+
     private readonly IPerformanceReportRepository _performanceReportRepo;
     private readonly ISocialIntegrationRepository _socialIntegrationRepo;
     private readonly IGeminiTextClient _geminiTextClient;
@@ -326,7 +331,7 @@ public sealed class AnalyticsService : IAnalyticsService
             using var diagnosticGeneration = GeminiDiagnosticLogging.BeginGeneration(correlationId, "Initial");
             response = await TrackStageAsync(
                 correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, primaryBudget.Token,
-                () => _geminiTextClient.GenerateAsync(prompt, "application/json", primaryBudget.Token));
+                () => _geminiTextClient.GenerateWithOptionsAsync(prompt, AnalyticsGenerationOptions, primaryBudget.Token));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && primaryBudget.IsCancellationRequested)
         {
@@ -379,7 +384,7 @@ public sealed class AnalyticsService : IAnalyticsService
                 using var diagnosticGeneration = GeminiDiagnosticLogging.BeginGeneration(correlationId, "Retry");
                 response = await TrackStageAsync(
                     correlationId, "AskAI.LLM.SecondGeneration", workspaceId, retryBudget.Token,
-                    () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", retryBudget.Token));
+                    () => _geminiTextClient.GenerateWithOptionsAsync(retryPrompt, AnalyticsGenerationOptions, retryBudget.Token));
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && retryBudget.IsCancellationRequested)
             {

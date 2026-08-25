@@ -44,6 +44,7 @@ public class AnalyticsServiceTests
 
         // The retry must NOT have been invoked
         Assert.Equal(1, geminiClient.CallCount);
+        AssertAnalyticsOptions(geminiClient.OptionsAtInvocation.Single());
     }
 
     // ---------------------------------------------------------------------------
@@ -77,6 +78,10 @@ public class AnalyticsServiceTests
 
         // Assert — retry must have been called (two total invocations)
         Assert.Equal(2, geminiClient.CallCount);
+        Assert.Collection(
+            geminiClient.OptionsAtInvocation,
+            AssertAnalyticsOptions,
+            AssertAnalyticsOptions);
 
         // The token passed to the retry GenerateAsync call must not be cancelled yet.
         // If the retry shared the primary budget the test would still pass here (both
@@ -98,6 +103,13 @@ public class AnalyticsServiceTests
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
+
+    private static void AssertAnalyticsOptions(GeminiGenerationOptions options)
+    {
+        Assert.Equal("application/json", options.ResponseMimeType);
+        Assert.Equal(4096, options.MaxOutputTokens);
+        Assert.Equal("low", options.ThinkingLevel);
+    }
 
     private static AnalyticsService CreateService(IGeminiTextClient geminiClient)
     {
@@ -137,6 +149,7 @@ public class AnalyticsServiceTests
         private readonly TimeSpan _primaryDelay;
 
         public int CallCount { get; private set; }
+        public List<GeminiGenerationOptions> OptionsAtInvocation { get; } = new();
 
         /// <summary>
         /// The CancellationToken that was passed to the retry <c>GenerateAsync</c> call, if any.
@@ -157,8 +170,18 @@ public class AnalyticsServiceTests
             => await GenerateAsync(prompt, null, cancellationToken);
 
         public async Task<string> GenerateAsync(string prompt, string? responseMimeType, CancellationToken cancellationToken = default)
+            => await GenerateWithOptionsAsync(
+                prompt,
+                new GeminiGenerationOptions(ResponseMimeType: responseMimeType),
+                cancellationToken);
+
+        public async Task<string> GenerateWithOptionsAsync(
+            string prompt,
+            GeminiGenerationOptions options,
+            CancellationToken cancellationToken = default)
         {
             CallCount++;
+            OptionsAtInvocation.Add(options);
 
             if (CallCount == 1)
             {
