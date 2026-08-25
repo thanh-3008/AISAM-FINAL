@@ -7,7 +7,6 @@ using AISAM.Services.IServices;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using System.Text.Json;
 
 namespace AISAM.Services.Service;
 
@@ -344,61 +343,31 @@ public sealed class AnalyticsService : IAnalyticsService
             return GenericResponse<string>.CreateSuccess(timeoutJson, "AI generation timed out safely.");
         }
 
-        string CleanJson(string text)
+        AiJsonParseResult ParseAiResponse(string text, string attempt)
         {
-            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-
-            var json = text.Trim();
-
-            var startIndex = json.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
-            if (startIndex >= 0)
+            var result = AiJsonResponseParser.Parse(text);
+            if (!result.IsSuccess)
             {
-                startIndex += 7;
-                var endIndex = json.LastIndexOf("```");
-                if (endIndex > startIndex)
-                {
-                    json = json.Substring(startIndex, endIndex - startIndex).Trim();
-                }
-            }
-            else
-            {
-                startIndex = json.IndexOf("```");
-                if (startIndex >= 0)
-                {
-                    startIndex += 3;
-                    var endIndex = json.LastIndexOf("```");
-                    if (endIndex > startIndex)
-                    {
-                        json = json.Substring(startIndex, endIndex - startIndex).Trim();
-                    }
-                }
+                _logger.LogWarning(
+                    "AskAI.LLM.JsonParseFailed Attempt={Attempt} ExceptionType={ExceptionType} ErrorMessage={ErrorMessage} LineNumber={LineNumber} BytePositionInLine={BytePositionInLine} ResponseLength={ResponseLength} Preview={Preview}",
+                    attempt,
+                    result.ExceptionType ?? "JsonExtractionFailure",
+                    result.ErrorMessage,
+                    result.LineNumber,
+                    result.BytePositionInLine,
+                    result.ResponseLength,
+                    result.Preview);
             }
 
-            if (!json.StartsWith("{") && !json.StartsWith("["))
-            {
-                var firstBrace = json.IndexOf('{');
-                var lastBrace = json.LastIndexOf('}');
-                var firstBracket = json.IndexOf('[');
-                var lastBracket = json.LastIndexOf(']');
-
-                if (firstBrace >= 0 && lastBrace > firstBrace && (firstBracket == -1 || firstBrace < firstBracket))
-                {
-                    json = json.Substring(firstBrace, lastBrace - firstBrace + 1);
-                }
-                else if (firstBracket >= 0 && lastBracket > firstBracket)
-                {
-                    json = json.Substring(firstBracket, lastBracket - firstBracket + 1);
-                }
-            }
-
-            return json.Trim();
+            return result;
         }
 
-        string cleanedJson = CleanJson(response ?? string.Empty);
         var parseTimer = Stopwatch.StartNew();
-        var parseSuccess = TryParseJson(cleanedJson);
+        var parseResult = ParseAiResponse(response ?? string.Empty, "Initial");
+        var parseSuccess = parseResult.IsSuccess;
         LogStage("AskAI.LLM.ParseResponse", correlationId, workspaceId, parseTimer.ElapsedMilliseconds,
-            parseSuccess ? "SUCCESS" : "LLM_PARSE_FAILURE", false, parseSuccess ? null : nameof(JsonException));
+            parseSuccess ? "SUCCESS" : "LLM_PARSE_FAILURE", false,
+            parseSuccess ? null : parseResult.ExceptionType ?? "JsonExtractionFailure");
 
         if (!parseSuccess)
         {
@@ -423,11 +392,12 @@ public sealed class AnalyticsService : IAnalyticsService
                 const string retryTimeoutJson = "{\"error\":\"AI_TIMEOUT\",\"message\":\"AI đang xử lý lâu hơn dự kiến. Vui lòng thử lại sau ít phút.\"}";
                 return GenericResponse<string>.CreateSuccess(retryTimeoutJson, "AI regeneration timed out safely.");
             }
-            cleanedJson = CleanJson(response ?? string.Empty);
             var retryParseTimer = Stopwatch.StartNew();
-            parseSuccess = TryParseJson(cleanedJson);
+            parseResult = ParseAiResponse(response ?? string.Empty, "Retry");
+            parseSuccess = parseResult.IsSuccess;
             LogStage("AskAI.LLM.ParseResponse", correlationId, workspaceId, retryParseTimer.ElapsedMilliseconds,
-                parseSuccess ? "SUCCESS" : "LLM_PARSE_FAILURE", false, parseSuccess ? null : nameof(JsonException));
+                parseSuccess ? "SUCCESS" : "LLM_PARSE_FAILURE", false,
+                parseSuccess ? null : parseResult.ExceptionType ?? "JsonExtractionFailure");
         }
 
         if (!parseSuccess)
@@ -437,6 +407,7 @@ public sealed class AnalyticsService : IAnalyticsService
             return GenericResponse<string>.CreateSuccess(errorJson, "AI recommendations retrieved successfully.");
         }
 
+        var cleanedJson = parseResult.Json!;
         _cache.Set(cacheKey, cleanedJson, TimeSpan.FromHours(12));
 
         LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
@@ -517,19 +488,6 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         return false;
-    }
-
-    private static bool TryParseJson(string value)
-    {
-        try
-        {
-            JsonSerializer.Deserialize<object>(value);
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 
     private static string BuildAnalyticsPrompt(

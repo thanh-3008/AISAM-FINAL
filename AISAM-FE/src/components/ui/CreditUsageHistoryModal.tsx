@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { fetchCreditUsageHistory, CreditUsageRecord } from "@/services/workspaceService";
+import { getCreditTransactionPresentation } from "@/lib/billingFormatters";
 
 interface CreditUsageHistoryModalProps {
   isOpen: boolean;
@@ -95,7 +96,9 @@ export default function CreditUsageHistoryModal({ isOpen, onClose }: CreditUsage
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/10">
-                    {history.map((record) => (
+                    {history.map((record) => {
+                      const transaction = getCreditTransactionPresentation(record);
+                      return (
                       <tr key={record.id} className="hover:bg-surface-container-low/50 transition-colors">
                         <td className="py-4 text-body-sm text-on-surface">
                           {new Date(record.createdAt).toLocaleString()}
@@ -107,8 +110,13 @@ export default function CreditUsageHistoryModal({ isOpen, onClose }: CreditUsage
                           </span>
                         </td>
                         <td className="py-4 text-body-sm text-on-surface">{record.action}</td>
-                        <td className="py-4 text-body-sm font-semibold text-right text-primary">
-                          {record.credits > 0 ? `-${record.credits}` : record.credits}
+                        <td className={`py-4 text-body-sm font-semibold text-right ${transaction.tone === "positive"
+                            ? "text-emerald-700"
+                            : transaction.tone === "negative"
+                              ? "text-red-700"
+                              : "text-on-surface-variant"
+                          }`}>
+                          {transaction.label}
                         </td>
                         <td className="py-4 text-right">
                           <span
@@ -122,7 +130,8 @@ export default function CreditUsageHistoryModal({ isOpen, onClose }: CreditUsage
                           </span>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

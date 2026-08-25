@@ -38,6 +38,7 @@ import { fetchUsageBreakdown, type UsageBreakdownItem } from "@/services/analyti
 import { updateMemberRole, removeMember } from "@/services/teamService";
 import { CREDIT_PACK_CODES_BY_ID, exitPayment, fetchPublicPricing, synchronizeBusinessWorkspacePayment, syncPayOSCallback } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
+import { formatVndAmount, getCreditTransactionPresentation } from "@/lib/billingFormatters";
 
 interface Workspace {
   id: string;
@@ -2405,7 +2406,7 @@ export default function ProfileDetailPage() {
                                   </div>
                                   <div className="flex items-center gap-4">
                                     <p className="text-body-sm font-semibold text-on-surface">
-                                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(invoice.amount)}
+                                      {formatVndAmount(invoice.amount)}
                                     </p>
                                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-medium border ${invoice.status === "Completed" || invoice.status === "Success"
                                         ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
@@ -2533,26 +2534,31 @@ export default function ProfileDetailPage() {
                           ) : (
                             <>
                               <div className="divide-y divide-outline-variant/10">
-                                {creditHistory.map((record) => (
+                                {creditHistory.map((record) => {
+                                  const transaction = getCreditTransactionPresentation(record);
+                                  return (
                                   <div key={record.id} className="px-6 py-3 flex items-center gap-4 hover:bg-surface-container/30 transition-colors">
                                     <div className="flex-1 min-w-0">
                                       <p className="text-body-sm text-on-surface font-medium truncate">{record.action}</p>
                                       <p className="text-label-xs text-outline">{record.userName}</p>
                                     </div>
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${record.status === "Success"
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${transaction.tone === "positive"
                                         ? "bg-emerald-50 text-emerald-700"
-                                        : "bg-red-50 text-red-700"
+                                        : transaction.tone === "negative"
+                                          ? "bg-red-50 text-red-700"
+                                          : "bg-surface-container text-on-surface-variant"
                                       }`}>
                                       {record.status === "Failed" && (
                                         <span className="material-symbols-outlined text-[10px]">close</span>
                                       )}
-                                      {record.status === "Success" ? `-${record.credits}` : "0"}
+                                      {transaction.label}
                                     </span>
                                     <span className="text-label-xs text-outline shrink-0 w-20 text-right">
                                       {new Date(record.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                     </span>
                                   </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                               {creditTotalPages > 1 && (
                                 <div className="px-6 py-3 border-t border-outline-variant/10 flex items-center justify-between">

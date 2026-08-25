@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { fetchCreditUsageHistory, fetchDailyCreditSummary, type CreditUsageRecord, type DailyCreditUsage } from "@/services/workspaceService";
+import { getCreditTransactionPresentation } from "@/lib/billingFormatters";
 
 function getActionIcon(action: string): string {
   switch (action.toLowerCase()) {
@@ -94,8 +95,8 @@ export default function CreditHistoryPage() {
   });
 
   const totalCreditsUsed = history
-    .filter((r) => r.status === "Success" && !["Subscription Grant", "Credit Pack Purchase", "AdminAdjust"].includes(r.action))
-    .reduce((sum, r) => sum + r.credits, 0);
+    .filter((record) => getCreditTransactionPresentation(record).tone === "negative")
+    .reduce((sum, record) => sum + Math.abs(record.credits), 0);
 
   return (
     <>
@@ -190,6 +191,7 @@ export default function CreditHistoryPage() {
                 {filteredHistory.map((record) => {
                   const actionIcon = getActionIcon(record.action);
                   const actionColor = getActionColor(record.action);
+                  const transaction = getCreditTransactionPresentation(record);
                   return (
                     <div
                       key={record.id}
@@ -214,18 +216,16 @@ export default function CreditHistoryPage() {
                       {/* Credits */}
                       <div className="col-span-2 flex items-center justify-center">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
-                          record.status === "Success"
-                            ? ["Subscription Grant", "Credit Pack Purchase", "AdminAdjust"].includes(record.action)
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-red-50 text-red-700"
-                            : "bg-surface-container text-on-surface-variant"
+                          transaction.tone === "positive"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : transaction.tone === "negative"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-surface-container text-on-surface-variant"
                         }`}>
                           {record.status === "Failed" && (
                             <span className="material-symbols-outlined text-[14px]">close</span>
                           )}
-                          {record.status === "Success" 
-                            ? `${["Subscription Grant", "Credit Pack Purchase", "AdminAdjust"].includes(record.action) ? "+" : "-"}${record.credits}` 
-                            : "0"}
+                          {transaction.label}
                         </span>
                       </div>
 
