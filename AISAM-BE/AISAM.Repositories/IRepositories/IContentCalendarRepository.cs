@@ -1,4 +1,5 @@
 using AISAM.Common.Dtos;
+using AISAM.Common.Models;
 using AISAM.Data.Model;
 
 namespace AISAM.Repositories.IRepositories;
@@ -22,4 +23,8 @@ public interface IContentCalendarRepository
     Task<IReadOnlyList<ContentCalendar>> GetUpcomingByWorkspaceIdAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<int> CountUpcomingByWorkspaceIdAsync(Guid workspaceId, DateTime utcNow, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<int> CountFailedByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<IReadOnlyList<ScheduledPublishingPointDto>> GetPublishingPerformanceAsync(
+        Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null,
+        string? platform = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }

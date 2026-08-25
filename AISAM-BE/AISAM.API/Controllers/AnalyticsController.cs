@@ -55,6 +55,20 @@ public sealed class AnalyticsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("scheduled-publishing")]
+    public async Task<ActionResult<GenericResponse<ScheduledPublishingPerformanceDto>>> GetScheduledPublishingPerformance(
+        [FromQuery] DateTime from,
+        [FromQuery] DateTime to,
+        [FromQuery] Guid? brandId = null,
+        [FromQuery] string? platform = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _analyticsService.GetScheduledPublishingPerformanceAsync(
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            ToUtc(from), ToUtc(to), brandId, platform, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("channel-breakdown")]
     public async Task<ActionResult<GenericResponse<List<AnalyticsChannelBreakdownDto>>>> GetChannelBreakdown(
         [FromQuery] DateTime from,

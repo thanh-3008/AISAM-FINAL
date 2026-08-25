@@ -111,6 +111,21 @@ public sealed class AnalyticsTimeSeriesDto
     public IReadOnlyList<AnalyticsPointDto> Points { get; set; } = [];
 }
 
+public sealed class ScheduledPublishingPerformanceDto
+{
+    public IReadOnlyList<ScheduledPublishingPointDto> Points { get; set; } = [];
+}
+
+public sealed class ScheduledPublishingPointDto
+{
+    public string Date { get; set; } = string.Empty;
+    public int Completed { get; set; }
+    public int Failed { get; set; }
+    public int Pending { get; set; }
+    public int RetryAttempts { get; set; }
+    public decimal SuccessRate { get; set; }
+}
+
 public sealed class AnalyticsPointDto : AnalyticsTotals
 {
     public string Date { get; set; } = string.Empty;

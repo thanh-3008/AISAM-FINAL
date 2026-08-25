@@ -19,6 +19,7 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly FacebookProvider _facebookProvider;
     private readonly IMemoryCache _cache;
     private readonly IBrandRepository _brandRepo;
+    private readonly IContentCalendarRepository _contentCalendarRepo;
     private readonly ILogger<AnalyticsService> _logger;
 
     public AnalyticsService(
@@ -28,6 +29,7 @@ public sealed class AnalyticsService : IAnalyticsService
         FacebookProvider facebookProvider,
         IMemoryCache cache,
         IBrandRepository brandRepo,
+        IContentCalendarRepository contentCalendarRepo,
         ILogger<AnalyticsService> logger)
     {
         _performanceReportRepo = performanceReportRepo;
@@ -36,7 +38,20 @@ public sealed class AnalyticsService : IAnalyticsService
         _facebookProvider = facebookProvider;
         _cache = cache;
         _brandRepo = brandRepo;
+        _contentCalendarRepo = contentCalendarRepo;
         _logger = logger;
+    }
+
+    public async Task<GenericResponse<ScheduledPublishingPerformanceDto>> GetScheduledPublishingPerformanceAsync(
+        Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null,
+        string? platform = null, CancellationToken cancellationToken = default)
+    {
+        var points = await _contentCalendarRepo.GetPublishingPerformanceAsync(
+            workspaceId, from, to, brandId, platform, cancellationToken);
+
+        return GenericResponse<ScheduledPublishingPerformanceDto>.CreateSuccess(
+            new ScheduledPublishingPerformanceDto { Points = points },
+            "Scheduled publishing performance retrieved successfully.");
     }
 
     public async Task<GenericResponse<AnalyticsOverviewDto>> GetOverviewAsync(
@@ -245,19 +260,18 @@ public sealed class AnalyticsService : IAnalyticsService
         if (cacheHit)
         {
             LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
-            return GenericResponse<string>.CreateSuccess(
-                cachedResponse, "AI recommendations retrieved successfully (from cache).");
+            return GenericResponse<string>.CreateSuccess(cachedResponse, "AI recommendations retrieved successfully (from cache).");
         }
 
         var totals = await TrackStageAsync(
             correlationId, "AskAI.Database.AggregatedTotals", workspaceId, cancellationToken,
             () => _performanceReportRepo.GetAggregatedTotalsAsync(workspaceId, from, to, brandId, platform, cancellationToken: cancellationToken));
+
         if (totals.PublishedPosts == 0 && totals.Impressions == 0 && totals.ActiveCampaigns == 0)
         {
+            const string noDataJson = "{\"summary\":\"Chưa có đủ dữ liệu bài đăng trong khoảng thời gian này.\",\"strengths\":[],\"weaknesses\":[],\"next_post_actions\":[],\"data_note\":\"Hãy đăng và đồng bộ thêm nội dung để AI có thể đưa ra đánh giá có căn cứ.\"}";
             LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
-            return GenericResponse<string>.CreateSuccess(
-                "📊 Cần thêm dữ liệu hoạt động (bài viết đã đăng, lượt tiếp cận, chiến dịch) để hệ thống AI có thể đưa ra đề xuất marketing chính xác và tối ưu nhất cho bạn.",
-                "AI recommendations retrieved successfully.");
+            return GenericResponse<string>.CreateSuccess(noDataJson, "AI post analysis retrieved successfully.");
         }
 
         var channels = await TrackStageAsync(
@@ -266,6 +280,9 @@ public sealed class AnalyticsService : IAnalyticsService
         var topPosts = await TrackStageAsync(
             correlationId, "AskAI.Database.TopPosts", workspaceId, cancellationToken,
             () => _performanceReportRepo.GetTopPostsForAIAsync(workspaceId, from, to, brandId, platform, 3, cancellationToken));
+        var weakPosts = await TrackStageAsync(
+            correlationId, "AskAI.Database.WeakPosts", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetTopPostsPagedAsync(workspaceId, from, to, brandId, platform, "engagement", pageSize: 3, sortDescending: false, cancellationToken: cancellationToken));
         var campaigns = await TrackStageAsync(
             correlationId, "AskAI.Database.CampaignBreakdown", workspaceId, cancellationToken,
             () => _performanceReportRepo.GetCampaignBreakdownPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3, cancellationToken: cancellationToken));
@@ -297,19 +314,20 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         var promptTimer = Stopwatch.StartNew();
-        var prompt = BuildAnalyticsPrompt(totals, prevTotals, channels, topPosts, campaigns.Items, brandContext);
+        var prompt = BuildAnalyticsPrompt(
+            totals, prevTotals, channels, topPosts, weakPosts.Items, campaigns.Items, brandContext, forceRefresh ? cachedResponse : null);
         LogStage("AskAI.PromptBuild", correlationId, workspaceId, promptTimer.ElapsedMilliseconds, "SUCCESS", false, null);
+
         var response = await TrackStageAsync(
             correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, cancellationToken,
-            () => _geminiTextClient.GenerateAsync(prompt, null, cancellationToken));
+            () => _geminiTextClient.GenerateAsync(prompt, "application/json", cancellationToken));
 
         string CleanJson(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-            
+
             var json = text.Trim();
-            
-            // Extract content between ```json and ``` if it exists
+
             var startIndex = json.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
             if (startIndex >= 0)
             {
@@ -322,7 +340,6 @@ public sealed class AnalyticsService : IAnalyticsService
             }
             else
             {
-                // Try just ```
                 startIndex = json.IndexOf("```");
                 if (startIndex >= 0)
                 {
@@ -335,7 +352,6 @@ public sealed class AnalyticsService : IAnalyticsService
                 }
             }
 
-            // Fallback: extract from first { to last } or first [ to last ]
             if (!json.StartsWith("{") && !json.StartsWith("["))
             {
                 var firstBrace = json.IndexOf('{');
@@ -367,7 +383,7 @@ public sealed class AnalyticsService : IAnalyticsService
             var retryPrompt = "CRITICAL: Respond ONLY with raw JSON. No code fences, no markdown, no explanations.\n\n" + prompt;
             response = await TrackStageAsync(
                 correlationId, "AskAI.LLM.SecondGeneration", workspaceId, cancellationToken,
-                () => _geminiTextClient.GenerateAsync(retryPrompt, null, cancellationToken));
+                () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", cancellationToken));
             cleanedJson = CleanJson(response ?? string.Empty);
             var retryParseTimer = Stopwatch.StartNew();
             parseSuccess = TryParseJson(cleanedJson);
@@ -379,15 +395,13 @@ public sealed class AnalyticsService : IAnalyticsService
         {
             var errorJson = "{ \"error\": \"AI_PARSE_FAILED\", \"message\": \"Không thể phân tích kết quả AI. Vui lòng thử lại.\" }";
             LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "LLM_PARSE_FAILURE", false, null);
-            return GenericResponse<string>.CreateSuccess(
-                errorJson, "AI recommendations retrieved successfully.");
+            return GenericResponse<string>.CreateSuccess(errorJson, "AI recommendations retrieved successfully.");
         }
 
         _cache.Set(cacheKey, cleanedJson, TimeSpan.FromHours(12));
 
         LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
-        return GenericResponse<string>.CreateSuccess(
-            cleanedJson, "AI recommendations retrieved successfully.");
+        return GenericResponse<string>.CreateSuccess(cleanedJson, "AI recommendations retrieved successfully.");
     }
 
     private async Task<T> TrackStageAsync<T>(
@@ -484,8 +498,10 @@ public sealed class AnalyticsService : IAnalyticsService
         AnalyticsTotals prevTotals,
         IReadOnlyList<AnalyticsChannelBreakdownDto> channels,
         IReadOnlyList<TopPostItemDto> topPosts,
+        IReadOnlyList<TopPostItemDto> weakPosts,
         IReadOnlyList<CampaignAnalyticsItemDto> campaigns,
-        string brandContext)
+        string brandContext,
+        string? previousAnalysis = null)
     {
         var sb = new System.Text.StringBuilder();
 
@@ -494,22 +510,32 @@ public sealed class AnalyticsService : IAnalyticsService
             sb.AppendLine($"NGỮ CẢNH THƯƠNG HIỆU: {brandContext}");
         }
 
-        sb.AppendLine("Đưa ra 4-6 đề xuất marketing cụ thể bằng tiếng Việt.");
-        sb.AppendLine("Return ONLY a valid JSON object matching this schema. Do NOT output any markdown blocks, conversational text, or explanations outside the JSON:");
+        sb.AppendLine("Bạn là chuyên gia phân tích hiệu quả nội dung mạng xã hội. Hãy đánh giá các BÀI ĐĂNG, không tập trung vào quảng cáo trả phí.");
+        sb.AppendLine("Mục tiêu: chỉ ra điểm mạnh, điểm yếu có bằng chứng và hướng dẫn cụ thể cho các bài đăng tiếp theo. Viết tiếng Việt rõ ràng, súc tích.");
+        sb.AppendLine("Return ONLY a valid JSON object matching this schema:");
         sb.AppendLine(@"{
-  ""recommendations"": [
-    {
-      ""priority"": ""HIGH"",
-      ""title"": ""..."",
-      ""rationale"": ""... (BẮT BUỘC trích dẫn ít nhất 1 con số cụ thể từ TỔNG QUAN, KÊNH, TOP POSTS, hoặc CAMPAIGNS ở dưới)"",
-      ""actionable_steps"": [""..."", ""...""],
-      ""kpi_target"": ""...""
-    },
-    ""... (THÊM 3-5 OBJECTS TƯƠNG TỰ VÀO MẢNG NÀY ĐỂ ĐẠT 4-6 ĐỀ XUẤT) ...""
-  ]
+  ""summary"": ""Nhận định tổng quan 1-2 câu có số liệu"",
+  ""strengths"": [
+    { ""title"": ""..."", ""evidence"": ""Số liệu cụ thể"", ""meaning"": ""Vì sao đây là điểm mạnh"" }
+  ],
+  ""weaknesses"": [
+    { ""title"": ""..."", ""evidence"": ""Số liệu cụ thể"", ""impact"": ""Ảnh hưởng đến hiệu quả nội dung"" }
+  ],
+  ""next_post_actions"": [
+    { ""priority"": ""HIGH|MEDIUM|LOW"", ""action"": ""Việc cụ thể cần làm cho bài sau"", ""reason"": ""Liên hệ với điểm yếu/điểm mạnh"", ""kpi_target"": ""Mục tiêu đo được"" }
+  ],
+  ""data_note"": ""Giới hạn dữ liệu nếu có, nếu đủ thì để chuỗi rỗng""
 }");
-        sb.AppendLine("Rules for 'priority': Ưu tiên khi xung đột theo thứ tự Conversions > CTR > Engagement > Impressions. Nếu chỉ số ưu tiên giảm mạnh (>=10%) so với kỳ trước -> HIGH. Nếu tín hiệu mâu thuẫn (như Impressions tăng nhưng CTR flat) -> MID. Nếu ổn định hoặc tăng đều -> LOW.");
-        sb.AppendLine("Rules cho 'rationale': CẤM nói chung chung kiểu 'dựa trên dữ liệu', 'thiếu dữ liệu', 'giai đoạn đầu'. Bắt buộc đưa số liệu cụ thể (VD: 'CTR giảm 15%', 'Tương tác đạt 2000').");
+        sb.AppendLine("YÊU CẦU: tạo 2-3 strengths, 2-3 weaknesses và đúng 3 next_post_actions. Mỗi nhận định bắt buộc trích dẫn số liệu bên dưới; không tự suy đoán format, chủ đề hay thời điểm đăng nếu dữ liệu không cung cấp. Ưu tiên CTR, clicks, engagement, reach và impressions. KPI mục tiêu phải thực tế dựa trên mức hiện tại.");
+        sb.AppendLine("YÊU CẦU VỀ CÁCH DIỄN ĐẠT: dùng câu chữ tự nhiên, đa dạng và tránh các mẫu câu lặp. Có thể giữ cùng kết luận khi số liệu không đổi, nhưng phải thay đổi cách mở ý, cách giải thích và cách diễn đạt hành động. Không thay đổi hoặc bịa số liệu chỉ để tạo khác biệt.");
+
+        if (!string.IsNullOrWhiteSpace(previousAnalysis))
+        {
+            var previousExcerpt = previousAnalysis.Length > 3000 ? previousAnalysis[..3000] : previousAnalysis;
+            sb.AppendLine("PHÂN TÍCH GẦN NHẤT (chỉ dùng để tránh lặp cách nói; không sao chép nguyên câu):");
+            sb.AppendLine(previousExcerpt);
+            sb.AppendLine("Bản mới không được lặp nguyên văn title, summary, evidence, reason hoặc action ở trên. Hãy ưu tiên một góc nhìn khác nếu dữ liệu cho phép.");
+        }
         sb.AppendLine();
 
         Func<long, long, string> pctStr = (curr, prev) => prev == 0 ? (curr > 0 ? "(+100%)" : "") : (curr - prev) * 100.0 / prev > 0 ? $"(+{(curr - prev) * 100.0 / prev:F1}%)" : $"({(curr - prev) * 100.0 / prev:F1}%)";
@@ -542,7 +568,19 @@ public sealed class AnalyticsService : IAnalyticsService
             {
                 var p = topPosts[i];
                 var title = p.ContentTitle?.Length > 30 ? p.ContentTitle[..30] + ".." : p.ContentTitle ?? "?";
-                sb.Append($"#{i + 1}\"{title}\"({p.Platform},{p.Engagement}eng) ");
+                sb.Append($"#{i + 1}\"{title}\"({p.Platform},imp={p.Impressions},reach={p.Reach},eng={p.Engagement},clicks={p.Clicks},CTR={p.Ctr:F2}%) ");
+            }
+            sb.AppendLine();
+        }
+
+        if (weakPosts.Any())
+        {
+            sb.Append("LOW POSTS: ");
+            for (int i = 0; i < Math.Min(weakPosts.Count, 3); i++)
+            {
+                var p = weakPosts[i];
+                var title = p.ContentTitle?.Length > 30 ? p.ContentTitle[..30] + ".." : p.ContentTitle ?? "?";
+                sb.Append($"#{i + 1}\"{title}\"({p.Platform},imp={p.Impressions},reach={p.Reach},eng={p.Engagement},clicks={p.Clicks},CTR={p.Ctr:F2}%) ");
             }
             sb.AppendLine();
         }
