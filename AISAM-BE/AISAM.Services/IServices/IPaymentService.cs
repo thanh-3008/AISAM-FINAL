@@ -10,6 +10,7 @@ public interface IPaymentService
     Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(Guid workspaceId, Guid userId, CreateCheckoutRequest request, CancellationToken cancellationToken = default);
     Task<GenericResponse<PayOSCheckoutResponse>> CreateBusinessWorkspaceCheckoutAsync(Guid userId, CreateBusinessWorkspaceCheckoutRequest request, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> SynchronizeBusinessWorkspaceCheckoutAsync(Guid userId, string reference, CancellationToken cancellationToken = default);
+    Task<GenericResponse<PaymentExitResult>> ExitCheckoutAsync(Guid userId, string reference, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> HandleCallbackAsync(IQueryCollection query, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default);
     Task<GenericResponse<PagedResult<PaymentHistoryItemDto>>> GetPaymentHistoryAsync(Guid workspaceId, PaginationRequest request, CancellationToken cancellationToken = default);

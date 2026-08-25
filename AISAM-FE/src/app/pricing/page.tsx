@@ -8,7 +8,7 @@ import { invalidateWorkspaceCache, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
-import { createBusinessWorkspacePayment, createPayment, synchronizeBusinessWorkspacePayment, PLAN_CODES, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
+import { createBusinessWorkspacePayment, createPayment, exitPayment, synchronizeBusinessWorkspacePayment, syncPayOSCallback, PLAN_CODES, CREDIT_PACK_CODES_BY_ID, fetchPublicPricing } from "@/services/paymentService";
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
@@ -18,6 +18,7 @@ type PlanCategory = "personal" | "business";
 const CREATED_WORKSPACE_PAYMENT_KEY = "aisam-created-workspace-payment";
 const PRICING_PAYMENT_TYPE_KEY = "aisam-pricing-payment-type";
 const PRICING_PAYMENT_REFERENCE_KEY = "aisam-pricing-payment-reference";
+const PRICING_PAYMENT_ACTIVE_KEY = "aisam-pricing-payment-active";
 type PricingPaymentType = "subscription" | "credits";
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -83,6 +84,7 @@ function PricingContent() {
   const [selectedPack, setSelectedPack] = useState<CreditPackPricing | null>(null);
   const [isClient, setIsClient] = useState(false);
   const paymentSyncStartedRef = useRef(false);
+  const paymentExitStartedRef = useRef(false);
 
   useEffect(() => { setIsClient(true); }, []);
 
@@ -161,12 +163,14 @@ function PricingContent() {
     const synchronizePayment = async () => {
       try {
         if (!redirectPaid) {
+          // Notify the backend so the dangling Pending record is marked Failed
+          try { await syncPayOSCallback(searchParams); } catch { /* ignore – best-effort */ }
           if (isBusinessCreation) {
             window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
           }
           window.sessionStorage.removeItem(PRICING_PAYMENT_TYPE_KEY);
           window.sessionStorage.removeItem(PRICING_PAYMENT_REFERENCE_KEY);
-          showToast({ type: "info", title: "Payment not completed", message: "No workspace or subscription was activated." });
+          showToast({ type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
           router.replace(isBusinessCreation ? "/pricing?create=business" : "/pricing");
           return;
         }
@@ -247,6 +251,27 @@ function PricingContent() {
 
     synchronizePayment();
   }, [activeWorkspace?.id, hasPaymentRedirect, router, searchParams, showToast, updateWorkspacePlan]);
+
+  useEffect(() => {
+    const activeReference = window.sessionStorage.getItem(PRICING_PAYMENT_ACTIVE_KEY);
+    const reference = window.sessionStorage.getItem(PRICING_PAYMENT_REFERENCE_KEY) || window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY);
+    if (hasPaymentRedirect || !activeReference || !reference || paymentExitStartedRef.current) return;
+
+    paymentExitStartedRef.current = true;
+    exitPayment(activeReference).then((result) => {
+      window.sessionStorage.removeItem(PRICING_PAYMENT_ACTIVE_KEY);
+      window.sessionStorage.removeItem(PRICING_PAYMENT_REFERENCE_KEY);
+      window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
+      if (result?.status === "Success") {
+        showToast({ type: "success", title: "Payment successful", message: "Your payment was confirmed." });
+      } else {
+        showToast({ type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+      }
+      router.replace(createMode ? "/pricing?create=business" : "/pricing");
+    }).catch(() => {
+      paymentExitStartedRef.current = false;
+    });
+  }, [createMode, hasPaymentRedirect, router, showToast]);
 
   useEffect(() => {
     if (createMode || categoryParam === "business") {
@@ -395,6 +420,29 @@ function PricingContent() {
       showToast({ type: "error", title: "Error", message: "Failed to process purchase." });
     } finally {
       setProcessing(null);
+    }
+  };
+
+  const handlePaymentExit = async () => {
+    if (paymentExitStartedRef.current) return;
+    paymentExitStartedRef.current = true;
+    const reference = window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY) || window.sessionStorage.getItem(PRICING_PAYMENT_REFERENCE_KEY);
+    setShowQRModal(false);
+    if (!reference) {
+      showToast({ type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+      return;
+    }
+    try {
+      const result = await exitPayment(reference);
+      window.sessionStorage.removeItem(PRICING_PAYMENT_ACTIVE_KEY);
+      window.sessionStorage.removeItem(PRICING_PAYMENT_REFERENCE_KEY);
+      window.sessionStorage.removeItem(CREATED_WORKSPACE_PAYMENT_KEY);
+      showToast(result?.status === "Success"
+        ? { type: "success", title: "Payment successful", message: "Your payment was confirmed." }
+        : { type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+    } catch {
+      paymentExitStartedRef.current = false;
+      showToast({ type: "error", title: "Payment update failed", message: "We could not update the payment status. Please try again." });
     }
   };
 
@@ -942,7 +990,7 @@ function PricingContent() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowQRModal(false)}
+                  onClick={handlePaymentExit}
                   className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
                   aria-label="Close checkout"
                 >
@@ -984,13 +1032,17 @@ function PricingContent() {
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row">
                 <button
-                  onClick={() => setShowQRModal(false)}
+                  onClick={handlePaymentExit}
                   className="flex-1 rounded-2xl border border-outline-variant/40 px-5 py-3 text-label-md font-semibold text-on-surface transition hover:bg-surface-container-high"
                 >
                   Hủy
                 </button>
                 <button
                   onClick={() => {
+                    const activeReference = qrData.type === "workspace"
+                      ? window.sessionStorage.getItem(CREATED_WORKSPACE_PAYMENT_KEY) || ""
+                      : window.sessionStorage.getItem(PRICING_PAYMENT_REFERENCE_KEY) || "";
+                    if (activeReference) window.sessionStorage.setItem(PRICING_PAYMENT_ACTIVE_KEY, activeReference);
                     window.location.href = qrData.checkoutUrl;
                   }}
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-label-md font-bold text-on-primary shadow-lg shadow-primary/25 transition hover:opacity-90"

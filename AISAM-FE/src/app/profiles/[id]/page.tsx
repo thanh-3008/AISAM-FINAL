@@ -36,7 +36,7 @@ import {
 import { inviteMember, cancelInvitation, getWorkspaceInvitations, type WorkspaceInvitation, type WorkspaceMemberRole as InvitationRole } from "@/services/workspaceInvitationService";
 import { fetchUsageBreakdown, type UsageBreakdownItem } from "@/services/analyticsService";
 import { updateMemberRole, removeMember } from "@/services/teamService";
-import { CREDIT_PACK_CODES_BY_ID, fetchPublicPricing, synchronizeBusinessWorkspacePayment } from "@/services/paymentService";
+import { CREDIT_PACK_CODES_BY_ID, exitPayment, fetchPublicPricing, synchronizeBusinessWorkspacePayment, syncPayOSCallback } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 
 interface Workspace {
@@ -98,6 +98,7 @@ const item = {
 };
 
 const WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY = "aisam-workspace-settings-credit-payment-reference";
+const WORKSPACE_SETTINGS_CREDIT_PAYMENT_ACTIVE_KEY = "aisam-workspace-settings-credit-payment-active";
 
 export default function ProfileDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -740,6 +741,7 @@ export default function ProfileDetailPage() {
       if (checkout?.checkoutUrl) {
         if (checkout.orderCode) {
           window.sessionStorage.setItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY, checkout.orderCode);
+          window.sessionStorage.setItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_ACTIVE_KEY, checkout.orderCode);
         }
         window.location.href = checkout.checkoutUrl;
       } else {
@@ -769,10 +771,24 @@ export default function ProfileDetailPage() {
 
     const synchronizeCreditPayment = async () => {
       try {
-        if (!redirectPaid) {
+        const activeReference = window.sessionStorage.getItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_ACTIVE_KEY);
+        if (!searchParams.has("orderCode") && !searchParams.has("id") && activeReference) {
+          const result = await exitPayment(activeReference);
+          window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_ACTIVE_KEY);
           window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
-          showToast({ type: "info", title: "Payment not completed", message: "Credits were not added." });
-          router.replace(`/profiles/${id}?section=subscription&payment=cancelled`);
+          showToast(result?.status === "Success"
+            ? { type: "success", title: "Payment successful", message: "Your payment was confirmed." }
+            : { type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+          router.replace(`/profiles/${id}?section=subscription`);
+          return;
+        }
+        if (!redirectPaid) {
+          // Notify backend to mark the Pending record as Failed
+          try { await syncPayOSCallback(searchParams); } catch { /* ignore – best-effort */ }
+          window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_REFERENCE_KEY);
+          window.sessionStorage.removeItem(WORKSPACE_SETTINGS_CREDIT_PAYMENT_ACTIVE_KEY);
+          showToast({ type: "warning", title: "Payment cancelled", message: "You have cancelled the payment." });
+          router.replace(`/profiles/${id}?section=subscription`);
           return;
         }
 

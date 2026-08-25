@@ -466,7 +466,7 @@ export default function AIGeneratePage() {
       brandId,
       productId: productId || null,
       adType: 0,
-      title: title || brandName || "Untitled Post",
+      title: title || "Untitled Post",
       textContent: content || "",
       status: 0, // Draft
       isAiGenerated: true,
@@ -609,11 +609,9 @@ export default function AIGeneratePage() {
         setIsVideo(false);
       }
     }
-    setTitle(brandName || "Untitled Post");
     const parsedPost = parseGeneratedPost(cleanContent);
-    setTitle(parsedPost.title || brandName || "Untitled Post");
+    setTitle(parsedPost.title || "Untitled Post");
     setContent(parsedPost.caption);
-    setTitle(parsedPost.title || brandName || "Untitled Post");
     setHashtags(h);
     setSelectedVariation(variation.id);
   };

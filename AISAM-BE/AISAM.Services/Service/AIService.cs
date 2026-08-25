@@ -326,7 +326,7 @@ public sealed class AIService : IAIService
                                 BrandId = conversation.BrandId.Value,
                                 ProductId = conversation.ProductId,
                                 AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
-                                Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Original Product Images",
+                                Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedProduct?.Name) : "Original Product Images",
                                 TextContent = StripMediaMarkers(responseText),
                                 ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
                                 Status = ContentStatusEnum.Draft,
@@ -362,7 +362,7 @@ public sealed class AIService : IAIService
                             BrandId = conversation.BrandId.Value,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
-                            Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedBrand?.Name) : "Chat Image Generation",
+                            Title = isImageTextRequest ? ExtractGeneratedTitle(responseText, selectedProduct?.Name) : "Chat Image Generation",
                             TextContent = isImageTextRequest ? responseText : prompt,
                             Status = ContentStatusEnum.Draft,
                             IsAiGenerated = true
@@ -449,7 +449,7 @@ public sealed class AIService : IAIService
                             BrandId = conversation.BrandId.Value,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
-                            Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
+                            Title = ExtractGeneratedTitle(responseText, selectedProduct?.Name),
                             TextContent = StripMediaMarkers(responseText),
                             Status = ContentStatusEnum.Draft,
                             IsAiGenerated = true
@@ -507,7 +507,7 @@ public sealed class AIService : IAIService
                         BrandId = conversation.BrandId.Value,
                         ProductId = conversation.ProductId,
                         AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
-                        Title = ExtractGeneratedTitle(responseText, selectedBrand?.Name),
+                        Title = ExtractGeneratedTitle(responseText, selectedProduct?.Name),
                         TextContent = StripMediaMarkers(responseText),
                         ImageUrl = JsonSerializer.Serialize(originalProductImageUrls),
                         Status = ContentStatusEnum.Draft,
@@ -1676,7 +1676,7 @@ Treat all reference images as different views of one product. Do not create mult
     }
 
 
-    private static string ExtractGeneratedTitle(string responseText, string? brandName)
+    private static string ExtractGeneratedTitle(string responseText, string? productName = null)
     {
         foreach (var line in responseText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -1701,8 +1701,12 @@ Treat all reference images as different views of one product. Do not create mult
             }
         }
 
-        var fallback = string.IsNullOrWhiteSpace(brandName) ? "Untitled Post" : brandName.Trim();
-        return fallback[..Math.Min(fallback.Length, 255)];
+        if (!string.IsNullOrWhiteSpace(productName))
+        {
+            return productName.Trim()[..Math.Min(productName.Trim().Length, 255)];
+        }
+
+        return "Untitled Post";
     }
 
     private sealed record ParsedChatResponse(

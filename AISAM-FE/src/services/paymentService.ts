@@ -16,6 +16,11 @@ export interface CheckoutResponse {
   orderCode?: string;
 }
 
+export interface PaymentExitResult {
+  status: string;
+  cancelled: boolean;
+}
+
 /** Maps to BE `CreateCheckoutRequest`:
  *  paymentType: 1=Subscription, 2=CreditPack
  *  planCode: "Free" | "Plus" | "Premium" | "PlusTrial"
@@ -95,7 +100,15 @@ export async function synchronizeBusinessWorkspacePayment(reference: string): Pr
   return res?.success === true && res.data === true;
 }
 
-export async function syncPayOSCallback(searchParams: URLSearchParams): Promise<boolean> {
+export async function exitPayment(reference: string): Promise<PaymentExitResult | null> {
+  const res: GenericResponse<PaymentExitResult> = await apiClient("/payment/checkout/exit", {
+    data: { reference },
+    method: "POST",
+  });
+  return res?.data ?? null;
+}
+
+export async function syncPayOSCallback(searchParams: { entries(): IterableIterator<[string, string]> }): Promise<boolean> {
   try {
     const PAYOS_PARAMS = ["id", "orderCode", "amount", "description", "cancelUrl", "returnUrl", "status", "code", "cancel", "signature"];
     const params = new URLSearchParams();

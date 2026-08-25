@@ -577,6 +577,74 @@ public sealed class PayOSPaymentService : IPaymentService
         return await ApplyPaymentStatusAsync(reference, status, query["id"].FirstOrDefault(), acknowledgeMissingPayment: false, cancellationToken);
     }
 
+    public async Task<GenericResponse<PaymentExitResult>> ExitCheckoutAsync(
+        Guid userId,
+        string reference,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return GenericResponse<PaymentExitResult>.CreateError(
+                "Payment reference is required.",
+                HttpStatusCode.BadRequest,
+                "PAYMENT_REFERENCE_MISSING");
+        }
+
+        if (_context == null || !_context.Database.IsRelational() || _context.Database.CurrentTransaction != null)
+        {
+            return await ExitCheckoutCoreAsync(userId, reference, cancellationToken);
+        }
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            try
+            {
+                var result = await ExitCheckoutCoreAsync(userId, reference, cancellationToken);
+                if (!result.Success)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return result;
+                }
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
+    }
+
+    private async Task<GenericResponse<PaymentExitResult>> ExitCheckoutCoreAsync(
+        Guid userId,
+        string reference,
+        CancellationToken cancellationToken)
+    {
+        var payment = await _paymentRepository.GetByReferenceAsync(reference, cancellationToken);
+        if (payment == null || payment.UserId != userId)
+        {
+            return GenericResponse<PaymentExitResult>.CreateError("Payment not found.", HttpStatusCode.NotFound);
+        }
+
+        if (payment.Status == PaymentStatusEnum.Pending)
+        {
+            payment.Status = PaymentStatusEnum.Failed;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+        }
+
+        var isCancelled = payment.Status == PaymentStatusEnum.Failed;
+        return GenericResponse<PaymentExitResult>.CreateSuccess(
+            new PaymentExitResult
+            {
+                Status = payment.Status.ToString(),
+                Cancelled = isCancelled
+            },
+            isCancelled ? "Payment cancelled." : "Payment already resolved.");
+    }
+
     public async Task<GenericResponse<bool>> HandleWebhookAsync(string rawPayload, CancellationToken cancellationToken = default)
     {
         if (!HasPayOsConfig())

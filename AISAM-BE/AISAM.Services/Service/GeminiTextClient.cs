@@ -1,8 +1,10 @@
 using AISAM.Common.Models;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace AISAM.Services.Service;
 
@@ -10,11 +12,13 @@ public sealed class GeminiTextClient : IGeminiTextClient
 {
     private readonly HttpClient _httpClient;
     private readonly GeminiSettings _settings;
+    private readonly ILogger<GeminiTextClient> _logger;
 
-    public GeminiTextClient(HttpClient httpClient, IOptions<GeminiSettings> settings)
+    public GeminiTextClient(HttpClient httpClient, IOptions<GeminiSettings> settings, ILogger<GeminiTextClient>? logger = null)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GeminiTextClient>.Instance;
     }
 
     public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
@@ -55,6 +59,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
 
         foreach (var model in modelsToTry)
         {
+            var timer = Stopwatch.StartNew();
             try
             {
                 var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
@@ -85,11 +90,25 @@ public sealed class GeminiTextClient : IGeminiTextClient
                     throw new InvalidOperationException($"Gemini API ({model}) returned an empty response.");
                 }
 
+                _logger.LogInformation(
+                    "AskAI.LLM.ProviderModelAttempt ProviderName={ProviderName} AttemptOrder={AttemptOrder} DurationMs={DurationMs} Success={Success} FailureCategory={FailureCategory} Cancelled={Cancelled}",
+                    "Gemini", Array.IndexOf(modelsToTry, model) + 1, timer.ElapsedMilliseconds, true, null, false);
                 return text.Trim();
             }
             catch (HttpRequestException ex)
             {
                 lastException = ex;
+                _logger.LogWarning(
+                    ex,
+                    "AskAI.LLM.ProviderModelAttempt ProviderName={ProviderName} AttemptOrder={AttemptOrder} DurationMs={DurationMs} Success={Success} FailureCategory={FailureCategory} Cancelled={Cancelled}",
+                    "Gemini", Array.IndexOf(modelsToTry, model) + 1, timer.ElapsedMilliseconds, false, "LLM_PROVIDER_FAILURE", false);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogInformation(
+                    "AskAI.LLM.ProviderModelAttempt ProviderName={ProviderName} AttemptOrder={AttemptOrder} DurationMs={DurationMs} Success={Success} FailureCategory={FailureCategory} Cancelled={Cancelled} ExceptionType={ExceptionType}",
+                    "Gemini", Array.IndexOf(modelsToTry, model) + 1, timer.ElapsedMilliseconds, false, "LLM_TIMEOUT", true, ex.GetType().Name);
+                throw;
             }
         }
 

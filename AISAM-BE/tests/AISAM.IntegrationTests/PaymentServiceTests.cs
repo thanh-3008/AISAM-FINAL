@@ -783,6 +783,49 @@ public class PaymentServiceTests
         Assert.Equal("PAYOS_SIGNATURE_REQUIRED", result.Error?.ErrorCode);
     }
 
+    [Fact]
+    public async Task ExitCheckoutAsync_MarksPendingPaymentFailed()
+    {
+        var userId = Guid.NewGuid();
+        var payment = new Payment
+        {
+            UserId = userId,
+            TransactionId = "exit-pending",
+            Status = PaymentStatusEnum.Pending,
+            Amount = 2_000m
+        };
+        var repository = new FakePaymentRepository(payment);
+        var service = CreateService(paymentRepository: repository);
+
+        var result = await service.ExitCheckoutAsync(userId, "exit-pending");
+
+        Assert.True(result.Success);
+        Assert.True(result.Data!.Cancelled);
+        Assert.Equal("Failed", result.Data.Status);
+        Assert.Equal(PaymentStatusEnum.Failed, payment.Status);
+    }
+
+    [Fact]
+    public async Task ExitCheckoutAsync_DoesNotDowngradeSuccessfulPayment()
+    {
+        var userId = Guid.NewGuid();
+        var payment = new Payment
+        {
+            UserId = userId,
+            TransactionId = "exit-success",
+            Status = PaymentStatusEnum.Success,
+            Amount = 2_000m
+        };
+        var service = CreateService(paymentRepository: new FakePaymentRepository(payment));
+
+        var result = await service.ExitCheckoutAsync(userId, "exit-success");
+
+        Assert.True(result.Success);
+        Assert.False(result.Data!.Cancelled);
+        Assert.Equal("Success", result.Data.Status);
+        Assert.Equal(PaymentStatusEnum.Success, payment.Status);
+    }
+
     private static PayOSPaymentService CreateService(
         FakePaymentRepository? paymentRepository = null,
         FakeSubscriptionRepository? subscriptionRepository = null,

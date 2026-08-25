@@ -5,6 +5,8 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Common.Dtos;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace AISAM.Services.Service;
@@ -18,6 +20,7 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly IMemoryCache _cache;
     private readonly IBrandRepository _brandRepo;
     private readonly IContentCalendarRepository _contentCalendarRepo;
+    private readonly ILogger<AnalyticsService> _logger;
 
     public AnalyticsService(
         IPerformanceReportRepository performanceReportRepo,
@@ -26,7 +29,8 @@ public sealed class AnalyticsService : IAnalyticsService
         FacebookProvider facebookProvider,
         IMemoryCache cache,
         IBrandRepository brandRepo,
-        IContentCalendarRepository contentCalendarRepo)
+        IContentCalendarRepository contentCalendarRepo,
+        ILogger<AnalyticsService> logger)
     {
         _performanceReportRepo = performanceReportRepo;
         _socialIntegrationRepo = socialIntegrationRepo;
@@ -35,6 +39,7 @@ public sealed class AnalyticsService : IAnalyticsService
         _cache = cache;
         _brandRepo = brandRepo;
         _contentCalendarRepo = contentCalendarRepo;
+        _logger = logger;
     }
 
     public async Task<GenericResponse<ScheduledPublishingPerformanceDto>> GetScheduledPublishingPerformanceAsync(
@@ -233,38 +238,66 @@ public sealed class AnalyticsService : IAnalyticsService
         Guid workspaceId, DateTime from, DateTime to,
         Guid? brandId = null, string? platform = null,
         bool forceRefresh = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? correlationId = null)
     {
-        string cacheKey = $"PostAnalysis_v1_json_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
-        _cache.TryGetValue(cacheKey, out string? previousAnalysis);
-
-        if (!forceRefresh && !string.IsNullOrEmpty(previousAnalysis))
+        correlationId ??= Guid.NewGuid().ToString("D");
+        var requestTimer = Stopwatch.StartNew();
+        using var logScope = _logger.BeginScope(new Dictionary<string, object>
         {
-            return GenericResponse<string>.CreateSuccess(
-                previousAnalysis, "AI recommendations retrieved successfully (from cache).");
+            ["CorrelationId"] = correlationId,
+            ["WorkspaceId"] = workspaceId,
+            ["Endpoint"] = "GET /api/analytics/ai-recommendations"
+        });
+
+        _logger.LogInformation("AskAI.RequestStarted");
+        string cacheKey = $"AiRec_v4_json_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
+        var cacheTimer = Stopwatch.StartNew();
+        string? cachedResponse = null;
+        var cacheHit = !forceRefresh && _cache.TryGetValue(cacheKey, out cachedResponse) && !string.IsNullOrEmpty(cachedResponse);
+        LogStage("AskAI.CacheCheck", correlationId, workspaceId, cacheTimer.ElapsedMilliseconds, "SUCCESS", false, null);
+
+        if (cacheHit)
+        {
+            LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
+            return GenericResponse<string>.CreateSuccess(cachedResponse, "AI recommendations retrieved successfully (from cache).");
         }
 
-        var totals = await _performanceReportRepo.GetAggregatedTotalsAsync(workspaceId, from, to, brandId, platform);
+        var totals = await TrackStageAsync(
+            correlationId, "AskAI.Database.AggregatedTotals", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetAggregatedTotalsAsync(workspaceId, from, to, brandId, platform, cancellationToken: cancellationToken));
+
         if (totals.PublishedPosts == 0 && totals.Impressions == 0 && totals.ActiveCampaigns == 0)
         {
             const string noDataJson = "{\"summary\":\"Chưa có đủ dữ liệu bài đăng trong khoảng thời gian này.\",\"strengths\":[],\"weaknesses\":[],\"next_post_actions\":[],\"data_note\":\"Hãy đăng và đồng bộ thêm nội dung để AI có thể đưa ra đánh giá có căn cứ.\"}";
+            LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
             return GenericResponse<string>.CreateSuccess(noDataJson, "AI post analysis retrieved successfully.");
         }
 
-        var channels = await _performanceReportRepo.GetChannelBreakdownAsync(workspaceId, from, to, brandId);
-        var topPosts = await _performanceReportRepo.GetTopPostsPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3);
-        var weakPosts = await _performanceReportRepo.GetTopPostsPagedAsync(
-            workspaceId, from, to, brandId, platform, "engagement", pageSize: 3,
-            sortDescending: false, cancellationToken: cancellationToken);
-        var campaigns = await _performanceReportRepo.GetCampaignBreakdownPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3);
+        var channels = await TrackStageAsync(
+            correlationId, "AskAI.Database.ChannelBreakdown", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetChannelBreakdownForAIAsync(workspaceId, from, to, brandId, cancellationToken));
+        var topPosts = await TrackStageAsync(
+            correlationId, "AskAI.Database.TopPosts", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetTopPostsForAIAsync(workspaceId, from, to, brandId, platform, 3, cancellationToken));
+        var weakPosts = await TrackStageAsync(
+            correlationId, "AskAI.Database.WeakPosts", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetTopPostsPagedAsync(workspaceId, from, to, brandId, platform, "engagement", pageSize: 3, sortDescending: false, cancellationToken: cancellationToken));
+        var campaigns = await TrackStageAsync(
+            correlationId, "AskAI.Database.CampaignBreakdown", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetCampaignBreakdownPagedAsync(workspaceId, from, to, brandId, platform, pageSize: 3, cancellationToken: cancellationToken));
 
-        var prevTotals = await _performanceReportRepo.GetAggregatedTotalsForPreviousPeriodAsync(
-            workspaceId, from, to, brandId, platform, null, cancellationToken);
+        var prevTotals = await TrackStageAsync(
+            correlationId, "AskAI.Database.PreviousPeriod", workspaceId, cancellationToken,
+            () => _performanceReportRepo.GetAggregatedTotalsForPreviousPeriodAsync(
+                workspaceId, from, to, brandId, platform, null, cancellationToken));
 
         string brandContext = "";
         if (brandId.HasValue)
         {
-            var brand = await _brandRepo.GetByIdAsync(brandId.Value, cancellationToken);
+            var brand = await TrackStageAsync(
+                correlationId, "AskAI.Database.Brands", workspaceId, cancellationToken,
+                () => _brandRepo.GetByIdAsync(brandId.Value, cancellationToken));
             if (brand != null)
             {
                 var categories = brand.Products.Select(p => p.Category).Where(c => !string.IsNullOrEmpty(c)).Distinct();
@@ -273,26 +306,28 @@ public sealed class AnalyticsService : IAnalyticsService
         }
         else
         {
-            var brands = await _brandRepo.GetPagedByWorkspaceIdAsync(workspaceId, new PaginationRequest { PageSize = 5 }, false, cancellationToken);
+            var brands = await TrackStageAsync(
+                correlationId, "AskAI.Database.Brands", workspaceId, cancellationToken,
+                () => _brandRepo.GetPagedByWorkspaceIdAsync(workspaceId, new PaginationRequest { PageSize = 5 }, false, cancellationToken));
             var auds = brands.Data.Select(b => b.TargetAudience).Where(a => !string.IsNullOrEmpty(a)).Distinct();
             if (auds.Any()) brandContext = $"Đối tượng mục tiêu chung: {string.Join("; ", auds)}";
         }
 
+        var promptTimer = Stopwatch.StartNew();
         var prompt = BuildAnalyticsPrompt(
-            totals, prevTotals, channels, topPosts.Items, weakPosts.Items,
-            campaigns.Items, brandContext, forceRefresh ? previousAnalysis : null);
-        var response = await _geminiTextClient.GenerateAsync(prompt, "application/json", cancellationToken);
-        Console.WriteLine($"Raw Gemini Response Length: {response?.Length ?? 0}");
-        Console.WriteLine($"Raw Gemini Response (first 200 chars): {(response?.Length > 200 ? response.Substring(0, 200) : response)}");
-        Console.WriteLine($"Raw Gemini Response (last 200 chars): {(response?.Length > 200 ? response.Substring(response.Length - 200) : response)}");
+            totals, prevTotals, channels, topPosts, weakPosts.Items, campaigns.Items, brandContext, forceRefresh ? cachedResponse : null);
+        LogStage("AskAI.PromptBuild", correlationId, workspaceId, promptTimer.ElapsedMilliseconds, "SUCCESS", false, null);
+
+        var response = await TrackStageAsync(
+            correlationId, "AskAI.LLM.PrimaryOrFallbackGeneration", workspaceId, cancellationToken,
+            () => _geminiTextClient.GenerateAsync(prompt, "application/json", cancellationToken));
 
         string CleanJson(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-            
+
             var json = text.Trim();
-            
-            // Extract content between ```json and ``` if it exists
+
             var startIndex = json.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
             if (startIndex >= 0)
             {
@@ -305,7 +340,6 @@ public sealed class AnalyticsService : IAnalyticsService
             }
             else
             {
-                // Try just ```
                 startIndex = json.IndexOf("```");
                 if (startIndex >= 0)
                 {
@@ -318,7 +352,6 @@ public sealed class AnalyticsService : IAnalyticsService
                 }
             }
 
-            // Fallback: extract from first { to last } or first [ to last ]
             if (!json.StartsWith("{") && !json.StartsWith("["))
             {
                 var firstBrace = json.IndexOf('{');
@@ -340,41 +373,124 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         string cleanedJson = CleanJson(response ?? string.Empty);
-        bool parseSuccess = false;
-        try
-        {
-            JsonSerializer.Deserialize<object>(cleanedJson);
-            parseSuccess = true;
-        }
-        catch { }
+        var parseTimer = Stopwatch.StartNew();
+        var parseSuccess = TryParseJson(cleanedJson);
+        LogStage("AskAI.LLM.ParseResponse", correlationId, workspaceId, parseTimer.ElapsedMilliseconds,
+            parseSuccess ? "SUCCESS" : "LLM_PARSE_FAILURE", false, parseSuccess ? null : nameof(JsonException));
 
         if (!parseSuccess)
         {
             var retryPrompt = "CRITICAL: Respond ONLY with raw JSON. No code fences, no markdown, no explanations.\n\n" + prompt;
-            response = await _geminiTextClient.GenerateAsync(retryPrompt, "application/json", cancellationToken);
+            response = await TrackStageAsync(
+                correlationId, "AskAI.LLM.SecondGeneration", workspaceId, cancellationToken,
+                () => _geminiTextClient.GenerateAsync(retryPrompt, "application/json", cancellationToken));
             cleanedJson = CleanJson(response ?? string.Empty);
-            try
-            {
-                JsonSerializer.Deserialize<object>(cleanedJson);
-                parseSuccess = true;
-            }
-            catch (Exception ex)
-            { 
-                Console.WriteLine("JSON Parse Error: " + ex.Message + "\nRaw output: " + cleanedJson);
-            }
+            var retryParseTimer = Stopwatch.StartNew();
+            parseSuccess = TryParseJson(cleanedJson);
+            LogStage("AskAI.LLM.ParseResponse", correlationId, workspaceId, retryParseTimer.ElapsedMilliseconds,
+                parseSuccess ? "SUCCESS" : "LLM_PARSE_FAILURE", false, parseSuccess ? null : nameof(JsonException));
         }
 
         if (!parseSuccess)
         {
             var errorJson = "{ \"error\": \"AI_PARSE_FAILED\", \"message\": \"Không thể phân tích kết quả AI. Vui lòng thử lại.\" }";
-            return GenericResponse<string>.CreateSuccess(
-                errorJson, "AI recommendations retrieved successfully.");
+            LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "LLM_PARSE_FAILURE", false, null);
+            return GenericResponse<string>.CreateSuccess(errorJson, "AI recommendations retrieved successfully.");
         }
 
         _cache.Set(cacheKey, cleanedJson, TimeSpan.FromHours(12));
 
-        return GenericResponse<string>.CreateSuccess(
-            cleanedJson, "AI recommendations retrieved successfully.");
+        LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
+        return GenericResponse<string>.CreateSuccess(cleanedJson, "AI recommendations retrieved successfully.");
+    }
+
+    private async Task<T> TrackStageAsync<T>(
+        string correlationId,
+        string stage,
+        Guid workspaceId,
+        CancellationToken cancellationToken,
+        Func<Task<T>> operation)
+    {
+        var timer = Stopwatch.StartNew();
+        try
+        {
+            var result = await operation();
+            LogStage(stage, correlationId, workspaceId, timer.ElapsedMilliseconds, "SUCCESS", false, null);
+            return result;
+        }
+        catch (OperationCanceledException ex)
+        {
+            var outcome = cancellationToken.IsCancellationRequested
+                ? "CLIENT_CANCELLED"
+                : stage.StartsWith("AskAI.Database", StringComparison.Ordinal)
+                    ? "DATABASE_TIMEOUT"
+                    : "LLM_TIMEOUT";
+            LogStage(stage, correlationId, workspaceId, timer.ElapsedMilliseconds, outcome, true, ex.GetType().Name);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var outcome = IsConnectionLimitException(ex)
+                ? "DATABASE_CONNECTION_FAILURE"
+                : stage.StartsWith("AskAI.Database", StringComparison.Ordinal)
+                    ? "INTERNAL_ERROR"
+                    : "LLM_PROVIDER_FAILURE";
+            LogStage(stage, correlationId, workspaceId, timer.ElapsedMilliseconds, outcome, false, ex.GetType().Name);
+            if (IsConnectionLimitException(ex))
+            {
+                _logger.LogError(
+                    "AskAI.Database.ConnectionLimitReached {DatabaseErrorCode}",
+                    "EMAXCONNSESSION");
+            }
+            throw;
+        }
+    }
+
+    private void LogStage(
+        string stage,
+        string correlationId,
+        Guid workspaceId,
+        long durationMs,
+        string outcome,
+        bool cancelled,
+        string? exceptionType)
+    {
+        _logger.LogInformation(
+            "{Stage} CorrelationId={CorrelationId} WorkspaceId={WorkspaceId} DurationMs={DurationMs} Outcome={Outcome} Cancelled={Cancelled} ExceptionType={ExceptionType}",
+            stage,
+            correlationId,
+            workspaceId,
+            durationMs,
+            outcome,
+            cancelled,
+            exceptionType);
+    }
+
+    private static bool IsConnectionLimitException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current.Message.Contains("EMAXCONNSESSION", StringComparison.OrdinalIgnoreCase) ||
+                current.Message.Contains("max clients reached in session mode", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryParseJson(string value)
+    {
+        try
+        {
+            JsonSerializer.Deserialize<object>(value);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static string BuildAnalyticsPrompt(

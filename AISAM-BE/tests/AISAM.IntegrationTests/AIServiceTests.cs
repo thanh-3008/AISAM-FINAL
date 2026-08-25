@@ -8,6 +8,7 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using System.Net;
+using System.Reflection;
 
 namespace AISAM.IntegrationTests;
 
@@ -277,6 +278,18 @@ public class AIServiceTests
         Assert.True(result.Success);
         Assert.True(result.Data!.ShouldCreateContent);
         Assert.Equal("Bai quang cao san sang dang.", result.Data.Response);
+    }
+
+    [Fact]
+    public void ExtractGeneratedTitle_UsesSafeFallback_NotBrandName_WhenAiOutputHasNoTitle()
+    {
+        var method = typeof(AIService).GetMethod("ExtractGeneratedTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var title = (string)method!.Invoke(null, new object?[] { "   ", null })!;
+
+        Assert.Equal("Untitled Post", title);
+        Assert.NotEqual("Apple Store Vietnam", title);
     }
 
     [Fact]
