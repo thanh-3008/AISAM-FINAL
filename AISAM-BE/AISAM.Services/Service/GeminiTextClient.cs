@@ -32,6 +32,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
         }
 
         var primaryModel = string.IsNullOrWhiteSpace(_settings.Model) ? "gemini-3.6-flash" : _settings.Model;
+        var effectiveResponseMimeType = responseMimeType ?? "text/plain";
         var modelsToTry = primaryModel == "gemini-3.6-flash" 
             ? new[] { primaryModel } 
             : new[] { primaryModel, "gemini-3.6-flash" };
@@ -46,7 +47,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
             {
                 maxOutputTokens = _settings.MaxTokens,
                 temperature = _settings.Temperature,
-                responseMimeType = responseMimeType ?? "text/plain"
+                responseMimeType = effectiveResponseMimeType
             },
             safetySettings = new[]
             {
@@ -62,6 +63,14 @@ public sealed class GeminiTextClient : IGeminiTextClient
             var timer = Stopwatch.StartNew();
             try
             {
+                GeminiDiagnosticLogging.LogRequestConfiguration(
+                    _logger,
+                    "Gemini",
+                    model,
+                    _settings.MaxTokens,
+                    _settings.Temperature,
+                    effectiveResponseMimeType);
+
                 var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_settings.ApiKey}";
                 var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
                 
@@ -78,6 +87,7 @@ public sealed class GeminiTextClient : IGeminiTextClient
                 }
 
                 using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+                GeminiDiagnosticLogging.LogResponseMetadata(_logger, "Gemini", model, document.RootElement);
                 var text = document.RootElement
                     .GetProperty("candidates")[0]
                     .GetProperty("content")
