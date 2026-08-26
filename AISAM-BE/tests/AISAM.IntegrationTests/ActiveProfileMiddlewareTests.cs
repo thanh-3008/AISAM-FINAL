@@ -41,6 +41,31 @@ public class ActiveProfileMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_UsesExistingPendingProfile_WhenWorkspaceMemberHasNoActiveProfileHeader()
+    {
+        var userId = Guid.NewGuid();
+        var pendingProfile = CreateProfile(userId);
+        pendingProfile.Status = AISAM.Data.Enumeration.ProfileStatusEnum.Pending;
+        var context = CreateContext(userId, "/api/ai/generate-draft");
+        var nextCalled = false;
+        var middleware = new ActiveProfileMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeProfileRepository(pendingProfile),
+            new FakeUserRepository(),
+            CreateEnvironment());
+
+        Assert.True(nextCalled);
+        Assert.Equal(pendingProfile.Id, context.Items[ProfileContextHelper.ActiveProfileItemKey]);
+        Assert.NotEqual((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ReturnsForbidden_WhenProfileBelongsToAnotherUser()
     {
         var context = CreateContext(Guid.NewGuid());
