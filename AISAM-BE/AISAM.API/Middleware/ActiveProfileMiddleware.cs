@@ -52,7 +52,12 @@ public sealed class ActiveProfileMiddleware
         if (!Guid.TryParse(context.Request.Headers["X-Profile-Id"], out var profileId))
         {
             var userProfiles = await profileRepository.GetByUserIdAsync(userId, context.RequestAborted);
-            var profile = userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active);
+            // Workspace members may legitimately have only a legacy Pending
+            // profile. The profile is a data-owner key here, not an
+            // authentication credential, so its lifecycle status must not turn
+            // an authenticated workspace request into a 401.
+            var profile = userProfiles.FirstOrDefault(p => p.Status == ProfileStatusEnum.Active)
+                          ?? userProfiles.FirstOrDefault();
 
             if (profile == null && !userProfiles.Any())
             {
@@ -73,7 +78,7 @@ public sealed class ActiveProfileMiddleware
                 return;
             }
 
-            await WriteErrorAsync(context, HttpStatusCode.Unauthorized, "Missing or invalid X-Profile-Id header.");
+            await WriteErrorAsync(context, HttpStatusCode.BadRequest, "Missing or invalid X-Profile-Id header.");
             return;
         }
 

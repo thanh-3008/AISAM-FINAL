@@ -65,7 +65,7 @@ namespace AISAM.API.Controllers
             }
             catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<object>.CreateError(ex.Message));
+                return Unauthorized(GenericResponse<object>.CreateError(ex.Message, System.Net.HttpStatusCode.Unauthorized));
             }
             catch (Exception ex)
             {
@@ -91,7 +91,7 @@ namespace AISAM.API.Controllers
             }
             catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<object>.CreateError(ex.Message));
+                return Unauthorized(GenericResponse<object>.CreateError(ex.Message, System.Net.HttpStatusCode.Unauthorized));
             }
             catch (Exception ex)
             {
@@ -117,7 +117,7 @@ namespace AISAM.API.Controllers
             }
             catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<object>.CreateError(ex.Message));
+                return Unauthorized(GenericResponse<object>.CreateError(ex.Message, System.Net.HttpStatusCode.Unauthorized));
             }
             catch (Exception ex)
             {
