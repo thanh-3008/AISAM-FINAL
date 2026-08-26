@@ -16,6 +16,7 @@ import {
 } from "@/lib/contentConstants";
 import type { ContentItem } from "@/services/contentService";
 import type { ScheduleItem } from "@/services/scheduleService";
+import { getApprovalBrands, matchesApprovalBrand } from "@/lib/approvalBrands";
 
 type TabKey = "all" | "pending" | "approved" | "published" | "failed" | "rejected";
 type ApprovalStatus = ContentItem["status"] | "Publish Failed" | "Failed" | "Post Failed" | "PublishFailed";
@@ -603,7 +604,7 @@ export default function ApprovalsPage() {
   const filtered = sortItems(
     items
       .filter(statusFilter[tab])
-      .filter((i) => !brandFilter || i.brandName === brandFilter)
+      .filter((i) => matchesApprovalBrand(i, brandFilter))
       .filter((i) => !priorityFilter || getPriority(i).label === priorityFilter)
       .filter((i) => !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.brandName.toLowerCase().includes(search.toLowerCase())),
     sortKey, sortDir,
@@ -625,7 +626,7 @@ export default function ApprovalsPage() {
     rejected: items.filter((i) => isRejectedStatus(i.status)).length,
   };
 
-  const brands = [...new Set(items.map((i) => i.brandName))];
+  const brands = getApprovalBrands(items);
 
   const SkeletonRow = () => (
     <tr className="animate-pulse">
@@ -734,8 +735,8 @@ export default function ApprovalsPage() {
               <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
                 className="appearance-none bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-4 pr-10 py-2 text-body-sm text-on-surface focus:ring-2 focus:ring-primary/10 focus:border-primary/40 outline-none transition-all min-w-[140px]">
                 <option value="">Brand: All</option>
-                {brands.map((b) => (
-                  <option key={b} value={b}>Brand: {b}</option>
+                {brands.map((brand) => (
+                  <option key={brand.brandId} value={brand.brandId}>Brand: {brand.brandName}</option>
                 ))}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[14px]">expand_more</span>
@@ -897,7 +898,7 @@ export default function ApprovalsPage() {
                             <div className="flex items-center gap-2">
                               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: brandColor }} />
                               <div>
-                                <p className="text-body-sm font-semibold text-on-surface">{item.brandName}</p>
+                                <p className="text-body-sm font-semibold text-on-surface">{item.brandName || "Unknown brand"}</p>
                                 <p className="text-[11px] text-outline">{item.productName}</p>
                               </div>
                             </div>
