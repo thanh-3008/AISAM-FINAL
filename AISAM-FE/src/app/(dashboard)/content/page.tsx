@@ -11,6 +11,7 @@ import { apiFetch } from "@/lib/apiClient";
 import { fetchContentQuota } from "@/services/workspaceService";
 import PostNowModal from "@/components/content/PostNowModal";
 import BulkScheduleModal from "@/components/content/BulkScheduleModal";
+import { matchesApprovalBrand } from "@/lib/approvalBrands";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -46,7 +47,6 @@ export default function ContentPage() {
   const [typeFilter, setTypeFilter] = useState<ContentType | "">("");
   const [statusFilter, setStatusFilter] = useState<ContentStatus | "">("");
   const [platformFilter, setPlatformFilter] = useState<string[]>([]);
-  const [tagFilter, setTagFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
@@ -67,7 +67,7 @@ export default function ContentPage() {
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [quota, setQuota] = useState<{ promptUsage: number; promptQuotaLimit: number; postUsage: number; postQuotaLimit: number; textContentCount: number; imageContentCount: number; videoContentCount: number } | null>(null);
-  const [brandNameList, setBrandNameList] = useState<string[]>([]);
+  const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
@@ -113,7 +113,7 @@ export default function ContentPage() {
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 80);
     loadContent();
-    fetchBrands().then(list => setBrandNameList(list.map(b => b.name)));
+    fetchBrands().then(setBrandList);
     return () => clearTimeout(timer);
   }, [loadContent]);
 
@@ -123,14 +123,13 @@ export default function ContentPage() {
       const q = search.toLowerCase();
       list = list.filter((c) => c.title.toLowerCase().includes(q) || c.brandName.toLowerCase().includes(q));
     }
-    if (brandFilter) list = list.filter((c) => c.brandName === brandFilter);
+    if (brandFilter) list = list.filter((c) => matchesApprovalBrand(c, brandFilter));
     if (productFilter) list = list.filter((c) => c.productName === productFilter);
     if (typeFilter) list = list.filter((c) => c.type === typeFilter);
     if (statusFilter) list = list.filter((c) => c.status === statusFilter);
     if (platformFilter.length > 0) {
       list = list.filter((c) => platformFilter.some((p) => c.platforms.includes(p)));
     }
-    if (tagFilter) list = list.filter((c) => (c.tags ?? []).includes(tagFilter));
     if (dateFrom) list = list.filter((c) => new Date(c.createdAt) >= new Date(dateFrom));
     if (dateTo) list = list.filter((c) => new Date(c.createdAt) <= new Date(dateTo + "T23:59:59Z"));
 
@@ -182,14 +181,15 @@ export default function ContentPage() {
 
   const availableProducts = useMemo(() => {
     if (!brandFilter) return [];
-    return [...new Set(allContent.filter((c) => c.brandName === brandFilter).map((c) => c.productName))];
+    return [...new Set(allContent.filter((c) => c.brandId === brandFilter).map((c) => c.productName))];
   }, [brandFilter, allContent]);
 
-  const hasFilters = !!search || !!brandFilter || !!productFilter || !!typeFilter || !!statusFilter || platformFilter.length > 0 || !!tagFilter || !!dateFrom || !!dateTo || sortBy !== "newest";
+  const selectedBrandName = brandList.find((brand) => brand.id === brandFilter)?.name || "";
+  const hasFilters = !!search || !!brandFilter || !!productFilter || !!typeFilter || !!statusFilter || platformFilter.length > 0 || !!dateFrom || !!dateTo || sortBy !== "newest";
 
   const clearFilters = () => {
     setSearch(""); setBrandFilter(""); setProductFilter(""); setTypeFilter("");
-    setStatusFilter(""); setPlatformFilter([]); setTagFilter(""); setDateFrom(""); setDateTo(""); setSortBy("newest");
+    setStatusFilter(""); setPlatformFilter([]); setDateFrom(""); setDateTo(""); setSortBy("newest");
   };
 
   // Bulk select helpers
@@ -449,8 +449,12 @@ export default function ContentPage() {
             )}
           </div>
 
-          {/* Tags filter */}
-          <TagFilterSelect value={tagFilter} onChange={(v) => { setTagFilter(v); setPage(1); }} />
+          {/* Brand filter */}
+          <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setProductFilter(""); setPage(1); }}
+            className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[140px]">
+            <option value="">All Brands</option>
+            {brandList.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+          </select>
 
           {/* Date range */}
           <div className="flex items-center gap-1.5">
@@ -502,12 +506,11 @@ export default function ContentPage() {
         {hasFilters && (
           <div className={`flex flex-wrap items-center gap-1.5 -mt-4 ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.36s" }}>
             {search && <FilterChip label={`"${search}"`} onRemove={() => setSearch("")} />}
-            {brandFilter && <FilterChip label={brandFilter} color="blue" onRemove={() => { setBrandFilter(""); setProductFilter(""); }} />}
+            {brandFilter && <FilterChip label={selectedBrandName || "Brand"} color="blue" onRemove={() => { setBrandFilter(""); setProductFilter(""); }} />}
             {productFilter && <FilterChip label={productFilter} color="purple" onRemove={() => setProductFilter("")} />}
             {typeFilter && <FilterChip label={getTypeConfig(typeFilter).label} color="amber" onRemove={() => setTypeFilter("")} />}
             {statusFilter && <FilterChip label={statusFilter} color="rose" onRemove={() => setStatusFilter("")} />}
             {platformFilter.map((p) => <FilterChip key={p} label={p} color="indigo" onRemove={() => { setPlatformFilter((prev) => prev.filter((x) => x !== p)); }} />)}
-            {tagFilter && <FilterChip label={tagFilter} onRemove={() => setTagFilter("")} />}
             {dateFrom && <FilterChip label={`From ${dateFrom}`} onRemove={() => setDateFrom("")} />}
             {dateTo && <FilterChip label={`To ${dateTo}`} onRemove={() => setDateTo("")} />}
             {sortBy !== "newest" && <FilterChip label={SORT_OPTIONS.find((s) => s.value === sortBy)?.label || ""} color="indigo" onRemove={() => setSortBy("newest")} />}
@@ -988,20 +991,6 @@ function FilterChip({ label, color, onRemove }: { label: string; color?: string;
       {label}
       <button onClick={onRemove} className="hover:opacity-60 active:scale-[0.97]"><span className="material-symbols-outlined text-label-xs">close</span></button>
     </span>
-  );
-}
-
-import { fetchTags } from "@/services/tagService";
-
-function TagFilterSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [tags, setTags] = useState<string[]>([]);
-  useEffect(() => { fetchTags().then(setTags); }, []);
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-2.5 px-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all shadow-sm min-w-[100px]">
-      <option value="">Tags</option>
-      {tags.map((t) => <option key={t} value={t}>{t}</option>)}
-    </select>
   );
 }
 
