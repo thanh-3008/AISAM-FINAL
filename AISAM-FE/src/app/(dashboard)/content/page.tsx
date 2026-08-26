@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon, isFailedOrRejectedStatus } from "@/lib/contentConstants";
+import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon, isRejectedContentStatus, isFailedContentStatus } from "@/lib/contentConstants";
 import { fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
@@ -176,7 +176,8 @@ export default function ContentPage() {
     scheduled: scheduledCount,
     draft: allContent.filter((c) => c.status === "Draft").length,
     pendingApproval: allContent.filter((c) => c.status === "Awaiting Approval").length,
-    failed: allContent.filter((c) => isFailedOrRejectedStatus(c.status)).length,
+    rejected: allContent.filter((c) => isRejectedContentStatus(c.status)).length,
+    failed: allContent.filter((c) => isFailedContentStatus(c.status)).length,
   }), [allContent, scheduledCount]);
 
   const availableProducts = useMemo(() => {
@@ -293,12 +294,12 @@ export default function ContentPage() {
   // Edit save
   const [editingSaving, setEditingSaving] = useState(false);
   const submitContent = async (item: ContentItem) => {
-    const success = await submitForApproval(item.id);
-    if (success) {
+    const result = await submitForApproval(item.id);
+    if (result.success) {
       addToast(`"${item.title}" submitted for approval`, "check_circle");
       loadContent();
     } else {
-      addToast(`Failed to submit "${item.title}"`, "error");
+      addToast(result.error || `Failed to submit "${item.title}"`, "error");
     }
   };
 
@@ -788,6 +789,7 @@ export default function ContentPage() {
                     { label: "Draft", value: stats.draft, icon: "edit_note", color: "text-slate-500", bg: "bg-slate-500/10", status: "Draft" as ContentStatus },
                     { label: "Scheduled", value: stats.scheduled, icon: "schedule", color: "text-blue-500", bg: "bg-blue-500/10", status: "Scheduled" as ContentStatus },
                     { label: "Published", value: stats.published, icon: "check_circle", color: "text-emerald-500", bg: "bg-emerald-500/10", status: "Published" as ContentStatus },
+                    { label: "Rejected", value: stats.rejected, icon: "block", color: "text-rose-600", bg: "bg-rose-500/10", status: "Rejected" as ContentStatus },
                     { label: "Failed", value: stats.failed, icon: "error", color: "text-danger-red", bg: "bg-danger-red/10", status: "Failed" as ContentStatus },
                   ].map((f) => (
                     <button

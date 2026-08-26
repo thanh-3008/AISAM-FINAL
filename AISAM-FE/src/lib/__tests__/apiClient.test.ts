@@ -63,6 +63,30 @@ describe("apiClient", () => {
     await expect(apiClient("/test")).rejects.toThrow("Chưa chọn Workspace. Vào Overview để chọn workspace.");
   });
 
+  it("keeps the authenticated session intact on 403 permission errors", async () => {
+    (auth.getToken as Mock).mockReturnValue("valid-token");
+    (global.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      url: "http://localhost:5027/api/content",
+      text: async () => JSON.stringify({
+        message: "Authentication is required.",
+        error: { errorCode: "WORKSPACE_PERMISSION_DENIED", errorMessage: "Authentication is required." },
+      }),
+    });
+
+    const request = apiClient("/content", { method: "POST" });
+
+    await expect(request).rejects.toMatchObject({
+      message: "Authentication is required.",
+      status: 403,
+    });
+    expect(auth.refreshAccessToken).not.toHaveBeenCalled();
+    expect(auth.removeToken).not.toHaveBeenCalled();
+    expect(auth.removeRefreshToken).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("retries with refresh token on 401 if not login/refresh endpoint", async () => {
     (auth.getToken as Mock).mockReturnValue("old-token");
     

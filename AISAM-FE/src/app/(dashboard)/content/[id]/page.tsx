@@ -125,9 +125,9 @@ export default function ContentDetailPage() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    const success = await submitForApproval(params.id as string);
+    const result = await submitForApproval(params.id as string);
     setIsSubmitting(false);
-    if (success) {
+    if (result.success) {
       setToast({ message: "Content submitted for approval successfully.", type: "success" });
       if (item) {
         const updatedItem = { ...item, status: "Awaiting Approval" as ContentStatus };
@@ -136,7 +136,7 @@ export default function ContentDetailPage() {
         setForm(prev => ({ ...prev, status: "Awaiting Approval" }));
       }
     } else {
-      setToast({ message: "Failed to submit content.", type: "error" });
+      setToast({ message: result.error || "Failed to submit content.", type: "error" });
     }
   };
 

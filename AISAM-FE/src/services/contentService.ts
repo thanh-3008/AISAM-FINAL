@@ -144,6 +144,10 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   7: "Failed",
 };
 
+export function mapContentApiStatus(status: ContentApiStatus): ContentStatus {
+  return API_STATUS_TO_STATUS[status] || "Draft";
+}
+
 const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
   "Draft": 0,
   "Awaiting Approval": 1,
@@ -198,7 +202,7 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     brandName: api.brandName || "",
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
-    status: API_STATUS_TO_STATUS[api.status] || "Draft",
+    status: mapContentApiStatus(api.status),
     thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
@@ -219,7 +223,7 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     brandName: api.brandName || "",
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
-    status: API_STATUS_TO_STATUS[api.status] || "Draft",
+    status: mapContentApiStatus(api.status),
     thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
@@ -317,12 +321,15 @@ export async function updateContent(id: string, data: UpdateContentPayload): Pro
   }
 }
 
-export async function submitForApproval(id: string): Promise<boolean> {
+export async function submitForApproval(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const res: GenericResponse<null> = await apiClient(`/content/${id}/submit`, { method: "POST" });
-    return res?.success === true;
-  } catch {
-    return false;
+    return { success: res?.success === true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to submit content.",
+    };
   }
 }
 
