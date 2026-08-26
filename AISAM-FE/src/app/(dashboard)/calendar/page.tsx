@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
@@ -16,6 +16,7 @@ import { fetchBrands } from "@/services/brandService";
 import { fetchSocialIntegrations, type SocialIntegration } from "@/services/socialAccountService";
 import { PLATFORM_CONFIG, PlatformIcon, getTypeStyle, getTypeConfig, getBrandColor, type ContentType } from "@/lib/contentConstants";
 import type { ContentItem } from "@/services/contentService";
+import { withoutCalendarContentPrefill } from "@/lib/calendarUrl";
 
 type ViewMode = "month" | "week" | "list";
 
@@ -144,7 +145,9 @@ function CalendarContent() {
   });
 
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const openedPrefillContentIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -190,17 +193,33 @@ function CalendarContent() {
 
   useEffect(() => {
     const contentId = searchParams.get("contentId");
+    if (!contentId) {
+      openedPrefillContentIdRef.current = null;
+      return;
+    }
+    if (openedPrefillContentIdRef.current === contentId) return;
+
     if (contentId && contents.length > 0) {
       const match = contents.find((c) => c.id === contentId);
       if (match) {
         const now = new Date();
         const date = now.toISOString().slice(0, 10);
         const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        openedPrefillContentIdRef.current = contentId;
         setForm({ contentId, integrationId: "", date, time });
         setShowCreate(true);
       }
     }
   }, [searchParams, contents]);
+
+  const closeCreateModal = () => {
+    setShowCreate(false);
+    const contentId = searchParams.get("contentId");
+    if (contentId) {
+      openedPrefillContentIdRef.current = contentId;
+      router.replace(withoutCalendarContentPrefill(pathname, searchParams.toString()), { scroll: false });
+    }
+  };
 
   const handlePrev = () => {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
@@ -262,7 +281,7 @@ function CalendarContent() {
 
       if (failed.length === 0) {
         setCreateIntegrationIds([]);
-        setShowCreate(false);
+        closeCreateModal();
         setForm({ contentId: "", integrationId: "", date: "", time: "" });
       } else {
         const failedIntegrationIds = new Set(failed.map((item) => item.integrationId));
@@ -862,8 +881,8 @@ function CalendarContent() {
         {/* ── Create Schedule Modal ── */}
         {showCreate && (
           <>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setShowCreate(false)} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={closeCreateModal} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeCreateModal}>
               <div className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
@@ -938,7 +957,7 @@ function CalendarContent() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-6">
-                  <button onClick={() => setShowCreate(false)}
+                  <button onClick={closeCreateModal}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface transition-all">Cancel</button>
                   <button onClick={handleCreate} disabled={!form.contentId || createIntegrationIds.length === 0 || !form.date || !form.time || actionId === "create"}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-50 shadow-sm">
