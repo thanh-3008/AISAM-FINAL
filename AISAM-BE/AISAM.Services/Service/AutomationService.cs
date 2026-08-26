@@ -83,7 +83,7 @@ public sealed class AutomationService : IAutomationService
                     Cta = NullIfEmpty(row.Cta),
                     Notes = NullIfEmpty(row.Notes),
                     ScheduledAt = NormalizeUtc(row.ScheduledAt),
-                    EstimatedCredits = EstimateCredits(type),
+                    EstimatedCredits = EstimateCredits(type, platform),
                     Status = errors.Count == 0 ? AutomationItemStatusEnum.Pending : AutomationItemStatusEnum.NeedsAttention,
                     ValidationErrors = errors.Count == 0 ? null : JsonSerializer.Serialize(errors),
                     SourceJson = JsonSerializer.Serialize(row)
@@ -322,7 +322,7 @@ public sealed class AutomationService : IAutomationService
         item.IdempotencyKey = CreateIdempotencyKey(plan.Id, item.RowIndex, platform); item.RequestedContentType = contentType;
         item.Objective = NullIfEmpty(request.Objective); item.Tone = NullIfEmpty(request.Tone); item.Cta = NullIfEmpty(request.Cta);
         item.Notes = NullIfEmpty(request.Notes); item.ScheduledAt = NormalizeUtc(request.ScheduledAt);
-        item.EstimatedCredits = EstimateCredits(contentType); item.ValidationErrors = errors.Count == 0 ? null : JsonSerializer.Serialize(errors);
+        item.EstimatedCredits = EstimateCredits(contentType, platform); item.ValidationErrors = errors.Count == 0 ? null : JsonSerializer.Serialize(errors);
         item.Status = errors.Count == 0 ? AutomationItemStatusEnum.Pending : AutomationItemStatusEnum.NeedsAttention;
         item.SourceJson = JsonSerializer.Serialize(validationRow); item.LastError = null; item.UpdatedAt = DateTime.UtcNow;
         plan.ValidItems = plan.Items.Count(value => value.Status == AutomationItemStatusEnum.Pending);
@@ -393,7 +393,13 @@ public sealed class AutomationService : IAutomationService
 
     private static string CreateIdempotencyKey(Guid planId, int rowIndex, string platform)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{planId:N}:{rowIndex}:{platform.ToLowerInvariant()}"))).ToLowerInvariant();
-    private static int EstimateCredits(AutomationContentTypeEnum type) => type switch { AutomationContentTypeEnum.Image => 6, AutomationContentTypeEnum.Video => 21, AutomationContentTypeEnum.Auto => 21, _ => 1 };
+    private static int EstimateCredits(AutomationContentTypeEnum type, string platform) => type switch
+    {
+        AutomationContentTypeEnum.Image => 11,
+        AutomationContentTypeEnum.Video => 101,
+        AutomationContentTypeEnum.Auto => platform.Equals("tiktok", StringComparison.OrdinalIgnoreCase) ? 101 : 11,
+        _ => 1
+    };
     private static string NormalizePlatform(string value) => value.Trim().ToLowerInvariant() switch { "fb" => "facebook", "ig" => "instagram", "tik tok" => "tiktok", var normalized => normalized };
     private static DateTime NormalizeUtc(DateTime value) => value.Kind switch { DateTimeKind.Utc => value, DateTimeKind.Local => value.ToUniversalTime(), _ => DateTime.SpecifyKind(value, DateTimeKind.Local).ToUniversalTime() };
     private static bool TryParseContentType(string? value, out AutomationContentTypeEnum type) => Enum.TryParse(value?.Trim(), true, out type);
