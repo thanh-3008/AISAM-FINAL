@@ -46,6 +46,7 @@ public class RemainingWorkspaceOwnershipTests
         var socialAccounts = await new SocialAccountRepository(context).GetByWorkspaceIdAsync(first);
 
         Assert.All(contents.Data, item => Assert.Equal(first, item.WorkspaceId));
+        Assert.Equal("First brand", Assert.Single(contents.Data).BrandName);
         Assert.All(posts.Data, item => Assert.Equal(first, item.Content.WorkspaceId));
         Assert.All(schedules.Data, item => Assert.Equal(first, item.WorkspaceId));
         Assert.All(conversations.Data, item => Assert.Equal(first, item.WorkspaceId));

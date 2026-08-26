@@ -7,6 +7,7 @@ public sealed class ContentListDto
     public Guid Id { get; set; }
     public Guid ProfileId { get; set; }
     public Guid BrandId { get; set; }
+    public string? BrandName { get; set; }
     public Guid WorkspaceId { get; set; }
     public AdTypeEnum AdType { get; set; }
     public string? Title { get; set; }
