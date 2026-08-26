@@ -71,7 +71,9 @@ export const removeStoredUser = () => {
   }
 };
 
-export async function refreshAccessToken(): Promise<string | null> {
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function performRefreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
@@ -100,6 +102,20 @@ export async function refreshAccessToken(): Promise<string | null> {
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  // Refresh tokens are rotated by the backend. All concurrent API requests
+  // must share one refresh operation; otherwise the second request reuses the
+  // just-revoked token and the backend revokes every session for the user.
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = performRefreshAccessToken();
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
   }
 }
 

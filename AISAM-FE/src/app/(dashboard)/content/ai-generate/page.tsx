@@ -511,14 +511,14 @@ export default function AIGeneratePage() {
   const handleSubmitForApproval = async () => {
     if (!generatedId) return;
     setIsSubmitting(true);
-    const success = await submitForApproval(generatedId);
+    const result = await submitForApproval(generatedId);
     setIsSubmitting(false);
-    if (success) {
+    if (result.success) {
       addToast("Post submitted for approval successfully!", "check");
       setJustGenerated(false); // Hide the button after submit
       unsavedGeneratedIdsRef.current.delete(generatedId);
     } else {
-      addToast("Failed to submit for approval.", "error");
+      addToast(result.error || "Failed to submit for approval.", "error");
     }
   };
 

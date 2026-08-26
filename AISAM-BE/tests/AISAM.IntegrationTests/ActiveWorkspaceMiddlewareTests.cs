@@ -199,6 +199,91 @@ public class ActiveWorkspaceMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_AllowsViewerToReadContent()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        var context = CreateContext(userId, "/api/content");
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Theory]
+    [InlineData("/api/content", "POST")]
+    [InlineData("/api/content/11111111-1111-1111-1111-111111111111", "PUT")]
+    [InlineData("/api/content/11111111-1111-1111-1111-111111111111/submit", "POST")]
+    public async Task InvokeAsync_ReturnsForbidden_WhenViewerWritesContent(string path, string method)
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Viewer);
+        var context = CreateContext(userId, path);
+        context.Request.Method = method;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.False(nextCalled);
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceMemberRoleEnum.ContentCreator, "/api/content")]
+    [InlineData(WorkspaceMemberRoleEnum.ContentCreator, "/api/content/11111111-1111-1111-1111-111111111111/submit")]
+    [InlineData(WorkspaceMemberRoleEnum.Manager, "/api/content")]
+    [InlineData(WorkspaceMemberRoleEnum.Manager, "/api/content/11111111-1111-1111-1111-111111111111/submit")]
+    [InlineData(WorkspaceMemberRoleEnum.Owner, "/api/content")]
+    [InlineData(WorkspaceMemberRoleEnum.Owner, "/api/content/11111111-1111-1111-1111-111111111111/submit")]
+    public async Task InvokeAsync_AllowsContentWritersToCreateAndSubmit(
+        WorkspaceMemberRoleEnum role,
+        string path)
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, role);
+        var context = CreateContext(userId, path);
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReturnsUnauthorized_WhenProtectedRequestIsUnauthenticated()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/content";
+        context.Request.Method = HttpMethods.Post;
+        var middleware = new ActiveWorkspaceMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(), new FakeSubscriptionRepository());
+
+        Assert.Equal((int)HttpStatusCode.Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ReturnsForbidden_WhenFreePlanSchedulesContent()
     {
         var userId = Guid.NewGuid();

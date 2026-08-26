@@ -3,8 +3,12 @@ import { useId } from "react";
 export type ContentType = "IMAGE" | "TEXT" | "VIDEO";
 export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled" | "Failed";
 
-export function isFailedOrRejectedStatus(status: string): boolean {
-  return status === "Failed" || status === "Rejected";
+export function isRejectedContentStatus(status: string): boolean {
+  return status === "Rejected";
+}
+
+export function isFailedContentStatus(status: string): boolean {
+  return status === "Failed";
 }
 
 export const PLATFORM_CONFIG: Record<string, { color: string; icon: string; label: string }> = {

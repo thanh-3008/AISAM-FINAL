@@ -117,7 +117,10 @@ async function handleResponse(response: Response) {
       }
     }
 
-    if ((response.status === 401 || errorMessage === "Authentication is required.") && !isPublicAuthEndpoint(responsePath(response))) {
+    // Authentication state is determined by the HTTP status, not by an error
+    // message. A 403 response must never clear a valid session, even if an
+    // upstream service happens to use authentication-related wording.
+    if (response.status === 401 && !isPublicAuthEndpoint(responsePath(response))) {
       const isLoginRequest = response.url.includes("/auth/login");
       if (!isLoginRequest) {
         removeToken();

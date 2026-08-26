@@ -9,6 +9,7 @@ import {
   setStoredUser,
   getStoredUser,
   removeStoredUser,
+  refreshAccessToken,
   isAdmin
 } from "../auth";
 
@@ -47,6 +48,34 @@ describe("auth utils", () => {
       setRefreshToken("refresh-test");
       removeRefreshToken();
       expect(getRefreshToken()).toBeNull();
+    });
+
+    it("shares one rotating refresh request across concurrent callers", async () => {
+      setRefreshToken("refresh-old");
+      let resolveFetch!: (response: unknown) => void;
+      global.fetch = vi.fn(() => new Promise((resolve) => {
+        resolveFetch = resolve;
+      })) as unknown as typeof fetch;
+
+      const first = refreshAccessToken();
+      const second = refreshAccessToken();
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      resolveFetch({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: {
+            accessToken: "access-new",
+            refreshToken: "refresh-new",
+          },
+        }),
+      });
+
+      await expect(Promise.all([first, second])).resolves.toEqual(["access-new", "access-new"]);
+      expect(getToken()).toBe("access-new");
+      expect(getRefreshToken()).toBe("refresh-new");
     });
   });
 
