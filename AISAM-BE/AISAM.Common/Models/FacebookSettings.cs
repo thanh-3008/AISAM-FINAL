@@ -8,6 +8,9 @@ public sealed class FacebookSettings
     public string GraphApiVersion { get; set; } = "v25.0";
     public string BaseUrl { get; set; } = "https://graph.facebook.com";
     public string OAuthUrl { get; set; } = "https://www.facebook.com";
+    public bool AllowDevelopmentModeAdCreation { get; set; }
+    public bool ForceLandingPageCreatives { get; set; }
+    public List<string> SandboxAdAccountIds { get; set; } = new();
     public List<string> RequiredPermissions { get; set; } = new()
     {
         "pages_manage_posts",
