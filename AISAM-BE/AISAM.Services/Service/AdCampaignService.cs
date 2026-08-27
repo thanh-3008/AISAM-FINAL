@@ -7,6 +7,7 @@ using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services.Exceptions;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -1073,6 +1074,13 @@ namespace AISAM.Services.Service
                         await _campaignRepository.AddAdCreativeAsync(creative, cancellationToken);
                         _logger.LogInformation("Deploy: Creative {FbId} for '{Name}' created", fbCreativeId, adSet.Name);
                     }
+                    catch (DevelopmentModeException)
+                    {
+                        campaign.DeploymentStatus = DeploymentStatusEnum.Failed;
+                        campaign.DeploymentMessage = "Meta app đang ở chế độ Development. Vui lòng chuyển sang Live mode tại https://developers.facebook.com/apps/ rồi deploy lại.";
+                        await _campaignRepository.UpdateAsync(campaign, cancellationToken);
+                        return;
+                    }
                     catch (Exception ex)
                     {
                         throw new InvalidOperationException($"Create Creative for '{adSet.Name}' failed: {ex.Message}", ex);
@@ -1144,6 +1152,10 @@ namespace AISAM.Services.Service
                     message, linkUrl, imageUrl, null,
                     instagramMediaId, instagramActorId, objectStoryId, cancellationToken);
             }
+            catch (DevelopmentModeException)
+            {
+                throw;
+            }
             catch (InvalidOperationException ex) when (ShouldFallbackFromExistingFacebookPost(campaign.Platform, objectStoryId, ex))
             {
                 _logger.LogWarning(
@@ -1152,13 +1164,20 @@ namespace AISAM.Services.Service
                     objectStoryId,
                     campaign.Id);
 
-                return await provider.CreateAdCreativeAsync(
-                    campaign.AdAccountId, account.AccessToken, pageId,
-                    message, linkUrl, imageUrl, null,
-                    instagramMediaId: null,
-                    instagramActorId: null,
-                    objectStoryId: null,
-                    cancellationToken);
+                try
+                {
+                    return await provider.CreateAdCreativeAsync(
+                        campaign.AdAccountId, account.AccessToken, pageId,
+                        message, linkUrl, imageUrl, null,
+                        instagramMediaId: null,
+                        instagramActorId: null,
+                        objectStoryId: null,
+                        cancellationToken);
+                }
+                catch (DevelopmentModeException)
+                {
+                    throw;
+                }
             }
         }
 
