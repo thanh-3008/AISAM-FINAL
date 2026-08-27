@@ -158,6 +158,12 @@ public class PhaseEQuotaIntegrationTests
         public Task<AiGeneration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult(StoredGenerations.GetValueOrDefault(id));
 
+        public Task<AiGeneration?> GetActiveVideoByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.FromResult(StoredGenerations.Values
+                .Where(g => g.ContentId == contentId && g.Status == AiStatusEnum.Processing && !string.IsNullOrWhiteSpace(g.VideoJobId))
+                .OrderByDescending(g => g.CreatedAt)
+                .FirstOrDefault());
+
         public Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
             => Task.FromResult<IEnumerable<AiGenerationListDto>>(StoredGenerations.Values.Where(g => g.ContentId == contentId).Select(g => new AiGenerationListDto { Id = g.Id, ContentId = g.ContentId, GeneratedText = g.GeneratedText, Status = g.Status, ErrorMessage = g.ErrorMessage }).ToList());
 

@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Net;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using AISAM.Common.Models;
 using AISAM.Services.IServices;
@@ -9,6 +11,7 @@ namespace AISAM.Services.Service;
 
 public sealed class DeApiVideoClient
 {
+    private static readonly ConcurrentDictionary<string, DateTimeOffset> PollBackoffUntil = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient;
     private readonly VideoProviderSettings _settings;
     private readonly ILogger<DeApiVideoClient> _logger;
@@ -28,8 +31,10 @@ public sealed class DeApiVideoClient
         if (string.IsNullOrWhiteSpace(_settings.DeApiApiKey))
             return VideoGenerationResult.Fail("DeAPI API Key is missing.", "DeAPI");
 
-        var baseUrl = _settings.DeApiBaseUrl ?? "https://api.deapi.ai/api/v1";
         bool isImg2Video = !string.IsNullOrWhiteSpace(options?.FirstFrameImageUrl);
+        var apiRoot = GetApiRoot(isImg2Video
+            ? _settings.DeApiImg2VideoBaseUrl ?? _settings.DeApiBaseUrl
+            : _settings.DeApiBaseUrl);
 
         // Default for backward-compatibility if not provided
         var primaryModel = _settings.DeApiModel ?? "Ltx2_3_22B_Dist_INT8";
@@ -73,11 +78,10 @@ public sealed class DeApiVideoClient
                 int fps = 24;
                 HttpContent requestContent;
 
-                // LTX implementation (v1)
-                var endpoint = isImg2Video ? "/client/img2video" : "/client/txt2video";
-                url = baseUrl.EndsWith("/client/img2video") || baseUrl.EndsWith("/client/txt2video")
-                    ? baseUrl.Replace("/client/img2video", endpoint).Replace("/client/txt2video", endpoint)
-                    : $"{baseUrl.TrimEnd('/')}{endpoint}";
+                // DeAPI v2 request IDs must be created by a v2 endpoint before they
+                // can be queried through GET /api/v2/jobs/{request_id}.
+                var endpoint = isImg2Video ? "videos/animations" : "videos/generations";
+                url = $"{apiRoot}/api/v2/{endpoint}";
 
                 reqW = 576; reqH = 1024;
                 var ratio = options?.AspectRatio ?? "9:16";
@@ -103,6 +107,11 @@ public sealed class DeApiVideoClient
                     form.Add(new StringContent(reqW.ToString()), "width");
                     form.Add(new StringContent(reqH.ToString()), "height");
                     form.Add(new StringContent(fps.ToString()), "fps");
+                    if (IsLtx23Model(m.Model))
+                    {
+                        form.Add(new StringContent("8"), "steps");
+                        form.Add(new StringContent(1.0.ToString(System.Globalization.CultureInfo.InvariantCulture)), "guidance");
+                    }
                     form.Add(new StringContent(Random.Shared.Next(1, int.MaxValue).ToString()), "seed");
                     form.Add(new StringContent(m.Model), "model");
 
@@ -113,16 +122,21 @@ public sealed class DeApiVideoClient
                 }
                 else
                 {
-                    var payload = new
+                    var payload = new Dictionary<string, object?>
                     {
-                        prompt = prompt ?? "",
-                        frames = reqFrames,
-                        width = reqW,
-                        height = reqH,
-                        fps = fps,
-                        seed = Random.Shared.Next(1, int.MaxValue),
-                        model = m.Model
+                        ["prompt"] = prompt ?? "",
+                        ["frames"] = reqFrames,
+                        ["width"] = reqW,
+                        ["height"] = reqH,
+                        ["fps"] = fps,
+                        ["seed"] = Random.Shared.Next(1, int.MaxValue),
+                        ["model"] = m.Model
                     };
+                    if (IsLtx23Model(m.Model))
+                    {
+                        payload["steps"] = 8;
+                        payload["guidance"] = 1.0;
+                    }
                     requestContent = JsonContent.Create(payload);
                 }
 
@@ -132,7 +146,10 @@ public sealed class DeApiVideoClient
                 request.Content = requestContent;
 
 
-                _logger.LogInformation("[DeAPI.Start] Sending POST to {Url} with model {Model}", url, m.Model);
+                _logger.LogInformation(
+                    "[DeAPI.Start] Event={Event} CorrelationId={CorrelationId} ContentId={ContentId} AiGenerationId={AiGenerationId} UserId={UserId} Endpoint={Endpoint} RequestType={RequestType} Model={Model}",
+                    "video.provider.create", options?.CorrelationId, options?.ContentId, options?.AiGenerationId, options?.UserId,
+                    url, isImg2Video ? "image-to-video" : "text-to-video", m.Model);
                 
                 response = await _httpClient.SendAsync(request, cancellationToken);
                 _logger.LogInformation("[DeAPI.Start] HTTP Status: {Status} for model {Model}", (int)response.StatusCode, m.Model);
@@ -147,8 +164,13 @@ public sealed class DeApiVideoClient
                 
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    _logger.LogWarning("[DeAPI.Start] Rate limited (429) for model {Model}. Skipping fallback.", m.Model);
-                    return VideoGenerationResult.Fail($"HTTP 429: {errorBody}", "DeAPI");
+                    var retryAfter = GetRetryAfter(response);
+                    _logger.LogWarning(
+                        "[DeAPI.Start] Event={Event} CorrelationId={CorrelationId} HttpStatus=429 RetryAfterSeconds={RetryAfterSeconds}",
+                        "video.provider.rate_limited", options?.CorrelationId, retryAfter.TotalSeconds);
+                    return VideoGenerationResult.Fail(
+                        $"DeAPI rate limit reached. Retry after {Math.Ceiling(retryAfter.TotalSeconds)} seconds.",
+                        "DeAPI");
                 }
                 
                 // Keep trying the next model if it failed...
@@ -227,12 +249,26 @@ public sealed class DeApiVideoClient
     public async Task<VideoGenerationResult> PollAsync(string id, CancellationToken cancellationToken)
     {
         // DeAPI v2 polling endpoint: GET /api/v2/jobs/{request_id}
-        var taskId = id.Replace("deapi:", "");
+        var taskId = id.StartsWith("deapi:", StringComparison.OrdinalIgnoreCase)
+            ? id["deapi:".Length..]
+            : id;
         
-        // Dùng base URL gốc (api.deapi.ai) nhưng dùng endpoint v2
-        var requestUrl = $"https://api.deapi.ai/api/v2/jobs/{taskId}";
+        var requestUrl = $"{GetApiRoot(_settings.DeApiBaseUrl)}/api/v2/jobs/{Uri.EscapeDataString(taskId)}";
         try
         {
+            if (PollBackoffUntil.TryGetValue(taskId, out var backoffUntil))
+            {
+                if (backoffUntil > DateTimeOffset.UtcNow)
+                {
+                    _logger.LogInformation(
+                        "[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} RetryAt={RetryAt}",
+                        "video.provider.poll_deferred", $"deapi:{taskId}", backoffUntil);
+                    return VideoGenerationResult.InProgress($"deapi:{taskId}", "DeAPI");
+                }
+
+                PollBackoffUntil.TryRemove(taskId, out _);
+            }
+
             var keysToTry = new List<string> { _settings.DeApiApiKey };
         if (!string.IsNullOrWhiteSpace(_settings.DeApiApiKeyFallback) && _settings.DeApiApiKeyFallback != _settings.DeApiApiKey)
         {
@@ -240,6 +276,7 @@ public sealed class DeApiVideoClient
         }
 
         HttpResponseMessage? response = null;
+        HttpResponseMessage? rateLimitedResponse = null;
         string json = "";
 
         foreach (var key in keysToTry)
@@ -248,31 +285,50 @@ public sealed class DeApiVideoClient
             request.Headers.Add("Authorization", $"Bearer {key}");
             request.Headers.Add("Accept", "application/json");
 
-            _logger.LogInformation("[DeAPI.Poll] Polling task: GET {Url} with key ending in {Key}", requestUrl, key.Length > 4 ? key[^4..] : "***");
+            _logger.LogInformation("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} Endpoint={Endpoint}",
+                "video.provider.poll", $"deapi:{taskId}", requestUrl);
 
             response = await _httpClient.SendAsync(request, cancellationToken);
             json = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogInformation("[DeAPI.Poll] HTTP Status: {Status}, Body: {Body}", (int)response.StatusCode, json.Length > 500 ? json[..500] + "..." : json);
+            _logger.LogInformation("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} HttpStatus={HttpStatus} ResponseLength={ResponseLength}",
+                "video.provider.poll_response", $"deapi:{taskId}", (int)response.StatusCode, json.Length);
 
             if (response.IsSuccessStatusCode)
             {
                 break; // Found it!
             }
+
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                rateLimitedResponse = response;
             
             // If 404 or unauthorized, it might be on the other account. Loop to the next key.
         }
 
         if (response == null || !response.IsSuccessStatusCode)
         {
-            if (response?.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            if (rateLimitedResponse != null)
             {
-                _logger.LogWarning("[DeAPI.Poll] Rate limited (429). Will retry next polling cycle.");
+                var retryAfter = GetRetryAfter(rateLimitedResponse);
+                PollBackoffUntil[taskId] = DateTimeOffset.UtcNow.Add(retryAfter);
+                _logger.LogWarning("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} HttpStatus=429 RetryAfterSeconds={RetryAfterSeconds}",
+                    "video.provider.rate_limited", $"deapi:{taskId}", retryAfter.TotalSeconds);
                 return VideoGenerationResult.InProgress($"deapi:{taskId}", "DeAPI");
+            }
+
+            if (response?.StatusCode == HttpStatusCode.NotFound)
+            {
+                PollBackoffUntil.TryRemove(taskId, out _);
+                _logger.LogWarning("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} HttpStatus=404 Error={Error}",
+                    "video.provider.job_not_found", $"deapi:{taskId}", Truncate(error: json, 500));
+                return VideoGenerationResult.Fail(
+                    $"DeAPI job '{taskId}' was not found. The remote job is invalid, expired, or was created through an incompatible endpoint.",
+                    "DeAPI");
             }
             
             return VideoGenerationResult.Fail($"HTTP {(int?)response?.StatusCode}: {json}", "DeAPI");
         }
 
+            PollBackoffUntil.TryRemove(taskId, out _);
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
             
@@ -327,6 +383,37 @@ public sealed class DeApiVideoClient
             return VideoGenerationResult.Fail(ex.Message, "DeAPI");
         }
     }
+
+    internal static string GetApiRoot(string? configuredBaseUrl)
+    {
+        var configured = string.IsNullOrWhiteSpace(configuredBaseUrl)
+            ? "https://api.deapi.ai"
+            : configuredBaseUrl.Trim();
+
+        if (!Uri.TryCreate(configured, UriKind.Absolute, out var uri))
+            return "https://api.deapi.ai";
+
+        return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+    }
+
+    private static TimeSpan GetRetryAfter(HttpResponseMessage response)
+    {
+        var delta = response.Headers.RetryAfter?.Delta;
+        if (delta.HasValue && delta.Value > TimeSpan.Zero)
+            return delta.Value;
+
+        var date = response.Headers.RetryAfter?.Date;
+        if (date.HasValue && date.Value > DateTimeOffset.UtcNow)
+            return date.Value - DateTimeOffset.UtcNow;
+
+        return TimeSpan.FromSeconds(60);
+    }
+
+    private static bool IsLtx23Model(string model) =>
+        model.Equals("Ltx2_3_22B_Dist_INT8", StringComparison.OrdinalIgnoreCase);
+
+    private static string Truncate(string error, int maxLength) =>
+        error.Length <= maxLength ? error : error[..maxLength] + "...";
 
     private static readonly string[] KnownUrlKeys =
     {

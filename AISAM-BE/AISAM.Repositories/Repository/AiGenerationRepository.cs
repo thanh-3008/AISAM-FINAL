@@ -1,5 +1,6 @@
 using AISAM.Common.Dtos.Response;
 using AISAM.Data.Model;
+using AISAM.Data.Enumeration;
 using AISAM.Repositories.IRepositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,18 @@ public sealed class AiGenerationRepository : IAiGenerationRepository
         return await _context.AiGenerations
             .Include(generation => generation.Content)
             .FirstOrDefaultAsync(generation => generation.Id == id && !generation.IsDeleted, cancellationToken);
+    }
+
+    public async Task<AiGeneration?> GetActiveVideoByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+    {
+        return await _context.AiGenerations
+            .Include(generation => generation.Content)
+            .Where(generation => generation.ContentId == contentId &&
+                                 generation.Status == AiStatusEnum.Processing &&
+                                 !generation.IsDeleted &&
+                                 !string.IsNullOrWhiteSpace(generation.VideoJobId))
+            .OrderByDescending(generation => generation.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)

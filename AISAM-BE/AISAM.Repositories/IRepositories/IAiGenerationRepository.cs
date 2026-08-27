@@ -6,6 +6,7 @@ namespace AISAM.Repositories.IRepositories;
 public interface IAiGenerationRepository
 {
     Task<AiGeneration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<AiGeneration?> GetActiveVideoByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default);
     Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default);
     Task<AiGeneration> AddAsync(AiGeneration generation, CancellationToken cancellationToken = default);
     Task UpdateAsync(AiGeneration generation, CancellationToken cancellationToken = default);

@@ -5,6 +5,10 @@ public class VideoGenerationOptions
     public int DurationSeconds { get; set; } = 4;
     public string AspectRatio { get; set; } = "9:16";
     public string? FirstFrameImageUrl { get; set; }
+    public string? CorrelationId { get; set; }
+    public Guid? ContentId { get; set; }
+    public Guid? AiGenerationId { get; set; }
+    public Guid? UserId { get; set; }
 }
 
 public enum VideoGenerationStatus

@@ -33,6 +33,7 @@ public sealed class AIService : IAIService
     private const long TextGenerationCredits = 1;
     private const long ImageGenerationCredits = 10;
     private const long VideoGenerationCredits = 100;
+    private static readonly TimeSpan VideoGenerationTimeout = TimeSpan.FromMinutes(30);
 
     public AIService(
         IContentRepository contentRepository,
@@ -455,13 +456,28 @@ public sealed class AIService : IAIService
                             IsAiGenerated = true
                         }, CancellationToken.None);
                         var generation = await _generationRepository.AddAsync(new AiGeneration { ContentId = dummyContent.Id, AiPrompt = prompt, PatternId = patternId, Status = AiStatusEnum.Processing }, CancellationToken.None);
+                        var videoCorrelationId = Guid.NewGuid().ToString("N");
+                        using var videoLogScope = _logger.BeginScope(new Dictionary<string, object?>
+                        {
+                            ["CorrelationId"] = videoCorrelationId,
+                            ["UserId"] = userId.Value,
+                            ["ContentId"] = dummyContent.Id,
+                            ["AiGenerationId"] = generation.Id,
+                            ["Provider"] = "DeAPI"
+                        });
+                        _logger.LogInformation("Event={Event} RequestType={RequestType} Timestamp={Timestamp}",
+                            "video.generation_started", "chat", DateTimeOffset.UtcNow);
                         var vidResult = await _videoProvider.StartVideoGenerationAsync(
                             prompt,
                             new VideoGenerationOptions
                             {
                                 DurationSeconds = parsedResponse.DurationSeconds > 0 ? parsedResponse.DurationSeconds : 9,
                                 AspectRatio = videoAspectRatio,
-                                FirstFrameImageUrl = firstFrameUrl
+                                FirstFrameImageUrl = firstFrameUrl,
+                                CorrelationId = videoCorrelationId,
+                                ContentId = dummyContent.Id,
+                                AiGenerationId = generation.Id,
+                                UserId = userId.Value
                             },
                             cancellationToken);
                         if (vidResult.Success && !string.IsNullOrEmpty(vidResult.JobId))
@@ -728,9 +744,22 @@ public sealed class AIService : IAIService
 
     public async Task<GenericResponse<AiGenerationResponse>> StartVideoGenerationAsync(Guid workspaceId, Guid userId, GenerateVideoRequest request, CancellationToken cancellationToken = default)
     {
+        var correlationId = Guid.NewGuid().ToString("N");
         var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
             return GenericResponse<AiGenerationResponse>.CreateError("Content not found.", HttpStatusCode.NotFound);
+
+        var activeGeneration = await _generationRepository.GetActiveVideoByContentIdAsync(content.Id, cancellationToken);
+        if (activeGeneration != null)
+        {
+            _logger.LogInformation(
+                "Event={Event} CorrelationId={CorrelationId} UserId={UserId} ContentId={ContentId} AiGenerationId={AiGenerationId} VideoJobId={VideoJobId} Provider={Provider}",
+                "video.duplicate_prevented", correlationId, userId, content.Id, activeGeneration.Id,
+                activeGeneration.VideoJobId, activeGeneration.ProviderName);
+            return GenericResponse<AiGenerationResponse>.CreateSuccess(
+                MapGeneration(activeGeneration),
+                "Video generation is already processing for this content.");
+        }
 
         var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, VideoGenerationCredits, cancellationToken: cancellationToken);
         if (!creditCheck.Success)
@@ -766,7 +795,28 @@ public sealed class AIService : IAIService
             Status = AiStatusEnum.Processing
         }, cancellationToken);
 
-        var result = await _videoProvider.StartVideoGenerationAsync(prompt, new VideoGenerationOptions { DurationSeconds = request.DurationSeconds, AspectRatio = request.AspectRatio, FirstFrameImageUrl = firstFrameUrl }, cancellationToken);
+        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["CorrelationId"] = correlationId,
+            ["UserId"] = userId,
+            ["ContentId"] = content.Id,
+            ["AiGenerationId"] = generation.Id,
+            ["Provider"] = "DeAPI"
+        });
+
+        _logger.LogInformation("Event={Event} RequestType={RequestType} Timestamp={Timestamp}",
+            "video.generation_started", "create", DateTimeOffset.UtcNow);
+
+        var result = await _videoProvider.StartVideoGenerationAsync(prompt, new VideoGenerationOptions
+        {
+            DurationSeconds = request.DurationSeconds,
+            AspectRatio = request.AspectRatio,
+            FirstFrameImageUrl = firstFrameUrl,
+            CorrelationId = correlationId,
+            ContentId = content.Id,
+            AiGenerationId = generation.Id,
+            UserId = userId
+        }, cancellationToken);
 
         if (!result.Success)
         {
@@ -782,12 +832,21 @@ public sealed class AIService : IAIService
                 await _contentRepository.UpdateAsync(content, cancellationToken);
             }
 
-            return GenericResponse<AiGenerationResponse>.CreateError("Lỗi hệ thống: Không thể khởi tạo video lúc này. Vui lòng thử lại sau.", HttpStatusCode.BadGateway);
+            var statusCode = result.ErrorMessage?.Contains("rate limit", StringComparison.OrdinalIgnoreCase) == true
+                ? HttpStatusCode.TooManyRequests
+                : HttpStatusCode.BadGateway;
+            return GenericResponse<AiGenerationResponse>.CreateError(
+                result.ErrorMessage ?? "Video provider could not start the generation job.",
+                statusCode);
         }
 
         generation.VideoJobId = result.JobId;
         generation.ProviderName = result.ProviderName;
         await _generationRepository.UpdateAsync(generation, cancellationToken);
+
+        _logger.LogInformation(
+            "Event={Event} VideoJobId={VideoJobId} HttpStatus={HttpStatus} Timestamp={Timestamp}",
+            "video.provider_job_accepted", generation.VideoJobId, 200, DateTimeOffset.UtcNow);
 
         return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Video generation started.");
     }
@@ -808,6 +867,25 @@ public sealed class AIService : IAIService
             return GenericResponse<AiGenerationResponse>.CreateError("JobId is missing.", HttpStatusCode.BadRequest);
         }
 
+        if (DateTime.UtcNow - generation.CreatedAt > VideoGenerationTimeout)
+        {
+            generation.Status = AiStatusEnum.Failed;
+            generation.ErrorMessage = "Video generation timed out after 30 minutes; polling has stopped.";
+            await _generationRepository.UpdateAsync(generation, cancellationToken);
+            _logger.LogWarning(
+                "Event={Event} UserId={UserId} ContentId={ContentId} AiGenerationId={AiGenerationId} VideoJobId={VideoJobId} Provider={Provider}",
+                "video.polling_timeout", userId, generation.ContentId, generation.Id, generation.VideoJobId, generation.ProviderName);
+            return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), generation.ErrorMessage);
+        }
+
+        using var statusScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["UserId"] = userId,
+            ["ContentId"] = generation.ContentId,
+            ["AiGenerationId"] = generation.Id,
+            ["VideoJobId"] = generation.VideoJobId,
+            ["Provider"] = generation.ProviderName ?? "DeAPI"
+        });
         var result = await _videoProvider.CheckStatusAsync(generation.VideoJobId, cancellationToken);
 
         if (result.Status == VideoGenerationStatus.Failed)
@@ -815,6 +893,8 @@ public sealed class AIService : IAIService
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = result.ErrorMessage;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
+            _logger.LogWarning("Event={Event} Error={Error} Timestamp={Timestamp}",
+                "video.provider_job_failed", result.ErrorMessage, DateTimeOffset.UtcNow);
             return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Video generation failed.");
         }
 

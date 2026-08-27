@@ -29,7 +29,7 @@ public sealed class FallbackVideoProvider : IAIVideoProvider
     public async Task<VideoGenerationResult> StartVideoGenerationAsync(string prompt, VideoGenerationOptions? options = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("========= VIDEO GENERATION START =========");
-        _logger.LogInformation("Prompt: {Prompt}", prompt.Length > 100 ? prompt[..100] + "..." : prompt);
+        _logger.LogInformation("PromptLength: {PromptLength}", prompt.Length);
         _logger.LogInformation("Options: AspectRatio={AR}, Duration={Dur}", options?.AspectRatio ?? "9:16", options?.DurationSeconds > 0 ? $"{options.DurationSeconds}s" : "N/A (Default/Segmented)");
         _logger.LogInformation("Provider: OpenAI -> DeAPI");
 
