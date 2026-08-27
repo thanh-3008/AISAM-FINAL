@@ -476,11 +476,20 @@ export async function uploadContentMedia(file: File): Promise<string> {
   throw new Error(res?.message || res?.error?.errorMessage || "Failed to upload media.");
 }
 
+export interface ConversationMessage {
+  id: string;
+  senderType: number;
+  message: string;
+  aiGenerationId?: string | null;
+  contentId?: string | null;
+  createdAt: string;
+}
+
 export async function getConversationMessages(
   conversationId: string
-): Promise<{ senderType: number; message: string; createdAt: string }[] | null> {
+): Promise<ConversationMessage[] | null> {
   try {
-    const res: GenericResponse<{ id: string; messages: { senderType: number; message: string; createdAt: string }[] }> = await apiClient(`/conversations/${conversationId}`);
+    const res: GenericResponse<{ id: string; messages: ConversationMessage[] }> = await apiClient(`/conversations/${conversationId}`);
     if (res?.success && res.data?.messages) return res.data.messages;
     return null;
   } catch {

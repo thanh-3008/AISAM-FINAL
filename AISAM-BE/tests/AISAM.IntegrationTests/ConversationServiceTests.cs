@@ -53,6 +53,36 @@ public class ConversationServiceTests
         Assert.Equal(profileId, repository.LastPagedProfileId);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_RecoversContentId_ForLegacyVideoMessage()
+    {
+        var profileId = Guid.NewGuid();
+        var contentId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var conversation = CreateConversation(profileId);
+        conversation.ChatMessages.Add(new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversation.Id,
+            SenderType = ChatSenderType.AI,
+            Message = "Video is processing [VIDEO_JOB: legacy-job]"
+        });
+        var repository = new FakeConversationRepository(conversation);
+        repository.GenerationsByVideoJobId["legacy-job"] = new AiGeneration
+        {
+            Id = generationId,
+            ContentId = contentId,
+            VideoJobId = "legacy-job"
+        };
+        var service = new ConversationService(repository);
+
+        var result = await service.GetByIdAsync(conversation.Id, profileId);
+
+        var restoredMessage = Assert.Single(result.Data!.Messages);
+        Assert.Equal(contentId, restoredMessage.ContentId);
+        Assert.Equal(generationId, restoredMessage.AiGenerationId);
+    }
+
     private static Conversation CreateConversation(Guid profileId)
     {
         return new Conversation
@@ -75,6 +105,7 @@ public class ConversationServiceTests
 
         public Guid LastPagedProfileId { get; private set; }
         public bool UpdateCalled { get; private set; }
+        public Dictionary<string, AiGeneration> GenerationsByVideoJobId { get; } = new(StringComparer.Ordinal);
 
         public Task<Conversation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
@@ -105,5 +136,17 @@ public class ConversationServiceTests
         }
 
         public Task AddMessageAsync(ChatMessage message, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, AiGeneration>> GetGenerationsByVideoJobIdsAsync(
+            Guid workspaceId,
+            IEnumerable<string> videoJobIds,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyDictionary<string, AiGeneration> result = videoJobIds
+                .Where(GenerationsByVideoJobId.ContainsKey)
+                .Distinct(StringComparer.Ordinal)
+                .ToDictionary(jobId => jobId, jobId => GenerationsByVideoJobId[jobId], StringComparer.Ordinal);
+            return Task.FromResult(result);
+        }
     }
 }

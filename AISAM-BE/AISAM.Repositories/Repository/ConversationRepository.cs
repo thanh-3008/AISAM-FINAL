@@ -110,6 +110,31 @@ public sealed class ConversationRepository : IConversationRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<string, AiGeneration>> GetGenerationsByVideoJobIdsAsync(
+        Guid workspaceId,
+        IEnumerable<string> videoJobIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = videoJobIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (ids.Count == 0) return new Dictionary<string, AiGeneration>();
+
+        var generations = await _context.AiGenerations
+            .Where(generation => !generation.IsDeleted &&
+                                 generation.Content.WorkspaceId == workspaceId &&
+                                 generation.VideoJobId != null &&
+                                 ids.Contains(generation.VideoJobId))
+            .OrderByDescending(generation => generation.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return generations
+            .GroupBy(generation => generation.VideoJobId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+    }
+
     private IQueryable<Conversation> Query()
     {
         return _context.Conversations

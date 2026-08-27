@@ -5,11 +5,13 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using System.Net;
+using System.Text.RegularExpressions;
 
 namespace AISAM.Services.Service;
 
 public sealed class ConversationService : IConversationService
 {
+    private static readonly Regex VideoJobMarkerRegex = new(@"\[VIDEO_JOB:\s*([^\]]+)\]", RegexOptions.Compiled);
     private readonly IConversationRepository _conversationRepository;
 
     public ConversationService(IConversationRepository conversationRepository)
@@ -37,7 +39,8 @@ public sealed class ConversationService : IConversationService
             return GenericResponse<ConversationDetailDto>.CreateError("Conversation not found.", HttpStatusCode.NotFound);
         }
 
-        return GenericResponse<ConversationDetailDto>.CreateSuccess(MapToDetailDto(conversation), "Conversation retrieved successfully.");
+        var generationLinks = await ResolveLegacyGenerationLinksAsync(conversation, cancellationToken);
+        return GenericResponse<ConversationDetailDto>.CreateSuccess(MapToDetailDto(conversation, generationLinks), "Conversation retrieved successfully.");
     }
 
     public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid profileId, CancellationToken cancellationToken = default)
@@ -69,9 +72,13 @@ public sealed class ConversationService : IConversationService
     public async Task<GenericResponse<ConversationDetailDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
         var conversation = await _conversationRepository.GetByIdAsync(id, cancellationToken);
-        return conversation == null || conversation.WorkspaceId != workspaceId
-            ? GenericResponse<ConversationDetailDto>.CreateError("Conversation not found.", HttpStatusCode.NotFound)
-            : GenericResponse<ConversationDetailDto>.CreateSuccess(MapToDetailDto(conversation), "Conversation retrieved successfully.");
+        if (conversation == null || conversation.WorkspaceId != workspaceId)
+        {
+            return GenericResponse<ConversationDetailDto>.CreateError("Conversation not found.", HttpStatusCode.NotFound);
+        }
+
+        var generationLinks = await ResolveLegacyGenerationLinksAsync(conversation, cancellationToken);
+        return GenericResponse<ConversationDetailDto>.CreateSuccess(MapToDetailDto(conversation, generationLinks), "Conversation retrieved successfully.");
     }
 
     public async Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
@@ -112,7 +119,27 @@ public sealed class ConversationService : IConversationService
         };
     }
 
-    private static ConversationDetailDto MapToDetailDto(Conversation conversation)
+    private async Task<IReadOnlyDictionary<string, AiGeneration>> ResolveLegacyGenerationLinksAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken)
+    {
+        var missingJobIds = conversation.ChatMessages
+            .Where(message => !message.IsDeleted &&
+                              message.SenderType == ChatSenderType.AI &&
+                              message.ContentId == null)
+            .Select(message => VideoJobMarkerRegex.Match(message.Message))
+            .Where(match => match.Success)
+            .Select(match => match.Groups[1].Value.Trim())
+            .Where(jobId => jobId.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return await _conversationRepository.GetGenerationsByVideoJobIdsAsync(conversation.WorkspaceId, missingJobIds, cancellationToken);
+    }
+
+    private static ConversationDetailDto MapToDetailDto(
+        Conversation conversation,
+        IReadOnlyDictionary<string, AiGeneration> generationLinks)
     {
         var summary = MapToResponseDto(conversation);
         return new ConversationDetailDto
@@ -132,20 +159,32 @@ public sealed class ConversationService : IConversationService
             Messages = conversation.ChatMessages
                 .Where(message => !message.IsDeleted)
                 .OrderBy(message => message.CreatedAt)
-                .Select(MapToChatMessageDto)
+                .Select(message => MapToChatMessageDto(message, generationLinks))
                 .ToList()
         };
     }
 
-    private static ChatMessageDto MapToChatMessageDto(ChatMessage message)
+    private static ChatMessageDto MapToChatMessageDto(
+        ChatMessage message,
+        IReadOnlyDictionary<string, AiGeneration> generationLinks)
     {
+        AiGeneration? legacyGeneration = null;
+        if (message.ContentId == null)
+        {
+            var match = VideoJobMarkerRegex.Match(message.Message);
+            if (match.Success)
+            {
+                generationLinks.TryGetValue(match.Groups[1].Value.Trim(), out legacyGeneration);
+            }
+        }
+
         return new ChatMessageDto
         {
             Id = message.Id,
             SenderType = message.SenderType,
             Message = message.Message,
-            AiGenerationId = message.AiGenerationId,
-            ContentId = message.ContentId,
+            AiGenerationId = message.AiGenerationId ?? legacyGeneration?.Id,
+            ContentId = message.ContentId ?? legacyGeneration?.ContentId,
             CreatedAt = message.CreatedAt
         };
     }

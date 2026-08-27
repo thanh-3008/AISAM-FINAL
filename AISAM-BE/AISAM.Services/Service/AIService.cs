@@ -552,7 +552,8 @@ public sealed class AIService : IAIService
             {
                 ConversationId = conversation.Id,
                 SenderType = ChatSenderType.AI,
-                Message = responseText
+                Message = responseText,
+                ContentId = createdContentId
             }, CancellationToken.None);
 
             return GenericResponse<ChatResponse>.CreateSuccess(new ChatResponse

@@ -13,22 +13,16 @@ import { fetchCreditWallet } from "@/services/workspaceService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { getStoredAutosave } from "@/hooks/useSettings";
 import { deriveTitleFromCaption } from "@/lib/generatedPostTitle";
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  canApply?: boolean;
-}
-
-interface Variation {
-  id: string;
-  prompt: string;
-  result: string;
-}
+import { parseMediaMarkers, replaceVideoJobMarker, restoreConversationHistory, type ChatMessage, type Variation } from "@/lib/aiGenerateHistory";
 
 type GenerationMode = "exact_product_reference" | "normal_generation";
 type ImageSourceMode = "original_product_images" | "ai_exact_product_reference" | "ai_normal_generation";
+
+interface VideoPollingTarget {
+  contentId: string;
+  jobId: string;
+  sourceId: string;
+}
 
 const VARIATION_TEMPLATES: Record<string, string> = {
   longer: "Make this content longer and more detailed",
@@ -92,16 +86,28 @@ const PLATFORM_EXTRA_SUGGESTIONS: Record<string, QuickSuggestion[]> = {
   ]
 };
 
-const VideoGenerationProgress = ({ jobId }: { jobId: string }) => {
+const VideoGenerationProgress = ({ isActive }: { isActive: boolean }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
+    if (!isActive) {
+      setElapsed(0);
+      return;
+    }
     const start = Date.now();
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isActive]);
+
+  if (!isActive) {
+    return (
+      <div className="mt-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary">
+        Apply this result to check the latest video status.
+      </div>
+    );
+  }
 
   let statusText = "";
   if (elapsed < 30) {
@@ -185,6 +191,7 @@ export default function AIGeneratePage() {
   const [justGenerated, setJustGenerated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
+  const [videoPollingTarget, setVideoPollingTarget] = useState<VideoPollingTarget | null>(null);
   const [lastSavedContent, setLastSavedContent] = useState({ title: "", content: "", imageUrl: "" as string | null, videoUrl: "" as string | null });
 
   const unsavedGeneratedIdsRef = useRef<Set<string>>(new Set());
@@ -261,6 +268,7 @@ export default function AIGeneratePage() {
     setImageUrl(null);
     setVideoUrl(null);
     setIsVideo(false);
+    setVideoPollingTarget(null);
     if (!conversationStorageKey) return;
 
     let cancelled = false;
@@ -269,12 +277,9 @@ export default function AIGeneratePage() {
     setConversationId(savedId);
     getConversationMessages(savedId).then(msgs => {
       if (!cancelled && msgs) {
-        setMessages(msgs.map((message, index) => ({
-          id: `history-${index}`,
-          role: message.senderType === 0 ? "user" : "assistant",
-          text: message.message,
-          canApply: false,
-        })));
+        const restored = restoreConversationHistory(msgs);
+        setMessages(restored.chatMessages);
+        setVariations(restored.variations);
       }
     });
     return () => { cancelled = true; };
@@ -294,71 +299,93 @@ export default function AIGeneratePage() {
   }, [uploadedImage?.previewUrl]);
 
   useEffect(() => {
-    if (!generatedId || !isVideo) return;
+    if (!videoPollingTarget) return;
 
-    let interval: ReturnType<typeof setInterval>;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let consecutiveErrors = 0;
     const pollingStartedAt = Date.now();
     const maxPollingDurationMs = 30 * 60 * 1000;
+    const { contentId: pollingContentId, jobId, sourceId } = videoPollingTarget;
+
+    const scheduleNextPoll = () => {
+      if (!cancelled) timer = setTimeout(pollVideoStatus, 10000);
+    };
 
     const pollVideoStatus = async () => {
       if (Date.now() - pollingStartedAt >= maxPollingDurationMs) {
-        setMessages((prev) => prev.map((msg) =>
-          /\[VIDEO_JOB:\s*(.+?)\]/.test(msg.text)
-            ? { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, "(Video generation timed out after 30 minutes.)").trim(), canApply: false }
-            : msg
-        ));
-        clearInterval(interval);
-        setIsVideo(false);
+        setVideoPollingTarget(null);
+        addToast("Video is still processing. Apply the result again to retry the status check.");
         return;
       }
 
       try {
-        const generations = await fetchContentGenerations(generatedId);
-        if (!generations || generations.length === 0) return;
+        const generations = await fetchContentGenerations(pollingContentId);
+        if (cancelled) return;
+        consecutiveErrors = 0;
 
-        const activeVideoJobIds = new Set(
-          messages
-            .map((message) => message.text.match(/\[VIDEO_JOB:\s*(.+?)\]/)?.[1]?.trim())
-            .filter((jobId): jobId is string => Boolean(jobId))
-        );
-        const gen = generations.find((generation) =>
-          Boolean(generation.videoJobId) &&
-          activeVideoJobIds.has(generation.videoJobId!) &&
-          (generation.status === 1 || generation.status === 2)
-        );
-
-        setMessages((prev) => {
-          let changed = false;
-          const updated = prev.map((msg) => {
-            const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-            if (!vidMatch) return msg;
-            if (!gen) return msg; // If 0 (Pending) or 3 (Processing), wait.
-
-            if (gen.status === 1) { // 1 = Completed
-              changed = true;
-              return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `[VIDEO_URL: ${gen.generatedVideoUrl || ''}]`).trim(), canApply: true };
-            }
-            if (gen.status === 2) { // 2 = Failed
-              changed = true;
-              return { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, `(Video generation failed: ${gen.errorMessage || "Unknown error"})`).trim(), canApply: false };
-            }
-            return msg;
-          });
-          return changed ? updated : prev;
-        });
-
-        if (gen) {
-          clearInterval(interval);
-          setIsVideo(false);
+        const generation = generations.find((item) => item.videoJobId?.trim() === jobId);
+        if (!generation || generation.status === 0 || generation.status === 3) {
+          scheduleNextPoll();
+          return;
         }
+
+        if (generation.status === 1) {
+          const completedVideoUrl = generation.generatedVideoUrl?.trim();
+          if (!completedVideoUrl) {
+            scheduleNextPoll();
+            return;
+          }
+
+          const replacement = `[VIDEO_URL: ${completedVideoUrl}]`;
+          setMessages((prev) => prev.map((message) =>
+            message.id === sourceId
+              ? { ...message, text: replaceVideoJobMarker(message.text, jobId, replacement), canApply: true }
+              : message
+          ));
+          setVariations((prev) => prev.map((variation) =>
+            variation.id === sourceId
+              ? { ...variation, result: replaceVideoJobMarker(variation.result, jobId, replacement) }
+              : variation
+          ));
+          setVideoUrl(completedVideoUrl);
+          setIsVideo(true);
+          setVideoPollingTarget(null);
+          return;
+        }
+
+        const failureText = `(Video generation failed: ${generation.errorMessage || "Unknown error"})`;
+        setMessages((prev) => prev.map((message) =>
+          message.id === sourceId
+            ? { ...message, text: replaceVideoJobMarker(message.text, jobId, failureText), canApply: true }
+            : message
+        ));
+        setVariations((prev) => prev.map((variation) =>
+          variation.id === sourceId
+            ? { ...variation, result: replaceVideoJobMarker(variation.result, jobId, failureText) }
+            : variation
+        ));
+        setVideoPollingTarget(null);
+        setIsVideo(false);
+        addToast(generation.errorMessage || "Video generation failed.", "error");
       } catch {
-        /* ignore polling errors */
+        if (cancelled) return;
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3) {
+          setVideoPollingTarget(null);
+          addToast("Could not check the video status. Apply the result again to retry.", "error");
+          return;
+        }
+        scheduleNextPoll();
       }
     };
 
-    interval = setInterval(pollVideoStatus, 10000);
-    return () => clearInterval(interval);
-  }, [generatedId, isVideo, messages]);
+    void pollVideoStatus();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [videoPollingTarget, addToast]);
 
   useEffect(() => {
     const hasUnsavedChanges = title !== lastSavedContent.title || content !== lastSavedContent.content || imageUrl !== lastSavedContent.imageUrl || videoUrl !== lastSavedContent.videoUrl;
@@ -448,22 +475,27 @@ export default function AIGeneratePage() {
       setConversationId(aiReply.conversationId ?? null);
       if (conversationStorageKey && aiReply.conversationId) saveChatSession(conversationStorageKey, aiReply.conversationId);
 
-      const generatedHashtags = AUTO_HASHTAGS[brandName] || [];
-      const canCreate = aiReply.shouldCreateContent || Boolean(aiReply.createdContentId);
+      const canCreateNew = aiReply.shouldCreateContent === true && !aiReply.createdContentId;
+      const canCreate = Boolean(aiReply.createdContentId) || canCreateNew;
+      const resultId = `ai-${Date.now()}`;
       const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
+        id: resultId,
         role: "assistant",
         text: aiReply.text || "",
         canApply: canCreate,
+        contentId: aiReply.createdContentId,
+        canCreateNew,
       };
       setMessages((prev) => [...prev, aiMsg]);
 
       const variation: Variation = {
-        id: `v-${Date.now()}`,
+        id: resultId,
         prompt: userPrompt,
         result: aiReply.text || "",
+        contentId: aiReply.createdContentId,
+        canCreateNew,
       };
-      if (aiReply.shouldCreateContent || aiReply.createdContentId) {
+      if (canCreate) {
         setVariations((prev) => [variation, ...prev]);
       }
 
@@ -476,7 +508,7 @@ export default function AIGeneratePage() {
         setJustGenerated(true); // Automatically show "View Post" so the user can navigate to see the processing status
         unsavedGeneratedIdsRef.current.add(aiReply.createdContentId);
       }
-      if (aiReply.shouldCreateContent || aiReply.createdContentId) {
+      if (canCreate) {
         handleApplyVariation(variation);
       }
       return;
@@ -499,18 +531,16 @@ export default function AIGeneratePage() {
       adType: 0,
       title: title || "Untitled Post",
       textContent: content || "",
+      imageUrl: imageUrl || null,
+      videoUrl: videoUrl || null,
       status: 0, // Draft
       isAiGenerated: true,
     };
 
     if (imageUrl) {
-      payload.imageUrl = imageUrl;
       payload.adType = 1;
     } else if (isVideo) {
       payload.adType = 2;
-      if (videoUrl) {
-        payload.videoUrl = videoUrl;
-      }
     } else {
       payload.adType = 0;
     }
@@ -523,13 +553,13 @@ export default function AIGeneratePage() {
         result = await createContent(payload as CreateContentPayload);
       }
 
-      if (result) {
-        setGeneratedId(result.id);
-        setJustGenerated(true);
-        setLastSavedContent({ title, content, imageUrl, videoUrl });
-        unsavedGeneratedIdsRef.current.delete(result.id);
-        addToast("Post saved successfully!");
-      }
+      if (!result) throw new Error("The server did not return the saved post.");
+
+      setGeneratedId(result.id);
+      setJustGenerated(true);
+      setLastSavedContent({ title, content, imageUrl, videoUrl });
+      unsavedGeneratedIdsRef.current.delete(result.id);
+      addToast("Post saved successfully!");
     } catch (e: any) {
       addToast(e?.message || "Failed to save post");
     } finally {
@@ -620,28 +650,36 @@ export default function AIGeneratePage() {
   };
 
   const handleApplyVariation = (variation: Variation) => {
+    if (!variation.contentId && !variation.canCreateNew) {
+      addToast("This historical result is not linked to saved content and cannot be applied safely.", "error");
+      return;
+    }
+
     const h = AUTO_HASHTAGS[brandName] || [];
-    let cleanContent = variation.result;
-    const imageMatch = cleanContent.match(/\[IMAGE:\s*(.+?)\]/);
-    if (imageMatch) {
-      setImageUrl(imageMatch[1]);
-      cleanContent = cleanContent.replace(/\[IMAGE:\s*(.+?)\]/g, '').trim();
-    }
-    const videoUrlMatch = cleanContent.match(/\[VIDEO_URL:\s*(.+?)\]/);
-    if (videoUrlMatch) {
+    const media = parseMediaMarkers(variation.result);
+
+    setGeneratedId(variation.contentId || null);
+    setJustGenerated(Boolean(variation.contentId));
+    setImageUrl(null);
+    setVideoUrl(null);
+    setIsVideo(false);
+    setVideoPollingTarget(null);
+
+    if (media.videoUrl) {
       setIsVideo(true);
-      setVideoUrl(videoUrlMatch[1]);
-      cleanContent = cleanContent.replace(/\[VIDEO_URL:\s*(.+?)\]/g, '').trim();
-    } else {
-      const videoMatch = cleanContent.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-      if (videoMatch) {
-        setIsVideo(true);
-        cleanContent = cleanContent.replace(/\[VIDEO_JOB:\s*(.+?)\]/g, '').trim();
-      } else {
-        setIsVideo(false);
-      }
+      setVideoUrl(media.videoUrl);
+    } else if (media.videoJobId && variation.contentId) {
+      setIsVideo(true);
+      setVideoPollingTarget({
+        contentId: variation.contentId,
+        jobId: media.videoJobId,
+        sourceId: variation.id,
+      });
+    } else if (media.imageUrl) {
+      setImageUrl(media.imageUrl);
     }
-    const parsedPost = parseGeneratedPost(cleanContent);
+
+    const parsedPost = parseGeneratedPost(media.cleanText);
     setTitle(deriveTitleFromCaption(parsedPost.caption));
     setContent(parsedPost.caption);
     setHashtags(h);
@@ -1084,15 +1122,15 @@ export default function AIGeneratePage() {
                             const vidUrlMatch = msg.text.match(/\[VIDEO_URL:\s*(.+?)\]/);
                             if (vidUrlMatch) return <video src={vidUrlMatch[1]} autoPlay loop muted playsInline className="mt-2 rounded-lg max-w-[200px] border border-outline-variant/20" />;
                             const vidMatch = msg.text.match(/\[VIDEO_JOB:\s*(.+?)\]/);
-                            if (vidMatch) return <VideoGenerationProgress jobId={vidMatch[1]} />;
+                            if (vidMatch) return <VideoGenerationProgress isActive={videoPollingTarget?.jobId === vidMatch[1].trim() && videoPollingTarget.sourceId === msg.id} />;
                             return null;
                           })()}
                         </>
                       ) : (
                         <p className="text-[12px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
                       )}
-                      {msg.role === "assistant" && (
-                        <button onClick={() => handleApplyVariation({ id: msg.id, prompt: "", result: msg.text })}
+                      {msg.role === "assistant" && msg.canApply && (
+                        <button onClick={() => handleApplyVariation({ id: msg.id, prompt: "", result: msg.text, contentId: msg.contentId, canCreateNew: msg.canCreateNew })}
                           className="mt-1.5 text-label-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-0.5">
                           <span className="material-symbols-outlined text-label-xs">check</span>
                           Apply to editor
