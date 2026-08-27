@@ -513,7 +513,10 @@ export async function resolveProductName(productId: string): Promise<string> {
 }
 
 export interface AiGenerationResponse {
-  id: string;
+  id?: string;
+  aiGenerationId: string;
+  contentId: string;
+  videoJobId?: string;
   status: number; // 0: Pending, 1: Completed, 2: Failed, 3: Processing
   errorMessage?: string;
   generatedVideoUrl?: string;
