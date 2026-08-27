@@ -87,7 +87,7 @@ const PLATFORM_EXTRA_SUGGESTIONS: Record<string, QuickSuggestion[]> = {
       id: "video",
       icon: "movie",
       label: "Tạo kịch bản video",
-      template: (ctx) => `Tạo một kịch bản video TikTok dài 15 giây giới thiệu sản phẩm ${ctx.productName} thật viral, đồng thời sinh ra tiêu đề và caption phù hợp.`
+      template: (ctx) => `Tạo một kịch bản video TikTok dài 8 giây giới thiệu sản phẩm ${ctx.productName} thật viral, đồng thời sinh ra tiêu đề và caption phù hợp.`
     }
   ]
 };
@@ -175,6 +175,7 @@ export default function AIGeneratePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const generationInFlightRef = useRef(false);
   const [imageSourceMode, setImageSourceMode] = useState<ImageSourceMode>("original_product_images");
   const [uploadedImage, setUploadedImage] = useState<{ file: File; previewUrl: string; uploadedUrl?: string } | null>(null);
 
@@ -193,7 +194,7 @@ export default function AIGeneratePage() {
       if (!getStoredAutosave()) {
         const idsToDelete = Array.from(unsavedGeneratedIdsRef.current);
         idsToDelete.forEach(id => {
-          deleteContent(id).catch(() => {});
+          deleteContent(id).catch(() => { });
         });
       }
     };
@@ -296,8 +297,21 @@ export default function AIGeneratePage() {
     if (!generatedId || !isVideo) return;
 
     let interval: ReturnType<typeof setInterval>;
+    const pollingStartedAt = Date.now();
+    const maxPollingDurationMs = 30 * 60 * 1000;
 
     const pollVideoStatus = async () => {
+      if (Date.now() - pollingStartedAt >= maxPollingDurationMs) {
+        setMessages((prev) => prev.map((msg) =>
+          /\[VIDEO_JOB:\s*(.+?)\]/.test(msg.text)
+            ? { ...msg, text: msg.text.replace(/\[VIDEO_JOB:\s*.+?\]/, "(Video generation timed out after 30 minutes.)").trim(), canApply: false }
+            : msg
+        ));
+        clearInterval(interval);
+        setIsVideo(false);
+        return;
+      }
+
       try {
         const generations = await fetchContentGenerations(generatedId);
         if (!generations || generations.length === 0) return;
@@ -373,13 +387,20 @@ export default function AIGeneratePage() {
   };
 
   const simulateAIResponse = async (userPrompt: string) => {
+    if (generationInFlightRef.current) return;
     if (creditBalance !== null && creditBalance <= 0) {
       setInsufficientCredits(true);
       addToast("Insufficient AI Credits. Please purchase more credits.");
       return;
     }
+    generationInFlightRef.current = true;
     setInsufficientCredits(false);
     setIsGenerating(true);
+
+    const finishGeneration = () => {
+      generationInFlightRef.current = false;
+      setIsGenerating(false);
+    };
 
     let uploadedPrimaryImageUrl = uploadedImage?.uploadedUrl ?? null;
     if (generationMode === "normal_generation" && uploadedImage && !uploadedPrimaryImageUrl) {
@@ -389,7 +410,7 @@ export default function AIGeneratePage() {
           ? { ...current, uploadedUrl: uploadedPrimaryImageUrl ?? undefined }
           : current);
       } catch (error: any) {
-        setIsGenerating(false);
+        finishGeneration();
         addToast(error?.message || "Failed to upload reference image.");
         return;
       }
@@ -410,7 +431,7 @@ export default function AIGeneratePage() {
       }
     );
     if (aiReply?.errorMessage) {
-      setIsGenerating(false);
+      finishGeneration();
       addToast(aiReply.errorMessage);
       return;
     }
@@ -439,7 +460,7 @@ export default function AIGeneratePage() {
 
       fetchCreditWallet().then(w => { if (w) setCreditBalance(w.balance); });
 
-      setIsGenerating(false);
+      finishGeneration();
 
       if (aiReply.createdContentId) {
         setGeneratedId(aiReply.createdContentId ?? null);
@@ -452,7 +473,7 @@ export default function AIGeneratePage() {
       return;
     }
 
-    setIsGenerating(false);
+    finishGeneration();
     addToast("AI service request failed. Your credit balance was not the cause; restart/check the backend and Gemini connection, then try again.");
   };
 
@@ -524,7 +545,7 @@ export default function AIGeneratePage() {
 
   const handleSendChat = () => {
     const text = chatInput.trim();
-    if (!text || isGenerating) return;
+    if (!text || isGenerating || generationInFlightRef.current) return;
     if (text.length > 3000) {
       addToast("Message is too long. Please limit to 3000 characters.");
       return;
@@ -544,6 +565,7 @@ export default function AIGeneratePage() {
   };
 
   const handleQuickTemplate = (key: string) => {
+    if (isGenerating || generationInFlightRef.current) return;
     const prompt = VARIATION_TEMPLATES[key];
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", text: prompt };
     setMessages((prev) => [...prev, userMsg]);

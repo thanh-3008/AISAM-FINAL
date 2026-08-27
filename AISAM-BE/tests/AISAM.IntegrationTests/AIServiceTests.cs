@@ -9,11 +9,96 @@ using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using System.Net;
 using System.Reflection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AISAM.IntegrationTests;
 
 public class AIServiceTests
 {
+    [Fact]
+    public async Task StartVideoGenerationAsync_ReturnsExistingProcessingGeneration_WithoutCreatingDuplicateProviderJob()
+    {
+        var workspaceId = Guid.NewGuid();
+        var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid(), Title = "Video" };
+        var existing = new AiGeneration
+        {
+            Id = Guid.NewGuid(),
+            ContentId = content.Id,
+            Content = content,
+            Status = AiStatusEnum.Processing,
+            VideoJobId = "deapi:existing-job",
+            ProviderName = "DeAPI"
+        };
+        var provider = new FakeVideoProvider();
+        var service = CreateService(
+            new FakeContentRepository(content),
+            new FakeAiGenerationRepository(existing),
+            new FakeBrandRepository(),
+            new FakeGeminiTextClient("unused"),
+            videoProvider: provider);
+
+        var result = await service.StartVideoGenerationAsync(workspaceId, Guid.NewGuid(), new GenerateVideoRequest
+        {
+            ContentId = content.Id,
+            DurationSeconds = 4,
+            AspectRatio = "9:16"
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(existing.Id, result.Data!.AiGenerationId);
+        Assert.Equal("deapi:existing-job", result.Data.VideoJobId);
+        Assert.Equal(0, provider.StartCallCount);
+    }
+
+    [Fact]
+    public async Task CheckVideoStatusAsync_MarksMissingRemoteJobFailed_AndStopsPolling()
+    {
+        var workspaceId = Guid.NewGuid();
+        var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid() };
+        var generation = new AiGeneration
+        {
+            Id = Guid.NewGuid(), ContentId = content.Id, Content = content,
+            Status = AiStatusEnum.Processing, VideoJobId = "deapi:missing-job", CreatedAt = DateTime.UtcNow
+        };
+        var provider = new FakeVideoProvider
+        {
+            PollResult = VideoGenerationResult.Fail("DeAPI job 'missing-job' was not found.", "DeAPI")
+        };
+        var service = CreateService(
+            new FakeContentRepository(content), new FakeAiGenerationRepository(generation),
+            new FakeBrandRepository(), new FakeGeminiTextClient("unused"), videoProvider: provider);
+
+        var result = await service.CheckVideoStatusAsync(generation.Id, workspaceId, Guid.NewGuid());
+
+        Assert.True(result.Success);
+        Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
+        Assert.Contains("was not found", result.Data.ErrorMessage);
+        Assert.Equal(1, provider.CheckCallCount);
+    }
+
+    [Fact]
+    public async Task CheckVideoStatusAsync_TimesOutStaleJob_WithoutCallingProvider()
+    {
+        var workspaceId = Guid.NewGuid();
+        var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid() };
+        var generation = new AiGeneration
+        {
+            Id = Guid.NewGuid(), ContentId = content.Id, Content = content,
+            Status = AiStatusEnum.Processing, VideoJobId = "deapi:stale-job", CreatedAt = DateTime.UtcNow.AddMinutes(-31)
+        };
+        var provider = new FakeVideoProvider();
+        var service = CreateService(
+            new FakeContentRepository(content), new FakeAiGenerationRepository(generation),
+            new FakeBrandRepository(), new FakeGeminiTextClient("unused"), videoProvider: provider);
+
+        var result = await service.CheckVideoStatusAsync(generation.Id, workspaceId, Guid.NewGuid());
+
+        Assert.True(result.Success);
+        Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
+        Assert.Contains("timed out", result.Data.ErrorMessage);
+        Assert.Equal(0, provider.CheckCallCount);
+    }
+
     [Fact]
     public async Task GenerateDraftAsync_ReturnsFailedGeneration_WhenGeminiConfigIsMissing()
     {
@@ -561,7 +646,8 @@ public class AIServiceTests
         IConversationRepository? conversationRepository = null,
         IProductRepository? productRepository = null,
         ICreditService? creditService = null,
-        IPromptEnhancerService? promptEnhancer = null)
+        IPromptEnhancerService? promptEnhancer = null,
+        IAIVideoProvider? videoProvider = null)
     {
         return new AIService(
             contentRepository,
@@ -572,10 +658,10 @@ public class AIServiceTests
             conversationRepository ?? new FakeConversationRepository(),
             creditService ?? new FakeCreditService(),
             null!,
-            null!,
+            videoProvider ?? new FakeVideoProvider(),
             null!,
             promptEnhancer ?? new FakePromptEnhancerService(),
-            null!);
+            NullLogger<AIService>.Instance);
     }
 
     private static Brand CreateBrand(Guid profileId)
@@ -616,6 +702,12 @@ public class AIServiceTests
         public Task<AiGeneration?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult(StoredGenerations.GetValueOrDefault(id));
 
+        public Task<AiGeneration?> GetActiveVideoByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.FromResult(StoredGenerations.Values
+                .Where(g => g.ContentId == contentId && g.Status == AiStatusEnum.Processing && !string.IsNullOrWhiteSpace(g.VideoJobId))
+                .OrderByDescending(g => g.CreatedAt)
+                .FirstOrDefault());
+
         public Task<IEnumerable<AiGenerationListDto>> GetByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
             => Task.FromResult<IEnumerable<AiGenerationListDto>>(StoredGenerations.Values.Where(g => g.ContentId == contentId).Select(g => new AiGenerationListDto { Id = g.Id, ContentId = g.ContentId, GeneratedText = g.GeneratedText, Status = g.Status, ErrorMessage = g.ErrorMessage }).ToList());
 
@@ -635,6 +727,26 @@ public class AIServiceTests
         public Task<Dictionary<DateTime, int>> GetDailyGenerationCountAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default) => Task.FromResult(new Dictionary<DateTime, int>());
         public Task<int> GetTotalGenerationCountAsync(CancellationToken cancellationToken = default) => Task.FromResult(StoredGenerations.Count);
         public Task<List<dynamic>> GetTopWorkspacesByGenerationAsync(int limit, CancellationToken cancellationToken = default) => Task.FromResult(new List<dynamic>());
+    }
+
+    private sealed class FakeVideoProvider : IAIVideoProvider
+    {
+        public string ProviderName => "Fake";
+        public int StartCallCount { get; private set; }
+        public int CheckCallCount { get; private set; }
+        public VideoGenerationResult PollResult { get; set; } = VideoGenerationResult.InProgress("deapi:processing", "Fake");
+
+        public Task<VideoGenerationResult> StartVideoGenerationAsync(string prompt, VideoGenerationOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            StartCallCount++;
+            return Task.FromResult(VideoGenerationResult.Queued("deapi:new-job", ProviderName));
+        }
+
+        public Task<VideoGenerationResult> CheckStatusAsync(string jobId, CancellationToken cancellationToken = default)
+        {
+            CheckCallCount++;
+            return Task.FromResult(PollResult);
+        }
     }
 
     private sealed class FakeContentRepository : IContentRepository
