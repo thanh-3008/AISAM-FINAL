@@ -64,7 +64,15 @@ public sealed class DeApiVideoClient
             if (isImg2Video)
             {
                 _logger.LogInformation("[DeAPI.Start] Mode: img2video. Downloading first_frame_image from {Url}", options!.FirstFrameImageUrl);
-                imageBytes = await _httpClient.GetByteArrayAsync(options.FirstFrameImageUrl, cancellationToken);
+                try 
+                { 
+                    imageBytes = await _httpClient.GetByteArrayAsync(options.FirstFrameImageUrl, cancellationToken); 
+                } 
+                catch (Exception ex) 
+                { 
+                    _logger.LogWarning(ex, "[DeAPI.Start] Failed to download first_frame_image from {Url}. Falling back to text-to-video mode.", options!.FirstFrameImageUrl); 
+                    isImg2Video = false; 
+                }
             }
 
             HttpResponseMessage? response = null;
