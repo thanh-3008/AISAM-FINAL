@@ -68,7 +68,7 @@ public class DeApiVideoClientTests
     }
 
     [Fact]
-    public async Task PollAsync_StripsInternalPrefix_AndStopsOnPermanent404()
+    public async Task PollAsync_StripsInternalPrefix_AndRetriesTransient404BeforeFailing()
     {
         Uri? requestedUri = null;
         var handler = new StubHttpMessageHandler(request =>
@@ -76,14 +76,46 @@ public class DeApiVideoClientTests
             requestedUri = request.RequestUri;
             return JsonResponse(HttpStatusCode.NotFound, """{"message":"No query results for model [JobRequest]."}""");
         });
+        var client = CreateClient(handler, notFoundMaxRetries: 2);
+
+        var first = await client.PollAsync("deapi:job-404", CancellationToken.None);
+        var second = await client.PollAsync("deapi:job-404", CancellationToken.None);
+        var third = await client.PollAsync("deapi:job-404", CancellationToken.None);
+
+        Assert.Equal(VideoGenerationStatus.Processing, first.Status);
+        Assert.Equal("deapi:job-404", first.JobId);
+        Assert.Equal(VideoGenerationStatus.Processing, second.Status);
+        Assert.Equal("deapi:job-404", second.JobId);
+        Assert.Equal(VideoGenerationStatus.Failed, third.Status);
+        Assert.Contains("HTTP 404 after 2 transient retries", third.ErrorMessage);
+        Assert.Equal("https://api.deapi.ai/api/v2/jobs/job-404", requestedUri?.ToString());
+        Assert.Equal(3, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task PollAsync_KeepsProcessingStatusAndJobId()
+    {
+        var handler = new StubHttpMessageHandler(_ => JsonResponse(
+            HttpStatusCode.OK, """{"data":{"status":"processing"}}"""));
         var client = CreateClient(handler);
 
-        var result = await client.PollAsync("deapi:job-404", CancellationToken.None);
+        var result = await client.PollAsync("deapi:processing-job", CancellationToken.None);
+
+        Assert.Equal(VideoGenerationStatus.Processing, result.Status);
+        Assert.Equal("deapi:processing-job", result.JobId);
+    }
+
+    [Fact]
+    public async Task PollAsync_ReturnsExplicitProviderFailure()
+    {
+        var handler = new StubHttpMessageHandler(_ => JsonResponse(
+            HttpStatusCode.OK, """{"data":{"status":"failed","error_message":"GPU worker failed."}}"""));
+        var client = CreateClient(handler);
+
+        var result = await client.PollAsync("deapi:failed-job", CancellationToken.None);
 
         Assert.Equal(VideoGenerationStatus.Failed, result.Status);
-        Assert.Contains("was not found", result.ErrorMessage);
-        Assert.Equal("https://api.deapi.ai/api/v2/jobs/job-404", requestedUri?.ToString());
-        Assert.Equal(1, handler.CallCount);
+        Assert.Equal("GPU worker failed.", result.ErrorMessage);
     }
 
     [Fact]
@@ -185,7 +217,10 @@ public class DeApiVideoClientTests
         Assert.Null(url);
     }
 
-    private static DeApiVideoClient CreateClient(HttpMessageHandler handler, string? baseUrl = "https://api.deapi.ai/api/v2")
+    private static DeApiVideoClient CreateClient(
+        HttpMessageHandler handler,
+        string? baseUrl = "https://api.deapi.ai/api/v2",
+        int notFoundMaxRetries = 3)
     {
         return new DeApiVideoClient(
             new HttpClient(handler),
@@ -193,7 +228,9 @@ public class DeApiVideoClientTests
             {
                 DeApiApiKey = "test-key",
                 DeApiBaseUrl = baseUrl,
-                DeApiModel = "Ltx2_3_22B_Dist_INT8"
+                DeApiModel = "Ltx2_3_22B_Dist_INT8",
+                DeApiNotFoundMaxRetries = notFoundMaxRetries,
+                DeApiNotFoundRetryDelaySeconds = 0
             }),
             NullLogger<DeApiVideoClient>.Instance);
     }

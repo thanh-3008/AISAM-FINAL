@@ -12,6 +12,7 @@ namespace AISAM.Services.Service;
 public sealed class DeApiVideoClient
 {
     private static readonly ConcurrentDictionary<string, DateTimeOffset> PollBackoffUntil = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, int> ConsecutiveNotFoundCounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient;
     private readonly VideoProviderSettings _settings;
     private readonly ILogger<DeApiVideoClient> _logger;
@@ -298,8 +299,9 @@ public sealed class DeApiVideoClient
 
             response = await _httpClient.SendAsync(request, cancellationToken);
             json = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogInformation("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} HttpStatus={HttpStatus} ResponseLength={ResponseLength}",
-                "video.provider.poll_response", $"deapi:{taskId}", (int)response.StatusCode, json.Length);
+            _logger.LogInformation("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} StrippedRequestId={StrippedRequestId} Endpoint={Endpoint} HttpStatus={HttpStatus} ResponseBody={ResponseBody}",
+                "video.provider.poll_response", $"deapi:{taskId}", taskId, requestUrl,
+                (int)response.StatusCode, Truncate(json, 1000));
 
             if (response.IsSuccessStatusCode)
             {
@@ -325,11 +327,30 @@ public sealed class DeApiVideoClient
 
             if (response?.StatusCode == HttpStatusCode.NotFound)
             {
+                var notFoundCount = ConsecutiveNotFoundCounts.AddOrUpdate(taskId, 1, static (_, count) => count + 1);
+                var maxRetries = Math.Max(0, _settings.DeApiNotFoundMaxRetries);
+                if (notFoundCount <= maxRetries)
+                {
+                    var baseDelaySeconds = Math.Max(0, _settings.DeApiNotFoundRetryDelaySeconds);
+                    var retryDelaySeconds = Math.Min(300, baseDelaySeconds * Math.Pow(2, notFoundCount - 1));
+                    var retryDelay = TimeSpan.FromSeconds(retryDelaySeconds);
+                    if (retryDelay > TimeSpan.Zero)
+                        PollBackoffUntil[taskId] = DateTimeOffset.UtcNow.Add(retryDelay);
+
+                    _logger.LogWarning(
+                        "[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} StrippedRequestId={StrippedRequestId} HttpStatus=404 Attempt={Attempt} MaxRetries={MaxRetries} RetryDelaySeconds={RetryDelaySeconds} ResponseBody={ResponseBody}",
+                        "video.provider.job_not_found_retry", $"deapi:{taskId}", taskId, notFoundCount,
+                        maxRetries, retryDelay.TotalSeconds, Truncate(json, 1000));
+                    return VideoGenerationResult.InProgress($"deapi:{taskId}", "DeAPI");
+                }
+
                 PollBackoffUntil.TryRemove(taskId, out _);
-                _logger.LogWarning("[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} HttpStatus=404 Error={Error}",
-                    "video.provider.job_not_found", $"deapi:{taskId}", Truncate(error: json, 500));
+                _logger.LogWarning(
+                    "[DeAPI.Poll] Event={Event} VideoJobId={VideoJobId} StrippedRequestId={StrippedRequestId} HttpStatus=404 Attempt={Attempt} MaxRetries={MaxRetries} Reason={Reason} ResponseBody={ResponseBody}",
+                    "video.provider.job_not_found_failed", $"deapi:{taskId}", taskId, notFoundCount,
+                    maxRetries, "bounded_not_found_retries_exhausted", Truncate(json, 1000));
                 return VideoGenerationResult.Fail(
-                    $"DeAPI job '{taskId}' was not found. The remote job is invalid, expired, or was created through an incompatible endpoint.",
+                    $"HTTP 404 after {maxRetries} transient retries: {json}",
                     "DeAPI");
             }
             
@@ -337,6 +358,7 @@ public sealed class DeApiVideoClient
         }
 
             PollBackoffUntil.TryRemove(taskId, out _);
+            ConsecutiveNotFoundCounts.TryRemove(taskId, out _);
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
             

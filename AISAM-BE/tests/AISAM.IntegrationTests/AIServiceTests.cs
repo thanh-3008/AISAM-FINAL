@@ -8,6 +8,7 @@ using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using AISAM.Services.Service;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -51,7 +52,7 @@ public class AIServiceTests
     }
 
     [Fact]
-    public async Task CheckVideoStatusAsync_MarksMissingRemoteJobFailed_AndStopsPolling()
+    public async Task CheckVideoStatusAsync_MarksExplicitProviderFailureFailed_AndStopsPolling()
     {
         var workspaceId = Guid.NewGuid();
         var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid() };
@@ -62,7 +63,7 @@ public class AIServiceTests
         };
         var provider = new FakeVideoProvider
         {
-            PollResult = VideoGenerationResult.Fail("DeAPI job 'missing-job' was not found.", "DeAPI")
+            PollResult = VideoGenerationResult.Fail("GPU worker failed.", "DeAPI")
         };
         var service = CreateService(
             new FakeContentRepository(content), new FakeAiGenerationRepository(generation),
@@ -72,7 +73,92 @@ public class AIServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
-        Assert.Contains("was not found", result.Data.ErrorMessage);
+        Assert.Equal("GPU worker failed.", result.Data.ErrorMessage);
+        Assert.Equal(1, provider.CheckCallCount);
+    }
+
+    [Fact]
+    public async Task CheckVideoStatusAsync_ProcessingResultPreservesGenerationAndJobId()
+    {
+        var workspaceId = Guid.NewGuid();
+        var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid() };
+        var generation = new AiGeneration
+        {
+            Id = Guid.NewGuid(), ContentId = content.Id, Content = content,
+            Status = AiStatusEnum.Processing, VideoJobId = "deapi:same-job", CreatedAt = DateTime.UtcNow
+        };
+        var provider = new FakeVideoProvider
+        {
+            PollResult = VideoGenerationResult.InProgress("deapi:same-job", "DeAPI")
+        };
+        var service = CreateService(
+            new FakeContentRepository(content), new FakeAiGenerationRepository(generation),
+            new FakeBrandRepository(), new FakeGeminiTextClient("unused"), videoProvider: provider);
+
+        var result = await service.CheckVideoStatusAsync(generation.Id, workspaceId, Guid.NewGuid());
+
+        Assert.True(result.Success);
+        Assert.Equal(AiStatusEnum.Processing, result.Data!.Status);
+        Assert.Equal("deapi:same-job", result.Data.VideoJobId);
+        Assert.Null(result.Data.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task CheckVideoStatusAsync_CompletedResult_SavesUploadedVideoUrl()
+    {
+        await using var server = new OneShotHttpServer([1, 2, 3, 4]);
+        var workspaceId = Guid.NewGuid();
+        var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid() };
+        var generation = new AiGeneration
+        {
+            Id = Guid.NewGuid(), ContentId = content.Id, Content = content,
+            Status = AiStatusEnum.Processing, VideoJobId = "deapi:completed-job", CreatedAt = DateTime.UtcNow
+        };
+        var mediaStorage = new FakeMediaStorageService("https://cdn.example/video.mp4");
+        var provider = new FakeVideoProvider
+        {
+            PollResult = VideoGenerationResult.Done(server.Url, "DeAPI")
+        };
+        var service = CreateService(
+            new FakeContentRepository(content), new FakeAiGenerationRepository(generation),
+            new FakeBrandRepository(), new FakeGeminiTextClient("unused"),
+            videoProvider: provider, mediaStorage: mediaStorage);
+
+        var result = await service.CheckVideoStatusAsync(generation.Id, workspaceId, Guid.NewGuid());
+
+        Assert.True(result.Success);
+        Assert.Equal(AiStatusEnum.Completed, result.Data!.Status);
+        Assert.Equal("https://cdn.example/video.mp4", result.Data.GeneratedVideoUrl);
+        Assert.Equal("https://cdn.example/video.mp4", content.VideoUrl);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, mediaStorage.UploadedBytes);
+        Assert.Equal("deapi:completed-job", result.Data.VideoJobId);
+    }
+
+    [Fact]
+    public async Task CheckVideoStatusAsync_ConcurrentCalls_DoNotApplyConflictingTerminalTransitions()
+    {
+        var workspaceId = Guid.NewGuid();
+        var content = new Content { Id = Guid.NewGuid(), WorkspaceId = workspaceId, BrandId = Guid.NewGuid() };
+        var generation = new AiGeneration
+        {
+            Id = Guid.NewGuid(), ContentId = content.Id, Content = content,
+            Status = AiStatusEnum.Processing, VideoJobId = "deapi:concurrent-job", CreatedAt = DateTime.UtcNow
+        };
+        var provider = new FakeVideoProvider
+        {
+            PollResult = VideoGenerationResult.Fail("Explicit provider failure.", "DeAPI"),
+            CheckDelay = TimeSpan.FromMilliseconds(50)
+        };
+        var service = CreateService(
+            new FakeContentRepository(content), new FakeAiGenerationRepository(generation),
+            new FakeBrandRepository(), new FakeGeminiTextClient("unused"), videoProvider: provider);
+
+        await Task.WhenAll(
+            service.CheckVideoStatusAsync(generation.Id, workspaceId, Guid.NewGuid()),
+            service.CheckVideoStatusAsync(generation.Id, workspaceId, Guid.NewGuid()));
+
+        Assert.Equal(AiStatusEnum.Failed, generation.Status);
+        Assert.Equal("deapi:concurrent-job", generation.VideoJobId);
         Assert.Equal(1, provider.CheckCallCount);
     }
 
@@ -647,7 +733,8 @@ public class AIServiceTests
         IProductRepository? productRepository = null,
         ICreditService? creditService = null,
         IPromptEnhancerService? promptEnhancer = null,
-        IAIVideoProvider? videoProvider = null)
+        IAIVideoProvider? videoProvider = null,
+        IMediaStorageService? mediaStorage = null)
     {
         return new AIService(
             contentRepository,
@@ -659,7 +746,7 @@ public class AIServiceTests
             creditService ?? new FakeCreditService(),
             null!,
             videoProvider ?? new FakeVideoProvider(),
-            null!,
+            mediaStorage!,
             promptEnhancer ?? new FakePromptEnhancerService(),
             NullLogger<AIService>.Instance);
     }
@@ -733,7 +820,9 @@ public class AIServiceTests
     {
         public string ProviderName => "Fake";
         public int StartCallCount { get; private set; }
-        public int CheckCallCount { get; private set; }
+        private int _checkCallCount;
+        public int CheckCallCount => _checkCallCount;
+        public TimeSpan CheckDelay { get; set; }
         public VideoGenerationResult PollResult { get; set; } = VideoGenerationResult.InProgress("deapi:processing", "Fake");
 
         public Task<VideoGenerationResult> StartVideoGenerationAsync(string prompt, VideoGenerationOptions? options = null, CancellationToken cancellationToken = default)
@@ -742,10 +831,61 @@ public class AIServiceTests
             return Task.FromResult(VideoGenerationResult.Queued("deapi:new-job", ProviderName));
         }
 
-        public Task<VideoGenerationResult> CheckStatusAsync(string jobId, CancellationToken cancellationToken = default)
+        public async Task<VideoGenerationResult> CheckStatusAsync(string jobId, CancellationToken cancellationToken = default)
         {
-            CheckCallCount++;
-            return Task.FromResult(PollResult);
+            Interlocked.Increment(ref _checkCallCount);
+            if (CheckDelay > TimeSpan.Zero)
+                await Task.Delay(CheckDelay, cancellationToken);
+            return PollResult;
+        }
+    }
+
+    private sealed class FakeMediaStorageService(string uploadedUrl) : IMediaStorageService
+    {
+        public byte[]? UploadedBytes { get; private set; }
+
+        public Task<string> UploadAsync(Microsoft.AspNetCore.Http.IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<string> UploadBytesAsync(byte[] data, string folder, string fileName, CancellationToken cancellationToken = default)
+        {
+            UploadedBytes = data;
+            return Task.FromResult(uploadedUrl);
+        }
+    }
+
+    private sealed class OneShotHttpServer : IAsyncDisposable
+    {
+        private readonly TcpListener _listener;
+        private readonly Task _serverTask;
+
+        public OneShotHttpServer(byte[] body)
+        {
+            _listener = new TcpListener(IPAddress.Loopback, 0);
+            _listener.Start();
+            var port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            Url = $"http://127.0.0.1:{port}/video.mp4";
+            _serverTask = ServeAsync(body);
+        }
+
+        public string Url { get; }
+
+        private async Task ServeAsync(byte[] body)
+        {
+            using var client = await _listener.AcceptTcpClientAsync();
+            await using var stream = client.GetStream();
+            var requestBuffer = new byte[4096];
+            await stream.ReadAsync(requestBuffer);
+            var header = System.Text.Encoding.ASCII.GetBytes(
+                $"HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+            await stream.WriteAsync(header);
+            await stream.WriteAsync(body);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _listener.Stop();
+            await _serverTask;
         }
     }
 
