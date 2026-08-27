@@ -16,4 +16,9 @@ public interface IConversationRepository
     Task<Conversation> AddAsync(Conversation conversation, CancellationToken cancellationToken = default);
     Task UpdateAsync(Conversation conversation, CancellationToken cancellationToken = default);
     Task AddMessageAsync(ChatMessage message, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, AiGeneration>> GetGenerationsByVideoJobIdsAsync(
+        Guid workspaceId,
+        IEnumerable<string> videoJobIds,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyDictionary<string, AiGeneration>>(new Dictionary<string, AiGeneration>());
 }
