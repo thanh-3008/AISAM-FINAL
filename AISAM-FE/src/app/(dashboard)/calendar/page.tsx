@@ -100,6 +100,7 @@ function renderSortIcon(activeKey: SortKey, direction: SortDir, key: SortKey) {
 
 function CalendarContent() {
   const featureGate = useFeatureGate();
+  const canManageSchedules = featureGate.can("manageSchedules");
   const { activeWorkspace } = useWorkspaces();
   const today = new Date();
   const [view, setView] = useState<ViewMode>("month");
@@ -199,7 +200,7 @@ function CalendarContent() {
     }
     if (openedPrefillContentIdRef.current === contentId) return;
 
-    if (contentId && contents.length > 0) {
+    if (contentId && contents.length > 0 && canManageSchedules) {
       const match = contents.find((c) => c.id === contentId);
       if (match) {
         const now = new Date();
@@ -210,7 +211,7 @@ function CalendarContent() {
         setShowCreate(true);
       }
     }
-  }, [searchParams, contents]);
+  }, [searchParams, contents, canManageSchedules]);
 
   const closeCreateModal = () => {
     setShowCreate(false);
@@ -254,6 +255,7 @@ function CalendarContent() {
   };
 
   const handleCreate = async () => {
+    if (!canManageSchedules) return;
     if (!form.contentId || createIntegrationIds.length === 0 || !form.date || !form.time) return;
 
     const scheduledAt = new Date(`${form.date}T${form.time}`);
@@ -294,6 +296,7 @@ function CalendarContent() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManageSchedules) return;
     setActionId(id);
     const item = schedules.find((s) => s.id === id);
     const result = await deleteSchedule(id);
@@ -315,6 +318,7 @@ function CalendarContent() {
   };
 
   const openEditModal = (s: ScheduleItem) => {
+    if (!canManageSchedules) return;
     const d = new Date(s.scheduledAt);
     setEditingSchedule(s);
     setEditForm({
@@ -325,6 +329,7 @@ function CalendarContent() {
   };
 
   const handleEditSave = async () => {
+    if (!canManageSchedules) return;
     if (!editingSchedule || !editForm.date || !editForm.time || !editForm.integrationId) return;
     setActionId("edit");
     const scheduledAt = new Date(`${editForm.date}T${editForm.time}`).toISOString();
@@ -417,11 +422,11 @@ function CalendarContent() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => setShowCreate(true)}
+              {canManageSchedules && <button onClick={() => setShowCreate(true)}
                 className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold flex items-center gap-1.5 hover:bg-primary/90 transition-all shadow-sm">
                 <span className="material-symbols-outlined text-[14px]">add</span>
                 Schedule
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -645,14 +650,14 @@ function CalendarContent() {
                                     )}
                                   </div>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} disabled={actionId === s.id}
+                                {canManageSchedules && <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} disabled={actionId === s.id}
                                   className="p-1 opacity-0 group-hover:opacity-100 text-outline/40 hover:text-danger-red transition-all disabled:opacity-20">
                                   {actionId === s.id ? (
                                     <span className="w-3 h-3 border-2 border-danger-red/30 border-t-danger-red rounded-full animate-spin block" />
                                   ) : (
                                     <span className="material-symbols-outlined text-[14px]">close</span>
                                   )}
-                                </button>
+                                </button>}
                               </div>
                             </div>
                           );
@@ -859,14 +864,14 @@ function CalendarContent() {
                             {s.lastError && <span className="text-label-2xs text-danger-red block">{s.lastError}</span>}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button onClick={() => handleDelete(s.id)} disabled={actionId === s.id}
+                            {canManageSchedules && <button onClick={() => handleDelete(s.id)} disabled={actionId === s.id}
                               className="p-2 text-outline/40 hover:text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40">
                               {actionId === s.id ? (
                                 <span className="w-3.5 h-3.5 border-2 border-danger-red/30 border-t-danger-red rounded-full animate-spin block" />
                               ) : (
                                 <span className="material-symbols-outlined text-[17px]">delete</span>
                               )}
-                            </button>
+                            </button>}
                           </td>
                         </tr>
                       );
@@ -879,7 +884,7 @@ function CalendarContent() {
         </div>
 
         {/* ── Create Schedule Modal ── */}
-        {showCreate && (
+        {showCreate && canManageSchedules && (
           <>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={closeCreateModal} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeCreateModal}>
@@ -975,7 +980,7 @@ function CalendarContent() {
         )}
 
         {/* ── Edit Schedule Modal ── */}
-        {editingSchedule && (
+        {editingSchedule && canManageSchedules && (
           <>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setEditingSchedule(null)} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEditingSchedule(null)}>

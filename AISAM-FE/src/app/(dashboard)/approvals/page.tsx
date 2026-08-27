@@ -389,7 +389,9 @@ export default function ApprovalsPage() {
   const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
-  const canReview = featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator;
+  const canReview = featureGate.can("reviewContent");
+  const canPublish = featureGate.can("publishPost");
+  const canManageSchedules = featureGate.can("manageSchedules");
   const [items, setItems] = useState<ApprovalListItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -464,6 +466,7 @@ export default function ApprovalsPage() {
   };
 
   const handleApprove = async (id: string) => {
+    if (!canReview) return;
     setActionId(id);
     const item = items.find((i) => i.id === id);
     const success = await approveContent(id);
@@ -508,6 +511,7 @@ export default function ApprovalsPage() {
   };
 
   const batchApprove = async () => {
+    if (!canReview) return;
     const selectedIds = Array.from(selected);
     let successCount = 0;
     for (const id of selectedIds) {
@@ -524,6 +528,7 @@ export default function ApprovalsPage() {
   };
 
   const batchReject = async () => {
+    if (!canReview) return;
     const selectedIds = Array.from(selected);
     const firstItem = items.find((item) => item.id === selectedIds[0]);
     if (!firstItem) return;
@@ -537,6 +542,7 @@ export default function ApprovalsPage() {
   };
 
   const handleRequestChanges = (item: ApprovalListItem) => {
+    if (!canReview) return;
     setNoteMode("revision");
     setRevisionDrawer(item);
     setRevisionNote("");
@@ -544,7 +550,7 @@ export default function ApprovalsPage() {
   };
 
   const submitRevision = async () => {
-    if (!revisionDrawer || revisionNote.trim().length < 5) return;
+    if (!canReview || !revisionDrawer || revisionNote.trim().length < 5) return;
     const ids = batchRejectIds.length > 0 ? batchRejectIds : [revisionDrawer.id];
     setActionId(revisionDrawer.id);
     try {
@@ -614,7 +620,7 @@ export default function ApprovalsPage() {
   const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
   const paged = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
   
-  const selectableFiltered = paged.filter((item) => !isScheduleFailureItem(item));
+  const selectableFiltered = canReview ? paged.filter((item) => !isScheduleFailureItem(item)) : [];
   const allSelectableSelected = selectableFiltered.length > 0 && selectableFiltered.every((item) => selected.has(item.id));
 
   const tabCounts: Record<TabKey, number> = {
@@ -754,7 +760,7 @@ export default function ApprovalsPage() {
           </div>
 
           {/* ── Batch Actions Bar ── */}
-          {selected.size > 0 && (
+          {selected.size > 0 && canReview && (
             <div className="flex items-center gap-3 px-4 py-3 bg-primary/5 border border-primary/20 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
               <span className="text-label-sm font-semibold text-primary">{selected.size} selected</span>
               <div className="flex items-center gap-2 ml-auto">
@@ -847,9 +853,9 @@ export default function ApprovalsPage() {
                       const priority = getPriority(item);
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
-                      const isSelectable = !isScheduleFailureItem(item);
+                      const isSelectable = canReview && !isScheduleFailureItem(item);
                       const statusMeta = getStatusMeta(item.status);
-                      const canReview = isPendingStatus(item.status) && (featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator);
+                      const canReviewItem = isPendingStatus(item.status) && canReview;
                       const canDelete = isRejectedStatus(item.status);
                       const rowImageUrl = getPreviewImageUrl(item);
                       const rowVideoUrl = getPreviewVideoUrl(item);
@@ -955,7 +961,7 @@ export default function ApprovalsPage() {
                           </td>
                           <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {canReview && (
+                              {canReviewItem && (
                                 <>
                                   <button onClick={() => handleApprove(item.id)} disabled={actionId === item.id}
                                     className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Approve (A)">
@@ -978,22 +984,22 @@ export default function ApprovalsPage() {
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
                                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
                               </button>
-                              {isApprovedStatus(item.status) && (
+                              {isApprovedStatus(item.status) && (canPublish || canManageSchedules) && (
                                 <>
-                                  <button onClick={() => { setPostNowItem(item); }}
+                                  {canPublish && <button onClick={() => { setPostNowItem(item); }}
                                     className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Post Now">
                                     <span className="material-symbols-outlined text-[17px]">send</span>
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Post Now</span>
-                                  </button>
-                                  <button onClick={() => { router.push(`/calendar?contentId=${item.id}`); }}
+                                  </button>}
+                                  {canManageSchedules && <button onClick={() => { router.push(`/calendar?contentId=${item.id}`); }}
                                     className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all relative group/btn" title="Schedule">
                                     <span className="material-symbols-outlined text-[17px]">calendar_month</span>
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Schedule</span>
-                                  </button>
+                                  </button>}
                                 </>
                               )}
-                              {(canReview || canDelete) && <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />}
-                              {canReview && (
+                              {(canReviewItem || canDelete) && <div className="w-px h-5 bg-outline-variant/30 mx-0.5" />}
+                              {canReviewItem && (
                                 <button onClick={() => setConfirmItem(item)} disabled={actionId === item.id}
                                   className="p-2 text-danger-red hover:bg-danger-red/10 rounded-lg transition-all disabled:opacity-40 relative group/btn" title="Reject (R)">
                                   <span className="material-symbols-outlined text-[17px]">block</span>
@@ -1398,7 +1404,7 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
-                {isPendingStatus(drawerItem.status) && (featureGate.isOwner || featureGate.isManager || featureGate.isContentCreator) && (
+                {isPendingStatus(drawerItem.status) && canReview && (
                   <>
                     <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
                       className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
@@ -1431,21 +1437,21 @@ export default function ApprovalsPage() {
                     Delete Rejected Content
                   </button>
                 )}
-                {isApprovedStatus(drawerItem.status) && (
+                {isApprovedStatus(drawerItem.status) && (canPublish || canManageSchedules) && (
                   <>
-                    <button onClick={() => { setPostNowItem(drawerItem); setDrawerItem(null); }}
+                    {canPublish && <button onClick={() => { setPostNowItem(drawerItem); setDrawerItem(null); }}
                       className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">
                       <span className="material-symbols-outlined text-[17px]">send</span>
                       Post Now
-                    </button>
-                    <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.id}`); setDrawerItem(null); }}
+                    </button>}
+                    {canManageSchedules && <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.id}`); setDrawerItem(null); }}
                       className="flex-1 border border-outline-variant/20 text-on-surface-variant py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-surface-container active:scale-[0.98] transition-all">
                       <span className="material-symbols-outlined text-[17px]">calendar_month</span>
                       Schedule
-                    </button>
+                    </button>}
                   </>
                   )}
-                {isPublishFailedStatus(drawerItem.status) && drawerItem.sourceContentId && (
+                {isPublishFailedStatus(drawerItem.status) && drawerItem.sourceContentId && canManageSchedules && (
                   <button onClick={() => { router.push(`/calendar?contentId=${drawerItem.sourceContentId}`); setDrawerItem(null); }}
                     className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">
                     <span className="material-symbols-outlined text-[17px]">calendar_month</span>
@@ -1589,7 +1595,7 @@ export default function ApprovalsPage() {
         )}
 
         {/* ── Post Now Modal ── */}
-        {postNowItem && (
+        {postNowItem && canPublish && (
           <PostNowModal
             contentId={postNowItem.id}
             brandId={postNowItem.brandId}

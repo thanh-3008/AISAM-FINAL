@@ -12,6 +12,7 @@ import { fetchContentQuota } from "@/services/workspaceService";
 import PostNowModal from "@/components/content/PostNowModal";
 import BulkScheduleModal from "@/components/content/BulkScheduleModal";
 import { matchesApprovalBrand } from "@/lib/approvalBrands";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -39,6 +40,10 @@ let toastId = 0;
 
 export default function ContentPage() {
   const router = useRouter();
+  const featureGate = useFeatureGate();
+  const canReview = featureGate.can("reviewContent");
+  const canPublish = featureGate.can("publishPost");
+  const canManageSchedules = featureGate.can("manageSchedules");
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -223,7 +228,7 @@ export default function ContentPage() {
   };
 
   const handleBatchStatusChange = async () => {
-    if (!batchStatus) return;
+    if (!batchStatus || !canReview) return;
     const ids = Array.from(selectedIds);
     const statusMap: Record<string, number> = { "Draft": 0, "Awaiting Approval": 1, "Approved": 2, "Rejected": 3, "Published": 4 };
     const results = await Promise.all(ids.map(id =>
@@ -277,10 +282,12 @@ export default function ContentPage() {
         break;
       }
       case "Post Now": {
+        if (!canPublish) return;
         setPostNowItem(item);
         break;
       }
       case "Schedule": {
+        if (!canManageSchedules) return;
         router.push(`/calendar?contentId=${item.id}`);
         break;
       }
@@ -533,12 +540,12 @@ export default function ContentPage() {
           <div className={`flex items-center gap-3 px-5 py-3 bg-primary/5 border border-primary/20 rounded-2xl ${visible ? "animate-fade-up" : ""}`} style={{ animationDelay: "0.42s" }}>
             <span className="text-label-sm text-on-surface font-semibold">{selectedIds.size} selected</span>
             <div className="h-4 w-px bg-outline-variant/20" />
-            <select value={batchStatus} onChange={(e) => setBatchStatus(e.target.value as ContentStatus)}
+            {canReview && <select value={batchStatus} onChange={(e) => setBatchStatus(e.target.value as ContentStatus)}
               className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl py-1.5 px-2.5 text-label-sm text-on-surface focus:border-primary/40 outline-none transition-all shadow-sm">
               <option value="">Set status...</option>
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            {batchStatus && (
+            </select>}
+            {canReview && batchStatus && (
               <button onClick={handleBatchStatusChange}
                 className="px-3 py-1.5 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all">
                 Apply
@@ -553,7 +560,7 @@ export default function ContentPage() {
               const selectedItems = Array.from(selectedIds).map(id => allContent.find(c => c.id === id)).filter(Boolean);
               const allApproved = selectedItems.every(c => c!.status === "Approved");
               const sameBrand = new Set(selectedItems.map(c => c!.brandId)).size === 1;
-              const canSchedule = allApproved && sameBrand;
+              const canSchedule = canManageSchedules && allApproved && sameBrand;
               return (
                 <button onClick={() => canSchedule && setShowBulkSchedule(true)}
                   className={`px-3 py-1.5 rounded-xl text-label-sm font-semibold transition-all flex items-center gap-1.5 ${
@@ -618,7 +625,7 @@ export default function ContentPage() {
                           onClick={(e) => e.stopPropagation()} />
                       </div>
                     )}
-                    <ContentCard item={item} index={i} visible={visible} openMenuId={openMenuId} onToggleMenu={setOpenMenuId} onAction={handleCardAction} />
+            <ContentCard item={item} index={i} visible={visible} openMenuId={openMenuId} onToggleMenu={setOpenMenuId} onAction={handleCardAction} canPublish={canPublish} canManageSchedules={canManageSchedules} />
                   </div>
                 ))}
               </div>
@@ -696,7 +703,7 @@ export default function ContentPage() {
                             <span className="material-symbols-outlined text-[16px]">more_vert</span>
                           </button>
                           {openMenuId === item.id && (
-                            <TableMenu item={item} onClose={() => setOpenMenuId(null)} onAction={handleCardAction} />
+                            <TableMenu item={item} onClose={() => setOpenMenuId(null)} onAction={handleCardAction} canPublish={canPublish} canManageSchedules={canManageSchedules} />
                           )}
                         </td>
                       </tr>
@@ -938,7 +945,7 @@ export default function ContentPage() {
       )}
 
       {/* ─── Bulk Schedule Modal ─── */}
-      {showBulkSchedule && (
+      {showBulkSchedule && canManageSchedules && (
         <BulkScheduleModal
           items={Array.from(selectedIds).map(id => {
             const item = allContent.find(c => c.id === id);
@@ -955,7 +962,7 @@ export default function ContentPage() {
       )}
 
       {/* ─── Post Now Modal ─── */}
-      {postNowItem && (
+      {postNowItem && canPublish && (
         <PostNowModal
           contentId={postNowItem.id}
           brandId={postNowItem.brandId}
@@ -996,7 +1003,7 @@ function FilterChip({ label, color, onRemove }: { label: string; color?: string;
   );
 }
 
-function TableMenu({ item, onClose, onAction }: { item: ContentItem; onClose: () => void; onAction: (action: string, item: ContentItem) => void }) {
+function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: { item: ContentItem; onClose: () => void; onAction: (action: string, item: ContentItem) => void; canPublish: boolean; canManageSchedules: boolean }) {
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
@@ -1024,16 +1031,16 @@ function TableMenu({ item, onClose, onAction }: { item: ContentItem; onClose: ()
             Submit for Approval
           </button>
         )}
-        {item.status === "Approved" && (
+        {item.status === "Approved" && (canPublish || canManageSchedules) && (
           <>
-            <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+            {canPublish && <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
               <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">send</span>
               Post Now
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onAction("Schedule", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+            </button>}
+            {canManageSchedules && <button onClick={(e) => { e.stopPropagation(); onAction("Schedule", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
               <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">calendar_month</span>
               Schedule
-            </button>
+            </button>}
           </>
         )}
         <div className="h-px bg-outline-variant/10 mx-3" />
@@ -1046,8 +1053,8 @@ function TableMenu({ item, onClose, onAction }: { item: ContentItem; onClose: ()
   );
 }
 
-function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction }: {
-  item: ContentItem; index: number; visible: boolean; openMenuId: string | null; onToggleMenu: (id: string | null) => void; onAction: (action: string, item: ContentItem) => void;
+function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction, canPublish, canManageSchedules }: {
+  item: ContentItem; index: number; visible: boolean; openMenuId: string | null; onToggleMenu: (id: string | null) => void; onAction: (action: string, item: ContentItem) => void; canPublish: boolean; canManageSchedules: boolean;
 }) {
   const tc = getTypeConfig(item.type);
   const typeGradient = getTypeStyle(item.type);
@@ -1096,7 +1103,7 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction 
             <span className="material-symbols-outlined text-[14px]">more_vert</span>
           </button>
           {openMenuId === item.id && (
-            <TableMenu item={item} onClose={() => onToggleMenu(null)} onAction={onAction} />
+            <TableMenu item={item} onClose={() => onToggleMenu(null)} onAction={onAction} canPublish={canPublish} canManageSchedules={canManageSchedules} />
           )}
         </div>
         <div className="p-5">

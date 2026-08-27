@@ -54,7 +54,9 @@ export type Permission =
   | "generateImage"
   | "generateVideo"
   | "createDraft"
+  | "reviewContent"
   | "publishPost"
+  | "manageSchedules"
   | "viewTeamUsage"
   | "inviteMember"
   | "removeMember"
@@ -105,7 +107,9 @@ export const PERMISSION_MATRIX: Record<Permission, WorkspaceRole[]> = {
   generateImage: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator],
   generateVideo: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator],
   createDraft: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator],
-  publishPost: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator],
+  reviewContent: [WorkspaceRole.Owner, WorkspaceRole.Manager],
+  publishPost: [WorkspaceRole.Owner, WorkspaceRole.Manager],
+  manageSchedules: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   viewTeamUsage: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   inviteMember: [WorkspaceRole.Owner],
   removeMember: [WorkspaceRole.Owner],

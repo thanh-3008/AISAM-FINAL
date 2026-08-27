@@ -242,9 +242,13 @@ public sealed class ActiveWorkspaceMiddleware
                 return null;
             }
 
-            var permission = path.Value?.Contains("/publish/", StringComparison.OrdinalIgnoreCase) == true
+            var pathValue = path.Value ?? string.Empty;
+            var permission = pathValue.Contains("/publish/", StringComparison.OrdinalIgnoreCase)
                 ? WorkspacePermissionEnum.PublishContent
-                : WorkspacePermissionEnum.ManageContent;
+                : pathValue.Contains("/approve", StringComparison.OrdinalIgnoreCase) ||
+                  pathValue.Contains("/reject", StringComparison.OrdinalIgnoreCase)
+                    ? WorkspacePermissionEnum.ReviewContent
+                    : WorkspacePermissionEnum.ManageContent;
 
             var permissionError = EnsurePermission(membership.Role, permission);
             if (permissionError != null)
@@ -368,9 +372,10 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspacePermissionEnum.ManageBrands => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.ManageProducts => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.ManageContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
-            WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
+            WorkspacePermissionEnum.ReviewContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.ContentCreator,
-            WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             _ => false
         };

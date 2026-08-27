@@ -9,6 +9,7 @@ import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse } from "@/services/contentService";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 
 interface FormState {
   title: string;
@@ -26,6 +27,9 @@ interface FormState {
 export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const featureGate = useFeatureGate();
+  const canPublish = featureGate.can("publishPost");
+  const canManageSchedules = featureGate.can("manageSchedules");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -211,18 +215,18 @@ export default function ContentDetailPage() {
           <div className="flex items-center gap-2">
             {!editing ? (
               <>
-                {item.status === "Approved" && (
+                {item.status === "Approved" && (canPublish || canManageSchedules) && (
                   <>
-                    <button onClick={() => setShowPostNow(true)}
+                    {canPublish && <button onClick={() => setShowPostNow(true)}
                       className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">send</span>
                       Post Now
-                    </button>
-                    <button onClick={() => router.push(`/calendar?contentId=${item.id}`)}
+                    </button>}
+                    {canManageSchedules && <button onClick={() => router.push(`/calendar?contentId=${item.id}`)}
                       className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">calendar_month</span>
                       Schedule
-                    </button>
+                    </button>}
                   </>
                 )}
                 {(item.status === "Draft" || item.status === "Rejected") && (
@@ -583,7 +587,7 @@ export default function ContentDetailPage() {
       )}
 
       {/* Post Now Modal */}
-      {showPostNow && item && (
+      {showPostNow && item && canPublish && (
         <PostNowModal
           contentId={item.id}
           brandId={item.brandId}
