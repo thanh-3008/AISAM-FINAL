@@ -270,6 +270,56 @@ public class ActiveWorkspaceMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Theory]
+    [InlineData("/api/content/11111111-1111-1111-1111-111111111111/approve")]
+    [InlineData("/api/content/11111111-1111-1111-1111-111111111111/reject")]
+    [InlineData("/api/content/11111111-1111-1111-1111-111111111111/publish/22222222-2222-2222-2222-222222222222")]
+    [InlineData("/api/content-schedules")]
+    public async Task InvokeAsync_BlocksContentCreatorFromReviewingPublishingAndManagingSchedules(string path)
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.ContentCreator);
+        var context = CreateContext(userId, path);
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(CreatePaidSubscription(membership.WorkspaceId)));
+
+        Assert.False(nextCalled);
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceMemberRoleEnum.Owner)]
+    [InlineData(WorkspaceMemberRoleEnum.Manager)]
+    public async Task InvokeAsync_AllowsOwnersAndManagersToReviewContent(WorkspaceMemberRoleEnum role)
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, role);
+        var context = CreateContext(userId, "/api/content/11111111-1111-1111-1111-111111111111/approve");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
+
+        Assert.True(nextCalled);
+    }
+
     [Fact]
     public async Task InvokeAsync_ReturnsUnauthorized_WhenProtectedRequestIsUnauthenticated()
     {
@@ -589,6 +639,15 @@ public class ActiveWorkspaceMiddlewareTests
             Role = role
         };
     }
+
+    private static Subscription CreatePaidSubscription(Guid workspaceId) => new()
+    {
+        WorkspaceId = workspaceId,
+        Plan = SubscriptionPlanEnum.Plus,
+        IsActive = true,
+        StartDate = DateTime.UtcNow.Date,
+        EndDate = DateTime.UtcNow.Date.AddDays(30)
+    };
 
     private sealed class FakeWorkspaceMemberRepository : IWorkspaceMemberRepository
     {

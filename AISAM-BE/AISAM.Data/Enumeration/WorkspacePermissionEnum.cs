@@ -9,6 +9,7 @@ namespace AISAM.Data.Enumeration
         PublishContent = 5,
         GenerateAiContent = 6,
         ManageSchedules = 7,
-        ManageCampaigns = 8
+        ManageCampaigns = 8,
+        ReviewContent = 9
     }
 }

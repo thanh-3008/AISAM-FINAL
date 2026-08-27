@@ -73,6 +73,17 @@ export const removeStoredUser = () => {
 
 let refreshInFlight: Promise<string | null> | null = null;
 
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  const payloadSegment = token.split(".")[1];
+  if (!payloadSegment) throw new Error("Invalid JWT payload");
+
+  const base64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+  const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  const binary = atob(paddedBase64);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+}
+
 async function performRefreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
@@ -124,8 +135,8 @@ export async function ensureValidToken(): Promise<string | null> {
   if (!token) return null;
 
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    if (payload.exp) {
+    const payload = decodeJwtPayload(token);
+    if (typeof payload.exp === "number") {
       const expiresAt = payload.exp * 1000;
       const fiveMin = 5 * 60 * 1000;
       if (Date.now() >= expiresAt - fiveMin) {
@@ -181,8 +192,8 @@ export function getUserIdFromToken(): string | null {
   const token = getToken();
   if (!token) return null;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload[CLAIM_UID] || payload.sub || payload.nameid || null;
+    const payload = decodeJwtPayload(token);
+    return (payload[CLAIM_UID] || payload.sub || payload.nameid || null) as string | null;
   } catch {
     return null;
   }
@@ -192,10 +203,10 @@ export function getUserFromToken(): { name?: string; email?: string } | null {
   const token = getToken();
   if (!token) return null;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const payload = decodeJwtPayload(token);
     return {
-      name: payload[CLAIM_NAME] || payload.name || payload.given_name || payload.unique_name || undefined,
-      email: payload[CLAIM_EMAIL] || payload.email || payload.preferred_username || undefined,
+      name: (payload[CLAIM_NAME] || payload.name || payload.given_name || payload.unique_name || undefined) as string | undefined,
+      email: (payload[CLAIM_EMAIL] || payload.email || payload.preferred_username || undefined) as string | undefined,
     };
   } catch {
     return null;
@@ -206,12 +217,12 @@ export function getUserRoleFromToken(): string | null {
   try {
     const token = getToken();
     if (!token) return null;
-    const decoded = JSON.parse(atob(token.split(".")[1]));
+    const decoded = decodeJwtPayload(token);
     return (
       decoded[CLAIM_ROLE] ||
       decoded["role"] ||
       null
-    );
+    ) as string | null;
   } catch {
     return null;
   }

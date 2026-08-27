@@ -10,8 +10,17 @@ import {
   getStoredUser,
   removeStoredUser,
   refreshAccessToken,
+  getUserFromToken,
   isAdmin
 } from "../auth";
+
+function createJwt(payload: Record<string, unknown>): string {
+  const utf8 = new TextEncoder().encode(JSON.stringify(payload));
+  let binary = "";
+  utf8.forEach((byte) => { binary += String.fromCharCode(byte); });
+  const segment = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `header.${segment}.signature`;
+}
 
 describe("auth utils", () => {
   beforeEach(() => {
@@ -97,6 +106,23 @@ describe("auth utils", () => {
       setStoredUser(mockUser);
       removeStoredUser();
       expect(getStoredUser()).toBeNull();
+    });
+
+    it.each([
+      "Dũng Cao",
+      "Đặng Thị Hương",
+      "Nguyễn Văn Ước",
+      "山田太郎",
+    ])("decodes the UTF-8 JWT display name %s without mojibake", (fullName) => {
+      setToken(createJwt({
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name": fullName,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": "unicode@example.com",
+      }));
+
+      expect(getUserFromToken()).toEqual({
+        name: fullName,
+        email: "unicode@example.com",
+      });
     });
   });
 

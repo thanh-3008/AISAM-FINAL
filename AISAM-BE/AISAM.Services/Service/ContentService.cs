@@ -175,9 +175,12 @@ public sealed class ContentService : IContentService
         if (request.Status.HasValue)
         {
             var previousStatus = content.Status;
-            if (role == WorkspaceMemberRoleEnum.Viewer)
+            if (request.Status.Value != content.Status &&
+                role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager)
             {
-                return GenericResponse<ContentResponseDto>.CreateError("Viewer role cannot approve or reject content.", HttpStatusCode.Forbidden);
+                return GenericResponse<ContentResponseDto>.CreateError(
+                    "Only workspace owners and managers can change content status.",
+                    HttpStatusCode.Forbidden);
             }
             var statusValidation = ValidateStatusTransition(content.Status, request.Status.Value);
             if (!statusValidation.Success)
