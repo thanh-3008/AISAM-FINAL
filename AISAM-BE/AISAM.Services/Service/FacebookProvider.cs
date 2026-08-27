@@ -328,7 +328,23 @@ public sealed class FacebookProvider : IProviderService
     {
         EnsureConfigured();
 
-        await ValidateFacebookAppModeAsync(userAccessToken, cancellationToken);
+        var isSandboxAdAccount = IsConfiguredSandboxAdAccount(adAccountId);
+        if (!isSandboxAdAccount && !_settings.AllowDevelopmentModeAdCreation)
+        {
+            await ValidateFacebookAppModeAsync(userAccessToken, cancellationToken);
+        }
+
+        if ((isSandboxAdAccount || _settings.ForceLandingPageCreatives) && !string.IsNullOrWhiteSpace(objectStoryId))
+        {
+            _logger.LogInformation(
+                "Skipping existing post creative for ad account {AdAccountId}. Sandbox={Sandbox}, ForceLandingPageCreatives={ForceLandingPageCreatives}",
+                adAccountId,
+                isSandboxAdAccount,
+                _settings.ForceLandingPageCreatives);
+            objectStoryId = null;
+            instagramMediaId = null;
+            instagramActorId = null;
+        }
 
         var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
 
@@ -1470,10 +1486,7 @@ public sealed class FacebookProvider : IProviderService
                 if (string.Equals(status, "development", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException(
-                        "Meta app đang ở chế độ Development. Không thể tạo ad creative. " +
-                        "Vui lòng chuyển app sang Live mode tại https://developers.facebook.com/apps/ " +
-                        "trước khi deploy campaign. " +
-                        "Steps: 1) Vào App Dashboard → 2) Chọn app → 3) Click 'Switch to Live' → 4) Reconnect Facebook account → 5) Deploy lại campaign.");
+                        "⚠️ Meta app đang ở chế độ Development. Vui lòng chuyển sang Live mode tại https://developers.facebook.com/apps/ rồi deploy lại.");
                 }
             }
         }
@@ -1485,6 +1498,25 @@ public sealed class FacebookProvider : IProviderService
         {
             _logger.LogWarning(ex, "Error validating Facebook app mode. Proceeding with deployment.");
         }
+    }
+
+    private bool IsConfiguredSandboxAdAccount(string adAccountId)
+    {
+        if (_settings.SandboxAdAccountIds.Count == 0)
+        {
+            return false;
+        }
+
+        var normalized = NormalizeAdAccountId(adAccountId);
+        return _settings.SandboxAdAccountIds
+            .SelectMany(id => id.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            .Any(id => string.Equals(NormalizeAdAccountId(id), normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeAdAccountId(string adAccountId)
+    {
+        var value = adAccountId.Trim();
+        return value.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? value[4..] : value;
     }
 
     private static string GetErrorMessage(string content)
@@ -1505,12 +1537,7 @@ public sealed class FacebookProvider : IProviderService
             {
                 if (error.Error.Code == 100 && error.Error.ErrorSubcode == 1885183)
                 {
-                    return "Không thể tạo ad creative. Nguyên nhân có thể là:\n"
-                        + "1. Meta app đang ở chế độ Development → Chuyển sang Live mode tại https://developers.facebook.com/apps/\n"
-                        + "2. Bài viết chưa được public (chỉ có draft hoặc unpublished) → Đảm bảo content đã được publish public\n"
-                        + "3. Facebook token không hợp lệ hoặc đã hết hạn → Reconnect Facebook account từ trang /social\n"
-                        + "Sau khi sửa lỗi, tạo campaign/content mới bằng asset public rồi deploy lại.\n"
-                        + $"Chi tiết: code={error.Error.Code}, subcode={error.Error.ErrorSubcode}, message={error.Error.Message}";
+                    return "⚠️ Meta app đang ở chế độ Development. Vui lòng chuyển sang Live mode tại https://developers.facebook.com/apps/ rồi deploy lại.";
                 }
 
                 if (error.Error.Code == 100 && error.Error.ErrorSubcode == 1359188)
