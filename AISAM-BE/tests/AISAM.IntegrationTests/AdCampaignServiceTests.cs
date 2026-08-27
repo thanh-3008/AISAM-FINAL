@@ -30,9 +30,10 @@ public class AdCampaignServiceTests
         FakeWorkspaceMemberRepository workspaceMemberRepository,
         FakeWorkspaceRepository workspaceRepository,
         IBrandRepository? brandRepository = null,
-        IContentRepository? contentRepository = null)
+        IContentRepository? contentRepository = null,
+        IPostRepository? postRepository = null,
+        IEnumerable<IProviderService>? providers = null)
     {
-        var providers = new IProviderService[] { new DummyProviderService() };
         return new AdCampaignService(
             campaignRepository,
             workspaceMemberRepository,
@@ -41,8 +42,8 @@ public class AdCampaignServiceTests
             brandRepository ?? new FakeBrandRepository(CreateBrand(_workspaceId, _profileId)),
             contentRepository ?? new FakeContentRepository(),
             new FakeSocialService(),
-            new FakePostRepository(),
-            providers,
+            postRepository ?? new FakePostRepository(),
+            providers ?? new IProviderService[] { new DummyProviderService() },
             NullLogger<AdCampaignService>.Instance);
     }
 
@@ -719,6 +720,68 @@ public class AdCampaignServiceTests
         Assert.Contains("Development mode", result.Message);
     }
 
+    [Fact]
+    public async Task DeployAsync_WhenExistingFacebookPostCreativeIsInvalid_RetriesWithLandingPageCreative()
+    {
+        var campaignId = Guid.NewGuid();
+        var contentId = Guid.NewGuid();
+        var brand = CreateBrand(_workspaceId, _profileId);
+        brand.Id = _brandId;
+        var campaign = new AdCampaign
+        {
+            Id = campaignId,
+            WorkspaceId = _workspaceId,
+            ProfileId = _profileId,
+            BrandId = _brandId,
+            ContentId = contentId,
+            Name = "summer 2027",
+            Budget = 300000,
+            StartDate = DateTime.UtcNow.AddDays(1),
+            EndDate = DateTime.UtcNow.AddDays(8),
+            Platform = "facebook",
+            AdAccountId = "act_123",
+            LandingUrl = "https://example.com/landing",
+            Status = CampaignStatusEnum.Draft,
+            DeploymentStatus = DeploymentStatusEnum.None
+        };
+        var content = new Content
+        {
+            Id = contentId,
+            WorkspaceId = _workspaceId,
+            ProfileId = _profileId,
+            BrandId = _brandId,
+            TextContent = "Summer promo",
+            ImageUrl = "https://example.com/image.jpg",
+            Status = ContentStatusEnum.Published
+        };
+        var fbPost = new Post
+        {
+            ContentId = contentId,
+            ExternalPostId = "page-123_post-456",
+            Integration = new SocialIntegration
+            {
+                Platform = SocialPlatformEnum.Facebook,
+                ExternalId = "page-123"
+            }
+        };
+        var provider = new ExistingPostFallbackProviderService();
+        var service = CreateService(
+            new FakeAdCampaignRepository(campaign),
+            new FakeWorkspaceMemberRepository(_workspaceId, _userId),
+            new FakeWorkspaceRepository(_workspaceId),
+            new FakeBrandRepository(brand),
+            new FakeContentRepository(content),
+            new FakePostRepository(fbPost),
+            new IProviderService[] { provider });
+
+        var result = await service.DeployAsync(campaignId, _workspaceId, _userId);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, provider.CreativeObjectStoryIds.Count);
+        Assert.Equal("page-123_post-456", provider.CreativeObjectStoryIds[0]);
+        Assert.Null(provider.CreativeObjectStoryIds[1]);
+    }
+
     private sealed class FakeAdCampaignRepository : IAdCampaignRepository
     {
         private readonly Dictionary<Guid, AdCampaign> _campaigns;
@@ -912,10 +975,26 @@ public class AdCampaignServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        private readonly Dictionary<Guid, Content> _contents;
+
+        public FakeContentRepository(params Content[] contents)
+        {
+            _contents = contents.ToDictionary(c => c.Id);
+        }
+
         public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
-        public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Content?>(null);
-        public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => Task.FromResult(new PagedResult<ContentListDto> { Data = new List<ContentListDto>(), TotalCount = 0, Page = 1, PageSize = 20 });
+        public Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_contents.GetValueOrDefault(id));
+        public Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
+        public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default)
+        {
+            var data = _contents.Values
+                .Where(c => c.ProfileId == profileId
+                    && (!brandId.HasValue || c.BrandId == brandId.Value)
+                    && (!status.HasValue || c.Status == status.Value))
+                .Select(c => new ContentListDto { Id = c.Id, ProfileId = c.ProfileId, BrandId = c.BrandId, WorkspaceId = c.WorkspaceId, Status = c.Status })
+                .ToList();
+            return Task.FromResult(new PagedResult<ContentListDto> { Data = data, TotalCount = data.Count, Page = 1, PageSize = 20 });
+        }
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(Content content, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountByWorkspaceAndAdTypeAsync(Guid workspaceId, AdTypeEnum adType, CancellationToken cancellationToken = default) => Task.FromResult(0);
@@ -964,15 +1043,23 @@ public class AdCampaignServiceTests
 
     private sealed class FakePostRepository : IPostRepository
     {
+        private readonly List<Post> _posts;
+
+        public FakePostRepository(params Post[] posts)
+        {
+            _posts = posts.ToList();
+        }
+
         public Task<Post?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Post> AddAsync(Post post, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<Post>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<Post>> GetPagedByWorkspaceIdAsync(Guid workspaceId, PaginationRequest request, Guid? brandId = null, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<List<Post>> GetPublishedByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default) => Task.FromResult(new List<Post>());
+        public Task<List<Post>> GetPublishedByContentIdAsync(Guid contentId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_posts.Where(p => p.ContentId == contentId && !string.IsNullOrWhiteSpace(p.ExternalPostId)).ToList());
         public Task DeleteAsync(Post post, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private sealed class DummyProviderService : IProviderService
+    private class DummyProviderService : IProviderService
     {
         public string ProviderName => "facebook";
         public Task<string> GetAuthUrlAsync(string state, string redirectUri, CancellationToken cancellationToken = default) => Task.FromResult(string.Empty);
@@ -983,7 +1070,7 @@ public class AdCampaignServiceTests
         public Task<IEnumerable<FacebookAdAccountData>> GetAdAccountsAsync(string userAccessToken, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<FacebookAdAccountData>());
         public Task<string> CreateCampaignAsync(string adAccountId, string userAccessToken, string name, string objective, decimal? budget, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken = default) => Task.FromResult("fb-camp-test-123");
         public Task<string> CreateAdSetAsync(string adAccountId, string userAccessToken, string campaignId, string name, string objective, decimal? dailyBudget, DateTime? startDate, DateTime? endDate, string targetingJson, CancellationToken cancellationToken = default) => Task.FromResult("fb-adset-test-123");
-        public Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default) => Task.FromResult("fb-creative-test-123");
+        public virtual Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default) => Task.FromResult("fb-creative-test-123");
         public Task<string> CreateAdAsync(string adAccountId, string userAccessToken, string adSetId, string creativeId, string name, string status, CancellationToken cancellationToken = default) => Task.FromResult("fb-ad-test-123");
         public Task<FacebookInsightData?> GetCampaignInsightsAsync(string adAccountId, string userAccessToken, string campaignId, CancellationToken cancellationToken = default) => Task.FromResult<FacebookInsightData?>(null);
         public Task<bool> UpdateCampaignStatusAsync(string adAccountId, string userAccessToken, string campaignId, string status, CancellationToken cancellationToken = default) => Task.FromResult(true);
@@ -1039,6 +1126,22 @@ public class AdCampaignServiceTests
         public Task<bool> DeleteAdSetAsync(string adAccountId, string userAccessToken, string adSetId, CancellationToken cancellationToken = default) => Task.FromResult(true);
         public Task<bool> DeleteAdCreativeAsync(string adAccountId, string userAccessToken, string creativeId, CancellationToken cancellationToken = default) => Task.FromResult(true);
         public Task<bool> DeleteAdAsync(string adAccountId, string userAccessToken, string adId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
+    private sealed class ExistingPostFallbackProviderService : DummyProviderService
+    {
+        public List<string?> CreativeObjectStoryIds { get; } = new();
+
+        public override Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default)
+        {
+            CreativeObjectStoryIds.Add(objectStoryId);
+            if (!string.IsNullOrWhiteSpace(objectStoryId))
+            {
+                throw new InvalidOperationException("Creative khong hop le: app/content co the duoc tao khi Meta app con Development mode hoac bai viet chua public. [code=100, subcode=1885183]");
+            }
+
+            return Task.FromResult("fb-creative-fallback-123");
+        }
     }
 }
 

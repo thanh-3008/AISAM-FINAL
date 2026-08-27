@@ -324,9 +324,11 @@ public sealed class FacebookProvider : IProviderService
     //  Marketing API — Ad Creatives
     // ──────────────────────────────────────────────
 
-        public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default)
+    public async Task<string> CreateAdCreativeAsync(string adAccountId, string userAccessToken, string pageId, string message, string linkUrl, string? imageUrl, string? callToAction, string? instagramMediaId = null, string? instagramActorId = null, string? objectStoryId = null, CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
+
+        await ValidateFacebookAppModeAsync(userAccessToken, cancellationToken);
 
         var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
 
@@ -1443,6 +1445,48 @@ public sealed class FacebookProvider : IProviderService
         }
     }
 
+    private async Task ValidateFacebookAppModeAsync(string userAccessToken, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/app?fields=application_status";
+            var request = new HttpRequestMessage(HttpMethod.Get, url)
+            {
+                Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userAccessToken) }
+            };
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Could not validate Facebook app mode. Proceeding with deployment.");
+                return;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var json = JsonSerializer.Deserialize<JsonElement>(content);
+            
+            if (json.TryGetProperty("application_status", out var statusElement))
+            {
+                var status = statusElement.GetString();
+                if (string.Equals(status, "development", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "Meta app đang ở chế độ Development. Không thể tạo ad creative. " +
+                        "Vui lòng chuyển app sang Live mode tại https://developers.facebook.com/apps/ " +
+                        "trước khi deploy campaign. " +
+                        "Steps: 1) Vào App Dashboard → 2) Chọn app → 3) Click 'Switch to Live' → 4) Reconnect Facebook account → 5) Deploy lại campaign.");
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error validating Facebook app mode. Proceeding with deployment.");
+        }
+    }
+
     private static string GetErrorMessage(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -1461,16 +1505,19 @@ public sealed class FacebookProvider : IProviderService
             {
                 if (error.Error.Code == 100 && error.Error.ErrorSubcode == 1885183)
                 {
-                    return "Creative khong hop le: app/content co the duoc tao khi Meta app con Development mode hoac bai viet chua public. "
-                        + "Hay chuyen app sang Live mode, reconnect Facebook, tao campaign/content moi bang asset public roi deploy lai. "
-                        + $"[code={error.Error.Code}, subcode={error.Error.ErrorSubcode}]";
+                    return "Không thể tạo ad creative. Nguyên nhân có thể là:\n"
+                        + "1. Meta app đang ở chế độ Development → Chuyển sang Live mode tại https://developers.facebook.com/apps/\n"
+                        + "2. Bài viết chưa được public (chỉ có draft hoặc unpublished) → Đảm bảo content đã được publish public\n"
+                        + "3. Facebook token không hợp lệ hoặc đã hết hạn → Reconnect Facebook account từ trang /social\n"
+                        + "Sau khi sửa lỗi, tạo campaign/content mới bằng asset public rồi deploy lại.\n"
+                        + $"Chi tiết: code={error.Error.Code}, subcode={error.Error.ErrorSubcode}, message={error.Error.Message}";
                 }
 
                 if (error.Error.Code == 100 && error.Error.ErrorSubcode == 1359188)
                 {
-                    return "Tai khoan quang cao Facebook chua co phuong thuc thanh toan. "
-                        + "Vui long truy cap Trung tam Lap hoa don va Thanh toan cua Facebook de them phuong thuc thanh toan hop le. "
-                        + $"[code={error.Error.Code}, subcode={error.Error.ErrorSubcode}]";
+                    return "Tài khoản quảng cáo Facebook chưa có phương thức thanh toán. "
+                        + "Vui lòng truy cập Trung tâm Lập hóa đơn và Thanh toán của Facebook để thêm phương thức thanh toán hợp lệ. "
+                        + $"Chi tiết: code={error.Error.Code}, subcode={error.Error.ErrorSubcode}";
                 }
 
                 var userMsg = error.Error.ErrorUserMsg ?? error.Error.Message ?? "Facebook request failed.";
