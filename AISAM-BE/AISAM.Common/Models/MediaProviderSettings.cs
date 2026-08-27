@@ -50,6 +50,8 @@ public sealed class VideoProviderSettings
     public string DeApiModel { get; set; } = "Ltx2_3_22B_Dist_INT8";
     public string? DeApiApiKeyFallback { get; set; }
     public string? DeApiModelFallback { get; set; }
+    public int DeApiNotFoundMaxRetries { get; set; } = 3;
+    public int DeApiNotFoundRetryDelaySeconds { get; set; } = 30;
 
     // === MiniMax H3 (Image-to-Video) ===
     public string DeApiImg2VideoModel { get; set; } = "MiniMaxH3_33B_Turbo_INT8";

@@ -6,6 +6,7 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using System.Globalization;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -34,6 +35,7 @@ public sealed class AIService : IAIService
     private const long ImageGenerationCredits = 10;
     private const long VideoGenerationCredits = 100;
     private static readonly TimeSpan VideoGenerationTimeout = TimeSpan.FromMinutes(30);
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> VideoStatusLocks = new();
 
     public AIService(
         IContentRepository contentRepository,
@@ -853,6 +855,20 @@ public sealed class AIService : IAIService
 
     public async Task<GenericResponse<AiGenerationResponse>> CheckVideoStatusAsync(Guid generationId, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
     {
+        var statusLock = VideoStatusLocks.GetOrAdd(generationId, static _ => new SemaphoreSlim(1, 1));
+        await statusLock.WaitAsync(cancellationToken);
+        try
+        {
+            return await CheckVideoStatusCoreAsync(generationId, workspaceId, userId, cancellationToken);
+        }
+        finally
+        {
+            statusLock.Release();
+        }
+    }
+
+    private async Task<GenericResponse<AiGenerationResponse>> CheckVideoStatusCoreAsync(Guid generationId, Guid workspaceId, Guid userId, CancellationToken cancellationToken)
+    {
         var generation = await _generationRepository.GetByIdAsync(generationId, cancellationToken);
         if (generation == null || generation.Content.WorkspaceId != workspaceId)
             return GenericResponse<AiGenerationResponse>.CreateError("Generation not found.", HttpStatusCode.NotFound);
@@ -869,12 +885,14 @@ public sealed class AIService : IAIService
 
         if (DateTime.UtcNow - generation.CreatedAt > VideoGenerationTimeout)
         {
+            var oldStatus = generation.Status;
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = "Video generation timed out after 30 minutes; polling has stopped.";
             await _generationRepository.UpdateAsync(generation, cancellationToken);
             _logger.LogWarning(
-                "Event={Event} UserId={UserId} ContentId={ContentId} AiGenerationId={AiGenerationId} VideoJobId={VideoJobId} Provider={Provider}",
-                "video.polling_timeout", userId, generation.ContentId, generation.Id, generation.VideoJobId, generation.ProviderName);
+                "Event={Event} UserId={UserId} ContentId={ContentId} AiGenerationId={AiGenerationId} VideoJobId={VideoJobId} Provider={Provider} OldStatus={OldStatus} NewStatus={NewStatus} Reason={Reason}",
+                "video.polling_timeout", userId, generation.ContentId, generation.Id, generation.VideoJobId,
+                generation.ProviderName, oldStatus, generation.Status, "internal_30_minute_timeout");
             return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), generation.ErrorMessage);
         }
 
@@ -888,13 +906,22 @@ public sealed class AIService : IAIService
         });
         var result = await _videoProvider.CheckStatusAsync(generation.VideoJobId, cancellationToken);
 
+        _logger.LogInformation(
+            "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} ProviderStatus={ProviderStatus} OldStatus={OldStatus}",
+            "video.provider_status_parsed", generation.Id, generation.ContentId,
+            result.ProviderName, generation.VideoJobId, result.Status, generation.Status);
+
         if (result.Status == VideoGenerationStatus.Failed)
         {
+            var oldStatus = generation.Status;
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = result.ErrorMessage;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
-            _logger.LogWarning("Event={Event} Error={Error} Timestamp={Timestamp}",
-                "video.provider_job_failed", result.ErrorMessage, DateTimeOffset.UtcNow);
+            _logger.LogWarning(
+                "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} OldStatus={OldStatus} NewStatus={NewStatus} Reason={Reason} Error={Error} Timestamp={Timestamp}",
+                "video.provider_job_failed", generation.Id, generation.ContentId, result.ProviderName,
+                generation.VideoJobId, oldStatus, generation.Status, "provider_reported_terminal_failure",
+                result.ErrorMessage, DateTimeOffset.UtcNow);
             return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Video generation failed.");
         }
 
@@ -902,6 +929,7 @@ public sealed class AIService : IAIService
         {
             try
             {
+                var oldStatus = generation.Status;
                 using var httpClient = new HttpClient();
                 var bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, cancellationToken);
                 var fileName = $"ai-video-{generation.Id}.mp4";
@@ -918,13 +946,23 @@ public sealed class AIService : IAIService
                 // Deduct credits now that it's completed
                 await _creditService.ConsumeCreditsAsync(workspaceId, userId, CreditActionEnum.GenerateVideo, VideoGenerationCredits, generation.Id, cancellationToken: cancellationToken);
 
+                _logger.LogInformation(
+                    "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} OldStatus={OldStatus} NewStatus={NewStatus}",
+                    "video.generation_completed", generation.Id, generation.ContentId, result.ProviderName,
+                    generation.VideoJobId, oldStatus, generation.Status);
+
                 return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Video generation completed.");
             }
             catch (Exception ex)
             {
+                var oldStatus = generation.Status;
                 generation.Status = AiStatusEnum.Failed;
                 generation.ErrorMessage = "Failed to download or upload generated video: " + ex.Message;
                 await _generationRepository.UpdateAsync(generation, cancellationToken);
+                _logger.LogError(ex,
+                    "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} OldStatus={OldStatus} NewStatus={NewStatus} Reason={Reason}",
+                    "video.finalization_failed", generation.Id, generation.ContentId, result.ProviderName,
+                    generation.VideoJobId, oldStatus, generation.Status, "download_or_upload_failed");
                 return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Video processing failed.");
             }
         }

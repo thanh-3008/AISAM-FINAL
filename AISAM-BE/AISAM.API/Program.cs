@@ -120,6 +120,8 @@ ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_KEY_FALLBACK", "Vid
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_MODEL", "VideoProviderSettings:DeApiModel");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_MODEL_FALLBACK", "VideoProviderSettings:DeApiModelFallback");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_BASE_URL", "VideoProviderSettings:DeApiBaseUrl");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_NOT_FOUND_MAX_RETRIES", "VideoProviderSettings:DeApiNotFoundMaxRetries");
+ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_NOT_FOUND_RETRY_DELAY_SECONDS", "VideoProviderSettings:DeApiNotFoundRetryDelaySeconds");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_IMG2VIDEO_MODEL", "VideoProviderSettings:DeApiImg2VideoModel");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_DEAPI_IMG2VIDEO_BASE_URL", "VideoProviderSettings:DeApiImg2VideoBaseUrl");
 

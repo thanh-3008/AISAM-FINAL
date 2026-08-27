@@ -36,6 +36,10 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                 var aiService = scope.ServiceProvider.GetRequiredService<IAIService>();
 
                 var pendingJobs = await dbContext.AiGenerations
+                    // The status service reloads the generation after acquiring its per-generation
+                    // lock. Keep this discovery query detached so it cannot supply a stale tracked
+                    // entity that overwrites a concurrent API/background transition.
+                    .AsNoTracking()
                     .Include(g => g.Content)
                         .ThenInclude(c => c.Profile)
                     .Where(g => (g.Status == AiStatusEnum.Processing && !string.IsNullOrEmpty(g.VideoJobId))
