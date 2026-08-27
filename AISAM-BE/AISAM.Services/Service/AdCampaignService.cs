@@ -1054,11 +1054,11 @@ namespace AISAM.Services.Service
                             }
                         }
 
-                        var fbCreativeId = await provider.CreateAdCreativeAsync(
-                            campaign.AdAccountId, account.AccessToken, pageId,
-                            message, linkUrl, imageUrl, null,
-                            instagramMediaId, instagramActorId, objectStoryId, cancellationToken
-                        );
+                        var fbCreativeId = await CreateAdCreativeWithFallbackAsync(
+                            provider, campaign, account, pageId,
+                            message, linkUrl, imageUrl,
+                            instagramMediaId, instagramActorId, objectStoryId,
+                            cancellationToken);
 
                         creative = new AdCreative
                         {
@@ -1122,6 +1122,60 @@ namespace AISAM.Services.Service
         {
             var existing = await _campaignRepository.GetAdSetsByCampaignIdAsync(campaign.Id, cancellationToken);
             return existing.ToList();
+        }
+
+        private async Task<string> CreateAdCreativeWithFallbackAsync(
+            IProviderService provider,
+            AdCampaign campaign,
+            SocialAccountDto account,
+            string pageId,
+            string message,
+            string linkUrl,
+            string? imageUrl,
+            string? instagramMediaId,
+            string? instagramActorId,
+            string? objectStoryId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await provider.CreateAdCreativeAsync(
+                    campaign.AdAccountId, account.AccessToken, pageId,
+                    message, linkUrl, imageUrl, null,
+                    instagramMediaId, instagramActorId, objectStoryId, cancellationToken);
+            }
+            catch (InvalidOperationException ex) when (ShouldFallbackFromExistingFacebookPost(campaign.Platform, objectStoryId, ex))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Deploy: Existing Facebook post {PostId} could not be used as ad creative for campaign {CampaignId}. Retrying with a landing-page creative.",
+                    objectStoryId,
+                    campaign.Id);
+
+                return await provider.CreateAdCreativeAsync(
+                    campaign.AdAccountId, account.AccessToken, pageId,
+                    message, linkUrl, imageUrl, null,
+                    instagramMediaId: null,
+                    instagramActorId: null,
+                    objectStoryId: null,
+                    cancellationToken);
+            }
+        }
+
+        private static bool ShouldFallbackFromExistingFacebookPost(string? platform, string? objectStoryId, Exception ex)
+        {
+            if (!string.Equals(platform, "facebook", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(objectStoryId))
+            {
+                return false;
+            }
+
+            var message = ex.Message ?? string.Empty;
+            return message.Contains("1885183", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Development mode", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("chua public", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("not public", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("unpublished", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<Content?> ResolveContentAsync(AdCampaign campaign, CancellationToken cancellationToken)
