@@ -316,7 +316,16 @@ export default function AIGeneratePage() {
         const generations = await fetchContentGenerations(generatedId);
         if (!generations || generations.length === 0) return;
 
-        const gen = generations.find((g) => g.status === 1 || g.status === 2);
+        const activeVideoJobIds = new Set(
+          messages
+            .map((message) => message.text.match(/\[VIDEO_JOB:\s*(.+?)\]/)?.[1]?.trim())
+            .filter((jobId): jobId is string => Boolean(jobId))
+        );
+        const gen = generations.find((generation) =>
+          Boolean(generation.videoJobId) &&
+          activeVideoJobIds.has(generation.videoJobId!) &&
+          (generation.status === 1 || generation.status === 2)
+        );
 
         setMessages((prev) => {
           let changed = false;
@@ -349,7 +358,7 @@ export default function AIGeneratePage() {
 
     interval = setInterval(pollVideoStatus, 10000);
     return () => clearInterval(interval);
-  }, [generatedId, isVideo]);
+  }, [generatedId, isVideo, messages]);
 
   useEffect(() => {
     const hasUnsavedChanges = title !== lastSavedContent.title || content !== lastSavedContent.content || imageUrl !== lastSavedContent.imageUrl || videoUrl !== lastSavedContent.videoUrl;
