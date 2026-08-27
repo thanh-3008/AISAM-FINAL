@@ -52,6 +52,9 @@ ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_REDIRECT_URI", "Facebo
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_GRAPH_API_VERSION", "FacebookSettings:GraphApiVersion");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_BASE_URL", "FacebookSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_OAUTH_URL", "FacebookSettings:OAuthUrl");
+ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_ALLOW_DEVELOPMENT_MODE_AD_CREATION", "FacebookSettings:AllowDevelopmentModeAdCreation");
+ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_FORCE_LANDING_PAGE_CREATIVES", "FacebookSettings:ForceLandingPageCreatives");
+ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_SANDBOX_AD_ACCOUNT_IDS", "FacebookSettings:SandboxAdAccountIds:0");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_APP_ID", "InstagramSettings:AppId");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_APP_SECRET", "InstagramSettings:AppSecret");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_REDIRECT_URI", "InstagramSettings:RedirectUri");
