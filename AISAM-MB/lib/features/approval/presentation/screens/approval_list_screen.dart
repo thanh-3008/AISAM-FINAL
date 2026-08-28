@@ -8,6 +8,7 @@ import '../../../content/data/models/content_model.dart';
 import 'approval_detail_screen.dart';
 import '../../../../core/shared/aisam_logo_widget.dart';
 import '../../../../core/shared/profile_avatar_widget.dart';
+import '../widgets/reject_reason_dialog.dart';
 
 class ApprovalListScreen extends ConsumerStatefulWidget {
   const ApprovalListScreen({super.key});
@@ -19,6 +20,7 @@ class ApprovalListScreen extends ConsumerStatefulWidget {
 class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
   final CardSwiperController _swiperController = CardSwiperController();
   bool _showHistory = false;
+  final Set<String> _pendingRejectIds = {};
 
   @override
   void dispose() {
@@ -45,6 +47,16 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
         duration: const Duration(seconds: 4),
       ),
     );
+  }
+
+  Future<void> _showRejectDialogForSwiper(ContentResponseModel item) async {
+    final reason = await RejectReasonDialog.show(context);
+    if (reason != null) {
+      _pendingRejectIds.add(item.id);
+      _swiperController.swipe(CardSwiperDirection.left);
+      ref.read(approvalNotifierProvider.notifier).rejectContent(item.id, reason: reason);
+      _showUndoSnackbar(item.id, item.title ?? 'Untitled');
+    }
   }
 
   @override
@@ -164,9 +176,15 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
                     if (direction == CardSwiperDirection.right) {
                       ref.read(approvalNotifierProvider.notifier).approveContent(item.id);
                       _showUndoSnackbar(item.id, item.title ?? 'Untitled');
+                      return true;
                     } else if (direction == CardSwiperDirection.left) {
-                      ref.read(approvalNotifierProvider.notifier).rejectContent(item.id);
-                      _showUndoSnackbar(item.id, item.title ?? 'Untitled');
+                      if (_pendingRejectIds.contains(item.id)) {
+                        _pendingRejectIds.remove(item.id);
+                        return true;
+                      } else {
+                        _showRejectDialogForSwiper(item);
+                        return false;
+                      }
                     }
                     return true;
                   },
@@ -231,9 +249,7 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
                       icon: const Icon(Icons.chat_bubble_outline),
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                       iconSize: 24,
-                      onPressed: () {
-                        // Open comments or detail
-                      },
+                      onPressed: () => _swiperController.swipe(CardSwiperDirection.left),
                     ),
                   ),
                   const SizedBox(width: 24),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/approval_provider.dart';
 import '../../../content/data/models/content_model.dart';
+import '../widgets/reject_reason_dialog.dart';
 
 class ApprovalDetailScreen extends ConsumerStatefulWidget {
   final ContentResponseModel content;
@@ -34,8 +35,11 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
   }
 
   Future<void> _handleReject() async {
+    final reason = await RejectReasonDialog.show(context);
+    if (reason == null) return;
+
     setState(() => _isLoading = true);
-    final success = await ref.read(approvalNotifierProvider.notifier).rejectContent(widget.content.id);
+    final success = await ref.read(approvalNotifierProvider.notifier).rejectContent(widget.content.id, reason: reason);
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {

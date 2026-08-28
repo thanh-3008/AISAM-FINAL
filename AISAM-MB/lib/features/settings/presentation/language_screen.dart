@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'providers/language_provider.dart';
 
 class LanguageScreen extends ConsumerStatefulWidget {
   const LanguageScreen({super.key});
@@ -15,34 +16,25 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSavedLanguage();
   }
 
-  Future<void> _loadSavedLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('app_language') ?? 'vi';
-    if (mounted) setState(() => _selectedLanguage = saved);
-  }
-
-  Future<void> _onLanguageSelected(String langCode) async {
-    if (_selectedLanguage == langCode) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('app_language', langCode);
+  Future<void> _onLanguageSelected(String langCode, String currentLang) async {
+    if (currentLang == langCode) return;
+    await ref.read(languageControllerProvider.notifier).setLanguage(langCode);
     if (!mounted) return;
-    setState(() => _selectedLanguage = langCode);
-    _showRestartDialog();
+    _showRestartDialog(langCode);
   }
 
-  void _showRestartDialog() {
+  void _showRestartDialog(String langCode) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Thay đổi ngôn ngữ'),
-        content: const Text('Thay đổi ngôn ngữ sẽ có hiệu lực khi bạn khởi động lại ứng dụng.'),
+        title: Text(langCode == 'en' ? 'Change Language' : 'Thay đổi ngôn ngữ'),
+        content: Text(langCode == 'en' ? 'Language change will take effect after you restart the app.' : 'Thay đổi ngôn ngữ sẽ có hiệu lực khi bạn khởi động lại ứng dụng.'),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Đã hiểu'),
+            child: Text(langCode == 'en' ? 'Got it' : 'Đã hiểu'),
           ),
         ],
       ),
@@ -51,10 +43,13 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final langState = ref.watch(languageControllerProvider);
+    final _selectedLanguage = langState.value ?? 'vi';
+    
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Ngôn ngữ'),
+        title: Text(_selectedLanguage == 'en' ? 'Language' : 'Ngôn ngữ'),
         backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -78,9 +73,9 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
-                _buildLanguageTile(context: context, title: 'Tiếng Việt', subtitle: 'Vietnamese', value: 'vi'),
+                _buildLanguageTile(context: context, title: 'Tiếng Việt', subtitle: 'Vietnamese', value: 'vi', currentLang: _selectedLanguage),
                 Divider(height: 1, thickness: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3)),
-                _buildLanguageTile(context: context, title: 'English', subtitle: 'Tiếng Anh', value: 'en'),
+                _buildLanguageTile(context: context, title: 'English', subtitle: 'Tiếng Anh', value: 'en', currentLang: _selectedLanguage),
               ],
             ),
           ),
@@ -88,7 +83,9 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Text(
-              'Thay đổi ngôn ngữ sẽ có hiệu lực sau khi khởi động lại ứng dụng.',
+              _selectedLanguage == 'en' 
+                  ? 'Language change will take effect after you restart the app.' 
+                  : 'Thay đổi ngôn ngữ sẽ có hiệu lực sau khi khởi động lại ứng dụng.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
@@ -102,15 +99,16 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
     required String title,
     required String subtitle,
     required String value,
+    required String currentLang,
   }) {
-    final isSelected = _selectedLanguage == value;
+    final isSelected = currentLang == value;
     return ListTile(
       title: Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
       subtitle: Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       trailing: isSelected
           ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
           : const Icon(Icons.radio_button_unchecked, color: Colors.grey),
-      onTap: () => _onLanguageSelected(value),
+      onTap: () => _onLanguageSelected(value, currentLang),
     );
   }
 }

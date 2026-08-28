@@ -47,10 +47,11 @@ class ApprovalRepository {
     }
   }
 
-  Future<ContentResponseModel> rejectContent(String id) async {
+  Future<ContentResponseModel> rejectContent(String id, {String? reason}) async {
     try {
       final response = await _dio.put('/Content/$id', data: {
         'status': 3, // Rejected
+        if (reason != null) 'reason': reason,
       });
       return ContentResponseModel.fromJson(response.data['data']);
     } catch (e) {

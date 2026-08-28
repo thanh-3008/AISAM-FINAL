@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/shared/empty_state_widget.dart';
+import '../../settings/presentation/providers/language_provider.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -12,17 +13,19 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _pushEnabled = true;
   bool _approvalEnabled = true;
-  bool _aiCompleteEnabled = true;
   bool _workspaceInviteEnabled = true;
 
   final List<Map<String, dynamic>> _notifications = [];
 
   @override
   Widget build(BuildContext context) {
+    final langState = ref.watch(languageControllerProvider);
+    final isEn = (langState.value ?? 'vi') == 'en';
+    
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Thông báo'),
+        title: Text(isEn ? 'Notifications' : 'Thông báo'),
         backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.8),
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -30,22 +33,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          _buildSectionHeader('Hệ thống', context),
+          _buildSectionHeader(isEn ? 'System' : 'Hệ thống', context),
           _buildSectionCard(
             context,
             children: [
               _buildSwitchTile(
                 context: context,
                 icon: Icons.notifications_active_outlined,
-                title: 'Cho phép thông báo Push',
-                subtitle: 'Nhận thông báo quan trọng trên thiết bị',
+                title: isEn ? 'Enable Push Notifications' : 'Cho phép thông báo Push',
+                subtitle: isEn ? 'Receive important notifications on your device' : 'Nhận thông báo quan trọng trên thiết bị',
                 value: _pushEnabled,
                 onChanged: (val) {
                   setState(() => _pushEnabled = val);
                   if (!val) {
                     setState(() {
                       _approvalEnabled = false;
-                      _aiCompleteEnabled = false;
                       _workspaceInviteEnabled = false;
                     });
                   }
@@ -54,15 +56,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          _buildSectionHeader('Tuỳ chỉnh', context),
+          _buildSectionHeader(isEn ? 'Customization' : 'Tuỳ chỉnh', context),
           _buildSectionCard(
             context,
             children: [
               _buildSwitchTile(
                 context: context,
                 icon: Icons.check_circle_outline,
-                title: 'Thông báo duyệt bài',
-                subtitle: 'Khi có bài viết cần bạn phê duyệt',
+                title: isEn ? 'Post Approval' : 'Thông báo duyệt bài',
+                subtitle: isEn ? 'When a post requires your approval' : 'Khi có bài viết cần bạn phê duyệt',
                 value: _approvalEnabled,
                 onChanged: _pushEnabled
                     ? (val) => setState(() => _approvalEnabled = val)
@@ -71,20 +73,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               _buildDivider(context),
               _buildSwitchTile(
                 context: context,
-                icon: Icons.smart_toy_outlined,
-                title: 'AI tạo nội dung',
-                subtitle: 'Khi AI hoàn thành việc tạo bài viết',
-                value: _aiCompleteEnabled,
-                onChanged: _pushEnabled
-                    ? (val) => setState(() => _aiCompleteEnabled = val)
-                    : null,
-              ),
-              _buildDivider(context),
-              _buildSwitchTile(
-                context: context,
                 icon: Icons.group_add_outlined,
-                title: 'Lời mời Workspace',
-                subtitle: 'Khi có người mời bạn vào workspace mới',
+                title: isEn ? 'Workspace Invitations' : 'Lời mời Workspace',
+                subtitle: isEn ? 'When someone invites you to a new workspace' : 'Khi có người mời bạn vào workspace mới',
                 value: _workspaceInviteEnabled,
                 onChanged: _pushEnabled
                     ? (val) => setState(() => _workspaceInviteEnabled = val)
@@ -100,7 +91,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               Padding(
                 padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
                 child: Text(
-                  'LỊCH SỬ THÔNG BÁO',
+                  isEn ? 'NOTIFICATION HISTORY' : 'LỊCH SỬ THÔNG BÁO',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.bold,
@@ -116,7 +107,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     }
                   });
                 },
-                child: const Text('Đánh dấu tất cả đã đọc'),
+                child: Text(isEn ? 'Mark all as read' : 'Đánh dấu tất cả đã đọc'),
               ),
             ],
           ),
@@ -124,11 +115,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             context,
             children: [
               if (_notifications.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
                   child: EmptyStateWidget(
-                    title: 'Không có thông báo gần đây',
-                    message: 'Bạn đã xem hết tất cả thông báo.',
+                    title: isEn ? 'No recent notifications' : 'Không có thông báo gần đây',
+                    message: isEn ? 'You have read all notifications.' : 'Bạn đã xem hết tất cả thông báo.',
                     icon: Icons.notifications_none,
                   ),
                 )
@@ -138,7 +129,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   final isLast = i == _notifications.length - 1;
                   return Column(
                     children: [
-                      _buildNotificationTile(context, n),
+                      _buildNotificationTile(context, n, isEn),
                       if (!isLast) _buildDivider(context),
                     ],
                   );
@@ -219,7 +210,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  Widget _buildNotificationTile(BuildContext context, Map<String, dynamic> n) {
+  Widget _buildNotificationTile(BuildContext context, Map<String, dynamic> n, bool isEn) {
     final isRead = n['isRead'] as bool;
     return ListTile(
       tileColor: isRead ? null : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15),
@@ -239,7 +230,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              isRead ? 'Đã đọc' : 'Mới',
+              isRead ? (isEn ? 'Read' : 'Đã đọc') : (isEn ? 'New' : 'Mới'),
               style: TextStyle(
                 fontSize: 10,
                 color: isRead ? Theme.of(context).colorScheme.onSurfaceVariant : Colors.white,
