@@ -12,6 +12,7 @@ using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
+using System.Reflection;
 
 namespace AISAM.IntegrationTests;
 
@@ -47,16 +48,86 @@ public class ContentControllerTests
         Assert.Equal(profileId, service.LastProfileId);
     }
 
-    private static ContentController CreateController(IContentService service, Guid profileId)
+    [Fact]
+    public void UploadMedia_UsesEndpointScopedMultipartAndTransportLimits()
+    {
+        var method = typeof(ContentController).GetMethod(nameof(ContentController.UploadMedia));
+        var requestSizeLimit = method?.GetCustomAttribute<RequestSizeLimitAttribute>();
+        var requestSizeLimitMetadata = method?.CustomAttributes.Single(attribute => attribute.AttributeType == typeof(RequestSizeLimitAttribute));
+        var formLimit = method?.GetCustomAttribute<RequestFormLimitsAttribute>();
+
+        Assert.NotNull(requestSizeLimit);
+        Assert.NotNull(requestSizeLimitMetadata);
+        Assert.NotNull(formLimit);
+        Assert.Equal(55L * 1024 * 1024, (long)requestSizeLimitMetadata!.ConstructorArguments.Single().Value!);
+        Assert.Equal(55L * 1024 * 1024, formLimit!.MultipartBodyLengthLimit);
+    }
+
+    [Fact]
+    public async Task UploadMedia_RejectsFileLargerThan50Mb_WithApplicationError()
+    {
+        var controller = CreateController(new FakeContentService(), Guid.NewGuid(), new FakeMediaStorageService());
+        var oversizedFile = CreateFormFile("oversized.mp4", "video/mp4", 50L * 1024 * 1024 + 1);
+
+        var result = await controller.UploadMedia(new ContentMediaUploadRequest { File = oversizedFile });
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var response = Assert.IsType<GenericResponse<ContentMediaUploadResponse>>(badRequest.Value);
+        Assert.False(response.Success);
+        Assert.Equal("Media file must be 50MB or smaller.", response.Error?.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task UploadMedia_AcceptsSupportedVideo_AndPreservesOriginalFileNameInResponse()
+    {
+        var storage = new FakeMediaStorageService();
+        var controller = CreateController(new FakeContentService(), Guid.NewGuid(), storage);
+        var file = CreateFormFile("product-demo.mp4", "video/mp4", 1024);
+
+        var result = await controller.UploadMedia(new ContentMediaUploadRequest { File = file });
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<GenericResponse<ContentMediaUploadResponse>>(ok.Value);
+        Assert.True(response.Success);
+        Assert.Equal("product-demo.mp4", response.Data?.FileName);
+        Assert.Equal("https://media.test/uploaded.mp4", response.Data?.Url);
+        Assert.Equal("video/mp4", storage.UploadedContentType);
+    }
+
+    private static FormFile CreateFormFile(string fileName, string contentType, long length)
+    {
+        var file = new FormFile(Stream.Null, 0, length, "File", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
+        return file;
+    }
+
+    private static ContentController CreateController(IContentService service, Guid profileId, IMediaStorageService? mediaStorage = null)
     {
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
 
-        return new ContentController(service, new FakeProfileRepository())
+        return new ContentController(service, new FakeProfileRepository(), mediaStorage)
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
+    }
+
+    private sealed class FakeMediaStorageService : IMediaStorageService
+    {
+        public string? UploadedContentType { get; private set; }
+
+        public Task<string> UploadAsync(IFormFile file, string folder, string fileName, CancellationToken cancellationToken = default)
+        {
+            UploadedContentType = file.ContentType;
+            return Task.FromResult("https://media.test/uploaded.mp4");
+        }
+
+        public Task<string> UploadBytesAsync(byte[] data, string folder, string fileName, CancellationToken cancellationToken = default)
+            => Task.FromResult("https://media.test/uploaded.mp4");
     }
 
     private sealed class FakeContentService : IContentService

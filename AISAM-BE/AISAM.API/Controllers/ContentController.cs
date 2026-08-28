@@ -68,6 +68,7 @@ public sealed class ContentController : ControllerBase
     [HttpPost("media")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(55L * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 55L * 1024 * 1024)]
     public async Task<ActionResult<GenericResponse<ContentMediaUploadResponse>>> UploadMedia(
         [FromForm] ContentMediaUploadRequest request,
         CancellationToken cancellationToken = default)
