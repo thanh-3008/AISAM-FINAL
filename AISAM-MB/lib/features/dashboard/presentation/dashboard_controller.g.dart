@@ -7,14 +7,14 @@ part of 'dashboard_controller.dart';
 // **************************************************************************
 
 String _$dashboardControllerHash() =>
-    r'67f840aab9ccd8c1d723ee50fd9154e41e555373';
+    r'06e3a6b13eb74d3957278cdc17d62adde2680bd9';
 
 /// See also [DashboardController].
 @ProviderFor(DashboardController)
 final dashboardControllerProvider =
     AutoDisposeAsyncNotifierProvider<
       DashboardController,
-      WorkspaceDashboardSummaryDto
+      CombinedDashboardSummary
     >.internal(
       DashboardController.new,
       name: r'dashboardControllerProvider',
@@ -26,7 +26,7 @@ final dashboardControllerProvider =
     );
 
 typedef _$DashboardController =
-    AutoDisposeAsyncNotifier<WorkspaceDashboardSummaryDto>;
+    AutoDisposeAsyncNotifier<CombinedDashboardSummary>;
 String _$recentActivitiesControllerHash() =>
     r'aac0dbfe53a4105e42efe12f1887352004628e59';
 

@@ -7,7 +7,7 @@ part of 'media_controller.dart';
 // **************************************************************************
 
 String _$mediaUploadControllerHash() =>
-    r'a7ebc5193b9352bce9edbb0a89f901542e5a606d';
+    r'b62df977db69127165d854b9cbb92acf1453c9f2';
 
 /// See also [MediaUploadController].
 @ProviderFor(MediaUploadController)

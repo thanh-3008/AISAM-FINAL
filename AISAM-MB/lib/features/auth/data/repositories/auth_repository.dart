@@ -5,6 +5,7 @@ import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../models/auth_request.dart';
 import '../models/auth_response.dart';
+import '../../../../core/network/api_endpoints.dart';
 
 part 'auth_repository.g.dart';
 
@@ -17,7 +18,7 @@ class AuthRepository {
   Future<AuthResponseModel> login(LoginRequest request) async {
     try {
       final response = await _dio.post(
-        '/Auth/login',
+        ApiEndpoints.login,
         data: request.toJson(),
       );
       final authResponse = AuthResponseModel.fromJson(response.data['data']);
@@ -35,7 +36,7 @@ class AuthRepository {
   Future<void> register(RegisterRequest request) async {
     try {
       await _dio.post(
-        '/Auth/register',
+        ApiEndpoints.register,
         data: request.toJson(),
       );
     } catch (e) {
@@ -46,7 +47,7 @@ class AuthRepository {
   Future<void> forgotPassword(ForgotPasswordRequest request) async {
     try {
       await _dio.post(
-        '/Auth/forgot-password',
+        ApiEndpoints.forgotPassword,
         data: request.toJson(),
       );
     } catch (e) {
@@ -57,7 +58,7 @@ class AuthRepository {
   Future<AuthResponseModel> googleLogin(GoogleLoginRequest request) async {
     try {
       final response = await _dio.post(
-        '/Auth/google-login',
+        ApiEndpoints.googleLogin,
         data: request.toJson(),
       );
       final authResponse = AuthResponseModel.fromJson(response.data['data']);
@@ -77,7 +78,7 @@ class AuthRepository {
       final refreshToken = await _storage.getRefreshToken();
       if (refreshToken != null) {
         await _dio.post(
-          '/Auth/logout',
+          ApiEndpoints.logout,
           data: {'refreshToken': refreshToken},
         );
       }

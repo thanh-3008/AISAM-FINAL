@@ -9,6 +9,7 @@ class ApiEndpoints {
   static const String logoutAll = '/Auth/logout-all';
   static const String sessions = '/Auth/sessions';
   static const String changePassword = '/Auth/change-password';
+  static const String forgotPassword = '/Auth/forgot-password';
 
   static const String workspaceDashboardSummary = '/workspace-dashboard/summary';
 }

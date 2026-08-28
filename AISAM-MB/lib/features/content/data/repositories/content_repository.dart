@@ -19,7 +19,7 @@ class ContentRepository {
   Future<List<ContentResponseModel>> getContents({int pageNumber = 1, int pageSize = 10, String? search, String? status}) async {
     try {
       final queryParams = {
-        'pageNumber': pageNumber,
+        'page': pageNumber,
         'pageSize': pageSize,
         if (search != null) 'search': search,
         if (status != null) 'status': status,
