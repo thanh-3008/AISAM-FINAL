@@ -15,125 +15,172 @@ final _privateConstructorUsedError = UnsupportedError(
   'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
 );
 
-WorkspaceDashboardSummaryDto _$WorkspaceDashboardSummaryDtoFromJson(
+CombinedDashboardSummary _$CombinedDashboardSummaryFromJson(
   Map<String, dynamic> json,
 ) {
-  return _WorkspaceDashboardSummaryDto.fromJson(json);
+  return _CombinedDashboardSummary.fromJson(json);
 }
 
 /// @nodoc
-mixin _$WorkspaceDashboardSummaryDto {
-  String get workspaceId => throw _privateConstructorUsedError;
-  int get creditBalance => throw _privateConstructorUsedError;
-  int get creditsUsed => throw _privateConstructorUsedError;
+mixin _$CombinedDashboardSummary {
+  // Basic Fields (Always available)
+  int get draftContentCount => throw _privateConstructorUsedError;
+  int get publishedContentCount => throw _privateConstructorUsedError;
+  int get pendingApprovalContentCount => throw _privateConstructorUsedError;
+  int get upcomingScheduleCount => throw _privateConstructorUsedError;
+  int get failedScheduleCount => throw _privateConstructorUsedError;
+  int get activeSocialIntegrationCount => throw _privateConstructorUsedError;
   int get publishedPostCount => throw _privateConstructorUsedError;
-  int get postQuotaLimit => throw _privateConstructorUsedError;
-  int get postsRemaining => throw _privateConstructorUsedError;
-  int get aiUsageCount => throw _privateConstructorUsedError;
-  int get activeMemberCount => throw _privateConstructorUsedError;
-  List<WorkspaceTopMemberDto> get topMembers =>
+  int get unreadNotificationCount =>
+      throw _privateConstructorUsedError; // Advanced Fields (Nullable, available only for Paid plans)
+  String? get workspaceId => throw _privateConstructorUsedError;
+  int? get creditBalance => throw _privateConstructorUsedError;
+  int? get creditsUsed => throw _privateConstructorUsedError;
+  int? get postQuotaLimit => throw _privateConstructorUsedError;
+  int? get postsRemaining => throw _privateConstructorUsedError;
+  int? get aiUsageCount => throw _privateConstructorUsedError;
+  int? get activeMemberCount => throw _privateConstructorUsedError;
+  List<WorkspaceTopMemberDto>? get topMembers =>
       throw _privateConstructorUsedError;
 
-  /// Serializes this WorkspaceDashboardSummaryDto to a JSON map.
+  /// Serializes this CombinedDashboardSummary to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
-  /// Create a copy of WorkspaceDashboardSummaryDto
+  /// Create a copy of CombinedDashboardSummary
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
-  $WorkspaceDashboardSummaryDtoCopyWith<WorkspaceDashboardSummaryDto>
-  get copyWith => throw _privateConstructorUsedError;
+  $CombinedDashboardSummaryCopyWith<CombinedDashboardSummary> get copyWith =>
+      throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class $WorkspaceDashboardSummaryDtoCopyWith<$Res> {
-  factory $WorkspaceDashboardSummaryDtoCopyWith(
-    WorkspaceDashboardSummaryDto value,
-    $Res Function(WorkspaceDashboardSummaryDto) then,
-  ) =
-      _$WorkspaceDashboardSummaryDtoCopyWithImpl<
-        $Res,
-        WorkspaceDashboardSummaryDto
-      >;
+abstract class $CombinedDashboardSummaryCopyWith<$Res> {
+  factory $CombinedDashboardSummaryCopyWith(
+    CombinedDashboardSummary value,
+    $Res Function(CombinedDashboardSummary) then,
+  ) = _$CombinedDashboardSummaryCopyWithImpl<$Res, CombinedDashboardSummary>;
   @useResult
   $Res call({
-    String workspaceId,
-    int creditBalance,
-    int creditsUsed,
+    int draftContentCount,
+    int publishedContentCount,
+    int pendingApprovalContentCount,
+    int upcomingScheduleCount,
+    int failedScheduleCount,
+    int activeSocialIntegrationCount,
     int publishedPostCount,
-    int postQuotaLimit,
-    int postsRemaining,
-    int aiUsageCount,
-    int activeMemberCount,
-    List<WorkspaceTopMemberDto> topMembers,
+    int unreadNotificationCount,
+    String? workspaceId,
+    int? creditBalance,
+    int? creditsUsed,
+    int? postQuotaLimit,
+    int? postsRemaining,
+    int? aiUsageCount,
+    int? activeMemberCount,
+    List<WorkspaceTopMemberDto>? topMembers,
   });
 }
 
 /// @nodoc
-class _$WorkspaceDashboardSummaryDtoCopyWithImpl<
+class _$CombinedDashboardSummaryCopyWithImpl<
   $Res,
-  $Val extends WorkspaceDashboardSummaryDto
+  $Val extends CombinedDashboardSummary
 >
-    implements $WorkspaceDashboardSummaryDtoCopyWith<$Res> {
-  _$WorkspaceDashboardSummaryDtoCopyWithImpl(this._value, this._then);
+    implements $CombinedDashboardSummaryCopyWith<$Res> {
+  _$CombinedDashboardSummaryCopyWithImpl(this._value, this._then);
 
   // ignore: unused_field
   final $Val _value;
   // ignore: unused_field
   final $Res Function($Val) _then;
 
-  /// Create a copy of WorkspaceDashboardSummaryDto
+  /// Create a copy of CombinedDashboardSummary
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? workspaceId = null,
-    Object? creditBalance = null,
-    Object? creditsUsed = null,
+    Object? draftContentCount = null,
+    Object? publishedContentCount = null,
+    Object? pendingApprovalContentCount = null,
+    Object? upcomingScheduleCount = null,
+    Object? failedScheduleCount = null,
+    Object? activeSocialIntegrationCount = null,
     Object? publishedPostCount = null,
-    Object? postQuotaLimit = null,
-    Object? postsRemaining = null,
-    Object? aiUsageCount = null,
-    Object? activeMemberCount = null,
-    Object? topMembers = null,
+    Object? unreadNotificationCount = null,
+    Object? workspaceId = freezed,
+    Object? creditBalance = freezed,
+    Object? creditsUsed = freezed,
+    Object? postQuotaLimit = freezed,
+    Object? postsRemaining = freezed,
+    Object? aiUsageCount = freezed,
+    Object? activeMemberCount = freezed,
+    Object? topMembers = freezed,
   }) {
     return _then(
       _value.copyWith(
-            workspaceId: null == workspaceId
-                ? _value.workspaceId
-                : workspaceId // ignore: cast_nullable_to_non_nullable
-                      as String,
-            creditBalance: null == creditBalance
-                ? _value.creditBalance
-                : creditBalance // ignore: cast_nullable_to_non_nullable
+            draftContentCount: null == draftContentCount
+                ? _value.draftContentCount
+                : draftContentCount // ignore: cast_nullable_to_non_nullable
                       as int,
-            creditsUsed: null == creditsUsed
-                ? _value.creditsUsed
-                : creditsUsed // ignore: cast_nullable_to_non_nullable
+            publishedContentCount: null == publishedContentCount
+                ? _value.publishedContentCount
+                : publishedContentCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            pendingApprovalContentCount: null == pendingApprovalContentCount
+                ? _value.pendingApprovalContentCount
+                : pendingApprovalContentCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            upcomingScheduleCount: null == upcomingScheduleCount
+                ? _value.upcomingScheduleCount
+                : upcomingScheduleCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            failedScheduleCount: null == failedScheduleCount
+                ? _value.failedScheduleCount
+                : failedScheduleCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            activeSocialIntegrationCount: null == activeSocialIntegrationCount
+                ? _value.activeSocialIntegrationCount
+                : activeSocialIntegrationCount // ignore: cast_nullable_to_non_nullable
                       as int,
             publishedPostCount: null == publishedPostCount
                 ? _value.publishedPostCount
                 : publishedPostCount // ignore: cast_nullable_to_non_nullable
                       as int,
-            postQuotaLimit: null == postQuotaLimit
+            unreadNotificationCount: null == unreadNotificationCount
+                ? _value.unreadNotificationCount
+                : unreadNotificationCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            workspaceId: freezed == workspaceId
+                ? _value.workspaceId
+                : workspaceId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            creditBalance: freezed == creditBalance
+                ? _value.creditBalance
+                : creditBalance // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            creditsUsed: freezed == creditsUsed
+                ? _value.creditsUsed
+                : creditsUsed // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            postQuotaLimit: freezed == postQuotaLimit
                 ? _value.postQuotaLimit
                 : postQuotaLimit // ignore: cast_nullable_to_non_nullable
-                      as int,
-            postsRemaining: null == postsRemaining
+                      as int?,
+            postsRemaining: freezed == postsRemaining
                 ? _value.postsRemaining
                 : postsRemaining // ignore: cast_nullable_to_non_nullable
-                      as int,
-            aiUsageCount: null == aiUsageCount
+                      as int?,
+            aiUsageCount: freezed == aiUsageCount
                 ? _value.aiUsageCount
                 : aiUsageCount // ignore: cast_nullable_to_non_nullable
-                      as int,
-            activeMemberCount: null == activeMemberCount
+                      as int?,
+            activeMemberCount: freezed == activeMemberCount
                 ? _value.activeMemberCount
                 : activeMemberCount // ignore: cast_nullable_to_non_nullable
-                      as int,
-            topMembers: null == topMembers
+                      as int?,
+            topMembers: freezed == topMembers
                 ? _value.topMembers
                 : topMembers // ignore: cast_nullable_to_non_nullable
-                      as List<WorkspaceTopMemberDto>,
+                      as List<WorkspaceTopMemberDto>?,
           )
           as $Val,
     );
@@ -141,93 +188,135 @@ class _$WorkspaceDashboardSummaryDtoCopyWithImpl<
 }
 
 /// @nodoc
-abstract class _$$WorkspaceDashboardSummaryDtoImplCopyWith<$Res>
-    implements $WorkspaceDashboardSummaryDtoCopyWith<$Res> {
-  factory _$$WorkspaceDashboardSummaryDtoImplCopyWith(
-    _$WorkspaceDashboardSummaryDtoImpl value,
-    $Res Function(_$WorkspaceDashboardSummaryDtoImpl) then,
-  ) = __$$WorkspaceDashboardSummaryDtoImplCopyWithImpl<$Res>;
+abstract class _$$CombinedDashboardSummaryImplCopyWith<$Res>
+    implements $CombinedDashboardSummaryCopyWith<$Res> {
+  factory _$$CombinedDashboardSummaryImplCopyWith(
+    _$CombinedDashboardSummaryImpl value,
+    $Res Function(_$CombinedDashboardSummaryImpl) then,
+  ) = __$$CombinedDashboardSummaryImplCopyWithImpl<$Res>;
   @override
   @useResult
   $Res call({
-    String workspaceId,
-    int creditBalance,
-    int creditsUsed,
+    int draftContentCount,
+    int publishedContentCount,
+    int pendingApprovalContentCount,
+    int upcomingScheduleCount,
+    int failedScheduleCount,
+    int activeSocialIntegrationCount,
     int publishedPostCount,
-    int postQuotaLimit,
-    int postsRemaining,
-    int aiUsageCount,
-    int activeMemberCount,
-    List<WorkspaceTopMemberDto> topMembers,
+    int unreadNotificationCount,
+    String? workspaceId,
+    int? creditBalance,
+    int? creditsUsed,
+    int? postQuotaLimit,
+    int? postsRemaining,
+    int? aiUsageCount,
+    int? activeMemberCount,
+    List<WorkspaceTopMemberDto>? topMembers,
   });
 }
 
 /// @nodoc
-class __$$WorkspaceDashboardSummaryDtoImplCopyWithImpl<$Res>
+class __$$CombinedDashboardSummaryImplCopyWithImpl<$Res>
     extends
-        _$WorkspaceDashboardSummaryDtoCopyWithImpl<
+        _$CombinedDashboardSummaryCopyWithImpl<
           $Res,
-          _$WorkspaceDashboardSummaryDtoImpl
+          _$CombinedDashboardSummaryImpl
         >
-    implements _$$WorkspaceDashboardSummaryDtoImplCopyWith<$Res> {
-  __$$WorkspaceDashboardSummaryDtoImplCopyWithImpl(
-    _$WorkspaceDashboardSummaryDtoImpl _value,
-    $Res Function(_$WorkspaceDashboardSummaryDtoImpl) _then,
+    implements _$$CombinedDashboardSummaryImplCopyWith<$Res> {
+  __$$CombinedDashboardSummaryImplCopyWithImpl(
+    _$CombinedDashboardSummaryImpl _value,
+    $Res Function(_$CombinedDashboardSummaryImpl) _then,
   ) : super(_value, _then);
 
-  /// Create a copy of WorkspaceDashboardSummaryDto
+  /// Create a copy of CombinedDashboardSummary
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? workspaceId = null,
-    Object? creditBalance = null,
-    Object? creditsUsed = null,
+    Object? draftContentCount = null,
+    Object? publishedContentCount = null,
+    Object? pendingApprovalContentCount = null,
+    Object? upcomingScheduleCount = null,
+    Object? failedScheduleCount = null,
+    Object? activeSocialIntegrationCount = null,
     Object? publishedPostCount = null,
-    Object? postQuotaLimit = null,
-    Object? postsRemaining = null,
-    Object? aiUsageCount = null,
-    Object? activeMemberCount = null,
-    Object? topMembers = null,
+    Object? unreadNotificationCount = null,
+    Object? workspaceId = freezed,
+    Object? creditBalance = freezed,
+    Object? creditsUsed = freezed,
+    Object? postQuotaLimit = freezed,
+    Object? postsRemaining = freezed,
+    Object? aiUsageCount = freezed,
+    Object? activeMemberCount = freezed,
+    Object? topMembers = freezed,
   }) {
     return _then(
-      _$WorkspaceDashboardSummaryDtoImpl(
-        workspaceId: null == workspaceId
-            ? _value.workspaceId
-            : workspaceId // ignore: cast_nullable_to_non_nullable
-                  as String,
-        creditBalance: null == creditBalance
-            ? _value.creditBalance
-            : creditBalance // ignore: cast_nullable_to_non_nullable
+      _$CombinedDashboardSummaryImpl(
+        draftContentCount: null == draftContentCount
+            ? _value.draftContentCount
+            : draftContentCount // ignore: cast_nullable_to_non_nullable
                   as int,
-        creditsUsed: null == creditsUsed
-            ? _value.creditsUsed
-            : creditsUsed // ignore: cast_nullable_to_non_nullable
+        publishedContentCount: null == publishedContentCount
+            ? _value.publishedContentCount
+            : publishedContentCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        pendingApprovalContentCount: null == pendingApprovalContentCount
+            ? _value.pendingApprovalContentCount
+            : pendingApprovalContentCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        upcomingScheduleCount: null == upcomingScheduleCount
+            ? _value.upcomingScheduleCount
+            : upcomingScheduleCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        failedScheduleCount: null == failedScheduleCount
+            ? _value.failedScheduleCount
+            : failedScheduleCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        activeSocialIntegrationCount: null == activeSocialIntegrationCount
+            ? _value.activeSocialIntegrationCount
+            : activeSocialIntegrationCount // ignore: cast_nullable_to_non_nullable
                   as int,
         publishedPostCount: null == publishedPostCount
             ? _value.publishedPostCount
             : publishedPostCount // ignore: cast_nullable_to_non_nullable
                   as int,
-        postQuotaLimit: null == postQuotaLimit
+        unreadNotificationCount: null == unreadNotificationCount
+            ? _value.unreadNotificationCount
+            : unreadNotificationCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        workspaceId: freezed == workspaceId
+            ? _value.workspaceId
+            : workspaceId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        creditBalance: freezed == creditBalance
+            ? _value.creditBalance
+            : creditBalance // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        creditsUsed: freezed == creditsUsed
+            ? _value.creditsUsed
+            : creditsUsed // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        postQuotaLimit: freezed == postQuotaLimit
             ? _value.postQuotaLimit
             : postQuotaLimit // ignore: cast_nullable_to_non_nullable
-                  as int,
-        postsRemaining: null == postsRemaining
+                  as int?,
+        postsRemaining: freezed == postsRemaining
             ? _value.postsRemaining
             : postsRemaining // ignore: cast_nullable_to_non_nullable
-                  as int,
-        aiUsageCount: null == aiUsageCount
+                  as int?,
+        aiUsageCount: freezed == aiUsageCount
             ? _value.aiUsageCount
             : aiUsageCount // ignore: cast_nullable_to_non_nullable
-                  as int,
-        activeMemberCount: null == activeMemberCount
+                  as int?,
+        activeMemberCount: freezed == activeMemberCount
             ? _value.activeMemberCount
             : activeMemberCount // ignore: cast_nullable_to_non_nullable
-                  as int,
-        topMembers: null == topMembers
+                  as int?,
+        topMembers: freezed == topMembers
             ? _value._topMembers
             : topMembers // ignore: cast_nullable_to_non_nullable
-                  as List<WorkspaceTopMemberDto>,
+                  as List<WorkspaceTopMemberDto>?,
       ),
     );
   }
@@ -235,74 +324,122 @@ class __$$WorkspaceDashboardSummaryDtoImplCopyWithImpl<$Res>
 
 /// @nodoc
 @JsonSerializable()
-class _$WorkspaceDashboardSummaryDtoImpl
-    implements _WorkspaceDashboardSummaryDto {
-  const _$WorkspaceDashboardSummaryDtoImpl({
-    required this.workspaceId,
-    this.creditBalance = 0,
-    this.creditsUsed = 0,
+class _$CombinedDashboardSummaryImpl implements _CombinedDashboardSummary {
+  const _$CombinedDashboardSummaryImpl({
+    this.draftContentCount = 0,
+    this.publishedContentCount = 0,
+    this.pendingApprovalContentCount = 0,
+    this.upcomingScheduleCount = 0,
+    this.failedScheduleCount = 0,
+    this.activeSocialIntegrationCount = 0,
     this.publishedPostCount = 0,
-    this.postQuotaLimit = 0,
-    this.postsRemaining = 0,
-    this.aiUsageCount = 0,
-    this.activeMemberCount = 0,
-    final List<WorkspaceTopMemberDto> topMembers = const [],
+    this.unreadNotificationCount = 0,
+    this.workspaceId,
+    this.creditBalance,
+    this.creditsUsed,
+    this.postQuotaLimit,
+    this.postsRemaining,
+    this.aiUsageCount,
+    this.activeMemberCount,
+    final List<WorkspaceTopMemberDto>? topMembers,
   }) : _topMembers = topMembers;
 
-  factory _$WorkspaceDashboardSummaryDtoImpl.fromJson(
-    Map<String, dynamic> json,
-  ) => _$$WorkspaceDashboardSummaryDtoImplFromJson(json);
+  factory _$CombinedDashboardSummaryImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CombinedDashboardSummaryImplFromJson(json);
 
-  @override
-  final String workspaceId;
-  @override
-  @JsonKey()
-  final int creditBalance;
+  // Basic Fields (Always available)
   @override
   @JsonKey()
-  final int creditsUsed;
+  final int draftContentCount;
+  @override
+  @JsonKey()
+  final int publishedContentCount;
+  @override
+  @JsonKey()
+  final int pendingApprovalContentCount;
+  @override
+  @JsonKey()
+  final int upcomingScheduleCount;
+  @override
+  @JsonKey()
+  final int failedScheduleCount;
+  @override
+  @JsonKey()
+  final int activeSocialIntegrationCount;
   @override
   @JsonKey()
   final int publishedPostCount;
   @override
   @JsonKey()
-  final int postQuotaLimit;
+  final int unreadNotificationCount;
+  // Advanced Fields (Nullable, available only for Paid plans)
   @override
-  @JsonKey()
-  final int postsRemaining;
+  final String? workspaceId;
   @override
-  @JsonKey()
-  final int aiUsageCount;
+  final int? creditBalance;
   @override
-  @JsonKey()
-  final int activeMemberCount;
-  final List<WorkspaceTopMemberDto> _topMembers;
+  final int? creditsUsed;
   @override
-  @JsonKey()
-  List<WorkspaceTopMemberDto> get topMembers {
+  final int? postQuotaLimit;
+  @override
+  final int? postsRemaining;
+  @override
+  final int? aiUsageCount;
+  @override
+  final int? activeMemberCount;
+  final List<WorkspaceTopMemberDto>? _topMembers;
+  @override
+  List<WorkspaceTopMemberDto>? get topMembers {
+    final value = _topMembers;
+    if (value == null) return null;
     if (_topMembers is EqualUnmodifiableListView) return _topMembers;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_topMembers);
+    return EqualUnmodifiableListView(value);
   }
 
   @override
   String toString() {
-    return 'WorkspaceDashboardSummaryDto(workspaceId: $workspaceId, creditBalance: $creditBalance, creditsUsed: $creditsUsed, publishedPostCount: $publishedPostCount, postQuotaLimit: $postQuotaLimit, postsRemaining: $postsRemaining, aiUsageCount: $aiUsageCount, activeMemberCount: $activeMemberCount, topMembers: $topMembers)';
+    return 'CombinedDashboardSummary(draftContentCount: $draftContentCount, publishedContentCount: $publishedContentCount, pendingApprovalContentCount: $pendingApprovalContentCount, upcomingScheduleCount: $upcomingScheduleCount, failedScheduleCount: $failedScheduleCount, activeSocialIntegrationCount: $activeSocialIntegrationCount, publishedPostCount: $publishedPostCount, unreadNotificationCount: $unreadNotificationCount, workspaceId: $workspaceId, creditBalance: $creditBalance, creditsUsed: $creditsUsed, postQuotaLimit: $postQuotaLimit, postsRemaining: $postsRemaining, aiUsageCount: $aiUsageCount, activeMemberCount: $activeMemberCount, topMembers: $topMembers)';
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$WorkspaceDashboardSummaryDtoImpl &&
+            other is _$CombinedDashboardSummaryImpl &&
+            (identical(other.draftContentCount, draftContentCount) ||
+                other.draftContentCount == draftContentCount) &&
+            (identical(other.publishedContentCount, publishedContentCount) ||
+                other.publishedContentCount == publishedContentCount) &&
+            (identical(
+                  other.pendingApprovalContentCount,
+                  pendingApprovalContentCount,
+                ) ||
+                other.pendingApprovalContentCount ==
+                    pendingApprovalContentCount) &&
+            (identical(other.upcomingScheduleCount, upcomingScheduleCount) ||
+                other.upcomingScheduleCount == upcomingScheduleCount) &&
+            (identical(other.failedScheduleCount, failedScheduleCount) ||
+                other.failedScheduleCount == failedScheduleCount) &&
+            (identical(
+                  other.activeSocialIntegrationCount,
+                  activeSocialIntegrationCount,
+                ) ||
+                other.activeSocialIntegrationCount ==
+                    activeSocialIntegrationCount) &&
+            (identical(other.publishedPostCount, publishedPostCount) ||
+                other.publishedPostCount == publishedPostCount) &&
+            (identical(
+                  other.unreadNotificationCount,
+                  unreadNotificationCount,
+                ) ||
+                other.unreadNotificationCount == unreadNotificationCount) &&
             (identical(other.workspaceId, workspaceId) ||
                 other.workspaceId == workspaceId) &&
             (identical(other.creditBalance, creditBalance) ||
                 other.creditBalance == creditBalance) &&
             (identical(other.creditsUsed, creditsUsed) ||
                 other.creditsUsed == creditsUsed) &&
-            (identical(other.publishedPostCount, publishedPostCount) ||
-                other.publishedPostCount == publishedPostCount) &&
             (identical(other.postQuotaLimit, postQuotaLimit) ||
                 other.postQuotaLimit == postQuotaLimit) &&
             (identical(other.postsRemaining, postsRemaining) ||
@@ -321,10 +458,17 @@ class _$WorkspaceDashboardSummaryDtoImpl
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    draftContentCount,
+    publishedContentCount,
+    pendingApprovalContentCount,
+    upcomingScheduleCount,
+    failedScheduleCount,
+    activeSocialIntegrationCount,
+    publishedPostCount,
+    unreadNotificationCount,
     workspaceId,
     creditBalance,
     creditsUsed,
-    publishedPostCount,
     postQuotaLimit,
     postsRemaining,
     aiUsageCount,
@@ -332,68 +476,85 @@ class _$WorkspaceDashboardSummaryDtoImpl
     const DeepCollectionEquality().hash(_topMembers),
   );
 
-  /// Create a copy of WorkspaceDashboardSummaryDto
+  /// Create a copy of CombinedDashboardSummary
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
-  _$$WorkspaceDashboardSummaryDtoImplCopyWith<
-    _$WorkspaceDashboardSummaryDtoImpl
-  >
+  _$$CombinedDashboardSummaryImplCopyWith<_$CombinedDashboardSummaryImpl>
   get copyWith =>
-      __$$WorkspaceDashboardSummaryDtoImplCopyWithImpl<
-        _$WorkspaceDashboardSummaryDtoImpl
+      __$$CombinedDashboardSummaryImplCopyWithImpl<
+        _$CombinedDashboardSummaryImpl
       >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$WorkspaceDashboardSummaryDtoImplToJson(this);
+    return _$$CombinedDashboardSummaryImplToJson(this);
   }
 }
 
-abstract class _WorkspaceDashboardSummaryDto
-    implements WorkspaceDashboardSummaryDto {
-  const factory _WorkspaceDashboardSummaryDto({
-    required final String workspaceId,
-    final int creditBalance,
-    final int creditsUsed,
+abstract class _CombinedDashboardSummary implements CombinedDashboardSummary {
+  const factory _CombinedDashboardSummary({
+    final int draftContentCount,
+    final int publishedContentCount,
+    final int pendingApprovalContentCount,
+    final int upcomingScheduleCount,
+    final int failedScheduleCount,
+    final int activeSocialIntegrationCount,
     final int publishedPostCount,
-    final int postQuotaLimit,
-    final int postsRemaining,
-    final int aiUsageCount,
-    final int activeMemberCount,
-    final List<WorkspaceTopMemberDto> topMembers,
-  }) = _$WorkspaceDashboardSummaryDtoImpl;
+    final int unreadNotificationCount,
+    final String? workspaceId,
+    final int? creditBalance,
+    final int? creditsUsed,
+    final int? postQuotaLimit,
+    final int? postsRemaining,
+    final int? aiUsageCount,
+    final int? activeMemberCount,
+    final List<WorkspaceTopMemberDto>? topMembers,
+  }) = _$CombinedDashboardSummaryImpl;
 
-  factory _WorkspaceDashboardSummaryDto.fromJson(Map<String, dynamic> json) =
-      _$WorkspaceDashboardSummaryDtoImpl.fromJson;
+  factory _CombinedDashboardSummary.fromJson(Map<String, dynamic> json) =
+      _$CombinedDashboardSummaryImpl.fromJson;
 
+  // Basic Fields (Always available)
   @override
-  String get workspaceId;
+  int get draftContentCount;
   @override
-  int get creditBalance;
+  int get publishedContentCount;
   @override
-  int get creditsUsed;
+  int get pendingApprovalContentCount;
+  @override
+  int get upcomingScheduleCount;
+  @override
+  int get failedScheduleCount;
+  @override
+  int get activeSocialIntegrationCount;
   @override
   int get publishedPostCount;
   @override
-  int get postQuotaLimit;
+  int get unreadNotificationCount; // Advanced Fields (Nullable, available only for Paid plans)
   @override
-  int get postsRemaining;
+  String? get workspaceId;
   @override
-  int get aiUsageCount;
+  int? get creditBalance;
   @override
-  int get activeMemberCount;
+  int? get creditsUsed;
   @override
-  List<WorkspaceTopMemberDto> get topMembers;
+  int? get postQuotaLimit;
+  @override
+  int? get postsRemaining;
+  @override
+  int? get aiUsageCount;
+  @override
+  int? get activeMemberCount;
+  @override
+  List<WorkspaceTopMemberDto>? get topMembers;
 
-  /// Create a copy of WorkspaceDashboardSummaryDto
+  /// Create a copy of CombinedDashboardSummary
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$WorkspaceDashboardSummaryDtoImplCopyWith<
-    _$WorkspaceDashboardSummaryDtoImpl
-  >
+  _$$CombinedDashboardSummaryImplCopyWith<_$CombinedDashboardSummaryImpl>
   get copyWith => throw _privateConstructorUsedError;
 }
 

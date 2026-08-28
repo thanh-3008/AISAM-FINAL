@@ -6,33 +6,46 @@ part of 'dashboard_summary.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$WorkspaceDashboardSummaryDtoImpl _$$WorkspaceDashboardSummaryDtoImplFromJson(
+_$CombinedDashboardSummaryImpl _$$CombinedDashboardSummaryImplFromJson(
   Map<String, dynamic> json,
-) => _$WorkspaceDashboardSummaryDtoImpl(
-  workspaceId: json['workspaceId'] as String,
-  creditBalance: (json['creditBalance'] as num?)?.toInt() ?? 0,
-  creditsUsed: (json['creditsUsed'] as num?)?.toInt() ?? 0,
+) => _$CombinedDashboardSummaryImpl(
+  draftContentCount: (json['draftContentCount'] as num?)?.toInt() ?? 0,
+  publishedContentCount: (json['publishedContentCount'] as num?)?.toInt() ?? 0,
+  pendingApprovalContentCount:
+      (json['pendingApprovalContentCount'] as num?)?.toInt() ?? 0,
+  upcomingScheduleCount: (json['upcomingScheduleCount'] as num?)?.toInt() ?? 0,
+  failedScheduleCount: (json['failedScheduleCount'] as num?)?.toInt() ?? 0,
+  activeSocialIntegrationCount:
+      (json['activeSocialIntegrationCount'] as num?)?.toInt() ?? 0,
   publishedPostCount: (json['publishedPostCount'] as num?)?.toInt() ?? 0,
-  postQuotaLimit: (json['postQuotaLimit'] as num?)?.toInt() ?? 0,
-  postsRemaining: (json['postsRemaining'] as num?)?.toInt() ?? 0,
-  aiUsageCount: (json['aiUsageCount'] as num?)?.toInt() ?? 0,
-  activeMemberCount: (json['activeMemberCount'] as num?)?.toInt() ?? 0,
-  topMembers:
-      (json['topMembers'] as List<dynamic>?)
-          ?.map(
-            (e) => WorkspaceTopMemberDto.fromJson(e as Map<String, dynamic>),
-          )
-          .toList() ??
-      const [],
+  unreadNotificationCount:
+      (json['unreadNotificationCount'] as num?)?.toInt() ?? 0,
+  workspaceId: json['workspaceId'] as String?,
+  creditBalance: (json['creditBalance'] as num?)?.toInt(),
+  creditsUsed: (json['creditsUsed'] as num?)?.toInt(),
+  postQuotaLimit: (json['postQuotaLimit'] as num?)?.toInt(),
+  postsRemaining: (json['postsRemaining'] as num?)?.toInt(),
+  aiUsageCount: (json['aiUsageCount'] as num?)?.toInt(),
+  activeMemberCount: (json['activeMemberCount'] as num?)?.toInt(),
+  topMembers: (json['topMembers'] as List<dynamic>?)
+      ?.map((e) => WorkspaceTopMemberDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
-Map<String, dynamic> _$$WorkspaceDashboardSummaryDtoImplToJson(
-  _$WorkspaceDashboardSummaryDtoImpl instance,
+Map<String, dynamic> _$$CombinedDashboardSummaryImplToJson(
+  _$CombinedDashboardSummaryImpl instance,
 ) => <String, dynamic>{
+  'draftContentCount': instance.draftContentCount,
+  'publishedContentCount': instance.publishedContentCount,
+  'pendingApprovalContentCount': instance.pendingApprovalContentCount,
+  'upcomingScheduleCount': instance.upcomingScheduleCount,
+  'failedScheduleCount': instance.failedScheduleCount,
+  'activeSocialIntegrationCount': instance.activeSocialIntegrationCount,
+  'publishedPostCount': instance.publishedPostCount,
+  'unreadNotificationCount': instance.unreadNotificationCount,
   'workspaceId': instance.workspaceId,
   'creditBalance': instance.creditBalance,
   'creditsUsed': instance.creditsUsed,
-  'publishedPostCount': instance.publishedPostCount,
   'postQuotaLimit': instance.postQuotaLimit,
   'postsRemaining': instance.postsRemaining,
   'aiUsageCount': instance.aiUsageCount,

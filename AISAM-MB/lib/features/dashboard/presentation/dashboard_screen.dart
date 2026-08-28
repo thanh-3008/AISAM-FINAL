@@ -138,150 +138,182 @@ class DashboardScreen extends ConsumerWidget {
                     iconBgColor: Theme.of(context).colorScheme.primaryContainer,
                     iconColor: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
-                  _buildBentoStatCard(
-                    context,
-                    value: data.activeMemberCount.toString(),
-                    label: 'Thành viên',
-                    icon: Icons.group,
-                    iconBgColor: Theme.of(context).colorScheme.secondaryContainer,
-                    iconColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                  ),
-                  _buildBentoStatCard(
-                    context,
-                    value: data.creditBalance.toString(),
-                    label: 'Credit còn lại',
-                    icon: Icons.monetization_on,
-                    iconBgColor: Theme.of(context).colorScheme.tertiaryContainer,
-                    iconColor: Theme.of(context).colorScheme.onTertiaryContainer,
-                  ),
-                  _buildBentoStatCard(
-                    context,
-                    value: data.aiUsageCount.toString(),
-                    label: 'Lượt dùng AI',
-                    icon: Icons.auto_awesome,
-                    iconBgColor: Colors.orange.shade100,
-                    iconColor: Colors.orange.shade800,
-                  ),
+                  if (data.activeMemberCount != null)
+                    _buildBentoStatCard(
+                      context,
+                      value: data.activeMemberCount.toString(),
+                      label: 'Thành viên',
+                      icon: Icons.group,
+                      iconBgColor: Theme.of(context).colorScheme.secondaryContainer,
+                      iconColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                    )
+                  else
+                    _buildBentoStatCard(
+                      context,
+                      value: data.draftContentCount.toString(),
+                      label: 'Bài nháp',
+                      icon: Icons.edit_document,
+                      iconBgColor: Theme.of(context).colorScheme.secondaryContainer,
+                      iconColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                    ),
+                  if (data.creditBalance != null)
+                    _buildBentoStatCard(
+                      context,
+                      value: data.creditBalance.toString(),
+                      label: 'Credit còn lại',
+                      icon: Icons.monetization_on,
+                      iconBgColor: Theme.of(context).colorScheme.tertiaryContainer,
+                      iconColor: Theme.of(context).colorScheme.onTertiaryContainer,
+                    )
+                  else
+                    _buildBentoStatCard(
+                      context,
+                      value: data.pendingApprovalContentCount.toString(),
+                      label: 'Chờ duyệt',
+                      icon: Icons.schedule,
+                      iconBgColor: Theme.of(context).colorScheme.tertiaryContainer,
+                      iconColor: Theme.of(context).colorScheme.onTertiaryContainer,
+                    ),
+                  if (data.aiUsageCount != null)
+                    _buildBentoStatCard(
+                      context,
+                      value: data.aiUsageCount.toString(),
+                      label: 'Lượt dùng AI',
+                      icon: Icons.auto_awesome,
+                      iconBgColor: Colors.orange.shade100,
+                      iconColor: Colors.orange.shade800,
+                    )
+                  else
+                    _buildBentoStatCard(
+                      context,
+                      value: data.upcomingScheduleCount.toString(),
+                      label: 'Lịch sắp tới',
+                      icon: Icons.calendar_month,
+                      iconBgColor: Colors.orange.shade100,
+                      iconColor: Colors.orange.shade800,
+                    ),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // Report Summary Card
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Top Members Usage',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        Icon(Icons.insights, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    if (data.topMembers.isNotEmpty)
-                      SizedBox(
-                        height: 180,
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY: (data.topMembers.map((e) => e.creditsUsed).reduce((a, b) => a > b ? a : b) * 1.2).toDouble(),
-                            barTouchData: BarTouchData(enabled: false),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    if (value.toInt() >= 0 && value.toInt() < data.topMembers.length) {
-                                      final name = data.topMembers[value.toInt()].name;
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 8.0),
-                                        child: Text(
-                                          name.length > 5 ? '${name.substring(0, 5)}...' : name,
-                                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                                        ),
-                                      );
-                                    }
-                                    return const SizedBox();
-                                  },
-                                ),
-                              ),
-                              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            ),
-                            borderData: FlBorderData(show: false),
-                            gridData: const FlGridData(show: false),
-                            barGroups: data.topMembers.asMap().entries.map((entry) {
-                              return BarChartGroupData(
-                                x: entry.key,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: entry.value.creditsUsed.toDouble(),
-                                    color: Theme.of(context).colorScheme.primary,
-                                    width: 20,
-                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                                    backDrawRodData: BackgroundBarChartRodData(
-                                      show: true,
-                                      toY: (data.topMembers.map((e) => e.creditsUsed).reduce((a, b) => a > b ? a : b) * 1.2).toDouble(),
-                                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      )
-                    else
-                      const SizedBox(
-                        height: 120,
-                        child: Center(child: Text('Chưa có dữ liệu')),
+              // Report Summary Card (Premium Only)
+              if (data.topMembers != null) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
                       ),
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.tips_and_updates, color: Theme.of(context).colorScheme.primary, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Workspace đã dùng ${data.creditsUsed} credits tuần này. Tiếp tục phát huy nhé!',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                            ),
+                          Text(
+                            'Top Members Usage',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                           ),
+                          Icon(Icons.insights, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      if (data.topMembers!.isNotEmpty)
+                        SizedBox(
+                          height: 180,
+                          child: BarChart(
+                            BarChartData(
+                              alignment: BarChartAlignment.spaceAround,
+                              maxY: (data.topMembers!.map((e) => e.creditsUsed).reduce((a, b) => a > b ? a : b) * 1.2).toDouble(),
+                              barTouchData: BarTouchData(enabled: false),
+                              titlesData: FlTitlesData(
+                                show: true,
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      if (value.toInt() >= 0 && value.toInt() < data.topMembers!.length) {
+                                        final name = data.topMembers![value.toInt()].name;
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 8.0),
+                                          child: Text(
+                                            name.length > 5 ? '${name.substring(0, 5)}...' : name,
+                                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                          ),
+                                        );
+                                      }
+                                      return const SizedBox();
+                                    },
+                                  ),
+                                ),
+                                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              ),
+                              borderData: FlBorderData(show: false),
+                              gridData: const FlGridData(show: false),
+                              barGroups: data.topMembers!.asMap().entries.map((entry) {
+                                return BarChartGroupData(
+                                  x: entry.key,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: entry.value.creditsUsed.toDouble(),
+                                      color: Theme.of(context).colorScheme.primary,
+                                      width: 20,
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                      backDrawRodData: BackgroundBarChartRodData(
+                                        show: true,
+                                        toY: (data.topMembers!.map((e) => e.creditsUsed).reduce((a, b) => a > b ? a : b) * 1.2).toDouble(),
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(
+                          height: 120,
+                          child: Center(child: Text('Chưa có dữ liệu')),
+                        ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.tips_and_updates, color: Theme.of(context).colorScheme.primary, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Workspace đã dùng ${data.creditsUsed} credits tuần này. Tiếp tục phát huy nhé!',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
+              ],
 
               // Recent Activity List
               Text(

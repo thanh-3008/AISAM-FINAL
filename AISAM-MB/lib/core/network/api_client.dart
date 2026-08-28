@@ -8,7 +8,7 @@ import '../../app/router.dart';
 
 part 'api_client.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 Dio dio(DioRef ref) {
   final dio = Dio(BaseOptions(
     baseUrl: EnvConfig.apiBaseUrl.replaceAll(RegExp(r'/api/?$'), ''),

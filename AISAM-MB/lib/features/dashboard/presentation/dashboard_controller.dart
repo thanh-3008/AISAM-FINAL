@@ -10,12 +10,12 @@ part 'dashboard_controller.g.dart';
 @riverpod
 class DashboardController extends _$DashboardController {
   @override
-  Future<WorkspaceDashboardSummaryDto> build() async {
+  FutureOr<CombinedDashboardSummary> build() async {
     ref.watch(activeWorkspaceControllerProvider);
     return _fetchSummary();
   }
 
-  Future<WorkspaceDashboardSummaryDto> _fetchSummary() async {
+  Future<CombinedDashboardSummary> _fetchSummary() async {
     try {
       final repo = ref.read(dashboardRepositoryProvider);
       final response = await repo.getSummary();

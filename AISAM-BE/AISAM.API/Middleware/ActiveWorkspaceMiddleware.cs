@@ -73,7 +73,7 @@ public sealed class ActiveWorkspaceMiddleware
             return;
         }
 
-        if (!ProtectedPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix)))
+        if (!ProtectedPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
         {
             await _next(context);
             return;

@@ -91,8 +91,23 @@ class AuthInterceptor extends Interceptor {
       try {
         final newAccessToken = await _storage.getAccessToken();
         err.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
+        
+        final isAuthEndpoint = err.requestOptions.path.contains('/Auth/');
+        if (!isAuthEndpoint) {
+          final workspaceId = await _storage.getActiveWorkspaceId();
+          if (workspaceId != null) {
+            err.requestOptions.headers['X-Workspace-Id'] = workspaceId;
+          }
+          final profileId = await _storage.getActiveProfileId();
+          if (profileId != null) {
+            err.requestOptions.headers['X-Profile-Id'] = profileId;
+          }
+        }
+
         final cloneReq = await _dio.fetch(err.requestOptions);
         return handler.resolve(cloneReq);
+      } on DioException catch (e) {
+        return handler.next(e);
       } catch (e) {
         return handler.next(err);
       }
