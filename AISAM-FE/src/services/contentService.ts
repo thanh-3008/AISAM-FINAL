@@ -2,6 +2,7 @@ import { apiClient, apiFetch } from "@/lib/apiClient";
 import type { ContentType, ContentStatus } from "@/lib/contentConstants";
 import { getStoredActiveProfile } from "@/stores/profile-store";
 import { getToken } from "@/lib/auth";
+import { assertValidMediaFile, MAX_MEDIA_FILE_SIZE_MB, type MediaKind } from "@/lib/mediaUpload";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -463,14 +464,23 @@ export async function chatWithAI(
   }
 }
 
-export async function uploadContentMedia(file: File): Promise<string> {
+export async function uploadContentMedia(file: File, expectedKind?: MediaKind): Promise<string> {
+  assertValidMediaFile(file, expectedKind);
   const formData = new FormData();
   formData.append("File", file);
 
-  const res: GenericResponse<{ url: string }> = await apiFetch("/content/media", {
-    method: "POST",
-    body: formData,
-  });
+  let res: GenericResponse<{ url: string }>;
+  try {
+    res = await apiFetch("/content/media", {
+      method: "POST",
+      body: formData,
+    });
+  } catch (error) {
+    if ((error as { status?: number })?.status === 413) {
+      throw new Error(`The selected media is too large. Maximum allowed size is ${MAX_MEDIA_FILE_SIZE_MB} MB.`);
+    }
+    throw error;
+  }
 
   if (res?.success && res.data?.url) return res.data.url;
   throw new Error(res?.message || res?.error?.errorMessage || "Failed to upload media.");

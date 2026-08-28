@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
-import { createContent, type CreateContentPayload } from "@/services/contentService";
+import { createContent, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
-import { apiFetch } from "@/lib/apiClient";
+import VideoPreview from "@/components/content/VideoPreview";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 import { useToast } from "@/contexts/ToastContext";
+import { MAX_MEDIA_FILE_SIZE_MB, validateMediaFile, type MediaKind } from "@/lib/mediaUpload";
 
 const SAMPLE_AVATARS = [
   "https://api.dicebear.com/7.x/notionists/svg?seed=1",
@@ -48,6 +49,7 @@ export default function CreateContentPage() {
     scheduledAt: "",
     internalNotes: "",
   });
+  const update = useCallback((partial: Partial<typeof form>) => setForm((previous) => ({ ...previous, ...partial })), []);
 
   useEffect(() => {
     fetchBrands().then(setBrandList);
@@ -65,7 +67,7 @@ export default function CreateContentPage() {
     if (brandList.length > 0 && !form.brandId) {
       update({ brandId: brandList[0].id });
     }
-  }, [brandList]);
+  }, [brandList, form.brandId, update]);
 
   const [hashtagInput, setHashtagInput] = useState("");
 
@@ -80,45 +82,71 @@ export default function CreateContentPage() {
   const imageFileRef = useRef<File | null>(null);
   const videoFileRef = useRef<File | null>(null);
   const thumbnailFileRef = useRef<File | null>(null);
+  const previewObjectUrlsRef = useRef<Partial<Record<"imageUrl" | "videoUrl" | "thumbnail", string>>>({});
+  const [selectedVideoFileName, setSelectedVideoFileName] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    Object.values(previewObjectUrlsRef.current).forEach((url) => {
+      if (url) URL.revokeObjectURL(url);
+    });
+  }, []);
 
   const handleFileSelect = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
     const input = field === "imageUrl" ? imageInputRef : field === "videoUrl" ? videoInputRef : thumbnailInputRef;
     input.current?.click();
   }, []);
 
+  const applySelectedFile = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail", file: File) => {
+    const expectedKind: MediaKind = field === "videoUrl" ? "video" : "image";
+    const validationError = validateMediaFile(file, expectedKind);
+    if (validationError) {
+      setSaveError(validationError);
+      return false;
+    }
+
+    const previousUrl = previewObjectUrlsRef.current[field];
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+
+    const url = URL.createObjectURL(file);
+    previewObjectUrlsRef.current[field] = url;
+    update({ [field]: url });
+    if (field === "imageUrl") imageFileRef.current = file;
+    if (field === "videoUrl") {
+      videoFileRef.current = file;
+      setSelectedVideoFileName(file.name);
+    }
+    if (field === "thumbnail") thumbnailFileRef.current = file;
+    setSaveError(null);
+    return true;
+  }, [update]);
+
   const handleFileChange = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail", e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      update({ [field]: url });
-      if (field === "thumbnail") update({ thumbnail: url });
-      if (field === "imageUrl") imageFileRef.current = file;
-      if (field === "videoUrl") videoFileRef.current = file;
-      if (field === "thumbnail") thumbnailFileRef.current = file;
-    }
-  }, []);
+    if (file && !applySelectedFile(field, file)) e.target.value = "";
+  }, [applySelectedFile]);
 
   const handleDrop = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail", e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(null);
     const file = e.dataTransfer.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      update({ [field]: url });
-      if (field === "thumbnail") update({ thumbnail: url });
-      if (field === "imageUrl") imageFileRef.current = file;
-      if (field === "videoUrl") videoFileRef.current = file;
-      if (field === "thumbnail") thumbnailFileRef.current = file;
-    }
-  }, []);
+    if (file) applySelectedFile(field, file);
+  }, [applySelectedFile]);
 
   const clearFile = useCallback((field: "imageUrl" | "videoUrl" | "thumbnail") => {
+    const previewUrl = previewObjectUrlsRef.current[field];
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      delete previewObjectUrlsRef.current[field];
+    }
     update({ [field]: "" });
-    if (field === "thumbnail") update({ thumbnail: "" });
     if (field === "imageUrl") imageFileRef.current = null;
-    if (field === "videoUrl") videoFileRef.current = null;
+    if (field === "videoUrl") {
+      videoFileRef.current = null;
+      setSelectedVideoFileName(null);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
     if (field === "thumbnail") thumbnailFileRef.current = null;
-  }, []);
+  }, [update]);
 
   const addHashtag = (raw: string) => {
     const tag = raw.trim().replace(/^#/, "");
@@ -138,8 +166,6 @@ export default function CreateContentPage() {
       setHashtagInput("");
     }
   };
-
-  const update = (partial: Partial<typeof form>) => setForm((p) => ({ ...p, ...partial }));
 
   const availableProducts = brandList.length > 0 ? productList : [];
   const selectedBrand = brandList.find(b => b.id === form.brandId);
@@ -166,15 +192,8 @@ export default function CreateContentPage() {
 
     const uploadFile = async (file: File | null): Promise<string | null> => {
       if (!file) return null;
-      const maxMediaBytes = 50 * 1024 * 1024;
-      if (file.size > maxMediaBytes) {
-        throw new Error(`${file.name} is larger than 50 MB. Please compress the video before uploading.`);
-      }
-      const formData = new FormData();
-      formData.append("file", file);
-      const result = await apiFetch("/content/media", { method: "POST", body: formData });
-      if (result?.success && result.data?.url) return result.data.url;
-      throw new Error(result?.message || `Failed to upload ${file.name}`);
+      const expectedKind: MediaKind = file.type.startsWith("video/") ? "video" : "image";
+      return uploadContentMedia(file, expectedKind);
     };
 
     try {
@@ -388,7 +407,7 @@ export default function CreateContentPage() {
                             <p className="text-body-sm text-on-surface font-medium">Click to upload</p>
                             <p className="text-label-sm text-outline/60 mt-0.5">or drag and drop your image here</p>
                           </div>
-                          <p className="text-label-2xs text-outline/40">PNG, JPG, WebP up to 10MB</p>
+                          <p className="text-label-2xs text-outline/40">PNG, JPG, WebP, GIF up to {MAX_MEDIA_FILE_SIZE_MB}MB</p>
                         </div>
                       )}
                     </div>
@@ -399,7 +418,7 @@ export default function CreateContentPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Upload Video</label>
-                      <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => handleFileChange("videoUrl", e)} />
+                      <input ref={videoInputRef} type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => handleFileChange("videoUrl", e)} />
                       <div
                         onDragOver={(e) => { e.preventDefault(); setDragOver("video"); }}
                         onDragLeave={() => setDragOver(null)}
@@ -410,7 +429,7 @@ export default function CreateContentPage() {
                         }`}>
                         {form.videoUrl ? (
                           <div className="relative">
-                            <video src={form.videoUrl} className="w-full max-h-[280px] rounded-lg" controls />
+                            <VideoPreview src={form.videoUrl} poster={form.thumbnail} className="max-h-[280px] min-h-[220px] rounded-lg" videoClassName="object-contain max-h-[280px]" />
                             <div className="absolute top-2 right-2 flex gap-1.5">
                               <button onClick={(e) => { e.stopPropagation(); handleFileSelect("videoUrl"); }}
                                 className="w-8 h-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-all">
@@ -420,6 +439,15 @@ export default function CreateContentPage() {
                                 className="w-8 h-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-danger-red/80 transition-all">
                                 <span className="material-symbols-outlined text-[16px]">close</span>
                               </button>
+                            </div>
+                            <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg bg-surface-container-high/70 px-3 py-2 text-left">
+                              <span className="material-symbols-outlined shrink-0 text-[17px] text-rose-500">movie</span>
+                              <div className="min-w-0">
+                                <p className="text-label-2xs text-outline">Selected video</p>
+                                <p className="truncate text-label-sm font-semibold text-on-surface" title={selectedVideoFileName || undefined}>
+                                  {selectedVideoFileName || "Original filename unavailable"}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -431,7 +459,7 @@ export default function CreateContentPage() {
                               <p className="text-body-sm text-on-surface font-medium">Click to upload</p>
                               <p className="text-label-sm text-outline/60 mt-0.5">or drag and drop your video here</p>
                             </div>
-                            <p className="text-label-2xs text-outline/40">MP4, WebM, MOV up to 100MB</p>
+                            <p className="text-label-2xs text-outline/40">MP4, WebM, MOV up to {MAX_MEDIA_FILE_SIZE_MB}MB</p>
                           </div>
                         )}
                       </div>
@@ -662,17 +690,17 @@ export default function CreateContentPage() {
                           {form.hashtags.map((h) => `#${h}`).join(" ")}
                         </p>
                       )}
-                      {(form.thumbnail || form.imageUrl) && (
+                      {!form.videoUrl && (form.thumbnail || form.imageUrl) && (
                         <div className="border-t border-b border-[#e4e6eb]">
                           <img src={form.thumbnail || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
                         </div>
                       )}
                       {form.videoUrl && (
-                        <div className="border-t border-b border-[#e4e6eb] bg-[#1a1a1a] aspect-video flex items-center justify-center">
-                          <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center backdrop-blur cursor-pointer">
-                            <span className="material-symbols-outlined text-white text-3xl">play_arrow</span>
-                          </div>
-                        </div>
+                        <VideoPreview
+                          src={form.videoUrl}
+                          poster={form.thumbnail}
+                          className="aspect-video border-y border-[#e4e6eb]"
+                        />
                       )}
                       {form.ctaLink && (
                         <div className="mx-3.5 mt-2.5 p-2.5 border border-[#e4e6eb] rounded-lg">
@@ -704,7 +732,13 @@ export default function CreateContentPage() {
                         <span className="material-symbols-outlined text-[18px] text-[#262626]">more_horiz</span>
                       </div>
                       <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef]">
-                        {(form.thumbnail || form.imageUrl) ? (
+                        {form.videoUrl ? (
+                          <VideoPreview
+                            src={form.videoUrl}
+                            poster={form.thumbnail}
+                            className="w-full h-full"
+                          />
+                        ) : (form.thumbnail || form.imageUrl) ? (
                           <img src={form.thumbnail || form.imageUrl} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
@@ -733,18 +767,21 @@ export default function CreateContentPage() {
                   {previewPlatform === "tiktok" && (
                     <div className="font-sans bg-[#111111] text-white relative overflow-hidden">
                       <div className="aspect-[9/16] flex items-center justify-center relative">
-                        {form.thumbnail ? (
+                        {form.videoUrl ? (
+                          <VideoPreview
+                            src={form.videoUrl}
+                            poster={form.thumbnail}
+                            className="absolute inset-0 w-full h-full"
+                            videoClassName="object-cover"
+                          />
+                        ) : form.thumbnail ? (
                           <img src={form.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                        ) : form.videoUrl ? (
-                          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z"/></svg>
-                          </div>
                         ) : (
                           <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                             <svg viewBox="0 0 24 24" className="w-[48px] h-[48px]" fill="rgba(255,255,255,0.3)"><path d="M10 16.5V8h7v2h-5v6.5a3.5 3.5 0 1 1-2-3.2z"/></svg>
                           </div>
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
+                        <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-label-xs font-bold shrink-0 border border-white/30"
                               style={{ background: `linear-gradient(135deg, ${getBrandColor(selectedBrandName) || "#666"}, ${getBrandColor(selectedBrandName) || "#999"}` }}>
@@ -761,7 +798,7 @@ export default function CreateContentPage() {
                             <span>original sound - {selectedBrandName || "Creator"}</span>
                           </div>
                         </div>
-                        <div className="absolute bottom-4 right-3 flex flex-col items-center gap-3">
+                        <div className="pointer-events-none absolute bottom-4 right-3 flex flex-col items-center gap-3">
                           <div className="flex flex-col items-center gap-0.5">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur">
                               <svg viewBox="0 0 24 24" className="w-[20px] h-[20px]" fill="white"><path d="M16.5 3C14.5 3 12.9 4.1 12 5.6 11.1 4.1 9.5 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.9 3.2 6.6 8.3 11.1l1.7 1.6 1.7-1.6C18.8 15.1 22 12.4 22 8.5 22 5.4 19.6 3 16.5 3z"/></svg>
