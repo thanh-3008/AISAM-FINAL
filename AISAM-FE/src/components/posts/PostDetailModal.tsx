@@ -23,9 +23,9 @@ function PlatformBadge({ platform }: { platform?: string | null }) {
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-outline-variant/10 last:border-b-0">
+    <div className="flex min-w-0 items-start justify-between gap-4 py-3 border-b border-outline-variant/10 last:border-b-0">
       <span className="text-label-sm text-outline font-medium shrink-0 w-28">{label}</span>
-      <div className="text-body-sm text-on-surface text-right">{children}</div>
+      <div className="min-w-0 flex-1 text-body-sm text-on-surface text-right break-words [overflow-wrap:anywhere]">{children}</div>
     </div>
   );
 }
@@ -35,7 +35,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className="w-full max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="w-full min-w-0 max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="px-6 py-5 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest sticky top-0 z-10">
             <div className="flex items-center gap-3">
@@ -54,8 +54,8 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
 
           <div className="px-6 py-5 space-y-2">
             {/* Title */}
-            <div className="mb-4">
-              <p className="text-body-sm font-bold text-on-surface text-lg">{post.contentTitle || "Untitled"}</p>
+            <div className="min-w-0 mb-4">
+              <p className="text-body-sm font-bold text-on-surface text-lg break-words [overflow-wrap:anywhere]">{post.contentTitle || "Untitled"}</p>
             </div>
 
             {/* Status + Platform row */}
@@ -97,7 +97,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
               </DetailRow>
               {post.externalPostId && (
                 <DetailRow label="External ID">
-                  <span className="font-mono text-label-xs truncate max-w-[200px] block">{post.externalPostId}</span>
+                  <span className="font-mono text-label-xs break-words [overflow-wrap:anywhere]">{post.externalPostId}</span>
                 </DetailRow>
               )}
             </div>
@@ -106,7 +106,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
             {post.caption && (
               <div className="mt-4">
                 <p className="text-label-sm text-outline font-medium mb-2">Caption</p>
-                <p className="text-body-sm text-on-surface leading-relaxed bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+                <p className="text-body-sm text-on-surface whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
                   {post.caption}
                 </p>
               </div>
