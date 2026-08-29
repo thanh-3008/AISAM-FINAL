@@ -76,6 +76,8 @@ class ExceptionHandler {
           return UnauthorizedException(message, code: code, originalError: error);
         } else if (statusCode == 400 || statusCode == 422) {
           return ValidationException(message, code: code, originalError: error);
+        } else if (statusCode == 413) {
+          return ValidationException('Payload too large. File must be smaller.', code: code, originalError: error);
         } else if (statusCode != null && statusCode >= 500) {
           return ServerException(message, code: code, originalError: error);
         }

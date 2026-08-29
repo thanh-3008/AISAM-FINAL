@@ -6,7 +6,7 @@ part of 'social_controller.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$socialControllerHash() => r'84899f04ef3f232273bee02a8ffc22161007e9d7';
+String _$socialControllerHash() => r'8a2f10508dc1a0ce4d7c665066eb78f4e60a5605';
 
 /// See also [SocialController].
 @ProviderFor(SocialController)
