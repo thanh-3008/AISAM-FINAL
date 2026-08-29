@@ -58,7 +58,6 @@ public sealed class OpenAIImageClient
                 prompt = prompt,
                 size = size,
                 quality = _settings.OpenAiImageQuality,
-                response_format = "b64_json",
                 n = 1
             };
 
@@ -110,7 +109,6 @@ public sealed class OpenAIImageClient
             formData.Add(new StringContent(prompt), "prompt");
             formData.Add(new StringContent(size), "size");
             formData.Add(new StringContent(_settings.OpenAiImageQuality), "quality");
-            formData.Add(new StringContent("b64_json"), "response_format");
 
             // Download first reference image to send as reference
             var firstUrl = referenceUrls.First();

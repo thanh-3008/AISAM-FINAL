@@ -7,7 +7,7 @@ public sealed class ImageProviderSettings
     // === Primary: OpenAI ===
     public string? OpenAiApiKey { get; set; }
     public string OpenAiImageModel { get; set; } = "gpt-image-2";
-    public string OpenAiImageQuality { get; set; } = "standard";
+    public string OpenAiImageQuality { get; set; } = "auto";
 
     // === Fallback 1: Image-to-Image Edit (DeAPI / FLUX.2 Klein) ===
     public string? DeApiApiKey { get; set; }
