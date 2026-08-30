@@ -106,7 +106,7 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
             {post.caption && (
               <div className="mt-4">
                 <p className="text-label-sm text-outline font-medium mb-2">Caption</p>
-                <p className="text-body-sm text-on-surface leading-relaxed bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+                <p className="text-body-sm text-on-surface leading-relaxed bg-surface-container-low p-4 rounded-xl border border-outline-variant/10 break-words whitespace-pre-wrap">
                   {post.caption}
                 </p>
               </div>

@@ -314,7 +314,7 @@ function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platfor
             <span className="material-symbols-outlined text-[22px]">send</span>
             <span className="material-symbols-outlined text-[22px] ml-auto">bookmark</span>
           </div>
-          <p className="text-sm whitespace-pre-line leading-relaxed"><span className="font-bold">{item.brandName || "brand"}</span> {caption}</p>
+          <p className="text-sm whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed"><span className="font-bold">{item.brandName || "brand"}</span> {caption}</p>
         </div>
       </div>
     );
@@ -346,7 +346,7 @@ function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platfor
         </div>
         <div className="absolute left-4 right-14 bottom-5">
           <p className="text-sm font-bold">@{(item.brandName || "brand").replace(/\s+/g, "").toLowerCase()}</p>
-          <p className="mt-2 text-xs leading-relaxed whitespace-pre-line line-clamp-6">{caption}</p>
+          <p className="mt-2 text-xs leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere] line-clamp-6">{caption}</p>
         </div>
       </div>
     );
@@ -365,7 +365,7 @@ function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platfor
         <span className="material-symbols-outlined text-[18px] ml-auto text-gray-500">more_horiz</span>
       </div>
       <div className="px-4 pb-3">
-        <p className="text-sm whitespace-pre-line leading-relaxed">{caption}</p>
+        <p className="text-sm whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed">{caption}</p>
       </div>
       {(videoUrl || imageUrl) && (
         <div className="bg-gray-100 border-y border-gray-100">
@@ -1128,7 +1128,7 @@ export default function ApprovalsPage() {
           <>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setDrawerItem(null)} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDrawerItem(null)}>
-            <div className="w-full max-w-2xl max-h-[90vh] bg-surface-container-lowest rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="w-full min-w-0 max-w-2xl max-h-[90vh] bg-surface-container-lowest rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
               <div className="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between shrink-0 bg-surface-container-low/30">
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-sm`}>
@@ -1146,7 +1146,7 @@ export default function ApprovalsPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
                 <div className="relative w-full aspect-[2/1] bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
                   {getPreviewVideoUrl(drawerItem) ? (
                     <video
@@ -1185,7 +1185,7 @@ export default function ApprovalsPage() {
                   </div>
                 </div>
 
-                <div className="p-6 space-y-7">
+                <div className="min-w-0 p-6 space-y-7">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-headline-sm font-bold text-on-surface leading-snug">{drawerItem.title}</h2>
@@ -1213,7 +1213,7 @@ export default function ApprovalsPage() {
                         { icon: "business", label: "Brand", value: `${drawerItem.brandName} · ${drawerItem.productName}`, color: getBrandColor(drawerItem.brandName) || "#6366f1" },
                         { icon: "flag", label: "Priority", value: getPriority(drawerItem).label, chip: getPriority(drawerItem).color },
                       ].map((f, i) => (
-                        <div key={i} className={`${f.full ? "col-span-2" : ""} p-4 rounded-xl bg-surface-container-low border border-outline-variant/10`}>
+                        <div key={i} className={`${f.full ? "col-span-2" : ""} min-w-0 p-4 rounded-xl bg-surface-container-low border border-outline-variant/10`}>
                           <label className="flex items-center gap-1 text-label-2xs text-outline uppercase font-bold tracking-widest mb-2">
                             <span className="material-symbols-outlined text-[11px]">{f.icon}</span>
                             {f.label}
@@ -1223,17 +1223,17 @@ export default function ApprovalsPage() {
                               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-secondary/80 flex items-center justify-center text-white shrink-0">
                                 <span className="material-symbols-outlined text-label-xs">auto_awesome</span>
                               </div>
-                              <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
+                              <p className="min-w-0 text-body-sm font-semibold text-on-surface break-words [overflow-wrap:anywhere]">{f.value}</p>
                             </div>
                           ) : f.chip ? (
                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-bold ${f.chip}`}>{f.value}</span>
                           ) : f.color ? (
                             <div className="flex items-center gap-2">
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
-                              <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
+                              <p className="min-w-0 text-body-sm font-semibold text-on-surface break-words [overflow-wrap:anywhere]">{f.value}</p>
                             </div>
                           ) : (
-                            <p className="text-body-sm font-semibold text-on-surface">{f.value}</p>
+                            <p className="min-w-0 text-body-sm font-semibold text-on-surface break-words [overflow-wrap:anywhere]">{f.value}</p>
                           )}
                         </div>
                       ))}
@@ -1291,11 +1291,11 @@ export default function ApprovalsPage() {
                       <div className="space-y-3">
                         <div>
                           <p className="text-label-2xs text-outline uppercase font-bold tracking-widest mb-1">Title</p>
-                          <p className="text-body-sm font-semibold text-on-surface">{drawerItem.title || "Untitled"}</p>
+                          <p className="text-body-sm font-semibold text-on-surface break-words [overflow-wrap:anywhere]">{drawerItem.title || "Untitled"}</p>
                         </div>
                         <div>
                           <p className="text-label-2xs text-outline uppercase font-bold tracking-widest mb-1">Caption</p>
-                          <p className="text-body-sm text-on-surface-variant whitespace-pre-line leading-relaxed">
+                          <p className="text-body-sm text-on-surface-variant whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed">
                             {drawerItem.textContent?.trim() || "No caption provided."}
                           </p>
                         </div>
