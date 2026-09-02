@@ -5,9 +5,13 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
-import { createContent, uploadContentMedia, type CreateContentPayload } from "@/services/contentService";
+import { createContent, uploadContentMedia, parseMultipleImageUrls, type CreateContentPayload } from "@/services/contentService";
+import { serializeImageUrls } from "@/lib/richTextUtils";
 import TagPicker from "@/components/content/TagPicker";
 import VideoPreview from "@/components/content/VideoPreview";
+import RichTextEditor from "@/components/content/RichTextEditor";
+import MultiImageUpload from "@/components/content/MultiImageUpload";
+import RichTextPreview from "@/components/content/RichTextPreview";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 import { useToast } from "@/contexts/ToastContext";
@@ -41,6 +45,7 @@ export default function CreateContentPage() {
     thumbnail: "",
     textContent: "",
     imageUrl: "",
+    imageUrls: [] as string[], // Multi-image support
     videoUrl: "",
     duration: "",
     description: "",
@@ -218,7 +223,9 @@ export default function CreateContentPage() {
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
       textContent: form.textContent || form.caption || form.description || "",
-      imageUrl,
+      // Multi-image: prefer imageUrls array, fall back to single imageUrl
+      imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
+      imageUrl: form.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
       videoUrl,
       thumbnailUrl: thumbnailUrl || undefined,
       styleDescription: form.description || undefined,
@@ -359,59 +366,20 @@ export default function CreateContentPage() {
                 {form.type === "TEXT" && (
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Content Body</label>
-                    <textarea value={form.textContent} onChange={(e) => update({ textContent: e.target.value })}
-                      className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[200px] resize-y leading-relaxed"
-                      placeholder="Write your content here..." />
-                    <div className="flex items-center justify-end gap-3 mt-1.5 text-label-xs text-outline">
-                      <span>{form.textContent.length} characters</span>
-                      <span>{form.textContent.split(/\s+/).filter(Boolean).length} words</span>
-                    </div>
+                    <RichTextEditor
+                      value={form.textContent}
+                      onChange={(md) => update({ textContent: md })}
+                      placeholder="Write your content here..."
+                      minHeight={200}
+                    />
                   </div>
                 )}
 
                 {form.type === "IMAGE" && (
-                  <div>
-                    <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Upload Image</label>
-                    <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange("imageUrl", e)} />
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); setDragOver("image"); }}
-                      onDragLeave={() => setDragOver(null)}
-                      onDrop={(e) => handleDrop("imageUrl", e)}
-                      onClick={() => handleFileSelect("imageUrl")}
-                      className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                        dragOver === "image" ? "border-primary bg-primary/5" : form.imageUrl ? "border-transparent bg-surface-container" : "border-outline-variant/30 hover:border-primary/40 hover:bg-surface-container/50"
-                      }`}>
-                      {form.imageUrl ? (
-                        <div className="relative">
-                          <div className="max-h-[300px] overflow-hidden rounded-lg">
-                            <img src={form.imageUrl} alt="Uploaded preview" className="w-full h-auto object-contain max-h-[280px]" />
-                          </div>
-                          <div className="absolute top-2 right-2 flex gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); handleFileSelect("imageUrl"); }}
-                              className="w-8 h-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-all">
-                              <span className="material-symbols-outlined text-[16px]">refresh</span>
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); clearFile("imageUrl"); }}
-                              className="w-8 h-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-danger-red/80 transition-all">
-                              <span className="material-symbols-outlined text-[16px]">close</span>
-                            </button>
-                          </div>
-                          <p className="text-label-xs text-outline mt-2">Click to replace or drag a new image</p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-primary text-3xl">add_photo_alternate</span>
-                          </div>
-                          <div>
-                            <p className="text-body-sm text-on-surface font-medium">Click to upload</p>
-                            <p className="text-label-sm text-outline/60 mt-0.5">or drag and drop your image here</p>
-                          </div>
-                          <p className="text-label-2xs text-outline/40">PNG, JPG, WebP, GIF up to {MAX_MEDIA_FILE_SIZE_MB}MB</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <MultiImageUpload
+                    images={form.imageUrls}
+                    onChange={(urls) => update({ imageUrls: urls })}
+                  />
                 )}
 
                 {form.type === "VIDEO" && (
@@ -484,13 +452,12 @@ export default function CreateContentPage() {
                 {/* Caption */}
                 <div>
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Social Media Caption</label>
-                  <textarea value={form.caption} onChange={(e) => update({ caption: e.target.value })}
-                    className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-[100px] resize-y leading-relaxed"
-                    placeholder="Write the caption that will appear on social media posts..." />
-                  <div className="flex items-center justify-end gap-3 mt-1.5 text-label-xs text-outline">
-                    <span>{form.caption.length} characters</span>
-                    <span>{form.caption.split(/\s+/).filter(Boolean).length} words</span>
-                  </div>
+                  <RichTextEditor
+                    value={form.caption}
+                    onChange={(md) => update({ caption: md })}
+                    placeholder="Write the caption that will appear on social media posts..."
+                    minHeight={120}
+                  />
                 </div>
               </div>
 
@@ -662,26 +629,19 @@ export default function CreateContentPage() {
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
                       </div>
-                      {form.title && (
-                      <p className="px-3.5 text-[15px] font-semibold text-[#1a1a1a] mb-1">{form.title}</p>
+                      {(form.caption || form.description || form.textContent) && (
+                        <div className="px-3.5 mb-2.5">
+                          <RichTextPreview
+                            content={form.caption || form.description || form.textContent}
+                            className="text-[15px] text-[#1a1a1a] leading-[1.35]"
+                          />
+                        </div>
                       )}
-                      {form.caption && (
-                        <p className="px-3.5 text-[15px] text-[#1a1a1a] leading-[1.35] whitespace-pre-line mb-1">
-                          {form.caption}
-                        </p>
-                      )}
-                      {!form.caption && form.description && (
-                        <p className="px-3.5 text-[15px] text-[#1a1a1a] leading-[1.35] whitespace-pre-line mb-1">
-                          {form.description}
-                        </p>
-                      )}
-                      {form.textContent && form.textContent !== form.caption && (
+                      {!form.caption && !form.description && form.textContent && (
                         <div className="px-3.5 mb-2.5">
                           <div className="p-2.5 bg-[#f0f2f5] rounded-lg border border-[#e4e6eb]">
                             <p className="text-[11px] text-[#65676b] font-semibold uppercase tracking-wide mb-1">Article</p>
-                            <p className="text-[13px] text-[#1a1a1a] leading-[1.4] whitespace-pre-line line-clamp-4">
-                              {form.textContent}
-                            </p>
+                            <RichTextPreview content={form.textContent} className="text-[13px] text-[#1a1a1a] leading-[1.4] line-clamp-4" />
                           </div>
                         </div>
                       )}
@@ -690,9 +650,15 @@ export default function CreateContentPage() {
                           {form.hashtags.map((h) => `#${h}`).join(" ")}
                         </p>
                       )}
-                      {!form.videoUrl && (form.thumbnail || form.imageUrl) && (
+                      {!form.videoUrl && (form.thumbnail || form.imageUrls[0] || form.imageUrl) && (
                         <div className="border-t border-b border-[#e4e6eb]">
-                          <img src={form.thumbnail || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
+                          <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
+                          {form.imageUrls.length > 1 && (
+                            <div className="flex items-center gap-1 px-3 py-1 bg-[#f0f2f5] border-t border-[#e4e6eb]">
+                              <span className="material-symbols-outlined text-[12px] text-[#65676b]">photo_library</span>
+                              <span className="text-[11px] text-[#65676b]">{form.imageUrls.length} photos</span>
+                            </div>
+                          )}
                         </div>
                       )}
                       {form.videoUrl && (
@@ -738,8 +704,8 @@ export default function CreateContentPage() {
                             poster={form.thumbnail}
                             className="w-full h-full"
                           />
-                        ) : (form.thumbnail || form.imageUrl) ? (
-                          <img src={form.thumbnail || form.imageUrl} alt="" className="w-full h-full object-contain" />
+                        ) : (form.thumbnail || form.imageUrls[0] || form.imageUrl) ? (
+                          <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <div className="flex flex-col items-center gap-2 text-[#c7c7c7]">
                             <span className="material-symbols-outlined text-4xl">{form.type === "VIDEO" ? "play_circle" : "landscape"}</span>
@@ -754,7 +720,10 @@ export default function CreateContentPage() {
                           <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M2 2v20l5-5h13V2H2zm18 13H6.5l-2.5 2.5V4h16v11z"/></svg>
                           <svg viewBox="0 0 24 24" className="w-[22px] h-[22px] ml-auto" fill="#262626"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l5-3 5 3V5c0-1.1-.9-2-2-2z"/></svg>
                         </div>
-                        <p className="text-[12px] font-semibold text-[#262626]">{selectedBrandName ? `${selectedBrandName.toLowerCase().replace(/\s+/g, "")} ` : ""}<span className="font-normal whitespace-pre-line">{form.caption || form.description || form.title || "Write a caption..."}</span></p>
+                        <div className="text-[12px] text-[#262626]">
+                          {selectedBrandName && <span className="font-semibold">{selectedBrandName.toLowerCase().replace(/\s+/g, "")} </span>}
+                          <RichTextPreview content={form.caption || form.description || form.title || "Write a caption..."} />
+                        </div>
                         {form.hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
                         )}

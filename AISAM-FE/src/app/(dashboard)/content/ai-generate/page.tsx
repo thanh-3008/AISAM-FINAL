@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CreditUsageHistoryModal from "@/components/ui/CreditUsageHistoryModal";
-import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, submitForApproval, deleteContent, type CreateContentPayload } from "@/services/contentService";
+import { createContent, updateContentDetails, generateAIDraft, chatWithAI, getConversationMessages, uploadContentMedia, fetchContentGenerations, submitForApproval, deleteContent, parseMultipleImageUrls, type CreateContentPayload } from "@/services/contentService";
 import { useToast } from "@/contexts/ToastContext";
 import { PLATFORM_CONFIG, getBrandColor, PlatformIcon } from "@/lib/contentConstants";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
@@ -14,6 +14,8 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { getStoredAutosave } from "@/hooks/useSettings";
 import { deriveTitleFromCaption } from "@/lib/generatedPostTitle";
 import { parseMediaMarkers, replaceVideoJobMarker, restoreConversationHistory, type ChatMessage, type Variation } from "@/lib/aiGenerateHistory";
+import RichTextEditor from "@/components/content/RichTextEditor";
+import RichTextPreview from "@/components/content/RichTextPreview";
 
 type GenerationMode = "exact_product_reference" | "normal_generation";
 type ImageSourceMode = "original_product_images" | "ai_exact_product_reference" | "ai_normal_generation";
