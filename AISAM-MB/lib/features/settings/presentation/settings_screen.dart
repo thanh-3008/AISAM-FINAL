@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../workspace/presentation/providers/workspace_controller.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../../core/shared/aisam_logo_widget.dart';
+import 'providers/language_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -13,11 +14,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _automationEnabled = false;
 
   @override
   Widget build(BuildContext context) {
     final activeWorkspaceAsync = ref.watch(activeWorkspaceControllerProvider);
+    final langState = ref.watch(languageControllerProvider);
+    final isEn = (langState.value ?? 'vi') == 'en';
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -41,7 +43,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
           Text(
-            'Cài đặt',
+            isEn ? 'Settings' : 'Cài đặt',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.onSurface,
@@ -50,32 +52,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 24),
 
           // 4.1 Nhóm Cá nhân
-          _buildSectionHeader('Cá nhân', context),
+          _buildSectionHeader(isEn ? 'Personal' : 'Cá nhân', context),
           _buildSectionCard(
             context,
             children: [
               _buildListTile(
                 context: context,
                 icon: Icons.person_outline,
-                title: 'Tài khoản',
+                title: isEn ? 'Account' : 'Tài khoản',
                 onTap: () => context.push('/settings/account'),
               ),
               _buildDivider(context),
               _buildListTile(
                 context: context,
                 icon: Icons.notifications_none,
-                title: 'Thông báo',
+                title: isEn ? 'Notifications' : 'Thông báo',
                 onTap: () => context.push('/settings/notifications'),
               ),
               _buildDivider(context),
               _buildListTile(
                 context: context,
                 icon: Icons.language,
-                title: 'Ngôn ngữ',
+                title: isEn ? 'Language' : 'Ngôn ngữ',
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Tiếng Việt', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    Text(isEn ? 'English' : 'Tiếng Việt', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     const SizedBox(width: 4),
                     Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
                   ],
@@ -87,7 +89,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 24),
 
           // 4.2 Nhóm Workspace
-          _buildSectionHeader('Workspace hiện tại', context),
+          _buildSectionHeader(isEn ? 'Current Workspace' : 'Workspace hiện tại', context),
           _buildSectionCard(
             context,
             children: [
@@ -96,26 +98,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   return _buildListTile(
                     context: context,
                     icon: Icons.workspaces_outline,
-                    title: 'Thông tin & Chuyển đổi',
-                    subtitle: workspace?.name ?? 'Chưa chọn Workspace',
+                    title: isEn ? 'Info & Switch' : 'Thông tin & Chuyển đổi',
+                    subtitle: workspace?.name ?? (isEn ? 'No Workspace selected' : 'Chưa chọn Workspace'),
                     onTap: () => context.push('/overview'),
                   );
                 },
                 loading: () => const Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator())),
-                error: (e, st) => Padding(padding: const EdgeInsets.all(16.0), child: Text('Lỗi: $e')),
+                error: (e, st) => Padding(padding: const EdgeInsets.all(16.0), child: Text(isEn ? 'Error: $e' : 'Lỗi: $e')),
               ),
-              _buildDivider(context),
-              _buildListTile(
-                context: context,
-                icon: Icons.group_outlined,
-                title: 'Team (Members/Roles)',
-                onTap: () => context.push('/settings/team'),
-              ),
+              if (activeWorkspaceAsync.valueOrNull != null && activeWorkspaceAsync.valueOrNull!.workspaceType > 1) ...[
+                _buildDivider(context),
+                _buildListTile(
+                  context: context,
+                  icon: Icons.group_outlined,
+                  title: 'Team (Members/Roles)',
+                  onTap: () => context.push('/settings/team'),
+                ),
+              ],
               _buildDivider(context),
               _buildListTile(
                 context: context,
                 icon: Icons.link,
-                title: 'Kết nối mạng xã hội',
+                title: isEn ? 'Social Connections' : 'Kết nối mạng xã hội',
                 subtitle: 'Facebook, TikTok, Instagram...',
                 onTap: () => context.push('/settings/social'),
               ),
@@ -124,7 +128,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 24),
 
           // 4.3 Nhóm Nội dung & vận hành
-          _buildSectionHeader('Nội dung & vận hành', context),
+          _buildSectionHeader(isEn ? 'Content & Operations' : 'Nội dung & vận hành', context),
           _buildSectionCard(
             context,
             children: [
@@ -134,21 +138,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Brands & Products',
                 onTap: () => context.push('/brands'),
               ),
-              _buildDivider(context),
-              _buildSwitchTile(
-                context: context,
-                icon: Icons.smart_toy_outlined,
-                title: 'Automation',
-                subtitle: 'Auto-reply, Tagging',
-                value: _automationEnabled,
-                onChanged: (val) => setState(() => _automationEnabled = val),
-              ),
             ],
           ),
           const SizedBox(height: 24),
 
           // 4.4 Nhóm Tài khoản
-          _buildSectionHeader('Tài khoản & hệ thống', context),
+          _buildSectionHeader(isEn ? 'Account & System' : 'Tài khoản & hệ thống', context),
           _buildSectionCard(
             context,
             children: [
@@ -162,30 +157,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildListTile(
                 context: context,
                 icon: Icons.help_outline,
-                title: 'Trợ giúp',
-                onTap: () => _showComingSoon(context),
+                title: isEn ? 'Help' : 'Trợ giúp',
+                onTap: () => _showComingSoon(context, isEn),
               ),
               _buildDivider(context),
               ListTile(
                 leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
-                title: Text('Đăng xuất', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold)),
+                title: Text(isEn ? 'Logout' : 'Đăng xuất', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold)),
                 tileColor: Colors.transparent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 onTap: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Xác nhận đăng xuất'),
-                      content: const Text('Bạn có chắc chắn muốn đăng xuất không?'),
+                      title: Text(isEn ? 'Confirm Logout' : 'Xác nhận đăng xuất'),
+                      content: Text(isEn ? 'Are you sure you want to logout?' : 'Bạn có chắc chắn muốn đăng xuất không?'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text('Hủy'),
+                          child: Text(isEn ? 'Cancel' : 'Hủy'),
                         ),
                         ElevatedButton(
                           onPressed: () => Navigator.of(context).pop(true),
                           style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: Theme.of(context).colorScheme.onError),
-                          child: const Text('Đăng xuất'),
+                          child: Text(isEn ? 'Logout' : 'Đăng xuất'),
                         ),
                       ],
                     ),
@@ -207,9 +202,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _showComingSoon(BuildContext context) {
+  void _showComingSoon(BuildContext context, bool isEn) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tính năng đang được phát triển.')),
+      SnackBar(content: Text(isEn ? 'Feature is under development.' : 'Tính năng đang được phát triển.')),
     );
   }
 

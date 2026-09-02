@@ -108,6 +108,8 @@ export interface CreateContentPayload {
   title?: string | null;
   textContent: string;
   imageUrl?: string | null;
+  /** Multi-image support: array of URLs. Serialized to JSON by the service. */
+  imageUrls?: string[] | null;
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   styleDescription?: string | null;
@@ -124,6 +126,8 @@ export interface UpdateContentPayload {
   title?: string | null;
   textContent?: string | null;
   imageUrl?: string | null;
+  /** Multi-image support: array of URLs. Serialized to JSON by the service. */
+  imageUrls?: string[] | null;
   videoUrl?: string | null;
   styleDescription?: string | null;
   contextDescription?: string | null;
@@ -158,6 +162,29 @@ const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
   "Scheduled": 4,
   "Failed": 7,
 };
+
+/**
+ * Parse the backend's image_url JSONB field into a list of URLs.
+ * Handles: null, single URL string, JSON array, JSON object.
+ */
+export function parseMultipleImageUrls(imageUrl: string | null | undefined): string[] {
+  const raw = (imageUrl ?? "").trim();
+  if (!raw) return [];
+
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((u): u is string => typeof u === "string" && u.trim() !== "")
+          .map((u) => u.trim());
+      }
+    } catch { /* fall through */ }
+  }
+
+  const match = raw.match(/https?:\/\/[^\s"'\]\[{}]+/i);
+  return match ? [match[0]] : raw ? [raw] : [];
+}
 
 export const parseApiUrl = (url?: string | null): string => {
   const raw = (url || "").trim();
@@ -305,8 +332,20 @@ export async function updateContentDetails(id: string, payload: Partial<CreateCo
   }
 }
 
+/** Serialize imageUrls[] to the JSON string format the backend expects */
+function resolveImageUrlField(payload: CreateContentPayload | UpdateContentPayload): string | null | undefined {
+  if ('imageUrls' in payload && payload.imageUrls && payload.imageUrls.length > 0) {
+    const valid = payload.imageUrls.filter((u) => u && u.trim() !== "");
+    if (valid.length > 0) return JSON.stringify(valid);
+  }
+  return 'imageUrl' in payload ? (payload as CreateContentPayload).imageUrl : undefined;
+}
+
 export async function createContent(data: CreateContentPayload): Promise<ContentItem | null> {
-  const res: GenericResponse<ContentApiItem> = await apiClient("/content", { data });
+  // Merge imageUrls into imageUrl for backward-compatible API
+  const { imageUrls, ...rest } = data;
+  const apiData = { ...rest, imageUrl: resolveImageUrlField(data) ?? rest.imageUrl };
+  const res: GenericResponse<ContentApiItem> = await apiClient("/content", { data: apiData });
   if (res?.success && res.data) {
     return apiItemToContentItem(res.data);
   }
@@ -315,7 +354,10 @@ export async function createContent(data: CreateContentPayload): Promise<Content
 
 export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {
   try {
-    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data, method: "PUT" });
+    // Merge imageUrls into imageUrl for backward-compatible API
+    const { imageUrls, ...rest } = data;
+    const apiData = { ...rest, imageUrl: resolveImageUrlField(data) ?? rest.imageUrl };
+    const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data: apiData, method: "PUT" });
     return res?.success === true;
   } catch {
     return false;
