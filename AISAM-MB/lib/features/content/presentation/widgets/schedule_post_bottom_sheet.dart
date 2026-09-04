@@ -153,6 +153,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
                 }
                 return DropdownButtonFormField<String>(
                   initialValue: _selectedContentId,
+                  isExpanded: true,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -186,6 +187,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
               }
               return DropdownButtonFormField<SocialIntegrationModel>(
                 initialValue: _selectedIntegration,
+                isExpanded: true,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -194,7 +196,11 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
                 items: integrations.map((integration) {
                   return DropdownMenuItem(
                     value: integration,
-                    child: Text('${integration.name ?? integration.platform} (${integration.brandName ?? ""})'),
+                    child: Text(
+                      '${integration.name ?? integration.platform} (${integration.brandName ?? ""})',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }).toList(),
                 onChanged: (val) {

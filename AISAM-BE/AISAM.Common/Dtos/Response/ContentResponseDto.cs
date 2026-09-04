@@ -12,7 +12,10 @@ public sealed class ContentResponseDto
     public AdTypeEnum AdType { get; set; }
     public string? Title { get; set; }
     public string TextContent { get; set; } = string.Empty;
+    /// <summary>Raw JSONB value from the database (may be JSON array or single URL string).</summary>
     public string? ImageUrl { get; set; }
+    /// <summary>Parsed image URLs list. Populated from ImageUrl JSONB on mapping.</summary>
+    public List<string>? ImageUrls { get; set; }
     public string? VideoUrl { get; set; }
     public string? ThumbnailUrl { get; set; }
     public string? Tags { get; set; }
@@ -25,3 +28,4 @@ public sealed class ContentResponseDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+

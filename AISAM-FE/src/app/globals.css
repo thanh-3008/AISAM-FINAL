@@ -337,3 +337,86 @@ input::-ms-clear {
   display: inline-block;
   animation: slideLeftRight 5s linear infinite;
 }
+
+/* ── Rich Text Preview Styles ─────────────────────────────────────────── */
+.rich-text-preview p {
+  margin-bottom: 0.75em;
+  line-height: 1.65;
+}
+.rich-text-preview p:last-child {
+  margin-bottom: 0;
+}
+.rich-text-preview strong, .rich-text-preview b {
+  font-weight: 700;
+}
+.rich-text-preview em, .rich-text-preview i {
+  font-style: italic;
+}
+.rich-text-preview u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-text-preview del, .rich-text-preview s {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.rich-text-preview ul {
+  list-style: disc;
+  padding-left: 1.25em;
+  margin-bottom: 0.75em;
+}
+.rich-text-preview ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+  margin-bottom: 0.75em;
+}
+.rich-text-preview li {
+  margin-bottom: 0.25em;
+  line-height: 1.6;
+}
+.rich-text-preview br {
+  display: block;
+  content: "";
+  margin-bottom: 0.25em;
+}
+
+/* ── Tiptap Editor Content Styles ────────────────────────────────────── */
+.tiptap p {
+  margin-bottom: 0.5em;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  color: rgb(var(--color-outline) / 0.4);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.tiptap ul {
+  list-style: disc;
+  padding-left: 1.25em;
+  margin-bottom: 0.5em;
+}
+.tiptap ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+  margin-bottom: 0.5em;
+}
+.tiptap li {
+  margin-bottom: 0.2em;
+}
+.tiptap strong {
+  font-weight: 700;
+}
+.tiptap em {
+  font-style: italic;
+}
+.tiptap u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tiptap s {
+  text-decoration: line-through;
+}
+.tiptap:focus {
+  outline: none;
+}

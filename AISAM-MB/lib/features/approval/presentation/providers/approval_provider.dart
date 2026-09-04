@@ -30,10 +30,10 @@ class ApprovalNotifier extends _$ApprovalNotifier {
     }
   }
 
-  Future<bool> rejectContent(String id) async {
+  Future<bool> rejectContent(String id, {String? reason}) async {
     try {
       final repository = ref.read(approvalRepositoryProvider);
-      await repository.rejectContent(id);
+      await repository.rejectContent(id, reason: reason);
       await refresh();
       return true;
     } catch (e) {

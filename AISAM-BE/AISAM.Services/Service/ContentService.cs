@@ -112,13 +112,17 @@ public sealed class ContentService : IContentService
         var statusValidation = ValidateCreateStatus(request.Status);
         if (!statusValidation.Success) return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
 
+        // Validate image count
+        if (request.ImageUrls is { Count: > 5 })
+            return GenericResponse<ContentResponseDto>.CreateError("Maximum 5 images allowed per post.", HttpStatusCode.BadRequest);
+
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         var content = new Content
         {
             WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
             AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
-            ImageUrl = FormatImageUrlForJsonb(request.ImageUrl), VideoUrl = request.VideoUrl,
+            ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl), VideoUrl = request.VideoUrl,
             ThumbnailUrl = request.ThumbnailUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.Draft,
@@ -162,11 +166,18 @@ public sealed class ContentService : IContentService
         if (content == null || content.WorkspaceId != workspaceId) return NotFound();
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, content.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+
+        // Validate image count
+        if (request.ImageUrls is { Count: > 5 })
+            return GenericResponse<ContentResponseDto>.CreateError("Maximum 5 images allowed per post.", HttpStatusCode.BadRequest);
+
         if (request.ProductId.HasValue) content.ProductId = request.ProductId;
         if (request.AdType.HasValue) content.AdType = request.AdType.Value;
         if (request.Title != null) content.Title = request.Title;
         if (request.TextContent != null) content.TextContent = request.TextContent;
-        if (request.ImageUrl != null) content.ImageUrl = FormatImageUrlForJsonb(request.ImageUrl);
+        // Multi-image update: prefer ImageUrls over legacy ImageUrl
+        if (request.ImageUrls != null || request.ImageUrl != null)
+            content.ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl);
         if (request.VideoUrl != null) content.VideoUrl = request.VideoUrl;
         if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
         if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
@@ -880,6 +891,27 @@ public sealed class ContentService : IContentService
 
     private static ContentResponseDto MapToDto(Content content)
     {
+        // Parse image URL JSON array for the response
+        List<string>? imageUrls = null;
+        if (!string.IsNullOrWhiteSpace(content.ImageUrl))
+        {
+            var raw = content.ImageUrl.Trim();
+            if (raw.StartsWith("[", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<List<string>>(raw);
+                    if (parsed is { Count: > 0 })
+                        imageUrls = parsed.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+                }
+                catch { /* ignore malformed */ }
+            }
+            else
+            {
+                imageUrls = new List<string> { raw };
+            }
+        }
+
         return new ContentResponseDto
         {
             Id = content.Id,
@@ -891,6 +923,7 @@ public sealed class ContentService : IContentService
             Title = content.Title,
             TextContent = content.TextContent,
             ImageUrl = content.ImageUrl,
+            ImageUrls = imageUrls,
             VideoUrl = content.VideoUrl,
             ThumbnailUrl = content.ThumbnailUrl,
             StyleDescription = content.StyleDescription,
@@ -907,5 +940,19 @@ public sealed class ContentService : IContentService
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt
         };
+    }
+
+    /// <summary>
+    /// Resolve the image_url JSONB value from multi-image list (preferred) or legacy single URL.
+    /// </summary>
+    private static string? ResolveImageUrlForStorage(List<string>? imageUrls, string? legacyImageUrl)
+    {
+        if (imageUrls is { Count: > 0 })
+        {
+            var valid = imageUrls.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+            if (valid.Count > 0)
+                return JsonSerializer.Serialize(valid);
+        }
+        return FormatImageUrlForJsonb(legacyImageUrl);
     }
 }

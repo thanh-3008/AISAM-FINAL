@@ -8,8 +8,10 @@ import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse } from "@/services/contentService";
+import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse, parseMultipleImageUrls } from "@/services/contentService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import RichTextPreview from "@/components/content/RichTextPreview";
+import RichTextEditor from "@/components/content/RichTextEditor";
 
 interface FormState {
   title: string;
@@ -301,27 +303,65 @@ export default function ContentDetailPage() {
                   </span>
                 </div>
 
-                {item.type === "IMAGE" && (
-                  <div className="w-full max-w-2xl mx-auto aspect-video bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-contain rounded-xl" />
-                    ) : (
-                      <div className="text-center">
-                        <div className={`w-24 h-24 mx-auto rounded-2xl bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg mb-3`}>
-                          <span className="material-symbols-outlined text-4xl">{typeIcon}</span>
+                {item.type === "IMAGE" && (() => {
+                  const imageUrls = parseMultipleImageUrls(item.imageUrl);
+                  if (imageUrls.length === 0) {
+                    return (
+                      <div className="w-full max-w-2xl mx-auto aspect-video bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center">
+                        <div className="text-center">
+                          <div className={`w-24 h-24 mx-auto rounded-2xl bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg mb-3`}>
+                            <span className="material-symbols-outlined text-4xl">{typeIcon}</span>
+                          </div>
+                          <p className="text-body-sm text-outline">No image uploaded</p>
                         </div>
-                        <p className="text-body-sm text-outline">No image uploaded</p>
                       </div>
-                    )}
-                  </div>
-                )}
+                    );
+                  }
+                  if (imageUrls.length === 1) {
+                    return (
+                      <div className="w-full max-w-2xl mx-auto aspect-video bg-linear-to-br from-surface-container to-surface-container-high rounded-xl overflow-hidden">
+                        <img src={imageUrls[0]} alt={item.title} className="w-full h-full object-contain rounded-xl" />
+                      </div>
+                    );
+                  }
+                  // Multi-image grid
+                  return (
+                    <div className="w-full max-w-2xl mx-auto space-y-2">
+                      <div className="flex items-center gap-1.5 text-label-xs text-outline mb-2">
+                        <span className="material-symbols-outlined text-[14px]">photo_library</span>
+                        <span>{imageUrls.length} images · First image is cover</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {imageUrls.map((url, i) => (
+                          <div key={i} className={`relative rounded-xl overflow-hidden border-2 aspect-square ${i === 0 ? 'border-primary/40' : 'border-outline-variant/20'}`}>
+                            <img src={url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+                            {i === 0 && (
+                              <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-primary text-on-primary text-[10px] font-bold">Cover</div>
+                            )}
+                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white text-[10px] font-bold flex items-center justify-center">{i + 1}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {item.type === "TEXT" && (
                   <div className="w-full max-w-2xl mx-auto">
                     <div className="bg-surface-container rounded-xl p-6 min-h-50">
-                      <p className="text-body-md text-on-surface leading-relaxed whitespace-pre-line">
-                        {item.textContent || "No content yet."}
-                      </p>
+                      {editing ? (
+                        <RichTextEditor
+                          value={form.caption}
+                          onChange={(md) => setForm((p) => ({ ...p, caption: md }))}
+                          placeholder="Write your content..."
+                          minHeight={200}
+                        />
+                      ) : (
+                        <RichTextPreview
+                          content={item.textContent || ""}
+                          className="text-body-md"
+                        />
+                      )}
                     </div>
                     <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
                       <span>{(item.textContent || "").length} characters</span>

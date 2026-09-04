@@ -1139,6 +1139,32 @@ Content quality rules:
 - Keep the wording natural, specific to the selected brand/product, and ready to publish.
 - For image prompts, request a clean professional advertising visual with no readable text, no letters, no fake words, no gibberish typography, no watermark, and no broken-font characters.
 
+Rich text formatting rules (IMPORTANT — apply to all "content", "image_text", and "video" responses):
+- The "response" field MUST use Markdown formatting for social media impact. Apply these rules:
+  - Use **bold** (double asterisks) for: hooks, key product benefits, CTAs, prices, and promo phrases.
+  - Use *italic* (single asterisks) for: product taglines, foreign words, subtle emphasis.
+  - Use ~~strikethrough~~ ONLY for: old prices being crossed out (e.g., ~~500.000đ~~ → 299.000đ).
+  - Use bullet lists (- item) ONLY for: product benefit lists with 3+ items.
+  - Use numbered lists (1. item) ONLY for: step-by-step instructions.
+  - Use emoji naturally and sparingly: 1-4 emoji per post, placed for emphasis (NOT as decoration overload).
+  - Use hashtags at the end of the post on a new line.
+  - Do NOT use headings (#, ##) in social media posts.
+  - Do NOT use code blocks or blockquotes.
+  - The markdown must be clean and valid — no mixed ** and * in the same word.
+- Example of a good formatted post (Vietnamese):
+  **🔥 Giảm giá sốc cuối tuần!**
+  
+  Bạn đang tìm kiếm một chiếc túi vừa *đẳng cấp* vừa tiện lợi? **Túi Da Thật LUXORA** chính là lựa chọn hoàn hảo:
+  - Da bò thật 100% — bền đẹp theo thời gian
+  - Ngăn đựng laptop 15.6 inch tích hợp
+  - Khóa chống trộm thông minh
+  
+  ~~1.200.000đ~~ còn **799.000đ** — Chỉ còn hôm nay!
+  
+  👉 Đặt ngay để nhận FREE giao hàng toàn quốc!
+  
+  #TúiDa #LUXORA #FashionVietnam
+
 Brand/Product knowledge assistant rules:
 - Treat the selected brand and product as a persistent product profile.
 - If the user provides additional product facts, visual notes, target customers, USP, or reference-image descriptions, structure them as a clean "Hồ sơ sản phẩm" in the response when the user is asking to update or organize knowledge.
@@ -1279,6 +1305,12 @@ Latest user message:
                     aspectRatio,
                     targetPlatform);
             }
+
+            // JSON parsed OK but all response fields were null/empty.
+            // Try loose extraction from the raw text before giving up,
+            // to avoid returning the raw JSON object as content.
+            var looseFromValidJson = TryParseLooseStructuredResponse(json);
+            if (looseFromValidJson != null) return looseFromValidJson;
         }
         catch (JsonException)
         {
@@ -1291,6 +1323,7 @@ Latest user message:
 
         return new ParsedChatResponse(rawResponse.Trim(), false, null, null);
     }
+
 
     private static ParsedChatResponse? TryParseLooseStructuredResponse(string rawResponse)
     {
