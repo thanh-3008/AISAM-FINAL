@@ -171,6 +171,13 @@ export async function logout(): Promise<void> {
     removeToken();
     removeRefreshToken();
     removeStoredUser();
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("aisam_active_workspace");
+      } catch {
+        // ignore
+      }
+    }
     if (typeof document !== "undefined") {
       document.cookie = "aisam_role=; path=/; max-age=0";
     }

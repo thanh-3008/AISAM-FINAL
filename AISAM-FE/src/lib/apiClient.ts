@@ -187,7 +187,7 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
   return handleResponse(retryResponse);
 }
 
-export async function apiClient(endpoint: string, options: ApiOptions = {}) {
+export async function apiClient(endpoint: string, options: ApiOptions = {}): Promise<any> {
   const isPublic = isPublicAuthEndpoint(endpoint);
   if (!isPublic) {
     await ensureValidToken();
@@ -215,12 +215,29 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
     return retryWithRefresh(endpoint, config);
   }
 
-  if (response.status === 403 && !endpoint.startsWith("/access/context")) notifyAccessChanged("denied");
-  else if (response.ok && isMutation && /^\/(teams|workspace-members|collaboration-tasks)/.test(endpoint)) notifyAccessChanged();
+  if (response.status === 403 && !endpoint.startsWith("/access/context")) {
+    if (typeof response.clone === "function") {
+      try {
+        const body = await response.clone().json();
+        const msg = String(body?.message || body?.error?.errorMessage || "").toLowerCase();
+        const code = String(body?.error?.errorCode || "").toLowerCase();
+        const isMembershipRevoked =
+          msg.includes("not a member") ||
+          msg.includes("membership is no longer active") ||
+          msg.includes("workspace is unavailable") ||
+          code === "not_a_workspace_member";
+        if (isMembershipRevoked) notifyAccessChanged("denied");
+      } catch {
+        // ignore
+      }
+    }
+  } else if (response.ok && isMutation && /^\/(teams|workspace-members|collaboration-tasks)/.test(endpoint)) {
+    notifyAccessChanged();
+  }
   return handleResponse(response);
 }
 
-export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
   await ensureValidToken();
   const { headers, token } = await buildHeaders(options.headers as Record<string, string> | undefined);
 

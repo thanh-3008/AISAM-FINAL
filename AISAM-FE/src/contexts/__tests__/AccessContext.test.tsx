@@ -48,6 +48,12 @@ describe("current backend access context", () => {
     expect(await screen.findByText("personal analytics")).toBeTruthy();
   });
 
+  it("allows Creator to access /analytics for personal history", async () => {
+    state.role = "ContentCreator"; state.path = "/analytics";
+    render(<AccessProvider><div>personal analytics on analytics route</div></AccessProvider>);
+    expect(await screen.findByText("personal analytics on analytics route")).toBeTruthy();
+  });
+
   it("clears mounted protected data on 403 without navigating to login", async () => {
     state.role = "Manager";
     render(<AccessProvider><div>protected analytics</div></AccessProvider>);

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 
 interface SidebarContextType {
   open: boolean;
@@ -15,11 +15,14 @@ const SidebarContext = createContext<SidebarContextType>({
 });
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
     const saved = localStorage.getItem("aisam_sidebar_open");
-    return saved !== null ? saved === "true" : true;
-  });
+    if (saved !== null) {
+      setOpen(saved === "true");
+    }
+  }, []);
 
   const toggle = useCallback(() => {
     setOpen((prev) => {

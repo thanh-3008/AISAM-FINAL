@@ -204,13 +204,36 @@ export function useWorkspaces() {
     const stored = getStoredActiveWorkspace();
     if (stored) {
       const match = mapped.find((w) => w.id === stored.id);
-      if (match && match.workspaceType !== stored.workspaceType) {
+      if (match) {
+        if (match.workspaceType !== stored.workspaceType) {
+          storeActiveWorkspace({
+            id: match.id,
+            name: match.name,
+            workspaceType: match.workspaceType,
+          });
+        }
+      } else {
+        const fallback = mapped.find((w) => w.status === 1) || mapped[0];
+        if (fallback) {
+          storeActiveWorkspace({
+            id: fallback.id,
+            name: fallback.name,
+            workspaceType: fallback.workspaceType,
+          });
+          notifyWorkspaceSelected();
+        } else {
+          clearActiveWorkspace();
+        }
+      }
+    } else if (mapped.length > 0) {
+      const fallback = mapped.find((w) => w.status === 1) || mapped[0];
+      if (fallback) {
         storeActiveWorkspace({
-          id: match.id,
-          name: match.name,
-          workspaceType: match.workspaceType,
+          id: fallback.id,
+          name: fallback.name,
+          workspaceType: fallback.workspaceType,
         });
-        // notifyWorkspaceSelected is not needed since the state update will trigger re-render anyway
+        notifyWorkspaceSelected();
       }
     }
 

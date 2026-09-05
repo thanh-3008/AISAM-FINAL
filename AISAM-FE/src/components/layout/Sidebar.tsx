@@ -21,7 +21,6 @@ const navSections: { label: string; items: NavItemConfig[] }[] = [
     label: "Dashboard",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: "space_dashboard" },
-      { label: "My Analytics & History", href: "/own-analytics", icon: "query_stats" },
     ],
   },
   {
@@ -112,11 +111,10 @@ export default function Sidebar() {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (item.href === "/own-analytics") return access?.canViewOwnAnalytics === true;
-        if (item.href === "/dashboard") return access?.canViewAnalytics === true;
-        if (item.href === "/approvals") return access?.canReviewContent === true;
-        if (item.href === "/calendar") return access?.canPublish === true;
-        if (item.href === "/analytics") return featureGate.can("viewAnalytics");
+        if (item.href === "/dashboard") return access ? access.canViewAnalytics : true;
+        if (item.href === "/approvals") return access ? access.canReviewContent : true;
+        if (item.href === "/calendar") return access ? access.canPublish : true;
+        if (item.href === "/analytics") return (access ? (access.canViewAnalytics || access.canViewOwnAnalytics) : true) && featureGate.can("viewAnalytics");
         if (item.label === "Team Management") return featureGate.canAccess("teamManagement");
         return true;
       }),

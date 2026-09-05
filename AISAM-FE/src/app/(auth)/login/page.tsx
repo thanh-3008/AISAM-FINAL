@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { getToken, getUserRoleFromToken, setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
+import { clearActiveWorkspace } from "@/stores/workspace-store";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
 
@@ -76,6 +77,7 @@ export default function LoginPage() {
       const result = await apiClient("/auth/google", { data: { idToken: credential } });
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
+        clearActiveWorkspace();
         setToken(result.data.accessToken);
         if (result.data.refreshToken) setRefreshToken(result.data.refreshToken);
         if (result.data.user) {
@@ -165,6 +167,7 @@ export default function LoginPage() {
 
       if (result.success && result.data?.accessToken) {
         invalidateWorkspaceCache();
+        clearActiveWorkspace();
         setToken(result.data.accessToken);
 
         if (result.data.refreshToken) {

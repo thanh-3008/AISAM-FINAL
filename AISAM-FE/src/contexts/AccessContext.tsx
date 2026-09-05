@@ -6,6 +6,8 @@ import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
 import { ACCESS_CHANGED, clearProtectedCaches } from "@/lib/accessEvents";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { clearActiveWorkspace } from "@/stores/workspace-store";
+import { logout } from "@/lib/auth";
 
 export interface AccessContextData {
   workspaceId: string;
@@ -33,16 +35,22 @@ export function AccessProvider({ children, chrome }: { children: React.ReactNode
   const [accessError, setAccessError] = useState(false);
   const [revision, setRevision] = useState(0);
   const lastContext = useRef("");
+  const lastWorkspaceId = useRef<string | undefined>(undefined);
   const retryRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let sequence = 0;
     let disposed = false;
-    setAccess(null);
-    clearProtectedCaches();
+    
+    // Only reset access if switching to a DIFFERENT workspace
+    if (activeWorkspace?.id !== lastWorkspaceId.current) {
+      setAccess(null);
+      clearProtectedCaches();
+      lastContext.current = "";
+      lastWorkspaceId.current = activeWorkspace?.id;
+    }
     setDenied(false);
     setAccessError(false);
-    lastContext.current = "";
 
     const refresh = async (invalidate = false) => {
       const current = ++sequence;
@@ -71,6 +79,7 @@ export function AccessProvider({ children, chrome }: { children: React.ReactNode
           setAccess(null);
           const status = (err as { status?: number })?.status;
           if (status === 403) {
+            clearActiveWorkspace();
             setDenied(true);
             setAccessError(false);
           } else {
@@ -105,7 +114,41 @@ export function AccessProvider({ children, chrome }: { children: React.ReactNode
     <Context.Provider value={access}>
       {chrome}
       {denied ? (
-        <div className="p-6" role="alert">Quyền truy cập đã thay đổi. Vui lòng chọn trang khác.</div>
+        <div className="flex-1 flex items-center justify-center p-6 min-h-[50vh]">
+          <div className="max-w-md w-full p-6 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl text-center" role="alert">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto mb-4">
+              <span className="material-symbols-outlined text-2xl">lock_reset</span>
+            </div>
+            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mb-2">Quyền truy cập đã thay đổi. Vui lòng chọn trang khác.</h2>
+            <p className="text-xs text-neutral-500 mb-6">
+              Workspace hiện tại không còn khả dụng hoặc tài khoản của bạn chưa được cấp quyền truy cập.
+            </p>
+            <div className="flex flex-col gap-2.5">
+              <Link
+                href="/overview"
+                onClick={() => { clearActiveWorkspace(); }}
+                className="w-full py-2.5 px-4 rounded-xl bg-blue-600 text-white font-medium text-xs hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                Vào trang Overview để chọn Workspace
+              </Link>
+              <Link
+                href="/admin/dashboard"
+                className="w-full py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-medium text-xs hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+              >
+                Trang Quản trị Admin
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  void logout().then(() => { window.location.href = "/login"; });
+                }}
+                className="w-full py-2 px-4 rounded-xl text-neutral-500 hover:text-red-600 text-xs transition-colors"
+              >
+                Đăng xuất tài khoản
+              </button>
+            </div>
+          </div>
+        </div>
       ) : (
         <AccessBoundary
           key={`${activeWorkspace?.id}:${revision}`}
@@ -149,13 +192,17 @@ export function AccessBoundary({
     );
   }
   if (!access) return <div className="p-6" role="status">Đang xác minh quyền truy cập…</div>;
-  const aggregate = path === "/analytics" || path === "/workspace-dashboard" || path === "/dashboard";
+  const aggregate = path === "/workspace-dashboard" || path === "/dashboard";
+  const analytics = path === "/analytics";
   const own = path === "/creator-history" || path === "/own-analytics" || path === "/credit-history";
-  const denied = aggregate && !access.canViewAnalytics || own && !access.canViewOwnAnalytics ||
-    path.startsWith("/approvals") && !access.canReviewContent || path.startsWith("/calendar") && !access.canPublish;
+  const denied = (aggregate && !access.canViewAnalytics) ||
+    (analytics && !access.canViewAnalytics && !access.canViewOwnAnalytics) ||
+    (own && !access.canViewOwnAnalytics) ||
+    (path.startsWith("/approvals") && !access.canReviewContent) ||
+    (path.startsWith("/calendar") && !access.canPublish);
   if (denied) return <div className="p-6" role="alert">
     <p>Bạn không có quyền xem trang này.</p>
-    {access.canViewOwnAnalytics && <Link className="underline" href="/own-analytics">Xem analytics và lịch sử cá nhân</Link>}
+    {access.canViewOwnAnalytics && <Link className="underline" href="/analytics?tab=personal">Xem analytics và lịch sử cá nhân</Link>}
   </div>;
   return children;
 }
