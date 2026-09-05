@@ -36,3 +36,10 @@ build/
 # Local tool state
 .serena/
 .tmp/
+
+# Test artifacts and execution logs
+artifacts/
+*.trx
+
+# Test credentials
+test-login*.json

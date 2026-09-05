@@ -10,6 +10,8 @@
  */
 
 import { useMemo, useEffect, useState } from "react";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 
 // ---------------------------------------------------------------------------
 // Inline DOMPurify sanitizer (dynamic import to avoid SSR issues)
@@ -25,8 +27,6 @@ function sanitizeHtml(html: string): string {
 
   // Client-side: use DOMPurify
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const DOMPurify = require("dompurify");
     return DOMPurify.sanitize(html, {
       ALLOWED_TAGS: [
         "p", "br", "b", "strong", "i", "em", "u", "s", "del",
@@ -58,9 +58,6 @@ function sanitizeHtml(html: string): string {
  */
 function markdownToPreviewHtml(markdown: string): string {
   if (!markdown) return "";
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { marked } = require("marked") as { marked: typeof import("marked").marked };
-  // gfm enables ~~strikethrough~~
   const html = marked.parse(markdown, { gfm: true, breaks: false, async: false }) as string;
   return html.trim();
 }
@@ -103,7 +100,6 @@ export default function RichTextPreview({
     <div
       className={`rich-text-preview text-body-sm text-on-surface leading-relaxed ${className}`}
       // Safe: content is DOMPurify-sanitized with strict allowlist
-      // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );

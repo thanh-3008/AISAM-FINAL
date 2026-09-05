@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/language_provider.dart';
 
 class LanguageScreen extends ConsumerStatefulWidget {
@@ -11,8 +10,6 @@ class LanguageScreen extends ConsumerStatefulWidget {
 }
 
 class _LanguageScreenState extends ConsumerState<LanguageScreen> {
-  String _selectedLanguage = 'vi';
-
   @override
   void initState() {
     super.initState();
@@ -44,12 +41,12 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
   @override
   Widget build(BuildContext context) {
     final langState = ref.watch(languageControllerProvider);
-    final _selectedLanguage = langState.value ?? 'vi';
+    final selectedLanguage = langState.value ?? 'vi';
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: Text(_selectedLanguage == 'en' ? 'Language' : 'Ngôn ngữ'),
+        title: Text(selectedLanguage == 'en' ? 'Language' : 'Ngôn ngữ'),
         backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -73,9 +70,9 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
-                _buildLanguageTile(context: context, title: 'Tiếng Việt', subtitle: 'Vietnamese', value: 'vi', currentLang: _selectedLanguage),
+                _buildLanguageTile(context: context, title: 'Tiếng Việt', subtitle: 'Vietnamese', value: 'vi', currentLang: selectedLanguage),
                 Divider(height: 1, thickness: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3)),
-                _buildLanguageTile(context: context, title: 'English', subtitle: 'Tiếng Anh', value: 'en', currentLang: _selectedLanguage),
+                _buildLanguageTile(context: context, title: 'English', subtitle: 'Tiếng Anh', value: 'en', currentLang: selectedLanguage),
               ],
             ),
           ),
@@ -83,7 +80,7 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Text(
-              _selectedLanguage == 'en' 
+              selectedLanguage == 'en' 
                   ? 'Language change will take effect after you restart the app.' 
                   : 'Thay đổi ngôn ngữ sẽ có hiệu lực sau khi khởi động lại ứng dụng.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),

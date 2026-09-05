@@ -61,6 +61,31 @@ export async function installApiMock(page: Page) {
     if (path.startsWith("/automation")) return fulfill(route, []);
     if (path.startsWith("/pricing/plans") || path.startsWith("/pricing/credit-packs")) return fulfill(route, []);
     if (path.startsWith("/payment/") || path.startsWith("/quota/") || path.startsWith("/credit-usage")) return fulfill(route, null);
+    if (path === "/access/context") return fulfill(route, {
+      workspaceId: IDS.workspace,
+      userId: IDS.user,
+      role: "Owner",
+      teamIds: [],
+      version: "e2e-version-1",
+      canViewAnalytics: true,
+      canViewOwnAnalytics: true,
+      canManageTeams: true,
+      canManageTasks: true,
+      canCreateContent: true,
+      canReviewContent: true,
+      canPublish: true,
+    });
+    if (path.startsWith("/access/content/") && path.endsWith("/actions")) return fulfill(route, {
+      View: true, Create: true, Edit: true, Delete: true, Restore: true, Clone: true,
+      Submit: true, Approve: true, Reject: true, Assign: true, Reassign: true,
+      Schedule: true, Publish: true, Share: true, ViewAnalytics: true,
+      Reschedule: true, Unschedule: true, Unpublish: true, MediaUpload: true,
+      AiGenerate: true, AiImprove: true, AiChat: true, AiGenerateImage: true,
+      AiGenerateVideo: true, AiAdopt: true,
+    });
+    if (path === "/access/me/analytics") return fulfill(route, { contentCount: 1, impressions: 100, engagement: 10, clicks: 5 });
+    if (path.startsWith("/access/creator-history/")) return fulfill(route, { data: [], totalCount: 0, page: 1, pageSize: 20 });
+    if (path.startsWith("/access/")) return fulfill(route, {});
     if (path === "/feature-flags") return fulfill(route, { features: {} });
     if (path.startsWith("/dashboard/") || path.startsWith("/workspace-dashboard/") || path.startsWith("/analytics/")) return fulfill(route, {});
     if (path.startsWith("/admin/users")) return fulfill(route, { items: [], totalCount: 0, page: 1, pageSize: 20 });

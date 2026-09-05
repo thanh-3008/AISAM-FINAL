@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { AccessProvider } from "../AccessContext";
 import { notifyAccessChanged } from "@/lib/accessEvents";
+import { apiClient } from "@/lib/apiClient";
 
 const state = vi.hoisted(() => ({ path: "/analytics", role: "Viewer", workspaceId: "workspace-a" }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.path }));
@@ -64,5 +65,65 @@ describe("current backend access context", () => {
     await act(async () => notifyAccessChanged());
     await screen.findByRole("alert");
     expect(screen.queryByText("protected analytics")).toBeNull();
+  });
+
+  it("displays connection error screen with retry button when /access/context fails with 500", async () => {
+    state.role = "Manager";
+    const err500 = new Error("Internal Server Error") as Error & { status?: number };
+    err500.status = 500;
+    vi.mocked(apiClient).mockRejectedValueOnce(err500);
+
+    render(<AccessProvider><div>protected analytics</div></AccessProvider>);
+
+    const errorMsg = await screen.findByText("Không thể kết nối đến máy chủ xác minh quyền truy cập.");
+    expect(errorMsg).toBeTruthy();
+    const retryBtn = screen.getByRole("button", { name: "Thử lại" });
+    expect(retryBtn).toBeTruthy();
+    expect(screen.queryByText("Đang xác minh quyền truy cập…")).toBeNull();
+    expect(screen.queryByText("protected analytics")).toBeNull();
+
+    await act(async () => {
+      retryBtn.click();
+    });
+    expect(await screen.findByText("protected analytics")).toBeTruthy();
+    expect(screen.queryByText("Không thể kết nối đến máy chủ xác minh quyền truy cập.")).toBeNull();
+  });
+
+  it("displays connection error screen with retry button when network fails", async () => {
+    state.role = "Manager";
+    vi.mocked(apiClient).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    render(<AccessProvider><div>protected analytics</div></AccessProvider>);
+
+    expect(await screen.findByText("Không thể kết nối đến máy chủ xác minh quyền truy cập.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
+    expect(screen.queryByText("Đang xác minh quyền truy cập…")).toBeNull();
+    expect(screen.queryByText("protected analytics")).toBeNull();
+  });
+
+  it("displays access denied message without retry button when /access/context returns 403", async () => {
+    state.role = "Manager";
+    const err403 = new Error("Forbidden") as Error & { status?: number };
+    err403.status = 403;
+    vi.mocked(apiClient).mockRejectedValueOnce(err403);
+
+    render(<AccessProvider><div>protected analytics</div></AccessProvider>);
+
+    expect(await screen.findByText("Quyền truy cập đã thay đổi. Vui lòng chọn trang khác.")).toBeTruthy();
+    expect(screen.queryByText("Không thể kết nối đến máy chủ xác minh quyền truy cập.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(screen.queryByText("protected analytics")).toBeNull();
+  });
+
+  it("still renders public routes when /access/context fails with 500", async () => {
+    state.path = "/overview";
+    const err500 = new Error("Server Error") as Error & { status?: number };
+    err500.status = 500;
+    vi.mocked(apiClient).mockRejectedValueOnce(err500);
+
+    render(<AccessProvider><div>public overview content</div></AccessProvider>);
+
+    expect(await screen.findByText("public overview content")).toBeTruthy();
+    expect(screen.queryByText("Không thể kết nối đến máy chủ xác minh quyền truy cập.")).toBeNull();
   });
 });

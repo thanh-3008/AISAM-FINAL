@@ -268,22 +268,4 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       onTap: onTap,
     );
   }
-
-  Widget _buildSwitchTile({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return SwitchListTile(
-      secondary: Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
-      title: Text(title, style: Theme.of(context).textTheme.bodyLarge),
-      subtitle: subtitle != null ? Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)) : null,
-      value: value,
-      onChanged: onChanged,
-      activeColor: Theme.of(context).colorScheme.primary,
-    );
-  }
 }

@@ -63,7 +63,6 @@ public sealed class PayOSPaymentService : IPaymentService
         _settings = settings.Value;
         _httpClient = httpClient;
         _systemSettingRepository = systemSettingRepository;
-        _logger = logger;
         _context = context;
         _logger = logger ?? NullLogger<PayOSPaymentService>.Instance;
     }

@@ -231,7 +231,6 @@ export default function RichTextEditor({
     if (value !== externalValueRef.current) {
       const html = markdownToHtml(value);
       // Tiptap 3.x: setContent second arg is SetContentOptions, not boolean
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       editor.commands.setContent(html, { emitUpdate: false } as any);
       externalValueRef.current = value;
     }

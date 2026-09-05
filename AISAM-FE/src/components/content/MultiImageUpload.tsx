@@ -266,7 +266,6 @@ export default function MultiImageUpload({
               }`}
             >
               <div className="aspect-square bg-surface-container">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={url}
                   alt={`Image ${index + 1}`}

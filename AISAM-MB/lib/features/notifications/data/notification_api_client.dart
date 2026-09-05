@@ -1,8 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/network/api_client.dart';
-import '../domain/notification_preference_model.dart';
-import '../domain/notification_model.dart';
 
 part 'notification_api_client.g.dart';
 
