@@ -1,4 +1,5 @@
 import { type Campaign, type CampaignStatus, type CampaignObjective } from "@/services/campaignService";
+import { registerProtectedCache } from "@/lib/accessEvents";
 
 export const OBJECTIVE_CONFIG: Record<CampaignObjective, { label: string; icon: string; color: string; bg: string }> = {
   AWARENESS: { label: "Awareness", icon: "visibility", color: "text-blue-600", bg: "bg-blue-50" },
@@ -24,6 +25,7 @@ export interface BrandOption {
 }
 
 let brandCache: BrandOption[] | null = null;
+registerProtectedCache(() => { brandCache = null; });
 
 export function setCachedBrands(brands: BrandOption[]) {
   brandCache = brands;
@@ -33,12 +35,14 @@ export function getCachedBrands(): BrandOption[] {
   return brandCache ?? [];
 }
 
-export function formatCurrency(amount: number, currency = "VND"): string {
+export function formatCurrency(amount: number | null | undefined, currency = "VND"): string {
+  if (amount == null) return "—";
   const num = new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
   return currency === "USD" ? `$${num}` : `${num}đ`;
 }
 
-export function formatNumber(n: number): string {
+export function formatNumber(n: number | null | undefined): string {
+  if (n == null) return "—";
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return n.toString();
@@ -70,16 +74,17 @@ export function getDaysRemaining(endDate: string | null): number | null {
 }
 
 export function getBudgetProgress(campaign: Campaign): number {
-  if (!campaign.budget || campaign.budget === 0) return 0;
+  if (!campaign.budget || campaign.spend == null) return 0;
   return Math.min(100, Math.round((campaign.spend / campaign.budget) * 100));
 }
 
 export function getCtr(campaign: Campaign): string {
+  if (campaign.impressions == null || campaign.clicks == null) return "—";
   if (campaign.impressions === 0) return "0%";
   return `${((campaign.clicks / campaign.impressions) * 100).toFixed(2)}%`;
 }
 
 export function getCpa(campaign: Campaign): string {
-  if (campaign.conversions === 0) return "—";
+  if (!campaign.conversions || campaign.spend == null) return "—";
   return formatCurrency(campaign.spend / campaign.conversions, campaign.adAccountCurrency || undefined);
 }

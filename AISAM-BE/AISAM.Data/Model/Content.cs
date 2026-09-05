@@ -18,6 +18,12 @@ namespace AISAM.Data.Model
         [Column("workspace_id")]
         public Guid WorkspaceId { get; set; }
 
+        // Legacy rows intentionally remain null; never infer creator from ProfileId.
+        [Column("primary_creator_id")]
+        public Guid? PrimaryCreatorId { get; set; }
+
+        public ICollection<ContentParticipation> Participations { get; set; } = new List<ContentParticipation>();
+
         [Required]
         [Column("brand_id")]
         public Guid BrandId { get; set; }

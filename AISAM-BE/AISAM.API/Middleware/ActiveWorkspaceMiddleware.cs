@@ -14,6 +14,9 @@ public sealed class ActiveWorkspaceMiddleware
     {
         new("/api/ai"),
         new("/api/analytics"),
+        new("/api/access"),
+        new("/api/teams"),
+        new("/api/collaboration-tasks"),
         new("/api/brands"),
         new("/api/content"),
         new("/api/content-schedules"),

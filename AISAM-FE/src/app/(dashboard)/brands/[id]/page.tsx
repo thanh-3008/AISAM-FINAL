@@ -570,7 +570,7 @@ export default function BrandDetailPage() {
                             {camp.budget != null ? `$${camp.budget.toLocaleString()}` : "--"}
                           </td>
                           <td className="px-5 py-4 text-body-sm text-on-surface font-medium">
-                            ${camp.spend.toLocaleString()}
+                            {camp.spend == null ? "—" : `$${camp.spend.toLocaleString()}`}
                           </td>
                           <td className="px-5 py-4">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${

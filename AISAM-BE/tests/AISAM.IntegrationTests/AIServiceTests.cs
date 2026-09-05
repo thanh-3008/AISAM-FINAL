@@ -73,7 +73,7 @@ public class AIServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
-        Assert.Equal("GPU worker failed.", result.Data.ErrorMessage);
+        Assert.Equal("Generation failed.", result.Data.ErrorMessage);
         Assert.Equal(1, provider.CheckCallCount);
     }
 
@@ -181,7 +181,7 @@ public class AIServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
-        Assert.Contains("timed out", result.Data.ErrorMessage);
+        Assert.Equal("Generation failed.", result.Data.ErrorMessage);
         Assert.Equal(0, provider.CheckCallCount);
     }
 
@@ -204,7 +204,7 @@ public class AIServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(AiStatusEnum.Failed, result.Data!.Status);
-        Assert.Equal("Gemini API key is not configured.", result.Data.ErrorMessage);
+        Assert.Equal("Generation failed.", result.Data.ErrorMessage);
     }
 
     [Fact]
@@ -382,18 +382,53 @@ public class AIServiceTests
     }
 
     [Fact]
+    public async Task ChatAsync_ReturnsBrandRequiredBeforeConversationProviderOrCreditOperations()
+    {
+        var brands = new FakeBrandRepository();
+        var conversations = new FakeConversationRepository();
+        var gemini = new FakeGeminiTextClient("must not be used");
+        var credits = new FakeCreditService();
+        var service = CreateService(
+            new FakeContentRepository(),
+            new FakeAiGenerationRepository(),
+            brands,
+            gemini,
+            conversations,
+            creditService: credits);
+
+        foreach (var missingBrandId in new Guid?[] { null, Guid.Empty })
+        {
+            var result = await service.ChatInWorkspaceAsync(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                new ChatRequest { BrandId = missingBrandId, Message = "User message" });
+
+            Assert.False(result.Success);
+            Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
+            Assert.Equal("BRAND_REQUIRED", result.Error?.ErrorCode);
+        }
+
+        Assert.Equal(0, brands.GetByIdCallCount);
+        Assert.Equal(0, conversations.OperationCallCount);
+        Assert.Empty(gemini.LastPrompt);
+        Assert.Equal(0, credits.ConsumeCallCount);
+    }
+
+    [Fact]
     public async Task ChatAsync_SavesUserAndAiMessages_WhenGeminiSucceeds()
     {
         var profileId = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
         var conversations = new FakeConversationRepository();
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
-            new FakeBrandRepository(),
+            new FakeBrandRepository(brand),
             new FakeGeminiTextClient("AI response"),
             conversations);
 
-        var result = await service.ChatInWorkspaceAsync(profileId, profileId, Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, profileId, Guid.NewGuid(), new ChatRequest { BrandId = brand.Id, Message = "User message" });
 
         Assert.True(result.Success);
         Assert.Equal("AI response", result.Data!.Response);
@@ -414,17 +449,20 @@ public class AIServiceTests
     [Fact]
     public async Task ChatAsync_DoesNotCreateContent_ForConversationalResponse()
     {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId, workspaceId);
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
-            new FakeBrandRepository(),
+            new FakeBrandRepository(brand),
             new FakeGeminiTextClient("{\"intent\":\"chat\",\"response\":\"Chao ban, minh co the noi tieng Viet.\"}"));
 
         var result = await service.ChatInWorkspaceAsync(
+            profileId,
+            workspaceId,
             Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new ChatRequest { Message = "Xin chao, noi tieng Viet duoc khong?" });
+            new ChatRequest { BrandId = brand.Id, Message = "Xin chao, noi tieng Viet duoc khong?" });
 
         Assert.True(result.Success);
         Assert.False(result.Data!.ShouldCreateContent);
@@ -434,17 +472,20 @@ public class AIServiceTests
     [Fact]
     public async Task ChatAsync_MarksReadyPostAsContent_ForGenerationResponse()
     {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId, workspaceId);
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
-            new FakeBrandRepository(),
+            new FakeBrandRepository(brand),
             new FakeGeminiTextClient("{\"intent\":\"content\",\"response\":\"Bai quang cao san sang dang.\"}"));
 
         var result = await service.ChatInWorkspaceAsync(
+            profileId,
+            workspaceId,
             Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new ChatRequest { Message = "Viet cho toi mot bai quang cao." });
+            new ChatRequest { BrandId = brand.Id, Message = "Viet cho toi mot bai quang cao." });
 
         Assert.True(result.Success);
         Assert.True(result.Data!.ShouldCreateContent);
@@ -632,17 +673,19 @@ public class AIServiceTests
     [Fact]
     public async Task ChatAsync_ConsumesOneWorkspaceCredit_AfterGeminiSucceeds()
     {
+        var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+        var brand = CreateBrand(profileId, workspaceId);
         var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
-            new FakeBrandRepository(),
+            new FakeBrandRepository(brand),
             new FakeGeminiTextClient("AI response"),
             creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), workspaceId, userId, new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, workspaceId, userId, new ChatRequest { BrandId = brand.Id, Message = "User message" });
 
         Assert.True(result.Success);
         Assert.Equal(1, credits.ConsumeCallCount);
@@ -655,8 +698,10 @@ public class AIServiceTests
     [Fact]
     public async Task ChatAsync_ReturnsCreditError_WhenCreditDeductionFails()
     {
+        var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+        var brand = CreateBrand(profileId, workspaceId);
         var credits = new FakeCreditService
         {
             ConsumeResult = GenericResponse<CreditUsageRecord>.CreateError(
@@ -667,11 +712,11 @@ public class AIServiceTests
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
-            new FakeBrandRepository(),
+            new FakeBrandRepository(brand),
             new FakeGeminiTextClient("AI response"),
             creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), workspaceId, userId, new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, workspaceId, userId, new ChatRequest { BrandId = brand.Id, Message = "User message" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.BadRequest, result.StatusCode);
@@ -682,17 +727,20 @@ public class AIServiceTests
     [Fact]
     public async Task ChatAsync_ReturnsClearErrorAndStoresAiErrorMessage_WhenGeminiFails()
     {
+        var profileId = Guid.NewGuid();
+        var workspaceId = Guid.NewGuid();
+        var brand = CreateBrand(profileId, workspaceId);
         var conversations = new FakeConversationRepository();
         var credits = new FakeCreditService();
         var service = CreateService(
             new FakeContentRepository(),
             new FakeAiGenerationRepository(),
-            new FakeBrandRepository(),
+            new FakeBrandRepository(brand),
             new FakeGeminiTextClient(new InvalidOperationException("Gemini API key is not configured.")),
             conversations,
             creditService: credits);
 
-        var result = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new ChatRequest { Message = "User message" });
+        var result = await service.ChatInWorkspaceAsync(profileId, workspaceId, Guid.NewGuid(), new ChatRequest { BrandId = brand.Id, Message = "User message" });
 
         Assert.False(result.Success);
         Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.StatusCode);
@@ -751,9 +799,9 @@ public class AIServiceTests
             NullLogger<AIService>.Instance);
     }
 
-    private static Brand CreateBrand(Guid profileId)
+    private static Brand CreateBrand(Guid profileId, Guid? workspaceId = null)
     {
-        return new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = profileId, Name = "Test brand" };
+        return new Brand { Id = Guid.NewGuid(), ProfileId = profileId, WorkspaceId = workspaceId ?? profileId, Name = "Test brand" };
     }
 
     private sealed class FakeGeminiTextClient : IGeminiTextClient
@@ -919,8 +967,13 @@ public class AIServiceTests
     private sealed class FakeBrandRepository : IBrandRepository
     {
         private readonly Dictionary<Guid, Brand> _brands;
+        public int GetByIdCallCount { get; private set; }
         public FakeBrandRepository(params Brand[] brands) => _brands = brands.ToDictionary(brand => brand.Id);
-        public Task<Brand?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_brands.GetValueOrDefault(id));
+        public Task<Brand?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            GetByIdCallCount++;
+            return Task.FromResult(_brands.GetValueOrDefault(id));
+        }
         public Task<Brand?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) => GetByIdAsync(id, cancellationToken);
         public Task<PagedResult<Brand>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, bool includeDeleted = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Brand> AddAsync(Brand brand, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -947,34 +1000,48 @@ public class AIServiceTests
     {
         private readonly Dictionary<Guid, Conversation> _conversations = new();
         public List<ChatMessage> Messages { get; } = new();
-        public Task<Conversation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_conversations.GetValueOrDefault(id));
+        public int OperationCallCount { get; private set; }
+        public Task<Conversation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            OperationCallCount++;
+            return Task.FromResult(_conversations.GetValueOrDefault(id));
+        }
         public Task<PagedResult<Conversation>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<Conversation?> GetActiveAsync(Guid profileId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default) =>
-            Task.FromResult(_conversations.Values.FirstOrDefault(conversation =>
+        public Task<Conversation?> GetActiveAsync(Guid profileId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default)
+        {
+            OperationCallCount++;
+            return Task.FromResult(_conversations.Values.FirstOrDefault(conversation =>
                 conversation.ProfileId == profileId &&
                 conversation.BrandId == brandId &&
                 conversation.ProductId == productId &&
                 conversation.AdType == adType &&
                 conversation.IsActive));
-        public Task<Conversation?> GetActiveByWorkspaceIdAsync(Guid workspaceId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default) =>
-            Task.FromResult(_conversations.Values.FirstOrDefault(conversation =>
+        }
+        public Task<Conversation?> GetActiveByWorkspaceIdAsync(Guid workspaceId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default)
+        {
+            OperationCallCount++;
+            return Task.FromResult(_conversations.Values.FirstOrDefault(conversation =>
                 conversation.WorkspaceId == workspaceId &&
                 conversation.BrandId == brandId &&
                 conversation.ProductId == productId &&
                 conversation.AdType == adType &&
                 conversation.IsActive));
+        }
         public Task<Conversation> AddAsync(Conversation conversation, CancellationToken cancellationToken = default)
         {
+            OperationCallCount++;
             _conversations[conversation.Id] = conversation;
             return Task.FromResult(conversation);
         }
         public Task UpdateAsync(Conversation conversation, CancellationToken cancellationToken = default)
         {
+            OperationCallCount++;
             _conversations[conversation.Id] = conversation;
             return Task.CompletedTask;
         }
         public Task AddMessageAsync(ChatMessage message, CancellationToken cancellationToken = default)
         {
+            OperationCallCount++;
             Messages.Add(message);
             return Task.CompletedTask;
         }

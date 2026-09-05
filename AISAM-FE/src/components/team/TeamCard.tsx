@@ -68,7 +68,7 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
           <h3 className="text-headline-sm text-on-surface font-semibold mb-1">{team.name}</h3>
           <p className="text-body-sm text-on-surface-variant mb-4 truncate">{team.description}</p>
 
-          <div className="mb-4">
+          {team.activity != null && <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-label-2xs text-outline">Activity</span>
               <span className="text-label-2xs text-outline font-semibold">{team.activity}%</span>
@@ -79,7 +79,7 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
                 style={{ width: `${team.activity}%` }}
               />
             </div>
-          </div>
+          </div>}
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-outline-variant/20">

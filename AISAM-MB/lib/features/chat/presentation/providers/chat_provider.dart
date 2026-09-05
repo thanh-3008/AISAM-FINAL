@@ -41,7 +41,7 @@ class ChatNotifier extends _$ChatNotifier {
   @override
   ChatState build(String? conversationId) {
     if (conversationId != null) {
-      _loadHistory(conversationId);
+      Future.microtask(() => _loadHistory(conversationId));
     }
     return ChatState(isLoading: conversationId != null);
   }
@@ -63,6 +63,16 @@ class ChatNotifier extends _$ChatNotifier {
     String? productId,
     required AdTypeEnum adType,
   }) async {
+    final candidateBrandId = brandId ?? state.conversation?.brandId;
+    final effectiveBrandId = candidateBrandId?.trim();
+    if (effectiveBrandId == null || effectiveBrandId.isEmpty) {
+      state = state.copyWith(
+        isTyping: false,
+        error: 'Vui lòng chọn Brand trước khi gửi tin nhắn.',
+      );
+      return;
+    }
+
     // Optimistic UI update
     final userMessage = ChatMessageModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -80,6 +90,7 @@ class ChatNotifier extends _$ChatNotifier {
           ConversationDetailModel(
             id: state.conversation?.id ?? '', // We might not have an ID yet for new conversations
             profileId: '',
+            brandId: effectiveBrandId,
             adType: adType,
             isActive: true,
             messageCount: currentMessages.length,
@@ -92,7 +103,7 @@ class ChatNotifier extends _$ChatNotifier {
     try {
       final repository = ref.read(chatRepositoryProvider);
       final response = await repository.sendMessage(ChatRequest(
-        brandId: brandId,
+        brandId: effectiveBrandId,
         productId: productId,
         adType: adType,
         message: message,

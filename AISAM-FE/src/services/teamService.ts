@@ -6,6 +6,7 @@ export type MemberStatus = "Active" | "Pending" | "Inactive";
 export type QuotaMode = "SharedPool" | "LifetimeAssigned" | "MonthlyAssigned";
 
 export interface TeamMember {
+  canViewCredit: boolean;
   id: string;
   name: string;
   email: string;
@@ -56,7 +57,7 @@ export interface Team {
   brandCount: number;
   brandIds: string[];
   memberIds: string[];
-  activity: number;
+  activity: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -126,6 +127,7 @@ function mapRole(beRole: number): MemberRole {
 
 function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
   return {
+    canViewCredit: dto.quotaMode != null && dto.creditUsed != null,
     id: dto.id,
     name: dto.fullName || dto.email.split("@")[0],
     email: dto.email,
@@ -141,46 +143,51 @@ function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
   };
 }
 
-// Default team representing the whole workspace
-const DEFAULT_TEAM: Team = {
-  id: "workspace-team",
-  name: "Workspace Team",
-  description: "All workspace members",
-  brandCount: 0,
-  brandIds: [],
-  memberIds: [],
-  activity: 100,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+type TeamApiItem = Omit<Team, "activity">;
+
+async function workspaceMemberIds() {
+  const result: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members");
+  if (!result.success || !result.data) throw new Error("Cannot resolve workspace members");
+  return result.data;
+}
+
+async function teamPayload(data: CreateTeamData): Promise<CreateTeamData> {
+  const members = await workspaceMemberIds();
+  return { ...data, memberIds: data.memberIds.map(id => {
+    const member = members.find(m => m.id === id || m.userId === id);
+    if (!member) throw new Error("Selected member is no longer in this workspace");
+    return member.userId;
+  }) };
+}
 
 export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
-  try {
-    const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members").catch(() => null);
-    const memberIds = (res?.data || []).map((m: BEWorkspaceMemberDto) => m.id);
-    DEFAULT_TEAM.memberIds = memberIds;
-    return { data: [DEFAULT_TEAM], total: 1 };
-  } catch {
-    return { data: [DEFAULT_TEAM], total: 1 };
-  }
+  const [result, members] = await Promise.all([apiClient("/teams") as Promise<GenericResponse<TeamApiItem[]>>, workspaceMemberIds()]);
+  if (!result.success || !result.data) throw new Error("Cannot load teams");
+  const data = result.data.map(team => ({ ...team, description: team.description ?? "", activity: null,
+    memberIds: team.memberIds.map(userId => members.find(m => m.userId === userId)?.id).filter((id): id is string => !!id) }));
+  return { data, total: data.length };
 }
 
 export async function fetchMembers(): Promise<{ data: TeamMember[]; total: number }> {
+  const access = await apiClient("/access/context");
   const [membersRes, invitations] = await Promise.all([
     apiClient("/workspace-members").catch(() => null),
-    getWorkspaceInvitations(),
+    access.data?.canManageTeams ? getWorkspaceInvitations() : Promise.resolve([]),
   ]);
 
   const activeMembers: TeamMember[] = [];
   if (membersRes?.data) {
     activeMembers.push(...membersRes.data.map(mapMember));
   }
+  const teams = (await fetchTeams()).data;
+  for (const member of activeMembers) member.teamIds = teams.filter(t => t.memberIds.includes(member.id)).map(t => t.id);
 
   // Only show pending if the email is NOT already an active member (already accepted)
   const activeEmails = new Set(activeMembers.map((m) => m.email));
   const pendingMembers: TeamMember[] = invitations
     .filter((inv) => !activeEmails.has(inv.email))
     .map((inv: WorkspaceInvitation) => ({
+      canViewCredit: access.data?.canManageTeams === true,
       id: inv.id,
       name: inv.email.split("@")[0],
       email: inv.email,
@@ -205,39 +212,36 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
 }
 
 export async function createTeam(data: CreateTeamData): Promise<Team> {
-  const team: Team = {
-    id: `team_${Date.now()}`,
-    name: data.name,
-    description: data.description,
-    brandCount: data.brandIds.length,
-    brandIds: data.brandIds,
-    memberIds: data.memberIds,
-    activity: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const result = await apiClient("/teams", { method: "POST", data: await teamPayload(data) });
+  if (!result.success || !result.data?.id) throw new Error("Cannot create team");
+  const team = await getTeamById(result.data.id);
+  if (!team) throw new Error("Created team cannot be loaded");
   return team;
 }
 
 export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
-  if (id === DEFAULT_TEAM.id) {
-    DEFAULT_TEAM.brandIds = data.brandIds ?? DEFAULT_TEAM.brandIds;
-    DEFAULT_TEAM.brandCount = DEFAULT_TEAM.brandIds.length;
-    return {
-      ...DEFAULT_TEAM,
-      name: data.name || DEFAULT_TEAM.name,
-      description: data.description || DEFAULT_TEAM.description,
-    };
-  }
-  return null;
+  const existing = await getTeamById(id);
+  if (!existing) return null;
+  const result = await apiClient(`/teams/${id}`, { method: "PUT", data: await teamPayload({ ...existing, ...data }) });
+  if (!result.success) throw new Error("Cannot update team");
+  return getTeamById(id);
 }
 
 export async function deleteTeam(id: string): Promise<boolean> {
-  return id !== DEFAULT_TEAM.id;
+  const result = await apiClient(`/teams/${id}`, { method: "DELETE" });
+  return result.success === true;
 }
 
 export async function getTeamById(id: string): Promise<Team | null> {
-  return id === DEFAULT_TEAM.id ? DEFAULT_TEAM : null;
+  return (await fetchTeams()).data.find(team => team.id === id) ?? null;
+}
+
+export async function getTeamBrandAccess(teamId: string, brandId: string) {
+  return apiClient(`/teams/${teamId}/brands/${brandId}/access`);
+}
+
+export async function setTeamBrandAccess(teamId: string, brandId: string, mode: "ALL" | "SPECIFIC", channelIds: string[]) {
+  return apiClient(`/teams/${teamId}/brands/${brandId}/access`, { method: "PUT", data: { mode: mode === "ALL" ? 0 : 1, channelIds } });
 }
 
 export async function inviteMember(data: InviteMemberData): Promise<TeamMember> {
@@ -256,6 +260,7 @@ export async function inviteMember(data: InviteMemberData): Promise<TeamMember> 
 
   const inv = res?.data;
   const member: TeamMember = {
+    canViewCredit: inv?.quotaMode != null,
     id: inv?.id || `pending_${Date.now()}`,
     name: data.email.split("@")[0],
     email: data.email,

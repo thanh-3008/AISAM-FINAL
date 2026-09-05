@@ -205,19 +205,6 @@ public sealed class FacebookProvider : IProviderService
 
         var actId = adAccountId.StartsWith("act_", StringComparison.OrdinalIgnoreCase) ? adAccountId : $"act_{adAccountId}";
 
-        // Debug: verify token scopes
-        try
-        {
-            var debugUrl = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/debug_token?input_token={Uri.EscapeDataString(userAccessToken)}&access_token={_settings.AppId}|{_settings.AppSecret}";
-            var debugResponse = await _httpClient.GetAsync(debugUrl, cancellationToken);
-            var debugContent = await debugResponse.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogInformation("=== TOKEN DEBUG: {DebugInfo}", debugContent);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Failed to debug token: {Error}", ex.Message);
-        }
-
         var fields = new Dictionary<string, string>
         {
             ["name"] = name,
@@ -230,9 +217,7 @@ public sealed class FacebookProvider : IProviderService
 
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/campaigns";
 
-        // Log full request details
-        var bodyStr = string.Join("&", fields.Select(f => $"{f.Key}={Uri.EscapeDataString(f.Value)}"));
-        _logger.LogInformation("=== REQUEST ===\nURL: POST {Url}\nAuthorization: Bearer {TokenPrefix}...\nBody: {Body}\n================", url, userAccessToken[..Math.Min(30, userAccessToken.Length)], bodyStr);
+        _logger.LogInformation("Submitting Facebook campaign creation request for ad account {AdAccountId}.", adAccountId);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
@@ -242,7 +227,7 @@ public sealed class FacebookProvider : IProviderService
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        _logger.LogInformation("=== RESPONSE ===\nStatus: {StatusCode}\nBody: {Body}\n================", (int)response.StatusCode, content);
+        _logger.LogInformation("Facebook campaign creation completed with status {StatusCode}.", (int)response.StatusCode);
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Failed to create Facebook campaign: {GetErrorMessage(content)}");
@@ -295,8 +280,7 @@ public sealed class FacebookProvider : IProviderService
             fields["targeting"] = targetingJson;
 
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/adsets";
-        var bodyStr = string.Join("&", fields.Select(f => $"{f.Key}={Uri.EscapeDataString(f.Value)}"));
-        _logger.LogInformation("=== REQUEST ===\nURL: POST {Url}\nAuthorization: Bearer {TokenPrefix}...\nBody: {Body}\n================", url, userAccessToken[..Math.Min(30, userAccessToken.Length)], bodyStr);
+        _logger.LogInformation("Submitting Facebook ad-set creation request for ad account {AdAccountId}.", adAccountId);
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = new FormUrlEncodedContent(fields),
@@ -304,10 +288,10 @@ public sealed class FacebookProvider : IProviderService
         };
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        _logger.LogInformation("=== RESPONSE ===\nStatus: {StatusCode}\nBody: {Body}\n================", (int)response.StatusCode, content);
+        _logger.LogInformation("Facebook ad-set creation completed with status {StatusCode}.", (int)response.StatusCode);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Failed to create Facebook ad set. Status={Status}, Body={Body}", (int)response.StatusCode, content);
+            _logger.LogWarning("Failed to create Facebook ad set. Status={Status}", (int)response.StatusCode);
             throw new InvalidOperationException($"Failed to create Facebook ad set: {GetErrorMessage(content)}");
         }
 
@@ -414,8 +398,8 @@ public sealed class FacebookProvider : IProviderService
             var jsonPayload = JsonSerializer.Serialize(creativeObject, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
             fields["object_story_spec"] = jsonPayload;
 
-            _logger.LogInformation("Creating ad creative: link={Link} messageLen={MsgLen} image={HasImage} cta={Cta}",
-                linkUrl, message?.Length ?? 0, !string.IsNullOrWhiteSpace(imageUrl), MapCallToAction(callToAction));
+            _logger.LogInformation("Creating ad creative: hasLink={HasLink} messageLen={MsgLen} image={HasImage} cta={Cta}",
+                !string.IsNullOrWhiteSpace(linkUrl), message?.Length ?? 0, !string.IsNullOrWhiteSpace(imageUrl), MapCallToAction(callToAction));
         }
 
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{actId}/adcreatives";
@@ -426,7 +410,7 @@ public sealed class FacebookProvider : IProviderService
         };
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        _logger.LogInformation("Ad creative response: {Response}", content);
+        _logger.LogInformation("Facebook ad-creative creation completed with status {StatusCode}.", (int)response.StatusCode);
         if (!response.IsSuccessStatusCode)
         {
             if (IsDevelopmentModeError(content))
@@ -837,8 +821,7 @@ public sealed class FacebookProvider : IProviderService
             var errorMessage = GetErrorMessage(content);
             if (errorMessage.Contains("valid insights metric", StringComparison.OrdinalIgnoreCase))
             {
-                insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: unsupported metric ({errorMessage})");
-                System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | SKIP-METRIC | {postId}: {metricParam} - {errorMessage}\n");
+                insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: unsupported metric");
                 return;
             }
 
@@ -847,16 +830,14 @@ public sealed class FacebookProvider : IProviderService
                 metricParam,
                 postId,
                 errorMessage);
-            insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: {errorMessage}");
-            System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | ERROR-METRIC | {postId}: {metricParam} - {errorMessage}\n");
+            insights.Diagnostics.Add($"{postId}:{metricParam}{(period == null ? "" : $":period={period}")}: provider request failed");
             return;
         }
 
         _logger.LogInformation(
-            "Facebook post insights raw response for {PostId}, metrics {Metrics}: {Content}",
+            "Facebook post insights request succeeded for {PostId}, metrics {Metrics}.",
             postId,
-            metricParam,
-            content);
+            metricParam);
 
         var result = Deserialize<FacebookPostInsightsResponse>(content);
         if (result?.Data == null || result.Data.Count == 0)
@@ -887,15 +868,10 @@ public sealed class FacebookProvider : IProviderService
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        try
-        {
-            var logDir = AppDomain.CurrentDomain.BaseDirectory;
-            System.IO.File.AppendAllText(System.IO.Path.Combine(logDir, "fb_insights.log"), $"{DateTime.UtcNow:O} | URL={RedactAccessToken(uriBuilder.Uri)} | Status={response.StatusCode} | Body={content}\n");
-        }
-        catch (Exception ex)
-        {
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fb_error.log"), $"Failed to write log: {ex.Message}\n"); } catch { }
-        }
+        _logger.LogDebug(
+            "Facebook post insight fields request completed for {PostId} with status {StatusCode}.",
+            postId,
+            (int)response.StatusCode);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -1552,22 +1528,18 @@ public sealed class FacebookProvider : IProviderService
                         + $"Details: code={error.Error.Code}, subcode={error.Error.ErrorSubcode}";
                 }
 
-                var userMsg = error.Error.ErrorUserMsg ?? error.Error.Message ?? "Facebook request failed.";
                 var details = $" [code={error.Error.Code}";
                 if (error.Error.ErrorSubcode.HasValue)
                     details += $", subcode={error.Error.ErrorSubcode.Value}";
-                if (error.Error.ErrorData?.BlameFieldSpecs?.Count > 0)
-                    details += $", blame_fields=[{string.Join(", ", error.Error.ErrorData.BlameFieldSpecs.Select(s => string.Join(".", s)))}]";
                 details += "]";
-                return userMsg + details;
+                return "Facebook request failed." + details;
             }
         }
         catch (JsonException)
         {
         }
 
-        var truncated = content.Length > 500 ? content[..500] + "..." : content;
-        return $"Facebook request failed. Response: {truncated}";
+        return "Facebook request failed with an unrecognized provider response.";
     }
 
     private static bool IsDevelopmentModeError(string content)

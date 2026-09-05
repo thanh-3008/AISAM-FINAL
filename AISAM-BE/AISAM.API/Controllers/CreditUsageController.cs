@@ -68,6 +68,10 @@ public sealed class CreditUsageController : ControllerBase
                 return NotFound(GenericResponse<PagedResult<CreditUsageRecordDto>>.CreateError("Workspace member not found.", System.Net.HttpStatusCode.NotFound));
             }
 
+            var caller = WorkspaceContextHelper.GetActiveWorkspaceMembershipOrThrow(HttpContext);
+            if (caller.Role == AISAM.Data.Enumeration.WorkspaceMemberRoleEnum.ContentCreator && member.UserId != caller.UserId)
+                return StatusCode(403, GenericResponse<object>.CreateError("You cannot access another creator's credit history.", System.Net.HttpStatusCode.Forbidden));
+
             result = await _creditService.GetPagedUsageByUserAsync(workspaceId, member.UserId, request, cancellationToken);
         }
         else

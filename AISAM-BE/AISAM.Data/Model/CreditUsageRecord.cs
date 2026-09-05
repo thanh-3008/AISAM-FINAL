@@ -19,6 +19,14 @@ namespace AISAM.Data.Model
         [Column("user_id")]
         public Guid UserId { get; set; }
 
+        // Immutable attribution at transaction time, not the user's current team.
+        [Column("team_id")] public Guid? TeamId { get; set; }
+        [Column("brand_id")] public Guid? BrandId { get; set; }
+        [Column("integration_id")] public Guid? IntegrationId { get; set; }
+        [Column("balance_before")] public long? BalanceBefore { get; set; }
+        [Column("balance_after")] public long? BalanceAfter { get; set; }
+        [Column("reference_id")] public Guid? ReferenceId { get; set; }
+
         [Column("ai_generation_id")]
         public Guid? AiGenerationId { get; set; }
 

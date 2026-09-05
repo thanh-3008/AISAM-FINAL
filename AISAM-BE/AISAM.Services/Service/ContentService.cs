@@ -11,6 +11,7 @@ using AISAM.Services.IServices;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
+using AISAM.Data;
 
 namespace AISAM.Services.Service;
 
@@ -38,6 +39,8 @@ public sealed class ContentService : IContentService
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly INotificationRepository? _notificationRepository;
+    private readonly ContentAuthorizationService? _authorization;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -51,7 +54,8 @@ public sealed class ContentService : IContentService
         IQuotaService quotaService,
         IContentCalendarRepository contentCalendarRepository,
         IWorkspaceRepository workspaceRepository,
-        INotificationRepository? notificationRepository = null)
+        INotificationRepository? notificationRepository = null,
+        ContentAuthorizationService? authorization = null, ExecutionAuthorizationService? executionAuthorization = null)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -65,10 +69,13 @@ public sealed class ContentService : IContentService
         _contentCalendarRepository = contentCalendarRepository;
         _workspaceRepository = workspaceRepository;
         _notificationRepository = notificationRepository;
+        _authorization = authorization;
+        _executionAuthorization = executionAuthorization;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureCurrentBrandActionAsync(request.BrandId, ContentAction.Create, cancellationToken);
         var statusValidation = ValidateCreateStatus(request.Status);
         if (!statusValidation.Success)
         {
@@ -109,6 +116,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureBrandActionAsync(workspaceId, request.BrandId, ContentAction.Create, cancellationToken);
         var statusValidation = ValidateCreateStatus(request.Status);
         if (!statusValidation.Success) return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
 
@@ -162,10 +170,16 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, WorkspaceMemberRoleEnum role, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Edit, null, cancellationToken);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return NotFound();
-        var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, content.BrandId, request.ProductId, cancellationToken);
-        if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        // The action authorizer can grant editing this content without granting its
+        // former Brand/Product directory. Changing a product still requires current access.
+        if (_authorization == null || request.ProductId.HasValue && request.ProductId != content.ProductId)
+        {
+            var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, content.BrandId, request.ProductId, cancellationToken);
+            if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        }
 
         // Validate image count
         if (request.ImageUrls is { Count: > 5 })
@@ -214,6 +228,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Clone, null, cancellationToken);
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
         var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
@@ -229,6 +244,7 @@ public sealed class ContentService : IContentService
 
     private async Task<GenericResponse<bool>> ChangeDeletedInWorkspaceAsync(Guid id, Guid workspaceId, bool deleted, WorkspaceMemberRoleEnum? role, CancellationToken cancellationToken)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, deleted ? ContentAction.Delete : ContentAction.Restore, null, cancellationToken);
         var content = deleted ? await _contentRepository.GetByIdAsync(id, cancellationToken) : await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
 
@@ -267,6 +283,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<bool>> SubmitForApprovalAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Submit, null, cancellationToken);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {
@@ -286,6 +303,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid id, Guid workspaceId, Guid approverUserId, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Approve, null, cancellationToken);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {
@@ -313,6 +331,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> RejectAsync(Guid id, Guid workspaceId, Guid approverUserId, string? notes, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Reject, null, cancellationToken);
         if (string.IsNullOrWhiteSpace(notes) || notes.Trim().Length < 5)
         {
             return GenericResponse<ContentResponseDto>.CreateError("Rejection notes are required and must be at least 5 characters.", HttpStatusCode.BadRequest);
@@ -381,6 +400,7 @@ public sealed class ContentService : IContentService
         {
             return NotFound();
         }
+        if (_authorization != null) await _authorization.EnsureAsync(content.WorkspaceId, content.Id, ContentAction.Edit, null, cancellationToken);
 
         var validation = await ValidateBrandAndProductAsync(profileId, content.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
@@ -415,6 +435,7 @@ public sealed class ContentService : IContentService
         {
             return NotFound();
         }
+        if (_authorization != null) await _authorization.EnsureAsync(existing.WorkspaceId, existing.Id, ContentAction.Clone, null, cancellationToken);
 
         var clone = new Content
         {
@@ -447,6 +468,7 @@ public sealed class ContentService : IContentService
         {
             return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
         }
+        if (_authorization != null) await _authorization.EnsureAsync(content.WorkspaceId, content.Id, ContentAction.Delete, null, cancellationToken);
 
         content.IsDeleted = true;
         await _contentRepository.UpdateAsync(content, cancellationToken);
@@ -460,6 +482,7 @@ public sealed class ContentService : IContentService
         {
             return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
         }
+        if (_authorization != null) await _authorization.EnsureAsync(content.WorkspaceId, content.Id, ContentAction.Restore, null, cancellationToken);
 
         if (!content.IsDeleted)
         {
@@ -484,13 +507,18 @@ public sealed class ContentService : IContentService
         Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, contentId, ContentAction.Publish, integrationId, cancellationToken);
         return await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, true, cancellationToken);
     }
 
     public async Task<GenericResponse<PublishResultDto>> PublishScheduledAsync(
         Guid contentId, Guid integrationId, Guid profileId, Guid workspaceId,
         CancellationToken cancellationToken = default)
-        => await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, false, cancellationToken);
+    {
+        if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("ScheduledPublish", cancellationToken)).Allowed)
+            return GenericResponse<PublishResultDto>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
+        return await PublishInternalAsync(contentId, integrationId, profileId, workspaceId, false, cancellationToken);
+    }
 
     private async Task<GenericResponse<PublishResultDto>> PublishInternalAsync(
         Guid contentId,
@@ -510,6 +538,9 @@ public sealed class ContentService : IContentService
             {
                 return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
             }
+
+            if (cancelActiveSchedules && _authorization != null)
+                await _authorization.EnsureAsync(content.WorkspaceId, content.Id, ContentAction.Publish, integrationId, cancellationToken);
 
             // A content item may be published to more than one social integration.
             // The first successful post marks it Published; later integrations must
@@ -916,6 +947,7 @@ public sealed class ContentService : IContentService
         {
             Id = content.Id,
             ProfileId = content.ProfileId,
+            PrimaryCreatorId = content.PrimaryCreatorId,
             BrandId = content.BrandId,
             BrandName = content.Brand?.Name,
             ProductId = content.ProductId,

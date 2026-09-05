@@ -38,7 +38,7 @@ export default function MemberDetailModal({
 
   React.useEffect(() => {
     let cancelled = false;
-    if (!member || member.status !== "Active") {
+    if (!member || !member.canViewCredit || member.status !== "Active") {
       setUsage([]);
       setUsageTotal(0);
       return;
@@ -58,7 +58,7 @@ export default function MemberDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [member?.id, member?.status]);
+  }, [member?.id, member?.status, member?.canViewCredit]);
 
   if (!member) return null;
 
@@ -119,7 +119,7 @@ export default function MemberDetailModal({
               </div>
             )}
 
-            <div>
+            {member.canViewCredit && <div>
               <h3 className="text-label-sm font-bold text-on-surface mb-3">Credit Usage</h3>
               <div className="bg-surface-container-low rounded-xl divide-y divide-outline-variant/10 overflow-hidden">
                 <div className="px-4 py-3 flex items-center justify-between gap-4">
@@ -160,7 +160,8 @@ export default function MemberDetailModal({
               </div>
             </div>
 
-            {member.status === "Active" && (
+            }
+            {member.canViewCredit && member.status === "Active" && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-label-sm font-bold text-on-surface">Recent Credit Activity</h3>

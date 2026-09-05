@@ -501,7 +501,8 @@ public sealed class CreditService : ICreditService
 
         var start = subscription.StartDate.Date;
         var cycleStart = start.AddDays(((utcDate - start).Days / 7) * 7);
-        var latestGrant = await _context.CreditUsageRecords
+        // Accounting must inspect the whole workspace ledger, independent of the caller's display scope.
+        var latestGrant = await _context.CreditUsageRecords.IgnoreQueryFilters()
             .Where(record =>
                 record.WorkspaceId == workspaceId &&
                 record.Action == CreditActionEnum.SubscriptionGrant &&

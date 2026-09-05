@@ -28,6 +28,12 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<AisamContext>();
                 var approval = scope.ServiceProvider.GetRequiredService<IAutomationApprovalService>();
+                var execution = scope.ServiceProvider.GetRequiredService<ExecutionAuthorizationService>();
+                if (!(await execution.CanDispatchAsync("AutomationOperations", stoppingToken)).Allowed)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    continue;
+                }
 
                 var autoPlans = await context.AutomationPlans
                     .Include(plan => plan.Items).ThenInclude(item => item.Content)
@@ -71,8 +77,9 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                         continue;
                     }
 
-                    var userId = await context.Profiles.Where(profile => profile.Id == plan.ProfileId).OrderBy(profile => profile.Id).Select(profile => profile.UserId).FirstOrDefaultAsync(stoppingToken);
-                    if (userId != Guid.Empty) await approval.ApproveAsync(plan.WorkspaceId, plan.Id, userId, cancellationToken: stoppingToken);
+                    if (!(await execution.CheckAsync("AutomationPlan", plan.Id, "AutomationExecute", stoppingToken)).Allowed) continue;
+                    var requestedBy = context.BackgroundAttribution!.ActorUserId;
+                    await approval.ApproveAsync(plan.WorkspaceId, plan.Id, requestedBy, cancellationToken: stoppingToken);
                 }
 
                 var changedItems = await context.AutomationItems
@@ -94,7 +101,7 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                 foreach (var item in cancelledSchedules)
                 {
                     var replacement = item.ContentId.HasValue
-                        ? await context.ContentCalendars.Where(value => value.ContentId == item.ContentId && value.IsActive && !value.IsDeleted).OrderBy(value => value.Id).FirstOrDefaultAsync(stoppingToken)
+                        ? await context.ContentCalendars.Where(value => value.WorkspaceId == item.AutomationPlan.WorkspaceId && value.ContentId == item.ContentId && value.IntegrationId == item.ContentCalendar!.IntegrationId && value.IsActive && !value.IsDeleted).OrderBy(value => value.Id).FirstOrDefaultAsync(stoppingToken)
                         : null;
                     if (replacement is not null)
                     {

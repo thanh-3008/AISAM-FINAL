@@ -48,6 +48,21 @@ namespace AISAM.API.Middleware
 
             switch (exception)
             {
+                case AISAM.Data.MutationAuthorizationException:
+                    status = HttpStatusCode.Forbidden;
+                    message = "Permission changed or expired before the write.";
+                    errorCode = "MUTATION_AUTHORIZATION_CHANGED";
+                    break;
+                case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException:
+                    status = HttpStatusCode.Conflict;
+                    message = "Access or resource state changed. Reload before retrying.";
+                    errorCode = "CONCURRENT_ACCESS_CHANGE";
+                    break;
+                case AISAM.Services.Exceptions.ResourceAccessDeniedException:
+                    status = HttpStatusCode.Forbidden;
+                    message = "The current permission does not allow this action.";
+                    errorCode = "RESOURCE_ACCESS_DENIED";
+                    break;
                 case UnauthorizedAccessException:
                     status = HttpStatusCode.Unauthorized;
                     message = "Unauthorized";

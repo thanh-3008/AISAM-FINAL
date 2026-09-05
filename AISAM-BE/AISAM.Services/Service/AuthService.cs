@@ -186,7 +186,7 @@ namespace AISAM.Services.Service
                 throw new UnauthorizedAccessException("Invalid or expired refresh token");
             }
 
-            if (!session.IsActive)
+            if (!session.IsActive || session.RevokedAt.HasValue)
             {
                 await _sessionRepository.RevokeAllUserSessionsAsync(session.UserId);
                 throw new UnauthorizedAccessException("Refresh token reuse detected. All sessions have been revoked.");
@@ -441,7 +441,8 @@ namespace AISAM.Services.Service
         private async Task<TokenResponse> GenerateTokensAsync(User user, string? userAgent, string? ipAddress, bool isImpersonation = false)
         {
             // Generate access token
-            var accessToken = GenerateAccessToken(user, isImpersonation);
+            var sessionId = Guid.NewGuid();
+            var accessToken = GenerateAccessToken(user, sessionId, isImpersonation);
             var accessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
 
             // Generate refresh token
@@ -451,7 +452,7 @@ namespace AISAM.Services.Service
             // Save refresh token in database
             var session = new Session
             {
-                Id = Guid.NewGuid(),
+                Id = sessionId,
                 UserId = user.Id,
                 RefreshToken = refreshToken,
                 ExpiresAt = refreshTokenExpiration,
@@ -482,7 +483,7 @@ namespace AISAM.Services.Service
             };
         }
 
-        private string GenerateAccessToken(User user, bool isImpersonation = false)
+        private string GenerateAccessToken(User user, Guid sessionId, bool isImpersonation = false)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_jwtSettings.SecretKey);
@@ -492,6 +493,7 @@ namespace AISAM.Services.Service
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, user.Role.ToString()),
+                new Claim("sid", sessionId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 

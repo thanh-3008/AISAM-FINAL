@@ -13,6 +13,7 @@ namespace AISAM.Services.Service;
 public sealed class AutomationGenerationService : IAutomationGenerationService
 {
     private readonly AisamContext _context;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
     private readonly IGeminiTextClient _textClient;
     private readonly IAIImageProvider _imageProvider;
     private readonly IAIVideoProvider _videoProvider;
@@ -31,7 +32,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         IAutomationCreditService automationCredits,
         IOptions<ImageProviderSettings> imageOptions,
         IOptions<VideoProviderSettings> videoOptions,
-        ILogger<AutomationGenerationService> logger)
+        ILogger<AutomationGenerationService> logger, ExecutionAuthorizationService? executionAuthorization = null)
     {
         _context = context;
         _textClient = textClient;
@@ -42,6 +43,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         _imageSettings = imageOptions.Value;
         _videoSettings = videoOptions.Value;
         _logger = logger;
+        _executionAuthorization = executionAuthorization;
     }
 
     public async Task<TimeSpan> ProcessNextAsync(CancellationToken cancellationToken = default)
@@ -60,6 +62,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             .FirstOrDefaultAsync(cancellationToken);
 
         if (item is null) return TimeSpan.FromSeconds(5);
+        if (_executionAuthorization != null && !(await _executionAuthorization.CheckAsync("AutomationPlan", item.AutomationPlanId, "AutomationExecute", cancellationToken)).Allowed)
+            return TimeSpan.FromSeconds(30);
 
         var profile = await _context.Profiles.AsNoTracking()
             .FirstOrDefaultAsync(value => value.Id == item.AutomationPlan.ProfileId, cancellationToken);
@@ -69,6 +73,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             return TimeSpan.FromMilliseconds(250);
         }
 
+        var actorUserId = _context.BackgroundAttribution?.ActorUserId ?? profile.UserId;
         var resumingVideo = item.Status == AutomationItemStatusEnum.GeneratingMedia && !string.IsNullOrWhiteSpace(item.VideoJobId);
         if (!resumingVideo)
         {
@@ -101,6 +106,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 Id = Guid.NewGuid(),
                 ProfileId = item.AutomationPlan.ProfileId,
                 WorkspaceId = item.AutomationPlan.WorkspaceId,
+                PrimaryCreatorId = _context.BackgroundAttribution?.ActorUserId,
                 BrandId = item.BrandId.Value,
                 ProductId = item.ProductId,
                 Title = item.Topic,
@@ -150,7 +156,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
                 if (item.UsedCredits < 1)
                 {
-                    var textCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateText, 1, 1, cancellationToken);
+                    var textCharge = await _automationCredits.SettleAsync(item.Id, actorUserId, CreditActionEnum.GenerateText, 1, 1, cancellationToken);
                     if (!textCharge.Success) throw new InvalidOperationException(textCharge.Message ?? "Unable to charge text generation credits.");
                 }
             }
@@ -181,7 +187,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 }
                 if (item.UsedCredits < 101)
                 {
-                    var videoCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateVideo, 100, 101, cancellationToken);
+                    var videoCharge = await _automationCredits.SettleAsync(item.Id, actorUserId, CreditActionEnum.GenerateVideo, 100, 101, cancellationToken);
                     if (!videoCharge.Success) throw new InvalidOperationException(videoCharge.Message ?? "Unable to charge video generation credits.");
                 }
                 item.Status = AutomationItemStatusEnum.AwaitingApproval;
@@ -208,7 +214,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     await _context.SaveChangesAsync(cancellationToken);
                     if (item.UsedCredits < 11)
                     {
-                        var imageCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateImage, 10, 11, cancellationToken);
+                        var imageCharge = await _automationCredits.SettleAsync(item.Id, actorUserId, CreditActionEnum.GenerateImage, 10, 11, cancellationToken);
                         if (!imageCharge.Success) throw new InvalidOperationException(imageCharge.Message ?? "Unable to charge image generation credits.");
                     }
                 }

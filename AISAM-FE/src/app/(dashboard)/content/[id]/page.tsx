@@ -10,6 +10,8 @@ import type { ContentDetail, ContentType, ContentStatus } from "@/services/conte
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
 import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse, parseMultipleImageUrls } from "@/services/contentService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useContentActions } from "@/hooks/useContentActions";
+import { protectedCacheRevision } from "@/lib/accessEvents";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 
@@ -30,8 +32,9 @@ export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const featureGate = useFeatureGate();
-  const canPublish = featureGate.can("publishPost");
-  const canManageSchedules = featureGate.can("manageSchedules");
+  const actions = useContentActions(params.id as string);
+  const canPublish = featureGate.can("publishPost") && actions.Publish === true;
+  const canManageSchedules = featureGate.can("manageSchedules") && actions.Schedule === true;
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -51,17 +54,20 @@ export default function ContentDetailPage() {
 
   const formRef = useRef(form);
   const itemRef = useRef(item);
+  const autosaveAllowed = useRef(false);
+  const accessRevision = useRef(protectedCacheRevision());
 
   useEffect(() => {
     formRef.current = form;
     itemRef.current = item;
-  }, [form, item]);
+    autosaveAllowed.current = editing && actions.Edit === true;
+  }, [form, item, editing, actions.Edit]);
 
   useEffect(() => {
     return () => {
       const currentItem = itemRef.current;
       const currentForm = formRef.current;
-      if (getStoredAutosave() && currentItem && currentForm.title) {
+      if (autosaveAllowed.current && accessRevision.current === protectedCacheRevision() && getStoredAutosave() && currentItem && currentForm.title) {
         // Autosave only content fields, NOT status.
         // Status changes must go through explicit actions (submit/approve/reject/handleSave)
         // to prevent race conditions where unmount cleanup overwrites approval transitions.
@@ -231,7 +237,7 @@ export default function ContentDetailPage() {
                     </button>}
                   </>
                 )}
-                {(item.status === "Draft" || item.status === "Rejected") && (
+                {actions.Submit && (item.status === "Draft" || item.status === "Rejected") && (
                   <button onClick={handleSubmit} disabled={isSubmitting}
                     className="px-4 py-2 rounded-xl bg-amber-500 text-white text-label-sm font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5">
                     {isSubmitting ? (
@@ -242,16 +248,16 @@ export default function ContentDetailPage() {
                     Submit for Approval
                   </button>
                 )}
-                <button onClick={() => setEditing(true)}
+                {actions.Edit && <button onClick={() => setEditing(true)}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">edit</span>
                   Edit
-                </button>
-                <button onClick={() => setShowDelete(true)}
+                </button>}
+                {actions.Delete && <button onClick={() => setShowDelete(true)}
                   className="px-4 py-2 rounded-xl border border-danger-red/20 text-danger-red hover:bg-danger-red/5 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                   Delete
-                </button>
+                </button>}
               </>
             ) : (
               <>
@@ -259,7 +265,7 @@ export default function ContentDetailPage() {
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] text-label-sm font-semibold">
                   Cancel
                 </button>
-                <button onClick={handleSave} disabled={saving}
+                <button onClick={handleSave} disabled={saving || !actions.Edit}
                   className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5 disabled:opacity-60">
                   {saving ? (
                     <>Saving...</>
@@ -603,7 +609,7 @@ export default function ContentDetailPage() {
       </main>
 
       {/* Delete Confirmation */}
-      {showDelete && (
+      {showDelete && actions.Delete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-lg p-6 w-full max-w-sm mx-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 mb-4">

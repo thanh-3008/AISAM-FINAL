@@ -2,6 +2,10 @@
 
 import { type Team, type TeamMember } from "@/services/teamService";
 import { TEAM_COLORS, getInitials, formatDate, ROLE_CONFIG, STATUS_CONFIG } from "./teamUtils";
+import { useEffect, useState } from "react";
+import { useAccessContext } from "@/contexts/AccessContext";
+import { fetchBrands } from "@/services/brandService";
+import TeamBrandAccessEditor from "./TeamBrandAccessEditor";
 
 interface TeamDetailModalProps {
   team: Team | null;
@@ -10,6 +14,14 @@ interface TeamDetailModalProps {
 }
 
 export default function TeamDetailModal({ team, members, onClose }: TeamDetailModalProps) {
+  const access = useAccessContext();
+  const [brands, setBrands] = useState<{id: string; name: string}[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setBrands([]);
+    if (team) void fetchBrands().then(data => { if (!cancelled) setBrands(data); });
+    return () => { cancelled = true; };
+  }, [team?.id]);
   if (!team) return null;
 
   const teamMembers = members.filter((m) => team.memberIds.includes(m.id));
@@ -37,6 +49,11 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
           </div>
 
           <div className="p-6 space-y-6">
+            {(access?.canManageTeams || access?.role === "Manager") && <section className="space-y-3">
+              <h3 className="font-bold">Brand / Channel Access</h3>
+              {brands.filter(brand => team.brandIds.includes(brand.id)).map(brand => <TeamBrandAccessEditor
+                key={brand.id} teamId={team.id} brandId={brand.id} brandName={brand.name} editable={access?.canManageTeams === true} />)}
+            </section>}
             <div className="flex items-center gap-3 flex-wrap">
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-2xs font-bold ${colors.badge}`}>
                 <span className="material-symbols-outlined text-[14px]">work</span>
@@ -48,7 +65,7 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-2xs font-bold bg-emerald-50 text-success-green">
                 <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                {team.activity}% Activity
+                {team.activity == null ? "Activity unavailable" : `${team.activity == null ? "—" : `${team.activity}%`} Activity`}
               </span>
             </div>
 
@@ -57,14 +74,14 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
               <div className="bg-surface-container-low rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-label-xs text-outline font-medium">Team performance</span>
-                  <span className={`text-label-xs font-bold ${team.activity >= 80 ? "text-success-green" : team.activity >= 50 ? "text-warning-amber" : "text-danger-red"}`}>
-                    {team.activity}%
+                  <span className={`text-label-xs font-bold ${(team.activity ?? 0) >= 80 ? "text-success-green" : (team.activity ?? 0) >= 50 ? "text-warning-amber" : "text-danger-red"}`}>
+                    {team.activity == null ? "—" : `${team.activity}%`}
                   </span>
                 </div>
                 <div className="h-3 bg-surface-container-high rounded-full overflow-hidden mb-2">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${colors.bg} transition-all duration-500`}
-                    style={{ width: `${team.activity}%` }}
+                    style={{ width: `${team.activity == null ? "—" : `${team.activity}%`}` }}
                   />
                 </div>
               </div>

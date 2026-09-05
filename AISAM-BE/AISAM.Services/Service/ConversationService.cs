@@ -1,6 +1,8 @@
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Response;
+using AISAM.Data;
+using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
@@ -13,10 +15,12 @@ public sealed class ConversationService : IConversationService
 {
     private static readonly Regex VideoJobMarkerRegex = new(@"\[VIDEO_JOB:\s*([^\]]+)\]", RegexOptions.Compiled);
     private readonly IConversationRepository _conversationRepository;
+    private readonly AccessScope? _accessScope;
 
-    public ConversationService(IConversationRepository conversationRepository)
+    public ConversationService(IConversationRepository conversationRepository, AccessScope? accessScope = null)
     {
         _conversationRepository = conversationRepository;
+        _accessScope = accessScope;
     }
 
     public async Task<GenericResponse<PagedResult<ConversationResponseDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
@@ -24,7 +28,7 @@ public sealed class ConversationService : IConversationService
         var conversations = await _conversationRepository.GetPagedByProfileIdAsync(profileId, request, cancellationToken);
         return GenericResponse<PagedResult<ConversationResponseDto>>.CreateSuccess(new PagedResult<ConversationResponseDto>
         {
-            Data = conversations.Data.Select(MapToResponseDto).ToList(),
+            Data = conversations.Data.Select(conversation => MapToResponseDto(conversation)).ToList(),
             TotalCount = conversations.TotalCount,
             Page = conversations.Page,
             PageSize = conversations.PageSize
@@ -62,7 +66,9 @@ public sealed class ConversationService : IConversationService
         var conversations = await _conversationRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, cancellationToken);
         return GenericResponse<PagedResult<ConversationResponseDto>>.CreateSuccess(new PagedResult<ConversationResponseDto>
         {
-            Data = conversations.Data.Select(MapToResponseDto).ToList(),
+            Data = conversations.Data.Select(conversation => MapToResponseDto(
+                conversation,
+                suppressMessageBody: _accessScope?.Enforced == true && _accessScope.Role == WorkspaceMemberRoleEnum.Viewer)).ToList(),
             TotalCount = conversations.TotalCount,
             Page = conversations.Page,
             PageSize = conversations.PageSize
@@ -71,8 +77,16 @@ public sealed class ConversationService : IConversationService
 
     public async Task<GenericResponse<ConversationDetailDto>> GetByIdInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
-        var conversation = await _conversationRepository.GetByIdAsync(id, cancellationToken);
-        if (conversation == null || conversation.WorkspaceId != workspaceId)
+        if (_accessScope?.Enforced == true && _accessScope.Role == WorkspaceMemberRoleEnum.Viewer)
+        {
+            return GenericResponse<ConversationDetailDto>.CreateError(
+                "Viewers cannot read conversation message bodies.",
+                HttpStatusCode.Forbidden,
+                "RESOURCE_ACCESS_DENIED");
+        }
+
+        var conversation = await _conversationRepository.GetByIdForWorkspaceReadAsync(id, workspaceId, cancellationToken);
+        if (conversation == null)
         {
             return GenericResponse<ConversationDetailDto>.CreateError("Conversation not found.", HttpStatusCode.NotFound);
         }
@@ -83,8 +97,16 @@ public sealed class ConversationService : IConversationService
 
     public async Task<GenericResponse<bool>> SoftDeleteInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
-        var conversation = await _conversationRepository.GetByIdAsync(id, cancellationToken);
-        if (conversation == null || conversation.WorkspaceId != workspaceId)
+        if (_accessScope?.Enforced == true && _accessScope.Role == WorkspaceMemberRoleEnum.Viewer)
+        {
+            return GenericResponse<bool>.CreateError(
+                "Viewers cannot delete conversations.",
+                HttpStatusCode.Forbidden,
+                "RESOURCE_ACCESS_DENIED");
+        }
+
+        var conversation = await _conversationRepository.GetByIdForWorkspaceDeleteAsync(id, workspaceId, cancellationToken);
+        if (conversation == null)
         {
             return GenericResponse<bool>.CreateError("Conversation not found.", HttpStatusCode.NotFound);
         }
@@ -94,7 +116,7 @@ public sealed class ConversationService : IConversationService
         return GenericResponse<bool>.CreateSuccess(true, "Conversation deleted successfully.");
     }
 
-    private static ConversationResponseDto MapToResponseDto(Conversation conversation)
+    private static ConversationResponseDto MapToResponseDto(Conversation conversation, bool suppressMessageBody = false)
     {
         var messages = conversation.ChatMessages
             .Where(message => !message.IsDeleted)
@@ -113,7 +135,7 @@ public sealed class ConversationService : IConversationService
             AdType = conversation.AdType,
             Title = conversation.Title,
             IsActive = conversation.IsActive,
-            LastMessage = lastMessage?.Message,
+            LastMessage = suppressMessageBody ? null : lastMessage?.Message,
             LastMessageAt = lastMessage?.CreatedAt,
             MessageCount = messages.Count
         };

@@ -102,7 +102,7 @@ public class PromptEnhancerTests
         var result = await enhancer.EnhanceVideoPromptAsync(
             "Tạo video quảng cáo mỹ phẩm", product: null, durationSeconds: 8);
 
-        Assert.Equal(visualText.TrimEnd('.') + ", no text overlay, no watermark, no readable letters, no faces, no hands", result.Prompt);
+        Assert.Equal(visualText.TrimEnd('.') + ", no faces, no hands", result.Prompt);
         Assert.Equal("test_pattern", result.PatternId);
     }
 
@@ -170,6 +170,55 @@ public class PromptEnhancerTests
         Assert.Contains("Nước hoa Versace", capture.LastPrompt);
         Assert.Contains("10", capture.LastPrompt);
         Assert.Contains("9:16", capture.LastPrompt);
+    }
+
+    [Fact]
+    public async Task EnhanceVideoPromptAsync_PreservesRequestedTypography()
+    {
+        const string visual = "A bottle rotates with bold text reading 'SALE'";
+        var response = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            pattern_id = "typography",
+            integrated_multimodal_description = visual
+        });
+        var enhancer = CreateEnhancer(new StubGeminiClient(response));
+
+        var result = await enhancer.EnhanceVideoPromptAsync("Add bold SALE typography", null);
+
+        Assert.Contains("text reading 'SALE'", result.Prompt);
+        Assert.DoesNotContain("no text overlay", result.Prompt);
+        Assert.Equal("typography", result.PatternId);
+    }
+
+    [Fact]
+    public async Task EnhanceVideoPromptAsync_PreservesKnownProductNameAndUnicodePunctuation()
+    {
+        const string visual = "The Rạng Đông bottle rotates — soft studio lighting";
+        var response = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            pattern_id = "product",
+            integrated_multimodal_description = visual
+        });
+        var enhancer = CreateEnhancer(new StubGeminiClient(response));
+
+        var result = await enhancer.EnhanceVideoPromptAsync("Advertise the bottle", new Product { Name = "Rạng Đông" });
+
+        Assert.StartsWith(visual, result.Prompt);
+        Assert.Equal("product", result.PatternId);
+    }
+
+    [Fact]
+    public async Task EnhanceVideoPromptAsync_DefaultFallbackOmitsUntranslatedDescription()
+    {
+        var enhancer = CreateEnhancer(new StubGeminiClient(new Exception("Gemini unavailable")));
+        var product = new Product { Name = "Rạng Đông", Description = "Bình giữ nhiệt cao cấp" };
+
+        var result = await enhancer.EnhanceVideoPromptAsync("Quảng cáo bình giữ nhiệt", product);
+
+        Assert.StartsWith("A high-quality commercial advertising video", result.Prompt);
+        Assert.Contains(product.Name, result.Prompt);
+        Assert.DoesNotContain(product.Description, result.Prompt);
+        Assert.Null(result.PatternId);
     }
 
     [Fact]

@@ -5,6 +5,7 @@ namespace AISAM.Common.Dtos.Response;
 public sealed class ContentResponseDto
 {
     public Guid Id { get; set; }
+    public Guid? PrimaryCreatorId { get; set; }
     public Guid ProfileId { get; set; }
     public Guid BrandId { get; set; }
     public string? BrandName { get; set; }

@@ -25,6 +25,7 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly IBrandRepository _brandRepo;
     private readonly IContentCalendarRepository _contentCalendarRepo;
     private readonly ILogger<AnalyticsService> _logger;
+    private readonly AISAM.Data.AccessScope? _accessScope;
 
     public AnalyticsService(
         IPerformanceReportRepository performanceReportRepo,
@@ -34,7 +35,8 @@ public sealed class AnalyticsService : IAnalyticsService
         IMemoryCache cache,
         IBrandRepository brandRepo,
         IContentCalendarRepository contentCalendarRepo,
-        ILogger<AnalyticsService> logger)
+        ILogger<AnalyticsService> logger,
+        AISAM.Data.AccessScope? accessScope = null)
     {
         _performanceReportRepo = performanceReportRepo;
         _socialIntegrationRepo = socialIntegrationRepo;
@@ -44,6 +46,7 @@ public sealed class AnalyticsService : IAnalyticsService
         _brandRepo = brandRepo;
         _contentCalendarRepo = contentCalendarRepo;
         _logger = logger;
+        _accessScope = accessScope;
     }
 
     public async Task<GenericResponse<ScheduledPublishingPerformanceDto>> GetScheduledPublishingPerformanceAsync(
@@ -256,6 +259,10 @@ public sealed class AnalyticsService : IAnalyticsService
 
         _logger.LogInformation("AskAI.RequestStarted");
         string cacheKey = $"AiRec_v4_json_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
+        if (_accessScope?.Enforced == true)
+        {
+            cacheKey += "_" + _accessScope.Version;
+        }
         var cacheTimer = Stopwatch.StartNew();
         _cache.TryGetValue(cacheKey, out string? cachedResponse);
         var cacheHit = !forceRefresh && !string.IsNullOrEmpty(cachedResponse);
@@ -416,7 +423,7 @@ public sealed class AnalyticsService : IAnalyticsService
         }
 
         var cleanedJson = parseResult.Json!;
-        _cache.Set(cacheKey, cleanedJson, TimeSpan.FromHours(12));
+        _cache.Set(cacheKey, cleanedJson, TimeSpan.FromMinutes(2));
 
         LogStage("AskAI.RequestCompleted", correlationId, workspaceId, requestTimer.ElapsedMilliseconds, "SUCCESS", false, null);
         return GenericResponse<string>.CreateSuccess(cleanedJson, "AI recommendations retrieved successfully.");

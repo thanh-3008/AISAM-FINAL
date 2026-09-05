@@ -1,10 +1,12 @@
 using AISAM.Common.Dtos;
+using AISAM.Data;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories;
 using AISAM.Repositories.Repository;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 
 namespace AISAM.IntegrationTests;
 
@@ -68,6 +70,47 @@ public class ContentCalendarRepositoryTests
         };
         await repository.AddAsync(laterSchedule);
         Assert.Equal(1, await context.ContentCalendars.CountAsync());
+    }
+
+    [Fact]
+    public async Task CalendarScope_RelationalQuery_EnforcesWorkspaceBrandChannelAndCurrentScope()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AisamContext>().UseSqlite(connection).Options;
+        var scope = new AccessScope();
+        await using var context = new AisamContext(options, scope);
+        await context.Database.EnsureCreatedAsync();
+        var fixture = SeedFixture(context);
+        var otherWorkspace = SeedFixture(context);
+        context.ChangeTracker.Clear();
+
+        Assert.Equal(10, await context.ContentCalendars.CountAsync());
+        scope.Enforced = true;
+        scope.WorkspaceId = fixture.DueSchedule.WorkspaceId;
+        scope.Role = WorkspaceMemberRoleEnum.Owner;
+        Assert.Equal(5, await context.ContentCalendars.CountAsync());
+
+        scope.Role = WorkspaceMemberRoleEnum.Manager;
+        scope.BrandIds = [fixture.DueSchedule.Content.BrandId];
+        scope.IntegrationIds = [fixture.DueSchedule.IntegrationId!.Value];
+        Assert.Equal(fixture.DueSchedule.Id, (await context.ContentCalendars.SingleAsync()).Id);
+
+        // A cached EF query must use the new scope on the very next request.
+        scope.IntegrationIds = [];
+        Assert.Empty(await context.ContentCalendars.ToListAsync());
+        scope.IntegrationIds = [fixture.DueSchedule.IntegrationId.Value];
+        scope.BrandIds = [];
+        Assert.Empty(await context.ContentCalendars.ToListAsync());
+
+        scope.Role = WorkspaceMemberRoleEnum.ContentCreator;
+        scope.HistoricalContentIds = [fixture.DueSchedule.ContentId, otherWorkspace.DueSchedule.ContentId];
+        Assert.Equal(5, await context.ContentCalendars.CountAsync());
+        scope.HistoricalContentIds = [otherWorkspace.DueSchedule.ContentId];
+        Assert.Empty(await context.ContentCalendars.ToListAsync());
+
+        scope.Enforced = false;
+        Assert.Equal(10, await context.ContentCalendars.CountAsync());
     }
 
     private static AisamContext CreateContext()
@@ -187,6 +230,19 @@ public class ContentCalendarRepositoryTests
         context.Workspaces.Add(workspace);
         context.Brands.Add(brand);
         context.Contents.Add(content);
+        var account = new SocialAccount { ProfileId = profile.Id, WorkspaceId = workspace.Id };
+        context.SocialAccounts.Add(account);
+        foreach (var schedule in new[] { due, upcomingSoon, upcomingLater, completed, deleted })
+        {
+            context.SocialIntegrations.Add(new SocialIntegration
+            {
+                Id = schedule.IntegrationId!.Value,
+                ProfileId = profile.Id,
+                WorkspaceId = workspace.Id,
+                BrandId = brand.Id,
+                SocialAccountId = account.Id
+            });
+        }
         context.ContentCalendars.AddRange(due, upcomingSoon, upcomingLater, completed, deleted);
         context.SaveChanges();
 

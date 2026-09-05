@@ -24,6 +24,11 @@ namespace AISAM.Data.Model
         [Column("is_active")]
         public bool IsActive { get; set; } = true;
 
+        [Column("channel_access_mode")]
+        public ChannelAccessMode ChannelAccessMode { get; set; } = ChannelAccessMode.Specific;
+
+        public ICollection<TeamChannelAccess> Channels { get; set; } = new List<TeamChannelAccess>();
+
         // Navigation properties
         [ForeignKey("TeamId")]
         public virtual Team Team { get; set; } = null!;

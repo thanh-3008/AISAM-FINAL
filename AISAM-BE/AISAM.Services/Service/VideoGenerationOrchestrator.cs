@@ -21,6 +21,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
     private readonly AISAM.Repositories.AisamContext _dbContext;
     private readonly ICreditService _creditService;
     private readonly ILogger<VideoGenerationOrchestrator> _logger;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
 
     private const int VideoGenerationCredits = 100;
 
@@ -30,7 +31,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         IOptions<VideoProviderSettings> options,
         AISAM.Repositories.AisamContext dbContext,
         ICreditService creditService,
-        ILogger<VideoGenerationOrchestrator> logger)
+        ILogger<VideoGenerationOrchestrator> logger, ExecutionAuthorizationService? executionAuthorization = null)
     {
         _primaryProvider = primaryProvider;
         _colabStrategy = colabStrategy;
@@ -38,6 +39,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         _dbContext = dbContext;
         _creditService = creditService;
         _logger = logger;
+        _executionAuthorization = executionAuthorization;
     }
 
     public async Task<GenericResponse<VideoGenerationJob>> StartVideoGenerationAsync(
@@ -48,6 +50,8 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         CancellationToken cancellationToken = default)
     {
         // Ensure credits are available before generating
+        if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("VideoGeneration", cancellationToken)).Allowed)
+            return GenericResponse<VideoGenerationJob>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
         var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, VideoGenerationCredits, cancellationToken: cancellationToken);
         if (!creditCheck.Success)
         {
@@ -120,7 +124,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         {
             job.Status = AISAM.Data.Enumeration.AiStatusEnum.Failed;
             await _dbContext.SaveChangesAsync(cancellationToken);
-            return GenericResponse<VideoGenerationJob>.CreateError($"Primary provider failed and Colab fallback is disabled. {job.ErrorMessage}", HttpStatusCode.BadGateway);
+            return GenericResponse<VideoGenerationJob>.CreateError("Video generation is currently unavailable.", HttpStatusCode.BadGateway);
         }
 
         _logger.LogInformation("Falling back to Colab video strategy for job {JobId}", job.Id);
@@ -149,7 +153,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         job.ErrorMessage = $"{job.ErrorMessage} | Colab Error: {colabResult.ErrorMessage}";
         await _dbContext.SaveChangesAsync(cancellationToken);
         return GenericResponse<VideoGenerationJob>.CreateError(
-            $"Dịch vụ sinh video đang tạm gián đoạn. {job.ErrorMessage}", 
+            "Dịch vụ sinh video đang tạm gián đoạn.",
             HttpStatusCode.BadGateway);
     }
 
@@ -164,6 +168,14 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
             return GenericResponse<VideoGenerationJob>.CreateError("Video job not found.", HttpStatusCode.NotFound);
         }
 
+        if (_dbContext.AccessScope.Enforced)
+        {
+            var current = await new ResourceAccessService(_dbContext).ResolveAsync(workspaceId, _dbContext.AccessScope.UserId, false,
+                _dbContext.AccessScope.ActiveTeamId, cancellationToken);
+            if (current.Role == WorkspaceMemberRoleEnum.Viewer || !current.IsOwner && job.UserId != current.UserId)
+                return GenericResponse<VideoGenerationJob>.CreateError("Access denied.", HttpStatusCode.Forbidden);
+        }
+
         if (job.Status == AISAM.Data.Enumeration.AiStatusEnum.Completed || job.Status == AISAM.Data.Enumeration.AiStatusEnum.Failed)
         {
             return GenericResponse<VideoGenerationJob>.CreateSuccess(job, "Job already finished.");
@@ -173,6 +185,8 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         {
             return GenericResponse<VideoGenerationJob>.CreateError("External JobId is missing.", HttpStatusCode.BadRequest);
         }
+        if (_executionAuthorization != null && !(await _executionAuthorization.CheckAsync("VideoGenerationJob", job.Id, "AiGenerate", cancellationToken)).Allowed)
+            return GenericResponse<VideoGenerationJob>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
 
         IAIVideoProvider activeProvider = job.IsFallback ? _colabStrategy : _primaryProvider;
         var result = await activeProvider.CheckStatusAsync(job.ExternalJobId, cancellationToken);

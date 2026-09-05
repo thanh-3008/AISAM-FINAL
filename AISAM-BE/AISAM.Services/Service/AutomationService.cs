@@ -6,6 +6,7 @@ using System.Text.Json;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Models;
+using AISAM.Data;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -20,17 +21,24 @@ public sealed class AutomationService : IAutomationService
     private readonly IBrandRepository _brandRepository;
     private readonly IProductRepository _productRepository;
     private readonly IAutomationCreditService _automationCredits;
+    private readonly ContentAuthorizationService? _authorization;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
+    private readonly AccessScope? _accessScope;
 
-    public AutomationService(IAutomationRepository automationRepository, IBrandRepository brandRepository, IProductRepository productRepository, IAutomationCreditService automationCredits)
+    public AutomationService(IAutomationRepository automationRepository, IBrandRepository brandRepository, IProductRepository productRepository, IAutomationCreditService automationCredits, ContentAuthorizationService? authorization = null, ExecutionAuthorizationService? executionAuthorization = null, AccessScope? accessScope = null)
     {
         _automationRepository = automationRepository;
         _brandRepository = brandRepository;
         _productRepository = productRepository;
         _automationCredits = automationCredits;
+        _authorization = authorization;
+        _executionAuthorization = executionAuthorization;
+        _accessScope = accessScope;
     }
 
     public async Task<GenericResponse<AutomationPlanDto>> CreateAsync(Guid workspaceId, Guid profileId, CreateAutomationPlanRequest request, string? sourceFileName = null, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         if (request.Rows.Count == 0)
             return GenericResponse<AutomationPlanDto>.CreateError("The automation plan must contain at least one row.");
 
@@ -105,6 +113,7 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> ImportCsvAsync(Guid workspaceId, Guid profileId, string name, string timezone, string sourceFileName, Stream stream, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         using var reader = new StreamReader(stream, Encoding.UTF8, true, leaveOpen: true);
         var content = await reader.ReadToEndAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(content)) return GenericResponse<AutomationPlanDto>.CreateError("CSV is empty.");
@@ -163,18 +172,27 @@ public sealed class AutomationService : IAutomationService
     }
 
     public async Task<GenericResponse<IReadOnlyList<AutomationPlanDto>>> GetAllAsync(Guid workspaceId, CancellationToken cancellationToken = default)
-        => GenericResponse<IReadOnlyList<AutomationPlanDto>>.CreateSuccess((await _automationRepository.GetByWorkspaceAsync(workspaceId, cancellationToken)).Select(Map).ToList());
+    {
+        var ownerRead = IsOwnerReadScope(workspaceId);
+        var plans = await _automationRepository.GetByWorkspaceForReadAsync(workspaceId, cancellationToken);
+        return GenericResponse<IReadOnlyList<AutomationPlanDto>>.CreateSuccess(plans.Select(plan => MapRead(plan, ownerRead)).ToList());
+    }
 
     public async Task<GenericResponse<AutomationPlanDto>> GetByIdAsync(Guid workspaceId, Guid planId, CancellationToken cancellationToken = default)
     {
-        var plan = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
+        var ownerRead = IsOwnerReadScope(workspaceId);
+        var plan = await _automationRepository.GetByIdForReadAsync(workspaceId, planId, cancellationToken);
         return plan is null
             ? GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound)
-            : GenericResponse<AutomationPlanDto>.CreateSuccess(Map(plan));
+            : GenericResponse<AutomationPlanDto>.CreateSuccess(MapRead(plan, ownerRead));
     }
 
     public async Task<GenericResponse<AutomationPlanDto>> ConfirmAsync(Guid workspaceId, Guid planId, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
+        if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("AutomationGenerate", cancellationToken)).Allowed)
+            return GenericResponse<AutomationPlanDto>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
+
         var plan = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (plan is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (plan.Status != AutomationPlanStatusEnum.AwaitingConfirmation)
@@ -192,6 +210,10 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> RetryAsync(Guid workspaceId, Guid planId, Guid? itemId = null, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
+        if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("AutomationGenerate", cancellationToken)).Allowed)
+            return GenericResponse<AutomationPlanDto>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
+
         var plan = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (plan is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (plan.Status == AutomationPlanStatusEnum.Cancelled) return GenericResponse<AutomationPlanDto>.CreateError("A cancelled plan cannot be retried.");
@@ -219,6 +241,7 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> CancelAsync(Guid workspaceId, Guid planId, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         var plan = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (plan is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (plan.Status is AutomationPlanStatusEnum.Completed or AutomationPlanStatusEnum.Cancelled)
@@ -238,6 +261,7 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> ImportGoogleSheetAsync(Guid workspaceId, Guid profileId, ImportGoogleSheetRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var source) || source.Scheme != Uri.UriSchemeHttps ||
             !source.Host.Equals("docs.google.com", StringComparison.OrdinalIgnoreCase))
             return GenericResponse<AutomationPlanDto>.CreateError("Only HTTPS Google Sheets URLs from docs.google.com are allowed.");
@@ -261,6 +285,7 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> CloneAsync(Guid workspaceId, Guid profileId, Guid planId, CloneAutomationPlanRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         var source = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (source is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (source.Items.Count == 0) return GenericResponse<AutomationPlanDto>.CreateError("The source automation plan is empty and cannot be cloned.", HttpStatusCode.BadRequest);
@@ -281,6 +306,7 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> SetAutoApproveAsync(Guid workspaceId, Guid planId, bool enabled, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         var plan = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (plan is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (plan.Status is not AutomationPlanStatusEnum.AwaitingConfirmation and not AutomationPlanStatusEnum.Generating)
@@ -298,6 +324,7 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<GenericResponse<AutomationPlanDto>> UpdateItemAsync(Guid workspaceId, Guid planId, Guid itemId, UpdateAutomationItemRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "AutomationManage", cancellationToken);
         var plan = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (plan is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (plan.Status != AutomationPlanStatusEnum.AwaitingConfirmation)
@@ -376,6 +403,31 @@ public sealed class AutomationService : IAutomationService
             ValidationErrors = DeserializeErrors(item.ValidationErrors)
         }).ToList()
     };
+
+    private static AutomationPlanDto MapRead(AutomationPlan plan, bool ownerRead)
+    {
+        var result = Map(plan);
+        if (ownerRead) return result;
+
+        var visibleItems = plan.Items.ToList();
+        result.TotalItems = visibleItems.Count;
+        result.ValidItems = visibleItems.Count(item => string.IsNullOrWhiteSpace(item.ValidationErrors));
+        result.FailedItems = result.TotalItems - result.ValidItems;
+        result.EstimatedCredits = visibleItems
+            .Where(item => string.IsNullOrWhiteSpace(item.ValidationErrors))
+            .Sum(item => item.EstimatedCredits);
+        result.UsedCredits = visibleItems.Sum(item => item.UsedCredits);
+        result.ReservedCredits = null;
+        result.ReleasedCredits = null;
+        return result;
+    }
+
+    private bool IsOwnerReadScope(Guid workspaceId)
+    {
+        if (_accessScope?.Enforced != true || _accessScope.WorkspaceId != workspaceId)
+            throw new UnauthorizedAccessException("A current workspace scope is required.");
+        return _accessScope.IsOwner;
+    }
 
     private static IReadOnlyList<AutomationValidationError> DeserializeErrors(string? json)
     {

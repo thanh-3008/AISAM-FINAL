@@ -5,6 +5,8 @@ import '../../data/models/content_request.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/state/base_state.dart';
 import 'content_list_controller.dart';
+import '../../../../core/network/access_events.dart';
+import '../../../access/presentation/access_providers.dart';
 
 part 'content_editor_controller.g.dart';
 
@@ -42,17 +44,24 @@ class ContentEditorController extends _$ContentEditorController {
 
 @riverpod
 class ContentDetailController extends _$ContentDetailController {
+  int _generation = 0;
   @override
   AsyncValue<ContentResponseModel> build(String id) {
+    ref.watch(accessContextProvider);
+    ++_generation;
+    if (ref.watch(accessDeniedProvider)) return AsyncValue.error(StateError('Access denied'), StackTrace.current);
     _fetchDetail(id);
     return const AsyncValue.loading();
   }
 
   Future<void> _fetchDetail(String id) async {
+    final generation = _generation;
     try {
       state = const AsyncValue.loading();
+      await ref.read(accessContextProvider.future);
       final repository = ref.read(contentRepositoryProvider);
       final content = await repository.getContentById(id);
+      if (generation != _generation || ref.read(accessDeniedProvider)) return;
       state = AsyncValue.data(content);
     } catch (e, st) {
       state = AsyncValue.error(ExceptionHandler.handle(e), st);

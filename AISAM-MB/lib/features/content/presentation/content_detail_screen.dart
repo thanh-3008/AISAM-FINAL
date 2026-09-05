@@ -6,6 +6,7 @@ import '../../../core/shared/app_snackbar.dart';
 import 'providers/content_editor_controller.dart';
 import '../data/models/content_model.dart';
 import 'widgets/schedule_post_bottom_sheet.dart';
+import '../../access/presentation/access_providers.dart';
 
 class ContentDetailScreen extends ConsumerWidget {
   final String contentId;
@@ -14,11 +15,13 @@ class ContentDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detailState = ref.watch(contentDetailControllerProvider(contentId));
+    final actions = ref.watch(contentActionsProvider(contentId)).valueOrNull ?? const <String, bool>{};
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Content Details'),
         actions: [
+          if (actions['Schedule'] == true)
           IconButton(
             icon: const Icon(Icons.calendar_month, color: Colors.blue),
             onPressed: () {
@@ -30,11 +33,11 @@ class ContentDetailScreen extends ConsumerWidget {
               );
             },
           ),
-          IconButton(
+          if (actions['Edit'] == true) IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () => context.push('/content/$contentId/edit'),
           ),
-          IconButton(
+          if (actions['Delete'] == true) IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
             onPressed: () async {
               final confirm = await showDialog<bool>(

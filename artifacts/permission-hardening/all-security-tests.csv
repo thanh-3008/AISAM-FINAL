@@ -1,0 +1,128 @@
+testName,outcome,duration
+AISAM.IntegrationTests.ExecutionSecurityTests.Attribution_CannotBeRewrittenAfterEnqueue,Passed,00:00:00.2767190
+AISAM.IntegrationTests.ExecutionSecurityTests.BackgroundCredit_UsesCapturedTeamAfterTransfer_AndSeparatesSystemAudit,Passed,00:00:00.2496733
+AISAM.IntegrationTests.ExecutionSecurityTests.BlockedDispatch_ReportsDegradedHealthWithoutClaimingSuccessfulExecution,Passed,00:00:00.1788856
+AISAM.IntegrationTests.ExecutionSecurityTests.ConcurrentTaskTransition_LoserCannotCommitDuplicateAudit,Passed,00:00:00.2067652
+AISAM.IntegrationTests.ExecutionSecurityTests.CreditOfAnotherUser_DoesNotInheritAdministratorsActiveTeam,Passed,00:00:00.2144802
+AISAM.IntegrationTests.ExecutionSecurityTests.DatabaseRejectsCrossWorkspaceTask_EvenWithUnscopedSynchronousWrite,Passed,00:00:00.1843690
+AISAM.IntegrationTests.ExecutionSecurityTests.DeniedNextJob_ClearsPreviousAttributionInReusedWorkerScope,Passed,00:00:00.1643798
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""brand"")",Passed,00:00:00.2457283
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""channel"")",Passed,00:00:00.1776544
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""deleted"")",Passed,00:00:00.3104627
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""missing-team"")",Passed,00:00:00.1831455
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""reference"")",Passed,00:00:00.2680039
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""resource"")",Passed,00:00:00.2014456
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""team"")",Passed,00:00:00.2016874
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""unknown-type"")",Passed,00:00:00.2123273
+"AISAM.IntegrationTests.ExecutionSecurityTests.ExecutionIntegrity_DeniesTamperedRelationships(field: ""workspace"")",Passed,00:00:00.1982519
+AISAM.IntegrationTests.ExecutionSecurityTests.ExpiryRepeat_IsIdempotent_AndAuditDistinguishesSystemFromRequester,Passed,00:00:02.0749814
+AISAM.IntegrationTests.ExecutionSecurityTests.MissingLegacyContext_CannotFallBackToCurrentOwner,Passed,00:00:00.2319556
+AISAM.IntegrationTests.ExecutionSecurityTests.MultiChannelContent_ManagerFiltersBeforeSum_AndRevokeTakesEffect,Passed,00:00:00.2285645
+AISAM.IntegrationTests.ExecutionSecurityTests.PostgreSqlModel_ContainsCompositeBoundariesAndTranslatableExecutionLookup,Passed,00:00:00.9050455
+AISAM.IntegrationTests.ExecutionSecurityTests.ScheduleSnapshot_PreservesRequesterTeamAndTarget_WithoutInventingApproval,Passed,00:00:00.1968792
+AISAM.IntegrationTests.ExecutionSecurityTests.ScheduledService_BlocksBeforeClaimOrPublishDependenciesAreTouched,Passed,00:00:00.1776633
+AISAM.IntegrationTests.ExecutionSecurityTests.TemporaryCanEdit_DoesNotElevateNewActions(action: AiGenerate),Passed,00:00:00.2053599
+AISAM.IntegrationTests.ExecutionSecurityTests.TemporaryCanEdit_DoesNotElevateNewActions(action: AiImprove),Passed,00:00:00.2492198
+AISAM.IntegrationTests.ExecutionSecurityTests.TemporaryCanEdit_DoesNotElevateNewActions(action: MediaUpload),Passed,00:00:00.2249683
+AISAM.IntegrationTests.ExecutionSecurityTests.TemporaryCanEdit_DoesNotElevateNewActions(action: Reschedule),Passed,00:00:00.2421742
+AISAM.IntegrationTests.ExecutionSecurityTests.TemporaryCanEdit_DoesNotElevateNewActions(action: Unpublish),Passed,00:00:00.2052466
+AISAM.IntegrationTests.ExecutionSecurityTests.TemporaryCanEdit_DoesNotElevateNewActions(action: Unschedule),Passed,00:00:00.1862127
+"AISAM.IntegrationTests.ExecutionSecurityTests.UnapprovedDispatch_DeniesWithoutSelectingAuthority(operation: ""AutomationOperations"")",Passed,00:00:00.0000109
+"AISAM.IntegrationTests.ExecutionSecurityTests.UnapprovedDispatch_DeniesWithoutSelectingAuthority(operation: ""CampaignInsights"")",Passed,00:00:00.0008198
+"AISAM.IntegrationTests.ExecutionSecurityTests.UnapprovedDispatch_DeniesWithoutSelectingAuthority(operation: ""PostInsights"")",Passed,00:00:00.0002925
+"AISAM.IntegrationTests.ExecutionSecurityTests.UnapprovedDispatch_DeniesWithoutSelectingAuthority(operation: ""ScheduledPublish"")",Passed,00:00:00.0000074
+AISAM.IntegrationTests.ExecutionSecurityTests.VideoStatus_RejectsOtherCreatorsFinishedJobBeforeReturningPrompt,Passed,00:00:00.3186898
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""brand"", synchronous: False)",Passed,00:00:00.2281882
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""brand"", synchronous: True)",Passed,00:00:00.1785955
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""channel"", synchronous: False)",Passed,00:00:00.2651382
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""membership"", synchronous: False)",Passed,00:00:00.2014196
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""role"", synchronous: False)",Passed,00:00:00.1876997
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""role"", synchronous: True)",Passed,00:00:00.1752988
+"AISAM.IntegrationTests.HardeningSecurityTests.Authorized_mutation_does_not_commit_after_independent_revoke(change: ""team"", synchronous: False)",Passed,00:00:00.2900138
+AISAM.IntegrationTests.HardeningSecurityTests.Authorized_schedule_captures_enqueue_evidence_without_inventing_approval,Passed,00:00:00.2853473
+AISAM.IntegrationTests.HardeningSecurityTests.Automation_confirm_and_retry_deny_before_credit_reservation(retry: False),Passed,00:00:00.2461444
+AISAM.IntegrationTests.HardeningSecurityTests.Automation_confirm_and_retry_deny_before_credit_reservation(retry: True),Passed,00:00:00.1836947
+"AISAM.IntegrationTests.HardeningSecurityTests.Billing_endpoints_fail_closed_before_sensitive_services(path: ""/api/credit-usage/wallet"", role: ContentCreator)",Passed,00:00:00.2447995
+"AISAM.IntegrationTests.HardeningSecurityTests.Billing_endpoints_fail_closed_before_sensitive_services(path: ""/api/credit-usage/wallet"", role: Manager)",Passed,00:00:00.1790269
+"AISAM.IntegrationTests.HardeningSecurityTests.Billing_endpoints_fail_closed_before_sensitive_services(path: ""/api/payment/history"", role: Manager)",Passed,00:00:00.2097913
+"AISAM.IntegrationTests.HardeningSecurityTests.Billing_endpoints_fail_closed_before_sensitive_services(path: ""/api/payment/subscription/current"", role: Manager)",Passed,00:00:00.1933071
+"AISAM.IntegrationTests.HardeningSecurityTests.Billing_endpoints_fail_closed_before_sensitive_services(path: ""/api/quota/workspace/current"", role: Manager)",Passed,00:00:00.2156360
+"AISAM.IntegrationTests.HardeningSecurityTests.Billing_endpoints_fail_closed_before_sensitive_services(path: ""/api/quota/workspace/current"", role: Viewer)",Passed,00:00:00.1853306
+AISAM.IntegrationTests.HardeningSecurityTests.Grant_expiring_at_commit_is_denied_without_revision_change,Passed,00:00:00.2899746
+AISAM.IntegrationTests.HardeningSecurityTests.Grant_expiry_during_database_write_rolls_back_before_commit(outerTransaction: False),Passed,00:00:00.2128425
+AISAM.IntegrationTests.HardeningSecurityTests.Grant_expiry_during_database_write_rolls_back_before_commit(outerTransaction: True),Passed,00:00:00.1648227
+AISAM.IntegrationTests.HardeningSecurityTests.Manager_dashboard_omits_billing_and_never_calls_billing_dependencies,Passed,00:00:00.2145622
+AISAM.IntegrationTests.HardeningSecurityTests.Multi_channel_aggregates_pagination_and_projection_refresh_after_revoke,Passed,00:00:00.2544627
+AISAM.IntegrationTests.HardeningSecurityTests.Native_permission_survives_expired_temporary_source,Passed,00:00:00.2802677
+AISAM.IntegrationTests.HardeningSecurityTests.Proven_original_AI_actor_can_read_own_job_unless_downgraded_to_viewer(downgraded: False),Passed,00:00:00.2440680
+AISAM.IntegrationTests.HardeningSecurityTests.Proven_original_AI_actor_can_read_own_job_unless_downgraded_to_viewer(downgraded: True),Passed,00:00:00.1676876
+AISAM.IntegrationTests.HardeningSecurityTests.Request_cannot_forge_execution_actor_or_approval,Passed,00:00:00.2491763
+AISAM.IntegrationTests.HardeningSecurityTests.Shared_content_does_not_expose_private_AI_payloads(role: ContentCreator),Passed,00:00:00.1995055
+AISAM.IntegrationTests.HardeningSecurityTests.Shared_content_does_not_expose_private_AI_payloads(role: Manager),Passed,00:00:00.2535012
+AISAM.IntegrationTests.HardeningSecurityTests.Shared_content_does_not_expose_private_AI_payloads(role: Viewer),Passed,00:00:00.2067498
+AISAM.IntegrationTests.HardeningSecurityTests.Synchronous_scoped_write_preserves_creator_immutability,Passed,00:00:00.2054583
+AISAM.IntegrationTests.HardeningSecurityTests.Synchronous_scoped_write_rejects_cross_workspace_team_brand,Passed,00:00:02.0672529
+AISAM.IntegrationTests.HardeningSecurityTests.Temporary_edit_never_elevates_AI_actions(action: AiAdopt),Passed,00:00:00.2298378
+AISAM.IntegrationTests.HardeningSecurityTests.Temporary_edit_never_elevates_AI_actions(action: AiChat),Passed,00:00:00.1415043
+AISAM.IntegrationTests.HardeningSecurityTests.Temporary_edit_never_elevates_AI_actions(action: AiGenerateImage),Passed,00:00:00.2281802
+AISAM.IntegrationTests.HardeningSecurityTests.Temporary_edit_never_elevates_AI_actions(action: AiGenerateVideo),Passed,00:00:00.2164924
+AISAM.IntegrationTests.HardeningSecurityTests.Temporary_revoke_or_reassignment_after_authorize_blocks_commit(reassign: False),Passed,00:00:00.3555001
+AISAM.IntegrationTests.HardeningSecurityTests.Temporary_revoke_or_reassignment_after_authorize_blocks_commit(reassign: True),Passed,00:00:00.2584307
+AISAM.IntegrationTests.HardeningSecurityTests.Unstamped_non_owner_enqueue_is_denied_before_persistence,Passed,00:00:00.2019944
+AISAM.IntegrationTests.HardeningSecurityTests.Valid_grant_is_independent_of_blocked_task_status,Passed,00:00:00.2020442
+AISAM.IntegrationTests.HardeningSecurityTests.Video_job_serialization_excludes_tracked_navigation_and_provider_diagnostics,Passed,00:00:00.0034997
+AISAM.IntegrationTests.PermissionHttpTests.ContentActions_ViewerCanReadSafeCapabilitiesWithoutAnalytics,Passed,00:00:00.3448160
+AISAM.IntegrationTests.PermissionHttpTests.CreatorHistory_RejectsTamperedUserAndWorkspace,Passed,00:00:00.2342364
+AISAM.IntegrationTests.PermissionHttpTests.LegacySignedTokenWithoutSessionId_IsRejected,Passed,00:00:02.1841273
+AISAM.IntegrationTests.PermissionHttpTests.MemberTransfer_ChangesAccessVersionEvenWhenManagerBrandAndChannelsStaySame,Passed,00:00:00.4481132
+AISAM.IntegrationTests.PermissionHttpTests.RefreshRotation_RevokesOldSignedSession_AndReuseRevokesReplacement,Passed,00:00:00.4559459
+AISAM.IntegrationTests.PermissionHttpTests.RevokedTimestampAlone_PreventsRefreshEvenIfActiveFlagIsStale,Passed,00:00:00.1227766
+"AISAM.IntegrationTests.PermissionHttpTests.SessionChange_InvalidatesExistingSignedToken(change: ""expired"")",Passed,00:00:00.2323933
+"AISAM.IntegrationTests.PermissionHttpTests.SessionChange_InvalidatesExistingSignedToken(change: ""inactive"")",Passed,00:00:00.2900873
+"AISAM.IntegrationTests.PermissionHttpTests.SessionChange_InvalidatesExistingSignedToken(change: ""revoked"")",Passed,00:00:00.2139619
+"AISAM.IntegrationTests.PermissionHttpTests.SessionLifecycle_ExistingSignedTokenDeniedAfterRealStateChange(change: ""inactive-user"")",Passed,00:00:00.3524959
+"AISAM.IntegrationTests.PermissionHttpTests.SessionLifecycle_ExistingSignedTokenDeniedAfterRealStateChange(change: ""logout"")",Passed,00:00:00.2828483
+"AISAM.IntegrationTests.PermissionHttpTests.SessionLifecycle_ExistingSignedTokenDeniedAfterRealStateChange(change: ""logout-all"")",Passed,00:00:00.1975046
+AISAM.IntegrationTests.PermissionHttpTests.TemporaryEdit_UsesRealMutationServiceAndImmediatelyDeniesRevocation,Passed,00:00:01.7088241
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerCannotBypassAnalyticsThroughRouteVariants(path: ""/API/ANALYTICS/overview"")",Passed,00:00:00.3439044
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerCannotBypassAnalyticsThroughRouteVariants(path: ""/api/access/me/analytics"")",Passed,00:00:00.2962575
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerCannotBypassAnalyticsThroughRouteVariants(path: ""/api/analytics/overview"")",Passed,00:00:00.4200252
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerCannotBypassAnalyticsThroughRouteVariants(path: ""/api/analytics/overview/"")",Passed,00:00:00.3141817
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerCannotBypassAnalyticsThroughRouteVariants(path: ""/api/credit-usage/"")",Passed,00:00:00.3660437
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerCannotBypassAnalyticsThroughRouteVariants(path: ""/api/dashboard/summary/"")",Passed,00:00:00.3051623
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerMutation_IsDeniedBeforeControllerExecution(method: ""DELETE"", path: ""/api/content/00000000-0000-0000-0000-000000000001/"")",Passed,00:00:00.3294165
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerMutation_IsDeniedBeforeControllerExecution(method: ""POST"", path: ""/api/content"")",Passed,00:00:00.3355443
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerMutation_IsDeniedBeforeControllerExecution(method: ""POST"", path: ""/api/content-schedules"")",Passed,00:00:00.4253994
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerMutation_IsDeniedBeforeControllerExecution(method: ""POST"", path: ""/api/content/00000000-0000-0000-0000-000000000001/""···)",Passed,00:00:00.4224653
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerMutation_IsDeniedBeforeControllerExecution(method: ""POST"", path: ""/api/posts"")",Passed,00:00:00.3975353
+"AISAM.IntegrationTests.PermissionHttpTests.ViewerMutation_IsDeniedBeforeControllerExecution(method: ""PUT"", path: ""/api/content/00000000-0000-0000-0000-000000000001"")",Passed,00:00:00.4088832
+AISAM.IntegrationTests.PermissionHttpTests.WorkspaceRoleDowngrade_UsesDatabaseRoleImmediately,Passed,00:00:00.1836076
+AISAM.IntegrationTests.PermissionSecurityTests.AssignedPendingTask_LosesEditImmediatelyWhenChannelRevoked,Passed,00:00:00.2951169
+AISAM.IntegrationTests.PermissionSecurityTests.AutomationCounts_UseOnlyAuthorizedItems,Passed,00:00:00.3252094
+AISAM.IntegrationTests.PermissionSecurityTests.CampaignMetadata_DoesNotSerializeProtectedMetrics(role: ContentCreator),Passed,00:00:02.2564414
+AISAM.IntegrationTests.PermissionSecurityTests.CampaignMetadata_DoesNotSerializeProtectedMetrics(role: Viewer),Passed,00:00:00.1241653
+AISAM.IntegrationTests.PermissionSecurityTests.HistoricalView_AfterTeamRemoval_DoesNotRestoreBrandAccess,Passed,00:00:00.2824756
+AISAM.IntegrationTests.PermissionSecurityTests.ManagerCampaignMetrics_ExcludeDeniedChannel_AndRevokeIsImmediate,Passed,00:00:00.2498734
+AISAM.IntegrationTests.PermissionSecurityTests.MemberDirectory_DoesNotExposeOtherUsersCredit(role: ContentCreator),Passed,00:00:00.2119171
+AISAM.IntegrationTests.PermissionSecurityTests.MemberDirectory_DoesNotExposeOtherUsersCredit(role: Viewer),Passed,00:00:00.2056742
+"AISAM.IntegrationTests.PermissionSecurityTests.PermissionRelations_RejectCrossWorkspaceWrites(relation: ""brand"")",Passed,00:00:00.2641665
+"AISAM.IntegrationTests.PermissionSecurityTests.PermissionRelations_RejectCrossWorkspaceWrites(relation: ""grant"")",Passed,00:00:00.1774100
+"AISAM.IntegrationTests.PermissionSecurityTests.PermissionRelations_RejectCrossWorkspaceWrites(relation: ""participation"")",Passed,00:00:00.2032770
+"AISAM.IntegrationTests.PermissionSecurityTests.PermissionRelations_RejectCrossWorkspaceWrites(relation: ""task"")",Passed,00:00:00.1895669
+AISAM.IntegrationTests.PermissionSecurityTests.PostgreSqlProvider_TranslatesSensitiveProjectionsWithoutConnecting,Passed,00:00:00.4863946
+"AISAM.IntegrationTests.PermissionSecurityTests.SettingAudit_NeverStoresArbitraryInput(key: ""credential_rotation"", batch: True)",Passed,00:00:00.4278613
+"AISAM.IntegrationTests.PermissionSecurityTests.SettingAudit_NeverStoresArbitraryInput(key: ""display"", batch: False)",Passed,00:00:00.2513793
+"AISAM.IntegrationTests.PermissionSecurityTests.SettingAudit_NeverStoresArbitraryInput(key: ""nested_runtime_configuration"", batch: True)",Passed,00:00:00.1689246
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryCanEdit_DoesNotGrantOtherActions(action: Assign, expected: False)",Passed,00:00:00.1752294
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryCanEdit_DoesNotGrantOtherActions(action: Clone, expected: False)",Passed,00:00:00.2293029
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryCanEdit_DoesNotGrantOtherActions(action: Delete, expected: False)",Passed,00:00:00.2214342
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryCanEdit_DoesNotGrantOtherActions(action: Edit, expected: True)",Passed,00:00:00.2585186
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryCanEdit_DoesNotGrantOtherActions(action: Publish, expected: False)",Passed,00:00:00.1191356
+AISAM.IntegrationTests.PermissionSecurityTests.TemporaryEdit_DoesNotSurviveRemovalFromAssignedTeam,Passed,00:00:00.2141520
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryExpiry_IsEnforcedWithoutWorker(seconds: -60, expected: False)",Passed,00:00:00.3283220
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryExpiry_IsEnforcedWithoutWorker(seconds: 0, expected: False)",Passed,00:00:00.2593113
+"AISAM.IntegrationTests.PermissionSecurityTests.TemporaryExpiry_IsEnforcedWithoutWorker(seconds: 600, expected: True)",Passed,00:00:00.2973993
+AISAM.IntegrationTests.PermissionSecurityTests.WorkspaceAccounting_IsIndependentOfVisibility(role: ContentCreator),Passed,00:00:00.1552387
+AISAM.IntegrationTests.PermissionSecurityTests.WorkspaceAccounting_IsIndependentOfVisibility(role: Manager),Passed,00:00:00.1968853
+AISAM.IntegrationTests.PermissionSecurityTests.WorkspaceAccounting_IsIndependentOfVisibility(role: Owner),Passed,00:00:00.2550589
+AISAM.IntegrationTests.PermissionSecurityTests.WorkspaceAccounting_IsIndependentOfVisibility(role: Viewer),Passed,00:00:00.2036544

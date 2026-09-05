@@ -13,6 +13,7 @@ import { fetchCreditWallet } from "@/services/workspaceService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { getStoredAutosave } from "@/hooks/useSettings";
 import { deriveTitleFromCaption } from "@/lib/generatedPostTitle";
+import { validateAiChatBrand } from "@/lib/aiChatValidation";
 import { parseMediaMarkers, replaceVideoJobMarker, restoreConversationHistory, type ChatMessage, type Variation } from "@/lib/aiGenerateHistory";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import RichTextPreview from "@/components/content/RichTextPreview";
@@ -457,7 +458,7 @@ export default function AIGeneratePage() {
     const aiReply = await chatWithAI(
       userPrompt,
       0,
-      brandId || undefined,
+      brandId,
       productId || undefined,
       conversationId || undefined,
       messages.map(m => ({ role: m.role, text: m.text })),
@@ -587,6 +588,11 @@ export default function AIGeneratePage() {
   const handleSendChat = () => {
     const text = chatInput.trim();
     if (!text || isGenerating || generationInFlightRef.current) return;
+    const brandValidationMessage = validateAiChatBrand(brandId);
+    if (brandValidationMessage) {
+      addToast(brandValidationMessage, "error");
+      return;
+    }
     if (text.length > 3000) {
       addToast("Message is too long. Please limit to 3000 characters.");
       return;
@@ -607,6 +613,11 @@ export default function AIGeneratePage() {
 
   const handleQuickTemplate = (key: string) => {
     if (isGenerating || generationInFlightRef.current) return;
+    const brandValidationMessage = validateAiChatBrand(brandId);
+    if (brandValidationMessage) {
+      addToast(brandValidationMessage, "error");
+      return;
+    }
     const prompt = VARIATION_TEMPLATES[key];
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", text: prompt };
     setMessages((prev) => [...prev, userMsg]);

@@ -25,11 +25,11 @@ export interface CreditWallet {
 }
 
 export interface WorkspaceDashboard {
-  creditBalance: number;
+  creditBalance?: number;
   creditsUsed: number;
   publishedPostCount: number;
-  postQuotaLimit: number;
-  postsRemaining: number;
+  postQuotaLimit?: number;
+  postsRemaining?: number;
   aiUsageCount: number;
   activeMemberCount: number;
   topMembers: { userId: string; name: string; usage: number }[];
@@ -59,11 +59,11 @@ export async function fetchWorkspaceDashboard(): Promise<WorkspaceDashboard | nu
         topMembers?: { userId: string; name: string; creditsUsed: number }[];
       };
       return {
-        creditBalance: d.creditBalance ?? 0,
+        creditBalance: d.creditBalance,
         creditsUsed: d.creditsUsed ?? 0,
         publishedPostCount: d.publishedPostCount ?? 0,
-        postQuotaLimit: d.postQuotaLimit ?? 0,
-        postsRemaining: d.postsRemaining ?? 0,
+        postQuotaLimit: d.postQuotaLimit,
+        postsRemaining: d.postsRemaining,
         aiUsageCount: d.aiUsageCount ?? 0,
         activeMemberCount: d.activeMemberCount ?? 0,
         topMembers: (d.topMembers ?? []).map(m => ({
@@ -125,7 +125,8 @@ export async function fetchCreditWallet(): Promise<{
       workspaceId?: string;
     } | undefined : undefined;
 
-    const balance = dash?.creditBalance ?? wallet?.balance ?? 0;
+    const balance = dash?.creditBalance ?? wallet?.balance;
+    if (balance == null) return null;
 
     return {
       id: sub?.subscriptionId || "",

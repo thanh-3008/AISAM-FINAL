@@ -44,9 +44,9 @@ export interface AutomationPlan {
   validItems: number;
   failedItems: number;
   estimatedCredits: number;
-  reservedCredits: number;
+  reservedCredits?: number | null;
   usedCredits: number;
-  releasedCredits: number;
+  releasedCredits?: number | null;
   autoApprove: boolean;
   templateSourcePlanId?: string;
   createdAt: string;

@@ -1,3 +1,5 @@
+import '../../../../core/network/access_events.dart';
+import '../../../access/presentation/access_providers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/product_repository.dart';
 import '../../data/models/product_model.dart';
@@ -9,19 +11,31 @@ part 'product_controller.g.dart';
 
 @riverpod
 class ProductController extends _$ProductController {
+  int _generation = 0;
+
   @override
   AsyncValue<List<ProductResponseModel>> build(String? brandId) {
+    ++_generation;
+    ref.onDispose(() => ++_generation);
+    ref.watch(accessContextProvider);
+    if (ref.watch(accessDeniedProvider)) {
+      return AsyncValue.error(StateError('Access denied'), StackTrace.current);
+    }
     _fetchProducts(brandId);
     return const AsyncValue.loading();
   }
 
   Future<void> _fetchProducts(String? brandId) async {
+    final generation = ++_generation;
     try {
-      state = const AsyncValue.loading();
+      await ref.read(accessContextProvider.future);
+      if (generation != _generation || ref.read(accessDeniedProvider)) return;
       final repository = ref.read(productRepositoryProvider);
       final products = await repository.getProducts(brandId: brandId);
+      if (generation != _generation || ref.read(accessDeniedProvider)) return;
       state = AsyncValue.data(products);
     } catch (e, st) {
+      if (generation != _generation || ref.read(accessDeniedProvider)) return;
       state = AsyncValue.error(ExceptionHandler.handle(e), st);
     }
   }

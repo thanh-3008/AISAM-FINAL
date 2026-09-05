@@ -4,11 +4,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Repositories
 {
-    public class AisamContext : DbContext
+    public partial class AisamContext : DbContext
     {
-        public AisamContext(DbContextOptions<AisamContext> options) : base(options)
+        public AisamContext(DbContextOptions<AisamContext> options, AISAM.Data.AccessScope? accessScope = null) : base(options)
         {
+            AccessScope = accessScope ?? new AISAM.Data.AccessScope();
         }
+
+        public AISAM.Data.AccessScope AccessScope { get; }
 
         public DbSet<User> Users { get; set; }
         public DbSet<Session> Sessions { get; set; }
@@ -53,6 +56,8 @@ namespace AISAM.Repositories
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            ConfigureAccessControl(modelBuilder);
 
             // User entity indexes and constraints
             modelBuilder.Entity<User>(entity =>

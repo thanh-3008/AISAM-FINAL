@@ -210,7 +210,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         if (!httpResponse.IsSuccessStatusCode)
         {
-            _logger.LogError("PayOS business workspace checkout HTTP failure. Status: {StatusCode}, ResponseBody: {ResponseBody}", (int)httpResponse.StatusCode, responseBody);
+            _logger.LogError("PayOS business workspace checkout HTTP failure. Status: {StatusCode}", (int)httpResponse.StatusCode);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -222,12 +222,11 @@ public sealed class PayOSPaymentService : IPaymentService
         var payOsResponse = ParseCreatePaymentResponse(responseBody);
         if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
         {
-            _logger.LogError("PayOS business workspace checkout response missing checkoutUrl. ResponseBody: {ResponseBody}", responseBody);
+            _logger.LogError("PayOS business workspace checkout response missing checkoutUrl.");
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
-            var payOsError = ExtractPayOsErrorMessage(responseBody);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
-                $"PayOS response did not contain a checkout URL. Details: {payOsError}",
+                "PayOS response did not contain a checkout URL.",
                 HttpStatusCode.BadGateway,
                 "PAYOS_CHECKOUT_URL_MISSING");
         }
@@ -261,8 +260,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var payment = await _paymentRepository.GetByReferenceAsync(reference.Trim(), cancellationToken);
         if (payment == null || payment.UserId != userId)
         {
-            _logger.LogError("SynchronizeBusinessWorkspaceCheckout: Payment not found or userId mismatch. Reference: {Reference}, Found: {Found}, ExpectedUserId: {ExpectedUserId}, ActualUserId: {ActualUserId}", 
-                reference, payment != null, userId, payment?.UserId);
+            _logger.LogError("SynchronizeBusinessWorkspaceCheckout: payment not found or user mismatch. Found: {Found}", payment != null);
             return GenericResponse<bool>.CreateError("Payment not found.", HttpStatusCode.NotFound);
         }
 
@@ -283,8 +281,8 @@ public sealed class PayOSPaymentService : IPaymentService
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("SynchronizeBusinessWorkspaceCheckout: PayOS verify failed. Reference: {Reference}, Status: {StatusCode}, ResponseBody: {ResponseBody}", 
-                reference, (int)response.StatusCode, errorBody);
+            _logger.LogError("SynchronizeBusinessWorkspaceCheckout: PayOS verify failed. PaymentId: {PaymentId}, Status: {StatusCode}",
+                payment.Id, (int)response.StatusCode);
             return GenericResponse<bool>.CreateError(
                 "Unable to verify the payment with PayOS.",
                 HttpStatusCode.BadGateway,
@@ -292,7 +290,7 @@ public sealed class PayOSPaymentService : IPaymentService
         }
 
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        _logger.LogInformation("SynchronizeBusinessWorkspaceCheckout: PayOS verify success. Reference: {Reference}, ResponseBody: {ResponseBody}", reference, responseBody);
+        _logger.LogInformation("SynchronizeBusinessWorkspaceCheckout: PayOS verify succeeded. PaymentId: {PaymentId}", payment.Id);
         
         using var document = JsonDocument.Parse(responseBody);
         var root = document.RootElement;
@@ -307,8 +305,8 @@ public sealed class PayOSPaymentService : IPaymentService
             acknowledgeMissingPayment: false,
             cancellationToken);
         
-        _logger.LogInformation("SynchronizeBusinessWorkspaceCheckout: ApplyPaymentStatusAsync result. Reference: {Reference}, Success: {Success}, Message: {Message}", 
-            reference, result.Success, result.Message);
+        _logger.LogInformation("SynchronizeBusinessWorkspaceCheckout: payment status application completed. PaymentId: {PaymentId}, Success: {Success}",
+            payment.Id, result.Success);
         
         return result;
     }
@@ -407,7 +405,7 @@ public sealed class PayOSPaymentService : IPaymentService
         var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         if (!httpResponse.IsSuccessStatusCode)
         {
-            _logger.LogError("PayOS subscription checkout HTTP failure. Status: {StatusCode}, ResponseBody: {ResponseBody}", (int)httpResponse.StatusCode, responseBody);
+            _logger.LogError("PayOS subscription checkout HTTP failure. Status: {StatusCode}", (int)httpResponse.StatusCode);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -419,11 +417,10 @@ public sealed class PayOSPaymentService : IPaymentService
         var payOsResponse = ParseCreatePaymentResponse(responseBody);
         if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
         {
-            _logger.LogError("PayOS subscription checkout response missing checkoutUrl. ResponseBody: {ResponseBody}", responseBody);
+            _logger.LogError("PayOS subscription checkout response missing checkoutUrl.");
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
-            var payOsError = ExtractPayOsErrorMessage(responseBody);
-            return GenericResponse<PayOSCheckoutResponse>.CreateError($"PayOS response did not contain a checkout URL. Details: {payOsError}", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS response did not contain a checkout URL.", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
         }
 
         subscription.PayOSPaymentLinkId = payOsResponse.PaymentLinkId;
@@ -489,13 +486,9 @@ public sealed class PayOSPaymentService : IPaymentService
         };
 
         _logger.LogInformation(
-            "PayOS credit pack checkout request: Amount={Amount}, Description={Description}, OrderCode={OrderCode}, ReturnUrl={ReturnUrl}, CancelUrl={CancelUrl}, Signature={Signature}",
-            payOsRequest.amount,
-            payOsRequest.description,
-            payOsRequest.orderCode,
-            payOsRequest.returnUrl,
-            payOsRequest.cancelUrl,
-            payOsRequest.signature);
+            "Submitting PayOS credit pack checkout request. PaymentId={PaymentId}, Amount={Amount}",
+            payment.Id,
+            payOsRequest.amount);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildPayOsUri("/v2/payment-requests"))
         {
@@ -507,12 +500,12 @@ public sealed class PayOSPaymentService : IPaymentService
         using var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
         var responseBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         _logger.LogInformation(
-            "PayOS credit pack checkout response: StatusCode={StatusCode}, RawResponse={RawResponse}",
-            (int)httpResponse.StatusCode,
-            responseBody);
+            "PayOS credit pack checkout completed. PaymentId={PaymentId}, StatusCode={StatusCode}",
+            payment.Id,
+            (int)httpResponse.StatusCode);
         if (!httpResponse.IsSuccessStatusCode)
         {
-            _logger.LogError("PayOS credit pack checkout HTTP failure. Status: {StatusCode}, ResponseBody: {ResponseBody}", (int)httpResponse.StatusCode, responseBody);
+            _logger.LogError("PayOS credit pack checkout HTTP failure. PaymentId={PaymentId}, Status: {StatusCode}", payment.Id, (int)httpResponse.StatusCode);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -524,11 +517,10 @@ public sealed class PayOSPaymentService : IPaymentService
         var payOsResponse = ParseCreatePaymentResponse(responseBody);
         if (string.IsNullOrWhiteSpace(payOsResponse.CheckoutUrl))
         {
-            _logger.LogError("PayOS credit pack checkout response missing checkoutUrl. ResponseBody: {ResponseBody}", responseBody);
+            _logger.LogError("PayOS credit pack checkout response missing checkoutUrl. PaymentId={PaymentId}", payment.Id);
             payment.Status = PaymentStatusEnum.Failed;
             await _paymentRepository.UpdateAsync(payment, cancellationToken);
-            var payOsError = ExtractPayOsErrorMessage(responseBody);
-            return GenericResponse<PayOSCheckoutResponse>.CreateError($"PayOS response did not contain a checkout URL. Details: {payOsError}", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
+            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS response did not contain a checkout URL.", HttpStatusCode.BadGateway, "PAYOS_CHECKOUT_URL_MISSING");
         }
 
         payment.InvoiceUrl = payOsResponse.CheckoutUrl;
@@ -1058,21 +1050,6 @@ public sealed class PayOSPaymentService : IPaymentService
             PaymentLinkId = TryGetString(data, "paymentLinkId"),
             OrderCode = TryGetString(data, "orderCode")
         };
-    }
-
-    private static string ExtractPayOsErrorMessage(string responseBody)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(responseBody);
-            var root = document.RootElement;
-            var desc = TryGetString(root, "desc");
-            return string.IsNullOrWhiteSpace(desc) ? "Unknown error" : desc;
-        }
-        catch
-        {
-            return "Failed to parse response";
-        }
     }
 
     private static string SanitizePayOsDescription(string description)

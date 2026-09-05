@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useAccessContext } from "@/contexts/AccessContext";
 import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
 import { fetchCreditWallet, fetchPostQuota, fetchWorkspaceDashboard, type WorkspaceDashboard } from "@/services/workspaceService";
@@ -89,6 +90,7 @@ const RANK_GRADIENTS = [
 
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspaces();
+  const canViewBilling = useAccessContext()?.role === "Owner";
   const workspaceName = activeWorkspace?.name || "User";
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
@@ -120,14 +122,18 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchCreditWallet().then(w => { if (w) { setCreditBalance(w.balance); setMaxCreditBalance(w.maxBalance); } });
-    fetchPostQuota().then(q => { if (q) setPostQuota(q); });
+    let disposed = false;
+    if (canViewBilling) {
+      fetchCreditWallet().then(w => { if (!disposed && w) { setCreditBalance(w.balance); setMaxCreditBalance(w.maxBalance); } });
+      fetchPostQuota().then(q => { if (!disposed && q) setPostQuota(q); });
+    }
     fetchWorkspaceDashboard().then(d => { if (d) setDashboard(d); });
     fetchCampaigns({ pageSize: 5 }).then((res) => {
       if (res) setDashboardCampaigns(res.data.slice(0, 5));
     });
     fetchChannelBreakdown("90d").then(d => { setPlatformBreakdown(d); }).catch(() => setPlatformBreakdown([]));
-  }, [activeWorkspace?.id]);
+    return () => { disposed = true; };
+  }, [activeWorkspace?.id, canViewBilling]);
 
   useEffect(() => {
     const platforms = ["facebook", "instagram", "tiktok"];
@@ -305,8 +311,8 @@ export default function DashboardPage() {
             { icon: "check_circle", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "Published", value: String(dashboard?.publishedPostCount ?? 0), delta: null, deltaUp: null, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
             { icon: "auto_awesome", iconBg: "from-blue-500/20 to-blue-600/10", iconColor: "text-blue-500", label: "AI Usage", value: String(dashboard?.aiUsageCount ?? 0), delta: null, deltaUp: null, gradient: "from-blue-500/5 to-transparent", accent: "#3b82f6" },
             { icon: "token", iconBg: "from-emerald-500/20 to-emerald-600/10", iconColor: "text-emerald-500", label: "AI Credits", value: String(creditBalance ?? 0), delta: null, deltaUp: null, max: maxCreditBalance ? String(maxCreditBalance) : undefined, pct: maxCreditBalance ? Math.min(100, Math.round(((creditBalance ?? 0) / maxCreditBalance) * 100)) : 0, gradient: "from-emerald-500/5 to-transparent", accent: "#10b981" },
-            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? (dashboard ? (dashboard.postQuotaLimit - dashboard.postsRemaining) : 0)), delta: null, deltaUp: null, max: String(postQuota?.total ?? dashboard?.postQuotaLimit ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : dashboard ? Math.round(((dashboard.postQuotaLimit - dashboard.postsRemaining) / dashboard.postQuotaLimit) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
-          ].map((kpi, i) => (
+            { icon: "send", iconBg: "from-amber-500/20 to-amber-600/10", iconColor: "text-amber-500", label: "Posts This Month", value: String(postQuota?.used ?? (dashboard ? ((dashboard.postQuotaLimit ?? 0) - (dashboard.postsRemaining ?? 0)) : 0)), delta: null, deltaUp: null, max: String(postQuota?.total ?? dashboard?.postQuotaLimit ?? 1000), pct: Math.min(100, postQuota ? Math.round((postQuota.used / postQuota.total) * 100) : dashboard ? Math.round((((dashboard.postQuotaLimit ?? 0) - (dashboard.postsRemaining ?? 0)) / (dashboard.postQuotaLimit || 1)) * 100) : 0), gradient: "from-amber-500/5 to-transparent", accent: "#f59e0b" },
+          ].filter(kpi => canViewBilling || !["AI Credits", "Posts This Month"].includes(kpi.label)).map((kpi, i) => (
             <div
               key={kpi.label}
               className={`relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden group ${visible ? "animate-fade-up" : ""} card-hover`}
@@ -518,8 +524,8 @@ export default function DashboardPage() {
                     <td className="px-6 py-4 text-body-sm text-on-surface font-medium">${row.budget?.toLocaleString() || "0"}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-body-sm text-on-surface font-medium">${row.spend.toLocaleString()}</span>
-                        {row.budget && row.budget > 0 && (
+                        <span className="text-body-sm text-on-surface font-medium">{row.spend == null ? "—" : `$${row.spend.toLocaleString()}`}</span>
+                        {row.budget && row.budget > 0 && row.spend != null && (
                           <span className="text-label-sm text-outline">({Math.round(row.spend / row.budget * 100)}%)</span>
                         )}
                       </div>

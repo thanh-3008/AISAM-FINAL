@@ -6,6 +6,7 @@ import '../../../core/shared/empty_state_widget.dart';
 import 'providers/content_list_controller.dart';
 import '../data/models/content_model.dart';
 import '../data/models/enums.dart';
+import '../../access/presentation/access_providers.dart';
 
 class ContentListScreen extends ConsumerStatefulWidget {
   const ContentListScreen({super.key});
@@ -38,11 +39,12 @@ class _ContentListScreenState extends ConsumerState<ContentListScreen> {
   @override
   Widget build(BuildContext context) {
     final contentState = ref.watch(contentListControllerProvider);
+    final canCreate = ref.watch(accessContextProvider).valueOrNull?.canCreateContent == true;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Content Management'),
-        actions: [
+        actions: [if (canCreate) ...[
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => context.push('/content/create'),
@@ -52,7 +54,7 @@ class _ContentListScreenState extends ConsumerState<ContentListScreen> {
             tooltip: 'AI Generate Draft',
             onPressed: () => context.push('/content/generate-ai'),
           ),
-        ],
+        ]],
       ),
       body: contentState.when(
         data: (contents) {

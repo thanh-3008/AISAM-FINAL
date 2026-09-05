@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/storage/secure_storage.dart';
+import '../../../../core/network/access_events.dart';
 import '../../data/repositories/workspace_repository.dart';
 import '../../data/models/workspace_model.dart';
 import '../../data/models/workspace_request.dart';
@@ -35,6 +36,8 @@ class WorkspaceController extends _$WorkspaceController {
     try {
       final storage = ref.read(secureStorageProvider);
       await storage.saveActiveWorkspaceId(workspaceId);
+      ref.read(accessDeniedProvider.notifier).state = false;
+      ref.read(accessRevisionProvider.notifier).state++;
       ref.read(activeWorkspaceControllerProvider.notifier).refresh();
       return true;
     } catch (e) {

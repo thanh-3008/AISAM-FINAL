@@ -8,7 +8,9 @@ import '../../../content/data/models/enums.dart'; // For AdTypeEnum fallback
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String? conversationId;
-  const ChatScreen({super.key, this.conversationId});
+  final String? initialBrandId;
+
+  const ChatScreen({super.key, this.conversationId, this.initialBrandId});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -30,6 +32,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _handleSend(String text) {
     ref.read(chatNotifierProvider(widget.conversationId).notifier).sendMessage(
       message: text,
+      brandId: widget.initialBrandId,
       adType: AdTypeEnum.textOnly, // Fallback, could prompt user to choose
     );
     Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
@@ -80,7 +83,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           MessageInput(
             onSend: _handleSend,
-            isLoading: chatState.isTyping,
+            isLoading: chatState.isTyping || chatState.isLoading,
           ),
         ],
       ),

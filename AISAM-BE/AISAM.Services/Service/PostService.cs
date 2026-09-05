@@ -13,9 +13,11 @@ public sealed class PostService : IPostService
 {
     private readonly IPostRepository _postRepository;
 
-    public PostService(IPostRepository postRepository)
+    private readonly ContentAuthorizationService? _authorization;
+    public PostService(IPostRepository postRepository, ContentAuthorizationService? authorization = null)
     {
         _postRepository = postRepository;
+        _authorization = authorization;
     }
 
     public async Task<GenericResponse<PagedResult<PostListItemDto>>> GetPagedAsync(
@@ -68,6 +70,7 @@ public sealed class PostService : IPostService
         if (post == null || post.IsDeleted || post.Content.WorkspaceId != workspaceId)
             return GenericResponse<bool>.CreateError("Post not found.", HttpStatusCode.NotFound);
 
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, post.ContentId, AISAM.Data.ContentAction.Delete, post.IntegrationId, cancellationToken);
         await _postRepository.DeleteAsync(post, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Post deleted successfully.");
     }

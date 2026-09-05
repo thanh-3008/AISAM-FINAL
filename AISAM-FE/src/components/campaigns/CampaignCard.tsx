@@ -5,6 +5,7 @@ import {
   OBJECTIVE_CONFIG,
   STATUS_CONFIG,
   formatCurrency,
+  formatNumber,
   formatDateShort,
   getBudgetProgress,
   getCtr,
@@ -110,7 +111,7 @@ export default function CampaignCard({
           <span className={`material-symbols-outlined text-[14px] ${objectiveConfig.color}`}>{objectiveConfig.icon}</span>
           <span className={`text-label-xs font-semibold ${objectiveConfig.color}`}>{objectiveConfig.label}</span>
         </div>
-        {campaign.budget && (
+        {campaign.canViewAnalytics && campaign.budget && (
           <span className="text-[11px] text-outline font-medium">{formatCurrency(campaign.budget, campaign.adAccountCurrency || undefined)} budget</span>
         )}
       </div>
@@ -125,9 +126,10 @@ export default function CampaignCard({
       </div>
 
       {/* Performance metrics */}
+      {campaign.canViewAnalytics && (
       <div className="px-5 pb-3 grid grid-cols-4 gap-2">
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
-          <p className="text-[11px] font-bold text-on-surface">{campaign.impressions >= 1000 ? `${(campaign.impressions / 1000).toFixed(1)}K` : campaign.impressions}</p>
+          <p className="text-[11px] font-bold text-on-surface">{formatNumber(campaign.impressions)}</p>
           <p className="text-label-3xs text-outline uppercase">Impr.</p>
         </div>
         <div className="text-center p-2 bg-surface-container-low rounded-lg">
@@ -144,8 +146,9 @@ export default function CampaignCard({
         </div>
       </div>
 
+      )}
       {/* Budget progress */}
-      {campaign.budget && (
+      {campaign.canViewAnalytics && campaign.budget && (
         <div className="px-5 pb-3">
           <div className="flex items-center justify-between mb-1">
             <span className="text-label-2xs text-outline font-medium">Budget Used</span>

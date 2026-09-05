@@ -50,7 +50,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Only administrators can access this resource.", HttpStatusCode.Forbidden);
 
             var setting = new SystemSetting { Key = key, Value = value, Description = description, UpdatedBy = adminUserId };
-            await _systemSettingRepository.UpsertAsync(setting);
+            var saved = await _systemSettingRepository.UpsertAsync(setting);
+            await RecordChangeAsync(adminUserId, saved.Id, cancellationToken);
             return GenericResponse<bool>.CreateSuccess(true, "Setting saved.");
         }
 
@@ -69,24 +70,22 @@ namespace AISAM.Services.Service
             {
                 if (IsSecret(kvp.Key) && IsMasked(kvp.Value))
                     continue;
-                var previous = await _systemSettingRepository.GetByKeyAsync(kvp.Key);
                 var setting = new SystemSetting { Key = kvp.Key, Value = kvp.Value, UpdatedBy = adminUserId };
                 var saved = await _systemSettingRepository.UpsertAsync(setting);
-                await _auditLogRepository.AddAsync(new AuditLog
-                {
-                    ActorId = adminUserId,
-                    ActionType = "UPDATE_SYSTEM_SETTING",
-                    TargetTable = "system_settings",
-                    TargetId = saved.Id,
-                    OldValues = IsSecret(kvp.Key) ? null : previous?.Value,
-                    NewValues = IsSecret(kvp.Key) ? null : kvp.Value,
-                    Notes = IsSecret(kvp.Key) ? $"Updated protected setting {kvp.Key}" : $"Updated setting {kvp.Key}"
-                }, cancellationToken);
+                await RecordChangeAsync(adminUserId, saved.Id, cancellationToken);
             }
             return GenericResponse<bool>.CreateSuccess(true, "Settings saved.");
         }
 
         private static bool IsSecret(string key) => SecretMarkers.Any(marker => key.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        private Task<AuditLog> RecordChangeAsync(Guid actor, Guid settingId, CancellationToken ct) =>
+            _auditLogRepository.AddAsync(new AuditLog
+            {
+                ActorId = actor, ActionType = "UPDATE_SYSTEM_SETTING", TargetTable = "system_settings",
+                TargetId = settingId, OldValues = null, NewValues = null,
+                // Even a key or description may contain a credential. The stable ID is sufficient.
+                Notes = "Configuration updated"
+            }, ct);
         private static bool IsMasked(string value) => value.StartsWith("********", StringComparison.Ordinal);
         private static string Mask(string value) => string.IsNullOrWhiteSpace(value)
             ? string.Empty

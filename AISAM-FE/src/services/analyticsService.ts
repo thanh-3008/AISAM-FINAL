@@ -504,7 +504,7 @@ export async function fetchAnalytics(
         campaigns = campaigns.filter((c) => c.status === targetStatus);
       }
     }
-    campaignPerformance = campaigns.map((c) => ({
+    campaignPerformance = campaigns.filter(c => c.canViewAnalytics).map((c) => ({
       id: c.id,
       name: c.name,
       status:
@@ -513,15 +513,15 @@ export async function fetchAnalytics(
           : c.status === "PAUSED"
             ? "paused"
             : "completed",
-      reach: c.impressions,
-      clicks: c.clicks,
+      reach: c.impressions ?? 0,
+      clicks: c.clicks ?? 0,
       ctr:
-        c.impressions > 0
-          ? Math.round((c.clicks / c.impressions) * 10000) / 100
+        (c.impressions ?? 0) > 0
+          ? Math.round(((c.clicks ?? 0) / c.impressions!) * 10000) / 100
           : 0,
-      roas: c.spend > 0 ? Math.round((c.conversions / c.spend) * 10) / 10 : 0,
-      spend: c.spend,
-      conversions: c.conversions,
+      roas: (c.spend ?? 0) > 0 ? Math.round(((c.conversions ?? 0) / c.spend!) * 10) / 10 : 0,
+      spend: c.spend ?? 0,
+      conversions: c.conversions ?? 0,
     }));
   } catch {
     /* ignore */

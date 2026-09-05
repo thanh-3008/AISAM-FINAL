@@ -33,6 +33,10 @@ namespace AISAM.Data.Model
         [Column("content_id")]
         public Guid? ContentId { get; set; }
 
+        // Recorded from the actual deployment target. Legacy campaigns remain unattributed.
+        [Column("integration_id")]
+        public Guid? IntegrationId { get; set; }
+
         [Column("targeting", TypeName = "jsonb")]
         public string? Targeting { get; set; }
 

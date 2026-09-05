@@ -41,7 +41,13 @@ public class RemainingWorkspaceOwnershipTests
         var contents = await new ContentRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
         var posts = await new PostRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
         var schedules = await new ContentCalendarRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
+
+        context.AccessScope.Enforced = true;
+        context.AccessScope.WorkspaceId = first;
+        context.AccessScope.Role = WorkspaceMemberRoleEnum.Owner;
         var conversations = await new ConversationRepository(context).GetPagedByWorkspaceIdAsync(first, new PaginationRequest());
+        context.AccessScope.Enforced = false;
+
         var notifications = await new NotificationRepository(context).GetPagedByWorkspaceIdAsync(first, first, new PaginationRequest());
         var socialAccounts = await new SocialAccountRepository(context).GetByWorkspaceIdAsync(first);
 

@@ -33,12 +33,45 @@ public sealed class AutomationRepository : IAutomationRepository
             .OrderByDescending(plan => plan.CreatedAt)
             .ToListAsync(cancellationToken);
 
+    public async Task<AutomationPlan?> GetByIdForReadAsync(Guid workspaceId, Guid planId, CancellationToken cancellationToken = default)
+    {
+        var visibleItems = VisibleItemsForRead(workspaceId);
+        var plan = await _context.AutomationPlans.AsNoTracking()
+            .Where(candidate => candidate.Id == planId && candidate.WorkspaceId == workspaceId && !candidate.IsDeleted)
+            .Where(candidate => visibleItems.Any(item => item.AutomationPlanId == candidate.Id))
+            .FirstOrDefaultAsync(cancellationToken);
+        if (plan is null) return null;
+
+        plan.Items = await LoadVisibleItemsAsync(visibleItems.Where(item => item.AutomationPlanId == plan.Id), cancellationToken);
+        return plan;
+    }
+
+    public async Task<IReadOnlyList<AutomationPlan>> GetByWorkspaceForReadAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        var visibleItems = VisibleItemsForRead(workspaceId);
+        var plans = await _context.AutomationPlans.AsNoTracking()
+            .Where(plan => plan.WorkspaceId == workspaceId && !plan.IsDeleted)
+            .Where(plan => visibleItems.Any(item => item.AutomationPlanId == plan.Id))
+            .OrderByDescending(plan => plan.CreatedAt)
+            .ToListAsync(cancellationToken);
+        if (plans.Count == 0) return plans;
+
+        var planIds = plans.Select(plan => plan.Id).ToArray();
+        var items = await LoadVisibleItemsAsync(
+            visibleItems.Where(item => planIds.Contains(item.AutomationPlanId)),
+            cancellationToken);
+        var itemsByPlan = items.ToLookup(item => item.AutomationPlanId);
+        foreach (var plan in plans)
+            plan.Items = itemsByPlan[plan.Id].ToList();
+        return plans;
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);
 
     public async Task<AutomationPerformanceDto?> GetPerformanceAsync(Guid workspaceId, Guid planId, CancellationToken cancellationToken = default)
     {
-        var items = await _context.AutomationItems.AsNoTracking()
+        var items = await _context.AutomationItemsForAnalytics(workspaceId).AsNoTracking()
             .Where(item => item.AutomationPlanId == planId && item.AutomationPlan.WorkspaceId == workspaceId && !item.AutomationPlan.IsDeleted)
             .Select(item => new { item.Status, item.ContentId })
             .ToListAsync(cancellationToken);
@@ -59,4 +92,46 @@ public sealed class AutomationRepository : IAutomationRepository
             EstimatedRevenue = reports.Sum(report => report.EstimatedRevenue)
         };
     }
+
+    private IQueryable<AutomationItem> VisibleItemsForRead(Guid workspaceId)
+    {
+        var scope = _context.AccessScope;
+        if (!scope.Enforced || scope.WorkspaceId != workspaceId)
+            throw new UnauthorizedAccessException("A current workspace scope is required.");
+
+        if (scope.IsOwner)
+        {
+            return _context.AutomationItems
+                .Where(item => item.AutomationPlan.WorkspaceId == workspaceId && !item.AutomationPlan.IsDeleted);
+        }
+
+        if (scope.Role == WorkspaceMemberRoleEnum.Manager)
+        {
+            return _context.AutomationItemsForAnalytics(workspaceId)
+                .Where(item => !item.AutomationPlan.IsDeleted);
+        }
+
+        if (scope.Role == WorkspaceMemberRoleEnum.ContentCreator)
+        {
+            return _context.AutomationItems.IgnoreQueryFilters()
+                .Where(item => item.AutomationPlan.WorkspaceId == workspaceId &&
+                    !item.AutomationPlan.IsDeleted &&
+                    item.Content != null &&
+                    item.Content.WorkspaceId == workspaceId &&
+                    item.Content.PrimaryCreatorId == scope.UserId);
+        }
+
+        return _context.AutomationItems.Where(_ => false);
+    }
+
+    private static Task<List<AutomationItem>> LoadVisibleItemsAsync(
+        IQueryable<AutomationItem> query,
+        CancellationToken cancellationToken)
+        => query.AsNoTracking()
+            .Include(item => item.Brand)
+            .Include(item => item.Content)
+            .Include(item => item.ContentCalendar)
+            .OrderBy(item => item.RowIndex)
+            .ThenBy(item => item.Platform)
+            .ToListAsync(cancellationToken);
 }

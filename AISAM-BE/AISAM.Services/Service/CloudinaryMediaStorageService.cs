@@ -22,17 +22,17 @@ public class CloudinaryMediaStorageService : IMediaStorageService
         if (string.IsNullOrWhiteSpace(cloudName))
         {
             cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME");
-            logger.LogWarning("Cloudinary CloudName not found in configuration, trying env var fallback: '{Value}'", cloudName ?? "");
+            logger.LogWarning("Cloudinary CloudName not found in configuration; environment fallback was attempted.");
         }
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY");
-            logger.LogWarning("Cloudinary ApiKey not found in configuration, trying env var fallback: '{Value}'", apiKey ?? "");
+            logger.LogWarning("Cloudinary ApiKey not found in configuration; environment fallback was attempted.");
         }
         if (string.IsNullOrWhiteSpace(apiSecret))
         {
             apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET");
-            logger.LogWarning("Cloudinary ApiSecret not found in configuration, trying env var fallback: '{Value}'", apiSecret ?? "");
+            logger.LogWarning("Cloudinary ApiSecret not found in configuration; environment fallback was attempted.");
         }
 
         var missing = new List<string>();
@@ -71,7 +71,7 @@ public class CloudinaryMediaStorageService : IMediaStorageService
         }
         catch (Exception ex)
         {
-            throw new ArgumentException($"Cannot read uploaded file: {ex.Message}", nameof(file), ex);
+            throw new ArgumentException("Cannot read uploaded file.", nameof(file), ex);
         }
 
         await using (stream.ConfigureAwait(false))
@@ -115,12 +115,12 @@ public class CloudinaryMediaStorageService : IMediaStorageService
             }
             catch (Exception ex) when (ex is not InvalidOperationException)
             {
-                throw new InvalidOperationException($"Cloudinary upload failed: {ex.Message}", ex);
+                throw new InvalidOperationException("Cloudinary upload failed.", ex);
             }
 
             if (uploadResult.Error != null)
             {
-                throw new InvalidOperationException($"Cloudinary upload failed: {uploadResult.Error.Message}");
+                throw new InvalidOperationException("Cloudinary upload failed.");
             }
 
             if (uploadResult.SecureUrl == null)
@@ -185,12 +185,12 @@ public class CloudinaryMediaStorageService : IMediaStorageService
             }
             catch (Exception ex) when (ex is not InvalidOperationException)
             {
-                throw new InvalidOperationException($"Cloudinary byte upload failed: {ex.Message}", ex);
+                throw new InvalidOperationException("Cloudinary byte upload failed.", ex);
             }
 
             if (uploadResult.Error != null)
             {
-                throw new InvalidOperationException($"Cloudinary byte upload failed: {uploadResult.Error.Message}");
+                throw new InvalidOperationException("Cloudinary byte upload failed.");
             }
 
             if (uploadResult.SecureUrl == null)

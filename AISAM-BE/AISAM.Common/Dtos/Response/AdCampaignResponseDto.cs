@@ -33,10 +33,15 @@ namespace AISAM.Common.Dtos.Response
         public int DeploymentStep { get; set; }
         public string? DeploymentMessage { get; set; }
         public List<AdSetSummaryDto> AdSets { get; set; } = new();
-        public long Impressions { get; set; }
-        public long Clicks { get; set; }
-        public decimal Spend { get; set; }
-        public long Conversions { get; set; }
+        public bool CanViewAnalytics { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public long? Impressions { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public long? Clicks { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public decimal? Spend { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public long? Conversions { get; set; }
     }
 
     public class AdSetSummaryDto
@@ -46,9 +51,12 @@ namespace AISAM.Common.Dtos.Response
         public string? FacebookAdSetId { get; set; }
         public decimal? DailyBudget { get; set; }
         public string? Status { get; set; }
-        public long Impressions { get; set; }
-        public long Clicks { get; set; }
-        public decimal Spend { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public long? Impressions { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public long? Clicks { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public decimal? Spend { get; set; }
         public List<AdSummaryDto> Ads { get; set; } = new();
     }
 

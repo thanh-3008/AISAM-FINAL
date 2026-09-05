@@ -12,6 +12,8 @@ using AISAM.Services.IServices;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net;
+using AISAM.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Services.Service
 {
@@ -34,6 +36,8 @@ namespace AISAM.Services.Service
         private readonly IPostRepository _postRepository;
         private readonly Dictionary<string, IProviderService> _providers;
         private readonly ILogger<AdCampaignService> _logger;
+        private readonly AisamContext? _db;
+        private readonly ContentAuthorizationService? _authorization;
 
         public AdCampaignService(
             IAdCampaignRepository campaignRepository,
@@ -45,7 +49,8 @@ namespace AISAM.Services.Service
             ISocialService socialService,
             IPostRepository postRepository,
             IEnumerable<IProviderService> providers,
-            ILogger<AdCampaignService> logger)
+            ILogger<AdCampaignService> logger,
+            AisamContext? db = null, ContentAuthorizationService? authorization = null)
         {
             _campaignRepository = campaignRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
@@ -58,6 +63,8 @@ namespace AISAM.Services.Service
             _providers = providers.Where(p => p.ProviderName == "facebook" || p.ProviderName == "instagram")
                 .ToDictionary(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
             _logger = logger;
+            _db = db;
+            _authorization = authorization;
         }
 
         private IProviderService GetProvider(string platform)
@@ -81,6 +88,30 @@ namespace AISAM.Services.Service
                 return GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateError(access.Message);
             }
 
+            if (_db?.AccessScope.Enforced == true)
+            {
+                var query = _db.CampaignMetadata(workspaceId);
+                if (!includeDeleted) query = query.Where(c => !c.IsDeleted);
+                if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+                {
+                    var pattern = $"%{request.SearchTerm}%";
+                    query = query.Where(c => EF.Functions.ILike(c.Name, pattern) || c.Objective != null && EF.Functions.ILike(c.Objective, pattern));
+                }
+                query = (request.SortBy ?? "").ToLowerInvariant() switch
+                {
+                    "name" => request.SortDescending ? query.OrderByDescending(c => c.Name) : query.OrderBy(c => c.Name),
+                    "budget" => request.SortDescending ? query.OrderByDescending(c => c.Budget) : query.OrderBy(c => c.Budget),
+                    "startdate" => request.SortDescending ? query.OrderByDescending(c => c.StartDate) : query.OrderBy(c => c.StartDate),
+                    _ => query.OrderByDescending(c => c.CreatedAt)
+                };
+                var page = Math.Max(1, request.Page);
+                var pageSize = Math.Clamp(request.PageSize, 1, 100);
+                return GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateSuccess(new PagedResult<AdCampaignResponseDto>
+                {
+                    TotalCount = await query.CountAsync(cancellationToken), Page = page, PageSize = pageSize,
+                    Data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken)
+                }, "Campaigns retrieved successfully");
+            }
             var campaigns = await _campaignRepository.GetPagedByWorkspaceIdAsync(workspaceId, request, includeDeleted, cancellationToken);
 
             return GenericResponse<PagedResult<AdCampaignResponseDto>>.CreateSuccess(new PagedResult<AdCampaignResponseDto>
@@ -94,6 +125,12 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> GetByIdAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_db?.AccessScope.Enforced == true)
+            {
+                var visible = await _db.CampaignMetadata(workspaceId).FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted, cancellationToken);
+                return visible == null ? GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found", HttpStatusCode.NotFound)
+                    : GenericResponse<AdCampaignResponseDto>.CreateSuccess(visible, "Campaign retrieved successfully");
+            }
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null)
             {
@@ -116,6 +153,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> CreateAsync(Guid workspaceId, Guid userId, CreateAdCampaignRequest request, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
             if (!access.Success)
             {
@@ -206,6 +244,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> UpdateAsync(Guid id, Guid workspaceId, Guid userId, UpdateAdCampaignRequest request, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
@@ -392,6 +431,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<bool>> SoftDeleteAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
@@ -449,6 +489,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<bool>> RestoreAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
@@ -481,6 +522,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> DeployAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
@@ -544,6 +586,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<bool>> CleanupFailedDeploymentAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
             {
@@ -615,6 +658,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> ActivateAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
@@ -651,6 +695,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> SyncCampaignInsightsAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var campaign = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (campaign == null || campaign.WorkspaceId != workspaceId)
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
@@ -697,6 +742,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<AdCampaignResponseDto>> DuplicateAsync(Guid id, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var original = await _campaignRepository.GetByIdAsync(id, cancellationToken);
             if (original == null || original.WorkspaceId != workspaceId)
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Campaign not found");
@@ -736,6 +782,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<BulkCampaignResultDto>> BulkCreateAsync(Guid workspaceId, Guid userId, BulkCreateAdCampaignRequest request, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
             if (!access.Success)
             {
@@ -783,6 +830,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<BulkCampaignResultDto>> BulkDeleteAsync(Guid workspaceId, Guid userId, BulkDeleteAdCampaignRequest request, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
             if (!access.Success)
             {
@@ -823,6 +871,7 @@ namespace AISAM.Services.Service
 
         public async Task<GenericResponse<BulkCampaignResultDto>> BulkDeployAsync(Guid workspaceId, Guid userId, BulkDeployAdCampaignRequest request, CancellationToken cancellationToken = default)
         {
+            if (_authorization != null) await _authorization.EnsureWorkspaceOwnerMutationAsync(workspaceId, "CampaignManage", cancellationToken);
             var access = await EnsureWorkspaceMemberAsync(workspaceId, userId, cancellationToken);
             if (!access.Success)
             {
@@ -1290,6 +1339,7 @@ namespace AISAM.Services.Service
             if (!string.IsNullOrWhiteSpace(adToken)) account.AccessToken = adToken;
 
             string? instagramActorId = null;
+            campaign.IntegrationId = fbIntegration.Id;
             if (campaign.Platform == "instagram")
             {
                 var igIntegration = integrations.FirstOrDefault(i => string.Equals(i.Platform, "instagram", StringComparison.OrdinalIgnoreCase));
@@ -1300,6 +1350,7 @@ namespace AISAM.Services.Service
                     throw new InvalidOperationException("Instagram account is not properly linked. Please reconnect your Instagram Business account in Social Accounts.");
 
                 instagramActorId = igIntegration.ExternalId;
+                campaign.IntegrationId = igIntegration.Id;
             }
 
             return (account, fbIntegration, fbIntegration.ExternalId ?? string.Empty, instagramActorId);
@@ -1337,8 +1388,9 @@ namespace AISAM.Services.Service
             return Math.Max(totalBudget / 30, MinDailyBudget);
         }
 
-        private static AdCampaignResponseDto MapToDto(AdCampaign campaign)
+        private AdCampaignResponseDto MapToDto(AdCampaign campaign)
         {
+            var canViewMetrics = _db?.AccessScope.Enforced != true || _db.AccessScope.IsOwner || _db.AccessScope.AnalyticsCampaignIds.Contains(campaign.Id);
             return new AdCampaignResponseDto
             {
                 Id = campaign.Id,
@@ -1369,15 +1421,16 @@ namespace AISAM.Services.Service
                 DeploymentStatus = campaign.DeploymentStatus,
                 DeploymentStep = campaign.DeploymentStep,
                 DeploymentMessage = campaign.DeploymentMessage,
-                AdSets = MapAdSetsWithMetrics(campaign),
-                Impressions = campaign.Impressions,
-                Clicks = campaign.Clicks,
-                Spend = campaign.Spend,
-                Conversions = campaign.Conversions
+                AdSets = MapAdSetsWithMetrics(campaign, canViewMetrics),
+                CanViewAnalytics = canViewMetrics,
+                Impressions = canViewMetrics ? campaign.Impressions : null,
+                Clicks = canViewMetrics ? campaign.Clicks : null,
+                Spend = canViewMetrics ? campaign.Spend : null,
+                Conversions = canViewMetrics ? campaign.Conversions : null
             };
         }
 
-        private static List<AdSetSummaryDto> MapAdSetsWithMetrics(AdCampaign campaign)
+        private static List<AdSetSummaryDto> MapAdSetsWithMetrics(AdCampaign campaign, bool canViewMetrics)
         {
             var activeAdSets = campaign.AdSets.Where(ads => !ads.IsDeleted).ToList();
             var count = activeAdSets.Count;
@@ -1394,9 +1447,9 @@ namespace AISAM.Services.Service
                 FacebookAdSetId = ads.FacebookAdSetId,
                 DailyBudget = ads.DailyBudget,
                 Status = ads.Status,
-                Impressions = impressionsPerSet,
-                Clicks = clicksPerSet,
-                Spend = spendPerSet,
+                Impressions = canViewMetrics ? impressionsPerSet : null,
+                Clicks = canViewMetrics ? clicksPerSet : null,
+                Spend = canViewMetrics ? spendPerSet : null,
                 Ads = ads.Ads.Where(a => !a.IsDeleted).Select(a => new AdSummaryDto
                 {
                     Id = a.Id,

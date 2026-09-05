@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useAccessContext } from "@/contexts/AccessContext";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
 import {
   getWorkspacePlanType,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/featureConfig";
 
 export function useFeatureGate(enabled = true) {
+  const access = useAccessContext();
   const { activeWorkspace, updateWorkspacePlan } = useWorkspaces();
   const [syncedPlanName, setSyncedPlanName] = useState<string | null>(null);
   const [isResolvingPlan, setIsResolvingPlan] = useState(false);
@@ -61,9 +63,10 @@ export function useFeatureGate(enabled = true) {
   }, [activeWorkspace, syncedPlanName]);
 
   const role = useMemo(() => {
+    if (access) return access.role as WorkspaceRole;
     if (!activeWorkspace?.memberRole) return null;
     return activeWorkspace.memberRole as WorkspaceRole;
-  }, [activeWorkspace]);
+  }, [activeWorkspace, access]);
 
   return useMemo(() => ({
     plan,

@@ -1,5 +1,6 @@
 import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { notifyAccessChanged } from "./accessEvents";
 import { getStoredActiveProfile } from "@/stores/profile-store";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api";
@@ -214,6 +215,8 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
     return retryWithRefresh(endpoint, config);
   }
 
+  if (response.status === 403 && !endpoint.startsWith("/access/context")) notifyAccessChanged("denied");
+  else if (response.ok && isMutation && /^\/(teams|workspace-members|collaboration-tasks)/.test(endpoint)) notifyAccessChanged();
   return handleResponse(response);
 }
 

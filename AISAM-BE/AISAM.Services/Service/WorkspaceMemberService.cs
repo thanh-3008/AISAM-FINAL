@@ -6,6 +6,8 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
 using System.Net;
+using AISAM.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Services.Service;
 
@@ -14,15 +16,18 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly AisamContext? _db;
 
     public WorkspaceMemberService(
         IWorkspaceMemberRepository workspaceMemberRepository,
         IWorkspaceRepository workspaceRepository,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository,
+        AisamContext? db = null)
     {
         _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceRepository = workspaceRepository;
         _subscriptionRepository = subscriptionRepository;
+        _db = db;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>> GetMembersAsync(
@@ -36,6 +41,10 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 "You are not a member of this workspace.",
                 HttpStatusCode.Forbidden);
         }
+
+        if (_db?.AccessScope.Enforced == true)
+            return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateSuccess(
+                await _db.MemberDirectory(workspaceId).ToListAsync(cancellationToken), "Workspace members retrieved successfully.");
 
         var members = await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
         return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateSuccess(
@@ -57,6 +66,8 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 authorizationError.Value.Message,
                 authorizationError.Value.Status);
         }
+
+        RegisterOwnerMutationAuthorization(workspaceId, actorUserId, $"UpdateRole:{memberId}");
 
         if (!Enum.IsDefined(request.Role) || request.Role == WorkspaceMemberRoleEnum.Owner)
         {
@@ -97,6 +108,8 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 authorizationError.Value.Message,
                 authorizationError.Value.Status);
         }
+
+        RegisterOwnerMutationAuthorization(workspaceId, actorUserId, $"UpdateQuota:{memberId}");
 
         var member = await _workspaceMemberRepository.GetByIdAsync(memberId, cancellationToken);
         if (member == null || member.WorkspaceId != workspaceId)
@@ -147,6 +160,8 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 authorizationError.Value.Status);
         }
 
+        RegisterOwnerMutationAuthorization(workspaceId, actorUserId, $"RemoveMember:{memberId}");
+
         var member = await _workspaceMemberRepository.GetByIdAsync(memberId, cancellationToken);
         if (member == null || member.WorkspaceId != workspaceId)
         {
@@ -176,6 +191,8 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 authorizationError.Value.Message,
                 authorizationError.Value.Status);
         }
+
+        RegisterOwnerMutationAuthorization(workspaceId, actorUserId, $"TransferOwnership:{request.TargetMemberId}");
 
         var target = await _workspaceMemberRepository.GetByIdAsync(request.TargetMemberId, cancellationToken);
         if (target == null || target.WorkspaceId != workspaceId)
@@ -220,6 +237,32 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         return actor.Workspace.Status == WorkspaceStatusEnum.Active
             ? null
             : ("Workspace must be active to manage members.", HttpStatusCode.Forbidden);
+    }
+
+    private void RegisterOwnerMutationAuthorization(Guid workspaceId, Guid actorUserId, string operation)
+    {
+        if (_db?.AccessScope.Enforced != true ||
+            _db.AccessScope.WorkspaceId != workspaceId ||
+            _db.AccessScope.UserId != actorUserId)
+        {
+            return;
+        }
+
+        _db.RegisterMutationAuthorization(
+            workspaceId,
+            $"WorkspaceMember:{operation}",
+            _db.AccessScope.PermissionRevision,
+            token => _db.WorkspaceMembers
+                .AsNoTracking()
+                .AnyAsync(member =>
+                    member.WorkspaceId == workspaceId &&
+                    member.UserId == actorUserId &&
+                    member.IsActive &&
+                    member.Role == WorkspaceMemberRoleEnum.Owner &&
+                    member.User.IsActive &&
+                    member.Workspace.Status == WorkspaceStatusEnum.Active,
+                    token),
+            revalidateAfterWrite: false);
     }
 
     private static WorkspaceMemberResponseDto Map(WorkspaceMember member)

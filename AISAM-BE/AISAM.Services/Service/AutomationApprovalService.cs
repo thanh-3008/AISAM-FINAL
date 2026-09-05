@@ -14,11 +14,13 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
 {
     private readonly AisamContext _context;
     private readonly IContentScheduleService _scheduleService;
+    private readonly ContentAuthorizationService? _authorization;
 
-    public AutomationApprovalService(AisamContext context, IContentScheduleService scheduleService)
+    public AutomationApprovalService(AisamContext context, IContentScheduleService scheduleService, ContentAuthorizationService? authorization = null)
     {
         _context = context;
         _scheduleService = scheduleService;
+        _authorization = authorization;
     }
 
     public async Task<GenericResponse<AutomationPlanDto>> ApproveAsync(Guid workspaceId, Guid planId, Guid approverUserId, Guid? itemId = null, IReadOnlyCollection<Guid>? integrationIds = null, CancellationToken cancellationToken = default)
@@ -31,6 +33,12 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
             (item.Status == AutomationItemStatusEnum.AwaitingApproval ||
              (item.Status == AutomationItemStatusEnum.NeedsAttention && item.ContentId.HasValue && IsSchedulingAttention(item.LastError)))).ToList();
         if (items.Count == 0) return GenericResponse<AutomationPlanDto>.CreateError("No item is awaiting approval.");
+        if (_authorization != null)
+            foreach (var candidate in items)
+            {
+                if (!candidate.ContentId.HasValue) throw new AISAM.Services.Exceptions.ResourceAccessDeniedException();
+                await _authorization.EnsureAsync(workspaceId, candidate.ContentId.Value, AISAM.Data.ContentAction.Approve, null, cancellationToken);
+            }
 
         plan.Status = AutomationPlanStatusEnum.Scheduling;
         await _context.SaveChangesAsync(cancellationToken);
@@ -124,6 +132,11 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
         var item = plan?.Items.FirstOrDefault(value => value.Id == itemId);
         if (plan is null || item is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation item not found.", HttpStatusCode.NotFound);
         if (item.Status != AutomationItemStatusEnum.AwaitingApproval) return GenericResponse<AutomationPlanDto>.CreateError("Only an item awaiting approval can be rejected.");
+        if (_authorization != null)
+        {
+            if (!item.ContentId.HasValue) throw new AISAM.Services.Exceptions.ResourceAccessDeniedException();
+            await _authorization.EnsureAsync(workspaceId, item.ContentId.Value, AISAM.Data.ContentAction.Reject, null, cancellationToken);
+        }
         item.Status = AutomationItemStatusEnum.Rejected;
         item.LastError = string.IsNullOrWhiteSpace(notes) ? "Rejected by reviewer." : notes.Trim();
         if (item.Content is not null)

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -49,8 +50,12 @@ public class VideoGenerationJob
     [Column("video_url")]
     public string? VideoUrl { get; set; }
 
+    [JsonIgnore]
     [Column("error_message")]
     public string? ErrorMessage { get; set; }
+
+    [NotMapped, JsonPropertyName("errorMessage")]
+    public string? PublicError => string.IsNullOrEmpty(ErrorMessage) ? null : "Generation failed.";
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -62,9 +67,11 @@ public class VideoGenerationJob
     public DateTime? CompletedAt { get; set; }
 
     // Navigation properties
+    [JsonIgnore]
     [ForeignKey("WorkspaceId")]
     public virtual Workspace Workspace { get; set; } = null!;
 
+    [JsonIgnore]
     [ForeignKey("UserId")]
     public virtual User User { get; set; } = null!;
 }

@@ -142,7 +142,7 @@ export default function CampaignsPage() {
         result.sort((a, b) => (a.budget || 0) - (b.budget || 0));
         break;
       case "spend_high":
-        result.sort((a, b) => b.spend - a.spend);
+        result.sort((a, b) => (b.spend ?? -1) - (a.spend ?? -1));
         break;
       case "name":
         result.sort((a, b) => a.name.localeCompare(b.name));

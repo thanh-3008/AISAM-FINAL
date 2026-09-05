@@ -48,7 +48,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             postsQuery = postsQuery.Where(p => p.Integration.Platform == platformEnum);
         }
 
-        var campaignsQuery = _context.AdCampaigns.AsNoTracking()
+        var campaignsQuery = _context.CampaignsForAnalytics().AsNoTracking()
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId);
 
         if (brandId.HasValue)
@@ -149,7 +149,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
 
-        var campaignsQuery = _context.AdCampaigns
+        var campaignsQuery = _context.CampaignsForAnalytics()
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
                 && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from);
         if (brandId.HasValue)
@@ -288,7 +288,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         int page = 1, int pageSize = 20, string? sortBy = "impressions", bool sortDescending = true,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.AdCampaigns
+        var query = _context.CampaignsForAnalytics()
             .Include(c => c.Brand)
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId);
 
@@ -425,7 +425,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         if (brandId.HasValue)
             reportRowsQuery = reportRowsQuery.Where(pr => pr.Post!.Content!.BrandId == brandId.Value);
 
-        var campaignsQuery = _context.AdCampaigns.AsNoTracking()
+        var campaignsQuery = _context.CampaignsForAnalytics().AsNoTracking()
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
                 && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from);
 
@@ -592,7 +592,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             .OrderBy(d => d)
             .ToList();
 
-        var campaignsQuery = _context.AdCampaigns
+        var campaignsQuery = _context.CampaignsForAnalytics()
             .Where(c => !c.IsDeleted && c.WorkspaceId == workspaceId
                 && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= sparkDays.First());
         if (brandId.HasValue)
@@ -972,7 +972,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     public async Task<AnalyticsTotals> GetAllWorkspaceTotalsAsync(
         DateTime from, DateTime to, CancellationToken cancellationToken = default)
     {
-        var campaignsQuery = _context.AdCampaigns
+        var campaignsQuery = _context.CampaignsForAnalytics()
             .Where(c => !c.IsDeleted);
 
         var postsQuery = _context.Posts
@@ -1043,12 +1043,12 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             var posts = await _context.Posts
                 .CountAsync(p => !p.IsDeleted && p.PublishedAt >= from && p.PublishedAt <= to && p.Content != null && p.Content.WorkspaceId == ws.Id, cancellationToken);
 
-            var campaigns = await _context.AdCampaigns
+            var campaigns = await _context.CampaignsForAnalytics()
                 .CountAsync(c => !c.IsDeleted && c.WorkspaceId == ws.Id && c.IsActive
                     && (c.StartDate ?? c.CreatedAt) <= to
                     && (c.EndDate == null || c.EndDate >= from), cancellationToken);
 
-            var campAgg = await _context.AdCampaigns
+            var campAgg = await _context.CampaignsForAnalytics()
                 .Where(c => !c.IsDeleted && c.WorkspaceId == ws.Id && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from)
                 .GroupBy(_ => 1)
                 .Select(g => new
@@ -1094,7 +1094,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     public async Task<IReadOnlyList<CampaignAnalyticsItemDto>> GetTopCampaignsAllWorkspacesAsync(
         DateTime from, DateTime to, int top = 20, CancellationToken cancellationToken = default)
     {
-        var campaigns = await _context.AdCampaigns
+        var campaigns = await _context.CampaignsForAnalytics()
             .AsNoTracking()
             .Where(c => !c.IsDeleted && (c.StartDate ?? c.CreatedAt) <= to && (c.EndDate ?? c.StartDate ?? c.CreatedAt) >= from)
             .Include(c => c.Workspace)

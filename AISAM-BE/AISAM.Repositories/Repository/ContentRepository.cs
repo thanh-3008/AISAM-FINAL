@@ -90,7 +90,7 @@ public sealed class ContentRepository : IContentRepository
                 Id = c.Id,
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
-                BrandName = c.Brand.Name,
+                BrandName = _context.Brands.Where(b => b.Id == c.BrandId && b.WorkspaceId == c.WorkspaceId).Select(b => b.Name).FirstOrDefault() ?? "",
                 WorkspaceId = c.WorkspaceId,
                 AdType = c.AdType,
                 Title = c.Title,
@@ -157,7 +157,7 @@ public sealed class ContentRepository : IContentRepository
             Id = c.Id,
             ProfileId = c.ProfileId,
             BrandId = c.BrandId,
-            BrandName = c.Brand.Name,
+            BrandName = _context.Brands.Where(b => b.Id == c.BrandId && b.WorkspaceId == c.WorkspaceId).Select(b => b.Name).FirstOrDefault() ?? "",
             WorkspaceId = c.WorkspaceId,
             AdType = c.AdType,
             Title = c.Title,
@@ -363,6 +363,8 @@ public sealed class ContentRepository : IContentRepository
 
     private IQueryable<Content> Query()
     {
+        if (_context.AccessScope.Enforced && _context.AccessScope.IsCreator)
+            return _context.Contents.Include(content => content.Approvals);
         return _context.Contents
             .Include(content => content.Profile)
             .Include(content => content.Brand)

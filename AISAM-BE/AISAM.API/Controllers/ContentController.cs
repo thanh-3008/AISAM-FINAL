@@ -1,3 +1,5 @@
+using AISAM.Services.Service;
+using AISAM.Data;
 using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
@@ -18,6 +20,7 @@ namespace AISAM.API.Controllers;
 [Authorize]
 public sealed class ContentController : ControllerBase
 {
+    private readonly ContentAuthorizationService? _authorization;
     private readonly IContentService _contentService;
     private readonly IProfileRepository _profileRepository;
     private readonly IMediaStorageService _mediaStorageService;
@@ -49,9 +52,11 @@ public sealed class ContentController : ControllerBase
     public ContentController(
         IContentService contentService, 
         IProfileRepository profileRepository,
-        IMediaStorageService? mediaStorageService = null)
+        IMediaStorageService? mediaStorageService = null,
+        ContentAuthorizationService? authorization = null)
     {
         _contentService = contentService;
+        _authorization = authorization;
         _profileRepository = profileRepository;
         _mediaStorageService = mediaStorageService ?? new UnconfiguredMediaStorageService();
     }
@@ -73,6 +78,7 @@ public sealed class ContentController : ControllerBase
         [FromForm] ContentMediaUploadRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureBrandActionAsync(GetWorkspaceId(), null, ContentAction.MediaUpload, cancellationToken);
         var file = request.File;
         if (file == null || file.Length <= 0)
         {

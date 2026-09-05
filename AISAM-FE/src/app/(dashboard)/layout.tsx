@@ -3,6 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { AccessProvider } from "@/contexts/AccessContext";
 
 import { useEffect, useState } from "react";
 import { setToken, removeToken, getStoredUser } from "@/lib/auth";
@@ -46,13 +47,14 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       )}
-      <Sidebar />
+      <AccessProvider chrome={<Sidebar />}>
       <div
         className={`flex-1 flex flex-col transition-all duration-300 min-w-0 max-w-full ${adminToken ? 'mt-10' : ''}`}
         style={{ marginLeft: open ? "var(--spacing-sidebar-width)" : "0" }}
       >
         {children}
       </div>
+      </AccessProvider>
     </div>
   );
 }

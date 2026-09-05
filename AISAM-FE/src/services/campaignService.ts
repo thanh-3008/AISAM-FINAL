@@ -18,15 +18,16 @@ export interface AdSet {
   facebookAdSetId: string | null;
   dailyBudget: number | null;
   status: "ACTIVE" | "PAUSED";
-  impressions: number;
-  clicks: number;
-  spend: number;
+  impressions?: number | null;
+  clicks?: number | null;
+  spend?: number | null;
   ads: Ad[];
 }
 
 export type DeploymentStatus = 0 | 1 | 2 | 3;
 
 export interface Campaign {
+  canViewAnalytics: boolean;
   id: string;
   profileId: string;
   workspaceId: string;
@@ -54,10 +55,10 @@ export interface Campaign {
   createdAt: string;
   updatedAt: string;
   adSets: AdSet[];
-  impressions: number;
-  clicks: number;
-  spend: number;
-  conversions: number;
+  impressions?: number | null;
+  clicks?: number | null;
+  spend?: number | null;
+  conversions?: number | null;
 }
 
 export interface CreateCampaignData {
@@ -86,6 +87,7 @@ export interface AdSetVariant {
 }
 
 interface CampaignApiItem {
+  canViewAnalytics?: boolean;
   id: string;
   profileId: string;
   workspaceId: string;
@@ -114,10 +116,10 @@ interface CampaignApiItem {
   createdAt: string;
   updatedAt: string;
   adSets: AdSetApiItem[];
-  impressions: number;
-  clicks: number;
-  spend: number;
-  conversions: number;
+  impressions?: number | null;
+  clicks?: number | null;
+  spend?: number | null;
+  conversions?: number | null;
 }
 
 interface AdSetApiItem {
@@ -126,9 +128,9 @@ interface AdSetApiItem {
   facebookAdSetId: string | null;
   dailyBudget: number | null;
   status: string | null;
-  impressions: number;
-  clicks: number;
-  spend: number;
+  impressions?: number | null;
+  clicks?: number | null;
+  spend?: number | null;
   ads: AdApiItem[];
 }
 
@@ -153,6 +155,7 @@ function mapCampaign(api: CampaignApiItem): Campaign {
   const status = STATUS_MAP[api.status] ?? "DRAFT";
 
   return {
+    canViewAnalytics: api.canViewAnalytics === true,
     id: api.id,
     profileId: api.profileId,
     workspaceId: api.workspaceId,

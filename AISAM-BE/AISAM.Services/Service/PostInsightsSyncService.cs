@@ -11,6 +11,7 @@ namespace AISAM.Services.Service
     public sealed class PostInsightsSyncService : IPostInsightsSyncService
     {
         private const int BatchSize = 10;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
         private readonly IPerformanceReportRepository _perfReportRepository;
         private readonly ISocialIntegrationRepository _socialIntegrationRepository;
         private readonly IContentRepository _contentRepository;
@@ -26,7 +27,7 @@ namespace AISAM.Services.Service
             IPostRepository postRepository,
             IEnumerable<IProviderService> providers,
             ISocialTokenProtector tokenProtector,
-            ILogger<PostInsightsSyncService> logger)
+            ILogger<PostInsightsSyncService> logger, ExecutionAuthorizationService? executionAuthorization = null)
         {
             _perfReportRepository = perfReportRepository;
             _socialIntegrationRepository = socialIntegrationRepository;
@@ -38,6 +39,7 @@ namespace AISAM.Services.Service
                 .ToDictionary(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
             _tokenProtector = tokenProtector;
             _logger = logger;
+        _executionAuthorization = executionAuthorization;
         }
 
         public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken = default)
@@ -48,6 +50,7 @@ namespace AISAM.Services.Service
 
         public async Task<PostInsightsSyncResultDto> ProcessNextDetailedAsync(CancellationToken cancellationToken = default)
         {
+            if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("PostInsights", cancellationToken)).Allowed) return new PostInsightsSyncResultDto();
             var posts = await _perfReportRepository.GetPostsNeedingSyncAsync(BatchSize, cancellationToken);
             return await ProcessPostsAsync(posts, cancellationToken);
         }
@@ -477,18 +480,18 @@ namespace AISAM.Services.Service
                 var token = TryUnprotect(integration.AccessToken);
                 if (!string.IsNullOrWhiteSpace(token))
                 {
-                    System.IO.File.AppendAllText("instagram_debug.log", $"{DateTime.UtcNow:O} | TOKEN-SOURCE=integration.AccessToken | IntegrationId={integration.Id}\n");
+                    _logger.LogDebug("Resolved Instagram credentials for integration {IntegrationId}.", integration.Id);
                     return token;
                 }
 
-                System.IO.File.AppendAllText("instagram_debug.log", $"{DateTime.UtcNow:O} | TOKEN-NOT-FOUND | IntegrationId={integration.Id}\n");
+                _logger.LogWarning("Instagram credentials unavailable for integration {IntegrationId}.", integration.Id);
                 return null;
             }
 
             var current = TryUnprotect(integration.AccessToken);
             if (!string.IsNullOrWhiteSpace(current))
             {
-                System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | TOKEN-SOURCE=integration.AccessToken | IntegrationId={integration.Id}\n");
+                _logger.LogDebug("Resolved Facebook credentials for integration {IntegrationId}.", integration.Id);
                 return current;
             }
 
@@ -504,12 +507,15 @@ namespace AISAM.Services.Service
                 var fallback = TryUnprotect(candidate.AccessToken);
                 if (!string.IsNullOrWhiteSpace(fallback))
                 {
-                    System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | TOKEN-SOURCE=cross-integration.AccessToken | CandidateId={candidate.Id} | LegacyId={integration.Id}\n");
+                    _logger.LogDebug(
+                        "Resolved Facebook credentials through compatible integration {CandidateId} for integration {IntegrationId}.",
+                        candidate.Id,
+                        integration.Id);
                     return fallback;
                 }
             }
 
-            System.IO.File.AppendAllText("facebook_debug.log", $"{DateTime.UtcNow:O} | TOKEN-NOT-FOUND | IntegrationId={integration.Id}\n");
+            _logger.LogWarning("Facebook credentials unavailable for integration {IntegrationId}.", integration.Id);
             return null;
         }
 

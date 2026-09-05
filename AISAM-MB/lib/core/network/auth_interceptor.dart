@@ -71,7 +71,7 @@ class AuthInterceptor extends Interceptor {
             throw Exception('Refresh API failed with non-success status.');
           }
         } catch (e) {
-          LoggerService.e('Token refresh failed: $e');
+          LoggerService.e('Token refresh failed.');
           await _storage.clearAll();
           onSessionExpired?.call();
           final completer = _refreshCompleter;

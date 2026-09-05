@@ -3,6 +3,13 @@ import { formatNumber, formatCurrency, getBudgetProgress, getCtr, getCpa } from 
 import { type Campaign } from "@/services/campaignService";
 
 describe("campaignUtils", () => {
+  it("does not render redacted analytics as zero or NaN", () => {
+    const campaign = { canViewAnalytics: false } as Campaign;
+    expect(formatNumber(undefined)).toBe("—");
+    expect(formatCurrency(null)).toBe("—");
+    expect(getCtr(campaign)).toBe("—");
+    expect(getCpa(campaign)).toBe("—");
+  });
   it("formatNumber formats millions and thousands correctly", () => {
     expect(formatNumber(1500000)).toBe("1.5M");
     expect(formatNumber(1500)).toBe("1.5K");

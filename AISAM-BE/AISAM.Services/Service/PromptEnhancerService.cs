@@ -205,7 +205,7 @@ Output rules:
             if (!string.IsNullOrWhiteSpace(enhanced))
             {
                 var (parsedPrompt, patternId) = ExtractVisualPromptFromT2va(enhanced);
-                var safePrompt = EnforceVideoSafety(parsedPrompt);
+                var safePrompt = EnforceVideoSafety(parsedPrompt, product?.Name);
                 _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}, Final length={FinalLen}, Pattern={PatternId}, Img2Video={HasImg}",
                     rawPrompt.Length, enhanced.Trim().Length, safePrompt.Length, patternId, imageBytes != null);
                 return (safePrompt, patternId);
@@ -224,14 +224,16 @@ Output rules:
         // Fallback: Check if the raw prompt is safe.
         try
         {
-            var fallbackSafe = EnforceVideoSafety(rawPrompt);
+            var fallbackSafe = EnforceVideoSafety(cleanPrompt, product?.Name);
             return (fallbackSafe, null);
         }
         catch (InvalidOperationException ioe) when (ioe.Message.Contains("non-ASCII"))
         {
             _logger.LogWarning("[PromptEnhancer][NonAscii] rawPrompt from Chat Orchestrator contained non-ASCII. Using DefaultSafeEnglish. RawPromptLength={Len}", rawPrompt?.Length ?? 0);
-            var productName = product?.Name ?? "the product";
-            var productDesc = string.IsNullOrWhiteSpace(product?.Description) ? "" : $" ({product.Description})";
+            var productName = string.IsNullOrWhiteSpace(product?.Name) ? "the product" : product.Name;
+            // Untranslated descriptions must not reintroduce the rejected language into the fallback.
+            var productDesc = string.IsNullOrWhiteSpace(product?.Description) || HasNonAsciiLetters(product.Description)
+                ? "" : $" ({product.Description})";
             var defaultSafeEnglish = $"A high-quality commercial advertising video showcasing {productName}{productDesc} in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
             return (defaultSafeEnglish, null);
         }
@@ -391,16 +393,21 @@ Output Rules:
         throw new FormatException("Gemini did not return the expected JSON format or missing integrated_multimodal_description/pattern_id.");
     }
 
-    private static string EnforceVideoSafety(string prompt)
+    private static bool HasNonAsciiLetters(string text)
+        => text.Any(c => c > 127 && char.IsLetter(c));
+
+    private static string EnforceVideoSafety(string prompt, string? productName = null)
     {
         if (string.IsNullOrWhiteSpace(prompt)) return string.Empty;
 
-        // Count non-ASCII characters. If a large portion is non-ASCII, it's likely not translated.
-        // We allow some non-ASCII because product names (like Vietnamese names) might be retained.
-        int nonAsciiCount = prompt.Count(c => c > 127);
-        if (nonAsciiCount > 20 && nonAsciiCount > prompt.Length * 0.2)
+        // Preserve the known product name and Unicode punctuation, but reject untranslated
+        // letters elsewhere even in short prompts. This is a conservative fallback guard,
+        // not a general-purpose language detector.
+        var textToValidate = string.IsNullOrWhiteSpace(productName)
+            ? prompt : prompt.Replace(productName, "", StringComparison.OrdinalIgnoreCase);
+        if (HasNonAsciiLetters(textToValidate))
         {
-            throw new InvalidOperationException("Prompt contains too many non-ASCII characters. Rejecting to fallback.");
+            throw new InvalidOperationException("Prompt contains non-ASCII letters outside the product name. Rejecting to fallback.");
         }
 
         var safePrompt = prompt;

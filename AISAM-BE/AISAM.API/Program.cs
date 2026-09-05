@@ -206,17 +206,19 @@ builder.Services
                 }
                 return Task.CompletedTask;
             },
-            OnTokenValidated = context =>
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogInformation("JWT Token Validated Successfully for user: {User}", context.Principal?.Identity?.Name ?? "Unknown");
-                return Task.CompletedTask;
-            }
+            OnTokenValidated = AISAM.API.Utils.CurrentSessionValidation.ValidateAsync
         };
     });
 
 builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
+builder.Services.AddScoped<AISAM.Data.AccessScope>();
+builder.Services.AddScoped<ResourceAccessService>();
+builder.Services.AddScoped<ContentAuthorizationService>();
+builder.Services.AddScoped<CollaborationAccessService>();
+builder.Services.AddHostedService<CollaborationExpiryWorker>();
+builder.Services.AddScoped<ExecutionAuthorizationService>();
+builder.Services.AddScoped<IExecutionAuthorityPolicy, UnresolvedExecutionAuthorityPolicy>();
 builder.Services.Configure<HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
@@ -458,6 +460,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseMiddleware<ActiveWorkspaceMiddleware>();
+app.UseMiddleware<ResourceAccessMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

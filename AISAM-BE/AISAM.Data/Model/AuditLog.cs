@@ -14,6 +14,15 @@ namespace AISAM.Data.Model
         [Column("actor_id")]
         public Guid ActorId { get; set; }
 
+        [Column("workspace_id")]
+        public Guid? WorkspaceId { get; set; }
+        [Column("team_id")] public Guid? TeamId { get; set; }
+        [Column("affected_user_id")] public Guid? AffectedUserId { get; set; }
+        [Column("requested_by")] public Guid? RequestedBy { get; set; }
+        [Column("approved_by")] public Guid? ApprovedBy { get; set; }
+        [Column("executed_by_system")] public bool ExecutedBySystem { get; set; }
+        [Column("reference_id")] public Guid? ReferenceId { get; set; }
+
         [Required]
         [MaxLength(100)]
         [Column("action_type")]

@@ -26,7 +26,7 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         INotificationRepository notificationRepository,
         IProfileRepository profileRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
-        IContentRepository contentRepository)
+        IContentRepository contentRepository, ExecutionAuthorizationService? executionAuthorization = null)
     {
         _contentCalendarRepository = contentCalendarRepository;
         _contentService = contentService;
@@ -34,12 +34,15 @@ public sealed class ScheduledPostingService : IScheduledPostingService
         _profileRepository = profileRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _contentRepository = contentRepository;
+        _executionAuthorization = executionAuthorization;
     }
 
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
     private const int MaxRetryAttempts = 3;
 
     public async Task<SchedulerRunResultDto> RunDueSchedulesAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("ScheduledPublish", cancellationToken)).Allowed) return new SchedulerRunResultDto();
         IReadOnlyList<ContentCalendar> schedules;
         try
         {

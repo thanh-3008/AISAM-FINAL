@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/conversation_list_provider.dart';
+import '../../../profile/presentation/providers/brand_controller.dart';
 
 class ConversationListScreen extends ConsumerWidget {
   const ConversationListScreen({super.key});
@@ -16,9 +17,7 @@ class ConversationListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () {
-              context.push('/chat/new'); // Or handle creating new chat
-            },
+            onPressed: () => _startNewChat(context),
           ),
         ],
       ),
@@ -107,12 +106,72 @@ class ConversationListScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           ElevatedButton(
-            onPressed: () {
-              context.push('/chat/new');
-            },
+            onPressed: () => _startNewChat(context),
             child: const Text('Start Chatting'),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _startNewChat(BuildContext context) async {
+    final brandId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _ChatBrandPickerSheet(),
+    );
+    if (brandId == null || !context.mounted) return;
+    context.push('/chat/new?brandId=${Uri.encodeQueryComponent(brandId)}');
+  }
+}
+
+class _ChatBrandPickerSheet extends ConsumerStatefulWidget {
+  const _ChatBrandPickerSheet();
+
+  @override
+  ConsumerState<_ChatBrandPickerSheet> createState() => _ChatBrandPickerSheetState();
+}
+
+class _ChatBrandPickerSheetState extends ConsumerState<_ChatBrandPickerSheet> {
+  String? _selectedBrandId;
+
+  @override
+  Widget build(BuildContext context) {
+    final brands = ref.watch(brandControllerProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Chọn Brand cho cuộc trò chuyện', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            const Text('Brand không thể thay đổi sau khi cuộc trò chuyện được tạo.'),
+            const SizedBox(height: 16),
+            brands.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => const Text('Không thể tải danh sách Brand.'),
+              data: (items) => items.isEmpty
+                  ? const Text('Bạn chưa có Brand khả dụng trong Workspace này.')
+                  : DropdownButtonFormField<String>(
+                      initialValue: _selectedBrandId,
+                      decoration: const InputDecoration(labelText: 'Brand'),
+                      items: items
+                          .map((brand) => DropdownMenuItem(value: brand.id, child: Text(brand.name)))
+                          .toList(),
+                      onChanged: (value) => setState(() => _selectedBrandId = value),
+                    ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _selectedBrandId == null
+                  ? null
+                  : () => Navigator.pop(context, _selectedBrandId),
+              child: const Text('Bắt đầu trò chuyện'),
+            ),
+          ],
+        ),
       ),
     );
   }

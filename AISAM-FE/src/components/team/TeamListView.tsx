@@ -93,10 +93,10 @@ export default function TeamListView({
                       <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full bg-gradient-to-r ${colors.bg}`}
-                          style={{ width: `${team.activity}%` }}
+                          style={{ width: `${team.activity == null ? "—" : `${team.activity}%`}` }}
                         />
                       </div>
-                      <span className="text-label-xs text-outline font-semibold w-8">{team.activity}%</span>
+                      <span className="text-label-xs text-outline font-semibold w-8">{team.activity == null ? "—" : `${team.activity}%`}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">

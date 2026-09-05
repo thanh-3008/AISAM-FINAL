@@ -21,6 +21,20 @@ public sealed class ConversationRepository : IConversationRepository
             .FirstOrDefaultAsync(conversation => conversation.Id == id && !conversation.IsDeleted, cancellationToken);
     }
 
+    public Task<Conversation?> GetByIdForWorkspaceReadAsync(
+        Guid id,
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+        => QueryForWorkspaceAccess(workspaceId, ConversationAccess.Read)
+            .FirstOrDefaultAsync(conversation => conversation.Id == id && !conversation.IsDeleted, cancellationToken);
+
+    public Task<Conversation?> GetByIdForWorkspaceDeleteAsync(
+        Guid id,
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+        => QueryForWorkspaceAccess(workspaceId, ConversationAccess.Delete)
+            .FirstOrDefaultAsync(conversation => conversation.Id == id && !conversation.IsDeleted, cancellationToken);
+
     public async Task<PagedResult<Conversation>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(request.Page, 1);
@@ -60,7 +74,8 @@ public sealed class ConversationRepository : IConversationRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(conversation => conversation.WorkspaceId == workspaceId && !conversation.IsDeleted);
+        var query = QueryForWorkspaceAccess(workspaceId, ConversationAccess.List)
+            .Where(conversation => !conversation.IsDeleted);
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
             var searchPattern = $"%{request.SearchTerm}%";
@@ -85,7 +100,8 @@ public sealed class ConversationRepository : IConversationRepository
     }
 
     public Task<Conversation?> GetActiveByWorkspaceIdAsync(Guid workspaceId, Guid? brandId, Guid? productId, AdTypeEnum adType, CancellationToken cancellationToken = default)
-        => Query().FirstOrDefaultAsync(c => c.WorkspaceId == workspaceId && c.BrandId == brandId && c.ProductId == productId && c.AdType == adType && c.IsActive && !c.IsDeleted, cancellationToken);
+        => QueryForWorkspaceAccess(workspaceId, ConversationAccess.Read)
+            .FirstOrDefaultAsync(c => c.BrandId == brandId && c.ProductId == productId && c.AdType == adType && c.IsActive && !c.IsDeleted, cancellationToken);
 
     public async Task<Conversation> AddAsync(Conversation conversation, CancellationToken cancellationToken = default)
     {
@@ -142,5 +158,59 @@ public sealed class ConversationRepository : IConversationRepository
                 .ThenInclude(message => message.AiGeneration)
             .Include(conversation => conversation.Brand)
             .Include(conversation => conversation.Product);
+    }
+
+    private IQueryable<Conversation> QueryForWorkspaceAccess(Guid workspaceId, ConversationAccess access)
+    {
+        if (!_context.AccessScope.Enforced || _context.AccessScope.WorkspaceId != workspaceId)
+            throw new UnauthorizedAccessException("A current workspace scope is required.");
+
+        var scope = _context.AccessScope;
+        var query = Query().Where(conversation => conversation.WorkspaceId == workspaceId);
+        if (scope.IsOwner)
+            return query;
+
+        var validBrandAndProduct = query.Where(conversation =>
+            conversation.BrandId.HasValue &&
+            scope.BrandIds.Contains(conversation.BrandId.Value) &&
+            conversation.Brand != null &&
+            conversation.Brand.WorkspaceId == workspaceId &&
+            !conversation.Brand.IsDeleted &&
+            (!conversation.ProductId.HasValue ||
+                conversation.Product != null &&
+                !conversation.Product.IsDeleted &&
+                conversation.Product.BrandId == conversation.BrandId));
+
+        if (scope.Role == WorkspaceMemberRoleEnum.Manager)
+        {
+            return validBrandAndProduct.Where(conversation =>
+                scope.MemberIds.Contains(conversation.Profile.UserId));
+        }
+
+        if (scope.Role == WorkspaceMemberRoleEnum.Viewer)
+            return access == ConversationAccess.List ? validBrandAndProduct : query.Where(_ => false);
+
+        if (scope.Role == WorkspaceMemberRoleEnum.ContentCreator)
+        {
+            if (access == ConversationAccess.Delete)
+                return query.Where(conversation => conversation.Profile.UserId == scope.UserId);
+
+            return query.Where(conversation =>
+                conversation.Profile.UserId == scope.UserId ||
+                conversation.ChatMessages.Any(message =>
+                    !message.IsDeleted &&
+                    message.Content != null &&
+                    message.Content.WorkspaceId == workspaceId &&
+                    message.Content.PrimaryCreatorId == scope.UserId));
+        }
+
+        return query.Where(_ => false);
+    }
+
+    private enum ConversationAccess
+    {
+        List,
+        Read,
+        Delete
     }
 }

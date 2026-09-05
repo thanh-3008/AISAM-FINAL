@@ -1,4 +1,5 @@
 using AISAM.Common;
+using AISAM.Data;
 using AISAM.Common.Dtos;
 using AISAM.Common.Messages;
 using AISAM.Common.Models;
@@ -21,19 +22,22 @@ public sealed class ContentScheduleService : IContentScheduleService
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly INotificationRepository _notificationRepository;
     private readonly ILogger<ContentScheduleService> _logger;
+    private readonly ContentAuthorizationService? _authorization;
 
     public ContentScheduleService(
         IContentRepository contentRepository,
         ISocialIntegrationRepository socialIntegrationRepository,
         IContentCalendarRepository contentCalendarRepository,
         INotificationRepository notificationRepository,
-        ILogger<ContentScheduleService> logger)
+        ILogger<ContentScheduleService> logger,
+        ContentAuthorizationService? authorization = null)
     {
         _contentRepository = contentRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
         _contentCalendarRepository = contentCalendarRepository;
         _notificationRepository = notificationRepository;
         _logger = logger;
+        _authorization = authorization;
     }
 
     public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
@@ -44,6 +48,8 @@ public sealed class ContentScheduleService : IContentScheduleService
             return validationResult.Error!;
         }
 
+        if (_authorization != null) await _authorization.EnsureAsync(validationResult.Content!.WorkspaceId, request.ContentId,
+            ContentAction.Schedule, request.IntegrationId, cancellationToken);
         var scheduledAt = NormalizeScheduledAt(request.ScheduledAt);
         if (scheduledAt == default)
         {
@@ -119,6 +125,8 @@ public sealed class ContentScheduleService : IContentScheduleService
         {
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
         }
+
+        if (_authorization != null) await _authorization.EnsureAsync(schedule.WorkspaceId, schedule.ContentId, ContentAction.Reschedule, request.IntegrationId ?? schedule.IntegrationId, cancellationToken);
 
         if (schedule.Status == ScheduleStatusEnum.Completed)
         {
@@ -237,6 +245,9 @@ public sealed class ContentScheduleService : IContentScheduleService
     {
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, schedule.ContentId, ContentAction.Reschedule, request.IntegrationId ?? schedule.IntegrationId, cancellationToken);
+        if (_authorization != null) await _authorization.EnsureAsync(schedule.WorkspaceId, schedule.ContentId, ContentAction.Unschedule, schedule.IntegrationId, cancellationToken);
+
         if (schedule.Status == ScheduleStatusEnum.Completed)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.CannotUpdateCompleted, HttpStatusCode.BadRequest);
         var content = schedule.Content ?? await _contentRepository.GetByIdAsync(schedule.ContentId, cancellationToken);
@@ -258,6 +269,7 @@ public sealed class ContentScheduleService : IContentScheduleService
     {
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<bool>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, schedule.ContentId, ContentAction.Unschedule, schedule.IntegrationId, cancellationToken);
         schedule.IsDeleted = true; schedule.IsActive = false; await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Schedule deleted successfully.");
     }
@@ -317,6 +329,7 @@ public sealed class ContentScheduleService : IContentScheduleService
 
     private async Task<GenericResponse<ContentScheduleDto>> CreateSingleInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, request.ContentId, ContentAction.Schedule, request.IntegrationId, cancellationToken);
         var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
         var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId || content.IsDeleted)

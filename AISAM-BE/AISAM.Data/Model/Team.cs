@@ -11,9 +11,13 @@ namespace AISAM.Data.Model
         [Column("id")]
         public Guid Id { get; set; } = Guid.NewGuid();
 
-        [Required]
         [Column("profile_id")]
-        public Guid ProfileId { get; set; }
+        public Guid? ProfileId { get; set; }
+
+        [Column("workspace_id")]
+        public Guid WorkspaceId { get; set; }
+
+        public virtual Workspace Workspace { get; set; } = null!;
 
         [Required]
         [MaxLength(255)]

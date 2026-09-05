@@ -89,7 +89,7 @@ export default function MemberCard({ member, onEdit, onDelete, onViewDetail, isO
           </div>
         </div>
 
-        {member.quotaMode !== "SharedPool" && (
+        {member.canViewCredit && member.quotaMode !== "SharedPool" && (
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-label-xs text-outline">
               <span>

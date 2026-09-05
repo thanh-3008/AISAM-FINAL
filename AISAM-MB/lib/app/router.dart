@@ -1,4 +1,7 @@
 import 'package:go_router/go_router.dart';
+import '../features/access/presentation/access_providers.dart';
+import '../features/access/presentation/access_boundary.dart';
+import '../features/access/presentation/own_analytics_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
@@ -60,7 +63,7 @@ GoRouter router(RouterRef ref) {
       final isApprovalRoute = state.uri.toString().startsWith('/approvals');
       final isChatRoute = state.uri.toString().startsWith('/chat');
 
-      LoggerService.d('Router Redirect: path=${state.uri}, hasToken=${token != null}, hasWorkspace=${workspaceId != null}');
+      LoggerService.d('Router Redirect: hasToken=${token != null}, hasWorkspace=${workspaceId != null}');
 
       // Auth Guard
       if (token == null && !isAuthRoute) {
@@ -77,9 +80,30 @@ GoRouter router(RouterRef ref) {
         return '/overview';
       }
       
+      if (token != null && workspaceId != null && !isAuthRoute && state.uri.path != '/overview' &&
+          !state.uri.path.startsWith('/workspace')) {
+        try {
+          final access = await ref.read(accessContextProvider.future);
+          final path = state.uri.path;
+          if (path == '/dashboard' && !access.canViewAnalytics) {
+            return access.canViewOwnAnalytics ? '/own-analytics' : '/content';
+          }
+          if (path == '/own-analytics' && !access.canViewOwnAnalytics) return '/content';
+          if (isApprovalRoute && !access.canReviewContent || isCalendarRoute && !access.canPublish) return '/content';
+          if ((path == '/content/create' || path == '/content/generate-ai') && !access.canCreateContent) return '/content';
+          final edit = RegExp(r'^/content/([^/]+)/edit$').firstMatch(path);
+          if (edit != null) {
+            final actions = await ref.read(contentActionsProvider(edit.group(1)!).future);
+            if (actions['Edit'] != true) return '/content/${edit.group(1)}';
+          }
+        } catch (_) {
+          return '/overview';
+        }
+      }
       return null;
     },
     routes: [
+      GoRoute(path: '/own-analytics', builder: (context, state) => const AccessBoundary(child: OwnAnalyticsScreen())),
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
@@ -114,7 +138,7 @@ GoRouter router(RouterRef ref) {
       // Main App Shell (Bottom Navigation)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          return ShellScreen(navigationShell: navigationShell);
+          return AccessBoundary(child: ShellScreen(navigationShell: navigationShell));
         },
         branches: [
           StatefulShellBranch(
@@ -208,7 +232,7 @@ GoRouter router(RouterRef ref) {
       // Content Routes
       GoRoute(
         path: '/content',
-        builder: (context, state) => const ContentListScreen(),
+        builder: (context, state) => const AccessBoundary(child: ContentListScreen()),
       ),
       GoRoute(
         path: '/content/create',
@@ -227,7 +251,7 @@ GoRouter router(RouterRef ref) {
       ),
       GoRoute(
         path: '/content/:id',
-        builder: (context, state) => ContentDetailScreen(contentId: state.pathParameters['id']!),
+        builder: (context, state) => AccessBoundary(child: ContentDetailScreen(contentId: state.pathParameters['id']!)),
       ),
       GoRoute(
         path: '/content/:id/tiktok-review',
@@ -235,7 +259,7 @@ GoRouter router(RouterRef ref) {
       ),
       GoRoute(
         path: '/content/:id/edit',
-        builder: (context, state) => ContentEditorScreen(contentId: state.pathParameters['id']!),
+        builder: (context, state) => AccessBoundary(child: ContentEditorScreen(contentId: state.pathParameters['id']!)),
       ),
       // Chat Routes
       GoRoute(
@@ -244,7 +268,15 @@ GoRouter router(RouterRef ref) {
       ),
       GoRoute(
         path: '/chat/new',
-        builder: (context, state) => const ChatScreen(),
+        redirect: (context, state) {
+          if (state.uri.queryParameters['brandId'] == null) {
+            return '/chat'; // Redirect to list which forces brand picker
+          }
+          return null;
+        },
+        builder: (context, state) => ChatScreen(
+          initialBrandId: state.uri.queryParameters['brandId'],
+        ),
       ),
       GoRoute(
         path: '/chat/:id',

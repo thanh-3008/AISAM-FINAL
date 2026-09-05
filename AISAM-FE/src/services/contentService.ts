@@ -466,7 +466,7 @@ export async function generateAIDraft(prompt: string, brandId: string, adType: A
 export async function chatWithAI(
   message: string,
   adType: AdType,
-  brandId?: string,
+  brandId: string,
   productId?: string,
   conversationId?: string,
   _history?: { role: string; text: string }[],

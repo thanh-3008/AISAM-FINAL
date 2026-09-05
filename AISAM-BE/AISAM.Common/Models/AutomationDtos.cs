@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace AISAM.Common.Models;
 
@@ -36,9 +37,11 @@ public sealed class AutomationPlanDto
     public int ValidItems { get; set; }
     public int FailedItems { get; set; }
     public int EstimatedCredits { get; set; }
-    public int ReservedCredits { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ReservedCredits { get; set; }
     public int UsedCredits { get; set; }
-    public int ReleasedCredits { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ReleasedCredits { get; set; }
     public bool AutoApprove { get; set; }
     public Guid? TemplateSourcePlanId { get; set; }
     public DateTime CreatedAt { get; set; }

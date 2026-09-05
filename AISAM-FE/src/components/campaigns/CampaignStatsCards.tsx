@@ -8,14 +8,20 @@ interface CampaignStatsCardsProps {
 }
 
 export default function CampaignStatsCards({ campaigns }: CampaignStatsCardsProps) {
+  const visible = campaigns.filter(c => c.canViewAnalytics);
+  if (visible.length === 0) return null;
+  return <VisibleCampaignStats campaigns={visible} />;
+}
+
+function VisibleCampaignStats({ campaigns }: CampaignStatsCardsProps) {
   const active = campaigns.filter((c) => c.status === "ACTIVE").length;
   const paused = campaigns.filter((c) => c.status === "PAUSED").length;
   const completed = campaigns.filter((c) => c.status === "COMPLETED").length;
-  const totalSpend = campaigns.reduce((sum, c) => sum + c.spend, 0);
+  const totalSpend = campaigns.reduce((sum, c) => sum + (c.spend ?? 0), 0);
   const totalBudget = campaigns.filter((c) => c.budget).reduce((sum, c) => sum + (c.budget || 0), 0);
-  const totalImpressions = campaigns.reduce((sum, c) => sum + c.impressions, 0);
-  const totalClicks = campaigns.reduce((sum, c) => sum + c.clicks, 0);
-  const totalConversions = campaigns.reduce((sum, c) => sum + c.conversions, 0);
+  const totalImpressions = campaigns.reduce((sum, c) => sum + (c.impressions ?? 0), 0);
+  const totalClicks = campaigns.reduce((sum, c) => sum + (c.clicks ?? 0), 0);
+  const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions ?? 0), 0);
 
   const stats = [
     { label: "Total Campaigns", value: campaigns.length, icon: "campaign", color: "text-primary", bg: "bg-primary/10" },

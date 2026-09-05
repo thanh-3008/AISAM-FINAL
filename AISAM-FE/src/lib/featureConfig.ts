@@ -98,7 +98,7 @@ export const FEATURE_MATRIX: Record<Feature, PlanType[]> = {
 
 export const PERMISSION_MATRIX: Record<Permission, WorkspaceRole[]> = {
   viewDashboard: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator, WorkspaceRole.Viewer],
-  viewAnalytics: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator, WorkspaceRole.Viewer],
+  viewAnalytics: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   manageBrand: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   manageProduct: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   manageContent: [WorkspaceRole.Owner, WorkspaceRole.Manager],

@@ -9,6 +9,7 @@ namespace AISAM.Services.Service
     public sealed class CampaignInsightsSyncService : ICampaignInsightsSyncService
     {
         private const int BatchSize = 10;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
         private readonly IAdCampaignRepository _campaignRepository;
         private readonly INotificationRepository _notificationRepository;
         private readonly ISocialAccountRepository _socialAccountRepository;
@@ -24,7 +25,7 @@ namespace AISAM.Services.Service
             ISocialTokenProtector tokenProtector,
             ISocialService socialService,
             IEnumerable<IProviderService> providers,
-            ILogger<CampaignInsightsSyncService> logger)
+            ILogger<CampaignInsightsSyncService> logger, ExecutionAuthorizationService? executionAuthorization = null)
         {
             _campaignRepository = campaignRepository;
             _notificationRepository = notificationRepository;
@@ -34,10 +35,12 @@ namespace AISAM.Services.Service
             _providers = providers.Where(p => p.ProviderName == "facebook" || p.ProviderName == "instagram")
                 .ToDictionary(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
             _logger = logger;
+        _executionAuthorization = executionAuthorization;
         }
 
         public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken = default)
         {
+            if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("CampaignInsights", cancellationToken)).Allowed) return false;
             var expiredByWorkspace = await _campaignRepository.UpdateExpiredCampaignsAsync(cancellationToken);
             foreach (var (workspaceId, count) in expiredByWorkspace)
             {

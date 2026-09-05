@@ -90,6 +90,7 @@ export default function CampaignDetailModal({ campaign, onClose, onRestart, onDe
             </div>
 
             {/* Performance Overview */}
+            {campaign.canViewAnalytics && (
             <div>
               <h3 className="text-label-sm font-bold text-on-surface mb-3">Performance Overview</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -114,7 +115,7 @@ export default function CampaignDetailModal({ campaign, onClose, onRestart, onDe
                     <span className="text-label-xs text-outline uppercase font-medium">Spend</span>
                   </div>
                   <p className="text-headline-sm font-bold text-on-surface">{formatCurrency(campaign.spend, campaign.adAccountCurrency || undefined)}</p>
-                  {campaign.budget && (
+                  {campaign.canViewAnalytics && campaign.budget && campaign.spend != null && (
                     <p className="text-label-xs text-outline mt-1">of {formatCurrency(campaign.budget, campaign.adAccountCurrency || undefined)}</p>
                   )}
                 </div>
@@ -128,8 +129,9 @@ export default function CampaignDetailModal({ campaign, onClose, onRestart, onDe
               </div>
             </div>
 
+            )}
             {/* Budget Progress */}
-            {campaign.budget && (
+            {campaign.canViewAnalytics && campaign.budget && campaign.spend != null && (
               <div>
                 <h3 className="text-label-sm font-bold text-on-surface mb-3">Budget Utilization</h3>
                 <div className="bg-surface-container-low rounded-xl p-4">
@@ -241,7 +243,7 @@ export default function CampaignDetailModal({ campaign, onClose, onRestart, onDe
                           {adSet.status}
                         </span>
                       </div>
-                      <div className="grid grid-cols-4 gap-2 text-label-xs">
+                      {campaign.canViewAnalytics && <div className="grid grid-cols-4 gap-2 text-label-xs">
                         <div>
                           <span className="text-outline">Impressions</span>
                           <p className="font-bold text-on-surface">{formatNumber(adSet.impressions)}</p>
@@ -261,6 +263,7 @@ export default function CampaignDetailModal({ campaign, onClose, onRestart, onDe
                           </div>
                         )}
                       </div>
+                      }
                       {/* Ads inside Ad Set */}
                       {adSet.ads.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-outline-variant/10 space-y-2">

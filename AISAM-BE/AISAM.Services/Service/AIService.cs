@@ -20,6 +20,8 @@ namespace AISAM.Services.Service;
 public sealed class AIService : IAIService
 {
     private readonly IContentRepository _contentRepository;
+    private readonly ContentAuthorizationService? _authorization;
+    private readonly ExecutionAuthorizationService? _executionAuthorization;
     private readonly IAiGenerationRepository _generationRepository;
     private readonly IBrandRepository _brandRepository;
     private readonly IProductRepository _productRepository;
@@ -49,7 +51,7 @@ public sealed class AIService : IAIService
         IAIVideoProvider videoProvider,
         IMediaStorageService mediaStorage,
         IPromptEnhancerService promptEnhancer,
-        ILogger<AIService> logger)
+        ILogger<AIService> logger, ContentAuthorizationService? authorization = null, ExecutionAuthorizationService? executionAuthorization = null)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -63,10 +65,13 @@ public sealed class AIService : IAIService
         _mediaStorage = mediaStorage;
         _promptEnhancer = promptEnhancer;
         _logger = logger;
+        _authorization = authorization;
+        _executionAuthorization = executionAuthorization;
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureBrandActionAsync(workspaceId, request.BrandId, AISAM.Data.ContentAction.AiGenerate, cancellationToken);
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
@@ -109,6 +114,7 @@ public sealed class AIService : IAIService
 
     public async Task<GenericResponse<AiGenerationResponse>> ImproveAsync(Guid contentId, Guid profileId, Guid workspaceId, Guid userId, ImproveContentRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, contentId, AISAM.Data.ContentAction.AiImprove, null, cancellationToken);
         var content = await _contentRepository.GetByIdAsync(contentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {
@@ -141,6 +147,7 @@ public sealed class AIService : IAIService
             return GenericResponse<ContentResponseDto>.CreateError("AI generation is not completed.", HttpStatusCode.BadRequest);
         }
 
+        if (_authorization != null) await _authorization.EnsureAsync(generation.Content.WorkspaceId, generation.ContentId, AISAM.Data.ContentAction.AiAdopt, null, cancellationToken);
         generation.Content.TextContent = generation.GeneratedText;
         generation.Content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
@@ -160,13 +167,28 @@ public sealed class AIService : IAIService
     }
 
     public async Task<GenericResponse<ChatResponse>> ChatAsync(Guid profileId, ChatRequest request, CancellationToken cancellationToken = default)
-        => await ChatInternalAsync(profileId, null, null, request, cancellationToken);
+    {
+        if (!HasRequiredBrand(request))
+            return BrandRequiredError();
+
+        if (_authorization != null) await _authorization.EnsureCurrentBrandActionAsync(request.BrandId, AISAM.Data.ContentAction.AiChat, cancellationToken);
+        return await ChatInternalAsync(profileId, null, null, request, cancellationToken);
+    }
 
     public async Task<GenericResponse<ChatResponse>> ChatInWorkspaceAsync(Guid profileId, Guid workspaceId, Guid userId, ChatRequest request, CancellationToken cancellationToken = default)
-        => await ChatInternalAsync(profileId, workspaceId, userId, request, cancellationToken);
+    {
+        if (!HasRequiredBrand(request))
+            return BrandRequiredError();
+
+        if (_authorization != null) await _authorization.EnsureBrandActionAsync(workspaceId, request.BrandId, AISAM.Data.ContentAction.AiChat, cancellationToken);
+        return await ChatInternalAsync(profileId, workspaceId, userId, request, cancellationToken);
+    }
 
     private async Task<GenericResponse<ChatResponse>> ChatInternalAsync(Guid profileId, Guid? workspaceId, Guid? userId, ChatRequest request, CancellationToken cancellationToken)
     {
+        if (!HasRequiredBrand(request))
+            return BrandRequiredError();
+
         var userMessage = PromptGuard.SanitizePromptInput(request.Message);
         if (string.IsNullOrWhiteSpace(userMessage))
         {
@@ -183,7 +205,6 @@ public sealed class AIService : IAIService
             }, "Processed with safety guardrails.");
         }
 
-        Console.WriteLine($"[AIService.ChatInternalAsync] profileId={profileId}, workspaceId={workspaceId}, userId={userId}, message={userMessage[..Math.Min(userMessage.Length, 50)]}");
 
         if (request.BrandId.HasValue)
         {
@@ -210,7 +231,9 @@ public sealed class AIService : IAIService
         Conversation? conversation = null;
         if (request.ConversationId.HasValue)
         {
-            var existingConversation = await _conversationRepository.GetByIdAsync(request.ConversationId.Value, cancellationToken);
+            var existingConversation = workspaceId.HasValue
+                ? await _conversationRepository.GetByIdForWorkspaceReadAsync(request.ConversationId.Value, workspaceId.Value, cancellationToken)
+                : await _conversationRepository.GetByIdAsync(request.ConversationId.Value, cancellationToken);
             if (existingConversation == null || (workspaceId.HasValue ? existingConversation.WorkspaceId != workspaceId : existingConversation.ProfileId != profileId))
             {
                 return GenericResponse<ChatResponse>.CreateError("Conversation not found.", HttpStatusCode.NotFound);
@@ -247,7 +270,11 @@ public sealed class AIService : IAIService
             Message = userMessage
         }, CancellationToken.None);
 
-        Console.WriteLine($"[AIService.ChatInternalAsync] User message saved. ConversationId={conversation.Id}");
+        _logger.LogInformation(
+            "AI chat operation. Operation={Operation} ConversationId={ConversationId} Status={Status}",
+            "SaveUserMessage",
+            conversation.Id,
+            "Succeeded");
 
         try
         {
@@ -262,20 +289,46 @@ public sealed class AIService : IAIService
             var responseText = parsedResponse.Response;
             responseText = EnsureProductLandingUrlInGeneratedResponse(responseText, effectiveIntent, selectedProduct, userMessage);
 
-            Console.WriteLine($"[AIService.ChatInternalAsync] Parsed AI intent={parsedResponse.Intent}, effectiveIntent={effectiveIntent}. ConversationId={conversation.Id}");
+            _logger.LogInformation(
+                "AI chat operation. Operation={Operation} ConversationId={ConversationId} Status={Status}",
+                "ParseResponse",
+                conversation.Id,
+                "Succeeded");
 
             if (workspaceId.HasValue && userId.HasValue &&
                 !IsImageIntent(effectiveIntent) &&
                 !IsVideoIntent(effectiveIntent))
             {
-                Console.WriteLine($"[AIService.ChatInternalAsync] Attempting to deduct credits. workspaceId={workspaceId}, userId={userId}");
+                _logger.LogInformation(
+                    "AI chat operation. Operation={Operation} WorkspaceId={WorkspaceId} UserId={UserId} Status={Status}",
+                    "ConsumeTextCredits",
+                    workspaceId.Value,
+                    userId.Value,
+                    "Started");
                 var chargeResult = await _creditService.ConsumeCreditsAsync(
                     workspaceId.Value,
                     userId.Value,
                     CreditActionEnum.GenerateText,
                     TextGenerationCredits,
                     cancellationToken: CancellationToken.None);
-                Console.WriteLine($"[AIService.ChatInternalAsync] Credit deduction result: success={chargeResult.Success}, message={chargeResult.Message}");
+                if (chargeResult.Success)
+                {
+                    _logger.LogInformation(
+                        "AI chat operation. Operation={Operation} WorkspaceId={WorkspaceId} UserId={UserId} Status={Status}",
+                        "ConsumeTextCredits",
+                        workspaceId.Value,
+                        userId.Value,
+                        "Succeeded");
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "AI chat operation. Operation={Operation} WorkspaceId={WorkspaceId} UserId={UserId} Status={Status}",
+                        "ConsumeTextCredits",
+                        workspaceId.Value,
+                        userId.Value,
+                        "Failed");
+                }
 
                 if (!chargeResult.Success)
                 {
@@ -287,7 +340,12 @@ public sealed class AIService : IAIService
             }
             else if (!workspaceId.HasValue || !userId.HasValue)
             {
-                Console.WriteLine($"[AIService.ChatInternalAsync] Skipping credit deduction: workspaceId={workspaceId.HasValue}, userId={userId.HasValue}");
+                _logger.LogInformation(
+                    "AI chat operation. Operation={Operation} WorkspaceId={WorkspaceId} UserId={UserId} Status={Status}",
+                    "ConsumeTextCredits",
+                    workspaceId,
+                    userId,
+                    "Skipped");
             }
 
             Guid? createdContentId = null;
@@ -393,7 +451,12 @@ public sealed class AIService : IAIService
                         }
                         else
                         {
-                            _logger.LogError("Image generation failed during chat context for WorkspaceId {WorkspaceId}. Provider: {Provider}. Error: {Error}", workspaceId, imgResult.ProviderName, imgResult.ErrorMessage);
+                            _logger.LogError(
+                                "AI operation. Operation={Operation} WorkspaceId={WorkspaceId} Provider={Provider} Status={Status}",
+                                "GenerateChatImage",
+                                workspaceId,
+                                imgResult.ProviderName,
+                                "Failed");
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = imgResult.ErrorMessage;
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
@@ -492,7 +555,12 @@ public sealed class AIService : IAIService
                             var chargeResult = await _creditService.ConsumeCreditsAsync(workspaceId.Value, userId.Value, CreditActionEnum.GenerateVideo, VideoGenerationCredits, generation.Id, cancellationToken: CancellationToken.None);
                             if (!chargeResult.Success)
                             {
-                                Console.WriteLine($"[AIService] Warning: video job started but credit deduction failed: {chargeResult.Message}");
+                                _logger.LogWarning(
+                                    "AI chat operation. Operation={Operation} WorkspaceId={WorkspaceId} UserId={UserId} Status={Status}",
+                                    "ConsumeVideoCredits",
+                                    workspaceId.Value,
+                                    userId.Value,
+                                    "Failed");
                             }
 
                             // mark created content id so frontend can show the post immediately
@@ -501,7 +569,12 @@ public sealed class AIService : IAIService
                         }
                         else
                         {
-                            _logger.LogError("Video generation failed during chat context for WorkspaceId {WorkspaceId}. Error: {Error}", workspaceId, vidResult.ErrorMessage);
+                            _logger.LogError(
+                                "AI operation. Operation={Operation} WorkspaceId={WorkspaceId} Provider={Provider} Status={Status}",
+                                "StartChatVideo",
+                                workspaceId,
+                                "DeAPI",
+                                "Failed");
                             generation.Status = AiStatusEnum.Failed;
                             generation.ErrorMessage = vidResult.ErrorMessage;
                             await _generationRepository.UpdateAsync(generation, CancellationToken.None);
@@ -564,9 +637,13 @@ public sealed class AIService : IAIService
                 CreatedContentId = createdContentId
             });
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException)
         {
-            Console.WriteLine($"[AIService.ChatInternalAsync] Task canceled (Timeout or Client Disconnect): {ex.Message}");
+            _logger.LogWarning(
+                "AI chat operation. Operation={Operation} ConversationId={ConversationId} Status={Status}",
+                "GenerateResponse",
+                conversation.Id,
+                "Canceled");
             await _conversationRepository.AddMessageAsync(new ChatMessage
             {
                 ConversationId = conversation.Id,
@@ -576,10 +653,13 @@ public sealed class AIService : IAIService
 
             return GenericResponse<ChatResponse>.CreateError("Request timed out or was canceled.", HttpStatusCode.RequestTimeout);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            var errorMessage = ex.Message;
-            Console.WriteLine($"[AIService.ChatInternalAsync] Exception: {errorMessage}");
+            _logger.LogError(
+                "AI chat operation. Operation={Operation} ConversationId={ConversationId} Status={Status}",
+                "GenerateResponse",
+                conversation.Id,
+                "Failed");
             await _conversationRepository.AddMessageAsync(new ChatMessage
             {
                 ConversationId = conversation.Id,
@@ -590,6 +670,15 @@ public sealed class AIService : IAIService
             return GenericResponse<ChatResponse>.CreateError("Hệ thống AI đang bận. Vui lòng thử lại sau.", HttpStatusCode.ServiceUnavailable);
         }
     }
+
+    private static bool HasRequiredBrand(ChatRequest request)
+        => request.BrandId.HasValue && request.BrandId.Value != Guid.Empty;
+
+    private static GenericResponse<ChatResponse> BrandRequiredError()
+        => GenericResponse<ChatResponse>.CreateError(
+            "Brand is required.",
+            HttpStatusCode.BadRequest,
+            "BRAND_REQUIRED");
 
     private async Task<AiGenerationResponse> GenerateForContentAsync(Content content, string prompt, CancellationToken cancellationToken)
     {
@@ -643,6 +732,7 @@ public sealed class AIService : IAIService
         var generation = await _generationRepository.GetByIdAsync(generationId, cancellationToken);
         if (generation == null || generation.Content.WorkspaceId != workspaceId) return GenericResponse<ContentResponseDto>.CreateError("AI generation not found.", HttpStatusCode.NotFound);
         if (generation.Status != AiStatusEnum.Completed || string.IsNullOrWhiteSpace(generation.GeneratedText)) return GenericResponse<ContentResponseDto>.CreateError("AI generation is not completed.", HttpStatusCode.BadRequest);
+        if (_authorization != null) await _authorization.EnsureAsync(generation.Content.WorkspaceId, generation.ContentId, AISAM.Data.ContentAction.AiAdopt, null, cancellationToken);
         generation.Content.TextContent = generation.GeneratedText;
         generation.Content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
@@ -651,6 +741,7 @@ public sealed class AIService : IAIService
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateImageAsync(Guid workspaceId, Guid userId, GenerateImageRequest request, CancellationToken cancellationToken = default)
     {
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, request.ContentId, AISAM.Data.ContentAction.AiGenerateImage, null, cancellationToken);
         var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
             return GenericResponse<AiGenerationResponse>.CreateError("Content not found.", HttpStatusCode.NotFound);
@@ -700,7 +791,12 @@ public sealed class AIService : IAIService
 
         if (!result.Success)
         {
-            _logger.LogError("Image generation failed for ContentId {ContentId}. Provider: {Provider}. Error: {Error}", request.ContentId, result.ProviderName, result.ErrorMessage);
+            _logger.LogError(
+                "AI operation. Operation={Operation} ContentId={ContentId} Provider={Provider} Status={Status}",
+                "GenerateImage",
+                request.ContentId,
+                result.ProviderName,
+                "Failed");
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = result.ErrorMessage;
             generation.ProviderName = result.ProviderName;
@@ -747,6 +843,9 @@ public sealed class AIService : IAIService
 
     public async Task<GenericResponse<AiGenerationResponse>> StartVideoGenerationAsync(Guid workspaceId, Guid userId, GenerateVideoRequest request, CancellationToken cancellationToken = default)
     {
+        if (_executionAuthorization != null && !(await _executionAuthorization.CanDispatchAsync("VideoGeneration", cancellationToken)).Allowed)
+            return GenericResponse<AiGenerationResponse>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
+        if (_authorization != null) await _authorization.EnsureAsync(workspaceId, request.ContentId, AISAM.Data.ContentAction.AiGenerateVideo, null, cancellationToken);
         var correlationId = Guid.NewGuid().ToString("N");
         var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
@@ -823,7 +922,12 @@ public sealed class AIService : IAIService
 
         if (!result.Success)
         {
-            _logger.LogError("Video generation failed for ContentId {ContentId}. Provider: {Provider}. Error: {Error}", request.ContentId, result.ProviderName, result.ErrorMessage);
+            _logger.LogError(
+                "AI operation. Operation={Operation} ContentId={ContentId} Provider={Provider} Status={Status}",
+                "StartVideo",
+                request.ContentId,
+                result.ProviderName,
+                "Failed");
             generation.Status = AiStatusEnum.Failed;
             generation.ErrorMessage = result.ErrorMessage;
             generation.ProviderName = result.ProviderName;
@@ -878,6 +982,8 @@ public sealed class AIService : IAIService
         {
             return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Status checked.");
         }
+        if (_executionAuthorization != null && !(await _executionAuthorization.CheckAsync("AiGeneration", generation.Id, "AiGenerate", cancellationToken)).Allowed)
+            return GenericResponse<AiGenerationResponse>.CreateError("BLOCKED_BY_BUSINESS_DECISION", HttpStatusCode.Forbidden);
 
         if (string.IsNullOrWhiteSpace(generation.VideoJobId))
         {
@@ -919,10 +1025,10 @@ public sealed class AIService : IAIService
             generation.ErrorMessage = result.ErrorMessage;
             await _generationRepository.UpdateAsync(generation, cancellationToken);
             _logger.LogWarning(
-                "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} OldStatus={OldStatus} NewStatus={NewStatus} Reason={Reason} Error={Error} Timestamp={Timestamp}",
+                "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} OldStatus={OldStatus} NewStatus={NewStatus} Reason={Reason} Timestamp={Timestamp}",
                 "video.provider_job_failed", generation.Id, generation.ContentId, result.ProviderName,
                 generation.VideoJobId, oldStatus, generation.Status, "provider_reported_terminal_failure",
-                result.ErrorMessage, DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow);
             return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Video generation failed.");
         }
 
@@ -960,7 +1066,7 @@ public sealed class AIService : IAIService
                 generation.Status = AiStatusEnum.Failed;
                 generation.ErrorMessage = "Failed to download or upload generated video: " + ex.Message;
                 await _generationRepository.UpdateAsync(generation, cancellationToken);
-                _logger.LogError(ex,
+                _logger.LogError(
                     "Event={Event} AiGenerationId={AiGenerationId} ContentId={ContentId} Provider={Provider} VideoJobId={VideoJobId} OldStatus={OldStatus} NewStatus={NewStatus} Reason={Reason}",
                     "video.finalization_failed", generation.Id, generation.ContentId, result.ProviderName,
                     generation.VideoJobId, oldStatus, generation.Status, "download_or_upload_failed");
@@ -1069,7 +1175,7 @@ public sealed class AIService : IAIService
             VideoJobId = generation.VideoJobId,
             ProviderUsed = generation.ProviderName,
             Status = generation.Status,
-            ErrorMessage = generation.ErrorMessage,
+            ErrorMessage = string.IsNullOrEmpty(generation.ErrorMessage) ? null : "Generation failed.",
             CreatedAt = generation.CreatedAt
         };
     }
@@ -1086,7 +1192,7 @@ public sealed class AIService : IAIService
             VideoJobId = generation.VideoJobId,
             ProviderUsed = generation.ProviderName,
             Status = generation.Status,
-            ErrorMessage = generation.ErrorMessage,
+            ErrorMessage = string.IsNullOrEmpty(generation.ErrorMessage) ? null : "Generation failed.",
             CreatedAt = generation.CreatedAt
         };
     }
@@ -1965,9 +2071,12 @@ Treat all reference images as different views of one product. Do not create mult
             _logger.LogInformation("[Vision] Downloaded product image ({Size} bytes) for multimodal analysis.", bytes.Length);
             return bytes;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogWarning(ex, "[Vision] Failed to download product image from {Url}. Falling back to text-only.", imageUrl);
+            _logger.LogWarning(
+                "AI operation. Operation={Operation} Status={Status}",
+                "DownloadProductImage",
+                "Failed");
             return null;
         }
     }

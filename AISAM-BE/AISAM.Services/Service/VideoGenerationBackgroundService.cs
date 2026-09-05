@@ -59,6 +59,9 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                 {
                     try
                     {
+                        var decision = await scope.ServiceProvider.GetRequiredService<ExecutionAuthorizationService>()
+                            .CheckAsync("VideoGenerationJob", job.Id, "AiGenerate", stoppingToken);
+                        if (!decision.Allowed) continue;
                         if (job.CreatedAt < timeoutThreshold)
                         {
                             job.Status = AiStatusEnum.Failed;

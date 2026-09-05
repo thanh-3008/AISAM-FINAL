@@ -1,14 +1,20 @@
+using System.Text.Json.Serialization;
+
 namespace AISAM.Common.Models;
 
 public sealed class WorkspaceDashboardSummaryDto
 {
     public Guid WorkspaceId { get; set; }
-    public long CreditBalance { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? CreditBalance { get; set; }
     public long CreditsUsed { get; set; }
-    public long MaxBalanceCap { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MaxBalanceCap { get; set; }
     public int PublishedPostCount { get; set; }
-    public int PostQuotaLimit { get; set; }
-    public int PostsRemaining { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PostQuotaLimit { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PostsRemaining { get; set; }
     public int AiUsageCount { get; set; }
     public int ActiveMemberCount { get; set; }
     public IReadOnlyList<WorkspaceTopMemberDto> TopMembers { get; set; } = [];

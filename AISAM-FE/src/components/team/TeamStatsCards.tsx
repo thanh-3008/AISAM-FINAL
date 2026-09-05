@@ -10,13 +10,11 @@ interface TeamStatsCardsProps {
 export default function TeamStatsCards({ teams, members }: TeamStatsCardsProps) {
   const activeMembers = members.filter((m) => m.status === "Active").length;
   const pendingInvites = members.filter((m) => m.status === "Pending").length;
-  const avgActivity = teams.length > 0 ? Math.round(teams.reduce((sum, t) => sum + t.activity, 0) / teams.length) : 0;
 
   const stats = [
     { label: "Total Members", value: members.length, icon: "group", color: "text-primary", bg: "bg-primary/10", trend: `${activeMembers} active` },
     { label: "Active Teams", value: teams.length, icon: "schema", color: "text-secondary", bg: "bg-secondary/10", trend: "All active" },
     { label: "Pending Invites", value: pendingInvites, icon: "mail", color: "text-tertiary", bg: "bg-tertiary/10", trend: "Awaiting response" },
-    { label: "Avg Activity", value: `${avgActivity}%`, icon: "trending_up", color: "text-success-green", bg: "bg-emerald-50", trend: "Team performance" },
   ];
 
   return (

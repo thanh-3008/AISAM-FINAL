@@ -7,6 +7,8 @@ namespace AISAM.Data.Model
     [Table("workspaces")]
     public class Workspace
     {
+        [Column("permission_revision")]
+        public long PermissionRevision { get; set; }
         [Key]
         [Column("id")]
         public Guid Id { get; set; } = Guid.NewGuid();

@@ -142,7 +142,7 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         var utcWindowStart = NormalizeUtc(windowStart);
         var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
 
-        var aiGenQuery = _context.AiGenerations
+        var aiGenQuery = _context.WorkspaceUsageGenerations(workspaceId)
             .Include(generation => generation.Content)
             .Where(generation =>
                 !generation.IsDeleted &&
@@ -157,7 +157,7 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
 
         var aiGenCount = await aiGenQuery.CountAsync(cancellationToken);
 
-        var contentQuery = _context.Contents
+        var contentQuery = _context.WorkspaceUsageContents(workspaceId)
             .Where(content =>
                 content.WorkspaceId == workspaceId &&
                 content.IsAiGenerated &&
@@ -179,7 +179,7 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         var utcWindowStart = NormalizeUtc(windowStart);
         var utcWindowEndExclusive = NormalizeEndExclusiveUtc(windowEnd);
 
-        var query = _context.Posts
+        var query = _context.WorkspaceUsagePosts(workspaceId)
             .Include(post => post.Content)
             .Where(post =>
                 !post.IsDeleted &&

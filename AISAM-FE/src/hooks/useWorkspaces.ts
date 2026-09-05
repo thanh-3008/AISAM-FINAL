@@ -61,9 +61,8 @@ function notifyCache() {
 }
 
 function resolveMemberRole(role: unknown): string | null {
-  if (typeof role !== "number") return "Owner";
+  if (typeof role !== "number") return null;
   const roleMap: Record<number, string> = {
-    0: "Owner",
     1: "Owner",
     2: "Manager",
     3: "ContentCreator",
@@ -73,7 +72,7 @@ function resolveMemberRole(role: unknown): string | null {
 }
 
 function isOwnerRole(role: unknown): boolean {
-  return role === 0 || role === 1;
+  return role === 1;
 }
 
 function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null {
@@ -90,8 +89,8 @@ function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null
     status: 1,
     createdAt: "",
     updatedAt: "",
-    isOwner: true,
-    memberRole: "Owner",
+    isOwner: false,
+    memberRole: null,
     memberLimit: stored.workspaceType === 2 ? 10 : 1,
   };
 }

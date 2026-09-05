@@ -1,3 +1,5 @@
+import '../../../../core/network/access_events.dart';
+import '../../../access/presentation/access_providers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/calendar_repository.dart';
 import '../../data/models/content_schedule_model.dart';
@@ -8,8 +10,14 @@ part 'calendar_provider.g.dart';
 
 @riverpod
 class CalendarNotifier extends _$CalendarNotifier {
+  int _generation = 0;
+
   @override
   Future<List<ContentScheduleModel>> build() async {
+    ++_generation;
+    ref.onDispose(() => ++_generation);
+    if (ref.watch(accessDeniedProvider)) return [];
+    await ref.watch(accessContextProvider.future);
     return _fetchSchedules();
   }
 
@@ -21,7 +29,14 @@ class CalendarNotifier extends _$CalendarNotifier {
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _fetchSchedules());
+    final generation = ++_generation;
+    final result = await AsyncValue.guard(() async {
+      await ref.read(accessContextProvider.future);
+      if (generation != _generation || ref.read(accessDeniedProvider)) return <ContentScheduleModel>[];
+      return _fetchSchedules();
+    });
+    if (generation != _generation || ref.read(accessDeniedProvider)) return;
+    state = result;
   }
 
   Future<void> createSchedule(CreateScheduleRequest request) async {
