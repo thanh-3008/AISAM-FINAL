@@ -29,6 +29,7 @@ export type { ContentType, ContentStatus };
 
 export interface ContentApiItem {
   id: string;
+  teamId?: string | null;
   profileId: string;
   brandId: string;
   brandName: string | null;

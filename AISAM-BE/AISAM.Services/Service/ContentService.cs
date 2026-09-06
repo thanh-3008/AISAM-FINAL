@@ -87,10 +87,12 @@ public sealed class ContentService : IContentService
         {
             return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         }
+        var owningWorkspaceId = (await _brandRepository.GetByIdAsync(request.BrandId, cancellationToken))!.WorkspaceId;
 
         var content = new Content
         {
             ProfileId = profileId,
+            WorkspaceId = owningWorkspaceId,
             BrandId = request.BrandId,
             ProductId = request.ProductId,
             AdType = request.AdType,
@@ -231,7 +233,7 @@ public sealed class ContentService : IContentService
         if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Clone, null, cancellationToken);
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
-        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
+        var clone = new Content { WorkspaceId = workspaceId, TeamId = existing.TeamId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
     }
@@ -441,6 +443,7 @@ public sealed class ContentService : IContentService
         {
             ProfileId = existing.ProfileId,
             WorkspaceId = existing.WorkspaceId,
+            TeamId = existing.TeamId,
             BrandId = existing.BrandId,
             Brand = existing.Brand,
             ProductId = existing.ProductId,
@@ -946,6 +949,7 @@ public sealed class ContentService : IContentService
         return new ContentResponseDto
         {
             Id = content.Id,
+            TeamId = content.TeamId,
             ProfileId = content.ProfileId,
             PrimaryCreatorId = content.PrimaryCreatorId,
             BrandId = content.BrandId,

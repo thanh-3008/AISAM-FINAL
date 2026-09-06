@@ -52,7 +52,8 @@ public partial class AisamContext
         model.Entity<Content>().HasQueryFilter(c => !AccessScope.Enforced ||
             c.WorkspaceId == AccessScope.WorkspaceId && (AccessScope.IsOwner ||
                 (AccessScope.IsWrite ? AccessScope.EditableContentIds.Contains(c.Id) :
-                    AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(c.Id) : AccessScope.BrandIds.Contains(c.BrandId))));
+                    AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(c.Id) :
+                    c.TeamId.HasValue && AccessScope.TeamIds.Contains(c.TeamId.Value) && AccessScope.BrandIds.Contains(c.BrandId))));
         model.Entity<Brand>().HasQueryFilter(b => !AccessScope.Enforced ||
             b.WorkspaceId == AccessScope.WorkspaceId && (AccessScope.IsOwner || AccessScope.BrandIds.Contains(b.Id)));
         model.Entity<Product>().HasQueryFilter(p => !AccessScope.Enforced ||
@@ -64,10 +65,12 @@ public partial class AisamContext
         model.Entity<Post>().HasQueryFilter(p => !AccessScope.Enforced ||
             p.Content.WorkspaceId == AccessScope.WorkspaceId && p.Integration.WorkspaceId == AccessScope.WorkspaceId &&
             (AccessScope.IsOwner || (AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(p.ContentId) :
+                p.Content.TeamId.HasValue && AccessScope.TeamIds.Contains(p.Content.TeamId.Value) &&
                 AccessScope.BrandIds.Contains(p.Content.BrandId) && AccessScope.IntegrationIds.Contains(p.IntegrationId))));
         model.Entity<PerformanceReport>().HasQueryFilter(r => !AccessScope.Enforced || r.Post != null &&
             r.Post.Content.WorkspaceId == AccessScope.WorkspaceId && r.Post.Integration.WorkspaceId == AccessScope.WorkspaceId &&
             (AccessScope.IsOwner || (AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(r.Post.ContentId) :
+                r.Post.Content.TeamId.HasValue && AccessScope.TeamIds.Contains(r.Post.Content.TeamId.Value) &&
                 AccessScope.BrandIds.Contains(r.Post.Content.BrandId) && AccessScope.IntegrationIds.Contains(r.Post.IntegrationId))));
         model.Entity<CreditUsageRecord>().HasQueryFilter(r => !AccessScope.Enforced || r.WorkspaceId == AccessScope.WorkspaceId &&
             (AccessScope.IsOwner || AccessScope.Role == WorkspaceMemberRoleEnum.ContentCreator && r.UserId == AccessScope.UserId ||

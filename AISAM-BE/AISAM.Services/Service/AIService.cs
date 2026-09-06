@@ -2086,6 +2086,7 @@ Treat all reference images as different views of one product. Do not create mult
         return new ContentResponseDto
         {
             Id = content.Id,
+            TeamId = content.TeamId,
             ProfileId = content.ProfileId,
             BrandId = content.BrandId,
             BrandName = content.Brand?.Name,

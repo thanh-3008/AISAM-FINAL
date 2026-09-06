@@ -120,6 +120,7 @@ public sealed class AutomationReadAuthorizationSecurityTests
             var privateContent = new Content
             {
                 WorkspaceId = security.Workspace.Id,
+                TeamId = security.Team.Id,
                 ProfileId = security.Profile.Id,
                 BrandId = privateBrand.Id,
                 PrimaryCreatorId = security.Creator.Id,

@@ -103,10 +103,16 @@ public sealed class AdminToolsController : ControllerBase
 
             if (brand == null) continue;
 
+            var ownerTeams = await _context.TeamBrands.IgnoreQueryFilters().AsNoTracking()
+                .Where(link => link.BrandId == brand.Id && link.IsActive && link.Team.WorkspaceId == ws.Id && !link.Team.IsDeleted)
+                .Select(link => link.TeamId).Distinct().Take(2).ToArrayAsync(cancellationToken);
+            if (ownerTeams.Length != 1) continue;
+
             var content = new Content
             {
                 ProfileId = brand.ProfileId,
                 WorkspaceId = ws.Id,
+                TeamId = ownerTeams[0],
                 BrandId = brand.Id,
                 AdType = (AdTypeEnum)random.Next(0, 3),
                 Title = titles[random.Next(titles.Length)],

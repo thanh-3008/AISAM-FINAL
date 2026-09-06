@@ -92,6 +92,7 @@ public class ContentCalendarRepositoryTests
         Assert.Equal(5, await context.ContentCalendars.CountAsync());
 
         scope.Role = WorkspaceMemberRoleEnum.Manager;
+        scope.TeamIds = [fixture.DueSchedule.Content.TeamId!.Value];
         scope.BrandIds = [fixture.DueSchedule.Content.BrandId];
         scope.IntegrationIds = [fixture.DueSchedule.IntegrationId!.Value];
         Assert.Equal(fixture.DueSchedule.Id, (await context.ContentCalendars.SingleAsync()).Id);
@@ -153,11 +154,19 @@ public class ContentCalendarRepositoryTests
             Workspace = workspace,
             Name = "Brand"
         };
+        var team = new Team
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = workspace.Id,
+            Name = "Team",
+            Status = TeamStatusEnum.Active
+        };
         var content = new Content
         {
             Id = Guid.NewGuid(),
             ProfileId = profile.Id,
             WorkspaceId = workspace.Id,
+            TeamId = team.Id,
             BrandId = brand.Id,
             Brand = brand,
             AdType = AdTypeEnum.TextOnly,
@@ -228,6 +237,7 @@ public class ContentCalendarRepositoryTests
         context.Users.Add(owner);
         context.Profiles.Add(profile);
         context.Workspaces.Add(workspace);
+        context.Teams.Add(team);
         context.Brands.Add(brand);
         context.Contents.Add(content);
         var account = new SocialAccount { ProfileId = profile.Id, WorkspaceId = workspace.Id };

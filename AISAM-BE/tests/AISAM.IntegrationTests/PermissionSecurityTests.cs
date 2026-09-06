@@ -325,12 +325,12 @@ public sealed class PermissionSecurityTests
             f.Brand = new Brand { WorkspaceId = f.Workspace.Id, ProfileId = f.Profile.Id, Name = "Brand" };
             var foreignBrand = new Brand { WorkspaceId = f.OtherWorkspace.Id, ProfileId = f.Profile.Id, Name = "Foreign brand" };
             f.Db.Brands.AddRange(f.Brand, foreignBrand);
+            f.Team = new Team { WorkspaceId = f.Workspace.Id, Name = "Team", Status = TeamStatusEnum.Active };
+            f.Db.Teams.Add(f.Team);
             f.OwnContent = f.Content(f.Workspace, f.Brand, f.Creator);
             f.OtherContent = f.Content(f.Workspace, f.Brand, f.OtherCreator);
             f.ForeignContent = f.Content(f.OtherWorkspace, foreignBrand, f.Creator);
             f.Db.Contents.AddRange(f.OwnContent, f.OtherContent, f.ForeignContent);
-            f.Team = new Team { WorkspaceId = f.Workspace.Id, Name = "Team", Status = TeamStatusEnum.Active };
-            f.Db.Teams.Add(f.Team);
             foreach (var (user, role) in new[] { (f.Creator, WorkspaceMemberRoleEnum.ContentCreator), (f.OtherCreator, WorkspaceMemberRoleEnum.ContentCreator),
                 (f.Manager, WorkspaceMemberRoleEnum.Manager), (f.Viewer, WorkspaceMemberRoleEnum.Viewer), (f.Owner, WorkspaceMemberRoleEnum.Owner) })
             {
@@ -351,7 +351,8 @@ public sealed class PermissionSecurityTests
             return f;
         }
         private static User NewUser() => new() { Email = $"{Guid.NewGuid():N}@example.test", PasswordHash = "test-only", PasswordSalt = "test-only" };
-        private Content Content(Workspace workspace, Brand brand, User creator) => new() { WorkspaceId = workspace.Id, ProfileId = Profile.Id, BrandId = brand.Id,
+        private Content Content(Workspace workspace, Brand brand, User creator) => new() { WorkspaceId = workspace.Id,
+            TeamId = workspace.Id == Workspace.Id ? Team.Id : null, ProfileId = Profile.Id, BrandId = brand.Id,
             PrimaryCreatorId = creator.Id, TextContent = "Test content", IsAiGenerated = true };
         public Task<AccessScope> Resolve(WorkspaceMemberRoleEnum role) => Resolver.ResolveAsync(Workspace.Id,
             role switch { WorkspaceMemberRoleEnum.Owner => Owner.Id, WorkspaceMemberRoleEnum.Manager => Manager.Id, WorkspaceMemberRoleEnum.Viewer => Viewer.Id, _ => Creator.Id }, false);

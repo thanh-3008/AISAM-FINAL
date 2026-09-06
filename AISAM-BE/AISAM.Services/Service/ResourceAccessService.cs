@@ -62,7 +62,10 @@ public sealed class ResourceAccessService(AisamContext db)
             g.RevokedAt == null && g.GrantedAt <= now && g.ExpiresAt > now && g.Task.AssigneeId == userId &&
             scope.TeamIds.Contains(g.Task.TeamId)).Select(g => g.Task.ContentId).ToArrayAsync(ct);
         scope.EditableContentIds = await db.Contents.IgnoreQueryFilters().Where(c => c.WorkspaceId == workspaceId &&
-            (scope.BrandIds.Contains(c.BrandId) && (member.Role == WorkspaceMemberRoleEnum.Manager || c.PrimaryCreatorId == userId || assigned.Contains(c.Id)) || temporary.Contains(c.Id)))
+            (scope.BrandIds.Contains(c.BrandId) &&
+                (member.Role == WorkspaceMemberRoleEnum.Manager && c.TeamId.HasValue && scope.TeamIds.Contains(c.TeamId.Value) ||
+                 c.PrimaryCreatorId == userId && c.TeamId.HasValue && scope.TeamIds.Contains(c.TeamId.Value) ||
+                 assigned.Contains(c.Id)) || temporary.Contains(c.Id)))
             .Select(c => c.Id).ToArrayAsync(ct);
         // Historical content is a separate VIEW scope. It must never grant Brand,
         // Product, Campaign or social-account access through generic query filters.

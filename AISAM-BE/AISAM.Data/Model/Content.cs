@@ -18,6 +18,11 @@ namespace AISAM.Data.Model
         [Column("workspace_id")]
         public Guid WorkspaceId { get; set; }
 
+        // Explicit, immutable ownership boundary. Null is reserved for legacy rows
+        // that could not be reconciled safely; application creation paths must set it.
+        [Column("team_id")]
+        public Guid? TeamId { get; set; }
+
         // Legacy rows intentionally remain null; never infer creator from ProfileId.
         [Column("primary_creator_id")]
         public Guid? PrimaryCreatorId { get; set; }
@@ -98,6 +103,7 @@ namespace AISAM.Data.Model
         [ForeignKey("ProfileId")]
         public virtual Profile Profile { get; set; } = null!;
         public virtual Workspace Workspace { get; set; } = null!;
+        public virtual Team? Team { get; set; }
 
         [ForeignKey("BrandId")]
         public virtual Brand Brand { get; set; } = null!;

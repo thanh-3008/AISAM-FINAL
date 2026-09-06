@@ -12,6 +12,7 @@ public partial class AisamContext
     {
         ChangeTracker.DetectChanges();
         ApplyBackgroundAttribution();
+        await PrepareContentOwnershipAsync(cancellationToken);
         await CaptureExecutionAttributionAsync(cancellationToken);
         foreach (var entry in ChangeTracker.Entries<Workspace>().Where(e => e.State == EntityState.Added).ToArray())
         {
@@ -45,6 +46,7 @@ public partial class AisamContext
             foreach (var entry in ChangeTracker.Entries<Content>().Where(e => e.State == EntityState.Modified))
             {
                 if (entry.Property(c => c.PrimaryCreatorId).IsModified) throw new UnauthorizedAccessException("Creator attribution is immutable.");
+                if (entry.Property(c => c.TeamId).IsModified) throw new UnauthorizedAccessException("Content team ownership is immutable.");
                 if (entry.Entity.WorkspaceId != AccessScope.WorkspaceId || !AccessScope.IsOwner && !AccessScope.EditableContentIds.Contains(entry.Entity.Id))
                     throw new UnauthorizedAccessException("Content mutation is outside the authorized scope.");
             }
@@ -57,7 +59,8 @@ public partial class AisamContext
                 AuditLogs.Add(new AuditLog
                 {
                     ActorId = AccessScope.UserId, WorkspaceId = AccessScope.WorkspaceId,
-                    RequestedBy = AccessScope.UserId, TeamId = AccessScope.ActiveTeamId,
+                    RequestedBy = AccessScope.UserId,
+                    TeamId = entry.Entity is Content content ? content.TeamId : AccessScope.ActiveTeamId,
                     AffectedUserId = entry.Entity is CreditUsageRecord credit ? credit.UserId :
                         entry.Entity is CollaborationTask task ? task.AssigneeId :
                         entry.Entity is WorkspaceMember member ? member.UserId :

@@ -88,6 +88,7 @@ public sealed class ContentRepository : IContentRepository
             .Select(c => new ContentListDto
             {
                 Id = c.Id,
+                TeamId = c.TeamId,
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
                 BrandName = _context.Brands.Where(b => b.Id == c.BrandId && b.WorkspaceId == c.WorkspaceId).Select(b => b.Name).FirstOrDefault() ?? "",
@@ -155,6 +156,7 @@ public sealed class ContentRepository : IContentRepository
         var data = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(c => new ContentListDto
         {
             Id = c.Id,
+            TeamId = c.TeamId,
             ProfileId = c.ProfileId,
             BrandId = c.BrandId,
             BrandName = _context.Brands.Where(b => b.Id == c.BrandId && b.WorkspaceId == c.WorkspaceId).Select(b => b.Name).FirstOrDefault() ?? "",
@@ -305,6 +307,7 @@ public sealed class ContentRepository : IContentRepository
             .Select(c => new ContentListDto
             {
                 Id = c.Id,
+                TeamId = c.TeamId,
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
                 BrandName = c.Brand.Name,

@@ -37,7 +37,7 @@ public partial class AisamContext
                 TemporaryAccessGrant g => g.WorkspaceId,
                 ContentParticipation p => p.WorkspaceId,
                 Workspace w when entry.State == EntityState.Modified && (entry.Property(nameof(Workspace.Status)).IsModified || entry.Property(nameof(Workspace.SubscriptionExpiredAt)).IsModified) => w.Id,
-                Content c when entry.State == EntityState.Modified && (entry.Property(nameof(Content.BrandId)).IsModified || entry.Property(nameof(Content.IsDeleted)).IsModified || entry.Property(nameof(Content.PrimaryCreatorId)).IsModified) => c.WorkspaceId,
+                Content c when entry.State == EntityState.Modified && (entry.Property(nameof(Content.BrandId)).IsModified || entry.Property(nameof(Content.IsDeleted)).IsModified || entry.Property(nameof(Content.PrimaryCreatorId)).IsModified || entry.Property(nameof(Content.TeamId)).IsModified) => c.WorkspaceId,
                 _ => null
             };
             if (entry.Entity is TeamMember member)

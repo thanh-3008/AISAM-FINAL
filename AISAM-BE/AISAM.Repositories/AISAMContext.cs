@@ -150,6 +150,8 @@ namespace AISAM.Repositories
                       .HasForeignKey(c => c.ProductId)
                       .OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(c => c.Workspace).WithMany(w => w.Contents).HasForeignKey(c => c.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(c => c.Team).WithMany().HasForeignKey(c => new { c.TeamId, c.WorkspaceId })
+                      .HasPrincipalKey(t => new { t.Id, t.WorkspaceId }).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Product entity configuration

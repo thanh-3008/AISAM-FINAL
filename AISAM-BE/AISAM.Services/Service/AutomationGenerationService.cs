@@ -106,6 +106,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 Id = Guid.NewGuid(),
                 ProfileId = item.AutomationPlan.ProfileId,
                 WorkspaceId = item.AutomationPlan.WorkspaceId,
+                TeamId = _context.BackgroundAttribution?.TeamId,
                 PrimaryCreatorId = _context.BackgroundAttribution?.ActorUserId,
                 BrandId = item.BrandId.Value,
                 ProductId = item.ProductId,

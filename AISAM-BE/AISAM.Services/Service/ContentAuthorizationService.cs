@@ -44,7 +44,7 @@ public sealed class ContentAuthorizationService(AisamContext db, ResourceAccessS
     public Task EnsureCurrentBrandActionAsync(Guid? brandId, ContentAction action, CancellationToken ct) =>
         EnsureBrandActionAsync(db.AccessScope.WorkspaceId, brandId, action, ct);
 
-    private sealed record ContentResource(Guid Id, Guid BrandId, Guid? PrimaryCreatorId);
+    private sealed record ContentResource(Guid Id, Guid BrandId, Guid? TeamId, Guid? PrimaryCreatorId);
 
     public async Task<Dictionary<string, bool>> GetActionsAsync(Guid workspaceId, Guid contentId, Guid? channelId, CancellationToken ct)
     {
@@ -84,7 +84,7 @@ public sealed class ContentAuthorizationService(AisamContext db, ResourceAccessS
         // resource filters are unsuitable for deciding whether an independent grant exists.
         var content = await db.Contents.IgnoreQueryFilters().AsNoTracking()
             .Where(c => c.Id == contentId && c.WorkspaceId == workspaceId)
-            .Select(c => new ContentResource(c.Id, c.BrandId, c.PrimaryCreatorId)).FirstOrDefaultAsync(ct);
+            .Select(c => new ContentResource(c.Id, c.BrandId, c.TeamId, c.PrimaryCreatorId)).FirstOrDefaultAsync(ct);
         if (content == null) return null;
         if (channelId.HasValue && !await db.SocialIntegrations.IgnoreQueryFilters().AnyAsync(i => i.Id == channelId &&
             i.WorkspaceId == workspaceId && i.BrandId == content.BrandId && i.IsActive && !i.IsDeleted, ct)) return null;
@@ -96,22 +96,26 @@ public sealed class ContentAuthorizationService(AisamContext db, ResourceAccessS
         var workspaceId = scope.WorkspaceId;
         var contentId = content.Id;
         if (scope.IsOwner) return true;
-        if (scope.Role == WorkspaceMemberRoleEnum.Viewer) return action == ContentAction.View && scope.BrandIds.Contains(content.BrandId);
+        if (scope.Role == WorkspaceMemberRoleEnum.Viewer) return action == ContentAction.View && content.TeamId.HasValue &&
+            scope.TeamIds.Contains(content.TeamId.Value) && scope.BrandIds.Contains(content.BrandId);
         if (action is ContentAction.View or ContentAction.ViewAnalytics)
             return scope.IsCreator ? scope.HistoricalContentIds.Contains(contentId) :
+                content.TeamId.HasValue && scope.TeamIds.Contains(content.TeamId.Value) &&
                 scope.BrandIds.Contains(content.BrandId) && (!channelId.HasValue || scope.IntegrationIds.Contains(channelId.Value));
 
         var hasBrand = scope.BrandIds.Contains(content.BrandId);
         var hasChannel = !channelId.HasValue || scope.IntegrationIds.Contains(channelId.Value);
         if (scope.Role == WorkspaceMemberRoleEnum.Manager)
-            return hasBrand && hasChannel && action is ContentAction.Edit or ContentAction.Delete or ContentAction.Restore or
+            return content.TeamId.HasValue && scope.TeamIds.Contains(content.TeamId.Value) && hasBrand && hasChannel &&
+                action is ContentAction.Edit or ContentAction.Delete or ContentAction.Restore or
                 ContentAction.Clone or ContentAction.Submit or ContentAction.Approve or ContentAction.Reject or
                 ContentAction.Assign or ContentAction.Reassign or ContentAction.Schedule or ContentAction.Reschedule or
                 ContentAction.Unschedule or ContentAction.Publish or ContentAction.ViewAnalytics;
 
         // Preserve existing Creator lifecycle permissions only with independent current
         // Team/Brand access. OWN alone never grants an action.
-        if (scope.IsCreator && hasBrand && hasChannel && content.PrimaryCreatorId == scope.UserId &&
+        if (scope.IsCreator && content.TeamId.HasValue && scope.TeamIds.Contains(content.TeamId.Value) &&
+            hasBrand && hasChannel && content.PrimaryCreatorId == scope.UserId &&
             action is ContentAction.Edit or ContentAction.Delete or ContentAction.Restore or ContentAction.Clone or ContentAction.Submit or ContentAction.Assign)
             return true;
 

@@ -122,6 +122,7 @@ public class HolidayService : IHolidayService
         var dto = new ContentResponseDto
         {
             Id = updatedContent.Id,
+            TeamId = updatedContent.TeamId,
             ProfileId = updatedContent.ProfileId,
             BrandId = updatedContent.BrandId,
             BrandName = updatedContent.Brand?.Name,
@@ -200,6 +201,7 @@ public class HolidayService : IHolidayService
         var dto = new ContentResponseDto
         {
             Id = updatedContent.Id,
+            TeamId = updatedContent.TeamId,
             ProfileId = updatedContent.ProfileId,
             BrandId = updatedContent.BrandId,
             BrandName = updatedContent.Brand?.Name,
@@ -280,6 +282,7 @@ public class HolidayService : IHolidayService
         var dto = new ContentResponseDto
         {
             Id = updatedContent.Id,
+            TeamId = updatedContent.TeamId,
             ProfileId = updatedContent.ProfileId,
             BrandId = updatedContent.BrandId,
             BrandName = updatedContent.Brand?.Name,
