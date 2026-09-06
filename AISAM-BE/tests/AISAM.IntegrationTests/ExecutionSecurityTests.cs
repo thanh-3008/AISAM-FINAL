@@ -232,4 +232,100 @@ public sealed class ExecutionSecurityTests(Xunit.Abstractions.ITestOutputHelper 
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
         Assert.False(await f.Db.AuditLogs.AnyAsync(a => a.ActionType == "DUPLICATE"));
     }
+
+    [Fact]
+    public async Task TeamTransfer_DoesNotTriggerTaskRevocation_ByExpiryWorker()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var task = new CollaborationTask
+        {
+            WorkspaceId = f.Workspace.Id,
+            TeamId = f.Team.Id,
+            ContentId = f.OtherContent.Id,
+            AssigneeId = f.Creator.Id,
+            AssignedBy = f.Owner.Id,
+            IntegrationId = f.AllowedChannel.Id,
+            Title = "Active Team Task",
+            Status = CollaborationTaskStatus.Pending
+        };
+        f.Db.CollaborationTasks.Add(task);
+        await f.Db.SaveChangesAsync();
+
+        // Creator transfers from f.Team to another team in the same workspace
+        var membership = await f.Db.TeamMembers.SingleAsync(m => m.TeamId == f.Team.Id && m.UserId == f.Creator.Id);
+        membership.IsActive = false;
+        var newTeam = new Team { WorkspaceId = f.Workspace.Id, Name = "Transferred Team", Status = TeamStatusEnum.Active };
+        f.Db.Teams.Add(newTeam);
+        f.Db.TeamMembers.Add(new TeamMember { TeamId = newTeam.Id, UserId = f.Creator.Id, Role = nameof(WorkspaceMemberRoleEnum.ContentCreator) });
+        await f.Db.SaveChangesAsync();
+
+        // Run worker expiry
+        var service = new CollaborationAccessService(f.Db);
+        await service.ExpireAsync(DateTime.UtcNow, null, default);
+
+        // Task must NOT be transitioned to Blocked or ACCESS_REVOKED
+        var persistedTask = await f.Db.CollaborationTasks.SingleAsync(t => t.Id == task.Id);
+        Assert.Equal(CollaborationTaskStatus.Pending, persistedTask.Status);
+        Assert.Null(persistedTask.BlockedReason);
+        Assert.False(await f.Db.Notifications.AnyAsync(n => n.TargetId == task.Id));
+        Assert.False(await f.Db.AuditLogs.AnyAsync(a => a.TargetId == task.Id && a.ActionType == "ACCESS_REVOKED"));
+
+        // Boundary verification: user still cannot Edit without Phase Team Transfer implementation
+        await f.Resolve(WorkspaceMemberRoleEnum.ContentCreator);
+        Assert.False(await f.Authorization.AllowsAsync(f.Workspace.Id, f.OtherContent.Id, ContentAction.Edit));
+    }
+
+    [Fact]
+    public async Task ResourceUnlink_StillRevokesTask_WhenBrandOrChannelRemoved()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var task = new CollaborationTask
+        {
+            WorkspaceId = f.Workspace.Id,
+            TeamId = f.Team.Id,
+            ContentId = f.OtherContent.Id,
+            AssigneeId = f.Creator.Id,
+            AssignedBy = f.Owner.Id,
+            IntegrationId = f.AllowedChannel.Id,
+            Title = "Channel Bound Task",
+            Status = CollaborationTaskStatus.Pending
+        };
+        f.Db.CollaborationTasks.Add(task);
+        await f.Db.SaveChangesAsync();
+
+        // Unlink the channel from the team
+        var channel = await f.Db.TeamChannelAccesses.SingleAsync(c => c.TeamBrandId == f.TeamBrand.Id && c.IntegrationId == f.AllowedChannel.Id);
+        f.Db.TeamChannelAccesses.Remove(channel);
+        await f.Db.SaveChangesAsync();
+
+        // Run worker expiry
+        var service = new CollaborationAccessService(f.Db);
+        await service.ExpireAsync(DateTime.UtcNow, null, default);
+
+        // Task must be revoked because channel access was unlinked from the team
+        var persistedTask = await f.Db.CollaborationTasks.SingleAsync(t => t.Id == task.Id);
+        Assert.Equal(CollaborationTaskStatus.Blocked, persistedTask.Status);
+        Assert.Equal("ACCESS_REVOKED", persistedTask.BlockedReason);
+        Assert.True(await f.Db.AuditLogs.AnyAsync(a => a.TargetId == task.Id && a.ActionType == "ACCESS_REVOKED"));
+    }
+
+    [Fact]
+    public async Task ExplicitRevoke_StillRevokesTask_EvenIfTeamResourcesIntact()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var grant = await f.AddGrant(DateTime.UtcNow.AddHours(1));
+
+        // Explicit revoke action by manager/admin
+        grant.RevokedAt = DateTime.UtcNow;
+        await f.Db.SaveChangesAsync();
+
+        // Run worker expiry
+        var service = new CollaborationAccessService(f.Db);
+        await service.ExpireAsync(DateTime.UtcNow, null, default);
+
+        var task = await f.Db.CollaborationTasks.SingleAsync();
+        Assert.Equal(CollaborationTaskStatus.Blocked, task.Status);
+        Assert.Equal("ACCESS_REVOKED", task.BlockedReason);
+        Assert.True(await f.Db.AuditLogs.AnyAsync(a => a.TargetId == task.Id && a.ActionType == "ACCESS_REVOKED"));
+    }
 }

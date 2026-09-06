@@ -22,6 +22,18 @@ public sealed class CollaborationAccessService(AisamContext db)
         return brand.ChannelAccessMode == ChannelAccessMode.All || brand.Channels.Any(c => c.IntegrationId == integrationId);
     }
 
+    private async Task<bool> HasTeamResourceAccessAsync(Guid workspaceId, Guid teamId, Guid userId, Guid contentId, Guid? integrationId, CancellationToken ct)
+    {
+        var content = await db.Contents.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.Id == contentId && c.WorkspaceId == workspaceId && !c.IsDeleted, ct);
+        if (content == null || !await db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == userId && m.IsActive, ct)) return false;
+        var brand = await db.TeamBrands.Include(b => b.Channels).FirstOrDefaultAsync(b => b.TeamId == teamId && b.BrandId == content.BrandId && b.IsActive &&
+            b.Team.WorkspaceId == workspaceId && !b.Team.IsDeleted, ct);
+        if (brand == null) return false;
+        if (!integrationId.HasValue) return true;
+        if (!await db.SocialIntegrations.IgnoreQueryFilters().AnyAsync(i => i.Id == integrationId && i.WorkspaceId == workspaceId && i.BrandId == content.BrandId && i.IsActive && !i.IsDeleted, ct)) return false;
+        return brand.ChannelAccessMode == ChannelAccessMode.All || brand.Channels.Any(c => c.IntegrationId == integrationId);
+    }
+
     public async Task RecordParticipationAsync(CollaborationTask task, Guid actorId, CancellationToken ct)
     {
         if (!await db.ContentParticipations.AnyAsync(p => p.ContentId == task.ContentId && p.UserId == task.AssigneeId, ct))
@@ -41,6 +53,10 @@ public sealed class CollaborationAccessService(AisamContext db)
             if (await HasTeamAccessAsync(task.WorkspaceId, task.TeamId, task.AssigneeId, task.ContentId, task.IntegrationId, ct)) continue;
             var grants = await db.TemporaryAccessGrants.Where(g => g.WorkspaceId == task.WorkspaceId && g.TaskId == task.Id && g.UserId == task.AssigneeId).ToListAsync(ct);
             if (grants.Any(g => g.RevokedAt == null && g.GrantedAt <= now && g.ExpiresAt > now)) continue;
+            var hasExpiredGrant = grants.Any(g => g.ExpiresAt <= now && g.RevokedAt == null);
+            var hasRevokedGrant = grants.Any(g => g.RevokedAt != null);
+            var hasTeamResourceAccess = await HasTeamResourceAccessAsync(task.WorkspaceId, task.TeamId, task.AssigneeId, task.ContentId, task.IntegrationId, ct);
+            if (!hasExpiredGrant && !hasRevokedGrant && hasTeamResourceAccess) continue;
             var expectedAssignee = task.AssigneeId;
             var expectedTeam = task.TeamId;
             db.RegisterMutationAuthorization(task.WorkspaceId, $"Expiry:{task.Id}", revisions[task.WorkspaceId], async token =>
@@ -48,7 +64,9 @@ public sealed class CollaborationAccessService(AisamContext db)
                     t.WorkspaceId == task.WorkspaceId && t.AssigneeId == expectedAssignee && t.TeamId == expectedTeam, token) &&
                 !await HasTeamAccessAsync(task.WorkspaceId, expectedTeam, expectedAssignee, task.ContentId, task.IntegrationId, token) &&
                 !await db.TemporaryAccessGrants.IgnoreQueryFilters().AnyAsync(g => g.WorkspaceId == task.WorkspaceId &&
-                    g.TaskId == task.Id && g.UserId == expectedAssignee && g.RevokedAt == null && g.GrantedAt <= now && g.ExpiresAt > now, token));
+                    g.TaskId == task.Id && g.UserId == expectedAssignee && g.RevokedAt == null && g.GrantedAt <= now && g.ExpiresAt > now, token) &&
+                (hasExpiredGrant || hasRevokedGrant ||
+                 !await HasTeamResourceAccessAsync(task.WorkspaceId, expectedTeam, expectedAssignee, task.ContentId, task.IntegrationId, token)));
             task.Status = CollaborationTaskStatus.Blocked;
             task.BlockedReason = grants.Any(g => g.ExpiresAt <= now && g.RevokedAt == null) ? "ACCESS_EXPIRED" : "ACCESS_REVOKED";
             task.UpdatedAt = now;
