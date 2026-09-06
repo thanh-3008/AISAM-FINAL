@@ -8,6 +8,11 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
+using System.Net;
+using AISAM.Data.Model;
+using AISAM.Repositories;
+using Microsoft.EntityFrameworkCore;
+
 namespace AISAM.Services.Service;
 
 public sealed class AnalyticsService : IAnalyticsService
@@ -26,6 +31,7 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly IContentCalendarRepository _contentCalendarRepo;
     private readonly ILogger<AnalyticsService> _logger;
     private readonly AISAM.Data.AccessScope? _accessScope;
+    private readonly AisamContext? _db;
 
     public AnalyticsService(
         IPerformanceReportRepository performanceReportRepo,
@@ -36,7 +42,8 @@ public sealed class AnalyticsService : IAnalyticsService
         IBrandRepository brandRepo,
         IContentCalendarRepository contentCalendarRepo,
         ILogger<AnalyticsService> logger,
-        AISAM.Data.AccessScope? accessScope = null)
+        AISAM.Data.AccessScope? accessScope = null,
+        AisamContext? db = null)
     {
         _performanceReportRepo = performanceReportRepo;
         _socialIntegrationRepo = socialIntegrationRepo;
@@ -47,6 +54,7 @@ public sealed class AnalyticsService : IAnalyticsService
         _contentCalendarRepo = contentCalendarRepo;
         _logger = logger;
         _accessScope = accessScope;
+        _db = db;
     }
 
     public async Task<GenericResponse<ScheduledPublishingPerformanceDto>> GetScheduledPublishingPerformanceAsync(
@@ -739,4 +747,223 @@ public sealed class AnalyticsService : IAnalyticsService
         new() { Group = "35-44", Percentage = 20 },
         new() { Group = "45+", Percentage = 10 }
     };
+
+    public async Task<GenericResponse<MemberPerformanceResponseDto>> GetMembersPerformanceAsync(
+        Guid workspaceId, DateTime from, DateTime to, Guid? teamId = null, CancellationToken cancellationToken = default)
+    {
+        if (_accessScope?.Enforced == true)
+        {
+            if (_accessScope.Role == WorkspaceMemberRoleEnum.Viewer || _accessScope.Role == WorkspaceMemberRoleEnum.ContentCreator)
+            {
+                return GenericResponse<MemberPerformanceResponseDto>.CreateError(
+                    "You do not have permission to view team member performance.",
+                    HttpStatusCode.Forbidden,
+                    "FORBIDDEN");
+            }
+        }
+
+        if (_db == null)
+        {
+            return GenericResponse<MemberPerformanceResponseDto>.CreateSuccess(
+                new MemberPerformanceResponseDto
+                {
+                    DateRange = new DateRangeDto { From = from.ToString("yyyy-MM-dd"), To = to.ToString("yyyy-MM-dd") }
+                },
+                "Member performance retrieved successfully.");
+        }
+
+        HashSet<Guid> allowedMemberIds;
+        if (_accessScope?.Enforced == true)
+        {
+            if (_accessScope.Role == WorkspaceMemberRoleEnum.Manager)
+            {
+                if (teamId.HasValue)
+                {
+                    if (!_accessScope.TeamIds.Contains(teamId.Value))
+                    {
+                        return GenericResponse<MemberPerformanceResponseDto>.CreateError(
+                            "You do not have permission to view members of this team.",
+                            HttpStatusCode.Forbidden,
+                            "FORBIDDEN");
+                    }
+                    var teamUserIds = await _db.TeamMembers.AsNoTracking()
+                        .Where(tm => tm.TeamId == teamId.Value && tm.IsActive && tm.Team.WorkspaceId == workspaceId && !tm.Team.IsDeleted)
+                        .Select(tm => tm.UserId)
+                        .ToListAsync(cancellationToken);
+                    allowedMemberIds = teamUserIds.ToHashSet();
+                }
+                else
+                {
+                    allowedMemberIds = _accessScope.MemberIds.ToHashSet();
+                }
+            }
+            else // Owner
+            {
+                if (teamId.HasValue)
+                {
+                    var teamUserIds = await _db.TeamMembers.AsNoTracking()
+                        .Where(tm => tm.TeamId == teamId.Value && tm.IsActive && tm.Team.WorkspaceId == workspaceId && !tm.Team.IsDeleted)
+                        .Select(tm => tm.UserId)
+                        .ToListAsync(cancellationToken);
+                    allowedMemberIds = teamUserIds.ToHashSet();
+                }
+                else
+                {
+                    var allWsUserIds = await _db.WorkspaceMembers.AsNoTracking()
+                        .Where(wm => wm.WorkspaceId == workspaceId && wm.IsActive)
+                        .Select(wm => wm.UserId)
+                        .ToListAsync(cancellationToken);
+                    allowedMemberIds = allWsUserIds.ToHashSet();
+                }
+            }
+        }
+        else
+        {
+            if (teamId.HasValue)
+            {
+                var teamUserIds = await _db.TeamMembers.AsNoTracking()
+                    .Where(tm => tm.TeamId == teamId.Value && tm.IsActive && tm.Team.WorkspaceId == workspaceId && !tm.Team.IsDeleted)
+                    .Select(tm => tm.UserId)
+                    .ToListAsync(cancellationToken);
+                allowedMemberIds = teamUserIds.ToHashSet();
+            }
+            else
+            {
+                var allWsUserIds = await _db.WorkspaceMembers.AsNoTracking()
+                    .Where(wm => wm.WorkspaceId == workspaceId && wm.IsActive)
+                    .Select(wm => wm.UserId)
+                    .ToListAsync(cancellationToken);
+                allowedMemberIds = allWsUserIds.ToHashSet();
+            }
+        }
+
+        if (allowedMemberIds.Count == 0)
+        {
+            return GenericResponse<MemberPerformanceResponseDto>.CreateSuccess(
+                new MemberPerformanceResponseDto
+                {
+                    Members = [],
+                    TotalMembers = 0,
+                    DateRange = new DateRangeDto { From = from.ToString("yyyy-MM-dd"), To = to.ToString("yyyy-MM-dd") }
+                },
+                "Member performance retrieved successfully.");
+        }
+
+        var memberList = await _db.WorkspaceMembers.AsNoTracking()
+            .Include(wm => wm.User)
+            .Where(wm => wm.WorkspaceId == workspaceId && wm.IsActive && allowedMemberIds.Contains(wm.UserId))
+            .ToListAsync(cancellationToken);
+
+        var targetUserIds = memberList.Select(m => m.UserId).Distinct().ToList();
+
+        var profiles = await _db.Profiles.AsNoTracking()
+            .Where(p => targetUserIds.Contains(p.UserId) && p.WorkspaceId == workspaceId)
+            .ToDictionaryAsync(p => p.UserId, p => p.AvatarUrl, cancellationToken);
+
+        var contentCreatedStats = await _db.Contents.AsNoTracking()
+            .Where(c => c.WorkspaceId == workspaceId && !c.IsDeleted && c.PrimaryCreatorId.HasValue &&
+                        targetUserIds.Contains(c.PrimaryCreatorId.Value) &&
+                        c.CreatedAt >= from && c.CreatedAt <= to)
+            .GroupBy(c => c.PrimaryCreatorId!.Value)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                TotalCreated = g.Count(),
+                DraftCount = g.Count(c => c.Status == ContentStatusEnum.Draft),
+                InReviewCount = g.Count(c => c.Status == ContentStatusEnum.PendingApproval),
+                ApprovedCount = g.Count(c => c.Status == ContentStatusEnum.Approved),
+                PublishedCount = g.Count(c => c.Status == ContentStatusEnum.Published),
+                RejectedCount = g.Count(c => c.Status == ContentStatusEnum.Rejected),
+                LatestCreatedAt = g.Max(c => (DateTime?)c.CreatedAt)
+            })
+            .ToDictionaryAsync(x => x.UserId, cancellationToken);
+
+        var participationStats = await _db.ContentParticipations.AsNoTracking()
+            .Where(p => p.WorkspaceId == workspaceId && targetUserIds.Contains(p.UserId) &&
+                        p.Content.CreatedAt >= from && p.Content.CreatedAt <= to && !p.Content.IsDeleted)
+            .GroupBy(p => p.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                TotalParticipated = g.Count()
+            })
+            .ToDictionaryAsync(x => x.UserId, cancellationToken);
+
+        var postStats = await _db.Posts.AsNoTracking()
+            .Where(p => p.Content.WorkspaceId == workspaceId && !p.IsDeleted && p.Content.PrimaryCreatorId.HasValue &&
+                        targetUserIds.Contains(p.Content.PrimaryCreatorId.Value) &&
+                        p.PublishedAt >= from && p.PublishedAt <= to)
+            .GroupBy(p => p.Content.PrimaryCreatorId!.Value)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                TotalPosts = g.Count(),
+                LatestPublishedAt = g.Max(p => (DateTime?)p.PublishedAt)
+            })
+            .ToDictionaryAsync(x => x.UserId, cancellationToken);
+
+        var perfStats = await _db.PerformanceReports.AsNoTracking()
+            .Where(r => r.Post != null && r.Post.Content.WorkspaceId == workspaceId && !r.IsDeleted &&
+                        r.Post.Content.PrimaryCreatorId.HasValue && targetUserIds.Contains(r.Post.Content.PrimaryCreatorId.Value) &&
+                        r.ReportDate >= from && r.ReportDate <= to)
+            .GroupBy(r => r.Post!.Content.PrimaryCreatorId!.Value)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                TotalImpressions = g.Sum(r => (long)r.Impressions),
+                TotalEngagement = g.Sum(r => (long)r.Engagement),
+                TotalClicks = g.Sum(r => (long)r.Clicks)
+            })
+            .ToDictionaryAsync(x => x.UserId, cancellationToken);
+
+        var items = memberList.Select(m =>
+        {
+            contentCreatedStats.TryGetValue(m.UserId, out var cStat);
+            participationStats.TryGetValue(m.UserId, out var partStat);
+            postStats.TryGetValue(m.UserId, out var pStat);
+            perfStats.TryGetValue(m.UserId, out var rStat);
+            profiles.TryGetValue(m.UserId, out var avatar);
+
+            var impressions = rStat?.TotalImpressions ?? 0;
+            var engagement = rStat?.TotalEngagement ?? 0;
+            var clicks = rStat?.TotalClicks ?? 0;
+            var engagementRate = impressions > 0 ? Math.Round((decimal)engagement / impressions * 100m, 2) : 0m;
+
+            DateTime? latestActivity = null;
+            if (cStat?.LatestCreatedAt.HasValue == true) latestActivity = cStat.LatestCreatedAt;
+            if (pStat?.LatestPublishedAt.HasValue == true && (latestActivity == null || pStat.LatestPublishedAt > latestActivity))
+                latestActivity = pStat.LatestPublishedAt;
+
+            return new MemberPerformanceItemDto
+            {
+                UserId = m.UserId,
+                DisplayName = !string.IsNullOrWhiteSpace(m.User?.FullName) ? m.User.FullName : (m.User?.Email ?? "Unknown Member"),
+                Email = m.User?.Email ?? string.Empty,
+                AvatarUrl = avatar,
+                Role = m.Role.ToString(),
+                TotalContentCreated = cStat?.TotalCreated ?? 0,
+                TotalContentParticipated = partStat?.TotalParticipated ?? 0,
+                TotalPosts = pStat?.TotalPosts ?? 0,
+                DraftCount = cStat?.DraftCount ?? 0,
+                InReviewCount = cStat?.InReviewCount ?? 0,
+                ApprovedCount = cStat?.ApprovedCount ?? 0,
+                PublishedCount = cStat?.PublishedCount ?? 0,
+                RejectedCount = cStat?.RejectedCount ?? 0,
+                TotalImpressions = impressions,
+                TotalEngagement = engagement,
+                TotalClicks = clicks,
+                EngagementRate = engagementRate,
+                LatestActivityAt = latestActivity
+            };
+        }).OrderByDescending(x => x.TotalContentCreated).ThenByDescending(x => x.TotalImpressions).ToList();
+
+        return GenericResponse<MemberPerformanceResponseDto>.CreateSuccess(
+            new MemberPerformanceResponseDto
+            {
+                Members = items,
+                TotalMembers = items.Count,
+                DateRange = new DateRangeDto { From = from.ToString("yyyy-MM-dd"), To = to.ToString("yyyy-MM-dd") }
+            },
+            "Member performance retrieved successfully.");
+    }
 }

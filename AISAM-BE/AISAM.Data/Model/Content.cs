@@ -58,6 +58,9 @@ namespace AISAM.Data.Model
         [Column("video_url")]
         public string? VideoUrl { get; set; }
 
+        [Column("video_urls", TypeName = "jsonb")]
+        public string? VideoUrls { get; set; }
+
         [Column("style_description")]
         public string? StyleDescription { get; set; }
 

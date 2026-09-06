@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/layout/Header";
@@ -23,6 +23,11 @@ import AnalyticsTopPosts from "@/components/analytics/AnalyticsTopPosts";
 import AnalyticsAiInsights from "@/components/analytics/AnalyticsAiInsights";
 import AnalyticsEfficiencyCard from "@/components/analytics/AnalyticsEfficiencyCard";
 import PersonalAnalyticsView from "@/components/analytics/PersonalAnalyticsView";
+import MemberPerformanceTable from "@/components/analytics/MemberPerformanceTable";
+import {
+  fetchMembersPerformance,
+  type MemberPerformanceItem,
+} from "@/services/analyticsService";
 
 function AnalyticsContent() {
   const featureGate = useFeatureGate();
@@ -32,9 +37,11 @@ function AnalyticsContent() {
 
   const canViewCampaign = access ? access.canViewAnalytics : true;
   const canViewPersonal = access ? access.canViewOwnAnalytics : true;
+  const canViewTeam = access ? (access.canViewAnalytics || access.role === "Manager" || access.role === "Owner") : true;
 
-  const [activeTab, setActiveTab] = useState<"campaign" | "personal">(() => {
+  const [activeTab, setActiveTab] = useState<"campaign" | "personal" | "team">(() => {
     if (tabParam === "personal") return "personal";
+    if (tabParam === "team" && canViewTeam) return "team";
     if (access && !access.canViewAnalytics && access.canViewOwnAnalytics) return "personal";
     return "campaign";
   });
@@ -42,17 +49,23 @@ function AnalyticsContent() {
   useEffect(() => {
     if (tabParam === "personal") {
       setActiveTab("personal");
+    } else if (tabParam === "team" && canViewTeam) {
+      setActiveTab("team");
     } else if (tabParam === "campaign" && canViewCampaign) {
       setActiveTab("campaign");
     } else if (access && !access.canViewAnalytics && access.canViewOwnAnalytics) {
       setActiveTab("personal");
     }
-  }, [tabParam, access?.canViewAnalytics, access?.canViewOwnAnalytics, canViewCampaign]);
+  }, [tabParam, access?.canViewAnalytics, access?.canViewOwnAnalytics, canViewCampaign, canViewTeam]);
 
   const { activeWorkspace } = useWorkspaces();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [topPosts, setTopPosts] = useState<TopPostItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [teamMembers, setTeamMembers] = useState<MemberPerformanceItem[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
 
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [campaignFilter, setCampaignFilter] = useState("all");
@@ -60,6 +73,27 @@ function AnalyticsContent() {
   const [platformFilter, setPlatformFilter] = useState("all");
   const [brandOptions, setBrandOptions] = useState<{ label: string; value: string }[]>([{ label: "All Brands", value: "all" }]);
   const analyticsRequestIdRef = useRef(0);
+
+  const loadTeamData = useCallback(async () => {
+    if (!canViewTeam) return;
+    setTeamLoading(true);
+    setTeamError(null);
+    try {
+      const res = await fetchMembersPerformance({ dateRange });
+      setTeamMembers(res.members);
+    } catch (err: any) {
+      setTeamError(err?.message || "Không thể tải dữ liệu hiệu suất thành viên.");
+      setTeamMembers([]);
+    } finally {
+      setTeamLoading(false);
+    }
+  }, [canViewTeam, dateRange]);
+
+  useEffect(() => {
+    if (activeTab === "team") {
+      loadTeamData();
+    }
+  }, [activeTab, loadTeamData]);
 
   useEffect(() => {
     if (activeTab !== "campaign") return;
@@ -215,8 +249,8 @@ function AnalyticsContent() {
             )}
           </div>
 
-          {/* Navigation Tabs (Chiến dịch vs Lịch sử cá nhân) */}
-          {(canViewCampaign || canViewPersonal) && (
+          {/* Navigation Tabs (Chiến dịch vs Hiệu suất thành viên vs Lịch sử cá nhân) */}
+          {(canViewCampaign || canViewPersonal || canViewTeam) && (
             <div className="flex items-center gap-2 p-1.5 bg-surface-container-lowest/80 backdrop-blur-md rounded-2xl border border-outline-variant/40 w-fit shadow-sm">
               {canViewCampaign && (
                 <button
@@ -230,6 +264,21 @@ function AnalyticsContent() {
                 >
                   <span className="material-symbols-outlined text-[18px]">bar_chart</span>
                   <span>Tổng quan chiến dịch</span>
+                </button>
+              )}
+
+              {canViewTeam && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("team")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-body-sm font-semibold transition-all duration-200 ${
+                    activeTab === "team"
+                      ? "bg-primary text-on-primary shadow-md shadow-primary/20"
+                      : "text-outline hover:text-on-surface hover:bg-surface-container"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">badge</span>
+                  <span>Hiệu suất thành viên</span>
                 </button>
               )}
 
@@ -253,6 +302,13 @@ function AnalyticsContent() {
           {/* Tab Content */}
           {activeTab === "personal" ? (
             <PersonalAnalyticsView />
+          ) : activeTab === "team" ? (
+            <MemberPerformanceTable
+              members={teamMembers}
+              loading={teamLoading}
+              error={teamError}
+              onRefresh={loadTeamData}
+            />
           ) : (
             <>
               {loading || !data ? (

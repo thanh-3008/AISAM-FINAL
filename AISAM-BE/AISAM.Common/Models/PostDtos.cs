@@ -6,6 +6,7 @@ public sealed class PostDto
     public string? ImageUrl { get; set; }
     public List<string>? ImageUrls { get; set; }
     public string? VideoUrl { get; set; }
+    public List<string>? VideoUrls { get; set; }
     public string? LinkUrl { get; set; }
 }
 

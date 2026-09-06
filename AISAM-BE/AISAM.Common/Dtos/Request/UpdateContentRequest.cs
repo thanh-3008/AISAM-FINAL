@@ -19,6 +19,7 @@ public sealed class UpdateContentRequest
     [MaxLength(5, ErrorMessage = "Maximum 5 images allowed per post.")]
     public List<string>? ImageUrls { get; set; }
     public string? VideoUrl { get; set; }
+    public List<string>? VideoUrls { get; set; }
     public string? StyleDescription { get; set; }
     public string? ContextDescription { get; set; }
     public string? RepresentativeCharacter { get; set; }

@@ -15,6 +15,7 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExtension from "@tiptap/extension-underline";
+import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { marked } from "marked";
@@ -48,6 +49,7 @@ function serializeNode(node: TiptapNode): string {
     const markTypes = (textNode.marks ?? []).map((m) => m.type);
     if (markTypes.includes("strike")) text = `~~${text}~~`;
     if (markTypes.includes("underline")) text = `<u>${text}</u>`;
+    if (markTypes.includes("highlight")) text = `<mark>${text}</mark>`;
     if (markTypes.includes("italic")) text = `*${text}*`;
     if (markTypes.includes("bold")) text = `**${text}**`;
     return text;
@@ -198,6 +200,7 @@ export default function RichTextEditor({
         codeBlock: false,
       }),
       UnderlineExtension,
+      Highlight.configure({ multicolor: true }),
       Placeholder.configure({
         placeholder,
         emptyNodeClass:
@@ -207,7 +210,7 @@ export default function RichTextEditor({
     content: markdownToHtml(value),
     editorProps: {
       attributes: {
-        class: `outline-none text-body-sm text-on-surface leading-relaxed [&>*+*]:mt-3 [&>ul]:pl-5 [&>ul>li]:list-disc [&>ol]:pl-5 [&>ol>li]:list-decimal`,
+        class: `outline-none text-body-sm text-on-surface leading-relaxed [&>*+*]:mt-3 [&>ul]:pl-5 [&>ul>li]:list-disc [&>ol]:pl-5 [&>ol>li]:list-decimal [&_mark]:bg-amber-200 [&_mark]:text-amber-950 dark:[&_mark]:bg-amber-400 dark:[&_mark]:text-black [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:rounded`,
         style: `min-height: ${minHeight}px; padding: 12px;`,
       },
     },
@@ -329,6 +332,15 @@ export default function RichTextEditor({
           title="Strikethrough"
         >
           <span className="line-through">S</span>
+        </ToolbarBtn>
+
+        {/* Highlight */}
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleHighlight().run()}
+          active={editor.isActive("highlight")}
+          title="Highlight (Tô màu nổi bật)"
+        >
+          <span className="px-1 py-0.5 rounded text-[11px] font-bold bg-amber-300 dark:bg-amber-400 text-amber-950">H</span>
         </ToolbarBtn>
 
         {/* Uppercase — one-time transform, preserves bold/italic/underline marks */}

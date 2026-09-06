@@ -376,24 +376,63 @@ export default function ContentDetailPage() {
                   </div>
                 )}
 
-                {item.type === "VIDEO" && (
-                  <div className="w-full mx-auto flex justify-center">
-                    <div className="w-full bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden" style={{ minHeight: "250px" }}>
-                      {item.videoUrl ? (
-                        <video src={item.videoUrl} controls className="w-full h-auto max-h-[75vh] object-contain bg-black rounded-xl" />
-                      ) : (
-                        <div className={`w-24 h-24 my-12 mx-auto rounded-full bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-110 transition-transform`}>
-                          <span className="material-symbols-outlined text-4xl">play_arrow</span>
+                {item.type === "VIDEO" && (() => {
+                  const videoUrls = item.videoUrls && item.videoUrls.length > 0 ? item.videoUrls : (item.videoUrl ? [item.videoUrl] : []);
+                  if (videoUrls.length === 0) {
+                    return (
+                      <div className="w-full mx-auto flex justify-center">
+                        <div className="w-full bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden" style={{ minHeight: "250px" }}>
+                          <div className={`w-24 h-24 my-12 mx-auto rounded-full bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg`}>
+                            <span className="material-symbols-outlined text-4xl">play_arrow</span>
+                          </div>
+                          {item.duration && (
+                            <span className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 text-white text-label-xs rounded-md font-semibold">
+                              {item.duration}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      {!item.videoUrl && item.duration && (
-                        <span className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 text-white text-label-xs rounded-md font-semibold">
-                          {item.duration}
-                        </span>
-                      )}
+                      </div>
+                    );
+                  }
+                  if (videoUrls.length === 1) {
+                    return (
+                      <div className="w-full mx-auto flex justify-center">
+                        <div className="w-full bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden" style={{ minHeight: "250px" }}>
+                          <video src={videoUrls[0]} controls className="w-full h-auto max-h-[75vh] object-contain bg-black rounded-xl" />
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="w-full max-w-2xl mx-auto space-y-2">
+                      <div className="flex items-center gap-1.5 text-label-xs text-outline mb-2">
+                        <span className="material-symbols-outlined text-[14px]">video_library</span>
+                        <span>{videoUrls.length} videos · Video đầu tiên là video chính</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {videoUrls.map((url, i) => (
+                          <div key={url} className="relative aspect-video rounded-lg overflow-hidden bg-black/90 group border border-outline-variant/30 flex items-center justify-center">
+                            <video src={url} preload="metadata" className="w-full h-full object-cover" />
+                            {i === 0 && (
+                              <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-indigo-600 text-white text-[10px] font-bold">Chính</div>
+                            )}
+                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white text-[10px] font-bold flex items-center justify-center">{i + 1}</div>
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded bg-white/30 text-white text-xs hover:bg-white/50 font-medium"
+                              >
+                                Xem video
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 {item.type === "VIDEO" && (
                   <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
                     {item.duration && <span>{item.duration}</span>}

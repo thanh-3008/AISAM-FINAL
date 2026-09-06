@@ -11,6 +11,8 @@ import TagPicker from "@/components/content/TagPicker";
 import VideoPreview from "@/components/content/VideoPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import MultiImageUpload from "@/components/content/MultiImageUpload";
+import MultiVideoUpload from "@/components/content/MultiVideoUpload";
+import SmartHashtagBar from "@/components/content/SmartHashtagBar";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
@@ -47,6 +49,7 @@ export default function CreateContentPage() {
     imageUrl: "",
     imageUrls: [] as string[], // Multi-image support
     videoUrl: "",
+    videoUrls: [] as string[], // Multi-video support
     duration: "",
     description: "",
     caption: "",
@@ -73,8 +76,6 @@ export default function CreateContentPage() {
       update({ brandId: brandList[0].id });
     }
   }, [brandList, form.brandId, update]);
-
-  const [hashtagInput, setHashtagInput] = useState("");
 
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -153,25 +154,6 @@ export default function CreateContentPage() {
     if (field === "thumbnail") thumbnailFileRef.current = null;
   }, [update]);
 
-  const addHashtag = (raw: string) => {
-    const tag = raw.trim().replace(/^#/, "");
-    if (tag && !form.hashtags.includes(tag)) {
-      update({ hashtags: [...form.hashtags, tag] });
-    }
-  };
-
-  const removeHashtag = (tag: string) => {
-    update({ hashtags: form.hashtags.filter((h) => h !== tag) });
-  };
-
-  const handleHashtagKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addHashtag(hashtagInput);
-      setHashtagInput("");
-    }
-  };
-
   const availableProducts = brandList.length > 0 ? productList : [];
   const selectedBrand = brandList.find(b => b.id === form.brandId);
   const selectedProduct = productList.find(p => p.id === form.productId);
@@ -226,7 +208,9 @@ export default function CreateContentPage() {
       // Multi-image: prefer imageUrls array, fall back to single imageUrl
       imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
       imageUrl: form.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
-      videoUrl,
+      // Multi-video: prefer videoUrls array, fall back to single videoUrl
+      videoUrls: form.videoUrls.length > 0 ? form.videoUrls : (videoUrl ? [videoUrl] : undefined),
+      videoUrl: form.videoUrls.length > 0 ? form.videoUrls[0] : (videoUrl || undefined),
       thumbnailUrl: thumbnailUrl || undefined,
       styleDescription: form.description || undefined,
       contextDescription: form.caption || undefined,
@@ -384,54 +368,11 @@ export default function CreateContentPage() {
 
                 {form.type === "VIDEO" && (
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Upload Video</label>
-                      <input ref={videoInputRef} type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => handleFileChange("videoUrl", e)} />
-                      <div
-                        onDragOver={(e) => { e.preventDefault(); setDragOver("video"); }}
-                        onDragLeave={() => setDragOver(null)}
-                        onDrop={(e) => handleDrop("videoUrl", e)}
-                        onClick={() => handleFileSelect("videoUrl")}
-                        className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                          dragOver === "video" ? "border-primary bg-primary/5" : form.videoUrl ? "border-transparent bg-surface-container" : "border-outline-variant/30 hover:border-primary/40 hover:bg-surface-container/50"
-                        }`}>
-                        {form.videoUrl ? (
-                          <div className="relative">
-                            <VideoPreview src={form.videoUrl} poster={form.thumbnail} className="max-h-[280px] min-h-[220px] rounded-lg" videoClassName="object-contain max-h-[280px]" />
-                            <div className="absolute top-2 right-2 flex gap-1.5">
-                              <button onClick={(e) => { e.stopPropagation(); handleFileSelect("videoUrl"); }}
-                                className="w-8 h-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-all">
-                                <span className="material-symbols-outlined text-[16px]">refresh</span>
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); clearFile("videoUrl"); }}
-                                className="w-8 h-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-danger-red/80 transition-all">
-                                <span className="material-symbols-outlined text-[16px]">close</span>
-                              </button>
-                            </div>
-                            <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg bg-surface-container-high/70 px-3 py-2 text-left">
-                              <span className="material-symbols-outlined shrink-0 text-[17px] text-rose-500">movie</span>
-                              <div className="min-w-0">
-                                <p className="text-label-2xs text-outline">Selected video</p>
-                                <p className="truncate text-label-sm font-semibold text-on-surface" title={selectedVideoFileName || undefined}>
-                                  {selectedVideoFileName || "Original filename unavailable"}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 flex items-center justify-center">
-                              <span className="material-symbols-outlined text-rose-500 text-3xl">videocam</span>
-                            </div>
-                            <div>
-                              <p className="text-body-sm text-on-surface font-medium">Click to upload</p>
-                              <p className="text-label-sm text-outline/60 mt-0.5">or drag and drop your video here</p>
-                            </div>
-                            <p className="text-label-2xs text-outline/40">MP4, WebM, MOV up to {MAX_MEDIA_FILE_SIZE_MB}MB</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <MultiVideoUpload
+                      videos={form.videoUrls.length > 0 ? form.videoUrls : (form.videoUrl ? [form.videoUrl] : [])}
+                      onChange={(urls) => update({ videoUrls: urls, videoUrl: urls[0] || "" })}
+                      selectedPlatforms={form.platforms}
+                    />
                     <div>
                       <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Duration</label>
                       <input value={form.duration} onChange={(e) => update({ duration: e.target.value })}
@@ -544,26 +485,23 @@ export default function CreateContentPage() {
                   />
                 </div>
 
-                {/* Hashtags */}
-                <div>
-                  <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Hashtags</label>
-                  <div className="flex items-center flex-wrap gap-1.5 px-3 py-2 bg-surface-container border border-outline-variant/20 rounded-xl min-h-[44px] cursor-text transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5"
-                    onClick={() => document.getElementById("hashtag-input")?.focus()}>
-                    {form.hashtags.map((tag) => (
-                      <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-label-xs font-semibold">
-                        #{tag}
-                        <button onClick={() => removeHashtag(tag)} className="hover:opacity-60">
-                          <span className="material-symbols-outlined text-label-xs">close</span>
-                        </button>
-                      </span>
-                    ))}
-                    <input id="hashtag-input" value={hashtagInput} onChange={(e) => setHashtagInput(e.target.value)}
-                      onKeyDown={handleHashtagKey}
-                      onBlur={() => { if (hashtagInput) { addHashtag(hashtagInput); setHashtagInput(""); } }}
-                      className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-body-sm text-on-surface placeholder:text-outline/30"
-                      placeholder={form.hashtags.length === 0 ? "Type and press Enter to add hashtags" : "Add more..."} />
-                  </div>
-                </div>
+                {/* Smart Hashtags */}
+                <SmartHashtagBar
+                  hashtags={form.hashtags}
+                  onHashtagsChange={(tags) => setForm((prev) => ({ ...prev, hashtags: tags }))}
+                  brandName={selectedBrandName}
+                  productName={selectedProductName}
+                  onInsertIntoEditor={(hashtagText) => {
+                    if (form.type === "TEXT") {
+                      const updated = form.textContent ? `${form.textContent}\n\n${hashtagText}` : hashtagText;
+                      update({ textContent: updated });
+                    } else {
+                      const updated = form.caption ? `${form.caption}\n\n${hashtagText}` : hashtagText;
+                      update({ caption: updated });
+                    }
+                    addToast(`Đã chèn ${hashtagText} vào nội dung`, "check");
+                  }}
+                />
 
                 {/* CTA Link */}
                 <div>

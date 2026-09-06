@@ -92,7 +92,7 @@ export function isLegacyPlaintext(text: string): boolean {
 // Markdown sanitization
 // ---------------------------------------------------------------------------
 
-const ALLOWED_MARKDOWN_MARKS = ["bold", "italic", "underline", "strikethrough"];
+const ALLOWED_MARKDOWN_MARKS = ["bold", "italic", "underline", "strikethrough", "highlight"];
 
 /**
  * Basic markdown sanitization — strips any HTML that might sneak in.
@@ -123,8 +123,11 @@ export function markdownToPlaintext(markdown: string): string {
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     // Remove italic markers
     .replace(/\*([^*]+)\*/g, "$1")
-    // Remove underline markers (if using __text__)
+    // Remove underline markers (if using __text__ or <u>...</u>)
     .replace(/__([^_]+)__/g, "$1")
+    .replace(/<\/?u>/gi, "")
+    // Remove highlight markers (<mark>...</mark>)
+    .replace(/<\/?mark>/gi, "")
     // Remove strikethrough markers
     .replace(/~~([^~]+)~~/g, "$1")
     // Convert headings to uppercase text

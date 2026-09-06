@@ -604,3 +604,63 @@ export async function fetchAnalytics(
     scheduledPublishing,
   };
 }
+
+export interface MemberPerformanceItem {
+  userId: string;
+  displayName: string;
+  email: string;
+  avatarUrl?: string | null;
+  role: string;
+  totalContentCreated: number;
+  totalContentParticipated: number;
+  totalPosts: number;
+  draftCount: number;
+  inReviewCount: number;
+  approvedCount: number;
+  publishedCount: number;
+  rejectedCount: number;
+  totalImpressions: number;
+  totalEngagement: number;
+  totalClicks: number;
+  engagementRate: number;
+  latestActivityAt?: string | null;
+}
+
+export interface MemberPerformanceResponse {
+  members: MemberPerformanceItem[];
+  dateRange: { from: string; to: string };
+  totalMembers: number;
+}
+
+export async function fetchMembersPerformance(params?: {
+  dateRange?: DateRange;
+  from?: string;
+  to?: string;
+  teamId?: string;
+}): Promise<MemberPerformanceResponse> {
+  let fromStr: string;
+  let toStr: string;
+
+  if (params?.from && params?.to) {
+    fromStr = params.from;
+    toStr = params.to;
+  } else {
+    const range = getDateRange(params?.dateRange || "30d");
+    fromStr = range.from;
+    toStr = range.to;
+  }
+
+  let url = `/analytics/members-performance?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+  if (params?.teamId && params.teamId !== "all") {
+    url += `&teamId=${encodeURIComponent(params.teamId)}`;
+  }
+
+  const res = (await apiClient(url)) as GenericResponse<MemberPerformanceResponse>;
+  const data = (res as any)?.data ?? res;
+  return {
+    members: data?.members || [],
+    dateRange: data?.dateRange || { from: fromStr, to: toStr },
+    totalMembers: data?.totalMembers || (data?.members?.length ?? 0),
+  };
+}
+

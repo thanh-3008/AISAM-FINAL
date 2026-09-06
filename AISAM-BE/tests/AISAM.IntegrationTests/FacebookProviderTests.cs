@@ -132,6 +132,23 @@ public class FacebookProviderTests
     }
 
     [Fact]
+    public async Task PublishAsync_MultiVideo_ReturnsUnsupportedFailure()
+    {
+        var handler = new RecordingHandler();
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var result = await provider.PublishAsync(CreateAccount(), CreateIntegration("page-token"), new PostDto
+        {
+            Message = "Multi video post",
+            VideoUrls = new List<string> { "https://cdn/v1.mp4", "https://cdn/v2.mp4" }
+        });
+
+        Assert.False(result.Success);
+        Assert.Contains("Facebook does not support multi-video posts", result.ErrorMessage);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public async Task CreateAdSetAsync_TrafficObjective_UsesLinkClicksOptimization()
     {
         var handler = new RecordingHandler();

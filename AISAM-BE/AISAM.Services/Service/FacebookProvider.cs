@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AISAM.Common.Models;
@@ -149,6 +149,15 @@ public sealed class FacebookProvider : IProviderService
     public async Task<PublishResultDto> PublishAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
+
+        if (post.VideoUrls is { Count: > 1 })
+        {
+            return new PublishResultDto
+            {
+                Success = false,
+                ErrorMessage = "Facebook does not support multi-video posts on Page feed. Please upload a single video."
+            };
+        }
 
         if (!string.IsNullOrWhiteSpace(post.VideoUrl))
         {

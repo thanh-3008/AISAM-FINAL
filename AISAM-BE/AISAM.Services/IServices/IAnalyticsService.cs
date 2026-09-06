@@ -15,4 +15,5 @@ public interface IAnalyticsService
     Task<GenericResponse<UsageBreakdownDto>> GetUsageBreakdownAsync(Guid workspaceId, CancellationToken cancellationToken = default);
     Task<GenericResponse<string>> GetAiRecommendationsAsync(Guid workspaceId, DateTime from, DateTime to, Guid? brandId = null, string? platform = null, bool forceRefresh = false, CancellationToken cancellationToken = default, string? correlationId = null);
     Task<GenericResponse<AudienceBreakdownDto>> GetAudienceBreakdownAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<MemberPerformanceResponseDto>> GetMembersPerformanceAsync(Guid workspaceId, DateTime from, DateTime to, Guid? teamId = null, CancellationToken cancellationToken = default);
 }

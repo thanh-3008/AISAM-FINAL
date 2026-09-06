@@ -88,6 +88,7 @@ public sealed class ContentService : IContentService
             return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         }
         var owningWorkspaceId = (await _brandRepository.GetByIdAsync(request.BrandId, cancellationToken))!.WorkspaceId;
+        var (storageVideoUrls, storageVideoUrl) = ResolveVideoUrlsForStorage(request.VideoUrls, request.VideoUrl);
 
         var content = new Content
         {
@@ -98,8 +99,10 @@ public sealed class ContentService : IContentService
             AdType = request.AdType,
             Title = request.Title,
             TextContent = request.TextContent,
-            ImageUrl = FormatImageUrlForJsonb(request.ImageUrl),
-            VideoUrl = request.VideoUrl,
+            ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl),
+            VideoUrl = storageVideoUrl,
+            VideoUrls = storageVideoUrls,
+            ThumbnailUrl = request.ThumbnailUrl,
             StyleDescription = request.StyleDescription,
             ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter,
@@ -128,11 +131,14 @@ public sealed class ContentService : IContentService
 
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
+        var (storageVideoUrls, storageVideoUrl) = ResolveVideoUrlsForStorage(request.VideoUrls, request.VideoUrl);
         var content = new Content
         {
             WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
             AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
-            ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl), VideoUrl = request.VideoUrl,
+            ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl),
+            VideoUrl = storageVideoUrl,
+            VideoUrls = storageVideoUrls,
             ThumbnailUrl = request.ThumbnailUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
             RepresentativeCharacter = request.RepresentativeCharacter, Status = request.Status ?? ContentStatusEnum.Draft,
@@ -194,7 +200,12 @@ public sealed class ContentService : IContentService
         // Multi-image update: prefer ImageUrls over legacy ImageUrl
         if (request.ImageUrls != null || request.ImageUrl != null)
             content.ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl);
-        if (request.VideoUrl != null) content.VideoUrl = request.VideoUrl;
+        if (request.VideoUrls != null || request.VideoUrl != null)
+        {
+            var (storageVideoUrls, storageVideoUrl) = ResolveVideoUrlsForStorage(request.VideoUrls, request.VideoUrl);
+            content.VideoUrls = storageVideoUrls;
+            content.VideoUrl = storageVideoUrl;
+        }
         if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
         if (request.ContextDescription != null) content.ContextDescription = request.ContextDescription;
         if (request.RepresentativeCharacter != null) content.RepresentativeCharacter = request.RepresentativeCharacter;
@@ -233,7 +244,7 @@ public sealed class ContentService : IContentService
         if (_authorization != null) await _authorization.EnsureAsync(workspaceId, id, ContentAction.Clone, null, cancellationToken);
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
-        var clone = new Content { WorkspaceId = workspaceId, TeamId = existing.TeamId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
+        var clone = new Content { WorkspaceId = workspaceId, TeamId = existing.TeamId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, VideoUrls = existing.VideoUrls, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
     }
@@ -453,6 +464,7 @@ public sealed class ContentService : IContentService
             TextContent = existing.TextContent,
             ImageUrl = existing.ImageUrl,
             VideoUrl = existing.VideoUrl,
+            VideoUrls = existing.VideoUrls,
             StyleDescription = existing.StyleDescription,
             ContextDescription = existing.ContextDescription,
             RepresentativeCharacter = existing.RepresentativeCharacter,
@@ -862,7 +874,20 @@ public sealed class ContentService : IContentService
         }
         else if (content.AdType == AdTypeEnum.VideoText)
         {
-            postDto.VideoUrl = content.VideoUrl;
+            var videoList = ParseVideoUrls(content.VideoUrls, content.VideoUrl);
+            if (videoList is { Count: 1 })
+            {
+                postDto.VideoUrl = videoList[0];
+            }
+            else if (videoList is { Count: > 1 })
+            {
+                postDto.VideoUrl = videoList[0];
+                postDto.VideoUrls = videoList;
+            }
+            else if (!string.IsNullOrWhiteSpace(content.VideoUrl))
+            {
+                postDto.VideoUrl = content.VideoUrl;
+            }
         }
 
         return postDto;
@@ -946,6 +971,8 @@ public sealed class ContentService : IContentService
             }
         }
 
+        List<string>? videoUrls = ParseVideoUrls(content.VideoUrls, content.VideoUrl);
+
         return new ContentResponseDto
         {
             Id = content.Id,
@@ -960,7 +987,8 @@ public sealed class ContentService : IContentService
             TextContent = content.TextContent,
             ImageUrl = content.ImageUrl,
             ImageUrls = imageUrls,
-            VideoUrl = content.VideoUrl,
+            VideoUrl = content.VideoUrl ?? (videoUrls is { Count: > 0 } ? videoUrls[0] : null),
+            VideoUrls = videoUrls,
             ThumbnailUrl = content.ThumbnailUrl,
             StyleDescription = content.StyleDescription,
             ContextDescription = content.ContextDescription,
@@ -990,5 +1018,83 @@ public sealed class ContentService : IContentService
                 return JsonSerializer.Serialize(valid);
         }
         return FormatImageUrlForJsonb(legacyImageUrl);
+    }
+
+    /// <summary>
+    /// Resolve the video_urls JSONB value and legacy video_url string from multi-video list (preferred) or legacy single URL.
+    /// </summary>
+    private static (string? JsonbUrls, string? LegacyUrl) ResolveVideoUrlsForStorage(List<string>? videoUrls, string? legacyVideoUrl)
+    {
+        if (videoUrls is { Count: > 0 })
+        {
+            var valid = videoUrls.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToList();
+            if (valid.Count > 0)
+            {
+                return (JsonSerializer.Serialize(valid), valid[0]);
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(legacyVideoUrl))
+        {
+            var trimmed = legacyVideoUrl.Trim();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<List<string>>(trimmed);
+                    var valid = parsed?.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToList();
+                    if (valid is { Count: > 0 })
+                        return (JsonSerializer.Serialize(valid), valid[0]);
+                }
+                catch { /* fallback to treating as single URL */ }
+            }
+            return (JsonSerializer.Serialize(new[] { trimmed }), trimmed);
+        }
+        return (null, null);
+    }
+
+    private static List<string>? ParseVideoUrls(string? jsonbVideoUrls, string? legacyVideoUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(jsonbVideoUrls))
+        {
+            var raw = jsonbVideoUrls.Trim();
+            if (raw.StartsWith("[", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<List<string>>(raw);
+                    if (parsed is { Count: > 0 })
+                    {
+                        var valid = parsed.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToList();
+                        if (valid.Count > 0) return valid;
+                    }
+                }
+                catch { /* ignore malformed */ }
+            }
+            else
+            {
+                return new List<string> { raw };
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacyVideoUrl))
+        {
+            var raw = legacyVideoUrl.Trim();
+            if (raw.StartsWith("[", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<List<string>>(raw);
+                    if (parsed is { Count: > 0 })
+                    {
+                        var valid = parsed.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToList();
+                        if (valid.Count > 0) return valid;
+                    }
+                }
+                catch { /* ignore malformed */ }
+            }
+            return new List<string> { raw };
+        }
+
+        return null;
     }
 }

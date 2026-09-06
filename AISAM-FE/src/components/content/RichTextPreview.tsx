@@ -30,7 +30,7 @@ function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, {
       ALLOWED_TAGS: [
         "p", "br", "b", "strong", "i", "em", "u", "s", "del",
-        "ul", "ol", "li", "span", "div",
+        "ul", "ol", "li", "span", "div", "mark",
       ],
       ALLOWED_ATTR: ["class", "style"],
       FORBID_TAGS: ["script", "iframe", "form", "input", "button", "a", "img"],
@@ -98,7 +98,7 @@ export default function RichTextPreview({
 
   return (
     <div
-      className={`rich-text-preview text-body-sm text-on-surface leading-relaxed ${className}`}
+      className={`rich-text-preview text-body-sm text-on-surface leading-relaxed [&_mark]:bg-amber-200 [&_mark]:text-amber-950 dark:[&_mark]:bg-amber-400 dark:[&_mark]:text-black [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:rounded ${className}`}
       // Safe: content is DOMPurify-sanitized with strict allowlist
       dangerouslySetInnerHTML={{ __html: safeHtml }}
     />

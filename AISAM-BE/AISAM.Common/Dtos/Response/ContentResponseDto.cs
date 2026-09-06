@@ -19,6 +19,8 @@ public sealed class ContentResponseDto
     /// <summary>Parsed image URLs list. Populated from ImageUrl JSONB on mapping.</summary>
     public List<string>? ImageUrls { get; set; }
     public string? VideoUrl { get; set; }
+    /// <summary>Parsed video URLs list. Populated from VideoUrls JSONB or legacy VideoUrl on mapping.</summary>
+    public List<string>? VideoUrls { get; set; }
     public string? ThumbnailUrl { get; set; }
     public string? Tags { get; set; }
     public string? StyleDescription { get; set; }

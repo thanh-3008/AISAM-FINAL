@@ -177,6 +177,26 @@ public class TikTokProviderTests
         Assert.Empty(handler.Requests);
     }
 
+    [Fact]
+    public async Task PublishAsync_MultiVideo_ReturnsUnsupportedFailure()
+    {
+        var handler = new RecordingHandler();
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var result = await provider.PublishAsync(
+            new AISAM.Data.Model.SocialAccount(),
+            new AISAM.Data.Model.SocialIntegration(),
+            new PostDto
+            {
+                Message = "Multi video",
+                VideoUrls = new List<string> { "https://cdn/v1.mp4", "https://cdn/v2.mp4" }
+            });
+
+        Assert.False(result.Success);
+        Assert.Contains("TikTok does not support multi-video posts", result.ErrorMessage);
+        Assert.Empty(handler.Requests);
+    }
+
     private static TikTokProvider CreateProvider(RecordingHandler handler, TikTokSettings settings) =>
         new(new HttpClient(handler), Options.Create(settings), NullLogger<TikTokProvider>.Instance);
 

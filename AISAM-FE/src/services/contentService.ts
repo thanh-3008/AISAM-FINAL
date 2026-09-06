@@ -39,7 +39,9 @@ export interface ContentApiItem {
   title: string | null;
   textContent: string;
   imageUrl: string | null;
+  imageUrls?: string[] | null;
   videoUrl: string | null;
+  videoUrls?: string[] | null;
   thumbnailUrl?: string | null;
   styleDescription: string | null;
   contextDescription: string | null;
@@ -62,7 +64,9 @@ export interface ContentItem {
   status: ContentStatus;
   thumbnail: string;
   imageUrl?: string;
+  imageUrls?: string[];
   videoUrl?: string;
+  videoUrls?: string[];
   textContent?: string;
   createdAt: string;
   platforms: string[];
@@ -85,7 +89,9 @@ export interface ContentDetail {
   updatedAt: string;
   textContent?: string;
   imageUrl?: string;
+  imageUrls?: string[];
   videoUrl?: string;
+  videoUrls?: string[];
   styleDescription?: string;
   contextDescription?: string;
   representativeCharacter?: string;
@@ -112,6 +118,7 @@ export interface CreateContentPayload {
   /** Multi-image support: array of URLs. Serialized to JSON by the service. */
   imageUrls?: string[] | null;
   videoUrl?: string | null;
+  videoUrls?: string[] | null;
   thumbnailUrl?: string | null;
   styleDescription?: string | null;
   contextDescription?: string | null;
@@ -130,6 +137,7 @@ export interface UpdateContentPayload {
   /** Multi-image support: array of URLs. Serialized to JSON by the service. */
   imageUrls?: string[] | null;
   videoUrl?: string | null;
+  videoUrls?: string[] | null;
   styleDescription?: string | null;
   contextDescription?: string | null;
   representativeCharacter?: string | null;
@@ -187,6 +195,14 @@ export function parseMultipleImageUrls(imageUrl: string | null | undefined): str
   return match ? [match[0]] : raw ? [raw] : [];
 }
 
+export function parseMultipleVideoUrls(videoUrl: string | null | undefined, videoUrls?: string[] | null | undefined): string[] {
+  if (Array.isArray(videoUrls) && videoUrls.length > 0) {
+    const valid = videoUrls.filter((u): u is string => typeof u === "string" && u.trim() !== "").map((u) => u.trim());
+    if (valid.length > 0) return valid;
+  }
+  return parseMultipleImageUrls(videoUrl);
+}
+
 export const parseApiUrl = (url?: string | null): string => {
   const raw = (url || "").trim();
   if (!raw) return "";
@@ -234,7 +250,9 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     status: mapContentApiStatus(api.status),
     thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    imageUrls: parseMultipleImageUrls(api.imageUrl),
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
+    videoUrls: parseMultipleVideoUrls(api.videoUrl, api.videoUrls),
     textContent: api.textContent || "",
     createdAt: api.createdAt,
     platforms: [],
@@ -259,7 +277,9 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     updatedAt: api.updatedAt,
     textContent: api.textContent,
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    imageUrls: parseMultipleImageUrls(api.imageUrl),
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
+    videoUrls: parseMultipleVideoUrls(api.videoUrl, api.videoUrls),
     description: api.contextDescription || undefined,
     tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
@@ -342,10 +362,36 @@ function resolveImageUrlField(payload: CreateContentPayload | UpdateContentPaylo
   return 'imageUrl' in payload ? (payload as CreateContentPayload).imageUrl : undefined;
 }
 
+function resolveVideoUrlFields(payload: CreateContentPayload | UpdateContentPayload): { videoUrl?: string | null; videoUrls?: string[] | null } {
+  if ('videoUrls' in payload && payload.videoUrls && payload.videoUrls.length > 0) {
+    const valid = payload.videoUrls.filter((u) => u && u.trim() !== "");
+    if (valid.length > 0) {
+      return {
+        videoUrl: valid[0],
+        videoUrls: valid,
+      };
+    }
+  }
+  const single = 'videoUrl' in payload ? (payload as CreateContentPayload).videoUrl : undefined;
+  if (single) {
+    return {
+      videoUrl: single,
+      videoUrls: [single],
+    };
+  }
+  return {};
+}
+
 export async function createContent(data: CreateContentPayload): Promise<ContentItem | null> {
-  // Merge imageUrls into imageUrl for backward-compatible API
-  const { imageUrls, ...rest } = data;
-  const apiData = { ...rest, imageUrl: resolveImageUrlField(data) ?? rest.imageUrl };
+  // Merge imageUrls and videoUrls for backward-compatible API
+  const { imageUrls, videoUrls, ...rest } = data;
+  const videoFields = resolveVideoUrlFields(data);
+  const apiData = {
+    ...rest,
+    imageUrl: resolveImageUrlField(data) ?? rest.imageUrl,
+    videoUrl: videoFields.videoUrl ?? rest.videoUrl,
+    videoUrls: videoFields.videoUrls,
+  };
   const res: GenericResponse<ContentApiItem> = await apiClient("/content", { data: apiData });
   if (res?.success && res.data) {
     return apiItemToContentItem(res.data);
@@ -355,9 +401,15 @@ export async function createContent(data: CreateContentPayload): Promise<Content
 
 export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {
   try {
-    // Merge imageUrls into imageUrl for backward-compatible API
-    const { imageUrls, ...rest } = data;
-    const apiData = { ...rest, imageUrl: resolveImageUrlField(data) ?? rest.imageUrl };
+    // Merge imageUrls and videoUrls for backward-compatible API
+    const { imageUrls, videoUrls, ...rest } = data;
+    const videoFields = resolveVideoUrlFields(data);
+    const apiData = {
+      ...rest,
+      imageUrl: resolveImageUrlField(data) ?? rest.imageUrl,
+      videoUrl: videoFields.videoUrl ?? rest.videoUrl,
+      videoUrls: videoFields.videoUrls,
+    };
     const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data: apiData, method: "PUT" });
     return res?.success === true;
   } catch {

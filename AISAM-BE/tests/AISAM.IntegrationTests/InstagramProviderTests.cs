@@ -78,6 +78,21 @@ public class InstagramProviderTests
         Assert.Contains("children=child-1%2Cchild-2", handler.Requests[2].Body);
     }
 
+    [Fact]
+    public async Task PublishAsync_MultiVideo_ReturnsUnsupportedFailure()
+    {
+        var handler = new RecordingHandler();
+        var result = await CreateProvider(handler).PublishAsync(Account(), Integration(), new PostDto
+        {
+            Message = "Multi video",
+            VideoUrls = new List<string> { "https://cdn.example/v1.mp4", "https://cdn.example/v2.mp4" }
+        });
+
+        Assert.False(result.Success);
+        Assert.Contains("Instagram does not support multi-video posts", result.ErrorMessage);
+        Assert.Empty(handler.Requests);
+    }
+
     private static InstagramProvider CreateProvider(RecordingHandler handler) => new(
         new HttpClient(handler),
         Options.Create(new InstagramSettings

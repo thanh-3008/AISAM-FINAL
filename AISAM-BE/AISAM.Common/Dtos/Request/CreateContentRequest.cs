@@ -21,7 +21,14 @@ public sealed class CreateContentRequest
     /// </summary>
     [MaxLength(5, ErrorMessage = "Maximum 5 images allowed per post.")]
     public List<string>? ImageUrls { get; set; }
+    /// <summary>
+    /// Legacy single video URL (backward compat). If VideoUrls is provided, it takes precedence.
+    /// </summary>
     public string? VideoUrl { get; set; }
+    /// <summary>
+    /// Multi-video support: ordered list of video URLs.
+    /// </summary>
+    public List<string>? VideoUrls { get; set; }
     public string? ThumbnailUrl { get; set; }
     public string? StyleDescription { get; set; }
     public string? ContextDescription { get; set; }

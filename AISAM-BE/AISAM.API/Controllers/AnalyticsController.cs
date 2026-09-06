@@ -177,4 +177,17 @@ public sealed class AnalyticsController : ControllerBase
             cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("members-performance")]
+    public async Task<ActionResult<GenericResponse<MemberPerformanceResponseDto>>> GetMembersPerformance(
+        [FromQuery] DateTime from,
+        [FromQuery] DateTime to,
+        [FromQuery] Guid? teamId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _analyticsService.GetMembersPerformanceAsync(
+            WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext),
+            ToUtc(from), ToUtc(to), teamId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

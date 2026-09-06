@@ -136,6 +136,10 @@ public sealed class TikTokProvider : IProviderService
         CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
+        if (post.VideoUrls is { Count: > 1 })
+        {
+            return Failure("TikTok does not support multi-video posts. Please upload a single video.");
+        }
         if (string.IsNullOrWhiteSpace(post.VideoUrl))
         {
             return Failure("TikTok Direct Post currently requires a video.");

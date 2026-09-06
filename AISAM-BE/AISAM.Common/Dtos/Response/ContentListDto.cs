@@ -15,6 +15,7 @@ public sealed class ContentListDto
     public string? TextContent { get; set; }
     public string? ImageUrl { get; set; }
     public string? VideoUrl { get; set; }
+    public List<string>? VideoUrls { get; set; }
     public string? ThumbnailUrl { get; set; }
     public bool IsAiGenerated { get; set; }
     public string? PlatformRejectionReason { get; set; }

@@ -86,6 +86,9 @@ public sealed class InstagramProvider : IProviderService
         if (string.IsNullOrWhiteSpace(integration.ExternalId) || string.IsNullOrWhiteSpace(integration.AccessToken))
             return Failed("Instagram account is not linked correctly. Please reconnect it.");
 
+        if (post.VideoUrls is { Count: > 1 })
+            return Failed("Instagram does not support multi-video posts. Reels only supports a single video.");
+
         var images = (post.ImageUrls ?? new List<string>())
             .Where(url => !string.IsNullOrWhiteSpace(url)).Distinct().ToList();
         if (!string.IsNullOrWhiteSpace(post.ImageUrl) && images.Count == 0)
