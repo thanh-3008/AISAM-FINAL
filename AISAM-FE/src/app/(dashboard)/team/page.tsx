@@ -112,12 +112,10 @@ export default function TeamPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [membersRes, teamsRes] = await Promise.all([
-        fetchMembers(),
-        fetchTeams().catch(() => ({ data: [], total: 0 })),
-      ]);
-      setMembers(membersRes.data);
+      const teamsRes = await fetchTeams().catch(() => ({ data: [], total: 0 }));
+      const membersRes = await fetchMembers(teamsRes.data);
       setTeams(teamsRes.data);
+      setMembers(membersRes.data);
 
       const stored = getStoredActiveTeam(activeWorkspace?.id);
       if ((!stored || !teamsRes.data.some((t) => t.id === stored.id)) && teamsRes.data.length > 0) {
@@ -164,13 +162,8 @@ export default function TeamPage() {
   }, [activeWorkspace?.id, loadData]);
 
   useEffect(() => {
-    const onFocus = () => { loadData(); };
-    window.addEventListener("focus", onFocus);
-    const interval = setInterval(() => loadData(), 30000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      clearInterval(interval);
-    };
+    const interval = setInterval(() => loadData(), 60000);
+    return () => clearInterval(interval);
   }, [loadData]);
 
   useEffect(() => {
@@ -188,6 +181,7 @@ export default function TeamPage() {
       setTeams((prev) => [newTeam, ...prev]);
       setShowCreateModal(false);
       showToast(`Team "${newTeam.name}" created successfully`);
+      handleSwitchTeam(newTeam);
       await loadData();
     } catch (err: any) {
       showToast(err?.message || "Failed to create team", "error");
@@ -351,8 +345,18 @@ export default function TeamPage() {
     }
   };
 
+  const currentTeam = useMemo(() => {
+    if (!teams || teams.length === 0) return null;
+    return teams.find((t) => t.id === activeTeam?.id) || teams[0];
+  }, [teams, activeTeam?.id]);
+
+  const teamMembers = useMemo(() => {
+    if (!currentTeam) return [];
+    return members.filter((m) => m.teamIds.includes(currentTeam.id) || currentTeam.memberIds.includes(m.id));
+  }, [members, currentTeam]);
+
   const filteredMembers = useMemo(() => {
-    let result = [...members];
+    let result = [...teamMembers];
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -364,10 +368,18 @@ export default function TeamPage() {
     }
     switch (sortBy) {
       case "newest":
-        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        result.sort((a, b) => {
+          if (a.role === "Owner") return -1;
+          if (b.role === "Owner") return 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
         break;
       case "oldest":
-        result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        result.sort((a, b) => {
+          if (a.role === "Owner") return -1;
+          if (b.role === "Owner") return 1;
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
         break;
       case "name":
         result.sort((a, b) => a.name.localeCompare(b.name));
@@ -380,7 +392,7 @@ export default function TeamPage() {
         break;
     }
     return result;
-  }, [members, search, statusFilter, sortBy]);
+  }, [teamMembers, search, statusFilter, sortBy]);
 
   const hasFilters = !!(search || statusFilter);
 
@@ -494,11 +506,12 @@ export default function TeamPage() {
                   </span>
                 </div>
 
-                {/* Owner Team Switcher - Only visible to Owner */}
-                {isOwner && teams.length > 0 && (
+                {/* Team Switcher - Visible to all roles if teams exist */}
+                {teams.length > 0 && (
                   <OwnerTeamSwitcher
                     workspaceId={activeWorkspace?.id}
                     isOwner={isOwner}
+                    role={activeWorkspace?.memberRole || (isOwner ? "Owner" : undefined)}
                     teams={teams}
                     onTeamSwitched={(t) => {
                       setActiveTeam(t);
@@ -621,14 +634,20 @@ export default function TeamPage() {
 
           {/* Members Section */}
           <section className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-headline-sm text-on-surface font-semibold">Members</h2>
-                <span className="px-2 py-0.5 rounded-full text-label-xs font-bold bg-primary/10 text-primary">
-                  {members.length}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-headline-sm text-on-surface font-semibold">Thành viên làm việc</h2>
+                {currentTeam && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-xs font-bold bg-primary/10 text-primary border border-primary/20 shadow-xs">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />
+                    Team: {currentTeam.name}
+                  </span>
+                )}
+                <span className="px-2 py-0.5 rounded-full text-label-xs font-bold bg-surface-container-high text-on-surface-variant">
+                  {teamMembers.length} thành viên
                 </span>
               </div>
-              <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
+              <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 self-end sm:self-auto">
                 <button
                   onClick={() => setMemberView("grid")}
                   className={`p-1.5 rounded-md transition-all ${
@@ -658,7 +677,13 @@ export default function TeamPage() {
               sortBy={sortBy}
               onSortChange={setSortBy}
               resultCount={filteredMembers.length}
-              totalCount={members.length}
+              totalCount={teamMembers.length}
+              teams={teams}
+              selectedTeamId={currentTeam?.id}
+              onTeamChange={(teamId) => {
+                const target = teams.find((t) => t.id === teamId);
+                if (target) handleSwitchTeam(target);
+              }}
             />
 
             {loading ? (
@@ -676,10 +701,29 @@ export default function TeamPage() {
                   </div>
                 ))}
               </div>
+            ) : teams.length === 0 ? (
+              <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 p-8 text-center animate-fade-up">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+                  <span className="material-symbols-outlined text-[28px]">groups</span>
+                </div>
+                <h3 className="text-body-lg font-bold text-on-surface mb-1">Chưa có team làm việc nào</h3>
+                <p className="text-label-sm text-outline max-w-md mx-auto mb-5">
+                  Tạo team để phân quyền và quản lý các thành viên làm việc theo từng nhóm. Mặc định bạn sẽ là thành viên đầu tiên.
+                </p>
+                {isOwner && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-md shadow-primary/20 hover:scale-105 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">group_add</span>
+                    Tạo Team ngay
+                  </button>
+                )}
+              </div>
             ) : filteredMembers.length === 0 ? (
               <TeamEmptyState
                 hasFilters={hasFilters}
-                onCreate={() => setShowCreateModal(true)}
+                onCreate={() => (currentTeam ? setEditingTeam(currentTeam) : setShowCreateModal(true))}
                 onInvite={() => setShowInviteModal(true)}
                 isOwner={isOwner}
               />

@@ -153,14 +153,26 @@ async function workspaceMemberIds() {
 
 async function teamPayload(data: CreateTeamData): Promise<CreateTeamData> {
   const members = await workspaceMemberIds().catch(() => []);
+  const owner = members.find((m) => m.role === 1);
+  const mapped = (data.memberIds || [])
+    .map((id) => {
+      const member = members.find((m) => m.id === id || m.userId === id);
+      return member ? member.userId : id;
+    })
+    .filter((id): id is string => Boolean(id));
+
+  const memberIds = [...mapped];
+  if (owner) {
+    const existingIdx = memberIds.indexOf(owner.userId);
+    if (existingIdx >= 0) {
+      memberIds.splice(existingIdx, 1);
+    }
+    memberIds.unshift(owner.userId);
+  }
+
   return {
     ...data,
-    memberIds: (data.memberIds || [])
-      .map((id) => {
-        const member = members.find((m) => m.id === id || m.userId === id);
-        return member ? member.userId : id;
-      })
-      .filter((id): id is string => Boolean(id)),
+    memberIds,
   };
 }
 
@@ -181,7 +193,7 @@ export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
   return { data, total: data.length };
 }
 
-export async function fetchMembers(): Promise<{ data: TeamMember[]; total: number }> {
+export async function fetchMembers(existingTeams?: Team[]): Promise<{ data: TeamMember[]; total: number }> {
   const access = await apiClient("/access/context");
   const [membersRes, invitations] = await Promise.all([
     apiClient("/workspace-members").catch(() => null),
@@ -192,7 +204,7 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
   if (membersRes?.data) {
     activeMembers.push(...membersRes.data.map(mapMember));
   }
-  const teams = (await fetchTeams().catch(() => ({ data: [], total: 0 }))).data;
+  const teams = existingTeams || (await fetchTeams().catch(() => ({ data: [], total: 0 }))).data;
   for (const member of activeMembers) member.teamIds = teams.filter((t) => t.memberIds.includes(member.id)).map((t) => t.id);
 
   // Only show pending if the email is NOT already an active member (already accepted)

@@ -204,11 +204,12 @@ export default function Header({ breadcrumbs }: HeaderProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        {/* Owner Team Switcher - Only visible to Owner */}
-        {mounted && activeWorkspace?.isOwner && (
+        {/* Team Switcher - Visible to all roles */}
+        {mounted && activeWorkspace?.id && (
           <OwnerTeamSwitcher
             workspaceId={activeWorkspace.id}
             isOwner={activeWorkspace.isOwner}
+            role={access?.role || activeWorkspace.memberRole || (activeWorkspace.isOwner ? "Owner" : undefined)}
             compact
           />
         )}

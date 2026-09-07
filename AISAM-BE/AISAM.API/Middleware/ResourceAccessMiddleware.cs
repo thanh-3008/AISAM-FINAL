@@ -26,7 +26,7 @@ public sealed class ResourceAccessMiddleware(RequestDelegate next)
         if (ownerCheckout && membership.Role != WorkspaceMemberRoleEnum.Owner)
         { await Deny(context); return; }
         Guid? teamId = null;
-        if (context.Request.Headers.TryGetValue("X-Team-Id", out var header))
+        if (context.Request.Headers.TryGetValue("X-Team-Id", out var header) && !string.IsNullOrWhiteSpace(header))
         {
             if (!Guid.TryParse(header, out var parsed)) { await Deny(context, "Invalid team context."); return; }
             teamId = parsed;

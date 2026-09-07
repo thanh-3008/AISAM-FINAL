@@ -121,7 +121,16 @@ export default function BrandsPage() {
     finally { setLoading(false); }
   }, [activeWorkspace, sortBy, sortDesc, includeDeleted, page]);
 
-  useEffect(() => { fetchBrands(); }, [fetchBrands]);
+  useEffect(() => {
+    fetchBrands();
+    const handleTeamChanged = () => {
+      fetchBrands();
+    };
+    window.addEventListener("aisam_active_team_changed", handleTeamChanged);
+    return () => {
+      window.removeEventListener("aisam_active_team_changed", handleTeamChanged);
+    };
+  }, [fetchBrands]);
 
   useEffect(() => { setPage(1); }, [sortBy, sortDesc, includeDeleted]);
 

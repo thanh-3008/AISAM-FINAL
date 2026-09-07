@@ -1,5 +1,7 @@
 "use client";
 
+import { notifyAccessChanged } from "@/lib/accessEvents";
+
 export interface ActiveTeam {
   id: string;
   name: string;
@@ -43,6 +45,7 @@ export function storeActiveTeam(team: ActiveTeam): void {
   } catch {
     // ignore in environments without CustomEvent
   }
+  notifyAccessChanged("team_switched");
 }
 
 export function clearActiveTeam(): void {
@@ -53,4 +56,5 @@ export function clearActiveTeam(): void {
   } catch {
     // ignore in environments without CustomEvent
   }
+  notifyAccessChanged("team_cleared");
 }

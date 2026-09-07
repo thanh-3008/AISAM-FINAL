@@ -115,12 +115,12 @@ export default function TeamListView({
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      {isOwner && activeTeamId !== team.id && (
+                      {activeTeamId !== team.id && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onSwitchTeam?.(team); }}
                           className="px-2.5 py-1 bg-surface-container hover:bg-primary hover:text-white rounded-lg text-label-2xs font-bold text-on-surface transition-all flex items-center gap-1 shadow-xs active:scale-95 shrink-0"
-                          title="Chuyển sang team này làm việc (Chỉ Owner)"
+                          title="Chuyển sang team này làm việc"
                         >
                           <span className="material-symbols-outlined text-[13px]">swap_horiz</span>
                           <span>Chuyển team</span>

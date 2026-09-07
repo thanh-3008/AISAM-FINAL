@@ -55,13 +55,13 @@ public partial class AisamContext
                     AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(c.Id) :
                     c.TeamId.HasValue && AccessScope.TeamIds.Contains(c.TeamId.Value) && AccessScope.BrandIds.Contains(c.BrandId))));
         model.Entity<Brand>().HasQueryFilter(b => !AccessScope.Enforced ||
-            b.WorkspaceId == AccessScope.WorkspaceId && (AccessScope.IsOwner || AccessScope.BrandIds.Contains(b.Id)));
+            b.WorkspaceId == AccessScope.WorkspaceId && ((!AccessScope.ActiveTeamId.HasValue && AccessScope.IsOwner) || AccessScope.BrandIds.Contains(b.Id)));
         model.Entity<Product>().HasQueryFilter(p => !AccessScope.Enforced ||
-            p.Brand.WorkspaceId == AccessScope.WorkspaceId && (AccessScope.IsOwner || AccessScope.BrandIds.Contains(p.BrandId)));
+            p.Brand.WorkspaceId == AccessScope.WorkspaceId && ((!AccessScope.ActiveTeamId.HasValue && AccessScope.IsOwner) || AccessScope.BrandIds.Contains(p.BrandId)));
         model.Entity<SocialIntegration>().HasQueryFilter(i => !AccessScope.Enforced ||
-            i.WorkspaceId == AccessScope.WorkspaceId && (AccessScope.IsOwner || AccessScope.IntegrationIds.Contains(i.Id)));
+            i.WorkspaceId == AccessScope.WorkspaceId && ((!AccessScope.ActiveTeamId.HasValue && AccessScope.IsOwner) || AccessScope.IntegrationIds.Contains(i.Id)));
         model.Entity<SocialAccount>().HasQueryFilter(a => !AccessScope.Enforced ||
-            a.WorkspaceId == AccessScope.WorkspaceId && (AccessScope.IsOwner || a.SocialIntegrations.Any(i => AccessScope.IntegrationIds.Contains(i.Id))));
+            a.WorkspaceId == AccessScope.WorkspaceId && ((!AccessScope.ActiveTeamId.HasValue && AccessScope.IsOwner) || a.SocialIntegrations.Any(i => AccessScope.IntegrationIds.Contains(i.Id))));
         model.Entity<Post>().HasQueryFilter(p => !AccessScope.Enforced ||
             p.Content.WorkspaceId == AccessScope.WorkspaceId && p.Integration.WorkspaceId == AccessScope.WorkspaceId &&
             (AccessScope.IsOwner || (AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(p.ContentId) :
@@ -76,7 +76,7 @@ public partial class AisamContext
             (AccessScope.IsOwner || AccessScope.Role == WorkspaceMemberRoleEnum.ContentCreator && r.UserId == AccessScope.UserId ||
              AccessScope.Role == WorkspaceMemberRoleEnum.Manager && r.TeamId.HasValue && AccessScope.TeamIds.Contains(r.TeamId.Value)));
         model.Entity<AdCampaign>().HasQueryFilter(c => !AccessScope.Enforced || c.WorkspaceId == AccessScope.WorkspaceId &&
-            (AccessScope.IsOwner || AccessScope.BrandIds.Contains(c.BrandId)));
+            ((!AccessScope.ActiveTeamId.HasValue && AccessScope.IsOwner) || AccessScope.BrandIds.Contains(c.BrandId)));
         model.Entity<ContentCalendar>().HasQueryFilter(c => !AccessScope.Enforced || c.WorkspaceId == AccessScope.WorkspaceId &&
             (AccessScope.IsOwner || (AccessScope.IsCreator ? AccessScope.HistoricalContentIds.Contains(c.ContentId) :
                 Contents.Any(content => content.Id == c.ContentId && content.WorkspaceId == AccessScope.WorkspaceId &&

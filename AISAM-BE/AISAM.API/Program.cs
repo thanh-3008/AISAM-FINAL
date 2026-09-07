@@ -487,11 +487,12 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
 static string BuildDatabaseConnectionString(string connectionString)
 {
     var builder = new NpgsqlConnectionStringBuilder(connectionString);
-    var configuredMaxPoolSize = builder.ContainsKey("Maximum Pool Size") || builder.ContainsKey("Max Pool Size");
+    var configuredMaxPoolSize = connectionString.Contains("Maximum Pool Size", StringComparison.OrdinalIgnoreCase) ||
+                                connectionString.Contains("Max Pool Size", StringComparison.OrdinalIgnoreCase);
 
     if (!configuredMaxPoolSize)
     {
-        var maxPoolSize = 5;
+        var maxPoolSize = 8;
         var envMaxPoolSize = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
         if (int.TryParse(envMaxPoolSize, out var parsedMaxPoolSize) && parsedMaxPoolSize > 0)
         {

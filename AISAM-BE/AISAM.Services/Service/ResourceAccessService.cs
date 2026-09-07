@@ -70,44 +70,13 @@ public sealed class ResourceAccessService(AisamContext db)
         }
 
         if (teamId.HasValue && !scope.TeamIds.Contains(teamId.Value)) throw new UnauthorizedAccessException("Team is not accessible.");
-        scope.ActiveTeamId = teamId ?? (scope.TeamIds.Length == 1 ? scope.TeamIds[0] : null);
-        scope.MemberIds = await db.TeamMembers.Where(m => m.IsActive && scope.TeamIds.Contains(m.TeamId))
+        scope.ActiveTeamId = teamId;
+        var targetTeamIds = scope.ActiveTeamId.HasValue ? new[] { scope.ActiveTeamId.Value } : scope.TeamIds;
+
+        scope.MemberIds = await db.TeamMembers.Where(m => m.IsActive && targetTeamIds.Contains(m.TeamId))
             .Select(m => m.UserId).Distinct().ToArrayAsync(ct);
         var access = await db.TeamBrands.IgnoreQueryFilters().AsNoTracking().Include(b => b.Channels)
-            .Where(b => b.IsActive && scope.TeamIds.Contains(b.TeamId) && b.Brand.WorkspaceId == workspaceId && !b.Brand.IsDeleted).ToListAsync(ct);
-        if (scope.TeamIds.Length > 0)
-        {
-            var workspaceBrands = await db.Brands.IgnoreQueryFilters().AsNoTracking()
-                .Where(b => b.WorkspaceId == workspaceId && !b.IsDeleted).ToListAsync(ct);
-            if (workspaceBrands.Count > 0)
-            {
-                var missingLinks = false;
-                foreach (var tId in scope.TeamIds)
-                {
-                    foreach (var ub in workspaceBrands)
-                    {
-                        if (!await db.TeamBrands.AnyAsync(tb => tb.TeamId == tId && tb.BrandId == ub.Id, ct))
-                        {
-                            db.TeamBrands.Add(new TeamBrand
-                            {
-                                TeamId = tId,
-                                BrandId = ub.Id,
-                                IsActive = true,
-                                ChannelAccessMode = ChannelAccessMode.All,
-                                AssignedAt = DateTime.UtcNow
-                            });
-                            missingLinks = true;
-                        }
-                    }
-                }
-                if (missingLinks)
-                {
-                    await db.SaveChangesAsync(ct);
-                    access = await db.TeamBrands.IgnoreQueryFilters().AsNoTracking().Include(b => b.Channels)
-                        .Where(b => b.IsActive && scope.TeamIds.Contains(b.TeamId) && b.Brand.WorkspaceId == workspaceId && !b.Brand.IsDeleted).ToListAsync(ct);
-                }
-            }
-        }
+            .Where(b => b.IsActive && targetTeamIds.Contains(b.TeamId) && b.Brand.WorkspaceId == workspaceId && !b.Brand.IsDeleted).ToListAsync(ct);
         scope.BrandIds = access.Select(b => b.BrandId).Distinct().ToArray();
         var allBrands = access.Where(a => a.ChannelAccessMode == ChannelAccessMode.All).Select(a => a.BrandId).ToArray();
         var specificIds = access.Where(a => a.ChannelAccessMode == ChannelAccessMode.Specific).SelectMany(a => a.Channels).Select(a => a.IntegrationId).Distinct().ToArray();

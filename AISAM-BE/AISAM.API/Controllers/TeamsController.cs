@@ -36,12 +36,19 @@ public sealed class TeamsController(AisamContext db, AccessScope scope) : Contro
     {
         if (!scope.IsOwner) return Forbid();
         RegisterOwnerMutationAuthorization("Create");
-        if (!await Validate(request, ct)) return BadRequest("Invalid workspace members or brands.");
-        var team = new Team { WorkspaceId = scope.WorkspaceId, Name = request.Name.Trim(), Description = request.Description };
-        await SetLinks(team, request, ct);
+
+        // By default, workspace owner must always be the first team member
+        var memberIdsList = (request.MemberIds ?? Array.Empty<Guid>()).Distinct().ToList();
+        memberIdsList.Remove(scope.UserId);
+        memberIdsList.Insert(0, scope.UserId);
+        var enrichedRequest = request with { MemberIds = memberIdsList.ToArray() };
+
+        if (!await Validate(enrichedRequest, ct)) return BadRequest("Invalid workspace members or brands.");
+        var team = new Team { WorkspaceId = scope.WorkspaceId, Name = enrichedRequest.Name.Trim(), Description = enrichedRequest.Description };
+        await SetLinks(team, enrichedRequest, ct);
         db.Teams.Add(team);
         await db.SaveChangesAsync(ct);
-        return Ok(GenericResponse<object>.CreateSuccess(new { team.Id, team.Name, team.Description, request.BrandIds, request.MemberIds }));
+        return Ok(GenericResponse<object>.CreateSuccess(new { team.Id, team.Name, team.Description, enrichedRequest.BrandIds, MemberIds = enrichedRequest.MemberIds }));
     }
 
     [HttpPut("{id:guid}")]
@@ -245,8 +252,15 @@ public sealed class TeamsController(AisamContext db, AccessScope scope) : Contro
     {
         var members = await db.WorkspaceMembers.Where(m => m.WorkspaceId == scope.WorkspaceId && m.IsActive && (request.MemberIds ?? Array.Empty<Guid>()).Contains(m.UserId)).ToListAsync(ct);
         foreach (var existing in team.TeamMembers) existing.IsActive = members.Any(m => m.UserId == existing.UserId);
-        foreach (var member in members.Where(m => !team.TeamMembers.Any(t => t.UserId == m.UserId)))
-            team.TeamMembers.Add(new TeamMember { TeamId = team.Id, UserId = member.UserId, Role = member.Role.ToString() });
+        var orderedMemberIds = (request.MemberIds ?? Array.Empty<Guid>()).Distinct();
+        foreach (var userId in orderedMemberIds)
+        {
+            var member = members.FirstOrDefault(m => m.UserId == userId);
+            if (member != null && !team.TeamMembers.Any(t => t.UserId == userId))
+            {
+                team.TeamMembers.Add(new TeamMember { TeamId = team.Id, UserId = member.UserId, Role = member.Role.ToString(), IsActive = true });
+            }
+        }
         var brands = (request.BrandIds ?? []).Distinct().ToArray();
         foreach (var existing in team.TeamBrands)
         {

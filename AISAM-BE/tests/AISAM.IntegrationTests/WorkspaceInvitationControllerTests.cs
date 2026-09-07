@@ -110,6 +110,14 @@ public class WorkspaceInvitationControllerTests
         {
             return Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
         }
+
+        public Task<IReadOnlyList<Guid>> AcceptPendingInvitationsForEmailAsync(
+            Guid userId,
+            string email,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Guid>>(Array.Empty<Guid>());
+        }
     }
 }
 

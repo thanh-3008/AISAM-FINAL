@@ -22,11 +22,15 @@ export default function CreateTeamModal({ open, onClose, onCreate, isLoading }: 
   useEffect(() => {
     if (open) {
       fetchBrands().then(setBrands);
-      fetchMembers().then((res) => setMembers(res.data || []));
+      fetchMembers().then((res) => {
+        const list = res.data || [];
+        setMembers(list);
+        const owner = list.find((m) => m.role === "Owner");
+        setSelectedMembers(owner ? [owner.id] : []);
+      });
       setName("");
       setDescription("");
       setSelectedBrands([]);
-      setSelectedMembers([]);
     }
   }, [open]);
 
@@ -34,11 +38,16 @@ export default function CreateTeamModal({ open, onClose, onCreate, isLoading }: 
 
   const handleSubmit = () => {
     if (!name.trim()) return;
+    const owner = members.find((m) => m.role === "Owner");
+    let finalMemberIds = [...selectedMembers];
+    if (owner) {
+      finalMemberIds = [owner.id, ...finalMemberIds.filter((id) => id !== owner.id)];
+    }
     onCreate({
       name: name.trim(),
       description: description.trim(),
       brandIds: selectedBrands,
-      memberIds: selectedMembers,
+      memberIds: finalMemberIds,
     });
   };
 
@@ -47,11 +56,22 @@ export default function CreateTeamModal({ open, onClose, onCreate, isLoading }: 
   };
 
   const toggleMember = (id: string) => {
+    const member = members.find((m) => m.id === id);
+    if (member?.role === "Owner") {
+      // Owner is required by default and cannot be deselected
+      return;
+    }
     setSelectedMembers((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
   };
 
   const isValid = name.trim();
-  const activeMembers = members.filter((m) => m.status === "Active");
+  const activeMembers = members
+    .filter((m) => m.status === "Active")
+    .sort((a, b) => {
+      if (a.role === "Owner") return -1;
+      if (b.role === "Owner") return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <>
@@ -127,28 +147,43 @@ export default function CreateTeamModal({ open, onClose, onCreate, isLoading }: 
                 <p className="text-label-xs text-outline italic">No active members available</p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                  {activeMembers.map((member) => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => toggleMember(member.id)}
-                      className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left ${
-                        selectedMembers.includes(member.id)
-                          ? "border-primary bg-primary/5"
-                          : "border-outline-variant/20 hover:border-outline-variant/40"
-                      }`}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold shrink-0 ${
-                        selectedMembers.includes(member.id) ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
-                      }`}>
-                        {member.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-label-sm font-semibold text-on-surface truncate">{member.name}</p>
-                        <p className="text-label-2xs text-outline truncate">{member.role}</p>
-                      </div>
-                    </button>
-                  ))}
+                  {activeMembers.map((member) => {
+                    const isOwner = member.role === "Owner";
+                    const isSelected = selectedMembers.includes(member.id);
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => toggleMember(member.id)}
+                        className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left relative ${
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-outline-variant/20 hover:border-outline-variant/40"
+                        } ${isOwner ? "cursor-default" : ""}`}
+                        title={isOwner ? "Owner luôn là thành viên mặc định của team" : undefined}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold shrink-0 ${
+                          isSelected ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
+                        }`}>
+                          {member.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-label-sm font-semibold text-on-surface truncate">{member.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-label-2xs text-outline truncate">{member.role}</span>
+                            {isOwner && (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary/15 text-primary">
+                                Mặc định
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isOwner && (
+                          <span className="material-symbols-outlined text-[16px] text-primary shrink-0" title="Mặc định">lock</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

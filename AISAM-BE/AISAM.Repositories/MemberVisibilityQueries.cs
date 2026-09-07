@@ -16,7 +16,7 @@ public partial class AisamContext
         return WorkspaceMembers.AsNoTracking().Where(m =>
                 m.WorkspaceId == workspaceId &&
                 m.IsActive &&
-                (AccessScope.IsOwner || AccessScope.MemberIds.Contains(m.UserId)))
+                ((!AccessScope.ActiveTeamId.HasValue && AccessScope.IsOwner) || AccessScope.MemberIds.Contains(m.UserId)))
             .OrderBy(m => m.JoinedAt).Select(m => new WorkspaceMemberResponseDto
             {
                 Id = m.Id, UserId = m.UserId, Email = m.User.Email, FullName = m.User.FullName,

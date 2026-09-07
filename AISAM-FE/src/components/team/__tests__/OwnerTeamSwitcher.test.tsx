@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import OwnerTeamSwitcher from "../OwnerTeamSwitcher";
+import OwnerTeamSwitcher, { TeamSwitcher } from "../OwnerTeamSwitcher";
 import { storeActiveTeam, getStoredActiveTeam } from "@/stores/team-store";
 import type { Team } from "@/services/teamService";
 
@@ -29,27 +29,28 @@ const mockTeams: Team[] = [
   },
 ];
 
-describe("OwnerTeamSwitcher", () => {
+describe("OwnerTeamSwitcher / TeamSwitcher", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("renders null when isOwner is false", () => {
+  it("renders null when teams list is empty", () => {
     const { container } = render(
       <OwnerTeamSwitcher
         workspaceId="ws-1"
         isOwner={false}
-        teams={mockTeams}
+        teams={[]}
       />
     );
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders team switcher button when isOwner is true", () => {
+  it("renders team switcher button for Owner", () => {
     render(
       <OwnerTeamSwitcher
         workspaceId="ws-1"
         isOwner={true}
+        role="Owner"
         teams={mockTeams}
       />
     );
@@ -58,22 +59,65 @@ describe("OwnerTeamSwitcher", () => {
     expect(screen.getByText("Engineering Team")).toBeDefined();
   });
 
-  it("allows owner to open dropdown and switch active team", () => {
-    const onSwitched = vi.fn();
+  it("renders team switcher button for Manager", () => {
     render(
       <OwnerTeamSwitcher
         workspaceId="ws-1"
-        isOwner={true}
+        isOwner={false}
+        role="Manager"
+        teams={mockTeams}
+      />
+    );
+
+    expect(screen.getByText("Manager")).toBeDefined();
+    expect(screen.getByText("Engineering Team")).toBeDefined();
+  });
+
+  it("renders team switcher button for ContentCreator", () => {
+    render(
+      <OwnerTeamSwitcher
+        workspaceId="ws-1"
+        isOwner={false}
+        role="ContentCreator"
+        teams={mockTeams}
+      />
+    );
+
+    expect(screen.getByText("Creator")).toBeDefined();
+    expect(screen.getByText("Engineering Team")).toBeDefined();
+  });
+
+  it("renders team switcher button for Viewer", () => {
+    render(
+      <OwnerTeamSwitcher
+        workspaceId="ws-1"
+        isOwner={false}
+        role="Viewer"
+        teams={mockTeams}
+      />
+    );
+
+    expect(screen.getByText("Viewer")).toBeDefined();
+    expect(screen.getByText("Engineering Team")).toBeDefined();
+  });
+
+  it("allows non-owner to open dropdown and switch active team", () => {
+    const onSwitched = vi.fn();
+    render(
+      <TeamSwitcher
+        workspaceId="ws-1"
+        isOwner={false}
+        role="Manager"
         teams={mockTeams}
         onTeamSwitched={onSwitched}
       />
     );
 
     // Open dropdown
-    const trigger = screen.getByTitle("Chuyển đổi Team đang làm việc (Dành riêng cho Owner)");
+    const trigger = screen.getByTitle("Chuyển đổi Team đang làm việc");
     fireEvent.click(trigger);
 
-    // Check modal contents
+    // Check dropdown contents
     expect(screen.getByText("Chuyển đổi Team")).toBeDefined();
     expect(screen.getByText("Marketing Team")).toBeDefined();
 
