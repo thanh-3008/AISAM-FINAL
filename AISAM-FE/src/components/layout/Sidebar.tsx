@@ -111,9 +111,12 @@ export default function Sidebar() {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (item.href === "/dashboard") return access ? access.canViewAnalytics : true;
+        if (item.href === "/dashboard") {
+          if (access?.role === "ContentCreator" || access?.role === "Viewer") return false;
+          return access ? access.canViewAnalytics : false;
+        }
         if (item.href === "/approvals") return access ? access.canReviewContent : true;
-        if (item.href === "/calendar") return access ? access.canPublish : true;
+        if (item.href === "/calendar") return true;
         if (item.href === "/analytics") return (access ? (access.canViewAnalytics || access.canViewOwnAnalytics) : true) && featureGate.can("viewAnalytics");
         if (item.label === "Team Management") return featureGate.canAccess("teamManagement");
         return true;
@@ -128,7 +131,7 @@ export default function Sidebar() {
     >
       {/* Logo + Toggle */}
       <div className="shrink-0 flex items-center justify-between px-5 pt-6 pb-5 border-b border-outline-variant/20 mx-4">
-        <Link href="/dashboard" className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        <Link href={access?.role === "ContentCreator" ? "/content" : "/dashboard"} className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
             <span className="material-symbols-outlined text-on-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
               psychology

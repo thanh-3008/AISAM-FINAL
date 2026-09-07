@@ -25,7 +25,14 @@ public partial class AisamContext
                             link.Team.WorkspaceId == content.WorkspaceId && !link.Team.IsDeleted &&
                             accessibleTeams.Contains(link.TeamId))
                         .Select(link => link.TeamId).Distinct().Take(2).ToArrayAsync(ct);
-                    if (candidates.Length == 1) content.TeamId = candidates[0];
+                    if (candidates.Length == 1)
+                    {
+                        content.TeamId = candidates[0];
+                    }
+                    else if (candidates.Length == 0 && AccessScope.Enforced && AccessScope.IsOwner && accessibleTeams.Length == 1)
+                    {
+                        content.TeamId = accessibleTeams[0];
+                    }
                 }
             }
 
@@ -43,6 +50,27 @@ public partial class AisamContext
                 await Teams.IgnoreQueryFilters().AsNoTracking().AnyAsync(team =>
                     team.Id == content.TeamId && team.WorkspaceId == content.WorkspaceId && !team.IsDeleted &&
                     TeamBrands.IgnoreQueryFilters().Any(link => link.TeamId == team.Id && link.BrandId == content.BrandId && link.IsActive), ct);
+
+            if (!valid && content.TeamId.HasValue)
+            {
+                var teamExists = Teams.Local.Any(t => t.Id == content.TeamId && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted) ||
+                    await Teams.IgnoreQueryFilters().AnyAsync(t => t.Id == content.TeamId && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted, ct);
+                var brandHasNoActiveLinks = !await TeamBrands.IgnoreQueryFilters().AnyAsync(link => link.BrandId == content.BrandId && link.IsActive, ct) &&
+                    !TeamBrands.Local.Any(link => link.BrandId == content.BrandId && link.IsActive);
+                if (teamExists && brandHasNoActiveLinks && (AccessScope.IsOwner || !AccessScope.Enforced))
+                {
+                    TeamBrands.Add(new TeamBrand
+                    {
+                        TeamId = content.TeamId.Value,
+                        BrandId = content.BrandId,
+                        AssignedAt = DateTime.UtcNow,
+                        IsActive = true,
+                        ChannelAccessMode = ChannelAccessMode.All
+                    });
+                    valid = true;
+                }
+            }
+
             if (!valid) throw new UnauthorizedAccessException("Content owning team must be active in the workspace and have access to the brand.");
         }
 

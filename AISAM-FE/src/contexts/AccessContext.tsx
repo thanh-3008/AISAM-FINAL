@@ -198,8 +198,7 @@ export function AccessBoundary({
   const denied = (aggregate && !access.canViewAnalytics) ||
     (analytics && !access.canViewAnalytics && !access.canViewOwnAnalytics) ||
     (own && !access.canViewOwnAnalytics) ||
-    (path.startsWith("/approvals") && !access.canReviewContent) ||
-    (path.startsWith("/calendar") && !access.canPublish);
+    (path.startsWith("/approvals") && !access.canReviewContent);
   if (denied) return <div className="p-6" role="alert">
     <p>Bạn không có quyền xem trang này.</p>
     {access.canViewOwnAnalytics && <Link className="underline" href="/analytics?tab=personal">Xem analytics và lịch sử cá nhân</Link>}

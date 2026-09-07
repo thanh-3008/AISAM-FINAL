@@ -13,6 +13,9 @@ import {
   markAllNotificationsRead,
   type NotificationListItem,
 } from "@/services/notificationService";
+import OwnerTeamSwitcher from "@/components/team/OwnerTeamSwitcher";
+import { useAccessContext } from "@/contexts/AccessContext";
+
 interface HeaderProps {
   title?: string;
   breadcrumbs?: { label: string; href?: string }[];
@@ -80,6 +83,7 @@ export default function Header({ breadcrumbs }: HeaderProps) {
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const { activeWorkspace } = useWorkspaces();
+  const access = useAccessContext();
   const { toggle } = useSidebar();
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -165,20 +169,26 @@ export default function Header({ breadcrumbs }: HeaderProps) {
         {/* Breadcrumbs / Search */}
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <nav className="flex items-center gap-1 min-w-0">
-            {breadcrumbs.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-1 min-w-0">
-                {i > 0 && (
-                  <span className="material-symbols-outlined text-outline/50 text-[14px] shrink-0">chevron_right</span>
-                )}
-                {crumb.href && i < breadcrumbs.length - 1 ? (
-                  <Link href={crumb.href} className="text-body-sm text-on-surface-variant hover:text-on-surface transition-colors truncate">
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <span className="text-body-sm font-bold text-on-surface truncate">{crumb.label}</span>
-                )}
-              </span>
-            ))}
+            {breadcrumbs.map((rawCrumb, i) => {
+              const isContentCreator = access?.role === "ContentCreator";
+              const crumb = isContentCreator && rawCrumb.href === "/dashboard"
+                ? { ...rawCrumb, label: "Content", href: "/content" }
+                : rawCrumb;
+              return (
+                <span key={i} className="flex items-center gap-1 min-w-0">
+                  {i > 0 && (
+                    <span className="material-symbols-outlined text-outline/50 text-[14px] shrink-0">chevron_right</span>
+                  )}
+                  {crumb.href && i < breadcrumbs.length - 1 ? (
+                    <Link href={crumb.href} className="text-body-sm text-on-surface-variant hover:text-on-surface transition-colors truncate">
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span className="text-body-sm font-bold text-on-surface truncate">{crumb.label}</span>
+                  )}
+                </span>
+              );
+            })}
           </nav>
         ) : (
           <div className="relative max-w-md w-full">
@@ -193,7 +203,15 @@ export default function Header({ breadcrumbs }: HeaderProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        {/* Owner Team Switcher - Only visible to Owner */}
+        {mounted && activeWorkspace?.isOwner && (
+          <OwnerTeamSwitcher
+            workspaceId={activeWorkspace.id}
+            isOwner={activeWorkspace.isOwner}
+            compact
+          />
+        )}
 
         {/* Notifications */}
         <div className="relative" ref={notifRef}>

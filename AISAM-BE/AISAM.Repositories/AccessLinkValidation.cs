@@ -17,10 +17,12 @@ public partial class AisamContext
         }
         IEnumerable<T> Changed<T>() where T : class => ChangeTracker.Entries<T>()
             .Where(e => e.State is EntityState.Added or EntityState.Modified).Select(e => e.Entity).ToArray();
-        async Task<bool> TeamInWorkspace(Guid id) => Teams.Local.Any(t => t.Id == id && t.WorkspaceId == workspace) ||
-            await Teams.AnyAsync(t => t.Id == id && t.WorkspaceId == workspace, ct);
+        async Task<bool> TeamInWorkspace(Guid id) => Teams.Local.Any(t => t.Id == id && t.WorkspaceId == workspace && !t.IsDeleted) ||
+            await Teams.AnyAsync(t => t.Id == id && t.WorkspaceId == workspace && !t.IsDeleted, ct);
         async Task<bool> MemberInWorkspace(Guid user) => WorkspaceMembers.Local.Any(m => m.WorkspaceId == workspace && m.UserId == user && m.IsActive) ||
             await WorkspaceMembers.AnyAsync(m => m.WorkspaceId == workspace && m.UserId == user && m.IsActive, ct);
+        async Task<bool> BrandInWorkspace(Guid id) => Brands.Local.Any(b => b.Id == id && b.WorkspaceId == workspace && !b.IsDeleted) ||
+            await Brands.IgnoreQueryFilters().AnyAsync(b => b.Id == id && b.WorkspaceId == workspace && !b.IsDeleted, ct);
 
         foreach (var team in Changed<Team>()) Require(team.WorkspaceId == workspace && workspace != Guid.Empty);
         foreach (var member in Changed<TeamMember>())
@@ -31,7 +33,7 @@ public partial class AisamContext
         foreach (var link in Changed<TeamBrand>())
         {
             Require(await TeamInWorkspace(link.TeamId));
-            Require(await Brands.IgnoreQueryFilters().AnyAsync(b => b.Id == link.BrandId && b.WorkspaceId == workspace, ct));
+            Require(await BrandInWorkspace(link.BrandId));
         }
         foreach (var channel in Changed<TeamChannelAccess>())
         {

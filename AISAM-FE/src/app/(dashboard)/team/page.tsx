@@ -7,11 +7,18 @@ import { useWorkspaces, getWorkspaceTypeLabel, invalidateWorkspaceCache } from "
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import {
   fetchMembers,
+  fetchTeams,
+  createTeam,
+  updateTeam,
+  deleteTeam,
   inviteMember,
   updateMemberRole,
   transferWorkspaceOwnership,
   removeMember,
   updateMemberQuota,
+  syncWorkspaceTeams,
+  type Team,
+  type CreateTeamData,
   type TeamMember,
   type MemberRole,
   type MemberStatus,
@@ -27,10 +34,21 @@ import TransferOwnershipConfirmModal from "@/components/team/TransferOwnershipCo
 import InviteMemberModal from "@/components/team/InviteMemberModal";
 import RoleDonutChart from "@/components/team/RoleDonutChart";
 import MemberCard from "@/components/team/MemberCard";
+import TeamCard from "@/components/team/TeamCard";
+import TeamListView from "@/components/team/TeamListView";
+import CreateTeamModal from "@/components/team/CreateTeamModal";
+import EditTeamModal from "@/components/team/EditTeamModal";
+import TeamDetailModal from "@/components/team/TeamDetailModal";
+import DeleteConfirmModal from "@/components/team/DeleteConfirmModal";
+import BulkActionsBar from "@/components/team/BulkActionsBar";
+import TeamStatsCards from "@/components/team/TeamStatsCards";
 import { calcTimeAgo } from "@/components/team/teamUtils";
+import { getStoredActiveTeam, storeActiveTeam, type ActiveTeam } from "@/stores/team-store";
+import OwnerTeamSwitcher from "@/components/team/OwnerTeamSwitcher";
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => Date.now());
 
@@ -39,6 +57,15 @@ export default function TeamPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Teams state
+  const [teamView, setTeamView] = useState<"grid" | "table">("grid");
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [detailTeam, setDetailTeam] = useState<Team | null>(null);
+  const [deletingTeams, setDeletingTeams] = useState<Team[]>([]);
+
+  // Members state
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemberStatus | "">("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -51,6 +78,7 @@ export default function TeamPage() {
   const [transferringOwnerMember, setTransferringOwnerMember] = useState<TeamMember | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const featureGate = useFeatureGate();
@@ -60,15 +88,68 @@ export default function TeamPage() {
   const canAssignQuota = featureGate.canAccess("lifetimeAssignedLimit") || featureGate.canAccess("monthlyAssignedLimit");
   const isOwner = activeWorkspace?.isOwner === true;
 
+  const [activeTeam, setActiveTeam] = useState<ActiveTeam | null>(() => getStoredActiveTeam(activeWorkspace?.id));
+
+  useEffect(() => {
+    const handleSync = () => {
+      setActiveTeam(getStoredActiveTeam(activeWorkspace?.id));
+    };
+    handleSync();
+    window.addEventListener("aisam_active_team_changed", handleSync);
+    return () => window.removeEventListener("aisam_active_team_changed", handleSync);
+  }, [activeWorkspace?.id]);
+
+  const handleSwitchTeam = (team: Team) => {
+    const next: ActiveTeam = { id: team.id, name: team.name, workspaceId: activeWorkspace?.id };
+    storeActiveTeam(next);
+    setActiveTeam(next);
+    showToast(`Đã chuyển sang team "${team.name}"`);
+  };
+
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type });
+  };
+
   const loadData = useCallback(async () => {
     try {
-      const membersRes = await fetchMembers();
+      const [membersRes, teamsRes] = await Promise.all([
+        fetchMembers(),
+        fetchTeams().catch(() => ({ data: [], total: 0 })),
+      ]);
       setMembers(membersRes.data);
+      setTeams(teamsRes.data);
+
+      const stored = getStoredActiveTeam(activeWorkspace?.id);
+      if ((!stored || !teamsRes.data.some((t) => t.id === stored.id)) && teamsRes.data.length > 0) {
+        const firstTeam: ActiveTeam = { id: teamsRes.data[0].id, name: teamsRes.data[0].name, workspaceId: activeWorkspace?.id };
+        storeActiveTeam(firstTeam);
+        setActiveTeam(firstTeam);
+      } else if (stored) {
+        setActiveTeam(stored);
+      }
     } catch {
-      showToast("Failed to load members", "error");
+      showToast("Failed to load team data", "error");
       setMembers([]);
+      setTeams([]);
     }
-  }, []);
+  }, [activeWorkspace?.id]);
+
+  const handleSyncTeam = async () => {
+    setSyncing(true);
+    try {
+      const res = await syncWorkspaceTeams();
+      if (res.success) {
+        showToast(res.message || "Đã đồng bộ toàn bộ thành viên và thương hiệu vào nhóm!", "success");
+        await loadData();
+      } else {
+        showToast(res.message || "Đồng bộ team thất bại", "error");
+      }
+    } catch {
+      showToast("Đồng bộ team thất bại", "error");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -99,10 +180,74 @@ export default function TeamPage() {
     }
   }, [toast]);
 
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
+  // Team action handlers
+  const handleCreateTeam = async (data: CreateTeamData) => {
+    setActionLoading("createTeam");
+    try {
+      const newTeam = await createTeam(data);
+      setTeams((prev) => [newTeam, ...prev]);
+      setShowCreateModal(false);
+      showToast(`Team "${newTeam.name}" created successfully`);
+      await loadData();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to create team", "error");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
+  const handleEditTeam = async (id: string, data: CreateTeamData) => {
+    setActionLoading("editTeam");
+    try {
+      const updated = await updateTeam(id, data);
+      if (updated) {
+        setTeams((prev) => prev.map((t) => (t.id === id ? updated : t)));
+        setEditingTeam(null);
+        showToast(`Team "${updated.name}" updated`);
+        await loadData();
+      } else {
+        showToast("Failed to update team", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update team", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteTeam = (team: Team) => {
+    setDeletingTeams([team]);
+  };
+
+  const handleConfirmDeleteTeams = async () => {
+    if (deletingTeams.length === 0) return;
+    setActionLoading("deleteTeam");
+    try {
+      for (const t of deletingTeams) {
+        await deleteTeam(t.id);
+      }
+      setTeams((prev) => prev.filter((t) => !deletingTeams.some((d) => d.id === t.id)));
+      setDeletingTeams([]);
+      setSelectedTeamIds([]);
+      showToast(`${deletingTeams.length} team(s) deleted`);
+      await loadData();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to delete team(s)", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSelectTeam = (id: string, selected: boolean) => {
+    setSelectedTeamIds((prev) => (selected ? [...prev, id] : prev.filter((x) => x !== id)));
+  };
+
+  const handleBulkDeleteTeams = () => {
+    const toDelete = teams.filter((t) => selectedTeamIds.includes(t.id));
+    setDeletingTeams(toDelete);
+  };
+
+  // Member action handlers
   const handleEditMember = async (id: string, role: MemberRole) => {
     const member = members.find((m) => m.id === id);
     if (member?.status === "Pending") {
@@ -185,13 +330,11 @@ export default function TeamPage() {
       showToast("Ownership can only be transferred to an active manager", "error");
       return;
     }
-
     setTransferringOwnerMember(member);
   };
 
   const handleConfirmTransferOwnership = async () => {
     if (!transferringOwnerMember) return;
-
     setActionLoading("transferOwnership");
     try {
       await transferWorkspaceOwnership(transferringOwnerMember.id);
@@ -278,7 +421,7 @@ export default function TeamPage() {
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Team Management" }]} />
 
       <div className="p-8 h-[calc(100vh-64px)] overflow-y-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-8">
 
           {/* Page Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-up">
@@ -292,10 +435,10 @@ export default function TeamPage() {
               </div>
               <div>
                 <h1 className="text-headline-sm font-bold text-on-surface">
-                  {activeWorkspace?.name || "Workspace"} Team
+                  {activeWorkspace?.name || "Workspace"} Teams &amp; Members
                 </h1>
                 <p className="text-label-sm text-outline">
-                  {activeMemberCount} members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)} · Manage your organization
+                  {teams.length} teams · {activeMemberCount} active members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)}
                 </p>
               </div>
             </div>
@@ -308,68 +451,199 @@ export default function TeamPage() {
                 <span className="material-symbols-outlined text-[16px]">refresh</span>
               </button>
               {isOwner && (
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[16px]">person_add</span>
-                  Invite Member
-                </button>
+                <>
+                  <button
+                    onClick={handleSyncTeam}
+                    disabled={syncing}
+                    className="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-label-sm font-semibold text-on-surface hover:bg-surface-container hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50"
+                    title="Đồng bộ tất cả thành viên & thương hiệu vào team để chia sẻ chung"
+                  >
+                    <span className={`material-symbols-outlined text-[16px] ${syncing ? "animate-spin" : ""}`}>sync</span>
+                    {syncing ? "Đang đồng bộ..." : "Đồng bộ team"}
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="px-5 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-label-sm font-bold hover:bg-surface-container hover:scale-105 transition-all flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">group_add</span>
+                    Create Team
+                  </button>
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">person_add</span>
+                    Invite Member
+                  </button>
+                </>
               )}
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-up" style={{ animationDelay: "0.1s" }}>
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
+          {/* Stats Overview */}
+          <TeamStatsCards teams={teams} members={members} />
+
+          {/* Teams Section */}
+          <section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-[20px]">group</span>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-headline-sm text-on-surface font-semibold">Teams</h2>
+                  <span className="px-2 py-0.5 rounded-full text-label-xs font-bold bg-secondary/10 text-secondary">
+                    {teams.length}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-label-sm text-on-surface-variant">Total Members</p>
-                  <p className="text-body-lg font-bold text-on-surface">{members.length}</p>
-                </div>
+
+                {/* Owner Team Switcher - Only visible to Owner */}
+                {isOwner && teams.length > 0 && (
+                  <OwnerTeamSwitcher
+                    workspaceId={activeWorkspace?.id}
+                    isOwner={isOwner}
+                    teams={teams}
+                    onTeamSwitched={(t) => {
+                      setActiveTeam(t);
+                      showToast(`Đã chuyển sang team "${t.name}"`);
+                    }}
+                  />
+                )}
+
+                {/* Quick Create Team Button for Owner */}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-on-primary text-label-xs font-bold shadow-xs hover:scale-105 active:scale-95 transition-all"
+                    title="Tạo team mới trong workspace"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">group_add</span>
+                    <span>Tạo team</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
+                <button
+                  onClick={() => setTeamView("grid")}
+                  className={`p-1.5 rounded-md transition-all ${
+                    teamView === "grid" ? "bg-surface-container text-primary shadow-sm" : "text-outline hover:text-on-surface"
+                  }`}
+                  title="Grid view"
+                >
+                  <span className="material-symbols-outlined text-[18px]">grid_view</span>
+                </button>
+                <button
+                  onClick={() => setTeamView("table")}
+                  className={`p-1.5 rounded-md transition-all ${
+                    teamView === "table" ? "bg-surface-container text-primary shadow-sm" : "text-outline hover:text-on-surface"
+                  }`}
+                  title="Table view"
+                >
+                  <span className="material-symbols-outlined text-[18px]">view_list</span>
+                </button>
               </div>
             </div>
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-emerald-600 text-[20px]">check_circle</span>
-                </div>
-                <div>
-                  <p className="text-label-sm text-on-surface-variant">Active</p>
-                  <p className="text-body-lg font-bold text-emerald-600">{activeMemberCount}</p>
-                </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 animate-pulse">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-surface-container" />
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4 w-32 bg-surface-container rounded" />
+                        <div className="h-3 w-24 bg-surface-container rounded" />
+                      </div>
+                    </div>
+                    <div className="h-2 bg-surface-container rounded-full mb-4" />
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-amber-600 text-[20px]">schedule</span>
+            ) : teams.length === 0 ? (
+              <div className="bg-surface-container-lowest/80 border border-outline-variant/30 rounded-2xl p-8 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center mx-auto mb-3">
+                  <span className="material-symbols-outlined text-[24px]">schema</span>
                 </div>
-                <div>
-                  <p className="text-label-sm text-on-surface-variant">Pending</p>
-                  <p className="text-body-lg font-bold text-amber-600">{members.filter(m => m.status === "Pending").length}</p>
-                </div>
+                <h3 className="text-body-md font-bold text-on-surface mb-1">No teams yet</h3>
+                <p className="text-body-sm text-outline mb-4 max-w-md mx-auto">
+                  Create teams to group workspace members and assign specific brand permissions to each team.
+                </p>
+                {isOwner && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-label-sm font-bold shadow-md hover:scale-105 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">group_add</span>
+                    Create First Team
+                  </button>
+                )}
               </div>
-            </div>
-          </div>
+            ) : teamView === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {teams.map((team, i) => (
+                  <TeamCard
+                    key={team.id}
+                    team={team}
+                    index={i}
+                    isSelected={selectedTeamIds.includes(team.id)}
+                    isLoading={actionLoading === team.id}
+                    isActiveTeam={activeTeam?.id === team.id}
+                    isOwner={isOwner}
+                    onSelect={handleSelectTeam}
+                    onViewDetail={setDetailTeam}
+                    onEdit={setEditingTeam}
+                    onDelete={handleDeleteTeam}
+                    onSwitchTeam={handleSwitchTeam}
+                  />
+                ))}
+              </div>
+            ) : (
+              <TeamListView
+                teams={teams}
+                selectedIds={selectedTeamIds}
+                actionLoading={actionLoading}
+                activeTeamId={activeTeam?.id}
+                isOwner={isOwner}
+                onSelect={handleSelectTeam}
+                onViewDetail={setDetailTeam}
+                onEdit={setEditingTeam}
+                onDelete={handleDeleteTeam}
+                onSwitchTeam={handleSwitchTeam}
+              />
+            )}
+
+            {/* Bulk Actions for Teams */}
+            <BulkActionsBar
+              selectedCount={selectedTeamIds.length}
+              onClearSelection={() => setSelectedTeamIds([])}
+              onBulkDelete={handleBulkDeleteTeams}
+              isLoading={actionLoading === "deleteTeam"}
+            />
+          </section>
 
           {/* Members Section */}
-          <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+          <section className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-headline-sm text-on-surface font-semibold">Members</h2>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-headline-sm text-on-surface font-semibold">Members</h2>
+                <span className="px-2 py-0.5 rounded-full text-label-xs font-bold bg-primary/10 text-primary">
+                  {members.length}
+                </span>
+              </div>
               <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
                 <button
                   onClick={() => setMemberView("grid")}
-                  className={`p-1.5 rounded-md transition-all ${memberView === "grid" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
+                  className={`p-1.5 rounded-md transition-all ${
+                    memberView === "grid" ? "bg-surface-container text-primary shadow-sm" : "text-outline hover:text-on-surface"
+                  }`}
+                  title="Grid view"
                 >
                   <span className="material-symbols-outlined text-[18px]">grid_view</span>
                 </button>
                 <button
                   onClick={() => setMemberView("table")}
-                  className={`p-1.5 rounded-md transition-all ${memberView === "table" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-outline hover:text-on-surface"}`}
+                  className={`p-1.5 rounded-md transition-all ${
+                    memberView === "table" ? "bg-surface-container text-primary shadow-sm" : "text-outline hover:text-on-surface"
+                  }`}
+                  title="Table view"
                 >
                   <span className="material-symbols-outlined text-[18px]">view_list</span>
                 </button>
@@ -388,22 +662,24 @@ export default function TeamPage() {
             />
 
             {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
-                {Array.from({ length: 6 }).map((_, i) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 animate-pulse">
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="w-14 h-14 rounded-full bg-surface-container" />
+                      <div className="w-10 h-10 rounded-xl bg-surface-container" />
                       <div className="space-y-2 flex-1">
                         <div className="h-4 w-32 bg-surface-container rounded" />
-                        <div className="h-3 w-40 bg-surface-container rounded" />
+                        <div className="h-3 w-24 bg-surface-container rounded" />
                       </div>
                     </div>
+                    <div className="h-2 bg-surface-container rounded-full mb-4" />
                   </div>
                 ))}
               </div>
             ) : filteredMembers.length === 0 ? (
               <TeamEmptyState
                 hasFilters={hasFilters}
+                onCreate={() => setShowCreateModal(true)}
                 onInvite={() => setShowInviteModal(true)}
                 isOwner={isOwner}
               />
@@ -422,25 +698,27 @@ export default function TeamPage() {
                       <MemberCard
                         key={member.id}
                         member={member}
+                        isOwner={isOwner}
+                        onViewDetail={setDetailMember}
                         onEdit={setEditingMember}
                         onDelete={handleDeleteMember}
-                        onViewDetail={setDetailMember}
-                        isOwner={isOwner}
                       />
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="bg-surface-container/50">
+                          <tr className="border-b border-outline-variant/20 bg-surface-container-low/50">
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Member</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Credits</th>
+                            <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Quota / Usage</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Status</th>
                             <th className="px-6 py-3.5 text-left text-label-xs text-outline font-bold uppercase tracking-wider">Joined</th>
-                            {isOwner && <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>}
+                            {isOwner && (
+                              <th className="px-6 py-3.5 text-right text-label-xs text-outline font-bold uppercase tracking-wider">Actions</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-outline-variant/10">
@@ -516,29 +794,38 @@ export default function TeamPage() {
                                 <span className="text-label-xs text-outline">{calcTimeAgo(now, member.lastActive)}</span>
                               </td>
                               {isOwner && (
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setEditingMember(member); }}
-                                    className={`p-1.5 rounded-lg transition-all ${
-                                      member.status === "Pending"
-                                        ? "text-outline/30 cursor-not-allowed"
-                                        : "text-outline hover:text-primary hover:bg-primary/10"
-                                    }`}
-                                    title={member.status === "Pending" ? "Role can be changed after acceptance" : "Edit member"}
-                                    disabled={member.status === "Pending"}
-                                  >
-                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteMember(member); }}
-                                    className="p-1.5 rounded-lg text-outline hover:text-danger-red hover:bg-danger-red/10 transition-all"
-                                    title="Remove member"
-                                  >
-                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                  </button>
-                                </div>
-                              </td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {member.role === "Manager" && member.status === "Active" && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleOpenTransferOwnership(member); }}
+                                        className="p-1.5 rounded-lg text-outline hover:text-amber-600 hover:bg-amber-50 transition-all"
+                                        title="Transfer ownership"
+                                      >
+                                        <span className="material-symbols-outlined text-[16px]">crown</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setEditingMember(member); }}
+                                      className={`p-1.5 rounded-lg transition-all ${
+                                        member.status === "Pending"
+                                          ? "text-outline/30 cursor-not-allowed"
+                                          : "text-outline hover:text-primary hover:bg-primary/10"
+                                      }`}
+                                      title={member.status === "Pending" ? "Role can be changed after acceptance" : "Edit member"}
+                                      disabled={member.status === "Pending"}
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteMember(member); }}
+                                      className="p-1.5 rounded-lg text-outline hover:text-danger-red hover:bg-danger-red/10 transition-all"
+                                      title="Remove member"
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">delete</span>
+                                    </button>
+                                  </div>
+                                </td>
                               )}
                             </tr>
                           ))}
@@ -555,13 +842,40 @@ export default function TeamPage() {
         {/* Modals */}
         <MemberDetailModal
           member={detailMember}
-          teams={[]}
+          teams={teams}
           onClose={() => setDetailMember(null)}
           onEdit={setEditingMember}
           onDelete={handleDeleteMember}
           onTransferOwnership={handleOpenTransferOwnership}
           isOwner={isOwner}
           isTransferringOwnership={actionLoading === "transferOwnership"}
+        />
+
+        <CreateTeamModal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreateTeam}
+          isLoading={actionLoading === "createTeam"}
+        />
+
+        <EditTeamModal
+          team={editingTeam}
+          onClose={() => setEditingTeam(null)}
+          onUpdate={handleEditTeam}
+          isLoading={actionLoading === "editTeam"}
+        />
+
+        <TeamDetailModal
+          team={detailTeam}
+          members={members}
+          onClose={() => setDetailTeam(null)}
+        />
+
+        <DeleteConfirmModal
+          teams={deletingTeams}
+          isLoading={actionLoading === "deleteTeam"}
+          onConfirm={handleConfirmDeleteTeams}
+          onCancel={() => setDeletingTeams([])}
         />
 
         <EditMemberModal

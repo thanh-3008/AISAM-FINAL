@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
+import { clearActiveWorkspace } from "@/stores/workspace-store";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
 
@@ -128,6 +129,7 @@ export default function RegisterPage() {
           setStoredUser(result.data.user);
         }
         invalidateWorkspaceCache();
+        clearActiveWorkspace();
         router.push("/overview");
       } else {
         setError("Registration failed, please try again.");

@@ -161,9 +161,16 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError("Invitation not found.", HttpStatusCode.NotFound);
         }
 
-        if (invitation.AcceptedAt.HasValue || invitation.RevokedAt.HasValue || invitation.ExpiresAt <= DateTime.UtcNow)
+        if (invitation.RevokedAt.HasValue || invitation.ExpiresAt <= DateTime.UtcNow)
         {
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError("Invitation is no longer valid.");
+        }
+
+        if (invitation.AcceptedAt.HasValue)
+        {
+            return GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(
+                Map(invitation),
+                "Invitation has already been accepted.");
         }
 
         return GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(Map(invitation), "Invitation is valid.");
@@ -186,7 +193,26 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError("Invitation not found.", HttpStatusCode.NotFound);
         }
 
-        if (invitation.AcceptedAt.HasValue || invitation.RevokedAt.HasValue || invitation.ExpiresAt <= DateTime.UtcNow)
+        if (invitation.AcceptedAt.HasValue)
+        {
+            var existingMembership = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(invitation.WorkspaceId, userId, cancellationToken);
+            if (existingMembership?.IsActive == true)
+            {
+                return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateSuccess(
+                    new AcceptWorkspaceInvitationResponseDto
+                    {
+                        WorkspaceId = existingMembership.WorkspaceId,
+                        WorkspaceName = invitation.Workspace?.Name ?? "Workspace",
+                        Role = existingMembership.Role,
+                        QuotaMode = existingMembership.QuotaMode,
+                        CreditLimit = existingMembership.CreditLimit
+                    },
+                    "Workspace invitation already accepted.");
+            }
+            return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError("Invitation is no longer valid.");
+        }
+
+        if (invitation.RevokedAt.HasValue || invitation.ExpiresAt <= DateTime.UtcNow)
         {
             return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError("Invitation is no longer valid.");
         }
@@ -235,6 +261,60 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 CreditLimit = membership.CreditLimit
             },
             "Workspace invitation accepted successfully.");
+    }
+
+    public async Task<IReadOnlyList<Guid>> AcceptPendingInvitationsForEmailAsync(
+        Guid userId,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var pendingInvitations = await _workspaceInvitationRepository.GetPendingByEmailAsync(email, cancellationToken);
+        if (pendingInvitations.Count == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var acceptedWorkspaceIds = new List<Guid>();
+
+        foreach (var invitation in pendingInvitations)
+        {
+            try
+            {
+                if (invitation.Workspace == null ||
+                    invitation.Workspace.WorkspaceType != WorkspaceTypeEnum.Business ||
+                    invitation.Workspace.Status != WorkspaceStatusEnum.Active)
+                {
+                    continue;
+                }
+
+                if (!await SupportsTeamManagementAsync(invitation.WorkspaceId, cancellationToken))
+                {
+                    continue;
+                }
+
+                var activeMembers = await _workspaceMemberRepository.GetByWorkspaceIdAsync(
+                    invitation.WorkspaceId,
+                    cancellationToken);
+                if (activeMembers.Count >= invitation.Workspace.MemberLimit)
+                {
+                    continue;
+                }
+
+                await _workspaceInvitationRepository.AcceptAsync(invitation, userId, cancellationToken);
+                acceptedWorkspaceIds.Add(invitation.WorkspaceId);
+            }
+            catch
+            {
+                // Continue with remaining invitations if one fails
+            }
+        }
+
+        return acceptedWorkspaceIds;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>> GetPendingByWorkspaceAsync(

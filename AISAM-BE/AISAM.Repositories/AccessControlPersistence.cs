@@ -12,6 +12,60 @@ public partial class AisamContext
     {
         ChangeTracker.DetectChanges();
         ApplyBackgroundAttribution();
+        foreach (var entry in ChangeTracker.Entries<Brand>().Where(e => e.State == EntityState.Added).ToArray())
+        {
+            var brand = entry.Entity;
+            if (TeamBrands.Local.Any(tb => tb.BrandId == brand.Id && tb.IsActive)) continue;
+
+            Team? targetTeam = null;
+            if (AccessScope.Enforced && AccessScope.ActiveTeamId.HasValue)
+            {
+                targetTeam = Teams.Local.FirstOrDefault(t => t.Id == AccessScope.ActiveTeamId.Value && t.WorkspaceId == brand.WorkspaceId && !t.IsDeleted)
+                    ?? await Teams.FirstOrDefaultAsync(t => t.Id == AccessScope.ActiveTeamId.Value && t.WorkspaceId == brand.WorkspaceId && !t.IsDeleted, cancellationToken);
+            }
+            if (targetTeam == null)
+            {
+                targetTeam = Teams.Local.FirstOrDefault(t => t.WorkspaceId == brand.WorkspaceId && !t.IsDeleted && t.Status == TeamStatusEnum.Active)
+                    ?? await Teams.FirstOrDefaultAsync(t => t.WorkspaceId == brand.WorkspaceId && !t.IsDeleted && t.Status == TeamStatusEnum.Active, cancellationToken);
+            }
+            if (targetTeam == null)
+            {
+                var ws = Workspaces.Local.FirstOrDefault(w => w.Id == brand.WorkspaceId)
+                    ?? await Workspaces.FirstOrDefaultAsync(w => w.Id == brand.WorkspaceId, cancellationToken);
+                var teamName = (ws?.Name ?? "General") + " Team";
+                targetTeam = new Team
+                {
+                    WorkspaceId = brand.WorkspaceId,
+                    Name = teamName,
+                    Status = TeamStatusEnum.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                if (AccessScope.Enforced && AccessScope.UserId != Guid.Empty)
+                {
+                    targetTeam.TeamMembers.Add(new TeamMember
+                    {
+                        TeamId = targetTeam.Id,
+                        UserId = AccessScope.UserId,
+                        Role = "Owner",
+                        JoinedAt = DateTime.UtcNow,
+                        IsActive = true
+                    });
+                }
+                Teams.Add(targetTeam);
+            }
+            if (targetTeam != null)
+            {
+                TeamBrands.Add(new TeamBrand
+                {
+                    TeamId = targetTeam.Id,
+                    BrandId = brand.Id,
+                    AssignedAt = DateTime.UtcNow,
+                    IsActive = true,
+                    ChannelAccessMode = ChannelAccessMode.All
+                });
+            }
+        }
         await PrepareContentOwnershipAsync(cancellationToken);
         await CaptureExecutionAttributionAsync(cancellationToken);
         foreach (var entry in ChangeTracker.Entries<Workspace>().Where(e => e.State == EntityState.Added).ToArray())

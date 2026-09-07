@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { acceptInvitation, validateInvitation, type WorkspaceInvitation } from "@/services/workspaceInvitationService";
 import { getToken, getUserFromToken, logout } from "@/lib/auth";
 import { storeActiveWorkspace } from "@/stores/workspace-store";
+import { invalidateWorkspaceCache, notifyWorkspaceSelected } from "@/hooks/useWorkspaces";
 
 type Status = "ready" | "accepting" | "success" | "error";
 
@@ -38,12 +39,62 @@ export default function AcceptInvitationPage() {
       setInvitation(res.invitation || null);
       
       const loggedIn = !!getToken();
-      setCurrentEmail(getUserFromToken()?.email || "");
+      const user = getUserFromToken();
+      const email = user?.email || "";
+      setCurrentEmail(email);
       setIsLoggedIn(loggedIn);
       setIsMounted(true);
+
       if (!loggedIn) {
         router.push(`/login?redirect=/invitation/${token}`);
+        return;
       }
+
+      // Check if logged in with wrong email
+      if (res.invitation?.email && email && res.invitation.email.toLowerCase() !== email.toLowerCase()) {
+        setStatus("error");
+        setErrorMessage(
+          `This invitation is for ${res.invitation.email}. You are currently signed in as ${email}.`
+        );
+        return;
+      }
+
+      // Auto-accept immediately when logged in
+      setStatus("accepting");
+      const result = await acceptInvitation(token);
+      if (cancelled) return;
+
+      if (result.success && result.workspaceId) {
+        setStatus("success");
+        setSuccessWorkspace(result.workspaceId);
+        storeActiveWorkspace({
+          id: result.workspaceId,
+          name: result.workspaceName || res.invitation?.workspaceName || "Workspace",
+          workspaceType: 2,
+        });
+        invalidateWorkspaceCache();
+        notifyWorkspaceSelected();
+        router.replace("/overview");
+        return;
+      }
+
+      if (result.message?.includes("already") || result.message?.includes("member")) {
+        setStatus("success");
+        if (res.invitation?.workspaceId) {
+          storeActiveWorkspace({
+            id: res.invitation.workspaceId,
+            name: res.invitation.workspaceName || "Workspace",
+            workspaceType: 2,
+          });
+          invalidateWorkspaceCache();
+          notifyWorkspaceSelected();
+        }
+        router.replace("/overview");
+        return;
+      }
+
+      setStatus("error");
+      setErrorMessage(result.message || "Failed to accept invitation");
     };
     checkToken();
     return () => { cancelled = true; };
@@ -60,8 +111,8 @@ export default function AcceptInvitationPage() {
   const handleAccept = async () => {
     if (!token) return;
 
-    const isLoggedIn = !!getToken();
-    if (!isLoggedIn) {
+    const loggedIn = !!getToken();
+    if (!loggedIn) {
       router.push(`/login?redirect=/invitation/${token}`);
       return;
     }
@@ -75,14 +126,28 @@ export default function AcceptInvitationPage() {
       if (result.workspaceId) {
         storeActiveWorkspace({
           id: result.workspaceId,
-          name: result.workspaceName || "Workspace",
+          name: result.workspaceName || invitation?.workspaceName || "Workspace",
           workspaceType: 2,
         });
-        setTimeout(() => {
-          router.push(`/overview`);
-        }, 2000);
+        invalidateWorkspaceCache();
+        notifyWorkspaceSelected();
+        router.replace("/overview");
       }
     } else {
+      if (result.message?.includes("already") || result.message?.includes("member")) {
+        setStatus("success");
+        if (invitation?.workspaceId) {
+          storeActiveWorkspace({
+            id: invitation.workspaceId,
+            name: invitation.workspaceName || "Workspace",
+            workspaceType: 2,
+          });
+          invalidateWorkspaceCache();
+          notifyWorkspaceSelected();
+        }
+        router.replace("/overview");
+        return;
+      }
       if (result.message?.includes("Invitation email does not match")) {
         setStatus("error");
         setErrorMessage(

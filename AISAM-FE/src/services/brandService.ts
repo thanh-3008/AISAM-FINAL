@@ -24,10 +24,11 @@ registerProtectedCache(() => { brandList = []; productList = []; });
 export async function fetchBrands(): Promise<{ id: string; name: string }[]> {
   const revision = protectedCacheRevision();
   try {
-    const res: GenericResponse<{ data: BrandApiItem[] }> = await apiClient("/brands?pageSize=100");
-    if (revision === protectedCacheRevision() && res?.success && res.data?.data) {
-      brandList = res.data.data;
-      return res.data.data;
+    const res: any = await apiClient("/brands?pageSize=100");
+    if (revision === protectedCacheRevision() && res?.success) {
+      const items = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      brandList = items;
+      return items;
     }
   } catch {
     // ignore
@@ -39,10 +40,11 @@ export async function fetchProducts(brandId?: string): Promise<{ id: string; nam
   const revision = protectedCacheRevision();
   try {
     const query = brandId ? `?brandId=${brandId}&pageSize=100` : "?pageSize=100";
-    const res: GenericResponse<{ data: ProductApiItem[] }> = await apiClient(`/products${query}`);
-    if (revision === protectedCacheRevision() && res?.success && res.data?.data) {
-      productList = res.data.data;
-      return res.data.data;
+    const res: any = await apiClient(`/products${query}`);
+    if (revision === protectedCacheRevision() && res?.success) {
+      const items = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      productList = items;
+      return items;
     }
   } catch {
     // ignore

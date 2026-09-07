@@ -52,4 +52,16 @@ describe("Sidebar Navigation", () => {
     render(<Sidebar />);
     expect(screen.getByText("Analysis")).toBeTruthy();
   });
+
+  it("does not render Dashboard menu item for ContentCreator", () => {
+    render(<Sidebar />);
+    expect(screen.queryByText("Dashboard")).toBeNull();
+  });
+
+  it("links logo to /content for ContentCreator", () => {
+    render(<Sidebar />);
+    const logoLink = screen.getByRole("link", { name: /AISAM/i });
+    expect(logoLink.getAttribute("href")).toBe("/content");
+  });
 });
+

@@ -78,8 +78,8 @@ export const FEATURE_MATRIX: Record<Feature, PlanType[]> = {
   manualPost: [PlanType.Free, PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
   basicAnalytics: [PlanType.Free, PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
   aiImage: [PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
-  contentCalendar: [PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
-  schedulePost: [PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
+  contentCalendar: [PlanType.Free, PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
+  schedulePost: [PlanType.Free, PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
   multiPlatformPublish: [PlanType.PersonalPlus, PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
   trendAnalysis: [PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
   holidaySuggestion: [PlanType.PersonalPro, PlanType.BusinessPlus, PlanType.BusinessPro],
@@ -97,7 +97,7 @@ export const FEATURE_MATRIX: Record<Feature, PlanType[]> = {
 };
 
 export const PERMISSION_MATRIX: Record<Permission, WorkspaceRole[]> = {
-  viewDashboard: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator, WorkspaceRole.Viewer],
+  viewDashboard: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   viewAnalytics: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   manageBrand: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   manageProduct: [WorkspaceRole.Owner, WorkspaceRole.Manager],
@@ -109,7 +109,7 @@ export const PERMISSION_MATRIX: Record<Permission, WorkspaceRole[]> = {
   createDraft: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator],
   reviewContent: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   publishPost: [WorkspaceRole.Owner, WorkspaceRole.Manager],
-  manageSchedules: [WorkspaceRole.Owner, WorkspaceRole.Manager],
+  manageSchedules: [WorkspaceRole.Owner, WorkspaceRole.Manager, WorkspaceRole.ContentCreator, WorkspaceRole.Viewer],
   viewTeamUsage: [WorkspaceRole.Owner, WorkspaceRole.Manager],
   inviteMember: [WorkspaceRole.Owner],
   removeMember: [WorkspaceRole.Owner],

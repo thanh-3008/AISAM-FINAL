@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getUserIdFromToken } from "@/lib/auth";
 import { getStoredActiveWorkspace, storeActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { clearActiveProfile } from "@/stores/profile-store";
+import { clearActiveTeam } from "@/stores/team-store";
 import { apiClient } from "@/lib/apiClient";
 
 export interface WorkspaceData {
@@ -43,8 +44,24 @@ async function waitForActiveWorkspaceFetch() {
   }
 }
 
-function notifyWorkspaceSelected() {
+export function notifyWorkspaceSelected() {
   workspaceSelectListeners.forEach((fn) => { try { fn(); } catch { /* skip */ } });
+}
+
+export function selectDefaultWorkspace(workspaces: WorkspaceData[]): WorkspaceData | undefined {
+  const activeWorkspaces = workspaces.filter((w) => w.status === 1);
+  if (activeWorkspaces.length === 0) return workspaces[0];
+
+  // 1. Prioritize workspace where user was invited (i.e. member/manager/viewer, not owner)
+  const invitedWorkspace = activeWorkspaces.find((w) => !w.isOwner);
+  if (invitedWorkspace) return invitedWorkspace;
+
+  // 2. Next prioritize Business workspace owned by user
+  const businessWorkspace = activeWorkspaces.find((w) => w.workspaceType === 2);
+  if (businessWorkspace) return businessWorkspace;
+
+  // 3. Fallback to any active workspace
+  return activeWorkspaces[0];
 }
 
 function getPlanName(profileType: number): string {
@@ -213,7 +230,7 @@ export function useWorkspaces() {
           });
         }
       } else {
-        const fallback = mapped.find((w) => w.status === 1) || mapped[0];
+        const fallback = selectDefaultWorkspace(mapped);
         if (fallback) {
           storeActiveWorkspace({
             id: fallback.id,
@@ -223,10 +240,12 @@ export function useWorkspaces() {
           notifyWorkspaceSelected();
         } else {
           clearActiveWorkspace();
+          clearActiveProfile();
+          clearActiveTeam();
         }
       }
     } else if (mapped.length > 0) {
-      const fallback = mapped.find((w) => w.status === 1) || mapped[0];
+      const fallback = selectDefaultWorkspace(mapped);
       if (fallback) {
         storeActiveWorkspace({
           id: fallback.id,
@@ -260,6 +279,7 @@ export function useWorkspaces() {
 
   const selectWorkspace = useCallback((workspace: WorkspaceData) => {
     clearActiveProfile();
+    clearActiveTeam();
     storeActiveWorkspace({
       id: workspace.id,
       name: workspace.name,
@@ -274,6 +294,8 @@ export function useWorkspaces() {
 
   const clearSelectedWorkspace = useCallback(() => {
     clearActiveWorkspace();
+    clearActiveProfile();
+    clearActiveTeam();
   }, []);
 
   const updateWorkspacePlan = useCallback((workspaceId: string, plan: string) => {

@@ -4,8 +4,10 @@ using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
+using AISAM.Repositories;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Services.Service
 {
@@ -14,15 +16,26 @@ namespace AISAM.Services.Service
         private readonly IBrandRepository _brandRepository;
         private readonly IProfileRepository _profileRepository;
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
+        private readonly AisamContext? _context;
 
         public BrandService(
             IBrandRepository brandRepository,
             IProfileRepository profileRepository,
             IWorkspaceMemberRepository workspaceMemberRepository)
+            : this(brandRepository, profileRepository, workspaceMemberRepository, null)
+        {
+        }
+
+        public BrandService(
+            IBrandRepository brandRepository,
+            IProfileRepository profileRepository,
+            IWorkspaceMemberRepository workspaceMemberRepository,
+            AisamContext? context)
         {
             _brandRepository = brandRepository;
             _profileRepository = profileRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
+            _context = context;
         }
 
         public async Task<GenericResponse<PagedResult<BrandResponseDto>>> GetPagedByWorkspaceIdAsync(
@@ -57,7 +70,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: false);
             if (!access.Success)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(access.Message);
@@ -118,6 +131,31 @@ namespace AISAM.Services.Service
             };
 
             var created = await _brandRepository.AddAsync(brand, cancellationToken);
+
+            if (_context != null)
+            {
+                var teams = await _context.Teams
+                    .Where(t => t.WorkspaceId == workspaceId && !t.IsDeleted && t.Status == TeamStatusEnum.Active)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var team in teams)
+                {
+                    var alreadyLinked = await _context.TeamBrands
+                        .AnyAsync(tb => tb.TeamId == team.Id && tb.BrandId == created.Id, cancellationToken);
+                    if (!alreadyLinked)
+                    {
+                        _context.TeamBrands.Add(new TeamBrand
+                        {
+                            TeamId = team.Id,
+                            BrandId = created.Id,
+                            IsActive = true,
+                            ChannelAccessMode = ChannelAccessMode.All,
+                            AssignedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             return GenericResponse<BrandResponseDto>.CreateSuccess(MapToDto(created), "Brand created successfully");
         }

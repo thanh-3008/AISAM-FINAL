@@ -5,8 +5,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { getToken, getUserRoleFromToken, setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
-import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
-import { clearActiveWorkspace } from "@/stores/workspace-store";
+import { invalidateWorkspaceCache, notifyWorkspaceSelected } from "@/hooks/useWorkspaces";
+import { clearActiveWorkspace, storeActiveWorkspace } from "@/stores/workspace-store";
+import { acceptInvitation } from "@/services/workspaceInvitationService";
 import AuthShell from "@/components/auth/AuthShell";
 import { initializeGoogleIdentity, renderGoogleIdentityButton } from "@/lib/googleIdentity";
 
@@ -31,6 +32,31 @@ export default function LoginPage() {
     return searchParams.get("redirect") || "/overview";
   }, [searchParams]);
 
+  const handleInvitationAndRedirect = useCallback(async (redirectUrl: string) => {
+    const inviteMatch = redirectUrl.match(/\/invitation\/([^/?#]+)/);
+    if (inviteMatch && inviteMatch[1]) {
+      try {
+        const acceptRes = await acceptInvitation(inviteMatch[1]);
+        if (acceptRes.success && acceptRes.workspaceId) {
+          storeActiveWorkspace({
+            id: acceptRes.workspaceId,
+            name: acceptRes.workspaceName || "Workspace",
+            workspaceType: 2,
+          });
+          invalidateWorkspaceCache();
+          notifyWorkspaceSelected();
+          setIsSuccess(true);
+          router.replace("/overview");
+          return;
+        }
+      } catch (e) {
+        console.error("Auto accept invitation error:", e);
+      }
+    }
+    setIsSuccess(true);
+    router.replace(redirectUrl);
+  }, [router]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -53,8 +79,12 @@ export default function LoginPage() {
           });
         }
 
-        setIsSuccess(true);
-        router.replace(getUserRoleFromToken() === "Admin" ? "/admin/dashboard" : getRedirectUrl());
+        if (getUserRoleFromToken() === "Admin") {
+          setIsSuccess(true);
+          router.replace("/admin/dashboard");
+        } else {
+          await handleInvitationAndRedirect(getRedirectUrl());
+        }
       } catch {
         if (!cancelled) {
           setIsCheckingSession(false);
@@ -99,8 +129,7 @@ export default function LoginPage() {
             return;
           }
         }
-        setIsSuccess(true);
-        router.replace(getRedirectUrl());
+        await handleInvitationAndRedirect(getRedirectUrl());
       } else {
         setError("Google sign-in failed.");
       }
@@ -211,8 +240,7 @@ export default function LoginPage() {
           // /auth/me is optional — continue regardless
         }
 
-        setIsSuccess(true);
-        router.replace(getRedirectUrl());
+        await handleInvitationAndRedirect(getRedirectUrl());
       } else {
         setError("Login failed, please try again.");
       }

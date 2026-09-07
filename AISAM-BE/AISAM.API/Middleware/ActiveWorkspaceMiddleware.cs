@@ -378,7 +378,7 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.ReviewContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.ContentCreator,
-            WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
+            WorkspacePermissionEnum.ManageSchedules => true,
             WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             _ => false
         };
@@ -405,7 +405,7 @@ public sealed class ActiveWorkspaceMiddleware
         {
             WorkspaceFeatureEnum.GenerateText => true,
             WorkspaceFeatureEnum.MultiPlatformPublish => subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium or SubscriptionPlanEnum.PlusTrial,
-            WorkspaceFeatureEnum.SchedulePost => subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium or SubscriptionPlanEnum.PlusTrial,
+            WorkspaceFeatureEnum.SchedulePost => true,
             WorkspaceFeatureEnum.AiImage => subscription.Plan is SubscriptionPlanEnum.Plus or SubscriptionPlanEnum.Premium or SubscriptionPlanEnum.PlusTrial,
             WorkspaceFeatureEnum.AiVideo => subscription.Plan is SubscriptionPlanEnum.Premium,
             WorkspaceFeatureEnum.TrendAnalysis => subscription.Plan is SubscriptionPlanEnum.Premium,

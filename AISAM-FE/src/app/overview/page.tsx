@@ -113,7 +113,9 @@ export default function OverviewPage() {
       const w = workspace as WorkspaceData;
       selectWorkspace(w);
       setToast({ name: workspace.name });
-      setTimeout(() => router.push("/dashboard"), 2000);
+      const isContentCreator = w.memberRole === "ContentCreator" || (w as any).currentUserRole === 3;
+      const targetUrl = isContentCreator ? "/content" : "/dashboard";
+      setTimeout(() => router.push(targetUrl), 2000);
     }
   };
 
@@ -422,7 +424,7 @@ export default function OverviewPage() {
           <p className="text-body-sm font-semibold">
             Workspace <span className="text-primary-fixed-dim">{toast?.name}</span> selected
           </p>
-          <p className="text-label-xs text-outline-variant">Loading your dashboard...</p>
+          <p className="text-label-xs text-outline-variant">Loading your workspace...</p>
         </div>
       </motion.div>
 

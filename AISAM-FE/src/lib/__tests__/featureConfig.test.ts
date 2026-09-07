@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { PERMISSION_MATRIX, WorkspaceRole } from "@/lib/featureConfig";
 
 describe("workspace role permissions", () => {
-  it("keeps content creation but removes review, publish, and schedule management from content creators", () => {
+  it("keeps content creation and schedule management but removes review and publish from content creators", () => {
     expect(PERMISSION_MATRIX.createDraft).toContain(WorkspaceRole.ContentCreator);
     expect(PERMISSION_MATRIX.reviewContent).not.toContain(WorkspaceRole.ContentCreator);
     expect(PERMISSION_MATRIX.publishPost).not.toContain(WorkspaceRole.ContentCreator);
-    expect(PERMISSION_MATRIX.manageSchedules).not.toContain(WorkspaceRole.ContentCreator);
+    expect(PERMISSION_MATRIX.manageSchedules).toContain(WorkspaceRole.ContentCreator);
   });
 
   it.each([WorkspaceRole.Owner, WorkspaceRole.Manager])("allows %s to review, publish, and manage schedules", (role) => {

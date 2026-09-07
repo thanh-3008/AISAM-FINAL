@@ -152,19 +152,32 @@ async function workspaceMemberIds() {
 }
 
 async function teamPayload(data: CreateTeamData): Promise<CreateTeamData> {
-  const members = await workspaceMemberIds();
-  return { ...data, memberIds: data.memberIds.map(id => {
-    const member = members.find(m => m.id === id || m.userId === id);
-    if (!member) throw new Error("Selected member is no longer in this workspace");
-    return member.userId;
-  }) };
+  const members = await workspaceMemberIds().catch(() => []);
+  return {
+    ...data,
+    memberIds: (data.memberIds || [])
+      .map((id) => {
+        const member = members.find((m) => m.id === id || m.userId === id);
+        return member ? member.userId : id;
+      })
+      .filter((id): id is string => Boolean(id)),
+  };
 }
 
 export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
-  const [result, members] = await Promise.all([apiClient("/teams") as Promise<GenericResponse<TeamApiItem[]>>, workspaceMemberIds()]);
+  const [result, members] = await Promise.all([
+    apiClient("/teams") as Promise<GenericResponse<TeamApiItem[]>>,
+    workspaceMemberIds().catch(() => [] as BEWorkspaceMemberDto[]),
+  ]);
   if (!result.success || !result.data) throw new Error("Cannot load teams");
-  const data = result.data.map(team => ({ ...team, description: team.description ?? "", activity: null,
-    memberIds: team.memberIds.map(userId => members.find(m => m.userId === userId)?.id).filter((id): id is string => !!id) }));
+  const data = result.data.map((team) => ({
+    ...team,
+    description: team.description ?? "",
+    activity: null,
+    memberIds: (team.memberIds || [])
+      .map((userId) => members.find((m) => m.userId === userId)?.id)
+      .filter((id): id is string => Boolean(id)),
+  }));
   return { data, total: data.length };
 }
 
@@ -179,8 +192,8 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
   if (membersRes?.data) {
     activeMembers.push(...membersRes.data.map(mapMember));
   }
-  const teams = (await fetchTeams()).data;
-  for (const member of activeMembers) member.teamIds = teams.filter(t => t.memberIds.includes(member.id)).map(t => t.id);
+  const teams = (await fetchTeams().catch(() => ({ data: [], total: 0 }))).data;
+  for (const member of activeMembers) member.teamIds = teams.filter((t) => t.memberIds.includes(member.id)).map((t) => t.id);
 
   // Only show pending if the email is NOT already an active member (already accepted)
   const activeEmails = new Set(activeMembers.map((m) => m.email));
@@ -212,11 +225,23 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
 }
 
 export async function createTeam(data: CreateTeamData): Promise<Team> {
-  const result = await apiClient("/teams", { method: "POST", data: await teamPayload(data) });
+  const payload = await teamPayload(data);
+  const result: GenericResponse<{ id: string; name: string; description?: string; brandIds: string[]; memberIds: string[] }> =
+    await apiClient("/teams", { method: "POST", data: payload });
   if (!result.success || !result.data?.id) throw new Error("Cannot create team");
-  const team = await getTeamById(result.data.id);
-  if (!team) throw new Error("Created team cannot be loaded");
-  return team;
+  const team = await getTeamById(result.data.id).catch(() => null);
+  if (team) return team;
+  return {
+    id: result.data.id,
+    name: result.data.name || data.name,
+    description: result.data.description || data.description || "",
+    brandCount: (data.brandIds || []).length,
+    brandIds: data.brandIds || [],
+    memberIds: data.memberIds || [],
+    activity: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
@@ -361,3 +386,16 @@ export async function getMemberById(id: string): Promise<TeamMember | null> {
     return null;
   }
 }
+
+export async function syncWorkspaceTeams(): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res: GenericResponse<object> = await apiClient("/teams/sync", {
+      method: "POST",
+    });
+    return { success: res?.success === true, message: res?.message ?? undefined };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Đồng bộ team thất bại";
+    return { success: false, message };
+  }
+}
+

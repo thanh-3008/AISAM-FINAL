@@ -38,6 +38,8 @@ export const PLAN_PRICING: PlanPricing[] = [
       "Generate Text",
       "Manual Post",
       "Basic Analytics",
+      "Content Calendar",
+      "Schedule Post",
       "50 AI Credits (reset every 7 days)",
       "20 Posts/week",
     ],

@@ -7,20 +7,26 @@ interface TeamListViewProps {
   teams: Team[];
   selectedIds: string[];
   actionLoading: string | null;
+  activeTeamId?: string;
+  isOwner?: boolean;
   onSelect: (id: string, selected: boolean) => void;
   onViewDetail: (team: Team) => void;
   onEdit: (team: Team) => void;
   onDelete: (team: Team) => void;
+  onSwitchTeam?: (team: Team) => void;
 }
 
 export default function TeamListView({
   teams,
   selectedIds,
   actionLoading,
+  activeTeamId,
+  isOwner = false,
   onSelect,
   onViewDetail,
   onEdit,
   onDelete,
+  onSwitchTeam,
 }: TeamListViewProps) {
   return (
     <div className="bg-surface-container-lowest/80 backdrop-blur-sm rounded-2xl border border-outline-variant/30 overflow-hidden shadow-sm">
@@ -65,7 +71,15 @@ export default function TeamListView({
                         {getInitials(team.name)}
                       </div>
                       <div>
-                        <p className="text-body-sm text-on-surface font-semibold">{team.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-body-sm text-on-surface font-semibold">{team.name}</p>
+                          {activeTeamId === team.id && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                              Active
+                            </span>
+                          )}
+                        </div>
                         <p className="text-label-xs text-outline truncate max-w-xs">{team.description}</p>
                       </div>
                     </div>
@@ -100,27 +114,40 @@ export default function TeamListView({
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onViewDetail(team); }}
-                        className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
-                        title="View detail"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">visibility</span>
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onEdit(team); }}
-                        className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">edit</span>
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(team); }}
-                        disabled={actionLoading === team.id}
-                        className="p-1.5 rounded-lg text-outline hover:text-danger-red hover:bg-danger-red/10 transition-all disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">delete</span>
-                      </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      {isOwner && activeTeamId !== team.id && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onSwitchTeam?.(team); }}
+                          className="px-2.5 py-1 bg-surface-container hover:bg-primary hover:text-white rounded-lg text-label-2xs font-bold text-on-surface transition-all flex items-center gap-1 shadow-xs active:scale-95 shrink-0"
+                          title="Chuyển sang team này làm việc (Chỉ Owner)"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">swap_horiz</span>
+                          <span>Chuyển team</span>
+                        </button>
+                      )}
+                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onViewDetail(team); }}
+                          className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
+                          title="View detail"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">visibility</span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onEdit(team); }}
+                          className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">edit</span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDelete(team); }}
+                          disabled={actionLoading === team.id}
+                          className="p-1.5 rounded-lg text-outline hover:text-danger-red hover:bg-danger-red/10 transition-all disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">delete</span>
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>

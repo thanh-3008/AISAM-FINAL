@@ -120,6 +120,99 @@ public sealed class TeamsController(AisamContext db, AccessScope scope) : Contro
         return Ok(GenericResponse<bool>.CreateSuccess(true));
     }
 
+    [HttpPost("sync")]
+    public async Task<IActionResult> SyncTeams(CancellationToken ct)
+    {
+        if (!scope.IsOwner && scope.Role != WorkspaceMemberRoleEnum.Manager) return Forbid();
+
+        var teams = await db.Teams.Include(t => t.TeamMembers).Include(t => t.TeamBrands)
+            .Where(t => t.WorkspaceId == scope.WorkspaceId && !t.IsDeleted).ToListAsync(ct);
+
+        if (teams.Count == 0)
+        {
+            var workspace = await db.Workspaces.FindAsync(new object[] { scope.WorkspaceId }, ct);
+            var defaultTeam = new Team
+            {
+                WorkspaceId = scope.WorkspaceId,
+                Name = $"{workspace?.Name ?? "Workspace"} Team",
+                Description = "Đội ngũ làm việc chung cho các nhãn hàng",
+                Status = TeamStatusEnum.Active,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.Teams.Add(defaultTeam);
+            teams.Add(defaultTeam);
+        }
+
+        var workspaceMembers = await db.WorkspaceMembers
+            .Where(m => m.WorkspaceId == scope.WorkspaceId && m.IsActive).ToListAsync(ct);
+        var workspaceBrands = await db.Brands
+            .Where(b => b.WorkspaceId == scope.WorkspaceId && !b.IsDeleted).ToListAsync(ct);
+
+        foreach (var team in teams)
+        {
+            team.Status = TeamStatusEnum.Active;
+            team.UpdatedAt = DateTime.UtcNow;
+
+            foreach (var wm in workspaceMembers)
+            {
+                var tm = team.TeamMembers.FirstOrDefault(m => m.UserId == wm.UserId);
+                if (tm == null)
+                {
+                    team.TeamMembers.Add(new TeamMember
+                    {
+                        TeamId = team.Id,
+                        UserId = wm.UserId,
+                        Role = wm.Role.ToString(),
+                        IsActive = true,
+                        JoinedAt = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    tm.IsActive = true;
+                    tm.Role = wm.Role.ToString();
+                }
+            }
+
+            foreach (var brand in workspaceBrands)
+            {
+                var tb = team.TeamBrands.FirstOrDefault(b => b.BrandId == brand.Id);
+                if (tb == null)
+                {
+                    team.TeamBrands.Add(new TeamBrand
+                    {
+                        TeamId = team.Id,
+                        BrandId = brand.Id,
+                        IsActive = true,
+                        ChannelAccessMode = ChannelAccessMode.All,
+                        AssignedAt = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    tb.IsActive = true;
+                    tb.ChannelAccessMode = ChannelAccessMode.All;
+                }
+            }
+        }
+
+        var ws = await db.Workspaces.FindAsync(new object[] { scope.WorkspaceId }, ct);
+        if (ws != null)
+        {
+            ws.PermissionRevision++;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Ok(GenericResponse<object>.CreateSuccess(new
+        {
+            message = "Đồng bộ team thành công.",
+            teamCount = teams.Count,
+            memberCount = workspaceMembers.Count,
+            brandCount = workspaceBrands.Count
+        }));
+    }
+
     private async Task<bool> Validate(TeamRequest request, CancellationToken ct)
     {
         var members = (request.MemberIds ?? []).Distinct().ToArray();
@@ -161,6 +254,6 @@ public sealed class TeamsController(AisamContext db, AccessScope scope) : Contro
             if (!existing.IsActive) { db.TeamChannelAccesses.RemoveRange(existing.Channels); existing.ChannelAccessMode = ChannelAccessMode.Specific; }
         }
         foreach (var id in brands.Where(id => !team.TeamBrands.Any(b => b.BrandId == id)))
-            team.TeamBrands.Add(new TeamBrand { TeamId = team.Id, BrandId = id, ChannelAccessMode = ChannelAccessMode.Specific });
+            team.TeamBrands.Add(new TeamBrand { TeamId = team.Id, BrandId = id, ChannelAccessMode = ChannelAccessMode.All });
     }
 }

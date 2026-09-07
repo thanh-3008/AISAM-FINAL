@@ -68,7 +68,7 @@ public sealed class PricingController : ControllerBase
     {
         return new List<SubscriptionPlanDto>
         {
-            new() { Id = "free", Name = "Free", Price = 0, Credits = 50, PostsPerMonth = 20, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics" }, IsActive = true },
+            new() { Id = "free", Name = "Free", Price = 0, Credits = 50, PostsPerMonth = 20, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "contentCalendar", "schedulePost" }, IsActive = true },
             new() { Id = "plus", Name = "Plus", Price = 2000, Credits = 500, PostsPerMonth = 300, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish" }, IsActive = true },
             new() { Id = "premium", Name = "Premium", Price = 3000, Credits = 2000, PostsPerMonth = 1000, Members = 1, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation" }, IsActive = true },
             new() { Id = "business-plus", Name = "Business Plus", Price = 4000, Credits = 15000, PostsPerMonth = 5000, Members = 10, Features = new List<string> { "generateText", "manualPost", "basicAnalytics", "aiImage", "contentCalendar", "schedulePost", "multiPlatformPublish", "trendAnalysis", "holidaySuggestion", "aiVideo", "advancedAnalytics", "campaignRecommendation", "teamManagement", "sharedCredits", "sharedWorkspace", "workspaceDashboard" }, IsActive = true },

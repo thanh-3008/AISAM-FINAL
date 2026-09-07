@@ -35,28 +35,31 @@ function AnalyticsContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
 
-  const canViewCampaign = access ? access.canViewAnalytics : true;
+  const isContentCreator = access?.role === "ContentCreator" || (Boolean(access) && !access?.canViewAnalytics);
+  const canViewCampaign = !isContentCreator && (access ? access.canViewAnalytics : true);
   const canViewPersonal = access ? access.canViewOwnAnalytics : true;
-  const canViewTeam = access ? (access.canViewAnalytics || access.role === "Manager" || access.role === "Owner") : true;
+  const canViewTeam = !isContentCreator && (access ? (access.role === "Manager" || access.role === "Owner") : true);
 
   const [activeTab, setActiveTab] = useState<"campaign" | "personal" | "team">(() => {
+    if (isContentCreator) return "personal";
     if (tabParam === "personal") return "personal";
     if (tabParam === "team" && canViewTeam) return "team";
-    if (access && !access.canViewAnalytics && access.canViewOwnAnalytics) return "personal";
     return "campaign";
   });
 
   useEffect(() => {
+    if (isContentCreator) {
+      setActiveTab("personal");
+      return;
+    }
     if (tabParam === "personal") {
       setActiveTab("personal");
     } else if (tabParam === "team" && canViewTeam) {
       setActiveTab("team");
     } else if (tabParam === "campaign" && canViewCampaign) {
       setActiveTab("campaign");
-    } else if (access && !access.canViewAnalytics && access.canViewOwnAnalytics) {
-      setActiveTab("personal");
     }
-  }, [tabParam, access?.canViewAnalytics, access?.canViewOwnAnalytics, canViewCampaign, canViewTeam]);
+  }, [tabParam, isContentCreator, canViewCampaign, canViewTeam]);
 
   const { activeWorkspace } = useWorkspaces();
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -200,9 +203,13 @@ function AnalyticsContent() {
 
       <Header
         breadcrumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Analysis" },
-          ...(activeTab === "personal" ? [{ label: "Lịch sử cá nhân" }] : [{ label: "Chiến dịch" }]),
+          ...(isContentCreator
+            ? [{ label: "Content", href: "/content" }, { label: "Analysis" }, { label: "Lịch sử cá nhân" }]
+            : [
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Analysis" },
+                ...(activeTab === "personal" ? [{ label: "Lịch sử cá nhân" }] : [{ label: "Chiến dịch" }]),
+              ]),
         ]}
       />
 
@@ -250,7 +257,7 @@ function AnalyticsContent() {
           </div>
 
           {/* Navigation Tabs (Chiến dịch vs Hiệu suất thành viên vs Lịch sử cá nhân) */}
-          {(canViewCampaign || canViewPersonal || canViewTeam) && (
+          {!isContentCreator && (canViewCampaign || canViewTeam) && (
             <div className="flex items-center gap-2 p-1.5 bg-surface-container-lowest/80 backdrop-blur-md rounded-2xl border border-outline-variant/40 w-fit shadow-sm">
               {canViewCampaign && (
                 <button

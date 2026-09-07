@@ -19,6 +19,13 @@ vi.mock("@/stores/workspace-store", () => ({
 // Mock profile store
 vi.mock("@/stores/profile-store", () => ({
   getStoredActiveProfile: vi.fn(() => ({ id: "87654321-4321-4321-4321-210987654321" })),
+  clearActiveProfile: vi.fn(),
+}));
+
+// Mock team store
+vi.mock("@/stores/team-store", () => ({
+  getStoredActiveTeam: vi.fn(() => null),
+  clearActiveTeam: vi.fn(),
 }));
 
 describe("apiClient", () => {

@@ -13,19 +13,31 @@ public sealed class WorkspaceService : IWorkspaceService
 {
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IWorkspaceInvitationService? _workspaceInvitationService;
 
     public WorkspaceService(
         IWorkspaceRepository workspaceRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        IWorkspaceInvitationService? workspaceInvitationService = null)
     {
         _workspaceRepository = workspaceRepository;
         _userRepository = userRepository;
+        _workspaceInvitationService = workspaceInvitationService;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceResponseDto>>> GetByUserIdAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        if (_workspaceInvitationService != null)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user != null && !string.IsNullOrWhiteSpace(user.Email))
+            {
+                await _workspaceInvitationService.AcceptPendingInvitationsForEmailAsync(userId, user.Email, cancellationToken);
+            }
+        }
+
         var workspaces = await _workspaceRepository.GetByUserIdAsync(userId, cancellationToken);
         foreach (var workspace in workspaces)
         {

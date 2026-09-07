@@ -49,9 +49,9 @@ namespace AISAM.API.Controllers
 
                 return result.Success ? Ok(result) : BadRequest(result);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<PagedResult<BrandResponseDto>>.CreateError("Invalid token"));
+                return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<PagedResult<BrandResponseDto>>.CreateError(ex.Message, HttpStatusCode.Forbidden));
             }
             catch (Exception ex)
             {
@@ -69,9 +69,9 @@ namespace AISAM.API.Controllers
                 var result = await _brandService.GetByIdAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<BrandResponseDto>.CreateError("Invalid token"));
+                return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<BrandResponseDto>.CreateError(ex.Message, HttpStatusCode.Forbidden));
             }
             catch (Exception ex)
             {
@@ -94,9 +94,9 @@ namespace AISAM.API.Controllers
 
                 return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<BrandResponseDto>.CreateError("Invalid token"));
+                return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<BrandResponseDto>.CreateError(ex.Message, HttpStatusCode.Forbidden));
             }
             catch (Exception ex)
             {
@@ -114,9 +114,9 @@ namespace AISAM.API.Controllers
                 var result = await _brandService.UpdateAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, request, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<BrandResponseDto>.CreateError("Invalid token"));
+                return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<BrandResponseDto>.CreateError(ex.Message, HttpStatusCode.Forbidden));
             }
             catch (Exception ex)
             {
@@ -134,9 +134,9 @@ namespace AISAM.API.Controllers
                 var result = await _brandService.SoftDeleteAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
                 return result.Success ? Ok(result) : NotFound(result);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<bool>.CreateError("Invalid token"));
+                return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<bool>.CreateError(ex.Message, HttpStatusCode.Forbidden));
             }
             catch (Exception ex)
             {
@@ -154,9 +154,9 @@ namespace AISAM.API.Controllers
                 var result = await _brandService.RestoreAsync(id, WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext), userId, cancellationToken);
                 return result.Success ? Ok(result) : BadRequest(result);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return Unauthorized(GenericResponse<bool>.CreateError("Invalid token"));
+                return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<bool>.CreateError(ex.Message, HttpStatusCode.Forbidden));
             }
             catch (Exception ex)
             {

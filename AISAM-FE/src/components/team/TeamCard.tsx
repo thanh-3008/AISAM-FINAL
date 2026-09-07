@@ -8,13 +8,28 @@ interface TeamCardProps {
   index: number;
   isSelected: boolean;
   isLoading: boolean;
+  isActiveTeam?: boolean;
+  isOwner?: boolean;
   onSelect: (id: string, selected: boolean) => void;
   onViewDetail: (team: Team) => void;
   onEdit: (team: Team) => void;
   onDelete: (team: Team) => void;
+  onSwitchTeam?: (team: Team) => void;
 }
 
-export default function TeamCard({ team, index, isSelected, isLoading, onSelect, onViewDetail, onEdit, onDelete }: TeamCardProps) {
+export default function TeamCard({
+  team,
+  index,
+  isSelected,
+  isLoading,
+  isActiveTeam = false,
+  isOwner = false,
+  onSelect,
+  onViewDetail,
+  onEdit,
+  onDelete,
+  onSwitchTeam,
+}: TeamCardProps) {
   const colors = TEAM_COLORS[index % TEAM_COLORS.length];
 
   return (
@@ -28,21 +43,39 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
 
       <div className="p-5">
         <div className="flex items-start justify-between mb-4 mt-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <input
               type="checkbox"
               checked={isSelected}
               onChange={(e) => { e.stopPropagation(); onSelect(team.id, e.target.checked); }}
               onClick={(e) => e.stopPropagation()}
-              className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/20 cursor-pointer"
+              className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/20 cursor-pointer shrink-0"
             />
-            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.bg} flex items-center justify-center text-on-primary font-bold shadow-sm`}>
+            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.bg} flex items-center justify-center text-on-primary font-bold shadow-sm shrink-0`}>
               {getInitials(team.name)}
             </div>
+            {isActiveTeam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                Active
+              </span>
+            )}
           </div>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDetail(team); }}
+          <div className="flex items-center gap-1.5">
+            {isOwner && !isActiveTeam && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSwitchTeam?.(team); }}
+                className="px-2 py-1 bg-surface-container hover:bg-primary hover:text-white rounded-lg text-label-2xs font-bold text-on-surface transition-all flex items-center gap-1 shadow-xs active:scale-95 shrink-0"
+                title="Chuyển sang team này làm việc (Chỉ Owner)"
+              >
+                <span className="material-symbols-outlined text-[13px]">swap_horiz</span>
+                <span>Chuyển</span>
+              </button>
+            )}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewDetail(team); }}
               className="p-1.5 rounded-lg hover:bg-surface-container text-outline hover:text-primary transition-all"
               title="View detail"
             >
@@ -63,8 +96,9 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
             </button>
           </div>
         </div>
+      </div>
 
-        <div>
+      <div>
           <h3 className="text-headline-sm text-on-surface font-semibold mb-1">{team.name}</h3>
           <p className="text-body-sm text-on-surface-variant mb-4 truncate">{team.description}</p>
 

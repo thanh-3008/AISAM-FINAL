@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { type Team, type CreateTeamData } from "@/services/teamService";
+import { type Team, type CreateTeamData, type TeamMember, fetchMembers } from "@/services/teamService";
 import { fetchBrands } from "@/services/brandService";
 
 interface EditTeamModalProps {
@@ -15,10 +15,13 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
 
   useEffect(() => {
     fetchBrands().then(setBrands);
+    fetchMembers().then((res) => setMembers(res.data || []));
   }, []);
 
   useEffect(() => {
@@ -26,6 +29,7 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
       setName(team.name);
       setDescription(team.description);
       setSelectedBrands(team.brandIds || []);
+      setSelectedMembers(team.memberIds || []);
     }
   }, [team]);
 
@@ -37,12 +41,16 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
       name: name.trim(),
       description: description.trim(),
       brandIds: selectedBrands,
-      memberIds: team.memberIds,
+      memberIds: selectedMembers,
     });
   };
 
   const toggleBrand = (id: string) => {
     setSelectedBrands((prev) => (prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]));
+  };
+
+  const toggleMember = (id: string) => {
+    setSelectedMembers((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
   };
 
   const isValid = name.trim();
@@ -89,27 +97,62 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
             </div>
             <div>
               <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Assign Brands</label>
-              <div className="grid grid-cols-2 gap-2">
-                {brands.map((brand) => (
-                  <button
-                    key={brand.id}
-                    type="button"
-                    onClick={() => toggleBrand(brand.id)}
-                    className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left ${
-                      selectedBrands.includes(brand.id)
-                        ? "border-primary bg-primary/5"
-                        : "border-outline-variant/20 hover:border-outline-variant/40"
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold ${
-                      selectedBrands.includes(brand.id) ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
-                    }`}>
-                      {brand.name.charAt(0)}
-                    </div>
-                    <span className="text-label-sm font-semibold text-on-surface">{brand.name}</span>
-                  </button>
-                ))}
-              </div>
+              {brands.length === 0 ? (
+                <p className="text-label-xs text-outline italic">No brands available in this workspace</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {brands.map((brand) => (
+                    <button
+                      key={brand.id}
+                      type="button"
+                      onClick={() => toggleBrand(brand.id)}
+                      className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left ${
+                        selectedBrands.includes(brand.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-outline-variant/20 hover:border-outline-variant/40"
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold ${
+                        selectedBrands.includes(brand.id) ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
+                      }`}>
+                        {brand.name.charAt(0)}
+                      </div>
+                      <span className="text-label-sm font-semibold text-on-surface truncate">{brand.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="text-label-2xs text-outline uppercase font-bold tracking-widest block mb-2">Assign Members</label>
+              {members.length === 0 ? (
+                <p className="text-label-xs text-outline italic">No members available</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                  {members.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => toggleMember(member.id)}
+                      className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left ${
+                        selectedMembers.includes(member.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-outline-variant/20 hover:border-outline-variant/40"
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-label-2xs font-bold shrink-0 ${
+                        selectedMembers.includes(member.id) ? "bg-primary text-on-primary" : "bg-surface-container-high text-outline"
+                      }`}>
+                        {member.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-label-sm font-semibold text-on-surface truncate">{member.name}</p>
+                        <p className="text-label-2xs text-outline truncate">{member.role}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="p-6 border-t border-outline-variant/20 flex items-center justify-end gap-3 sticky bottom-0 bg-surface-container-lowest">

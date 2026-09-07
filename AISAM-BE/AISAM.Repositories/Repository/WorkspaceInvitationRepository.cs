@@ -64,6 +64,23 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<WorkspaceInvitation>> GetPendingByEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var utcNow = DateTime.UtcNow;
+
+        return await Query()
+            .Where(invitation =>
+                invitation.Email == normalizedEmail &&
+                invitation.AcceptedAt == null &&
+                invitation.RevokedAt == null &&
+                invitation.ExpiresAt > utcNow)
+            .OrderByDescending(invitation => invitation.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<int> CountPendingByWorkspaceIdAsync(
         Guid workspaceId,
         CancellationToken cancellationToken = default)
@@ -140,6 +157,33 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
         }
 
         invitation.AcceptedAt = DateTime.UtcNow;
+
+        var teams = await _context.Teams
+            .Where(t => t.WorkspaceId == invitation.WorkspaceId && !t.IsDeleted && t.Status == AISAM.Data.Enumeration.TeamStatusEnum.Active)
+            .ToListAsync(cancellationToken);
+
+        foreach (var team in teams)
+        {
+            var existingTm = await _context.TeamMembers
+                .FirstOrDefaultAsync(tm => tm.TeamId == team.Id && tm.UserId == userId, cancellationToken);
+            if (existingTm != null)
+            {
+                existingTm.IsActive = true;
+                existingTm.Role = invitation.Role.ToString();
+            }
+            else
+            {
+                _context.TeamMembers.Add(new TeamMember
+                {
+                    TeamId = team.Id,
+                    UserId = userId,
+                    Role = invitation.Role.ToString(),
+                    IsActive = true,
+                    JoinedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
         return membership;
     }

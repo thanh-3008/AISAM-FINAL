@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAccessContext } from "@/contexts/AccessContext";
 import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel } from "@/hooks/useWorkspaces";
@@ -89,8 +90,18 @@ const RANK_GRADIENTS = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const access = useAccessContext();
+  const isContentCreator = access?.role === "ContentCreator" || (Boolean(access) && !access?.canViewAnalytics);
+
+  useEffect(() => {
+    if (isContentCreator) {
+      router.replace("/content");
+    }
+  }, [isContentCreator, router]);
+
   const { activeWorkspace } = useWorkspaces();
-  const canViewBilling = useAccessContext()?.role === "Owner";
+  const canViewBilling = access?.role === "Owner";
   const workspaceName = activeWorkspace?.name || "User";
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
@@ -107,21 +118,24 @@ export default function DashboardPage() {
   const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isContentCreator) return;
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isContentCreator]);
 
   const loadSchedules = () => {
     fetchUpcomingSchedules(6).then(setScheduleItems);
   };
 
   useEffect(() => {
+    if (isContentCreator) return;
     loadSchedules();
     const unsubscribe = onScheduleChange(loadSchedules);
     return unsubscribe;
-  }, []);
+  }, [isContentCreator]);
 
   useEffect(() => {
+    if (isContentCreator) return;
     let disposed = false;
     if (canViewBilling) {
       fetchCreditWallet().then(w => { if (!disposed && w) { setCreditBalance(w.balance); setMaxCreditBalance(w.maxBalance); } });
@@ -133,9 +147,10 @@ export default function DashboardPage() {
     });
     fetchChannelBreakdown("90d").then(d => { setPlatformBreakdown(d); }).catch(() => setPlatformBreakdown([]));
     return () => { disposed = true; };
-  }, [activeWorkspace?.id, canViewBilling]);
+  }, [activeWorkspace?.id, canViewBilling, isContentCreator]);
 
   useEffect(() => {
+    if (isContentCreator) return;
     const platforms = ["facebook", "instagram", "tiktok"];
     const fetchTop = async () => {
       const results: Record<string, TopPostItem[]> = {};
@@ -147,9 +162,10 @@ export default function DashboardPage() {
     fetchTop();
     const interval = setInterval(fetchTop, 30000);
     return () => clearInterval(interval);
-  }, [activeWorkspace?.id]);
+  }, [activeWorkspace?.id, isContentCreator]);
 
   useEffect(() => {
+    if (isContentCreator) return;
     apiFetch(`/credit-usage/daily-summary?days=${usageDays}`).then(res => {
       if (res?.success && res.data) {
         setDailyUsage((res.data as { date: string; totalCredits: number }[]).map(d => ({
@@ -158,7 +174,18 @@ export default function DashboardPage() {
         })));
       }
     });
-  }, [usageDays, activeWorkspace?.id]);
+  }, [usageDays, activeWorkspace?.id, isContentCreator]);
+
+  if (isContentCreator) {
+    return (
+      <div className="flex h-[calc(100vh-64px)] items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-body-sm text-outline">Đang chuyển hướng đến Không gian Nội dung...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

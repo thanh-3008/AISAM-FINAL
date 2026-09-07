@@ -35,7 +35,8 @@ public sealed class ContentAuthorizationService(AisamContext db, ResourceAccessS
             if (current.IsOwner) return true;
             // CREATE retains the current native role/Brand permission. New AI/media/chat
             // permissions remain conservative until the action policy is approved.
-            return action == ContentAction.Create && brandId.HasValue && current.BrandIds.Contains(brandId.Value) &&
+            return action is ContentAction.Create or ContentAction.AiGenerate or ContentAction.AiChat &&
+                brandId.HasValue && current.BrandIds.Contains(brandId.Value) &&
                 current.Role is WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator;
         }
         if (!await Allowed(ct)) throw new ResourceAccessDeniedException();
@@ -115,8 +116,10 @@ public sealed class ContentAuthorizationService(AisamContext db, ResourceAccessS
         // Preserve existing Creator lifecycle permissions only with independent current
         // Team/Brand access. OWN alone never grants an action.
         if (scope.IsCreator && content.TeamId.HasValue && scope.TeamIds.Contains(content.TeamId.Value) &&
-            hasBrand && hasChannel && content.PrimaryCreatorId == scope.UserId &&
-            action is ContentAction.Edit or ContentAction.Delete or ContentAction.Restore or ContentAction.Clone or ContentAction.Submit or ContentAction.Assign)
+            hasBrand && hasChannel &&
+            (action is ContentAction.Schedule or ContentAction.Reschedule or ContentAction.Unschedule ||
+             (content.PrimaryCreatorId == scope.UserId &&
+              action is ContentAction.Edit or ContentAction.Delete or ContentAction.Restore or ContentAction.Clone or ContentAction.Submit or ContentAction.Assign)))
             return true;
 
         // The currently defined temporary grant carries CanEdit only. It is not a

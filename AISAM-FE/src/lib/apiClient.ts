@@ -1,7 +1,8 @@
 import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
+import { getStoredActiveTeam, clearActiveTeam } from "@/stores/team-store";
 import { notifyAccessChanged } from "./accessEvents";
-import { getStoredActiveProfile } from "@/stores/profile-store";
+import { getStoredActiveProfile, clearActiveProfile } from "@/stores/profile-store";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api";
 
@@ -43,10 +44,12 @@ async function buildHeaders(customHeaders?: Record<string, string>, includeAuth 
     workspace = null;
   }
   const profile = getStoredActiveProfile();
+  const team = getStoredActiveTeam(workspace?.id);
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
     ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
+    ...(team && isValidGuid(team.id) && (!team.workspaceId || !workspace || team.workspaceId === workspace.id) ? { "X-Team-Id": team.id } : {}),
     ...(customHeaders || {}),
   };
   return { headers, token };
@@ -127,6 +130,8 @@ async function handleResponse(response: Response) {
         removeToken();
         removeRefreshToken();
         clearActiveWorkspace();
+        clearActiveTeam();
+        clearActiveProfile();
         if (typeof window !== "undefined") {
           document.cookie = "aisam_role=; path=/; max-age=0";
           if (window.location.pathname !== "/login") {
@@ -166,6 +171,8 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
     removeToken();
     removeRefreshToken();
     clearActiveWorkspace();
+    clearActiveTeam();
+    clearActiveProfile();
     if (typeof window !== "undefined") {
       document.cookie = "aisam_role=; path=/; max-age=0";
       if (window.location.pathname !== "/login") {
@@ -177,11 +184,13 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
   }
   const workspace = getStoredActiveWorkspace();
   const profile = getStoredActiveProfile();
+  const team = getStoredActiveTeam(workspace?.id);
   const newHeaders: Record<string, string> = {
     ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
     ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
+    ...(team && isValidGuid(team.id) && (!team.workspaceId || !workspace || team.workspaceId === workspace.id) ? { "X-Team-Id": team.id } : {}),
   };
   const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
   return handleResponse(retryResponse);
