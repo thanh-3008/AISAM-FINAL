@@ -12,6 +12,7 @@ type ApiOptions = RequestInit & {
 
 const PUBLIC_AUTH_ENDPOINTS = [
   "/auth/login",
+  "/auth/google",
   "/auth/register",
   "/auth/forgot-password",
   "/auth/reset-password",
@@ -137,8 +138,6 @@ async function handleResponse(response: Response) {
           if (window.location.pathname !== "/login") {
             window.location.href = "/login";
           }
-          // Return a hanging promise to stop execution and prevent unhandled rejections while the browser redirects
-          return new Promise(() => { });
         }
       }
       // If server-side or already on login page (and is a login request), let it fall through and throw
@@ -177,7 +176,6 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
       document.cookie = "aisam_role=; path=/; max-age=0";
       if (window.location.pathname !== "/login") {
         window.location.replace("/login");
-        return new Promise(() => { });
       }
     }
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");

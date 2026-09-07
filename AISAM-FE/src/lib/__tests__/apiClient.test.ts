@@ -29,6 +29,26 @@ vi.mock("@/stores/team-store", () => ({
 }));
 
 describe("apiClient", () => {
+  it("surfaces Google login rejection without refreshing an existing session", async () => {
+    vi.clearAllMocks();
+    (auth.getToken as Mock).mockReturnValue("old-token");
+    (global.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      url: "http://localhost:5027/api/auth/google",
+      text: async () => JSON.stringify({ message: "Invalid Google token" }),
+    });
+
+    await expect(apiClient("/auth/google", { data: { idToken: "invalid" } }))
+      .rejects.toMatchObject({ status: 401, message: "Invalid Google token" });
+    expect(auth.ensureValidToken).not.toHaveBeenCalled();
+    expect(auth.refreshAccessToken).not.toHaveBeenCalled();
+    expect(auth.removeToken).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const headers = (global.fetch as Mock).mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn() as unknown as typeof fetch;

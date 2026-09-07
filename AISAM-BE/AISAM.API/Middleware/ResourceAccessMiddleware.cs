@@ -20,6 +20,11 @@ public sealed class ResourceAccessMiddleware(RequestDelegate next)
         }
         var path = (context.Request.Path.Value ?? "").TrimEnd('/').ToLowerInvariant();
         var write = !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method);
+        // Owners must be able to renew a read-only workspace through checkout.
+        // This exception does not authorize ordinary workspace mutations.
+        var ownerCheckout = HttpMethods.IsPost(context.Request.Method) && path == "/api/payment/checkout";
+        if (ownerCheckout && membership.Role != WorkspaceMemberRoleEnum.Owner)
+        { await Deny(context); return; }
         Guid? teamId = null;
         if (context.Request.Headers.TryGetValue("X-Team-Id", out var header))
         {
@@ -27,8 +32,9 @@ public sealed class ResourceAccessMiddleware(RequestDelegate next)
             teamId = parsed;
         }
         AISAM.Data.AccessScope scope;
-        try { scope = await access.ResolveAsync(membership.WorkspaceId, membership.UserId, write, teamId, context.RequestAborted); }
+        try { scope = await access.ResolveAsync(membership.WorkspaceId, membership.UserId, write && !ownerCheckout, teamId, context.RequestAborted); }
         catch (UnauthorizedAccessException) { await Deny(context); return; }
+        if (ownerCheckout && !scope.IsOwner) { await Deny(context); return; }
 
         var analytics = path.StartsWith("/api/analytics") || path.StartsWith("/api/workspace-dashboard") ||
             path == "/api/dashboard/summary" || path.EndsWith("/performance");
