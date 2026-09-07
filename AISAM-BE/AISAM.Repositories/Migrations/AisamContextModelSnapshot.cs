@@ -2911,7 +2911,9 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnName("full_name");
 
                     b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
+                        .HasDefaultValue(true)
                         .HasColumnName("is_active");
 
                     b.Property<bool>("IsEmailVerified")

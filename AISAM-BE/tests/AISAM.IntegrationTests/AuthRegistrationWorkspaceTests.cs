@@ -31,6 +31,35 @@ public class AuthRegistrationWorkspaceTests
         Assert.Equal(WorkspaceMemberRoleEnum.Owner, membership.Role);
         Assert.Equal(WorkspaceTypeEnum.Personal, membership.Workspace.WorkspaceType);
         Assert.Equal($"{request.FullName}'s Workspace", membership.Workspace.Name);
+        Assert.True(user.IsActive);
+        Assert.Null(user.SuspendedAt);
+        Assert.Null(user.SuspendedBy);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_CreatesActiveUser_AndCanLoginWithoutSuspension()
+    {
+        await using var context = CreateContext();
+        var service = CreateService(context);
+        var request = CreateRegisterRequest();
+
+        await service.RegisterAsync(request, null, null);
+        context.ChangeTracker.Clear();
+
+        var loginResponse = await service.LoginAsync(new LoginRequest
+        {
+            Email = request.Email,
+            Password = request.Password
+        }, "test-agent", "127.0.0.1");
+
+        Assert.NotNull(loginResponse);
+        Assert.False(string.IsNullOrWhiteSpace(loginResponse.AccessToken));
+
+        context.ChangeTracker.Clear();
+        var user = await context.Users.SingleAsync(u => u.Email == request.Email.ToLowerInvariant());
+        Assert.True(user.IsActive);
+        Assert.Null(user.SuspendedAt);
+        Assert.Null(user.SuspendedBy);
     }
 
     [Fact]

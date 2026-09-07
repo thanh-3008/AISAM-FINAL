@@ -157,6 +157,11 @@ namespace AISAM.Services.Service
                 }
                 else
                 {
+                    if (!user.IsActive)
+                    {
+                        throw new UnauthorizedAccessException("This account has been suspended. Contact support for assistance.");
+                    }
+
                     // Update user info
                     user.LastLoginAt = DateTime.UtcNow;
                     if (!user.IsEmailVerified)

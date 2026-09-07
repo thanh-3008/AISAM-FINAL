@@ -66,6 +66,7 @@ namespace AISAM.Repositories
                 entity.Property(u => u.Email).HasMaxLength(255).IsRequired();
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.Role).HasConversion<int>().HasDefaultValue(UserRoleEnum.User);
+                entity.Property(u => u.IsActive).HasDefaultValue(true);
                 entity.HasIndex(u => u.Role);
                 entity.HasIndex(u => u.CreatedAt);
             });
