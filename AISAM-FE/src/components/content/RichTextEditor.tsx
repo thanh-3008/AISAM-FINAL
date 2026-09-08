@@ -15,6 +15,7 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExtension from "@tiptap/extension-underline";
+import HighlightExtension from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { marked } from "marked";
@@ -47,6 +48,7 @@ function serializeNode(node: TiptapNode): string {
     let text = textNode.text ?? "";
     const markTypes = (textNode.marks ?? []).map((m) => m.type);
     if (markTypes.includes("strike")) text = `~~${text}~~`;
+    if (markTypes.includes("highlight")) text = `<mark>${text}</mark>`;
     if (markTypes.includes("underline")) text = `<u>${text}</u>`;
     if (markTypes.includes("italic")) text = `*${text}*`;
     if (markTypes.includes("bold")) text = `**${text}**`;
@@ -198,6 +200,7 @@ export default function RichTextEditor({
         codeBlock: false,
       }),
       UnderlineExtension,
+      HighlightExtension,
       Placeholder.configure({
         placeholder,
         emptyNodeClass:
@@ -330,6 +333,18 @@ export default function RichTextEditor({
           title="Strikethrough"
         >
           <span className="line-through">S</span>
+        </ToolbarBtn>
+
+        {/* Highlight */}
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleHighlight().run()}
+          active={editor.isActive("highlight")}
+          title="Highlight"
+        >
+          <span className="relative inline-flex items-center justify-center w-full h-full">
+            <span className="absolute inset-x-0.5 bottom-0.5 h-[60%] bg-yellow-300/60 rounded-sm" />
+            <span className="relative font-bold text-[12px]">H</span>
+          </span>
         </ToolbarBtn>
 
         {/* Uppercase — one-time transform, preserves bold/italic/underline marks */}

@@ -30,7 +30,7 @@ function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, {
       ALLOWED_TAGS: [
         "p", "br", "b", "strong", "i", "em", "u", "s", "del",
-        "ul", "ol", "li", "span", "div",
+        "ul", "ol", "li", "span", "div", "mark",
       ],
       ALLOWED_ATTR: ["class", "style"],
       FORBID_TAGS: ["script", "iframe", "form", "input", "button", "a", "img"],

@@ -55,6 +55,9 @@ function renderForFacebookInstagram(markdown: string): string {
   // Strikethrough → plain (Facebook doesn't render ~~)
   text = text.replace(/~~([^~]+)~~/g, "$1");
 
+  // Highlight → plain (social platforms don't support <mark>)
+  text = text.replace(/<mark>([^<]+)<\/mark>/gi, "$1");
+
   // Headings → plain + newline
   text = text.replace(/^#{1,6} (.+)$/gm, "$1");
 
@@ -100,6 +103,7 @@ function renderForYouTube(markdown: string): string {
   text = text.replace(/\*([^*]+)\*/g, "$1");
   text = text.replace(/__([^_]+)__/g, "$1");
   text = text.replace(/~~([^~]+)~~/g, "$1");
+  text = text.replace(/<mark>([^<]+)<\/mark>/gi, "$1");
   text = text.replace(/^#{1,6} (.+)$/gm, "$1\n");
   text = text.replace(/^[-*+] (.+)$/gm, "• $1");
   text = text.replace(/\n{3,}/g, "\n\n").trim();

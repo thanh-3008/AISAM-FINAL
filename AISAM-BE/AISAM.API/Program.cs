@@ -34,6 +34,7 @@ if (!builder.Environment.IsEnvironment("Testing") && File.Exists(envPath))
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
+ApplyEnvironmentOverride(builder.Configuration, "SWAGGER_ENABLED", "Swagger:Enabled");
 ApplyEnvironmentOverride(builder.Configuration, "FRONTEND_BASE_URL", "FrontendSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "JWT_SECRET_KEY", "JwtSettings:SecretKey");
 ApplyEnvironmentOverride(builder.Configuration, "JWT_ISSUER", "JwtSettings:Issuer");
@@ -444,7 +445,11 @@ var app = builder.Build();
 app.UseResponseCompression();
 app.UseCors("CorsPolicy");
 
-if (app.Environment.IsDevelopment())
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Swagger:Enabled", false)
+    || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -462,7 +467,16 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapGet("/", () => Results.Redirect("/swagger/index.html"));
+app.MapGet("/", (IWebHostEnvironment env, IConfiguration config) =>
+{
+    var isSwaggerEnabled = env.IsDevelopment()
+        || config.GetValue<bool>("Swagger:Enabled", false)
+        || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+    return isSwaggerEnabled
+        ? Results.Redirect("/swagger/index.html")
+        : Results.Ok(new { message = "AISAM Backend API is running.", environment = env.EnvironmentName });
+});
 if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("SEED_DEV_DATA") == "true")
 {
     AISAM.API.Infrastructure.DevDataSeeder.SeedDevData(app.Services);
