@@ -19,6 +19,11 @@ obj/
 appsettings.Production.json
 appsettings.Development.json
 
+# DB migration secrets and dump files (double-protect)
+db/migration.env
+db/migration-dump/
+*.dump
+
 # Local runtime logs
 *.log
 
