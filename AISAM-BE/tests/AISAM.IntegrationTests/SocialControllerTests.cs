@@ -97,15 +97,23 @@ public class SocialControllerTests
         Assert.Equal((int)HttpStatusCode.NotFound, objectResult.StatusCode);
     }
 
-    private static SocialAuthController CreateAuthController(ISocialService service, Guid? profileId = null)
+    private static SocialAuthController CreateAuthController(ISocialService service, Guid? profileId = null, IOriginResolver? originResolver = null)
     {
-        return new SocialAuthController(service, new FakeProfileRepository())
+        return new SocialAuthController(service, new FakeProfileRepository(), originResolver ?? new FakeOriginResolver())
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = CreateControllerContext(profileId ?? Guid.NewGuid())
             }
         };
+    }
+
+    private sealed class FakeOriginResolver : IOriginResolver
+    {
+        public string OriginToReturn { get; set; } = "https://aisam.io.vn";
+        public string ResolveOrigin(Microsoft.AspNetCore.Http.HttpRequest request) => OriginToReturn;
+        public string ResolveOrigin(string? candidateOrigin) => candidateOrigin ?? OriginToReturn;
+        public bool IsAllowedOrigin(string? origin) => true;
     }
 
     private static SocialAccountsController CreateAccountsController(ISocialService service, Guid profileId)
@@ -149,9 +157,12 @@ public class SocialControllerTests
         public Exception? LinkAccountException { get; set; }
         public Exception? LinkTargetsException { get; set; }
 
-        public Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, CancellationToken cancellationToken = default)
+        public string? LastOrigin { get; private set; }
+
+        public Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, string? origin = null, CancellationToken cancellationToken = default)
         {
             LastProfileId = profileId;
+            LastOrigin = origin;
             return Task.FromResult(new AuthUrlResponse
             {
                 AuthUrl = "https://facebook.example/auth",

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AISAM.Services.IServices;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AISAM.Services.Service;
 
@@ -9,8 +10,9 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
 {
     private static readonly TimeSpan Expiration = TimeSpan.FromMinutes(10);
     private readonly byte[] _signingKey;
+    private readonly IMemoryCache? _cache;
 
-    public SignedOAuthStateStore(string signingSecret)
+    public SignedOAuthStateStore(string signingSecret, IMemoryCache? cache = null)
     {
         if (string.IsNullOrWhiteSpace(signingSecret))
         {
@@ -18,15 +20,18 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
         }
 
         _signingKey = Encoding.UTF8.GetBytes(signingSecret);
+        _cache = cache;
     }
 
-    public Task<string> CreateAsync(Guid profileId, string provider, CancellationToken cancellationToken = default)
+    public Task<string> CreateAsync(Guid profileId, string provider, string? origin = null, string? redirectUri = null, CancellationToken cancellationToken = default)
     {
         var payload = new OAuthStatePayload
         {
             State = Guid.NewGuid().ToString("N"),
             ProfileId = profileId,
             Provider = NormalizeProvider(provider),
+            Origin = origin,
+            RedirectUri = redirectUri,
             ExpiresAtUtc = DateTime.UtcNow.Add(Expiration)
         };
 
@@ -72,11 +77,62 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
                 return Task.FromResult<OAuthStatePayload?>(null);
             }
 
+            if (_cache != null)
+            {
+                var cacheKey = $"oauth-consumed:{payload.State}";
+                if (_cache.TryGetValue(cacheKey, out _))
+                {
+                    // State already consumed once; reject replay attempt
+                    return Task.FromResult<OAuthStatePayload?>(null);
+                }
+
+                _cache.Set(cacheKey, true, payload.ExpiresAtUtc);
+            }
+
             return Task.FromResult<OAuthStatePayload?>(payload);
         }
         catch
         {
             return Task.FromResult<OAuthStatePayload?>(null);
+        }
+    }
+
+    public string? TryPeekOrigin(string state)
+    {
+        if (string.IsNullOrWhiteSpace(state))
+        {
+            return null;
+        }
+
+        var parts = state.Split('.', 2);
+        if (parts.Length != 2)
+        {
+            return null;
+        }
+
+        var payloadPart = parts[0];
+        var signaturePart = parts[1];
+        var expectedSignaturePart = Sign(payloadPart);
+
+        if (!FixedTimeEquals(signaturePart, expectedSignaturePart))
+        {
+            return null;
+        }
+
+        try
+        {
+            var payloadBytes = Base64UrlDecode(payloadPart);
+            var payload = JsonSerializer.Deserialize<OAuthStatePayload>(payloadBytes);
+            if (payload == null || payload.ExpiresAtUtc <= DateTime.UtcNow)
+            {
+                return null;
+            }
+
+            return payload.Origin;
+        }
+        catch
+        {
+            return null;
         }
     }
 

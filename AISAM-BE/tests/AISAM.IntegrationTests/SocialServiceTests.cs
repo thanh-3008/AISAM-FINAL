@@ -633,11 +633,13 @@ public class SocialServiceTests
             _provider = provider;
         }
 
-        public Task<string> CreateAsync(Guid profileId, string provider, CancellationToken cancellationToken = default)
+        public Task<string> CreateAsync(Guid profileId, string provider, string? origin = null, string? redirectUri = null, CancellationToken cancellationToken = default)
         {
             LastCreatedProfileId = profileId;
             return Task.FromResult(_state);
         }
+
+        public string? TryPeekOrigin(string state) => state == _state ? "https://aisam.io.vn" : null;
 
         public Task<OAuthStatePayload?> ConsumeAsync(string state, Guid profileId, string provider, CancellationToken cancellationToken = default)
         {

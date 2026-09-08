@@ -43,11 +43,12 @@ public sealed class SocialService : ISocialService
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
     }
 
-    public async Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, CancellationToken cancellationToken = default)
+    public async Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, string? origin = null, CancellationToken cancellationToken = default)
     {
         var providerService = GetProvider(provider);
-        var state = await _oauthStateStore.CreateAsync(profileId, provider, cancellationToken);
-        var authUrl = await providerService.GetAuthUrlAsync(state, GetRedirectUri(provider), cancellationToken);
+        var redirectUri = ResolveRedirectUri(provider, origin);
+        var state = await _oauthStateStore.CreateAsync(profileId, provider, origin, redirectUri, cancellationToken);
+        var authUrl = await providerService.GetAuthUrlAsync(state, redirectUri, cancellationToken);
         return new AuthUrlResponse
         {
             AuthUrl = authUrl,
@@ -68,7 +69,10 @@ public sealed class SocialService : ISocialService
             throw new InvalidOperationException("OAuth state is invalid or expired.");
         }
 
-        var providerAccount = await providerService.ExchangeCodeAsync(request.Code, GetRedirectUri(provider), cancellationToken);
+        var redirectUri = !string.IsNullOrWhiteSpace(statePayload.RedirectUri)
+            ? statePayload.RedirectUri
+            : ResolveRedirectUri(provider, statePayload.Origin);
+        var providerAccount = await providerService.ExchangeCodeAsync(request.Code, redirectUri, cancellationToken);
         var existing = await _socialAccountRepository.GetByProfileIdPlatformAndAccountIdAsync(
             profileId,
             platform,
@@ -447,6 +451,40 @@ public sealed class SocialService : ISocialService
         }
 
         return providerService;
+    }
+
+    private string ResolveRedirectUri(string provider, string? origin)
+    {
+        var configuredUri = GetRedirectUri(provider);
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            return configuredUri;
+        }
+
+        var path = GetCallbackPath(provider, configuredUri);
+        return $"{origin.TrimEnd('/')}{path}";
+    }
+
+    private static string GetCallbackPath(string provider, string configuredUri)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredUri) &&
+            Uri.TryCreate(configuredUri, UriKind.Absolute, out var uri))
+        {
+            return uri.AbsolutePath;
+        }
+
+        if (!string.IsNullOrWhiteSpace(configuredUri) && configuredUri.StartsWith('/'))
+        {
+            return configuredUri;
+        }
+
+        return GetPlatform(provider) switch
+        {
+            SocialPlatformEnum.Facebook => "/social-callback/facebook",
+            SocialPlatformEnum.Instagram => "/auth/instagram/callback",
+            SocialPlatformEnum.TikTok => "/social-callback/tiktok",
+            _ => throw new ArgumentException("Unsupported social provider.")
+        };
     }
 
     private string GetRedirectUri(string provider) => GetPlatform(provider) switch

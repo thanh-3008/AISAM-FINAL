@@ -276,7 +276,8 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
 });
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
-builder.Services.AddScoped<IOAuthStateStore>(_ => new SignedOAuthStateStore(jwtSecretKey));
+builder.Services.AddSingleton<IOriginResolver, OriginResolver>();
+builder.Services.AddScoped<IOAuthStateStore>(sp => new SignedOAuthStateStore(jwtSecretKey, sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.AddHttpClient<FacebookProvider>();
 builder.Services.AddHttpClient<InstagramProvider>();
