@@ -34,6 +34,7 @@ if (!builder.Environment.IsEnvironment("Testing") && File.Exists(envPath))
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
+ApplyEnvironmentOverride(builder.Configuration, "SWAGGER_ENABLED", "Swagger:Enabled");
 ApplyEnvironmentOverride(builder.Configuration, "FRONTEND_BASE_URL", "FrontendSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "JWT_SECRET_KEY", "JwtSettings:SecretKey");
 ApplyEnvironmentOverride(builder.Configuration, "JWT_ISSUER", "JwtSettings:Issuer");
@@ -41,6 +42,7 @@ ApplyEnvironmentOverride(builder.Configuration, "JWT_AUDIENCE", "JwtSettings:Aud
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_APP_ID", "FacebookSettings:AppId");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_APP_SECRET", "FacebookSettings:AppSecret");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_REDIRECT_URI", "FacebookSettings:RedirectUri");
+ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_REDIRECT_PATH", "FacebookSettings:RedirectPath");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_GRAPH_API_VERSION", "FacebookSettings:GraphApiVersion");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_BASE_URL", "FacebookSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_OAUTH_URL", "FacebookSettings:OAuthUrl");
@@ -50,6 +52,8 @@ ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_SANDBOX_AD_ACCOUNT_IDS
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_APP_ID", "InstagramSettings:AppId");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_APP_SECRET", "InstagramSettings:AppSecret");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_REDIRECT_URI", "InstagramSettings:RedirectUri");
+ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_REDIRECT_PATH", "InstagramSettings:RedirectPath");
+ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_COMPLETE_PATH", "InstagramSettings:CompletePath");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_GRAPH_API_VERSION", "InstagramSettings:GraphApiVersion");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_BASE_URL", "InstagramSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_OAUTH_URL", "InstagramSettings:OAuthUrl");
@@ -76,12 +80,15 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSett
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_BASE_URL", "PayOSSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_PATH", "PayOSSettings:ReturnPath");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_PATH", "PayOSSettings:CancelPath");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_PATH", "TikTokSettings:RedirectPath");
 
 // === OpenAI (Primary Image + Video) ===
 ApplyEnvironmentOverride(builder.Configuration, "OPENAI_API_KEY", "ImageProviderSettings:OpenAiApiKey");
@@ -275,7 +282,8 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
 });
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<ISocialService, SocialService>();
-builder.Services.AddScoped<IOAuthStateStore>(_ => new SignedOAuthStateStore(jwtSecretKey));
+builder.Services.AddSingleton<IOriginResolver, OriginResolver>();
+builder.Services.AddScoped<IOAuthStateStore>(sp => new SignedOAuthStateStore(jwtSecretKey, sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.AddHttpClient<FacebookProvider>();
 builder.Services.AddHttpClient<InstagramProvider>();
@@ -444,7 +452,11 @@ var app = builder.Build();
 app.UseResponseCompression();
 app.UseCors("CorsPolicy");
 
-if (app.Environment.IsDevelopment())
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Swagger:Enabled", false)
+    || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -462,7 +474,16 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapGet("/", () => Results.Redirect("/swagger/index.html"));
+app.MapGet("/", (IWebHostEnvironment env, IConfiguration config) =>
+{
+    var isSwaggerEnabled = env.IsDevelopment()
+        || config.GetValue<bool>("Swagger:Enabled", false)
+        || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+    return isSwaggerEnabled
+        ? Results.Redirect("/swagger/index.html")
+        : Results.Ok(new { message = "AISAM Backend API is running.", environment = env.EnvironmentName });
+});
 if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("SEED_DEV_DATA") == "true")
 {
     AISAM.API.Infrastructure.DevDataSeeder.SeedDevData(app.Services);

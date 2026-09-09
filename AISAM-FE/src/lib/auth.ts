@@ -1,4 +1,5 @@
 import { API_URL } from "./apiClient";
+import { fetchWithFailover } from "./apiEndpoint";
 
 export const setToken = (token: string) => {
   if (typeof window !== "undefined") {
@@ -89,7 +90,7 @@ async function performRefreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null;
 
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
+    const res = await fetchWithFailover("/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -156,7 +157,7 @@ export async function logout(): Promise<void> {
     const token = getToken();
     const refreshToken = getRefreshToken();
     if (token) {
-      await fetch(`${API_URL}/auth/logout`, {
+      await fetchWithFailover("/auth/logout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

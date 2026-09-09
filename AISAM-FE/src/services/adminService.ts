@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
+import { fetchWithFailover, getActiveApiUrl } from "@/lib/apiEndpoint";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -278,8 +279,7 @@ export async function exportAdminAuditLogsCsv(
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) return null;
     
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
-    const response = await fetch(`${API_URL}${url}`, {
+    const response = await fetchWithFailover(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!response.ok) return null;
@@ -397,7 +397,7 @@ export async function fetchAdminTopCampaigns(from?: string, to?: string, top = 2
 }
 
 export function getAdminExportUrl(from?: string, to?: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
+  const baseUrl = getActiveApiUrl();
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);

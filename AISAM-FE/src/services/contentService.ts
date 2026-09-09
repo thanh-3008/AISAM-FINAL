@@ -1,4 +1,5 @@
 import { apiClient, apiFetch } from "@/lib/apiClient";
+import { fetchWithFailover } from "@/lib/apiEndpoint";
 import type { ContentType, ContentStatus } from "@/lib/contentConstants";
 import { getStoredActiveProfile } from "@/stores/profile-store";
 import { getToken } from "@/lib/auth";
@@ -422,14 +423,13 @@ export async function publishContentDebug(contentId: string, integrationId: stri
     const token = getToken();
     const workspace = (await import('@/stores/workspace-store')).getStoredActiveWorkspace();
     const profile = (await import('@/stores/profile-store')).getStoredActiveProfile();
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5116/api";
     const headers: Record<string, string> = {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
       ...(profile ? { "X-Profile-Id": profile.id } : {}),
       "Content-Type": "application/json",
     };
-    const response = await fetch(`${API_URL}/content/${contentId}/publish/${integrationId}`, { method: "POST", headers });
+    const response = await fetchWithFailover(`/content/${contentId}/publish/${integrationId}`, { method: "POST", headers });
     const bodyText = await response.text();
     return {
       success: response.ok,
