@@ -147,4 +147,20 @@ describe("apiClient", () => {
     // Restore window.location
     window.location = originalLocation as any;
   });
+
+  it("transparently fails over to fallback endpoint when primary endpoint has network failure", async () => {
+    (auth.getToken as Mock).mockReturnValue("test-token");
+    // 1st attempt fails with network error
+    (global.fetch as Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    // 2nd attempt (fallback) succeeds
+    (global.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      text: async () => JSON.stringify({ success: true, data: "fallback-data" }),
+    });
+
+    const result = await apiClient("/data");
+
+    expect(result).toEqual({ success: true, data: "fallback-data" });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
 });

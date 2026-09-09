@@ -1,4 +1,5 @@
 import { apiClient, API_URL } from "@/lib/apiClient";
+import { fetchWithFailover } from "@/lib/apiEndpoint";
 
 interface GenericResponse<T> {
   success: boolean;
@@ -119,7 +120,7 @@ export async function syncPayOSCallback(searchParams: { entries(): IterableItera
     }
     const query = params.toString();
     if (!query) return false;
-    const res = await fetch(`${API_URL}/payment/callback${query ? "?" + query : ""}`, {
+    const res = await fetchWithFailover(`/payment/callback${query ? "?" + query : ""}`, {
       method: "POST",
     });
     const data = await res.json();
@@ -140,7 +141,7 @@ const PRICING_CACHE_TTL = 5 * 60 * 1000;
 async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetchWithFailover(url, { cache: "no-store" });
       if (res.ok) return res;
       if (res.status >= 500 && i < retries - 1) {
         await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
@@ -170,8 +171,8 @@ export async function fetchPublicPricing(): Promise<{ plans: any[], creditPacks:
 
   try {
     const [plansRes, creditPacksRes] = await Promise.all([
-      fetchWithRetry(`${API_URL}/pricing/plans?t=${Date.now()}`),
-      fetchWithRetry(`${API_URL}/pricing/credit-packs?t=${Date.now()}`)
+      fetchWithRetry(`/pricing/plans?t=${Date.now()}`),
+      fetchWithRetry(`/pricing/credit-packs?t=${Date.now()}`)
     ]);
     if (!plansRes.ok || !creditPacksRes.ok) {
       throw new Error("Pricing endpoint returned an error.");

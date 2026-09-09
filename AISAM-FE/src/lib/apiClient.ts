@@ -1,8 +1,9 @@
 import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { getStoredActiveProfile } from "@/stores/profile-store";
+import { fetchWithFailover, getActiveApiUrl, API_URL } from "./apiEndpoint";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api";
+export { getActiveApiUrl, API_URL };
 
 type ApiOptions = RequestInit & {
   data?: any;
@@ -183,7 +184,7 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
     ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
   };
-  const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
+  const retryResponse = await fetchWithFailover(endpoint, { ...config, headers: newHeaders });
   return handleResponse(retryResponse);
 }
 
@@ -209,7 +210,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
     ...customConfig,
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  const response = await fetchWithFailover(endpoint, config);
 
   if (response.status === 401 && token && !isPublic && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
@@ -224,7 +225,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   const config: RequestInit = { ...options, headers };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  const response = await fetchWithFailover(endpoint, config);
 
   if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
