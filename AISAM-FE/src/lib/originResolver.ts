@@ -1,13 +1,31 @@
 import type { NextRequest } from "next/server";
 
-export const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "https://aisam.io.vn",
-  "https://www.aisam.io.vn",
-  "https://aisam.ddns.net",
-];
+function parseConfiguredOrigins(): string[] {
+  const envList = process.env.NEXT_PUBLIC_ALLOWED_ORIGINS;
+  if (envList) {
+    const list = envList.split(",").map(normalizeOrigin).filter(Boolean);
+    if (!list.includes("http://localhost:3000")) list.push("http://localhost:3000");
+    if (!list.includes("https://aisam.ddns.net")) list.push("https://aisam.ddns.net");
+    return list;
+  }
+  return [
+    "http://localhost:3000",
+    "https://aisam.io.vn",
+    "https://www.aisam.io.vn",
+    "https://aisam.ddns.net",
+  ];
+}
 
-const DEFAULT_ORIGIN = "https://aisam.io.vn";
+export const ALLOWED_ORIGINS = parseConfiguredOrigins();
+
+export function getDefaultOrigin(): string {
+  return (
+    process.env.NEXT_PUBLIC_DEFAULT_ORIGIN?.trim().replace(/\/+$/, "") ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ||
+    process.env.FRONTEND_BASE_URL?.trim().replace(/\/+$/, "") ||
+    "https://aisam.io.vn"
+  );
+}
 
 function normalizeOrigin(origin: string): string {
   try {
@@ -21,7 +39,8 @@ function normalizeOrigin(origin: string): string {
 export function isAllowedOrigin(origin: string): boolean {
   if (!origin) return false;
   const normalized = normalizeOrigin(origin);
-  return ALLOWED_ORIGINS.includes(normalized);
+  const currentAllowed = parseConfiguredOrigins();
+  return currentAllowed.includes(normalized);
 }
 
 /**
@@ -41,7 +60,7 @@ export function resolveClientOrigin(): string {
     return normalizeOrigin(envOrigin);
   }
 
-  return DEFAULT_ORIGIN;
+  return getDefaultOrigin();
 }
 
 /**
@@ -78,5 +97,5 @@ export function resolveServerOrigin(request: NextRequest): string {
     }
   }
 
-  return DEFAULT_ORIGIN;
+  return getDefaultOrigin();
 }
