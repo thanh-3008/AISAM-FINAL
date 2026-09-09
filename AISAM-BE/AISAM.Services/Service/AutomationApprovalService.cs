@@ -14,15 +14,19 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
 {
     private readonly AisamContext _context;
     private readonly IContentScheduleService _scheduleService;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
 
-    public AutomationApprovalService(AisamContext context, IContentScheduleService scheduleService)
+    public AutomationApprovalService(AisamContext context, IContentScheduleService scheduleService,AISAM.Services.Access.IAccessControlService? access=null)
     {
         _context = context;
         _scheduleService = scheduleService;
+        _access=access;
     }
 
     public async Task<GenericResponse<AutomationPlanDto>> ApproveAsync(Guid workspaceId, Guid planId, Guid approverUserId, Guid? itemId = null, IReadOnlyCollection<Guid>? integrationIds = null, CancellationToken cancellationToken = default)
     {
+        await using var executionLock = await AutomationExecutionLock.TryAcquireAsync(_context, BitConverter.ToInt64(planId.ToByteArray()), cancellationToken);
+        if (executionLock is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan is already being scheduled.", HttpStatusCode.Conflict);
         if (integrationIds is { Count: > 0 } && !itemId.HasValue)
             return GenericResponse<AutomationPlanDto>.CreateError("Page targets can only be selected for one automation item at a time.");
         var plan = await LoadPlanAsync(workspaceId, planId, cancellationToken);
@@ -72,6 +76,21 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
                 continue;
             }
 
+            if(_access is not null)
+            {
+                var allowed=(await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,content.Id,AISAM.Services.Access.ResourcePermission.ApprovalReview),cancellationToken)).Allowed;
+                foreach(var target in selectedIntegrations)
+                    allowed &= (await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,content.Id,AISAM.Services.Access.ResourcePermission.PostPublish,target.Id),cancellationToken)).Allowed;
+                if(!allowed)
+                {
+                    item.Status=AutomationItemStatusEnum.NeedsAttention;item.LastError="AUTOMATION_ACCESS_REVOKED";
+                    plan.AutoApprove=false;
+                    _context.Notifications.Add(new Notification { ProfileId=plan.ProfileId, WorkspaceId=workspaceId,
+                        Title="Automation needs permission review", Message="AUTOMATION_ACCESS_REVOKED", TargetId=plan.Id,
+                        TargetType="AutomationPlan", Type=NotificationTypeEnum.ApprovalNeeded });
+                    continue;
+                }
+            }
             content.Status = ContentStatusEnum.Approved;
             item.Status = AutomationItemStatusEnum.Approved;
             item.LastError = null;

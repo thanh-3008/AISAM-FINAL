@@ -10,6 +10,7 @@ namespace AISAM.Data.Model
         [Key]
         [Column("id")]
         public Guid Id { get; set; } = Guid.NewGuid();
+        [Column("snapshot_id")] public Guid? SnapshotId {get;set;}
 
         [Required]
         [Column("content_id")]
@@ -18,6 +19,10 @@ namespace AISAM.Data.Model
         [Required]
         [Column("integration_id")]
         public Guid IntegrationId { get; set; }
+        [Column("published_by_user_id")]
+        public Guid? PublishedByUserId { get; set; }
+        [Column("executed_by_system")]
+        public bool ExecutedBySystem { get; set; }
 
         [MaxLength(255)]
         [Column("external_post_id")]

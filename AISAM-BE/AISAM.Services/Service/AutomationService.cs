@@ -29,8 +29,10 @@ public sealed class AutomationService : IAutomationService
         _automationCredits = automationCredits;
     }
 
-    public async Task<GenericResponse<AutomationPlanDto>> CreateAsync(Guid workspaceId, Guid profileId, CreateAutomationPlanRequest request, string? sourceFileName = null, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AutomationPlanDto>> CreateAsync(Guid workspaceId, Guid profileId, Guid actorUserId, CreateAutomationPlanRequest request, string? sourceFileName = null, CancellationToken cancellationToken = default)
     {
+        if (actorUserId == Guid.Empty)
+            return GenericResponse<AutomationPlanDto>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         if (request.Rows.Count == 0)
             return GenericResponse<AutomationPlanDto>.CreateError("The automation plan must contain at least one row.");
 
@@ -38,6 +40,7 @@ public sealed class AutomationService : IAutomationService
         {
             WorkspaceId = workspaceId,
             ProfileId = profileId,
+            CreatedByUserId = actorUserId,
             Name = request.Name.Trim(),
             SourceFileName = sourceFileName,
             Timezone = string.IsNullOrWhiteSpace(request.Timezone) ? "UTC" : request.Timezone.Trim(),
@@ -103,7 +106,7 @@ public sealed class AutomationService : IAutomationService
         return GenericResponse<AutomationPlanDto>.CreateSuccess(Map(saved), "Automation plan imported and validated.");
     }
 
-    public async Task<GenericResponse<AutomationPlanDto>> ImportCsvAsync(Guid workspaceId, Guid profileId, string name, string timezone, string sourceFileName, Stream stream, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AutomationPlanDto>> ImportCsvAsync(Guid workspaceId, Guid profileId, Guid actorUserId, string name, string timezone, string sourceFileName, Stream stream, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, true, leaveOpen: true);
         var content = await reader.ReadToEndAsync(cancellationToken);
@@ -159,7 +162,7 @@ public sealed class AutomationService : IAutomationService
         }
         
         if (rows.Count == 0) return GenericResponse<AutomationPlanDto>.CreateError("CSV must contain a header and at least one data row.");
-        return await CreateAsync(workspaceId, profileId, new CreateAutomationPlanRequest { Name = name, Timezone = timezone, Rows = rows }, sourceFileName, cancellationToken);
+        return await CreateAsync(workspaceId, profileId, actorUserId, new CreateAutomationPlanRequest { Name = name, Timezone = timezone, Rows = rows }, sourceFileName, cancellationToken);
     }
 
     public async Task<GenericResponse<IReadOnlyList<AutomationPlanDto>>> GetAllAsync(Guid workspaceId, CancellationToken cancellationToken = default)
@@ -236,7 +239,7 @@ public sealed class AutomationService : IAutomationService
         return GenericResponse<AutomationPlanDto>.CreateSuccess(Map(plan), "Automation plan cancelled.");
     }
 
-    public async Task<GenericResponse<AutomationPlanDto>> ImportGoogleSheetAsync(Guid workspaceId, Guid profileId, ImportGoogleSheetRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AutomationPlanDto>> ImportGoogleSheetAsync(Guid workspaceId, Guid profileId, Guid actorUserId, ImportGoogleSheetRequest request, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var source) || source.Scheme != Uri.UriSchemeHttps ||
             !source.Host.Equals("docs.google.com", StringComparison.OrdinalIgnoreCase))
@@ -251,7 +254,7 @@ public sealed class AutomationService : IAutomationService
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             await using var stream = await client.GetStreamAsync(exportUrl, cancellationToken);
-            return await ImportCsvAsync(workspaceId, profileId, request.Name, request.Timezone, "google-sheet.csv", stream, cancellationToken);
+            return await ImportCsvAsync(workspaceId, profileId, actorUserId, request.Name, request.Timezone, "google-sheet.csv", stream, cancellationToken);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
@@ -259,7 +262,7 @@ public sealed class AutomationService : IAutomationService
         }
     }
 
-    public async Task<GenericResponse<AutomationPlanDto>> CloneAsync(Guid workspaceId, Guid profileId, Guid planId, CloneAutomationPlanRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<AutomationPlanDto>> CloneAsync(Guid workspaceId, Guid profileId, Guid actorUserId, Guid planId, CloneAutomationPlanRequest request, CancellationToken cancellationToken = default)
     {
         var source = await _automationRepository.GetByIdAsync(workspaceId, planId, cancellationToken);
         if (source is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
@@ -270,7 +273,7 @@ public sealed class AutomationService : IAutomationService
             Platforms = [item.Platform], ContentType = item.RequestedContentType.ToString(), Tone = item.Tone, Cta = item.Cta,
             Notes = item.Notes, ScheduledAt = item.ScheduledAt.AddDays(request.ShiftDays)
         }).ToList();
-        var result = await CreateAsync(workspaceId, profileId, new CreateAutomationPlanRequest { Name = request.Name, Timezone = source.Timezone, Rows = rows }, cancellationToken: cancellationToken);
+        var result = await CreateAsync(workspaceId, profileId, actorUserId, new CreateAutomationPlanRequest { Name = request.Name, Timezone = source.Timezone, Rows = rows }, cancellationToken: cancellationToken);
         if (result.Success && result.Data is not null)
         {
             var clone = await _automationRepository.GetByIdAsync(workspaceId, result.Data.Id, cancellationToken);

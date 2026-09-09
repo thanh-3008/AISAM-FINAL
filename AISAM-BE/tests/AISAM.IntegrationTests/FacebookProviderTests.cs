@@ -102,7 +102,8 @@ public class FacebookProviderTests
         var result = await provider.PublishAsync(CreateAccount(), CreateIntegration("page-token"), new PostDto
         {
             Message = "Gallery post",
-            ImageUrls = new List<string> { "https://cdn/1.jpg", "https://cdn/2.jpg" }
+              ImageUrls = new List<string> { "https://cdn/1.jpg", "https://cdn/2.jpg" },
+              Media=[new(Guid.NewGuid(),"https://cdn/1.jpg","image/jpeg"),new(Guid.NewGuid(),"https://cdn/2.jpg","image/jpeg")]
         });
 
         Assert.True(result.Success);
@@ -110,7 +111,9 @@ public class FacebookProviderTests
         Assert.Contains("published=false", handler.Requests[0].Body);
         Assert.Contains("published=false", handler.Requests[1].Body);
         Assert.Contains("attached_media%5B0%5D", handler.Requests[2].Body);
-        Assert.Contains("attached_media%5B1%5D", handler.Requests[2].Body);
+          Assert.Contains("attached_media%5B1%5D", handler.Requests[2].Body);
+          Assert.Equal(new[]{"media-1","media-2"},result.Media.Select(m=>m.ProviderMediaId));
+          Assert.All(result.Media,m=>Assert.Equal("Published",m.Status));
     }
 
     [Fact]

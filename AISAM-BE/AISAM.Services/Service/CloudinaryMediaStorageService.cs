@@ -10,6 +10,11 @@ namespace AISAM.Services.Service;
 
 public class CloudinaryMediaStorageService : IMediaStorageService
 {
+    public async Task<bool> DeleteAsync(string publicId,bool video,CancellationToken cancellationToken=default)
+    {
+        var result=await _cloudinary.DestroyAsync(new DeletionParams(publicId){ResourceType=video?ResourceType.Video:ResourceType.Image,Invalidate=true});
+        return result.Result is "ok" or "not found";
+    }
     private readonly Cloudinary _cloudinary;
 
     public CloudinaryMediaStorageService(IOptions<CloudinarySettings> config, ILogger<CloudinaryMediaStorageService> logger)
@@ -27,12 +32,12 @@ public class CloudinaryMediaStorageService : IMediaStorageService
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY");
-            logger.LogWarning("Cloudinary ApiKey not found in configuration, trying env var fallback: '{Value}'", apiKey ?? "");
+            logger.LogWarning("Cloudinary ApiKey not found in configuration, trying env var fallback.");
         }
         if (string.IsNullOrWhiteSpace(apiSecret))
         {
             apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET");
-            logger.LogWarning("Cloudinary ApiSecret not found in configuration, trying env var fallback: '{Value}'", apiSecret ?? "");
+            logger.LogWarning("Cloudinary ApiSecret not found in configuration, trying env var fallback.");
         }
 
         var missing = new List<string>();
@@ -54,6 +59,10 @@ public class CloudinaryMediaStorageService : IMediaStorageService
     }
 
     public async Task<string> UploadAsync(
+        IFormFile file,string folder,string fileName,CancellationToken cancellationToken=default)
+        =>(await UploadDetailedAsync(file,folder,fileName,cancellationToken)).Url;
+
+    public async Task<StoredMedia> UploadDetailedAsync(
         IFormFile file,
         string folder,
         string fileName,
@@ -128,7 +137,12 @@ public class CloudinaryMediaStorageService : IMediaStorageService
                 throw new InvalidOperationException("Cloudinary upload returned no URL.");
             }
 
-            return uploadResult.SecureUrl.ToString();
+            return uploadResult switch
+            {
+                VideoUploadResult video=>new(uploadResult.SecureUrl.ToString(),video.Width,video.Height,(decimal)video.Duration,uploadResult.PublicId),
+                ImageUploadResult image=>new(uploadResult.SecureUrl.ToString(),image.Width,image.Height,null,uploadResult.PublicId),
+                _=>new(uploadResult.SecureUrl.ToString(),PublicId:uploadResult.PublicId)
+            };
         }
     }
 

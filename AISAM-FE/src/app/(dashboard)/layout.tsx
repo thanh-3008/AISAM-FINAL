@@ -3,6 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import WorkspaceBoundary from "@/components/WorkspaceBoundary";
 
 import { useEffect, useState } from "react";
 import { setToken, removeToken, getStoredUser } from "@/lib/auth";
@@ -64,9 +65,9 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <SubscriptionProvider>
+      <WorkspaceBoundary><SubscriptionProvider>
         <DashboardInner>{children}</DashboardInner>
-      </SubscriptionProvider>
+      </SubscriptionProvider></WorkspaceBoundary>
     </SidebarProvider>
   );
 }

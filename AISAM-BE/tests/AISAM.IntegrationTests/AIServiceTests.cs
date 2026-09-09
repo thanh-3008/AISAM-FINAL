@@ -17,6 +17,34 @@ namespace AISAM.IntegrationTests;
 public class AIServiceTests
 {
     [Fact]
+    public async Task DraftRecordsAuthenticatedActorAsCreator()
+    {
+        var profileId = Guid.NewGuid();
+        var actor = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeAiGenerationRepository(),
+            new FakeBrandRepository(brand), new FakeGeminiTextClient("Generated copy"));
+        var result = await service.GenerateDraftAsync(profileId, brand.WorkspaceId, actor,
+            new CreateDraftRequest { BrandId = brand.Id, Prompt = "Create an ad" });
+        Assert.True(result.Success);
+        Assert.Equal(actor, Assert.Single(repository.Created).PrimaryCreatorId);
+    }
+
+    [Fact]
+    public async Task MissingActorCannotCreateDraftOrStartWorkspaceChat()
+    {
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeAiGenerationRepository(),
+            new FakeBrandRepository(), new FakeGeminiTextClient("Unused"));
+        var draft = await service.GenerateDraftAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, new CreateDraftRequest());
+        var chat = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, new ChatRequest { Message = "Hello" });
+        Assert.Equal(401, draft.StatusCode);
+        Assert.Equal(401, chat.StatusCode);
+        Assert.Empty(repository.Created);
+    }
+
+    [Fact]
     public async Task StartVideoGenerationAsync_ReturnsExistingProcessingGeneration_WithoutCreatingDuplicateProviderJob()
     {
         var workspaceId = Guid.NewGuid();
@@ -891,6 +919,7 @@ public class AIServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public List<Content> Created { get; } = new();
         public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         private readonly Dictionary<Guid, Content> _contents;
         public FakeContentRepository(params Content[] contents) => _contents = contents.ToDictionary(content => content.Id);
@@ -899,6 +928,7 @@ public class AIServiceTests
         public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default)
         {
+            Created.Add(content);
             _contents[content.Id] = content;
             return Task.FromResult(content);
         }

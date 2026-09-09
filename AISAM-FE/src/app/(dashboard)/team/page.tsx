@@ -280,6 +280,8 @@ export default function TeamPage() {
       <div className="p-8 h-[calc(100vh-64px)] overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
 
+          <p className="text-sm">Vai trò workspace không tự cấp quyền mọi Brand. <Link href="/brands" className="underline">Chọn Brand để quản lý Team và quyền kênh</Link>.</p>
+          <Link href="/team/performance" className="underline text-primary">Hiệu suất thành viên</Link>
           {/* Page Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-up">
             <div className="flex items-center gap-4">

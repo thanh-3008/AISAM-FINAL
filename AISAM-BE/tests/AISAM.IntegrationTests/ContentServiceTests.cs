@@ -15,6 +15,47 @@ namespace AISAM.IntegrationTests;
 public class ContentServiceTests
 {
     [Fact]
+    public async Task WorkspaceCreateAttributesActorInsteadOfProfile()
+    {
+        var profile = Guid.NewGuid();
+        var actor = Guid.NewGuid();
+        var brand = CreateBrand(profile);
+        brand.WorkspaceId = Guid.NewGuid();
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeBrandRepository(brand));
+        var result = await service.CreateInWorkspaceAsync(brand.WorkspaceId, profile, actor,
+            new CreateContentRequest { BrandId = brand.Id, TextContent = "Draft" });
+        Assert.True(result.Success);
+        Assert.Equal(actor, Assert.Single(repository.Added).PrimaryCreatorId);
+    }
+
+    [Fact]
+    public async Task WorkspaceCloneAttributesNewActorAndPreservesOriginalCreator()
+    {
+        var actor = Guid.NewGuid();
+        var originalCreator = Guid.NewGuid();
+        var original = new Content { WorkspaceId = Guid.NewGuid(), PrimaryCreatorId = originalCreator };
+        var repository = new FakeContentRepository(original);
+        var service = CreateService(repository, new FakeBrandRepository());
+        var result = await service.CloneInWorkspaceAsync(original.Id, original.WorkspaceId, actor);
+        Assert.True(result.Success);
+        Assert.Equal(actor, Assert.Single(repository.Added).PrimaryCreatorId);
+        Assert.Equal(originalCreator, original.PrimaryCreatorId);
+    }
+
+    [Fact]
+    public async Task WorkspaceWritesRejectMissingActor()
+    {
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeBrandRepository());
+        var create = await service.CreateInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, new CreateContentRequest());
+        var clone = await service.CloneInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty);
+        Assert.Equal(401, create.StatusCode);
+        Assert.Equal(401, clone.StatusCode);
+        Assert.Empty(repository.Added);
+    }
+
+    [Fact]
     public async Task CreateAsync_UsesActiveProfile_WhenBrandBelongsToProfile()
     {
         var profileId = Guid.NewGuid();

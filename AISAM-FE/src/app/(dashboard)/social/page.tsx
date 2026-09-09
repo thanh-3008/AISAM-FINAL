@@ -26,7 +26,7 @@ import ManageTargetsModal from "@/components/social/ManageTargetsModal";
 export default function SocialAccountsPage() {
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
-  const canManage = featureGate.isOwner || featureGate.isManager;
+  const canManage = featureGate.isOwner;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -276,7 +276,7 @@ export default function SocialAccountsPage() {
               onClick={() => setShowConnectModal(true)}
               disabled={!canManage}
               className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-sm font-bold flex items-center gap-1.5 shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              title={!canManage ? "Only Owner and Manager can connect accounts" : ""}
+              title={!canManage ? "Only Owner can manage account credentials; Brand channel access is managed in Brand Access" : ""}
             >
               <span className="material-symbols-outlined text-[16px]">add_link</span>
               Connect Account

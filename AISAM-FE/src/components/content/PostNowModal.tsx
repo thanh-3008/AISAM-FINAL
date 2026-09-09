@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { fetchContentById, publishContent, type ContentType } from "@/services/contentService";
 import { fetchSocialIntegrations, type SocialIntegration } from "@/services/socialAccountService";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
+import { useResourcePermissions } from "@/hooks/useResourcePermissions";
+import { Kind, Permission } from "@/services/permissionService";
 
 interface PostNowModalProps {
   contentId: string;
@@ -30,8 +32,9 @@ export default function PostNowModal({ contentId, brandId, onClose, onSuccess }:
   }, [contentId]);
 
   const tiktokUnavailable = contentType !== null && contentType !== "VIDEO";
-  const selectableIntegrations = integrations.filter((integration) =>
-    integration.isActive && !(tiktokUnavailable && integration.provider === "tiktok"));
+  const allowed = useResourcePermissions(integrations.map(i => ({ kind: Kind.Content, resourceId: contentId, channelId: i.id, permission: Permission.PostPublish })));
+  const selectableIntegrations = integrations.filter((integration, index) =>
+    allowed(index) && integration.isActive && !(tiktokUnavailable && integration.provider === "tiktok"));
 
   useEffect(() => {
     if (!tiktokUnavailable) return;
@@ -40,7 +43,9 @@ export default function PostNowModal({ contentId, brandId, onClose, onSuccess }:
   }, [integrations, tiktokUnavailable]);
 
   const handlePublish = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || selectedIds.some(id => !selectableIntegrations.some(i => i.id === id))) {
+      setError("Chưa xác nhận quyền đăng cho các kênh đã chọn."); return;
+    }
     setPublishing(true);
     setError("");
     try {
@@ -83,10 +88,10 @@ export default function PostNowModal({ contentId, brandId, onClose, onSuccess }:
             </button>
           </div>
 
-          {integrations.length === 0 ? (
+          {selectableIntegrations.length === 0 ? (
             <div className="py-8 text-center">
               <span className="material-symbols-outlined text-4xl text-outline/30 mb-2">link_off</span>
-              <p className="text-body-sm text-on-surface-variant">No social accounts linked to this brand yet.</p>
+              <p className="text-body-sm text-on-surface-variant">Chưa có kênh phù hợp được xác nhận quyền đăng. Liên hệ Owner nếu cần cấp quyền.</p>
             </div>
           ) : (
             <div className="space-y-2 mb-5">

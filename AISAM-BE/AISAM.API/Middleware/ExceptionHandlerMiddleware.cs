@@ -48,6 +48,16 @@ namespace AISAM.API.Middleware
 
             switch (exception)
             {
+                case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException:
+                    status = HttpStatusCode.Conflict;
+                    message = "Content changed. Reload before saving.";
+                    errorCode = "CONTENT_VERSION_CONFLICT";
+                    break;
+                case AISAM.Repositories.ResourceMutationDeniedException:
+                    status = HttpStatusCode.Forbidden;
+                    message = "Resource access denied.";
+                    errorCode = "RESOURCE_ACCESS_DENIED";
+                    break;
                 case UnauthorizedAccessException:
                     status = HttpStatusCode.Unauthorized;
                     message = "Unauthorized";

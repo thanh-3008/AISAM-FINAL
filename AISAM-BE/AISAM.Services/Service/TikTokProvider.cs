@@ -141,9 +141,15 @@ public sealed class TikTokProvider : IProviderService
             return Failure("TikTok Direct Post currently requires a video.");
         }
 
+        bool initialized=false;string? pendingId=null;
         try
         {
             var creator = await GetCreatorInfoAsync(integration.AccessToken, cancellationToken);
+            if(post.Media is {Count:>0})
+            {
+                if(creator.MaxVideoPostDurationSeconds is null or <=0)return Failure("TikTok did not confirm account video limits.");
+                if(post.Media.Any(m=>m.DurationSeconds is null||m.DurationSeconds>creator.MaxVideoPostDurationSeconds))return Failure("Video exceeds the verified account duration limit or is missing duration metadata.");
+            }
             var privacyLevel = _settings.DefaultPrivacyLevel.Trim().ToUpperInvariant();
             if (!creator.PrivacyLevelOptions.Contains(privacyLevel, StringComparer.Ordinal))
             {
@@ -151,6 +157,8 @@ public sealed class TikTokProvider : IProviderService
             }
 
             var video = await DownloadVideoAsync(post.VideoUrl, cancellationToken);
+            await post.ReportAsync("Publishing",[],cancellationToken);
+            initialized=true;
             var upload = await InitializeVideoPostAsync(
                 integration.AccessToken,
                 post.Message,
@@ -159,19 +167,23 @@ public sealed class TikTokProvider : IProviderService
                 video.Bytes.LongLength,
                 cancellationToken);
 
+            pendingId=upload.PublishId;
             await UploadVideoAsync(upload, video, cancellationToken);
             _logger.LogInformation("TikTok Direct Post accepted with publish id {PublishId}.", upload.PublishId);
             return new PublishResultDto
             {
                 Success = true,
+                RequiresReconciliation = true,
                 ProviderPostId = upload.PublishId,
-                PostedAt = DateTime.UtcNow
+                Media=post.Media?.Select(m=>new PublishMediaResult(m.Id,"Uploaded",upload.PublishId)).ToList()??[]
             };
         }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException or OperationCanceledException)
         {
-            _logger.LogWarning(ex, "TikTok Direct Post failed.");
-            return Failure(ex.Message);
+            _logger.LogWarning("TikTok Direct Post did not complete; provider outcome requires inspection.");
+            if(initialized)return new(){RequiresReconciliation=true,ProviderPostId=pendingId,ErrorMessage="PUBLISH_OUTCOME_UNKNOWN"};
+            if(ex is OperationCanceledException)throw;
+            return Failure("TikTok could not prepare publication. Check account permissions and media.");
         }
     }
 
@@ -464,6 +476,8 @@ public sealed class TikTokProvider : IProviderService
 
     private sealed class TikTokCreatorInfo
     {
+        [JsonPropertyName("max_video_post_duration_sec")]
+        public int? MaxVideoPostDurationSeconds {get;set;}
         [JsonPropertyName("privacy_level_options")]
         public List<string> PrivacyLevelOptions { get; set; } = new();
 

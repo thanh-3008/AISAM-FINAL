@@ -10,6 +10,7 @@ public sealed class AutomationPlan
     [Key, Column("id")] public Guid Id { get; set; } = Guid.NewGuid();
     [Column("workspace_id")] public Guid WorkspaceId { get; set; }
     [Column("profile_id")] public Guid ProfileId { get; set; }
+    [Column("created_by_user_id")] public Guid? CreatedByUserId { get; set; }
     [MaxLength(200), Column("name")] public string Name { get; set; } = string.Empty;
     [MaxLength(255), Column("source_file_name")] public string? SourceFileName { get; set; }
     [MaxLength(80), Column("timezone")] public string Timezone { get; set; } = "UTC";

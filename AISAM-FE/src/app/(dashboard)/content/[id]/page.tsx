@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getStoredAutosave } from "@/hooks/useSettings";
+import { usePublishPermission } from "@/hooks/usePublishPermission";
+import { useResourcePermissions } from "@/hooks/useResourcePermissions";
+import { Kind, Permission } from "@/services/permissionService";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
@@ -30,7 +32,8 @@ export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const featureGate = useFeatureGate();
-  const canPublish = featureGate.can("publishPost");
+
+  const allowed = useResourcePermissions([Permission.ContentEdit, Permission.ContentDelete].map(permission => ({ kind: Kind.Content, resourceId: String(params.id), permission })));
   const canManageSchedules = featureGate.can("manageSchedules");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +44,7 @@ export default function ContentDetailPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const [item, setItem] = useState<ContentDetail | null>(null);
+  const canPublish = usePublishPermission(String(params.id), item?.brandId);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
@@ -56,24 +60,6 @@ export default function ContentDetailPage() {
     formRef.current = form;
     itemRef.current = item;
   }, [form, item]);
-
-  useEffect(() => {
-    return () => {
-      const currentItem = itemRef.current;
-      const currentForm = formRef.current;
-      if (getStoredAutosave() && currentItem && currentForm.title) {
-        // Autosave only content fields, NOT status.
-        // Status changes must go through explicit actions (submit/approve/reject/handleSave)
-        // to prevent race conditions where unmount cleanup overwrites approval transitions.
-        updateContent(currentItem.id, {
-          title: currentForm.title,
-          adType: CONTENTTYPE_TO_ADTYPE[currentItem.type],
-          textContent: currentForm.caption,
-          contextDescription: currentForm.description,
-        }).catch(() => {});
-      }
-    };
-  }, []);
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 80); return () => clearTimeout(t); }, []);
 
@@ -107,6 +93,7 @@ export default function ContentDetailPage() {
   }, [item?.id]);
 
   const handleSave = async () => {
+    if (!allowed(0)) return;
     setSaving(true);
     const ok = await updateContent(params.id as string, {
       title: form.title,
@@ -125,6 +112,7 @@ export default function ContentDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (!allowed(1)) return;
     const ok = await deleteContent(params.id as string);
     if (ok) router.push("/content");
   };
@@ -232,7 +220,7 @@ export default function ContentDetailPage() {
                   </>
                 )}
                 {(item.status === "Draft" || item.status === "Rejected") && (
-                  <button onClick={handleSubmit} disabled={isSubmitting}
+                  <button onClick={handleSubmit} disabled={isSubmitting || !allowed(0)}
                     className="px-4 py-2 rounded-xl bg-amber-500 text-white text-label-sm font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5">
                     {isSubmitting ? (
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -242,12 +230,12 @@ export default function ContentDetailPage() {
                     Submit for Approval
                   </button>
                 )}
-                <button onClick={() => setEditing(true)}
+                <button disabled={!allowed(0)} onClick={() => setEditing(true)}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">edit</span>
                   Edit
                 </button>
-                <button onClick={() => setShowDelete(true)}
+                <button disabled={!allowed(1)} onClick={() => setShowDelete(true)}
                   className="px-4 py-2 rounded-xl border border-danger-red/20 text-danger-red hover:bg-danger-red/5 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                   Delete
@@ -259,7 +247,7 @@ export default function ContentDetailPage() {
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] text-label-sm font-semibold">
                   Cancel
                 </button>
-                <button onClick={handleSave} disabled={saving}
+                <button onClick={handleSave} disabled={saving || !allowed(0)}
                   className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5 disabled:opacity-60">
                   {saving ? (
                     <>Saving...</>

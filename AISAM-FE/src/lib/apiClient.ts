@@ -59,7 +59,7 @@ const ERROR_MAP: Record<string, string> = {
   "System error": "Đã có lỗi hệ thống. Vui lòng thử lại sau.",
 };
 
-async function handleResponse(response: Response) {
+async function handleResponse(response: Response, config: RequestInit) {
   let result: any = null;
   let text = "";
   try {
@@ -69,6 +69,7 @@ async function handleResponse(response: Response) {
     // If JSON parsing fails, result remains null, but we still have text
   }
 
+  assertWorkspace(config);
   if (!response.ok) {
     let errorMessage = "Đã có lỗi xảy ra";
 
@@ -132,16 +133,23 @@ async function handleResponse(response: Response) {
             window.location.href = "/login";
           }
           // Return a hanging promise to stop execution and prevent unhandled rejections while the browser redirects
-          return new Promise(() => { });
+          throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
         }
       }
       // If server-side or already on login page (and is a login request), let it fall through and throw
     }
 
     const trimmed = errorMessage.trim();
+    if (response.status === 403 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: response.status }));
+    }
     const mappedError = ERROR_MAP[trimmed]
       ?? Object.entries(ERROR_MAP).find(([k]) => k.toLowerCase() === trimmed.toLowerCase())?.[1];
-    const error = new Error(mappedError ?? (trimmed || `Request failed (${response.status})`)) as Error & {
+    const friendly = response.status === 403 ? mappedError ?? "Bạn không còn quyền thực hiện thao tác này. Hãy kiểm tra workspace hoặc liên hệ Owner."
+      : response.status === 404 ? "Tài nguyên không tồn tại hoặc bạn không còn quyền truy cập."
+      : response.status === 409 ? "Quyền đã được người khác thay đổi. Tải lại trước khi lưu."
+      : mappedError ?? (trimmed || `Request failed (${response.status})`);
+    const error = new Error(friendly) as Error & {
       status?: number;
       category?: string;
     };
@@ -169,21 +177,19 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
       document.cookie = "aisam_role=; path=/; max-age=0";
       if (window.location.pathname !== "/login") {
         window.location.replace("/login");
-        return new Promise(() => { });
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
       }
     }
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
   }
-  const workspace = getStoredActiveWorkspace();
-  const profile = getStoredActiveProfile();
+  assertWorkspace(config);
   const newHeaders: Record<string, string> = {
     ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
-    ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
-    ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
   };
   const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
-  return handleResponse(retryResponse);
+  assertWorkspace(config);
+  return handleResponse(retryResponse, config);
 }
 
 export async function apiClient(endpoint: string, options: ApiOptions = {}) {
@@ -204,30 +210,39 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
       ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
       ...headers,
     },
-    ...(isMutation ? { cache: "no-store" } : { next: { revalidate: 30 } }),
+    cache: "no-store",
     ...customConfig,
   };
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
+  assertWorkspace(config);
 
   if (response.status === 401 && token && !isPublic && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
   }
 
-  return handleResponse(response);
+  return handleResponse(response, config);
 }
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   await ensureValidToken();
   const { headers, token } = await buildHeaders(options.headers as Record<string, string> | undefined);
 
-  const config: RequestInit = { ...options, headers };
+  const config: RequestInit = { ...options, headers, cache: "no-store" };
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
+  assertWorkspace(config);
 
   if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
   }
 
-  return handleResponse(response);
+  return handleResponse(response, config);
+}
+
+function assertWorkspace(config: RequestInit) {
+  const sent = new Headers(config.headers).get("X-Workspace-Id");
+  if (sent !== (getStoredActiveWorkspace()?.id ?? null)) {
+    throw new DOMException("Workspace đã thay đổi; bỏ qua phản hồi cũ.", "AbortError");
+  }
 }

@@ -71,8 +71,29 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                         continue;
                     }
 
-                    var userId = await context.Profiles.Where(profile => profile.Id == plan.ProfileId).OrderBy(profile => profile.Id).Select(profile => profile.UserId).FirstOrDefaultAsync(stoppingToken);
-                    if (userId != Guid.Empty) await approval.ApproveAsync(plan.WorkspaceId, plan.Id, userId, cancellationToken: stoppingToken);
+                    var userId=plan.CreatedByUserId;
+                    if(userId is null||userId==Guid.Empty)
+                    {
+                        plan.AutoApprove = false;
+                        plan.Status = AutomationPlanStatusEnum.PartiallyFailed;
+                        foreach (var item in plan.Items.Where(i => i.Status == AutomationItemStatusEnum.AwaitingApproval))
+                        {
+                            item.Status = AutomationItemStatusEnum.NeedsAttention;
+                            item.LastError = "AUTOMATION_ACTOR_REQUIRED";
+                        }
+                        context.Notifications.Add(new AISAM.Data.Model.Notification { ProfileId=plan.ProfileId,
+                            WorkspaceId=plan.WorkspaceId, Title="Automation needs permission review",
+                            Message="AUTOMATION_ACTOR_REQUIRED", TargetId=plan.Id, TargetType="AutomationPlan",
+                            Type=NotificationTypeEnum.ApprovalNeeded });
+                        await context.SaveChangesAsync(stoppingToken);continue;
+                    }
+                    var previousActor=context.ExecutionActorId;var previousSystem=context.ExecutionIsSystem;
+                    try
+                    {
+                        context.ExecutionActorId=userId;context.ExecutionIsSystem=true;
+                        await approval.ApproveAsync(plan.WorkspaceId,plan.Id,userId.Value,cancellationToken:stoppingToken);
+                    }
+                    finally{context.ExecutionActorId=previousActor;context.ExecutionIsSystem=previousSystem;}
                 }
 
                 var changedItems = await context.AutomationItems
@@ -110,9 +131,10 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
                 }
                 foreach (var item in changedItems)
                 {
-                    item.Status = item.ContentCalendar!.Status == ScheduleStatusEnum.Completed
-                        ? AutomationItemStatusEnum.Published : AutomationItemStatusEnum.PublishFailed;
-                    item.LastError = item.ContentCalendar.Status == ScheduleStatusEnum.Failed ? item.ContentCalendar.LastError : null;
+                    var destinations = await context.ContentCalendars.AsNoTracking()
+                        .Where(s => s.ContentId == item.ContentId && s.IsActive && !s.IsDeleted)
+                        .ToListAsync(stoppingToken);
+                    ApplyPublicationResults(item, destinations);
                     item.UpdatedAt = DateTime.UtcNow;
                 }
                 foreach (var plan in changedItems.Select(item => item.AutomationPlan).Distinct())
@@ -133,5 +155,18 @@ public sealed class AutomationOperationsBackgroundService : BackgroundService
             try { await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
+    }
+
+    public static void ApplyPublicationResults(AISAM.Data.Model.AutomationItem item,
+        IReadOnlyCollection<AISAM.Data.Model.ContentCalendar> destinations)
+    {
+        if (destinations.Count == 0) return;
+        var failures = destinations.Where(s => s.Status == ScheduleStatusEnum.Failed).ToList();
+        item.LastError = failures.Count == 0 ? null : string.Join("; ", failures.Select(s => s.LastError).Distinct());
+        if (failures.Count > 0) item.AutomationPlan.AutoApprove = false;
+        // A successful first page does not imply all selected destinations succeeded.
+        item.Status = destinations.Any(s => s.Status is ScheduleStatusEnum.Pending or ScheduleStatusEnum.Processing)
+            ? AutomationItemStatusEnum.Scheduled
+            : failures.Count > 0 ? AutomationItemStatusEnum.PublishFailed : AutomationItemStatusEnum.Published;
     }
 }

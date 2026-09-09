@@ -14,6 +14,8 @@ namespace AISAM.Data.Model
         [Required]
         [Column("profile_id")]
         public Guid ProfileId { get; set; }
+        [Column("created_by_user_id")]
+        public Guid? CreatedByUserId { get; set; }
 
         [Column("workspace_id")]
         public Guid WorkspaceId { get; set; }

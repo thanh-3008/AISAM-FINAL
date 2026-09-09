@@ -2,6 +2,8 @@ namespace AISAM.Common.Models;
 
 public sealed class InstagramSettings
 {
+    // Opt in only after sandbox verification of this exact integration.
+    public List<Guid> VerifiedCarouselIntegrationIds {get;set;}=[];
     public string AppId { get; set; } = string.Empty;
     public string AppSecret { get; set; } = string.Empty;
     public string RedirectUri { get; set; } = string.Empty;

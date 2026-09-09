@@ -10,6 +10,12 @@ namespace AISAM.Data.Model
         [Key]
         [Column("id")]
         public Guid Id { get; set; }
+        [Column("workspace_id")] public Guid? WorkspaceId {get;set;}
+        [Column("brand_id")] public Guid? BrandId {get;set;}
+        [Column("sha256")] public string? Sha256 {get;set;}
+        [Column("provider_public_id")] public string? ProviderPublicId {get;set;}
+        [Column("expired_at")] public DateTime? ExpiredAt {get;set;}
+        [Column("storage_deleted_at")] public DateTime? StorageDeletedAt {get;set;}
 
         [ForeignKey("User")] 
         [Column("uploaded_by")]

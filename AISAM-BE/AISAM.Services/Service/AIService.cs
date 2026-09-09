@@ -67,6 +67,8 @@ public sealed class AIService : IAIService
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
     {
+        if (userId == Guid.Empty)
+            return GenericResponse<AiGenerationResponse>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
@@ -84,6 +86,7 @@ public sealed class AIService : IAIService
 
         var content = await _contentRepository.AddAsync(new Content
         {
+            PrimaryCreatorId = userId,
             ProfileId = profileId,
             WorkspaceId = workspaceId,
             BrandId = request.BrandId,
@@ -167,6 +170,8 @@ public sealed class AIService : IAIService
 
     private async Task<GenericResponse<ChatResponse>> ChatInternalAsync(Guid profileId, Guid? workspaceId, Guid? userId, ChatRequest request, CancellationToken cancellationToken)
     {
+        if (workspaceId.HasValue && (!userId.HasValue || userId == Guid.Empty))
+            return GenericResponse<ChatResponse>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         var userMessage = PromptGuard.SanitizePromptInput(request.Message);
         if (string.IsNullOrWhiteSpace(userMessage))
         {
@@ -231,6 +236,7 @@ public sealed class AIService : IAIService
                 : await _conversationRepository.GetActiveAsync(profileId, request.BrandId, request.ProductId, request.AdType, cancellationToken);
             conversation ??= await _conversationRepository.AddAsync(new Conversation
             {
+                CreatedByUserId = userId,
                 ProfileId = profileId,
                 WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
                 BrandId = request.BrandId,
@@ -324,6 +330,7 @@ public sealed class AIService : IAIService
                         {
                             var dummyContent = await _contentRepository.AddAsync(new Content
                             {
+                                PrimaryCreatorId = userId,
                                 ProfileId = profileId,
                                 WorkspaceId = workspaceId.Value,
                                 BrandId = conversation.BrandId.Value,
@@ -360,6 +367,7 @@ public sealed class AIService : IAIService
                     {
                         var dummyContent = await _contentRepository.AddAsync(new Content
                         {
+                            PrimaryCreatorId = userId,
                             ProfileId = profileId,
                             WorkspaceId = workspaceId.Value,
                             BrandId = conversation.BrandId.Value,
@@ -447,6 +455,7 @@ public sealed class AIService : IAIService
                     {
                         var dummyContent = await _contentRepository.AddAsync(new Content
                         {
+                            PrimaryCreatorId = userId,
                             ProfileId = profileId,
                             WorkspaceId = workspaceId.Value,
                             BrandId = conversation.BrandId.Value,
@@ -520,6 +529,7 @@ public sealed class AIService : IAIService
                 {
                     var contentWithOriginalImages = await _contentRepository.AddAsync(new Content
                     {
+                        PrimaryCreatorId = userId,
                         ProfileId = profileId,
                         WorkspaceId = workspaceId.Value,
                         BrandId = conversation.BrandId.Value,

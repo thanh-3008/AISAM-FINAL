@@ -4,9 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useResourcePermissions } from "@/hooks/useResourcePermissions";
+import { Kind, Permission } from "@/services/permissionService";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
-import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
+import { fetchAllVisibleContents as fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import { fetchSchedules } from "@/services/scheduleService";
 import { fetchWorkspaceMembers, type WorkspaceMember } from "@/services/workspaceService";
 import {
@@ -389,10 +391,13 @@ export default function ApprovalsPage() {
   const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
-  const canReview = featureGate.can("reviewContent");
+
   const canPublish = featureGate.can("publishPost");
   const canManageSchedules = featureGate.can("manageSchedules");
   const [items, setItems] = useState<ApprovalListItem[]>([]);
+  const reviewAllowed = useResourcePermissions(items.map(item => ({ kind: Kind.Content, resourceId: item.id, permission: Permission.ApprovalReview })));
+  const isReviewAllowed = (id: string) => reviewAllowed(items.findIndex(item => item.id === id));
+  const canReview = items.some((_, index) => reviewAllowed(index));
   const [teamMembers, setTeamMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -418,21 +423,8 @@ export default function ApprovalsPage() {
 
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); }
-    const [contentResult, scheduleResult] = await Promise.all([
-      fetchContents({ pageSize: 100 }),
-      fetchSchedules({ pageSize: 100 }),
-    ]);
-    const contentItems: ApprovalListItem[] = (contentResult?.items ?? [])
-      .filter((item) => item.status !== "Draft")
-      .map((item) => ({
-        ...item,
-        approvalSource: "content",
-      }));
-    const contentById = new Map(contentItems.map((item) => [item.id, item]));
-    const failedScheduleItems = (scheduleResult.data.data ?? [])
-      .filter((schedule) => schedule.status === "Failed")
-      .map((schedule) => mapFailedScheduleToApprovalItem(schedule, contentById.get(schedule.contentId)));
-    setItems([...contentItems, ...failedScheduleItems]);
+    const contentResult = await fetchContents({ pageSize: 100, reviewQueue: true });
+    setItems((contentResult?.items ?? []).map(item => ({ ...item, approvalSource: "content" })));
     setLoading(false);
   }, [activeWorkspace?.id]);
 
@@ -462,11 +454,11 @@ export default function ApprovalsPage() {
   };
 
   const applyItemStatus = (id: string, status: ContentItem["status"]) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
+    setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const handleApprove = async (id: string) => {
-    if (!canReview) return;
+    if (!isReviewAllowed(id)) return;
     setActionId(id);
     const item = items.find((i) => i.id === id);
     const success = await approveContent(id);
@@ -587,7 +579,7 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelectAll = () => {
-    const selectableIds = paged.filter((item) => !isScheduleFailureItem(item)).map((item) => item.id);
+    const selectableIds = paged.filter((item) => isReviewAllowed(item.id) && !isScheduleFailureItem(item)).map((item) => item.id);
     if (selectableIds.length === 0) return;
     const allSelected = selectableIds.every((id) => selected.has(id));
     setSelected((prev) => {
@@ -620,7 +612,7 @@ export default function ApprovalsPage() {
   const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
   const paged = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
   
-  const selectableFiltered = canReview ? paged.filter((item) => !isScheduleFailureItem(item)) : [];
+  const selectableFiltered = canReview ? paged.filter((item) => isReviewAllowed(item.id) && !isScheduleFailureItem(item)) : [];
   const allSelectableSelected = selectableFiltered.length > 0 && selectableFiltered.every((item) => selected.has(item.id));
 
   const tabCounts: Record<TabKey, number> = {
@@ -702,12 +694,8 @@ export default function ApprovalsPage() {
           {/* ── Status Tabs ── */}
           <div className="border-b border-outline-variant flex gap-6">
             {([
-              { key: "all", label: "All" },
+              { key: "all", label: "Review queue" },
               { key: "pending", label: "Pending" },
-              { key: "approved", label: "Approved" },
-              { key: "published", label: "Published" },
-              { key: "failed", label: "Failed" },
-              { key: "rejected", label: "Rejected" },
             ] as { key: TabKey; label: string }[]).map((t) => (
               <button key={t.key} onClick={() => { setTab(t.key); setSelected(new Set()); setCurrentPage(1); }}
                 className={`pb-3 text-label-sm font-semibold transition-all border-b-2 ${
@@ -853,9 +841,9 @@ export default function ApprovalsPage() {
                       const priority = getPriority(item);
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
-                      const isSelectable = canReview && !isScheduleFailureItem(item);
+                      const isSelectable = isReviewAllowed(item.id) && !isScheduleFailureItem(item);
                       const statusMeta = getStatusMeta(item.status);
-                      const canReviewItem = isPendingStatus(item.status) && canReview;
+                      const canReviewItem = isPendingStatus(item.status) && isReviewAllowed(item.id);
                       const canDelete = isRejectedStatus(item.status);
                       const rowImageUrl = getPreviewImageUrl(item);
                       const rowVideoUrl = getPreviewVideoUrl(item);
@@ -1404,7 +1392,7 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
-                {isPendingStatus(drawerItem.status) && canReview && (
+                {isPendingStatus(drawerItem.status) && isReviewAllowed(drawerItem.id) && (
                   <>
                     <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
                       className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">

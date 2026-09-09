@@ -12,6 +12,46 @@ namespace AISAM.IntegrationTests;
 
 public class ScheduledPostingServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NotificationFailureCannotChangeOutcomeOrCauseReplay(bool uncertain)
+    {
+        var schedule = CreateDueSchedule();
+        var provider = new FakeContentService { PublishResult = GenericResponse<PublishResultDto>.CreateSuccess(new()
+            { Success = !uncertain, RequiresReconciliation = uncertain, ProviderPostId = "provider-id" }) };
+        var service = new ScheduledPostingService(new FakeContentCalendarRepository(schedule), provider,
+            new FakeNotificationRepository { FailDelivery = true }, new FakeProfileRepository(), new FakeWorkspaceMemberRepository(), new FakeContentRepository());
+        await service.RunDueSchedulesAsync(10);
+        Assert.Equal(uncertain ? ScheduleStatusEnum.Failed : ScheduleStatusEnum.Completed, schedule.Status);
+        if (uncertain) Assert.Contains("provider-id", schedule.LastError);
+        var second = await service.RunDueSchedulesAsync(10);
+        Assert.Equal(0, second.ScannedCount);
+    }
+    [Theory]
+    [InlineData("ACCESS_DENIED_CHANNEL",HttpStatusCode.Forbidden,false)]
+    [InlineData("SOCIAL_REAUTH_REQUIRED",HttpStatusCode.Conflict,false)]
+    [InlineData("PUBLISH_PROVIDER_REJECTED",HttpStatusCode.BadGateway,false)]
+    [InlineData("PUBLISH_RETRY_SAFE",HttpStatusCode.ServiceUnavailable,true)]
+    public async Task RetryRequiresExplicitSafeClassification(string code,HttpStatusCode status,bool retry)
+    {
+        var schedule=CreateDueSchedule();var provider=new FakeContentService{PublishResult=GenericResponse<PublishResultDto>.CreateError("publication failed",status,code)};
+        var service=new ScheduledPostingService(new FakeContentCalendarRepository(schedule),provider,new FakeNotificationRepository(),new FakeProfileRepository(),new FakeWorkspaceMemberRepository(),new FakeContentRepository());
+        await service.RunDueSchedulesAsync(10);
+        Assert.Equal(retry?ScheduleStatusEnum.Pending:ScheduleStatusEnum.Failed,schedule.Status);
+        Assert.Equal(1,schedule.AttemptCount);
+    }
+
+    [Fact]
+    public async Task UnknownProviderOutcomeIsTerminalAndNotified()
+    {
+        var schedule=CreateDueSchedule();var notifications=new FakeNotificationRepository();
+        var provider=new FakeContentService{PublishResult=GenericResponse<PublishResultDto>.CreateSuccess(new(){RequiresReconciliation=true,ProviderPostId="pending-id"})};
+        var service=new ScheduledPostingService(new FakeContentCalendarRepository(schedule),provider,notifications,new FakeProfileRepository(),new FakeWorkspaceMemberRepository(),new FakeContentRepository());
+        await service.RunDueSchedulesAsync(10);
+        Assert.Equal(ScheduleStatusEnum.Failed,schedule.Status);Assert.Contains("pending-id",schedule.LastError);
+        Assert.Single(notifications.Notifications.Values);
+    }
     [Fact]
     public async Task RunDueSchedulesAsync_PublishesDueScheduleAndMarksCompleted_WhenPublishSucceeds()
     {
@@ -278,8 +318,7 @@ public class ScheduledPostingServiceTests
             var due = Schedules.Values
                 .Where(s =>
                     !s.IsDeleted &&
-                    (s.Status == ScheduleStatusEnum.Pending ||
-                     (s.Status == ScheduleStatusEnum.Failed && s.AttemptCount < maxAttemptCount)) &&
+                    s.Status == ScheduleStatusEnum.Pending && s.AttemptCount < maxAttemptCount &&
                     (s.ScheduledAt ?? s.ScheduledDate) <= utcNow)
                 .OrderBy(s => s.ScheduledAt ?? s.ScheduledDate)
                 .Take(limit)
@@ -401,6 +440,7 @@ public class ScheduledPostingServiceTests
 
     private sealed class FakeNotificationRepository : INotificationRepository
     {
+        public bool FailDelivery { get; init; }
         public Dictionary<Guid, Notification> Notifications { get; } = new();
 
         public Task<Notification?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -412,6 +452,7 @@ public class ScheduledPostingServiceTests
 
         public Task<Notification> AddAsync(Notification notification, CancellationToken cancellationToken = default)
         {
+            if (FailDelivery) throw new InvalidOperationException("Notification unavailable.");
             Notifications[notification.Id] = notification;
             return Task.FromResult(notification);
         }

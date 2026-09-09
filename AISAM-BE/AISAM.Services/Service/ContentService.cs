@@ -11,6 +11,7 @@ using AISAM.Services.IServices;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Services.Service;
 
@@ -38,6 +39,10 @@ public sealed class ContentService : IContentService
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly INotificationRepository? _notificationRepository;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
+    private readonly AISAM.Repositories.AisamContext? _context;
+    private readonly InstagramSettings _instagram;
+    private readonly PublishProgressContext? _progress;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -51,7 +56,11 @@ public sealed class ContentService : IContentService
         IQuotaService quotaService,
         IContentCalendarRepository contentCalendarRepository,
         IWorkspaceRepository workspaceRepository,
-        INotificationRepository? notificationRepository = null)
+        INotificationRepository? notificationRepository = null,
+        AISAM.Services.Access.IAccessControlService? access = null,
+        AISAM.Repositories.AisamContext? context = null,
+        Microsoft.Extensions.Options.IOptions<InstagramSettings>? instagram=null,
+        PublishProgressContext? progress=null)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -65,6 +74,10 @@ public sealed class ContentService : IContentService
         _contentCalendarRepository = contentCalendarRepository;
         _workspaceRepository = workspaceRepository;
         _notificationRepository = notificationRepository;
+        _access=access;
+        _context=context;
+        _instagram=instagram?.Value??new();
+        _progress=progress;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -107,8 +120,9 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.CreatedSuccess);
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid actorUserId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
+        if (actorUserId == Guid.Empty) return GenericResponse<ContentResponseDto>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         var statusValidation = ValidateCreateStatus(request.Status);
         if (!statusValidation.Success) return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
 
@@ -120,6 +134,7 @@ public sealed class ContentService : IContentService
         if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
         var content = new Content
         {
+            PrimaryCreatorId = actorUserId,
             WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
             AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
             ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl), VideoUrl = request.VideoUrl,
@@ -212,11 +227,13 @@ public sealed class ContentService : IContentService
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), MessageConstants.Content.UpdatedSuccess);
     }
 
-    public async Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentResponseDto>> CloneInWorkspaceAsync(Guid id, Guid workspaceId, Guid actorUserId, CancellationToken cancellationToken = default)
     {
+        if (actorUserId == Guid.Empty) return GenericResponse<ContentResponseDto>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
         var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
+        clone.PrimaryCreatorId = actorUserId;
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
     }
@@ -279,6 +296,7 @@ public sealed class ContentService : IContentService
         }
 
         content.Status = ContentStatusEnum.PendingApproval;
+        content.Approvals.Add(new Approval { ContentId=content.Id, Status=ContentStatusEnum.PendingApproval, SubmittedAt=DateTime.UtcNow });
         await _contentRepository.UpdateAsync(content, cancellationToken);
         await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Content submitted for approval successfully.");
@@ -303,6 +321,7 @@ public sealed class ContentService : IContentService
             ContentId = content.Id,
             ApproverUserId = approverUserId,
             Status = ContentStatusEnum.Approved,
+            SubmittedAt = content.Approvals.Where(a=>!a.IsDeleted && a.Status==ContentStatusEnum.PendingApproval).OrderByDescending(a=>a.SubmittedAt).Select(a=>a.SubmittedAt).FirstOrDefault(),
             ApprovedAt = DateTime.UtcNow
         });
 
@@ -340,6 +359,7 @@ public sealed class ContentService : IContentService
             ContentId = content.Id,
             ApproverUserId = approverUserId,
             Status = ContentStatusEnum.Rejected,
+            SubmittedAt = content.Approvals.Where(a=>!a.IsDeleted && a.Status==ContentStatusEnum.PendingApproval).OrderByDescending(a=>a.SubmittedAt).Select(a=>a.SubmittedAt).FirstOrDefault(),
             Notes = notes
         });
 
@@ -500,6 +520,13 @@ public sealed class ContentService : IContentService
         bool cancelActiveSchedules,
         CancellationToken cancellationToken)
     {
+        if(_access is not null)
+        {
+            if(_context?.ExecutionActorId is not { } actor || workspaceId is not { } workspace)
+                return GenericResponse<PublishResultDto>.CreateError("Publishing requires a known actor and workspace.",HttpStatusCode.Forbidden);
+            var decision=await _access.CheckAsync(new(actor,workspace,AISAM.Services.Access.AccessResourceKind.Content,contentId,AISAM.Services.Access.ResourcePermission.PostPublish,integrationId),cancellationToken);
+            if(!decision.Allowed) return GenericResponse<PublishResultDto>.CreateError(decision.ErrorCode!, (HttpStatusCode)decision.StatusCode);
+        }
         var semaphore = _publishLocks.GetOrAdd(contentId, _ => new SemaphoreSlim(1, 1));
         await semaphore.WaitAsync(cancellationToken);
         try
@@ -514,7 +541,7 @@ public sealed class ContentService : IContentService
             // A content item may be published to more than one social integration.
             // The first successful post marks it Published; later integrations must
             // still be allowed to publish the same content.
-            if (content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)
+            if (_context?.ExecutionSnapshotId is null && content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)
             {
                 return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.MustBeApproved, HttpStatusCode.BadRequest);
             }
@@ -571,20 +598,49 @@ public sealed class ContentService : IContentService
 
             if (string.IsNullOrWhiteSpace(socialAccount.UserAccessToken))
             {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountTokenMissing, HttpStatusCode.BadRequest);
+                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountTokenMissing, HttpStatusCode.Conflict,"SOCIAL_REAUTH_REQUIRED");
             }
 
             if (socialAccount.ExpiresAt.HasValue && socialAccount.ExpiresAt.Value <= DateTime.UtcNow)
             {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountTokenExpired, HttpStatusCode.BadRequest);
+                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.SocialAccountTokenExpired, HttpStatusCode.Conflict,"SOCIAL_REAUTH_REQUIRED");
             }
 
             if (string.IsNullOrWhiteSpace(integration.AccessToken))
             {
-                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.IntegrationTokenMissing, HttpStatusCode.BadRequest);
+                return GenericResponse<PublishResultDto>.CreateError(MessageConstants.Content.IntegrationTokenMissing, HttpStatusCode.Conflict,"SOCIAL_REAUTH_REQUIRED");
             }
 
-            var postDto = BuildPostDto(content);
+            if (_context is not null && !cancelActiveSchedules && !_context.ExecutionSnapshotId.HasValue)
+                return GenericResponse<PublishResultDto>.CreateError("Legacy schedule has no reviewed snapshot. Resubmit, approve and schedule again.",HttpStatusCode.Conflict);
+            var payloadContent=content;
+            PublishSnapshot? frozen=null;
+            if(_context is not null)
+            {
+                var snapshotId=_context.ExecutionSnapshotId??content.ApprovedSnapshotId;
+                frozen=await _context.PublishSnapshots.IgnoreQueryFilters().AsNoTracking().Include(s=>s.Media)
+                    .SingleOrDefaultAsync(s=>s.Id==snapshotId && s.ContentId==content.Id && s.WorkspaceId==content.WorkspaceId,cancellationToken);
+                if(frozen is null)return GenericResponse<PublishResultDto>.CreateError("Content needs a reviewed snapshot. Submit and approve it again.",HttpStatusCode.Conflict);
+                var capabilityError=PublishingCapabilities.Validate(PublishingCapabilities.For(integration,socialAccount,DateTime.UtcNow,_instagram.VerifiedCarouselIntegrationIds.Contains(integration.Id)),frozen.Media);
+                if(capabilityError is not null)return GenericResponse<PublishResultDto>.CreateError(capabilityError,
+                    capabilityError=="SOCIAL_REAUTH_REQUIRED"?HttpStatusCode.Conflict:HttpStatusCode.BadRequest,capabilityError);
+                payloadContent=JsonSerializer.Deserialize<Content>(frozen.Payload)!;
+                var images=frozen.Media.Where(m=>m.MimeType?.StartsWith("image/")==true).OrderBy(m=>m.SortOrder).ToList();
+                var videos=frozen.Media.Where(m=>m.MimeType?.StartsWith("video/")==true).OrderBy(m=>m.SortOrder).ToList();
+                if(images.Count>0){payloadContent.AdType=AdTypeEnum.ImageText;payloadContent.ImageUrl=JsonSerializer.Serialize(images.Select(m=>m.Url));}
+                if(videos.Count>0){payloadContent.AdType=AdTypeEnum.VideoText;payloadContent.VideoUrl=videos[0].Url;}
+            }
+            var postDto = BuildPostDto(payloadContent);
+            postDto.Progress=async(stage,media,token)=>
+            {
+                if(stage=="Publishing"&&_access is not null)
+                {
+                    var permission=await _access.CheckAsync(new(_context!.ExecutionActorId!.Value,workspaceId!.Value,AISAM.Services.Access.AccessResourceKind.Content,contentId,AISAM.Services.Access.ResourcePermission.PostPublish,integrationId),token);
+                    if(!permission.Allowed)throw new AISAM.Repositories.ResourceMutationDeniedException();
+                }
+                if(_progress?.Report is {} report)await report(stage,media,token);
+            };
+            if(frozen is not null)postDto.Media=frozen.Media.OrderBy(m=>m.SortOrder).Select(m=>new PublishMediaDto(m.Id,m.Url,m.MimeType??"unknown",m.DurationSeconds)).ToList();
             var decryptedAccount = CloneAccountForPublish(socialAccount);
             var decryptedIntegration = CloneIntegrationForPublish(integration);
 
@@ -597,31 +653,65 @@ public sealed class ContentService : IContentService
             {
                 return GenericResponse<PublishResultDto>.CreateError(
                     "Stored social credentials can no longer be decrypted. Disconnect and reconnect the account.",
-                    HttpStatusCode.Unauthorized,
-                    "SOCIAL_RECONNECT_REQUIRED");
+                    HttpStatusCode.Conflict,
+                    "SOCIAL_REAUTH_REQUIRED");
             }
 
-            var publishResult = await provider.PublishAsync(decryptedAccount, decryptedIntegration, postDto, cancellationToken);
+            if(_access is not null)
+            {
+                var latest=await _access.CheckAsync(new(_context!.ExecutionActorId!.Value,workspaceId!.Value,AISAM.Services.Access.AccessResourceKind.Content,contentId,AISAM.Services.Access.ResourcePermission.PostPublish,integrationId),cancellationToken);
+                if(!latest.Allowed) return GenericResponse<PublishResultDto>.CreateError(latest.ErrorCode!, (HttpStatusCode)latest.StatusCode);
+            }
+            PublishResultDto publishResult;
+            try{publishResult=await provider.PublishAsync(decryptedAccount,decryptedIntegration,postDto,cancellationToken);}
+            catch(AISAM.Repositories.ResourceMutationDeniedException)
+            {
+                return GenericResponse<PublishResultDto>.CreateError("Publishing permission was revoked.",HttpStatusCode.Forbidden,"ACCESS_DENIED_CHANNEL");
+            }
+            catch(Exception)
+            {
+                // A timeout may happen after the platform committed. All entry points,
+                // including legacy schedules, must stop and reconcile rather than retry.
+                return GenericResponse<PublishResultDto>.CreateSuccess(new(){RequiresReconciliation=true,ErrorMessage="PUBLISH_OUTCOME_UNKNOWN"},"Provider outcome is unknown; reconcile before retrying.");
+            }
+            if(publishResult.Success&&string.IsNullOrWhiteSpace(publishResult.ProviderPostId))publishResult.RequiresReconciliation=true;
+            if(publishResult.RequiresReconciliation)
+                return GenericResponse<PublishResultDto>.CreateSuccess(publishResult,"Provider accepted the request; publication requires status reconciliation.");
             if (!publishResult.Success)
             {
-                return GenericResponse<PublishResultDto>.CreateError(
-                    publishResult.ErrorMessage ?? MessageConstants.Content.PublishingFailed,
-                    HttpStatusCode.BadGateway);
+                var failure=GenericResponse<PublishResultDto>.CreateError("Provider rejected publication.",HttpStatusCode.BadGateway,"PUBLISH_PROVIDER_REJECTED");
+                publishResult.ErrorMessage="Provider rejected publication.";
+                failure.Data=publishResult;
+                return failure;
             }
 
+            try
+            {
             if (cancelActiveSchedules)
             {
                 await _contentCalendarRepository.CancelActiveSchedulesForContentAsync(contentId, cancellationToken);
             }
 
-            await _postRepository.AddAsync(new Post
+            var publishedPost=new Post
             {
                 ContentId = content.Id,
                 IntegrationId = integration.Id,
+                SnapshotId = frozen?.Id,
                 ExternalPostId = publishResult.ProviderPostId,
                 PublishedAt = publishResult.PostedAt ?? DateTime.UtcNow,
                 Status = ContentStatusEnum.Published
-            }, cancellationToken);
+            };
+            await _postRepository.AddAsync(publishedPost,cancellationToken);
+            if(_context is not null&&publishResult.Media.Count>0)
+            {
+                var mediaRows=await _context.PostMedia.Where(m=>m.PostId==publishedPost.Id).ToListAsync(cancellationToken);
+                foreach(var row in mediaRows)
+                {
+                    var item=publishResult.Media.SingleOrDefault(m=>m.Id==row.SnapshotMediaId);
+                    if(item is not null){row.ProviderMediaId=item.ProviderMediaId;row.Status=item.Status;row.ErrorCode=item.ErrorCode;}
+                }
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             if (!string.IsNullOrWhiteSpace(publishResult.RefreshedTargetAccessToken))
             {
@@ -629,10 +719,20 @@ public sealed class ContentService : IContentService
                 await _socialIntegrationRepository.UpdateAsync(integration, cancellationToken);
             }
 
-            content.Status = ContentStatusEnum.Published;
-            await _contentRepository.UpdateAsync(content, cancellationToken);
+            if(frozen is null || content.ApprovedSnapshotId==frozen.Id)
+            {
+                content.Status = ContentStatusEnum.Published;
+                await _contentRepository.UpdateAsync(content, cancellationToken);
+            }
 
             return GenericResponse<PublishResultDto>.CreateSuccess(publishResult, MessageConstants.Content.PublishedSuccess);
+            }
+            catch(Exception)
+            {
+                _context?.ChangeTracker.Clear();
+                publishResult.RequiresReconciliation=true;
+                return GenericResponse<PublishResultDto>.CreateSuccess(publishResult,"Provider accepted publication; local persistence needs reconciliation.");
+            }
         }
         finally
         {

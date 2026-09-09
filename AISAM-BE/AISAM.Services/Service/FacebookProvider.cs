@@ -149,10 +149,16 @@ public sealed class FacebookProvider : IProviderService
     public async Task<PublishResultDto> PublishAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
+        if(post.Media is {Count:>0} ordered)
+        {
+            var videos=ordered.Count(m=>m.MimeType.StartsWith("video/"));
+            if(videos>1||videos>0&&ordered.Count>1)return new(){ErrorMessage="MEDIA_TYPE_UNSUPPORTED"};
+        }
+        if(post.ImageUrls is not {Count:>1})await post.ReportAsync("Publishing",[],cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(post.VideoUrl))
         {
-            return await PublishVideoAsync(account, integration, post, cancellationToken);
+            return WithSingleMedia(await PublishVideoAsync(account,integration,post,cancellationToken),post);
         }
 
         if (post.ImageUrls is { Count: > 1 })
@@ -162,10 +168,18 @@ public sealed class FacebookProvider : IProviderService
 
         if (!string.IsNullOrWhiteSpace(post.ImageUrl))
         {
-            return await PublishSingleImageAsync(account, integration, post, cancellationToken);
+            return WithSingleMedia(await PublishSingleImageAsync(account,integration,post,cancellationToken),post);
         }
 
         return await PublishFeedAsync(account, integration, post, cancellationToken);
+    }
+
+    private static PublishResultDto WithSingleMedia(PublishResultDto result,PostDto post)
+    {
+        // The legacy response exposes the post ID, not a distinct uploaded media ID.
+        // Keep ProviderMediaId null instead of manufacturing one from the post ID.
+        result.Media=post.Media?.Select(m=>new PublishMediaResult(m.Id,result.Success?"Published":"Failed",ErrorCode:result.Success?null:"PUBLISH_PROVIDER_REJECTED")).ToList()??[];
+        return result;
     }
 
     // ──────────────────────────────────────────────
@@ -1341,6 +1355,7 @@ public sealed class FacebookProvider : IProviderService
     private async Task<PublishResultDto> PublishMultiImageAsync(SocialIntegration integration, PostDto post, CancellationToken cancellationToken)
     {
         var uploadedMediaIds = new List<string>();
+        var mediaResults=post.Media?.Select(m=>new PublishMediaResult(m.Id,"Pending")).ToList()??[];
         foreach (var imageUrl in post.ImageUrls!)
         {
             var uploadResult = await PostFormAsync(
@@ -1355,10 +1370,15 @@ public sealed class FacebookProvider : IProviderService
 
             if (!uploadResult.Success || string.IsNullOrWhiteSpace(uploadResult.ProviderPostId))
             {
+                uploadResult.Success=false;
+                if(mediaResults.Count>uploadedMediaIds.Count)mediaResults[uploadedMediaIds.Count]=mediaResults[uploadedMediaIds.Count] with{Status="Failed",ErrorCode="MEDIA_UPLOAD_FAILED"};
+                uploadResult.Media=mediaResults;
                 return uploadResult;
             }
 
+            if(mediaResults.Count>uploadedMediaIds.Count)mediaResults[uploadedMediaIds.Count]=mediaResults[uploadedMediaIds.Count] with{Status="Uploaded",ProviderMediaId=uploadResult.ProviderPostId};
             uploadedMediaIds.Add(uploadResult.ProviderPostId);
+            await post.ReportAsync("UploadingMedia",mediaResults,cancellationToken);
         }
 
         var fields = new List<KeyValuePair<string, string>>
@@ -1372,7 +1392,10 @@ public sealed class FacebookProvider : IProviderService
             fields.Add(new KeyValuePair<string, string>($"attached_media[{i}]", JsonSerializer.Serialize(new { media_fbid = uploadedMediaIds[i] })));
         }
 
-        return await PostFormAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{integration.ExternalId}/feed", fields, cancellationToken);
+        await post.ReportAsync("Publishing",mediaResults,cancellationToken);
+        var published=await PostFormAsync($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/{integration.ExternalId}/feed", fields, cancellationToken);
+        published.Media=published.Success?mediaResults.Select(m=>m with{Status="Published"}).ToList():mediaResults;
+        return published;
     }
 
     private async Task<PublishResultDto> PublishVideoAsync(SocialAccount account, SocialIntegration integration, PostDto post, CancellationToken cancellationToken)
