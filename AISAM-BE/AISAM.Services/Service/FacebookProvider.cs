@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AISAM.Common.Models;
@@ -1419,7 +1419,7 @@ public sealed class FacebookProvider : IProviderService
     {
         if (string.IsNullOrWhiteSpace(_settings.AppId) ||
             string.IsNullOrWhiteSpace(_settings.AppSecret) ||
-            string.IsNullOrWhiteSpace(_settings.RedirectUri))
+            (string.IsNullOrWhiteSpace(_settings.RedirectUri) && string.IsNullOrWhiteSpace(_settings.RedirectPath)))
         {
             throw new InvalidOperationException("Facebook integration is not configured.");
         }

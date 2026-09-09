@@ -20,6 +20,7 @@ public sealed class SocialService : ISocialService
     private readonly InstagramSettings _instagramSettings;
     private readonly TikTokSettings _tikTokSettings;
     private readonly Dictionary<string, IProviderService> _providers;
+    private readonly IOriginResolver? _originResolver;
 
     public SocialService(
         ISocialAccountRepository socialAccountRepository,
@@ -30,7 +31,8 @@ public sealed class SocialService : ISocialService
         IOptions<FacebookSettings> facebookSettings,
         IOptions<InstagramSettings> instagramSettings,
         IOptions<TikTokSettings> tikTokSettings,
-        IEnumerable<IProviderService> providers)
+        IEnumerable<IProviderService> providers,
+        IOriginResolver? originResolver = null)
     {
         _socialAccountRepository = socialAccountRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
@@ -41,6 +43,7 @@ public sealed class SocialService : ISocialService
         _instagramSettings = instagramSettings.Value;
         _tikTokSettings = tikTokSettings.Value;
         _providers = providers.ToDictionary(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase);
+        _originResolver = originResolver;
     }
 
     public async Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, string? origin = null, CancellationToken cancellationToken = default)
@@ -455,27 +458,37 @@ public sealed class SocialService : ISocialService
 
     private string ResolveRedirectUri(string provider, string? origin)
     {
-        var configuredUri = GetRedirectUri(provider);
-        if (string.IsNullOrWhiteSpace(origin))
-        {
-            return configuredUri;
-        }
+        var effectiveOrigin = !string.IsNullOrWhiteSpace(origin)
+            ? origin
+            : (_originResolver?.ResolveOrigin((string?)null) ?? "https://aisam.io.vn");
 
-        var path = GetCallbackPath(provider, configuredUri);
-        return $"{origin.TrimEnd('/')}{path}";
+        var path = GetCallbackPath(provider);
+        return $"{effectiveOrigin.TrimEnd('/')}{path}";
     }
 
-    private static string GetCallbackPath(string provider, string configuredUri)
+    private string GetCallbackPath(string provider)
     {
-        if (!string.IsNullOrWhiteSpace(configuredUri) &&
-            Uri.TryCreate(configuredUri, UriKind.Absolute, out var uri))
+        var configuredPath = GetConfiguredRedirectPath(provider);
+        if (!string.IsNullOrWhiteSpace(configuredPath))
         {
-            return uri.AbsolutePath;
+            if (Uri.TryCreate(configuredPath, UriKind.Absolute, out var uri))
+            {
+                return uri.AbsolutePath;
+            }
+
+            if (configuredPath.StartsWith('/'))
+            {
+                return configuredPath;
+            }
+
+            return $"/{configuredPath}";
         }
 
-        if (!string.IsNullOrWhiteSpace(configuredUri) && configuredUri.StartsWith('/'))
+        var configuredUri = GetRedirectUri(provider);
+        if (!string.IsNullOrWhiteSpace(configuredUri) &&
+            Uri.TryCreate(configuredUri, UriKind.Absolute, out var parsedUri))
         {
-            return configuredUri;
+            return parsedUri.AbsolutePath;
         }
 
         return GetPlatform(provider) switch
@@ -486,6 +499,14 @@ public sealed class SocialService : ISocialService
             _ => throw new ArgumentException("Unsupported social provider.")
         };
     }
+
+    private string GetConfiguredRedirectPath(string provider) => GetPlatform(provider) switch
+    {
+        SocialPlatformEnum.Facebook => _facebookSettings.RedirectPath,
+        SocialPlatformEnum.Instagram => _instagramSettings.RedirectPath,
+        SocialPlatformEnum.TikTok => _tikTokSettings.RedirectPath,
+        _ => throw new ArgumentException("Unsupported social provider.")
+    };
 
     private string GetRedirectUri(string provider) => GetPlatform(provider) switch
     {

@@ -42,9 +42,12 @@ public sealed class OriginResolver : IOriginResolver
             AddOrigin(origin);
         }
 
-        _defaultOrigin = _allowedOrigins.FirstOrDefault(o => o.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            ?? _allowedOrigins.FirstOrDefault()
-            ?? "https://aisam.io.vn";
+        var configuredBase = Normalize(configuration["FrontendSettings:BaseUrl"] ?? Environment.GetEnvironmentVariable("FRONTEND_BASE_URL") ?? string.Empty);
+        _defaultOrigin = (configuredBase != null && _allowedOrigins.Contains(configuredBase))
+            ? configuredBase
+            : _allowedOrigins.FirstOrDefault(o => o.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                ?? _allowedOrigins.FirstOrDefault()
+                ?? "https://aisam.io.vn";
     }
 
     public string ResolveOrigin(HttpRequest request)

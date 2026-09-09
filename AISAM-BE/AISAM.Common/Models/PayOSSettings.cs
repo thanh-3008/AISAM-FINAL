@@ -8,4 +8,6 @@ public sealed class PayOSSettings
     public string BaseUrl { get; set; } = "https://api-merchant.payos.vn";
     public string ReturnUrl { get; set; } = string.Empty;
     public string CancelUrl { get; set; } = string.Empty;
+    public string ReturnPath { get; set; } = "/payment/success";
+    public string CancelPath { get; set; } = "/payment/cancel";
 }

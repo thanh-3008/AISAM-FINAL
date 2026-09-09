@@ -12,6 +12,7 @@ import { createBusinessWorkspacePayment, createPayment, exitPayment, synchronize
 import { PlanType, PLAN_NAMES, PLAN_HIERARCHY } from "@/lib/featureConfig";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
+import { resolveClientOrigin } from "@/lib/originResolver";
 
 type TabType = "subscription" | "credits";
 type PlanCategory = "personal" | "business";
@@ -319,8 +320,8 @@ function PricingContent() {
           legalBusinessName: businessLegalName.trim(),
           taxId: businessTaxId.trim(),
           planCode,
-          returnUrl: window.location.origin + "/pricing",
-          cancelUrl: window.location.origin + "/pricing?create=business",
+          returnUrl: resolveClientOrigin() + "/pricing",
+          cancelUrl: resolveClientOrigin() + "/pricing?create=business",
         });
         if (!payment?.checkoutUrl) {
           throw new Error("PayOS checkout URL was not returned.");
@@ -356,8 +357,8 @@ function PricingContent() {
       const payment = await createPayment({
         paymentType: 1,
         planCode,
-        returnUrl: window.location.origin + "/pricing",
-        cancelUrl: window.location.origin + "/pricing",
+        returnUrl: resolveClientOrigin() + "/pricing",
+        cancelUrl: resolveClientOrigin() + "/pricing",
       });
 
       if (payment?.checkoutUrl) {
@@ -396,8 +397,8 @@ function PricingContent() {
       const payment = await createPayment({
         paymentType: 2,
         creditPackCode,
-        returnUrl: window.location.origin + "/pricing",
-        cancelUrl: window.location.origin + "/pricing",
+        returnUrl: resolveClientOrigin() + "/pricing",
+        cancelUrl: resolveClientOrigin() + "/pricing",
       });
 
       if (payment?.checkoutUrl) {

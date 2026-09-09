@@ -13,17 +13,20 @@ namespace AISAM.API.Controllers;
 public sealed class SocialAuthRelayController : ControllerBase
 {
     private readonly FrontendSettings _frontendSettings;
+    private readonly FacebookSettings? _facebookSettings;
     private readonly IOAuthStateStore? _oauthStateStore;
     private readonly IOriginResolver? _originResolver;
 
     public SocialAuthRelayController(
         IOptions<FrontendSettings> frontendSettings,
         IOAuthStateStore? oauthStateStore = null,
-        IOriginResolver? originResolver = null)
+        IOriginResolver? originResolver = null,
+        IOptions<FacebookSettings>? facebookSettings = null)
     {
         _frontendSettings = frontendSettings.Value;
         _oauthStateStore = oauthStateStore;
         _originResolver = originResolver;
+        _facebookSettings = facebookSettings?.Value;
     }
 
     [AllowAnonymous]
@@ -57,7 +60,9 @@ public sealed class SocialAuthRelayController : ControllerBase
                 HttpStatusCode.BadRequest));
         }
 
-        var callbackUrl = $"{targetUri.ToString().TrimEnd('/')}/social-callback/facebook{Request.QueryString}";
+        var path = _facebookSettings?.RedirectPath ?? "/social-callback/facebook";
+        var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
+        var callbackUrl = $"{targetUri.ToString().TrimEnd('/')}{normalizedPath}{Request.QueryString}";
         return Redirect(callbackUrl);
     }
 }

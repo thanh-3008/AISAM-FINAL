@@ -307,6 +307,112 @@ public sealed class MultiDomainOAuthTests
         Assert.Contains("code=oauth-code", result.Url);
     }
 
+    [Fact]
+    public async Task FacebookProvider_GetAuthUrlAsync_Succeeds_WhenRedirectUriEmptyButRedirectPathConfigured()
+    {
+        var settings = Options.Create(new FacebookSettings
+        {
+            AppId = "test-app-id",
+            AppSecret = "test-app-secret",
+            RedirectUri = "",
+            RedirectPath = "/social-callback/facebook"
+        });
+        var provider = new FacebookProvider(new HttpClient(), settings, Microsoft.Extensions.Logging.Abstractions.NullLogger<FacebookProvider>.Instance);
+
+        var url = await provider.GetAuthUrlAsync("test-state", "https://aisam.ddns.net/social-callback/facebook");
+
+        Assert.Contains("redirect_uri=" + Uri.EscapeDataString("https://aisam.ddns.net/social-callback/facebook"), url);
+    }
+
+    [Fact]
+    public async Task TikTokProvider_GetAuthUrlAsync_Succeeds_WhenRedirectUriEmptyButRedirectPathConfigured()
+    {
+        var settings = Options.Create(new TikTokSettings
+        {
+            ClientKey = "test-client-key",
+            ClientSecret = "test-client-secret",
+            RedirectUri = "",
+            RedirectPath = "/social-callback/tiktok"
+        });
+        var provider = new TikTokProvider(new HttpClient(), settings, Microsoft.Extensions.Logging.Abstractions.NullLogger<TikTokProvider>.Instance);
+
+        var url = await provider.GetAuthUrlAsync("test-state", "https://aisam.ddns.net/social-callback/tiktok");
+
+        Assert.Contains("redirect_uri=" + Uri.EscapeDataString("https://aisam.ddns.net/social-callback/tiktok"), url);
+    }
+
+    [Fact]
+    public async Task SocialService_ResolveRedirectUri_BuildsFromRedirectPath_WhenRedirectUriEmpty()
+    {
+        var fakeProvider = new TrackingFakeProvider("facebook");
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var stateStore = new SignedOAuthStateStore("test-signing-secret-minimum-32-chars-long", cache);
+        var resolver = new OriginResolver(CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net"));
+
+        var service = new SocialService(
+            new FakeSocialAccountRepository(),
+            new FakeSocialIntegrationRepository(),
+            new FakeBrandRepository(),
+            stateStore,
+            new FakeSocialTokenProtector(),
+            Options.Create(new FacebookSettings { RedirectUri = "", RedirectPath = "/social-callback/facebook" }),
+            Options.Create(new InstagramSettings { RedirectUri = "", RedirectPath = "/auth/instagram/callback" }),
+            Options.Create(new TikTokSettings { RedirectUri = "", RedirectPath = "/social-callback/tiktok" }),
+            new[] { fakeProvider },
+            resolver);
+
+        var profileId = Guid.NewGuid();
+        var result = await service.GetAuthUrlAsync("facebook", profileId, "https://aisam.ddns.net");
+
+        Assert.NotNull(result);
+        Assert.Equal("https://aisam.ddns.net/social-callback/facebook", fakeProvider.LastRedirectUri);
+    }
+
+    [Fact]
+    public void PayOSPaymentService_ResolvePayOsUrls_DynamicallyResolvesBothDomains()
+    {
+        var resolver = new OriginResolver(CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net"));
+        var settings = Options.Create(new PayOSSettings
+        {
+            ReturnPath = "/payment/success",
+            CancelPath = "/payment/cancel"
+        });
+
+        var service = new PayOSPaymentService(
+            null!, null!, null!, null!, null!, null!, null!,
+            settings, new HttpClient(), null!, null, null, resolver);
+
+        var method = typeof(PayOSPaymentService).GetMethod("ResolvePayOsUrls", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        // 1. aisam.io.vn
+        var res1 = method!.Invoke(service, new object?[] { "https://aisam.io.vn/pricing", "https://aisam.io.vn/pricing?cancel=1" });
+        var tuple1 = ((string returnUrl, string cancelUrl, string? error))res1!;
+        Assert.Equal("https://aisam.io.vn/pricing", tuple1.returnUrl);
+        Assert.Equal("https://aisam.io.vn/pricing?cancel=1", tuple1.cancelUrl);
+        Assert.Null(tuple1.error);
+
+        // 2. aisam.ddns.net
+        var res2 = method.Invoke(service, new object?[] { "https://aisam.ddns.net/pricing", "https://aisam.ddns.net/pricing?cancel=1" });
+        var tuple2 = ((string returnUrl, string cancelUrl, string? error))res2!;
+        Assert.Equal("https://aisam.ddns.net/pricing", tuple2.returnUrl);
+        Assert.Equal("https://aisam.ddns.net/pricing?cancel=1", tuple2.cancelUrl);
+        Assert.Null(tuple2.error);
+
+        // 3. Null candidate URLs -> defaults to OriginResolver default origin + configured paths
+        var res3 = method.Invoke(service, new object?[] { null, null });
+        var tuple3 = ((string returnUrl, string cancelUrl, string? error))res3!;
+        Assert.Equal("https://aisam.io.vn/payment/success", tuple3.returnUrl);
+        Assert.Equal("https://aisam.io.vn/payment/cancel", tuple3.cancelUrl);
+        Assert.Null(tuple3.error);
+
+        // 4. Malicious candidate URL -> rejected
+        var res4 = method.Invoke(service, new object?[] { "https://evil.com/phish", null });
+        var tuple4 = ((string returnUrl, string cancelUrl, string? error))res4!;
+        Assert.NotNull(tuple4.error);
+        Assert.Contains("not allowed", tuple4.error, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class TrackingFakeProvider : IProviderService
     {
         public string ProviderName { get; }

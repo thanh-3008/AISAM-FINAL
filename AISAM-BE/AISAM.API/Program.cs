@@ -42,6 +42,7 @@ ApplyEnvironmentOverride(builder.Configuration, "JWT_AUDIENCE", "JwtSettings:Aud
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_APP_ID", "FacebookSettings:AppId");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_APP_SECRET", "FacebookSettings:AppSecret");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_REDIRECT_URI", "FacebookSettings:RedirectUri");
+ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_REDIRECT_PATH", "FacebookSettings:RedirectPath");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_GRAPH_API_VERSION", "FacebookSettings:GraphApiVersion");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_BASE_URL", "FacebookSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_OAUTH_URL", "FacebookSettings:OAuthUrl");
@@ -51,6 +52,8 @@ ApplyEnvironmentOverride(builder.Configuration, "FACEBOOK_SANDBOX_AD_ACCOUNT_IDS
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_APP_ID", "InstagramSettings:AppId");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_APP_SECRET", "InstagramSettings:AppSecret");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_REDIRECT_URI", "InstagramSettings:RedirectUri");
+ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_REDIRECT_PATH", "InstagramSettings:RedirectPath");
+ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_COMPLETE_PATH", "InstagramSettings:CompletePath");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_GRAPH_API_VERSION", "InstagramSettings:GraphApiVersion");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_BASE_URL", "InstagramSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "INSTAGRAM_OAUTH_URL", "InstagramSettings:OAuthUrl");
@@ -77,12 +80,15 @@ ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CHECKSUM_KEY", "PayOSSett
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_BASE_URL", "PayOSSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_URL", "PayOSSettings:ReturnUrl");
 ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_URL", "PayOSSettings:CancelUrl");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_RETURN_PATH", "PayOSSettings:ReturnPath");
+ApplyEnvironmentOverride(builder.Configuration, "PAYOS_CANCEL_PATH", "PayOSSettings:CancelPath");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_CLOUD_NAME", "CloudinarySettings:CloudName");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_KEY", "CloudinarySettings:ApiKey");
 ApplyEnvironmentOverride(builder.Configuration, "CLOUDINARY_API_SECRET", "CloudinarySettings:ApiSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSettings:ClientKey");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
+ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_PATH", "TikTokSettings:RedirectPath");
 
 // === OpenAI (Primary Image + Video) ===
 ApplyEnvironmentOverride(builder.Configuration, "OPENAI_API_KEY", "ImageProviderSettings:OpenAiApiKey");

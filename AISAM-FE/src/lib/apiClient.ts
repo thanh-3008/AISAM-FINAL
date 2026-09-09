@@ -10,6 +10,7 @@ type ApiOptions = RequestInit & {
 
 const PUBLIC_AUTH_ENDPOINTS = [
   "/auth/login",
+  "/auth/google",
   "/auth/register",
   "/auth/forgot-password",
   "/auth/reset-password",
