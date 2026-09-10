@@ -28,3 +28,6 @@ Build cho API cụ thể: `.\AISAM-MB\build-local-apk.ps1 -ApiBaseUrl https://st
 - Count sau cập nhật giữ nguyên: Content 40, Post 30, Asset 0, automation plan 3, social integration 34. Đây là đối soát số lượng, không thay thế checksum toàn bộ dữ liệu.
 - Log: `.artifacts/final-acceptance/local-migration.txt`; kiểm tra: `.artifacts/final-acceptance/database-preflight.json`.
 - Không thay đổi database remote cũ. Chưa xác nhận các provider/OAuth/thanh toán thật.
+## Backlog bổ sung BE/Web
+
+Luồng Team/Brand và quyền Manager còn thiếu được theo dõi riêng tại [TEAM_BRAND_NEXT_TASKS.md](TEAM_BRAND_NEXT_TASKS.md). Đây là phần cần hoàn thiện trước khi xác nhận toàn bộ nghiệp vụ phân quyền; không nằm trong các mục mobile đã kiểm chứng.

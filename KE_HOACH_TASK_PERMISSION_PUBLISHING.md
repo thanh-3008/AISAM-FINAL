@@ -1,5 +1,7 @@
 # AISAM — Các task lớn triển khai Permission & Publishing
 
+> **Đính chính tiến độ 10/09/2026:** luồng tạo Team thật → thêm thành viên → gán Brand chưa hoàn chỉnh. Các nhãn hoàn thành phát triển trước đây không có nghĩa toàn bộ luồng phân quyền đã dùng được. Backlog bổ sung và tiêu chí hoàn thành: [Team, Brand và quyền Manager](docs/TEAM_BRAND_NEXT_TASKS.md). Chưa đánh dấu hoàn thành các mục này.
+
 Ngày lập: **07/09/2026**.
 
 Nguồn: **AISAM_KeHoach_TrienKhai_Permission_Publishing.docx**, phiên bản 1.0, ngày 07/09/2026; đối chiếu sơ bộ với checkout AISAM hiện tại.
