@@ -16,3 +16,17 @@ it("settles loading on an API error",async()=>{
   vi.mocked(apiClient).mockRejectedValue(new Error("Không có quyền"));render(<Page/>);
   expect((await screen.findByRole("alert")).textContent).toContain("Không có quyền");expect(screen.queryByRole("status")).toBeNull();
 });
+it("renders API JSON with omitted nullable metrics without crashing", async () => {
+  vi.mocked(apiClient).mockResolvedValue({success:true,data:{
+    items:[{memberId:"c",name:"Creator",contentsCreated:2,creatorPublishedPosts:0,
+      publisherPublishedPosts:0,reviewedSubmissions:0,pendingSchedules:0,
+      completedSchedules:0,failedSchedules:0,postsWithInsights:0}],
+    total:1,updatedAt:"2026-09-08T00:00:00Z",brands:[],teams:[],members:[],metricDefinitions:{}
+  }});
+  render(<Page/>);
+  await screen.findByText("Chưa đồng bộ");
+  expect(screen.getAllByText("Chưa đủ dữ liệu")).toHaveLength(8);
+  expect(screen.queryByText(/Nội dung chưa xác định Creator:/)).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByRole("meter").getAttribute("value")).toBe("2");
+});
