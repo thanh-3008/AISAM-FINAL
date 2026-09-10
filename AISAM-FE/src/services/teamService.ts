@@ -49,23 +49,55 @@ export const QUOTA_MODE_FROM_BE: Record<number, QuotaMode> = {
   3: "MonthlyAssigned",
 };
 
+// ── Team entity types ──
+
 export interface Team {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
+  status: string;
+  memberCount: number;
   brandCount: number;
-  brandIds: string[];
-  memberIds: string[];
-  activity: number;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string | null;
+  memberIds?: string[];
+  brandIds?: string[];
+  activity?: number | string;
+}
+
+export interface TeamDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string | null;
+  members: TeamDetailMember[];
+  brands: TeamDetailBrand[];
+}
+
+export interface TeamDetailMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  joinedAt: string;
+  isActive: boolean;
+}
+
+export interface TeamDetailBrand {
+  brandId: string;
+  brandName: string;
+  isActive: boolean;
+  assignedAt: string;
 }
 
 export interface CreateTeamData {
   name: string;
-  description: string;
-  brandIds: string[];
-  memberIds: string[];
+  description?: string;
+  members?: { userId: string; role: string }[];
+  memberIds?: string[];
+  brandIds?: string[];
 }
 
 export interface InviteMemberData {
@@ -141,29 +173,113 @@ function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
   };
 }
 
-// Default team representing the whole workspace
-const DEFAULT_TEAM: Team = {
-  id: "workspace-team",
-  name: "Workspace Team",
-  description: "All workspace members",
-  brandCount: 0,
-  brandIds: [],
-  memberIds: [],
-  activity: 100,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+// ── Team CRUD (real API) ──
 
 export async function fetchTeams(): Promise<{ data: Team[]; total: number }> {
   try {
-    const res: GenericResponse<BEWorkspaceMemberDto[]> = await apiClient("/workspace-members").catch(() => null);
-    const memberIds = (res?.data || []).map((m: BEWorkspaceMemberDto) => m.id);
-    DEFAULT_TEAM.memberIds = memberIds;
-    return { data: [DEFAULT_TEAM], total: 1 };
+    const res: GenericResponse<{ items: Team[]; totalCount: number }> =
+      await apiClient("/teams/manage");
+    if (res?.success && res.data) {
+      return { data: res.data.items, total: res.data.totalCount };
+    }
   } catch {
-    return { data: [DEFAULT_TEAM], total: 1 };
+    // fall through
   }
+  return { data: [], total: 0 };
 }
+
+export async function getTeamById(id: string): Promise<TeamDetail | null> {
+  try {
+    const res: GenericResponse<TeamDetail> = await apiClient(`/teams/${id}`);
+    if (res?.success && res.data) {
+      return res.data;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+export async function createTeam(data: CreateTeamData): Promise<TeamDetail> {
+  const res: GenericResponse<TeamDetail> = await apiClient("/teams", {
+    method: "POST",
+    data: {
+      name: data.name,
+      description: data.description || null,
+      members: data.members || [],
+    },
+  });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to create team");
+  }
+  return res.data;
+}
+
+export async function updateTeam(
+  id: string,
+  data: { name: string; description?: string }
+): Promise<TeamDetail> {
+  const res: GenericResponse<TeamDetail> = await apiClient(`/teams/${id}`, {
+    method: "PUT",
+    data: { name: data.name, description: data.description || null },
+  });
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to update team");
+  }
+  return res.data;
+}
+
+export async function deleteTeam(id: string): Promise<boolean> {
+  const res: GenericResponse<unknown> = await apiClient(`/teams/${id}`, {
+    method: "DELETE",
+  });
+  return res?.success === true;
+}
+
+// ── Team Members (real API) ──
+
+export async function addTeamMember(
+  teamId: string,
+  userId: string,
+  role: string
+): Promise<TeamDetailMember> {
+  const res: GenericResponse<TeamDetailMember> = await apiClient(
+    `/teams/${teamId}/members`,
+    { method: "POST", data: { userId, role } }
+  );
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to add team member");
+  }
+  return res.data;
+}
+
+export async function removeTeamMember(
+  teamId: string,
+  userId: string
+): Promise<boolean> {
+  const res: GenericResponse<unknown> = await apiClient(
+    `/teams/${teamId}/members/${userId}`,
+    { method: "DELETE" }
+  );
+  return res?.success === true;
+}
+
+export async function updateTeamMemberRole(
+  teamId: string,
+  userId: string,
+  role: string
+): Promise<TeamDetailMember> {
+  const res: GenericResponse<TeamDetailMember> = await apiClient(
+    `/teams/${teamId}/members/${userId}`,
+    { method: "PUT", data: { role } }
+  );
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to update member role");
+  }
+  return res.data;
+}
+
+// ── Workspace Members (existing, unchanged) ──
 
 export async function fetchMembers(): Promise<{ data: TeamMember[]; total: number }> {
   const [membersRes, invitations] = await Promise.all([
@@ -202,42 +318,6 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
     return true;
   });
   return { data: allMembers, total: allMembers.length };
-}
-
-export async function createTeam(data: CreateTeamData): Promise<Team> {
-  const team: Team = {
-    id: `team_${Date.now()}`,
-    name: data.name,
-    description: data.description,
-    brandCount: data.brandIds.length,
-    brandIds: data.brandIds,
-    memberIds: data.memberIds,
-    activity: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  return team;
-}
-
-export async function updateTeam(id: string, data: Partial<CreateTeamData>): Promise<Team | null> {
-  if (id === DEFAULT_TEAM.id) {
-    DEFAULT_TEAM.brandIds = data.brandIds ?? DEFAULT_TEAM.brandIds;
-    DEFAULT_TEAM.brandCount = DEFAULT_TEAM.brandIds.length;
-    return {
-      ...DEFAULT_TEAM,
-      name: data.name || DEFAULT_TEAM.name,
-      description: data.description || DEFAULT_TEAM.description,
-    };
-  }
-  return null;
-}
-
-export async function deleteTeam(id: string): Promise<boolean> {
-  return id !== DEFAULT_TEAM.id;
-}
-
-export async function getTeamById(id: string): Promise<Team | null> {
-  return id === DEFAULT_TEAM.id ? DEFAULT_TEAM : null;
 }
 
 export async function inviteMember(data: InviteMemberData): Promise<TeamMember> {

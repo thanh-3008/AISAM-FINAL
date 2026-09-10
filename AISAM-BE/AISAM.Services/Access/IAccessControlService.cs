@@ -25,4 +25,6 @@ public static class DelegatedPermissionKeys
     public const string Publish = "aisam.permission.v1.post.publish";
     public const string Billing = "billing.manage";
     public const string MemberAnalytics = "analytics.member";
+    public const string TeamCreate = "aisam.permission.v1.team.create";
+    public const string BrandCreate = "aisam.permission.v1.brand.create";
 }
