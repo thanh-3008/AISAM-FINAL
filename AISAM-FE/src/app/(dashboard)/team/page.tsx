@@ -7,12 +7,14 @@ import { useWorkspaces, getWorkspaceTypeLabel, invalidateWorkspaceCache } from "
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import {
   fetchMembers,
+  fetchTeams,
   inviteMember,
   updateMemberRole,
   transferWorkspaceOwnership,
   removeMember,
   updateMemberQuota,
   type TeamMember,
+  type Team,
   type MemberRole,
   type MemberStatus,
   type QuotaMode,
@@ -28,11 +30,15 @@ import InviteMemberModal from "@/components/team/InviteMemberModal";
 import RoleDonutChart from "@/components/team/RoleDonutChart";
 import MemberCard from "@/components/team/MemberCard";
 import { calcTimeAgo } from "@/components/team/teamUtils";
+import CreateTeamWizard from "@/components/team/CreateTeamWizard";
+import TeamDetailPanel from "@/components/team/TeamDetailPanel";
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => Date.now());
+  const [activeTab, setActiveTab] = useState<"teams" | "members">("teams");
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60000);
@@ -45,6 +51,8 @@ export default function TeamPage() {
   const [memberView, setMemberView] = useState<"grid" | "table">("table");
 
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showCreateTeamWizard, setShowCreateTeamWizard] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [detailMember, setDetailMember] = useState<TeamMember | null>(null);
   const [deletingMembers, setDeletingMembers] = useState<TeamMember[]>([]);
@@ -62,11 +70,13 @@ export default function TeamPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const membersRes = await fetchMembers();
+      const [membersRes, teamsRes] = await Promise.all([fetchMembers(), fetchTeams()]);
       setMembers(membersRes.data);
+      setTeams(teamsRes.data);
     } catch {
-      showToast("Failed to load members", "error");
+      showToast("Failed to load data", "error");
       setMembers([]);
+      setTeams([]);
     }
   }, []);
 
@@ -282,6 +292,37 @@ export default function TeamPage() {
 
           <p className="text-sm">Vai trò workspace không tự cấp quyền mọi Brand. <Link href="/brands" className="underline">Chọn Brand để quản lý Team và quyền kênh</Link>.</p>
           <Link href="/team/performance" className="underline text-primary">Hiệu suất thành viên</Link>
+
+          {/* Tab Switcher */}
+          <div className="flex items-center gap-1 bg-surface-container-low rounded-xl p-1 w-fit">
+            <button
+              onClick={() => setActiveTab("teams")}
+              className={`px-4 py-2 rounded-lg text-label-sm font-semibold transition-all ${
+                activeTab === "teams"
+                  ? "bg-surface-container-lowest shadow-sm text-primary"
+                  : "text-outline hover:text-on-surface"
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px]">groups</span>
+                Teams ({teams.length})
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab("members")}
+              className={`px-4 py-2 rounded-lg text-label-sm font-semibold transition-all ${
+                activeTab === "members"
+                  ? "bg-surface-container-lowest shadow-sm text-primary"
+                  : "text-outline hover:text-on-surface"
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px]">person</span>
+                Members ({members.length})
+              </span>
+            </button>
+          </div>
+
           {/* Page Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-up">
             <div className="flex items-center gap-4">
@@ -297,7 +338,7 @@ export default function TeamPage() {
                   {activeWorkspace?.name || "Workspace"} Team
                 </h1>
                 <p className="text-label-sm text-outline">
-                  {activeMemberCount} members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)} · Manage your organization
+                  {teams.length} teams · {activeMemberCount} members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)}
                 </p>
               </div>
             </div>
@@ -309,7 +350,16 @@ export default function TeamPage() {
               >
                 <span className="material-symbols-outlined text-[16px]">refresh</span>
               </button>
-              {isOwner && (
+              {isOwner && activeTab === "teams" && (
+                <button
+                  onClick={() => setShowCreateTeamWizard(true)}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[16px]">group_add</span>
+                  Create Team
+                </button>
+              )}
+              {isOwner && activeTab === "members" && (
                 <button
                   onClick={() => setShowInviteModal(true)}
                   className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
@@ -322,7 +372,18 @@ export default function TeamPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary text-[20px]">groups</span>
+                </div>
+                <div>
+                  <p className="text-label-sm text-on-surface-variant">Teams</p>
+                  <p className="text-body-lg font-bold text-on-surface">{teams.length}</p>
+                </div>
+              </div>
+            </div>
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
@@ -358,7 +419,78 @@ export default function TeamPage() {
             </div>
           </div>
 
+          {/* Teams Section */}
+          {activeTab === "teams" && (
+            <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+              <h2 className="text-headline-sm text-on-surface font-semibold mb-4">Teams</h2>
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 animate-pulse">
+                      <div className="h-5 w-32 bg-surface-container rounded mb-3" />
+                      <div className="h-3 w-48 bg-surface-container rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : teams.length === 0 ? (
+                <div className="text-center py-12 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-primary/5 rounded-2xl flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-[32px]">group_add</span>
+                  </div>
+                  <h3 className="text-body-lg font-bold text-on-surface mb-2">No teams yet</h3>
+                  <p className="text-body-sm text-outline mb-4">Create your first team to organize members and assign brands.</p>
+                  {isOwner && (
+                    <button
+                      onClick={() => setShowCreateTeamWizard(true)}
+                      className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-label-sm font-bold hover:scale-105 transition-transform"
+                    >
+                      Create Team
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {teams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => setSelectedTeamId(team.id)}
+                      className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-5 text-left card-hover group"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-primary text-[20px]">groups</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-label-2xs font-bold ${
+                          team.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-surface-container text-outline"
+                        }`}>
+                          {team.status}
+                        </span>
+                      </div>
+                      <h3 className="text-body-md font-bold text-on-surface mb-1 group-hover:text-primary transition-colors">
+                        {team.name}
+                      </h3>
+                      {team.description && (
+                        <p className="text-body-sm text-on-surface-variant line-clamp-2 mb-3">{team.description}</p>
+                      )}
+                      <div className="flex items-center gap-4 text-label-xs text-outline">
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">person</span>
+                          {team.memberCount} members
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">branding_watermark</span>
+                          {team.brandCount} brands
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Members Section */}
+          {activeTab === "members" && (
           <section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-headline-sm text-on-surface font-semibold">Members</h2>
@@ -552,9 +684,23 @@ export default function TeamPage() {
               </>
             )}
           </section>
+          )}
         </div>
 
-        {/* Modals */}
+        {/* Team Modals */}
+        <CreateTeamWizard
+          open={showCreateTeamWizard}
+          onClose={() => setShowCreateTeamWizard(false)}
+          onCreated={() => { setShowCreateTeamWizard(false); loadData(); showToast("Team created successfully"); }}
+        />
+        <TeamDetailPanel
+          teamId={selectedTeamId}
+          onClose={() => setSelectedTeamId(null)}
+          onUpdated={() => loadData()}
+          isOwner={isOwner}
+        />
+
+        {/* Member Modals */}
         <MemberDetailModal
           member={detailMember}
           teams={[]}

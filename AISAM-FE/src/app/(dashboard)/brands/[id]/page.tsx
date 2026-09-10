@@ -13,6 +13,7 @@ import { PlatformIcon } from "@/lib/contentConstants";
 import ProductModal, { type Product } from "@/components/brands/ProductModal";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { useToast } from "@/contexts/ToastContext";
+import BrandTeamAccess from "@/components/brands/BrandTeamAccess";
 
 interface Brand {
   id: string;
@@ -35,6 +36,7 @@ interface Brand {
 const tabs = [
   { key: "products", label: "Products" },
   { key: "campaigns", label: "Campaigns" },
+  { key: "access", label: "Team Access" },
   { key: "settings", label: "Settings" },
 ] as const;
 
@@ -602,6 +604,15 @@ export default function BrandDetailPage() {
                   </div>
                 </motion.div>
               )
+            )}
+
+            {/* ═══ TEAM ACCESS ═══ */}
+            {activeTab === "access" && (
+              <BrandTeamAccess
+                brandId={id}
+                brandName={safeBrand.name}
+                isOwner={canManage}
+              />
             )}
 
             {/* ═══ SETTINGS ═══ */}

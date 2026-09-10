@@ -12,9 +12,10 @@ interface TeamDetailModalProps {
 export default function TeamDetailModal({ team, members, onClose }: TeamDetailModalProps) {
   if (!team) return null;
 
-  const teamMembers = members.filter((m) => team.memberIds.includes(m.id));
+  const teamMembers = members.filter((m) => team.memberIds ? team.memberIds.includes(m.id) : false);
   const colorIdx = TEAM_COLORS.findIndex((c) => c.badge.includes(team.id.charAt(0)));
   const colors = TEAM_COLORS[colorIdx >= 0 ? colorIdx : 0];
+  const activity = Number(team.activity) || 0;
 
   return (
     <>
@@ -48,7 +49,7 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-2xs font-bold bg-emerald-50 text-success-green">
                 <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                {team.activity}% Activity
+                {activity}% Activity
               </span>
             </div>
 
@@ -57,14 +58,14 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
               <div className="bg-surface-container-low rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-label-xs text-outline font-medium">Team performance</span>
-                  <span className={`text-label-xs font-bold ${team.activity >= 80 ? "text-success-green" : team.activity >= 50 ? "text-warning-amber" : "text-danger-red"}`}>
-                    {team.activity}%
+                  <span className={`text-label-xs font-bold ${activity >= 80 ? "text-success-green" : activity >= 50 ? "text-warning-amber" : "text-danger-red"}`}>
+                    {activity}%
                   </span>
                 </div>
                 <div className="h-3 bg-surface-container-high rounded-full overflow-hidden mb-2">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${colors.bg} transition-all duration-500`}
-                    style={{ width: `${team.activity}%` }}
+                    style={{ width: `${activity}%` }}
                   />
                 </div>
               </div>
@@ -85,7 +86,7 @@ export default function TeamDetailModal({ team, members, onClose }: TeamDetailMo
                     <span className="material-symbols-outlined text-[14px]">update</span>
                     Last Updated
                   </span>
-                  <span className="text-label-xs text-on-surface font-medium">{formatDate(team.updatedAt)}</span>
+                  <span className="text-label-xs text-on-surface font-medium">{formatDate(team.updatedAt || team.createdAt)}</span>
                 </div>
               </div>
             </div>

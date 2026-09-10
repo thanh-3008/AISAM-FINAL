@@ -24,7 +24,7 @@ export default function EditTeamModal({ team, onClose, onUpdate, isLoading }: Ed
   useEffect(() => {
     if (team) {
       setName(team.name);
-      setDescription(team.description);
+      setDescription(team.description || "");
       setSelectedBrands(team.brandIds || []);
     }
   }, [team]);

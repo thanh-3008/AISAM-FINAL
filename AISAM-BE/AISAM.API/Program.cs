@@ -276,6 +276,7 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<AISAM.Services.Access.IAccessControlService, AISAM.Services.Access.AccessControlService>();
 builder.Services.AddScoped<AISAM.Services.Access.AssignmentService>();
+builder.Services.AddScoped<AISAM.Services.Access.TeamService>();
 builder.Services.AddScoped<AISAM.Services.Access.MemberPerformanceService>();
 builder.Services.AddScoped<AISAM.Services.Service.ContentMediaService>();
 builder.Services.AddScoped<AISAM.Services.Service.PublishOperationService>();
