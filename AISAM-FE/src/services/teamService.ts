@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
+import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 import { getWorkspaceInvitations, type WorkspaceInvitation } from "./workspaceInvitationService";
 
 export type MemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
@@ -7,6 +8,7 @@ export type QuotaMode = "SharedPool" | "LifetimeAssigned" | "MonthlyAssigned";
 
 export interface TeamMember {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   avatar: string | null;
@@ -159,6 +161,7 @@ function mapRole(beRole: number): MemberRole {
 function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
   return {
     id: dto.id,
+    userId: dto.userId,
     name: dto.fullName || dto.email.split("@")[0],
     email: dto.email,
     avatar: null,
@@ -282,6 +285,7 @@ export async function updateTeamMemberRole(
 // ── Workspace Members (existing, unchanged) ──
 
 export async function fetchMembers(): Promise<{ data: TeamMember[]; total: number }> {
+  console.debug("[teamService.fetchMembers] activeWorkspace.id at call time:", getStoredActiveWorkspace()?.id);
   const [membersRes, invitations] = await Promise.all([
     apiClient("/workspace-members").catch(() => null),
     getWorkspaceInvitations(),

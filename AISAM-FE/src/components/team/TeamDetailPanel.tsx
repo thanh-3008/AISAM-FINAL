@@ -352,27 +352,30 @@ export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner }:
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-2">
                 {workspaceMembers
-                  .filter((wm) => !team?.members.some((tm) => tm.userId === wm.id))
-                  .map((wm) => (
-                    <button
-                      key={wm.id}
-                      onClick={() => handleAddMember(wm.id, wm.role)}
-                      disabled={addingMember}
-                      className="w-full flex items-center gap-3 p-3 bg-surface-container-low rounded-xl hover:bg-primary/5 transition-all text-left disabled:opacity-50"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-label-2xs font-bold text-primary">
-                        {wm.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-body-sm font-semibold text-on-surface truncate">{wm.name}</p>
-                        <p className="text-label-xs text-outline truncate">{wm.email}</p>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-label-2xs font-bold bg-surface-container text-outline">
-                        {wm.role === "ContentCreator" ? "Creator" : wm.role}
-                      </span>
-                    </button>
-                  ))}
-                {workspaceMembers.filter((wm) => !team?.members.some((tm) => tm.userId === wm.id)).length ===
+                  .filter((wm) => !team?.members.some((tm) => tm.userId === (wm.userId ?? wm.id)))
+                  .map((wm) => {
+                    const memberUserId = wm.userId ?? wm.id;
+                    return (
+                      <button
+                        key={wm.id}
+                        onClick={() => handleAddMember(memberUserId, wm.role)}
+                        disabled={addingMember}
+                        className="w-full flex items-center gap-3 p-3 bg-surface-container-low rounded-xl hover:bg-primary/5 transition-all text-left disabled:opacity-50"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-label-2xs font-bold text-primary">
+                          {wm.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-body-sm font-semibold text-on-surface truncate">{wm.name}</p>
+                          <p className="text-label-xs text-outline truncate">{wm.email}</p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-label-2xs font-bold bg-surface-container text-outline">
+                          {wm.role === "ContentCreator" ? "Creator" : wm.role}
+                        </span>
+                      </button>
+                    );
+                  })}
+                {workspaceMembers.filter((wm) => !team?.members.some((tm) => tm.userId === (wm.userId ?? wm.id))).length ===
                   0 && (
                   <p className="text-body-sm text-outline text-center py-8">
                     All workspace members are already in this team.

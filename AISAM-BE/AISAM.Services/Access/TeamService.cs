@@ -3,6 +3,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AISAM.Services.Access;
 
@@ -10,7 +11,7 @@ namespace AISAM.Services.Access;
 /// Manages CRUD operations for Team, TeamMember, and related assignments.
 /// Enforces workspace scoping, role-based access, and delegation permissions.
 /// </summary>
-public sealed class TeamService(AisamContext db, IAccessControlService access)
+public sealed class TeamService(AisamContext db, IAccessControlService access, ILogger<TeamService>? logger = null)
 {
     // ── DTOs ─────────────────────────────────────────────────────────────
 
@@ -189,20 +190,42 @@ public sealed class TeamService(AisamContext db, IAccessControlService access)
         // Add additional members if specified
         if (request.Members is { Count: > 0 })
         {
-            var workspaceUserIds = await db.WorkspaceMembers.AsNoTracking()
+            var workspaceMembers = await db.WorkspaceMembers.AsNoTracking()
                 .Where(m => m.WorkspaceId == workspace && m.IsActive)
-                .Select(m => m.UserId).ToListAsync(ct);
+                .Select(m => new { m.Id, m.UserId }).ToListAsync(ct);
 
             foreach (var mi in request.Members)
             {
-                if (mi.UserId == actor) continue; // already added
-                if (!workspaceUserIds.Contains(mi.UserId))
-                    throw new ArgumentException($"User {mi.UserId} is not a member of this workspace.");
+                // Validate: match by UserId first, fallback via WorkspaceMember.Id
+                var matched = workspaceMembers.FirstOrDefault(m => m.UserId == mi.UserId);
+                Guid resolvedUserId;
+                if (matched != null)
+                {
+                    resolvedUserId = matched.UserId;
+                }
+                else
+                {
+                    // TEMP compat shim - remove after FE fully migrated, tracked in [ticket]
+                    var fallbackMatched = workspaceMembers.FirstOrDefault(m => m.Id == mi.UserId);
+                    if (fallbackMatched != null)
+                    {
+                        logger?.LogWarning(
+                            "// TEMP compat shim - remove after FE fully migrated, tracked in [ticket]: Member payload passed WorkspaceMember.Id {MemberId} instead of UserId for workspace {WorkspaceId}. Resolved to UserId {UserId}.",
+                            mi.UserId, workspace, fallbackMatched.UserId);
+                        resolvedUserId = fallbackMatched.UserId;
+                    }
+                    else
+                    {
+                        throw new ArgumentException($"User {mi.UserId} is not a member of this workspace.");
+                    }
+                }
+
+                if (resolvedUserId == actor) continue; // already added
 
                 db.TeamMembers.Add(new TeamMember
                 {
                     TeamId = team.Id,
-                    UserId = mi.UserId,
+                    UserId = resolvedUserId,
                     Role = string.IsNullOrWhiteSpace(mi.Role) ? "ContentCreator" : mi.Role,
                     JoinedAt = DateTime.UtcNow,
                     IsActive = true
@@ -301,10 +324,34 @@ public sealed class TeamService(AisamContext db, IAccessControlService access)
             .SingleOrDefaultAsync(t => t.Id == teamId && t.WorkspaceId == workspace && !t.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Team not found.");
 
-        // Verify target user is a workspace member
+        // Verify target user is a workspace member (match by UserId first, fallback via WorkspaceMember.Id)
         var wsMember = await db.WorkspaceMembers.AsNoTracking()
-            .SingleOrDefaultAsync(m => m.UserId == userId && m.WorkspaceId == workspace && m.IsActive, ct)
-            ?? throw new ArgumentException("User is not an active member of this workspace.");
+            .SingleOrDefaultAsync(m => m.UserId == userId && m.WorkspaceId == workspace && m.IsActive, ct);
+
+        Guid resolvedUserId;
+        if (wsMember != null)
+        {
+            resolvedUserId = wsMember.UserId;
+        }
+        else
+        {
+            // TEMP compat shim - remove after FE fully migrated, tracked in [ticket]
+            var fallback = await db.WorkspaceMembers.AsNoTracking()
+                .SingleOrDefaultAsync(m => m.Id == userId && m.WorkspaceId == workspace && m.IsActive, ct);
+
+            if (fallback != null)
+            {
+                logger?.LogWarning(
+                    "// TEMP compat shim - remove after FE fully migrated, tracked in [ticket]: AddMember payload passed WorkspaceMember.Id {MemberId} instead of UserId for workspace {WorkspaceId}. Resolved to UserId {UserId}.",
+                    userId, workspace, fallback.UserId);
+                wsMember = fallback;
+                resolvedUserId = fallback.UserId;
+            }
+            else
+            {
+                throw new ArgumentException("User is not an active member of this workspace.");
+            }
+        }
 
         // Actor cannot assign a higher workspace role than their own
         var actorMember = await RequireMembership(actor, workspace, ct);
@@ -313,7 +360,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access)
 
         // Check if already a member
         var existing = await db.TeamMembers
-            .SingleOrDefaultAsync(m => m.TeamId == teamId && m.UserId == userId, ct);
+            .SingleOrDefaultAsync(m => m.TeamId == teamId && m.UserId == resolvedUserId, ct);
 
         if (existing is not null)
         {
@@ -329,7 +376,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access)
             existing = new TeamMember
             {
                 TeamId = teamId,
-                UserId = userId,
+                UserId = resolvedUserId,
                 Role = string.IsNullOrWhiteSpace(role) ? wsMember.Role.ToString() : role,
                 JoinedAt = DateTime.UtcNow,
                 IsActive = true
@@ -338,13 +385,13 @@ public sealed class TeamService(AisamContext db, IAccessControlService access)
         }
 
         Audit(actor, workspace, "team.member_add", "team_members", teamId,
-            newValues: new { UserId = userId, Role = existing.Role },
-            teamId: teamId, affectedUser: userId);
+            newValues: new { UserId = resolvedUserId, Role = existing.Role },
+            teamId: teamId, affectedUser: resolvedUserId);
 
         await db.SaveChangesAsync(ct);
 
-        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId, ct);
-        return new TeamMemberDto(userId, user?.FullName ?? user?.Email ?? "Unknown",
+        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == resolvedUserId, ct);
+        return new TeamMemberDto(resolvedUserId, user?.FullName ?? user?.Email ?? "Unknown",
             user?.Email ?? "", existing.Role, existing.JoinedAt, true);
     }
 

@@ -316,12 +316,13 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
                     ) : (
                       <div className="grid gap-2">
                         {workspaceMembers.map((m) => {
-                          const selected = selectedMembers.some((s) => s.userId === m.id);
+                          const memberUserId = m.userId ?? m.id;
+                          const selected = selectedMembers.some((s) => s.userId === memberUserId);
                           return (
                             <button
                               key={m.id}
                               type="button"
-                              onClick={() => toggleMember(m.id, m.role)}
+                              onClick={() => toggleMember(memberUserId, m.role)}
                               className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
                                 selected
                                   ? "border-primary bg-primary/5"
@@ -542,7 +543,7 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
                       {selectedMembers.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
                           {selectedMembers.map((m) => {
-                            const member = workspaceMembers.find((wm) => wm.id === m.userId);
+                            const member = workspaceMembers.find((wm) => (wm.userId ?? wm.id) === m.userId);
                             return (
                               <span
                                 key={m.userId}
