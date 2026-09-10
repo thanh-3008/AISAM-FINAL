@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/approval_repository.dart';
 import '../../../content/data/models/content_model.dart';
 import 'package:flutter/foundation.dart';
+import '../../../workspace/presentation/providers/workspace_controller.dart';
 
 part 'approval_provider.g.dart';
 
@@ -9,6 +10,7 @@ part 'approval_provider.g.dart';
 class ApprovalNotifier extends _$ApprovalNotifier {
   @override
   Future<List<ContentResponseModel>> build() async {
+    ref.watch(activeWorkspaceControllerProvider);
     return _fetchPendingApprovals();
   }
 
@@ -42,17 +44,6 @@ class ApprovalNotifier extends _$ApprovalNotifier {
     }
   }
 
-  Future<bool> undoContent(String id) async {
-    try {
-      final repository = ref.read(approvalRepositoryProvider);
-      await repository.undoContent(id);
-      await refresh();
-      return true;
-    } catch (e) {
-      debugPrint('Undo error: $e');
-      return false;
-    }
-  }
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
@@ -65,6 +56,7 @@ class ApprovalNotifier extends _$ApprovalNotifier {
 class HistoryApprovalNotifier extends _$HistoryApprovalNotifier {
   @override
   Future<List<ContentResponseModel>> build() async {
+    ref.watch(activeWorkspaceControllerProvider);
     return _fetchHistoryApprovals();
   }
 

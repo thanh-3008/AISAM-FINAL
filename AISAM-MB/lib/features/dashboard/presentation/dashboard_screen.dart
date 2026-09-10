@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 
 import 'package:go_router/go_router.dart';
 import 'dashboard_controller.dart';
+import 'member_performance_screen.dart';
 import '../../content/data/models/enums.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../workspace/presentation/providers/workspace_controller.dart';
@@ -33,9 +34,10 @@ class DashboardScreen extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const AisamLogoWidget(),
-        actions: const [
-          ProfileAvatarWidget(),
-          SizedBox(width: 8),
+        actions: [
+          IconButton(tooltip:'My performance',icon:const Icon(Icons.insights),onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const MemberPerformanceScreen()))),
+          const ProfileAvatarWidget(),
+          const SizedBox(width: 8),
         ],
       ),
       body: dashboardState.when(

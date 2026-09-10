@@ -12,7 +12,9 @@ await using var source = new AisamContextFactory().CreateDbContext([]);
 var settings = new NpgsqlConnectionStringBuilder(AisamContextFactory.ResolveConnectionString());
 var root = Path.GetFullPath("../.artifacts/permission-backup");
 Directory.CreateDirectory(root);
-var dump = Path.Combine(root, "source.dump");
+var dump = Path.Combine(root, args.Contains("--fresh-backup")
+    ? "source-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss") + ".dump"
+    : "source.dump");
 var restoreName = "permission_restore_" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
 async Task Run(string exe, string[] args, bool remote = false)
 {
@@ -61,7 +63,7 @@ async Task<long> Count(string table) {
     cmd.Transaction = tx.GetDbTransaction(); cmd.CommandText = "SELECT count(*) FROM " + table;
     return Convert.ToInt64(await cmd.ExecuteScalarAsync());
 }
-string[] tables = ["contents", "posts", "teams", "team_brands", "team_channel_access", "automation_plans"];
+string[] tables = ["contents", "posts", "assets", "teams", "team_brands", "team_channel_access", "automation_plans"];
 var before = new Dictionary<string,long>();
 foreach (var t in tables) before[t] = await Count(t);
 var checksums = new Dictionary<string,(string Sql,string Value)>();
@@ -84,8 +86,8 @@ foreach (var (table, expected) in checksums)
     cmd.Transaction = tx.GetDbTransaction(); cmd.CommandText = expected.Sql;
     if (!Equals(await cmd.ExecuteScalarAsync(), expected.Value)) throw new Exception("Legacy data changed: " + table);
 }
-Console.WriteLine("PASS checksums of all pre-existing columns unchanged in six resource tables");
-Console.WriteLine("PASS migration operations on restored data; all six resource counts unchanged");
+Console.WriteLine($"PASS checksums of all pre-existing columns unchanged in {tables.Length} resource tables");
+Console.WriteLine($"PASS migration operations on restored data; all {tables.Length} resource counts unchanged");
 await db.Contents.AsNoTracking().Select(c => new { c.Id, c.WorkspaceId, c.PrimaryCreatorId }).Take(1).ToListAsync();
 await db.AutomationPlans.AsNoTracking().Take(1).ToListAsync();
 await db.AuditLogs.AsNoTracking().Take(1).ToListAsync();
@@ -126,6 +128,14 @@ if (await Count("team_channel_access") > 0)
 }
 else throw new Exception("No channel fixture available for grant validation.");
 Console.WriteLine("Reconciliation issues recorded: " + await Count("permission_migration_issues"));
+await using (var issues = db.Database.GetDbConnection().CreateCommand())
+{
+    issues.Transaction = tx.GetDbTransaction();
+    issues.CommandText = "SELECT resource_table, issue, count(*) FROM permission_migration_issues GROUP BY resource_table, issue ORDER BY resource_table, issue";
+    await using var rows = await issues.ExecuteReaderAsync();
+    while (await rows.ReadAsync())
+        Console.WriteLine($"RECONCILE {rows.GetString(0)} / {rows.GetString(1)}: {rows.GetInt64(2)}");
+}
 await tx.RollbackAsync();
 Console.WriteLine("PASS migrations rolled back on restore; source remains unchanged");
 await db.Database.CloseConnectionAsync();
@@ -261,6 +271,24 @@ await using (var lockDb = new AisamContext(new DbContextOptionsBuilder<AisamCont
     if (recovered is null) throw new Exception("Disconnected automation worker did not release lock.");
 }
 Console.WriteLine("PASS PostgreSQL automation lock excludes second worker and releases on disconnect");
+accessDb.PermissionScopeEnabled = false;
+accessDb.ChangeTracker.Clear();
+var richContent = new AISAM.Data.Model.Content { WorkspaceId=owner.WorkspaceId, ProfileId=await accessDb.Brands.Where(b=>b.Id==fixture.Brand).Select(b=>b.ProfileId).FirstAsync(),
+    BrandId=fixture.Brand, TeamId=fixture.Team, PrimaryCreatorId=owner.UserId, TextContent="client text must be replaced",
+    RichTextVersion=1, RichTextJson="""{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Unicode 👩‍💻 #AISAM","marks":[{"type":"bold"}]}]}]}""" };
+accessDb.Contents.Add(richContent); await accessDb.SaveChangesAsync();
+richContent.Status=AISAM.Data.Enumeration.ContentStatusEnum.Approved; await accessDb.SaveChangesAsync();
+var richId=richContent.Id; var richSnapshot=richContent.ApprovedSnapshotId;
+accessDb.ChangeTracker.Clear();
+richContent=await accessDb.Contents.SingleAsync(c=>c.Id==richId);
+if(richContent.RichTextVersion!=1 || richContent.TextContent!="Unicode 👩‍💻 #AISAM")throw new Exception("Rich text did not round trip through PostgreSQL JSONB.");
+var frozenRich=await accessDb.PublishSnapshots.AsNoTracking().SingleAsync(s=>s.Id==richSnapshot);
+var frozenPayload=System.Text.Json.JsonSerializer.Deserialize<AISAM.Data.Model.Content>(frozenRich.Payload)!;
+if(frozenPayload.FormattedCaptions?["facebook"]!=richContent.TextContent)throw new Exception("Formatted caption was not frozen.");
+richContent.RichTextJson=richContent.RichTextJson!.Replace("bold","italic");await accessDb.SaveChangesAsync();
+if(richContent.Status!=AISAM.Data.Enumeration.ContentStatusEnum.Draft || richContent.ApprovedSnapshotId!=null)throw new Exception("Formatting edit reused approval.");
+Console.WriteLine("PASS PostgreSQL rich JSON/version, derived text, frozen captions and formatting-only invalidation");
 await accessDb.GetService<IMigrator>().MigrateAsync("20260908142531_AddApprovalSubmissionTimestamp");
 await accessDb.Database.MigrateAsync();
 Console.WriteLine("PASS T06 downgrade/reapply on isolated restore (new media data is discarded by downgrade)");
+await QueryLoadCheck.RunAsync(dataSource, owner.UserId, owner.WorkspaceId, Path.Combine(root, "query-load.json"));

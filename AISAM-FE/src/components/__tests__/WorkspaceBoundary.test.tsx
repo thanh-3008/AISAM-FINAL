@@ -8,6 +8,12 @@ vi.mock("@/lib/apiClient", () => ({ apiClient: vi.fn(async () => ({ data: { revi
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => <span>{children}</span> }));
 afterEach(cleanup);
 function Draft() { const [value, setValue] = useState(""); return <input aria-label="draft" value={value} onChange={e => setValue(e.target.value)} />; }
+it("does not hide the workspace for a single forbidden feature", async () => {
+  render(<WorkspaceBoundary><Draft /></WorkspaceBoundary>);
+  await act(async () => window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: { path: "/analytics", status: 403 } })));
+  expect(screen.queryByLabelText("draft")).not.toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
 it("clears page state on workspace change and hides it on denied access", () => {
   render(<WorkspaceBoundary><Draft /></WorkspaceBoundary>);
   fireEvent.change(screen.getByLabelText("draft"), { target: { value: "private draft A" } });

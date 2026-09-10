@@ -20,11 +20,11 @@ class ApprovalRepository {
   Future<List<ContentResponseModel>> getPendingApprovals({int page = 1, int pageSize = 100}) async {
     try {
       final queryParams = {
-        'pageNumber': page,
+        'page': page,
         'pageSize': pageSize,
         'status': 1, // PendingApproval
       };
-      final response = await _dio.get('/Content', queryParameters: queryParams);
+      final response = await _dio.get('/content/review-queue', queryParameters: queryParams);
       final data = response.data['data'];
       if (data == null || data['data'] == null) return [];
       
@@ -38,9 +38,7 @@ class ApprovalRepository {
 
   Future<ContentResponseModel> approveContent(String id) async {
     try {
-      final response = await _dio.put('/Content/$id', data: {
-        'status': 2, // Approved
-      });
+      final response = await _dio.post('/content/$id/approve');
       return ContentResponseModel.fromJson(response.data['data']);
     } catch (e) {
       throw ExceptionHandler.handle(e);
@@ -49,39 +47,26 @@ class ApprovalRepository {
 
   Future<ContentResponseModel> rejectContent(String id, {String? reason}) async {
     try {
-      final response = await _dio.put('/Content/$id', data: {
-        'status': 3, // Rejected
-        if (reason != null) 'reason': reason,
-      });
+      final response = await _dio.post('/content/$id/reject', data: {'notes': reason});
       return ContentResponseModel.fromJson(response.data['data']);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }
   }
 
-  Future<ContentResponseModel> undoContent(String id) async {
-    try {
-      final response = await _dio.put('/Content/$id', data: {
-        'status': 1, // PendingApproval
-      });
-      return ContentResponseModel.fromJson(response.data['data']);
-    } catch (e) {
-      throw ExceptionHandler.handle(e);
-    }
-  }
 
   Future<List<ContentResponseModel>> getHistoryApprovals({int page = 1, int pageSize = 100}) async {
     try {
       final queryParams = {
-        'pageNumber': page,
+        'page': page,
         'pageSize': pageSize,
         // Assuming the API accepts multiple statuses, or we can fetch without status and filter client-side, 
         // or the API supports array: status=2&status=3. If not, just sort by updatedAt desc.
         // I will use sortDesc=true and sortBy=updatedAt as this is a generic /Content API.
         'sortBy': 'updatedAt',
-        'sortDesc': true,
+        'sortDescending': true,
       };
-      final response = await _dio.get('/Content', queryParameters: queryParams);
+      final response = await _dio.get('/content', queryParameters: queryParams);
       final data = response.data['data'];
       if (data == null || data['data'] == null) return [];
       

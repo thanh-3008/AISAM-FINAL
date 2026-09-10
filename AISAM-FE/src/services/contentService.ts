@@ -37,6 +37,8 @@ export interface ContentApiItem {
   adType: AdType;
   title: string | null;
   textContent: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl: string | null;
   videoUrl: string | null;
   thumbnailUrl?: string | null;
@@ -63,6 +65,8 @@ export interface ContentItem {
   imageUrl?: string;
   videoUrl?: string;
   textContent?: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   createdAt: string;
   platforms: string[];
   tags: string[];
@@ -83,6 +87,8 @@ export interface ContentDetail {
   platforms: string[];
   updatedAt: string;
   textContent?: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string;
   videoUrl?: string;
   styleDescription?: string;
@@ -107,6 +113,8 @@ export interface CreateContentPayload {
   adType: AdType;
   title?: string | null;
   textContent: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string | null;
   /** Multi-image support: array of URLs. Serialized to JSON by the service. */
   imageUrls?: string[] | null;
@@ -125,6 +133,8 @@ export interface UpdateContentPayload {
   adType?: AdType;
   title?: string | null;
   textContent?: string | null;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string | null;
   /** Multi-image support: array of URLs. Serialized to JSON by the service. */
   imageUrls?: string[] | null;
@@ -256,7 +266,7 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,
-    textContent: api.textContent,
+    textContent: api.textContent, richTextJson: api.richTextJson, richTextVersion: api.richTextVersion,
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
     description: api.contextDescription || undefined,

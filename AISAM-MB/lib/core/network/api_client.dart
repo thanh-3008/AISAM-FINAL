@@ -44,8 +44,10 @@ Dio dio(DioRef ref) {
   
   if (EnvConfig.isDebugMode) {
     dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
+      requestHeader: false,
+      responseHeader: false,
+      requestBody: false,
+      responseBody: false,
       logPrint: (obj) => LoggerService.d(obj.toString()),
     ));
   }

@@ -141,7 +141,7 @@ async function handleResponse(response: Response, config: RequestInit) {
 
     const trimmed = errorMessage.trim();
     if (response.status === 403 && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: response.status }));
+      window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: { status: response.status, path: responsePath(response) } }));
     }
     const mappedError = ERROR_MAP[trimmed]
       ?? Object.entries(ERROR_MAP).find(([k]) => k.toLowerCase() === trimmed.toLowerCase())?.[1];

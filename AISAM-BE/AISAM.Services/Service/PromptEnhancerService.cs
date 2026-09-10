@@ -205,7 +205,7 @@ Output rules:
             if (!string.IsNullOrWhiteSpace(enhanced))
             {
                 var (parsedPrompt, patternId) = ExtractVisualPromptFromT2va(enhanced);
-                var safePrompt = EnforceVideoSafety(parsedPrompt);
+                var safePrompt = EnforceVideoSafety(parsedPrompt, RequestsVideoText(rawPrompt));
                 _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}, Final length={FinalLen}, Pattern={PatternId}, Img2Video={HasImg}",
                     rawPrompt.Length, enhanced.Trim().Length, safePrompt.Length, patternId, imageBytes != null);
                 return (safePrompt, patternId);
@@ -224,15 +224,14 @@ Output rules:
         // Fallback: Check if the raw prompt is safe.
         try
         {
-            var fallbackSafe = EnforceVideoSafety(rawPrompt);
+            var fallbackSafe = EnforceVideoSafety(rawPrompt, RequestsVideoText(rawPrompt));
             return (fallbackSafe, null);
         }
         catch (InvalidOperationException ioe) when (ioe.Message.Contains("non-ASCII"))
         {
             _logger.LogWarning("[PromptEnhancer][NonAscii] rawPrompt from Chat Orchestrator contained non-ASCII. Using DefaultSafeEnglish. RawPromptLength={Len}", rawPrompt?.Length ?? 0);
-            var productName = product?.Name ?? "the product";
-            var productDesc = string.IsNullOrWhiteSpace(product?.Description) ? "" : $" ({product.Description})";
-            var defaultSafeEnglish = $"A high-quality commercial advertising video showcasing {productName}{productDesc} in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
+            // Translation is unavailable: do not reinsert untranslated product fields.
+            var defaultSafeEnglish = "A high-quality commercial advertising video showcasing the product in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
             return (defaultSafeEnglish, null);
         }
     }
@@ -391,23 +390,27 @@ Output Rules:
         throw new FormatException("Gemini did not return the expected JSON format or missing integrated_multimodal_description/pattern_id.");
     }
 
-    private static string EnforceVideoSafety(string prompt)
+    private static bool RequestsVideoText(string prompt) =>
+        !Regex.IsMatch(prompt, @"\b(no|without|avoid)\s+(text|typography|lettering)\b|không\s+(?:có\s+)?chữ", RegexOptions.IgnoreCase) &&
+        Regex.IsMatch(prompt, @"\b(include|add|show|display|render|write|thêm|viết)\b.{0,35}\b(text|typography|lettering|chữ)\b|hiển thị chữ", RegexOptions.IgnoreCase);
+
+    private static string EnforceVideoSafety(string prompt, bool allowText)
     {
         if (string.IsNullOrWhiteSpace(prompt)) return string.Empty;
 
-        // Count non-ASCII characters. If a large portion is non-ASCII, it's likely not translated.
-        // We allow some non-ASCII because product names (like Vietnamese names) might be retained.
-        int nonAsciiCount = prompt.Count(c => c > 127);
-        if (nonAsciiCount > 20 && nonAsciiCount > prompt.Length * 0.2)
+        // Reject untranslated prose even when short. Quoted labels/dialogue may
+        // retain their original language; punctuation is not a language signal.
+        var prose = Regex.Replace(prompt, "\"[^\"]*\"|'[^']*'|<d>.*?</d>", "", RegexOptions.Singleline);
+        if (prose.Any(c => c > 127 && char.IsLetter(c)))
         {
             throw new InvalidOperationException("Prompt contains too many non-ASCII characters. Rejecting to fallback.");
         }
 
         var safePrompt = prompt;
 
-        // Optionally, we could still force "no faces, no hands" here if needed, 
-        // but since we allow text now, we should not blindly append "no text overlay".
-        string[] requiredClauses = { "no faces", "no hands" };
+        string[] requiredClauses = allowText
+            ? ["no watermark", "no faces", "no hands"]
+            : ["no text overlay", "no watermark", "no readable letters", "no faces", "no hands"];
         var missing = requiredClauses.Where(c => !safePrompt.Contains(c, StringComparison.OrdinalIgnoreCase)).ToList();
         
         if (missing.Any())

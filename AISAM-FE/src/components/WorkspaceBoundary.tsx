@@ -26,7 +26,13 @@ export default function WorkspaceBoundary({ children }: { children: React.ReactN
     };
     void verify();
     const timer = setInterval(verify, 60000);
-    const deny = () => { setDenied(true); };
+    const deny = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      // A forbidden action/paid feature must not revoke the whole workspace UI.
+      // Recheck the workspace context; its own 403 is authoritative.
+      if (!detail?.path || detail.path === "/permissions/context") setDenied(true);
+      else void verify();
+    };
     const storage = (event: StorageEvent) => { if (event.key === "aisam_active_workspace" || event.key === null) reset(); };
     window.addEventListener("aisam-workspace-changed", reset);
     window.addEventListener("aisam-permissions-changed", reset);
@@ -42,11 +48,16 @@ export default function WorkspaceBoundary({ children }: { children: React.ReactN
       window.removeEventListener("focus", verify);
     };
   }, []);
-  if (denied) return <main role="alert" className="p-8 space-y-4">
-    <h1 className="text-xl font-semibold">Không có quyền truy cập</h1>
-    <p>Quyền hoặc trạng thái workspace có thể đã thay đổi. Dữ liệu cũ đã được ẩn. Bạn vẫn đang đăng nhập.</p>
-    <button className="border rounded-lg px-4 py-2" onClick={() => { invalidateWorkspaceCache(); setDenied(false); setRevision(n => n + 1); }}>Kiểm tra lại quyền</button>
-    <Link className="ml-4 underline" href="/overview">Chọn workspace khác</Link>
-  </main>;
+  if (denied) return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <section role="alert" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 shadow-lg text-center">
+      <div aria-hidden="true" className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-2xl text-amber-700">!</div>
+      <h1 className="text-xl font-semibold text-slate-900">Không thể truy cập workspace</h1>
+      <p className="mt-3 text-sm leading-6 text-slate-600">Tài khoản hoặc quyền truy cập cần được kiểm tra lại. Bạn vẫn đang đăng nhập.</p>
+      <div className="mt-6 flex flex-col gap-3">
+        <button className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600" onClick={() => { invalidateWorkspaceCache(); setDenied(false); setRevision(n => n + 1); }}>Kiểm tra lại quyền</button>
+        <Link className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50" href="/overview">Chọn workspace khác</Link>
+      </div>
+    </section>
+  </div>;
   return <div key={revision}>{children}</div>;
 }

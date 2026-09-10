@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/approval_provider.dart';
+import '../../../content/presentation/providers/content_permissions.dart';
 import '../../../content/data/models/content_model.dart';
 import '../widgets/reject_reason_dialog.dart';
 
@@ -57,6 +58,9 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final permission=ref.watch(contentPermissionsProvider(widget.content.id));
+    if(permission.isLoading) return const Scaffold(body:Center(child:CircularProgressIndicator()));
+    if(permission.valueOrNull?[3]!=true) return Scaffold(appBar:AppBar(),body:const Center(child:Text('Review is unavailable or no longer permitted.')));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review Content'),

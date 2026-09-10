@@ -47,6 +47,9 @@ namespace AISAM.Data.Model
         [Required]
         [Column("text_content")]
         public string TextContent { get; set; } = string.Empty;
+        [Column("rich_text_json", TypeName = "jsonb")] public string? RichTextJson { get; set; }
+        [Column("rich_text_version")] public int? RichTextVersion { get; set; }
+        [NotMapped] public Dictionary<string, string>? FormattedCaptions { get; set; }
 
         [Column("image_url", TypeName = "jsonb")]
 		public string? ImageUrl { get; set; }

@@ -101,7 +101,7 @@ public sealed class ContentService : IContentService
             ProductId = request.ProductId,
             AdType = request.AdType,
             Title = request.Title,
-            TextContent = request.TextContent,
+            TextContent = request.RichTextJson is null ? request.TextContent : AISAM.Data.RichTextDocument.PlainText(request.RichTextJson, request.RichTextVersion), RichTextJson = request.RichTextJson, RichTextVersion = request.RichTextVersion,
             ImageUrl = FormatImageUrlForJsonb(request.ImageUrl),
             VideoUrl = request.VideoUrl,
             StyleDescription = request.StyleDescription,
@@ -136,7 +136,7 @@ public sealed class ContentService : IContentService
         {
             PrimaryCreatorId = actorUserId,
             WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
-            AdType = request.AdType, Title = request.Title, TextContent = request.TextContent,
+            AdType = request.AdType, Title = request.Title, TextContent = request.RichTextJson is null ? request.TextContent : AISAM.Data.RichTextDocument.PlainText(request.RichTextJson, request.RichTextVersion), RichTextJson = request.RichTextJson, RichTextVersion = request.RichTextVersion,
             ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl), VideoUrl = request.VideoUrl,
             ThumbnailUrl = request.ThumbnailUrl,
             StyleDescription = request.StyleDescription, ContextDescription = request.ContextDescription,
@@ -189,7 +189,7 @@ public sealed class ContentService : IContentService
         if (request.ProductId.HasValue) content.ProductId = request.ProductId;
         if (request.AdType.HasValue) content.AdType = request.AdType.Value;
         if (request.Title != null) content.Title = request.Title;
-        if (request.TextContent != null) content.TextContent = request.TextContent;
+        if (request.RichTextJson != null) { content.RichTextJson = request.RichTextJson; content.RichTextVersion = request.RichTextVersion; content.TextContent = AISAM.Data.RichTextDocument.PlainText(request.RichTextJson, request.RichTextVersion); } else if (request.TextContent != null) { content.TextContent = request.TextContent; content.RichTextJson = null; content.RichTextVersion = null; }
         // Multi-image update: prefer ImageUrls over legacy ImageUrl
         if (request.ImageUrls != null || request.ImageUrl != null)
             content.ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl);
@@ -232,7 +232,7 @@ public sealed class ContentService : IContentService
         if (actorUserId == Guid.Empty) return GenericResponse<ContentResponseDto>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
-        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
+        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, RichTextJson = existing.RichTextJson, RichTextVersion = existing.RichTextVersion, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
         clone.PrimaryCreatorId = actorUserId;
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
@@ -411,7 +411,7 @@ public sealed class ContentService : IContentService
         if (request.ProductId.HasValue) content.ProductId = request.ProductId;
         if (request.AdType.HasValue) content.AdType = request.AdType.Value;
         if (request.Title != null) content.Title = request.Title;
-        if (request.TextContent != null) content.TextContent = request.TextContent;
+        if (request.RichTextJson != null) { content.RichTextJson = request.RichTextJson; content.RichTextVersion = request.RichTextVersion; content.TextContent = AISAM.Data.RichTextDocument.PlainText(request.RichTextJson, request.RichTextVersion); } else if (request.TextContent != null) { content.TextContent = request.TextContent; content.RichTextJson = null; content.RichTextVersion = null; }
         if (request.ImageUrl != null) content.ImageUrl = FormatImageUrlForJsonb(request.ImageUrl);
         if (request.VideoUrl != null) content.VideoUrl = request.VideoUrl;
         if (request.StyleDescription != null) content.StyleDescription = request.StyleDescription;
@@ -446,7 +446,7 @@ public sealed class ContentService : IContentService
             Product = existing.Product,
             AdType = existing.AdType,
             Title = existing.Title,
-            TextContent = existing.TextContent,
+            TextContent = existing.TextContent, RichTextJson = existing.RichTextJson, RichTextVersion = existing.RichTextVersion,
             ImageUrl = existing.ImageUrl,
             VideoUrl = existing.VideoUrl,
             StyleDescription = existing.StyleDescription,
@@ -631,6 +631,7 @@ public sealed class ContentService : IContentService
                 if(videos.Count>0){payloadContent.AdType=AdTypeEnum.VideoText;payloadContent.VideoUrl=videos[0].Url;}
             }
             var postDto = BuildPostDto(payloadContent);
+            if (payloadContent.FormattedCaptions?.TryGetValue(integration.Platform.ToString().ToLowerInvariant(), out var formattedCaption) == true) postDto.Message = formattedCaption;
             postDto.Progress=async(stage,media,token)=>
             {
                 if(stage=="Publishing"&&_access is not null)
@@ -1021,7 +1022,7 @@ public sealed class ContentService : IContentService
             ProductId = content.ProductId,
             AdType = content.AdType,
             Title = content.Title,
-            TextContent = content.TextContent,
+            TextContent = content.TextContent, RichTextJson = content.RichTextJson, RichTextVersion = content.RichTextVersion,
             ImageUrl = content.ImageUrl,
             ImageUrls = imageUrls,
             VideoUrl = content.VideoUrl,

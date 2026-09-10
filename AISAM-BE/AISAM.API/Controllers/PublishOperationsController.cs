@@ -14,6 +14,15 @@ public sealed class PublishOperationsController(PublishOperationService service,
     private Guid Actor=>UserClaimsHelper.GetUserIdOrThrow(User);
     private Guid Workspace=>WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
     private static object View(AISAM.Data.Model.PublishOperation o)=>new{o.Id,o.ContentId,o.SnapshotId,o.IntegrationId,o.Status,o.Attempts,o.ProviderId,o.ErrorCode,o.CreatedAt,o.UpdatedAt,media=System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(o.MediaResults)};
+    [HttpGet("api/content/{contentId:guid}/publish-operations")]
+    public async Task<IActionResult> List(Guid contentId, [FromQuery]string key, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(key) || key.Length > 128) return BadRequest();
+        if (!(await access.CheckAsync(new(Actor,Workspace,AccessResourceKind.Content,contentId,ResourcePermission.ContentView),ct)).Allowed) return NotFound();
+        var rows = await db.PublishOperations.IgnoreQueryFilters().AsNoTracking()
+            .Where(o=>o.ContentId==contentId && o.WorkspaceId==Workspace && o.ActorId==Actor && o.IdempotencyKey==key).ToListAsync(ct);
+        return Ok(new {success=true,data=rows.Select(View)});
+    }
     [HttpPost("api/content/{contentId:guid}/publish-operations")]
     public async Task<IActionResult> Create(Guid contentId,Start request,CancellationToken ct)
     {

@@ -23,6 +23,43 @@ public class ContentMediaTests
         public Task<string> UploadBytesAsync(byte[] data,string folder,string name,CancellationToken ct=default)=>throw new NotSupportedException();
         public Task<bool> DeleteAsync(string id,bool video,CancellationToken ct=default){Deletes++;return Task.FromResult(true);}
     }
+    private sealed class ConsumingStorage : IMediaStorageService
+    {
+        public long BytesRead;
+        public int Calls;
+        public async Task<StoredMedia> UploadDetailedAsync(IFormFile file,string folder,string name,CancellationToken ct=default)
+        {
+            await using var stream=file.OpenReadStream();
+            var buffer=new byte[81920];
+            int count;
+            while((count=await stream.ReadAsync(buffer,ct))>0) BytesRead+=count;
+            Calls++;
+            return new StoredMedia("https://storage.test/"+name,640,480,null,name);
+        }
+        public Task<string> UploadAsync(IFormFile file,string folder,string name,CancellationToken ct=default)=>throw new NotSupportedException();
+        public Task<string> UploadBytesAsync(byte[] bytes,string folder,string name,CancellationToken ct=default)=>throw new NotSupportedException();
+        public Task<bool> DeleteAsync(string id,bool video,CancellationToken ct=default)=>throw new NotSupportedException();
+    }
+    [Fact]
+    public async Task Exact200MiBBatchHashesAndStreamsEveryByteWithIndependentAssets()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var content=new Content{WorkspaceId=Guid.NewGuid(),BrandId=Guid.NewGuid()};
+        db.Add(content);await db.SaveChangesAsync();
+        // Actual bytes, shared backing buffer to avoid four 50MiB allocations.
+        // Signature-valid synthetic data; storage decoder/CDN is intentionally not exercised.
+        var bytes=new byte[50*1024*1024];
+        new byte[]{137,80,78,71,13,10,26,10}.CopyTo(bytes,0);
+        var files=Enumerable.Range(0,4).Select(_=>File(bytes,"image/png")).ToArray();
+        var storage=new ConsumingStorage();var service=new ContentMediaService(db,new Access(),storage);
+        var results=await service.UploadAsync(Guid.NewGuid(),content.WorkspaceId,content.Id,files,default);
+        Assert.All(results,r=>Assert.NotNull(r.AssetId));
+        Assert.Equal(4,results.Select(r=>r.AssetId).Distinct().Count());
+        Assert.Equal(200L*1024*1024,storage.BytesRead);Assert.Equal(4,storage.Calls);
+        var assets=await db.Assets.ToListAsync();Assert.Equal(4,assets.Count);
+        var expected=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        Assert.All(assets,a=>{Assert.Equal(expected,a.Sha256);Assert.Equal(bytes.LongLength,a.SizeBytes);});
+    }
     private static IFormFile File(byte[] bytes,string mime)=>new FormFile(new MemoryStream(bytes),0,bytes.Length,"files","untrusted.exe"){Headers=new HeaderDictionary(),ContentType=mime};
     [Fact]
     public async Task UploadHasPerItemValidationAndDoesNotTrustExtension()
@@ -34,6 +71,21 @@ public class ContentMediaTests
         Assert.NotNull(result[0].AssetId);Assert.EndsWith(".png",result[0].Url);Assert.Null(result[1].AssetId);Assert.NotNull(result[1].Error);Assert.Equal(1,storage.Uploads);
         var asset=await db.Assets.SingleAsync();Assert.Equal(c.WorkspaceId,asset.WorkspaceId);Assert.Equal(c.BrandId,asset.BrandId);Assert.Equal(64,asset.Sha256!.Length);
         Assert.Equal(640,asset.Width);Assert.Equal(480,asset.Height);Assert.Equal(12,asset.DurationSeconds);Assert.Equal("verified-public-id",asset.ProviderPublicId);
+    }
+    [Theory]
+    [InlineData(11, 1)]
+    [InlineData(5, 41943041)]
+    public async Task OversizedBatchIsRejectedBeforeStorage(int count, long declaredBytes)
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var content=new Content{WorkspaceId=Guid.NewGuid(),BrandId=Guid.NewGuid()};
+        db.Add(content);await db.SaveChangesAsync();
+        var storage=new Storage();var service=new ContentMediaService(db,new Access(),storage);
+        // Declared length tests early rejection without allocating a 200MB buffer.
+        var files=Enumerable.Range(0,count).Select(_=>(IFormFile)new FormFile(Stream.Null,0,declaredBytes,"files","test.png")
+            {Headers=new HeaderDictionary(),ContentType="image/png"}).ToArray();
+        await Assert.ThrowsAsync<ArgumentException>(()=>service.UploadAsync(Guid.NewGuid(),content.WorkspaceId,content.Id,files,default));
+        Assert.Equal(0,storage.Uploads);Assert.Empty(await db.Assets.ToListAsync());
     }
     [Fact]
     public async Task LegacyImportPreservesOrderWithoutDownloadingAndRejectsRepeatedImport()

@@ -21,6 +21,6 @@ export default defineConfig({
   },
   expect: { timeout: 10_000 },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "chromium", use: { ...devices["Desktop Chrome"], channel: process.env.E2E_BROWSER_CHANNEL || undefined } },
   ],
 });

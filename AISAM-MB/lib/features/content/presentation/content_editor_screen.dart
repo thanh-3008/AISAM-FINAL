@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/shared/app_button.dart';
 import '../../../core/shared/app_snackbar.dart';
 import 'providers/content_editor_controller.dart';
+import 'providers/content_permissions.dart';
+import '../../../core/storage/secure_storage.dart';
 import '../data/models/content_request.dart';
 import '../data/models/content_model.dart';
 import '../data/models/enums.dart';
@@ -11,7 +13,7 @@ import '../../../core/state/base_state.dart';
 import 'dart:convert';
 
 // In-memory draft fallback
-String? _inMemoryDraft;
+final _drafts = <String,String>{};
 
 class ContentEditorScreen extends ConsumerStatefulWidget {
   final String? contentId; // null = create
@@ -32,6 +34,9 @@ class ContentEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
+  late final String _scope;
+  bool _loaded = false;
+  bool _saved = false;
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
@@ -40,6 +45,8 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
   @override
   void initState() {
     super.initState();
+    final storage=ref.read(secureStorageProvider);
+    _scope='${storage.cachedUserId}:${storage.cachedWorkspaceId}';
     _titleController = TextEditingController(text: widget.prefillTitle ?? '');
     _contentController = TextEditingController(text: widget.prefillContent ?? '');
     _brandIdController = TextEditingController(text: widget.prefillBrandId ?? '');
@@ -50,8 +57,8 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
   }
 
   void _loadDraft() {
-    if (_inMemoryDraft != null) {
-      final map = jsonDecode(_inMemoryDraft!);
+    if (_drafts[_scope] != null) {
+      final map = jsonDecode(_drafts[_scope]!);
       setState(() {
         _titleController.text = map['title'] ?? '';
         _contentController.text = map['content'] ?? '';
@@ -61,17 +68,18 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
   }
 
   void _saveDraft() {
-    if (widget.contentId != null) return; // Don't save draft for edit mode
+    if (widget.contentId != null || _saved) return;
     final map = {
       'title': _titleController.text,
       'content': _contentController.text,
       'brandId': _brandIdController.text,
     };
-    _inMemoryDraft = jsonEncode(map);
+    _drafts[_scope] = jsonEncode(map);
   }
 
   void _clearDraft() {
-    _inMemoryDraft = null;
+    _saved = true;
+    _drafts.remove(_scope);
   }
 
   @override
@@ -84,6 +92,11 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
   }
 
   void _onSubmit() {
+    final storage=ref.read(secureStorageProvider);
+    if(_scope!='${storage.cachedUserId}:${storage.cachedWorkspaceId}') {
+      AppSnackbar.showError(context,'Workspace changed. Reopen the editor.');
+      return;
+    }
     if (_formKey.currentState!.validate()) {
       if (widget.contentId == null) {
         ref.read(contentEditorControllerProvider.notifier).createContent(
@@ -108,6 +121,24 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final storage=ref.read(secureStorageProvider);
+    if(_scope!='${storage.cachedUserId}:${storage.cachedWorkspaceId}') {
+      return const Scaffold(body:Center(child:Text('Workspace changed. Reopen the editor.')));
+    }
+    if(widget.contentId != null) {
+      final permissions=ref.watch(contentPermissionsProvider(widget.contentId!));
+      final detail=ref.watch(contentDetailControllerProvider(widget.contentId!));
+      if(permissions.isLoading || detail.isLoading) return const Scaffold(body:Center(child:CircularProgressIndicator()));
+      if(permissions.valueOrNull?[1]!=true || !detail.hasValue) {
+        return Scaffold(appBar:AppBar(),body:const Center(child:Text('Content is unavailable or editing is not allowed.')));
+      }
+      if(!_loaded) {
+        final content=detail.requireValue;
+        _titleController.text=content.title??'';
+        _contentController.text=content.textContent;
+        _loaded=true;
+      }
+    }
     final editorState = ref.watch(contentEditorControllerProvider);
     final isLoading = editorState.maybeWhen(loading: () => true, orElse: () => false);
 
@@ -119,7 +150,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
           if (widget.contentId == null) {
             _clearDraft();
           }
-          if (context.mounted) context.pop();
+          if (context.mounted) context.go('/content/${content.id}');
         },
         orElse: () {},
       );
@@ -158,6 +189,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
                   maxLines: 10,
                   validator: (value) => value == null || value.isEmpty ? 'Required' : null,
                 ),
+                const Text('Mobile edits plain text. Saving text changes replaces existing rich formatting. Use Web to edit formatting.'),
                 const SizedBox(height: 32),
                 AppButton(
                   text: 'Save Content',

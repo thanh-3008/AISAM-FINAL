@@ -4,8 +4,12 @@ import 'package:flutter/foundation.dart';
 class EnvConfig {
   EnvConfig._();
 
-  static String get apiBaseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://localhost:5027/api';
+  static String get apiBaseUrl {
+    const buildUrl = String.fromEnvironment('API_BASE_URL');
+    return buildUrl.isNotEmpty
+        ? buildUrl
+        : dotenv.env['API_BASE_URL'] ?? 'http://localhost:5027/api';
+  }
 
   static int get connectTimeoutMs =>
       int.tryParse(dotenv.env['CONNECT_TIMEOUT_MS'] ?? '10000') ?? 10000;

@@ -45,11 +45,14 @@ Hai nhóm nâng cấp chính:
 | T06 | **Hoàn thành — 09/09/2026** | [Nghiệm thu](docs/T06_COMPLETION.md): media API, version, snapshot, cleanup; 19/19 test tập trung, PostgreSQL restore và downgrade/reapply đạt; database nguồn chưa migrate |
 | T07 | **Hoàn thành phát triển — 09/09/2026; sandbox chưa nghiệm thu** | [Bằng chứng](docs/T07_PROGRESS.md): 54/54 test tập trung, HTTP và PostgreSQL cạnh tranh đạt; chưa bật verified carousel, sandbox là điều kiện phát hành T11 |
 | T08 | **Hoàn thành phát triển — 09/09/2026** | [Nghiệm thu](docs/T08_COMPLETION.md): scheduler/journal, snapshot, quyền, retry, khóa automation và nhiều đích; PostgreSQL cạnh tranh/recovery đạt |
-| T09–T12 | Chưa thực hiện | Chưa triển khai |
+| T09 | **Hoàn thành phát triển — 09/09/2026** | [Nghiệm thu](docs/T09_COMPLETION.md): JSON/version, formatter/snapshot, editor và preview an toàn; 9/9 BE tập trung, 87/87 web, build và PostgreSQL restore đạt |
+| T10 | **Hoàn thành phát triển — 09/09/2026** | [Nghiệm thu](docs/T10_COMPLETION.md): media composer, khôi phục file/draft, capability preview và publish journal; 94/94 web, build và Edge IndexedDB đạt |
+| T11 | **Hoàn thành phát triển — 10/09/2026** | [Chốt phạm vi](docs/T11_COMPLETION.md); backend 516/516; nghiệm thu thực tế chuyển sang đợt cuối sau T12 |
+| T12 | **Hoàn thành phát triển — 10/09/2026** | [Chốt T12](docs/T12_COMPLETION.md): mobile tối thiểu, 11 test mới đạt; kiểm thử thiết bị/API thật thuộc đợt nghiệm thu cuối |
 
-**T00–T06 đã hoàn thành; T07–T08 hoàn thành phần phát triển (9/13 mốc phát triển).** Sandbox/staging chưa nghiệm thu; T09–T12 chưa hoàn thành. Không coi đây là 9 task đã nghiệm thu triển khai thực tế.
+**T00–T12 hoàn thành phần phát triển (13/13 mốc).** Phần nghiệm thu thực tế chưa hoàn tất; nghiệm thu tổng thể được gom vào đợt cuối sau khi code xong theo yêu cầu người dùng. Chưa chứng nhận production.
 
-**T00–T08 đã hoàn thành phần phát triển**; T09–T12 chưa hoàn thành. Policy đã chốt theo ủy quyền: [decision log](docs/PERMISSION_PUBLISHING_DECISIONS.md). Kết quả khảo sát và thiết kế sơ bộ: [T00_PERMISSION_PUBLISHING_DESIGN.md](docs/T00_PERMISSION_PUBLISHING_DESIGN.md). T00 đã khóa thiết kế/capability fallback và kiểm kê database thật. Thử publish trên tài khoản sandbox thuộc T07/T11, trước khi bật tính năng.
+**T00–T12 đã hoàn thành phần phát triển**; bước tiếp theo là đợt nghiệm thu tổng thể. Policy đã chốt theo ủy quyền: [decision log](docs/PERMISSION_PUBLISHING_DECISIONS.md). Kết quả khảo sát và thiết kế sơ bộ: [T00_PERMISSION_PUBLISHING_DESIGN.md](docs/T00_PERMISSION_PUBLISHING_DESIGN.md). T00 đã khóa thiết kế/capability fallback và kiểm kê database thật. Thử publish trên tài khoản sandbox thuộc T07/T11, trước khi bật tính năng.
 
 | ID | Task lớn | Đầu mối đề xuất | Phụ thuộc chính | Mốc |
 |---|---|---|---|---|
@@ -243,54 +246,91 @@ Các task có thể chia nhỏ và triển khai song song sau khi contract phụ
 
 ### T09 — Rich Text và formatter
 
+**Hoàn thành phần phát triển — 09/09/2026.** [Nghiệm thu và contract v1](docs/T09_COMPLETION.md): 9/9 BE tập trung, 505/508 backend toàn bộ (ba lỗi PromptEnhancer cũ), 87/87 web và build production đạt. Migration/JSONB/snapshot xác nhận trên restore riêng; chưa migrate nguồn.
+
 **Phạm vi:** Tiptap Web, schema/DTO persistence, formatter provider và render preview.
 
-- [ ] Chốt RichTextJson + RichTextVersion là nguồn editor; sinh PlainText nhất quán từ nguồn này.
-- [ ] Hỗ trợ bold/italic/underline theo UX, highlight, heading, lists, link, hashtag, undo/redo.
-- [ ] Migrate/đọc nội dung plain text cũ mà không làm mất dữ liệu.
-- [ ] Allow-list schema/link; sanitize HTML preview nếu sử dụng.
-- [ ] Formatter riêng theo provider, character count dựa trên kết quả formatter.
-- [ ] Không gửi HTML Tiptap trực tiếp tới API không hỗ trợ.
-- [ ] Đưa kết quả format vào snapshot của flow publish theo contract T06/T07.
+- [x] Chốt RichTextJson + RichTextVersion là nguồn editor; sinh PlainText nhất quán từ nguồn này.
+- [x] Hỗ trợ bold/italic/underline theo UX, highlight, heading, lists, link, hashtag, undo/redo.
+- [x] Migrate/đọc nội dung plain text cũ mà không làm mất dữ liệu; giữ literal, không đoán Markdown.
+- [x] Allow-list schema/link; preview dựng React elements an toàn, không dùng HTML sink.
+- [x] Formatter theo provider với fallback plain text hiện tại; character count dựa trên kết quả formatter.
+- [x] Không gửi HTML Tiptap trực tiếp tới API không hỗ trợ.
+- [x] Đưa kết quả format và version vào snapshot của flow publish theo contract T06/T07.
 
 **Hoàn thành khi:** PUB07 đạt; round-trip editor giữ nội dung hợp lệ; formatter có test cho link/hashtag/list/Unicode và fallback plain text.
 
 ### T10 — Composer nhiều media
 
+**Hoàn thành phần phát triển — 09/09/2026.** [Bằng chứng và giới hạn](docs/T10_COMPLETION.md): 94/94 web, build production, Edge IndexedDB và HTTP contracts đạt. Backend 505/508, ba lỗi PromptEnhancer cũ; end-to-end sandbox thuộc T11.
+
 **Phạm vi:** màn tạo/sửa Content và trải nghiệm Publish/Schedule.
 
-- [ ] Chọn/kéo thả nhiều ảnh/video, reorder, cover/thumbnail khi provider hỗ trợ.
-- [ ] Tiến độ upload, lỗi từng file, retry có kiểm soát và khôi phục draft.
-- [ ] Preview riêng từng platform bằng formatter/capability từ contract BE.
-- [ ] Hiển thị platform không tương thích và cho người dùng bỏ chọn; không âm thầm đổi ý định publish.
-- [ ] Ghép Rich Text, media collection, approval và lịch đăng.
-- [ ] Theo dõi kết quả từng platform, partial failure và reconnect.
+- [x] Chọn/kéo thả nhiều ảnh/video, reorder, cover/thumbnail khi provider hỗ trợ.
+- [x] Tiến độ upload, lỗi từng file, retry có kiểm soát và khôi phục draft.
+- [x] Preview riêng từng platform bằng formatter/capability từ contract BE.
+- [x] Hiển thị platform không tương thích và cho người dùng bỏ chọn; không âm thầm đổi ý định publish.
+- [x] Ghép Rich Text, media collection, approval và lịch đăng.
+- [x] Theo dõi kết quả từng platform, partial failure và reconnect.
 
 **Hoàn thành khi:** PUB01–PUB05, PUB07–PUB10 có coverage UI phù hợp; người dùng biết file/platform nào lỗi và có thể sửa mà không mất draft.
 
 ### T11 — Kiểm thử tổng thể, migration staging và bàn giao
 
+**Hoàn thành phát triển — 10/09/2026 theo phạm vi đã thống nhất với người dùng.** [Biên bản chốt T11](docs/T11_COMPLETION.md), [bằng chứng cục bộ](docs/T11_VALIDATION.md).
+
+**Nghiệm thu thực tế chuyển sang đợt cuối sau T12**, không chặn phát triển mobile. Checklist bên dưới giữ chưa đánh dấu để không nhầm với kết quả đã đạt.
+
+- [x] Kiểm tra service với payload đúng 200 MiB: đọc/hash đủ byte, bốn Asset độc lập; backend **516/516 đạt**. Storage giả lập đọc stream, chưa thay thế HTTP/CDN thật.
+
+- [x] Chạy regression backend và ghi TRX: **515/515 đạt ngày 10/09**; gồm bản sửa PromptEnhancer và hai test giới hạn lô upload, không bỏ qua lỗi.
+- [x] Web E2E 21/21 đạt trên Edge với API giả lập; sửa mock permissions/routes, cập nhật nút lưu draft và fixture video cố định. Chưa thay thế E2E sandbox.
+- [x] Bổ sung fixture 5 actor, 2 Team/Brand/kênh; kiểm tra ownership, Owner billing, delegation và revoke.
+- [x] Chạy lại migration/rollback, checksum dữ liệu cũ, query scope và cạnh tranh worker trên PostgreSQL restore cô lập; ghi nhận 579 reconciliation issues cần xử lý.
+- [x] Lập bảng truy vết P01–P08/PUB01–PUB10 và runbook staging, chỉ rõ giới hạn bằng chứng cục bộ.
+- [x] Đối soát thêm Asset; phân nhóm 579 vấn đề legacy: 542 Content thiếu creator, 36 automation thiếu creator, 1 Post sai Brand/kênh. Chưa sửa dữ liệu nguồn.
+- [x] Thêm và chạy phép đo query cục bộ: 20 worker/200 lượt count + page qua scope thật; p95 497,3 ms trên 9 Content. Có báo cáo JSON; chưa thay thế tải staging 10.000 Content, analytics/upload và HTTP.
+- [x] Mở rộng seed thêm 10.000 Content/hai Brand/hai Team/đủ năm vai trò; 200 lượt query đồng thời đạt, p95 22,1 ms khi giữ kết nối. Duyệt toàn bộ trang và 20 kiểm tra Creator isolation đạt. Đây là database restore cô lập.
+- [x] Sửa trigger PostgreSQL lỗi INSERT Brand/Team bằng migration bổ sung; apply/downgrade/reapply và seed đạt. Xem [T11_TRIGGER_FIX.md](docs/T11_TRIGGER_FIX.md).
+- [x] Tải MemberPerformance cục bộ: 20 worker/100 lượt, p95 149,1 ms; mỗi Creator đúng 5.000 Content. Chưa bao gồm tải published-post insights/HTTP.
+- [x] Kiểm tra lô upload vượt 10 file/200 MB bị chặn trước storage, không tạo Asset; chưa đo upload payload thực.
+- [x] Tải analytics có 200 Post/400 insights tổng hợp: 100 lượt/20 worker đạt, p95 256,7 ms; xác minh snapshot mới nhất, đúng engagement/impressions/reach/rate và scope từng Creator.
+
+### Đợt nghiệm thu cuối — sau khi hoàn thành phát triển T12
+
+**Đang nghiệm thu — 10/09/2026:** [Báo cáo hiện tại](docs/FINAL_ACCEPTANCE_20260910.md). Đã chạy lại BE 516/516, Web 94/94 + E2E 21/21, Mobile 21/21. Database trong .env còn 12 migration; đã backup mới và kiểm tra trên restore cô lập, chưa nâng cấp nguồn.
+
+- [x] Chạy lại regression cục bộ BE/Web/Mobile và kiểm tra build.
+- [x] Kiểm kê database nguồn ở chế độ read-only, backup mới, kiểm chứng migration và tải query trên bản sao.
+- [x] Sửa khai báo quyền nền tảng mobile, bảo vệ refresh token và bổ sung 6 test auth.
+
+
+Các mục chuyển từ phạm vi nghiệm thu T11 theo yêu cầu người dùng; vẫn bắt buộc trước khi xác nhận phát hành.
+
 - [ ] Chạy ma trận P01–P08 và PUB01–PUB10, có báo cáo kết quả/liên kết test.
 - [ ] Regression auth, OAuth, workspace lifecycle, Owner billing, approval, quota/credit và dữ liệu cũ.
 - [ ] Security: IDOR, query leakage, mass assignment, XSS, media giả MIME, grant vượt quyền, webhook signature/idempotency.
 - [ ] Kiểm tra query/index/pagination và tải upload/analytics theo dữ liệu mục tiêu; ghi ngưỡng chấp nhận.
-- [ ] Seed tối thiểu 2 Brand, 2 Team và ít nhất 4 user; bổ sung đủ Owner/Manager/Viewer/hai Creator cho các kịch bản.
+- [x] Seed tối thiểu 2 Brand, 2 Team và ít nhất 4 user; bổ sung đủ Owner/Manager/Viewer/hai Creator cho các kịch bản. Đạt trên restore cô lập; tài khoản đăng nhập staging vẫn cần chuẩn bị.
 - [ ] Migration trên staging từ backup; đối soát Content/Post/Asset và thực hành rollback.
 - [ ] Chạy E2E demo mục 8; dùng sandbox/tài khoản demo có phạm vi được thống nhất.
 - [ ] Cập nhật Swagger, ERD, permission/capability matrix, Rich Text schema, runbook và release notes.
 
-**Hoàn thành khi:** critical tests đạt, không còn lỗi rò dữ liệu đã biết trong phạm vi kiểm thử; migration/rollback có bằng chứng; release có commit và danh sách giới hạn rõ ràng. Triển khai production là bước riêng sau khi có bản staging để đánh giá.
+**Đợt nghiệm thu cuối hoàn thành khi:** critical tests đạt, không còn lỗi rò dữ liệu đã biết trong phạm vi kiểm thử; migration/rollback có bằng chứng; release có commit và danh sách giới hạn rõ ràng. Triển khai production là bước riêng sau khi có bản staging để đánh giá.
 
 ### T12 — Mobile tối thiểu
 
-- [ ] Đồng bộ DTO, error handling và scope với API mới.
-- [ ] Danh sách/chi tiết Content theo quyền; deep link không lộ nội dung.
-- [ ] Tạo nội dung nhiều media, giữ thứ tự và xem publish status.
-- [ ] Approval và self-performance theo phạm vi sản phẩm đã chốt.
-- [ ] Render Rich Text/PlainText tương thích schema; không bắt buộc editor ngang bằng Web ngay đợt đầu.
-- [ ] Test auth/workspace/content/approval trên client cũ và mới theo compatibility plan.
+**Hoàn thành phát triển — 10/09/2026:** [T12_COMPLETION.md](docs/T12_COMPLETION.md). Nghiệm thu thiết bị và API thật thực hiện trong đợt cuối theo phạm vi đã thống nhất.
 
-**Hoàn thành khi:** subset đã chốt dùng được với API mới, đúng scope; ghi rõ các chức năng chỉ có trên Web.
+- [x] Đồng bộ DTO, error handling và scope với API mới.
+- [x] Danh sách/chi tiết Content theo quyền; chặn edit/review deep link khi thiếu quyền, bỏ phản hồi khác scope.
+- [x] Composer nhiều media, lưu thứ tự, chọn kênh và xem publish status; lưu journal trước khi gửi.
+- [x] Approval qua endpoint chuyên biệt và self-performance trong workspace hiện tại.
+- [x] Hiển thị PlainText tương thích nội dung Rich Text và ảnh legacy; editor định dạng nâng cao dùng Web.
+- [x] Kiểm thử tự động contract/compatibility/composer: 11 test mới đạt; analyze không có error và build Dart bundle đạt.
+- [ ] Nghiệm thu auth/workspace/content/approval trên client cũ/mới với API thật và thiết bị Android/iOS — chuyển sang đợt nghiệm thu cuối, chưa xác nhận đạt.
+
+**Giới hạn:** chưa build APK do máy thiếu Android SDK; bundle không thay thế kiểm thử thiết bị. Mobile không có đầy đủ editor/draft recovery/retry publishing nâng cao như Web. Chi tiết bằng chứng và checklist còn lại nằm trong biên bản T12.
 
 ## 5. Quyết định cần chốt tại T00
 
@@ -385,8 +425,8 @@ T11 chạy tổng hợp toàn bộ ma trận. Các bài test phải bao gồm g�
 
 - [ ] T00 có người phụ trách và baseline commit.
 - [ ] Permission matrix được PO/GVHD xác nhận theo quy trình trong tài liệu nguồn.
-- [ ] Quyết định D01–D14 có trạng thái và người chốt.
-- [ ] API/schema/error contract đủ để chia BE/FE.
+- [x] Quyết định D01–D14 có trạng thái và người chốt theo ủy quyền người dùng; xem decision log.
+- [x] API/schema/error contract đủ để chia BE/FE; xem T00_IMPLEMENTATION_CONTRACT.md.
 - [ ] Có test fixtures đa Brand/Team/role và database staging.
 
 ### Trước khi bàn giao BE/Web
@@ -406,4 +446,7 @@ T11 chạy tổng hợp toàn bộ ma trận. Các bài test phải bao gồm g�
 - Tự chuyển một yêu cầu nhiều video thành nhiều post mà không có lựa chọn rõ ràng.
 - Mobile/admin parity trước khi core BE/Web và security test ổn định.
 
-**Task phát triển tiếp theo: T09 — Rich Text và formatter.** T07–T08 hoàn thành code/test; sandbox/staging vẫn là điều kiện phát hành bắt buộc ở T11.
+**Bước tiếp theo: nghiệm thu tổng thể BE/Web/Mobile.** T00–T12 đã hoàn thành phát triển; kiểm thử thiết bị, provider thật và hồ sơ release vẫn cần hoàn tất trước phát hành.
+
+
+**Cập nhật 10/09/2026:** đã chuyển BE sang PostgreSQL local `aisam_local`, backup và áp dụng migration thành công; còn **0 migration pending**, count dữ liệu chính giữ nguyên. Database remote cũ không thay đổi. Xem [biên bản](docs/FINAL_ACCEPTANCE_20260910.md).

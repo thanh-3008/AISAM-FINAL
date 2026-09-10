@@ -43,7 +43,7 @@ export default function CreateContentPage() {
     tags: [] as string[],
     hashtags: [] as string[],
     thumbnail: "",
-    textContent: "",
+    textContent: "", textDocument: null as string | null, captionDocument: null as string | null,
     imageUrl: "",
     imageUrls: [] as string[], // Multi-image support
     videoUrl: "",
@@ -74,6 +74,8 @@ export default function CreateContentPage() {
     }
   }, [brandList, form.brandId, update]);
 
+  const captionText = form.type === "TEXT" ? form.textContent : form.caption || form.description;
+  const captionDocument = form.type === "TEXT" ? form.textDocument : form.captionDocument;
   const [hashtagInput, setHashtagInput] = useState("");
 
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
@@ -222,7 +224,9 @@ export default function CreateContentPage() {
       productId: form.productId || null,
       adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
       title: form.title,
-      textContent: form.textContent || form.caption || form.description || "",
+      textContent: form.type === "TEXT" ? form.textContent : form.caption || form.description || "",
+      richTextJson: form.type === "TEXT" ? form.textDocument : form.captionDocument,
+      richTextVersion: (form.type === "TEXT" ? form.textDocument : form.captionDocument) ? 1 : null,
       // Multi-image: prefer imageUrls array, fall back to single imageUrl
       imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
       imageUrl: form.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
@@ -306,7 +310,7 @@ export default function CreateContentPage() {
                     Saving...
                   </span>
                 ) : (
-                  <><span className="material-symbols-outlined text-[16px]">check</span> Save Content</>
+                  <><span className="material-symbols-outlined text-[16px]">check</span> Lưu draft và mở composer</>
                 )}
               </button>
             </div>
@@ -368,7 +372,7 @@ export default function CreateContentPage() {
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Content Body</label>
                     <RichTextEditor
                       value={form.textContent}
-                      onChange={(md) => update({ textContent: md })}
+                      richTextJson={form.textDocument} onChange={(textContent, textDocument) => update({ textContent, textDocument })}
                       placeholder="Write your content here..."
                       minHeight={200}
                     />
@@ -454,7 +458,7 @@ export default function CreateContentPage() {
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Social Media Caption</label>
                   <RichTextEditor
                     value={form.caption}
-                    onChange={(md) => update({ caption: md })}
+                    richTextJson={form.captionDocument} onChange={(caption, captionDocument) => update({ caption, captionDocument })}
                     placeholder="Write the caption that will appear on social media posts..."
                     minHeight={120}
                   />
@@ -629,10 +633,10 @@ export default function CreateContentPage() {
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
                       </div>
-                      {(form.caption || form.description || form.textContent) && (
+                      {(captionText) && (
                         <div className="px-3.5 mb-2.5">
                           <RichTextPreview
-                            content={form.caption || form.description || form.textContent}
+                            content={captionText} richTextJson={captionDocument} platform={previewPlatform}
                             className="text-[15px] text-[#1a1a1a] leading-[1.35]"
                           />
                         </div>
@@ -641,7 +645,7 @@ export default function CreateContentPage() {
                         <div className="px-3.5 mb-2.5">
                           <div className="p-2.5 bg-[#f0f2f5] rounded-lg border border-[#e4e6eb]">
                             <p className="text-[11px] text-[#65676b] font-semibold uppercase tracking-wide mb-1">Article</p>
-                            <RichTextPreview content={form.textContent} className="text-[13px] text-[#1a1a1a] leading-[1.4] line-clamp-4" />
+                            <RichTextPreview richTextJson={form.textDocument} platform={previewPlatform} content={form.textContent} className="text-[13px] text-[#1a1a1a] leading-[1.4] line-clamp-4" />
                           </div>
                         </div>
                       )}
@@ -722,7 +726,7 @@ export default function CreateContentPage() {
                         </div>
                         <div className="text-[12px] text-[#262626]">
                           {selectedBrandName && <span className="font-semibold">{selectedBrandName.toLowerCase().replace(/\s+/g, "")} </span>}
-                          <RichTextPreview content={form.caption || form.description || form.title || "Write a caption..."} />
+                          <RichTextPreview richTextJson={form.captionDocument} platform={previewPlatform} content={captionText || "Write a caption..."} />
                         </div>
                         {form.hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
@@ -758,7 +762,7 @@ export default function CreateContentPage() {
                             </div>
                             <p className="text-[13px] font-semibold">@{selectedBrandName?.toLowerCase().replace(/\s+/g, "") || "brand"}</p>
                           </div>
-                          <p className="text-[12px] leading-relaxed whitespace-pre-line">{form.caption || form.description || form.title || "Add a caption..."}</p>
+                          <p className="text-[12px] leading-relaxed whitespace-pre-line">{captionText || "Add a caption..."}</p>
                           {form.hashtags.length > 0 && (
                             <p className="text-[12px] text-[#00acee] mt-0.5">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
                           )}

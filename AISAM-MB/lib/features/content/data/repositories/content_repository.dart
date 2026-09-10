@@ -21,7 +21,7 @@ class ContentRepository {
       final queryParams = {
         'page': pageNumber,
         'pageSize': pageSize,
-        if (search != null) 'search': search,
+        if (search != null) 'searchTerm': search,
         if (status != null) 'status': status,
       };
       final response = await _dio.get('/Content', queryParameters: queryParams);

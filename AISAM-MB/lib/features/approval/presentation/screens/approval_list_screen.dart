@@ -33,17 +33,6 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Đã xử lý: $title'),
-        action: SnackBarAction(
-          label: 'Hoàn tác',
-          onPressed: () async {
-            final success = await ref.read(approvalNotifierProvider.notifier).undoContent(id);
-            if (success && mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã hoàn tác thành công')),
-              );
-            }
-          },
-        ),
         duration: const Duration(seconds: 4),
       ),
     );

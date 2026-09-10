@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'enums.dart';
+import 'dart:convert';
 
 part 'content_model.freezed.dart';
 part 'content_model.g.dart';
@@ -32,5 +33,21 @@ class ContentResponseModel with _$ContentResponseModel {
   }) = _ContentResponseModel;
 
   factory ContentResponseModel.fromJson(Map<String, dynamic> json) =>
-      _$ContentResponseModelFromJson(json);
+      _$ContentResponseModelFromJson({
+        ...json,
+        // Backend PlainText is canonical; display as text, never HTML.
+        'textContent': json['plainText'] ?? json['textContent'] ?? '',
+        'updatedAt': json['updatedAt'] ?? json['createdAt'],
+      });
+}
+
+extension ContentMediaCompatibility on ContentResponseModel {
+  List<String> get legacyImageUrls {
+    final raw=imageUrl;
+    if(raw==null || raw.isEmpty) return [];
+    dynamic value=raw;
+    try { value=jsonDecode(raw); } catch(_) { /* Legacy single URL. */ }
+    final values=value is List?value:[value];
+    return values.whereType<String>().where((v){final uri=Uri.tryParse(v);return uri!=null && ['https','http'].contains(uri.scheme);}).toList();
+  }
 }

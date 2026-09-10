@@ -1,0 +1,52 @@
+import React from "react";
+import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import MediaComposer from "../content/MediaComposer";
+const mocks = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), upload: vi.fn() }));
+vi.mock("@/services/composerService", () => ({ readMedia: mocks.read, saveMedia: mocks.save, uploadMediaItem: mocks.upload, importLegacyMedia: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ getUserIdFromToken: () => "actor" }));
+vi.mock("@/stores/workspace-store", () => ({ getStoredActiveWorkspace: () => ({ id: "workspace" }) }));
+vi.mock("@/lib/composerFiles", () => ({ loadComposerFiles: async () => [], storeComposerFiles: async () => {} }));
+const image = (id: string) => ({ assetId: id, url: `https://cdn.test/${id}`, mimeType: "image/png", isCover: false, sortOrder: 0 });
+beforeEach(() => { sessionStorage.clear(); vi.clearAllMocks(); mocks.read.mockResolvedValue({ version: "v1", items: [] }); });
+afterEach(cleanup);
+it("retries only failed files and keeps successful uploads in draft", async () => {
+  mocks.upload.mockResolvedValueOnce(image("a")).mockRejectedValueOnce(new Error("storage failed")).mockResolvedValueOnce(image("b"));
+  render(<MediaComposer contentId="content" canEdit />);
+  const input = await screen.findByLabelText("Media files");
+  await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false));
+  fireEvent.change(input, { target: { files: [new File(["a"], "a.png", { type: "image/png" }), new File(["b"], "b.png", { type: "image/png" })] } });
+  fireEvent.click(screen.getByText("Upload / thử lại file lỗi"));
+  await screen.findByText(/storage failed/);
+  fireEvent.click(screen.getByText("Upload / thử lại file lỗi"));
+  await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(3));
+  expect(mocks.upload.mock.calls[2][1].name).toBe("b.png");
+  await waitFor(() => expect(JSON.parse(sessionStorage.getItem("aisam-media-draft:actor:workspace:content")!).items).toHaveLength(2));
+});
+it("reorders media and retains the draft on version conflict", async () => {
+  mocks.read.mockResolvedValue({ version: "v1", items: [image("a"), image("b")] });
+  mocks.save.mockRejectedValue(new Error("MEDIA_VERSION_CONFLICT"));
+  render(<MediaComposer contentId="content" canEdit />);
+  const buttons = await screen.findAllByText("Xuống"); fireEvent.click(buttons[0]);
+  fireEvent.click(screen.getByText("Lưu media"));
+  await screen.findByRole("alert");
+  expect(mocks.save.mock.calls[0][1].items.map((m: { assetId: string }) => m.assetId)).toEqual(["b", "a"]);
+  expect(sessionStorage.getItem("aisam-media-draft:actor:workspace:content")).toContain("v1");
+});
+it("restores saved draft media only after explicit review", async () => {
+  sessionStorage.setItem("aisam-media-draft:actor:workspace:content", JSON.stringify({ version: "old", items: [image("saved")] }));
+  render(<MediaComposer contentId="content" canEdit />);
+  await screen.findByText("Khôi phục để đối chiếu");
+  expect(screen.queryByRole("img")).toBeNull();
+  fireEvent.click(screen.getByText("Khôi phục để đối chiếu"));
+  await screen.findByRole("img");
+  expect(JSON.parse(sessionStorage.getItem("aisam-media-draft:actor:workspace:content")!).version).toBe("v1");
+});
+it("rejects too many media without silently truncating the selection", async () => {
+  render(<MediaComposer contentId="content" canEdit />);
+  const input = await screen.findByLabelText("Media files");
+  await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false));
+  fireEvent.change(input, { target: { files: Array.from({ length: 11 }, (_, i) => new File(["a"], `${i}.png`, { type: "image/png" })) } });
+  await screen.findByText(/Tối đa 10 media. Hãy bỏ bớt/);
+  expect(mocks.upload).not.toHaveBeenCalled();
+});

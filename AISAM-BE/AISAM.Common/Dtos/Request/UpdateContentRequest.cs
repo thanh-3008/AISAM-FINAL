@@ -10,6 +10,8 @@ public sealed class UpdateContentRequest
     [MaxLength(255, ErrorMessage = "Title must not exceed 255 characters")]
     public string? Title { get; set; }
     public string? TextContent { get; set; }
+    public string? RichTextJson { get; set; }
+    public int? RichTextVersion { get; set; }
     /// <summary>Legacy single image URL (backward compat).</summary>
     public string? ImageUrl { get; set; }
     /// <summary>

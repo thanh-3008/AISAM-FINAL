@@ -204,6 +204,29 @@ public class PromptEnhancerTests
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    [Theory]
+    [InlineData("Add text reading 'SALE'", false)]
+    [InlineData("Thêm chữ 'SALE'", false)]
+    [InlineData("Create a product video without text", true)]
+    public async Task VideoTextPolicyRespectsExplicitRequest(string request, bool textFree)
+    {
+        var enhancer = CreateEnhancer(new StubGeminiClient("""{"pattern_id":"demo","integrated_multimodal_description":"A bottle rotates under studio lighting."}"""));
+        var result = await enhancer.EnhanceVideoPromptAsync(request, null, 8);
+        Assert.Equal(textFree, result.Prompt.Contains("no text overlay"));
+        Assert.Contains("no watermark", result.Prompt);
+        Assert.Contains("no faces", result.Prompt);
+    }
+
+    [Fact]
+    public async Task UntranslatedFallbackDoesNotReintroduceVietnameseProductDescription()
+    {
+        var enhancer = CreateEnhancer(new StubGeminiClient(new Exception("offline")));
+        var result = await enhancer.EnhanceVideoPromptAsync("Quảng cáo", new Product { Name = "Bình nước", Description = "Giữ nhiệt tốt" }, 8);
+        Assert.True(result.Prompt.All(c => c <= 127));
+        Assert.Contains("the product", result.Prompt);
+        Assert.Null(result.PatternId);
+    }
+
     private static PromptEnhancerService CreateEnhancer(IGeminiTextClient gemini)
         => new(gemini, NullLogger<PromptEnhancerService>.Instance);
 

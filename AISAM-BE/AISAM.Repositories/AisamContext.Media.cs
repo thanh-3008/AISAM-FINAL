@@ -46,7 +46,9 @@ public partial class AisamContext
     {
         var media=await ContentMedia.IgnoreQueryFilters().Include(m=>m.Asset).Where(m=>m.ContentId==content.Id).OrderBy(m=>m.SortOrder).ToListAsync(ct);
         var snapshot=new PublishSnapshot {ContentId=content.Id,WorkspaceId=content.WorkspaceId,Version=content.MediaVersion,CreatedBy=ExecutionActorId};
-        snapshot.Payload=JsonSerializer.Serialize(new {content.Title,content.TextContent,content.ImageUrl,content.VideoUrl,content.AdType,content.Tags,content.BrandId,content.ProductId});
+        snapshot.Payload=JsonSerializer.Serialize(new {content.Title,content.TextContent,content.RichTextJson,content.RichTextVersion,
+            PlainText=content.TextContent, FormatterVersion=1, FormattedCaptions=AISAM.Data.RichTextDocument.FormatCaptions(content.TextContent),
+            content.ImageUrl,content.VideoUrl,content.AdType,content.Tags,content.BrandId,content.ProductId});
         foreach(var item in media)
         {
             if(item.Asset.ExpiredAt.HasValue || item.Asset.WorkspaceId!=content.WorkspaceId || item.Asset.BrandId!=content.BrandId) throw new ResourceMutationDeniedException();
@@ -79,9 +81,21 @@ public partial class AisamContext
         foreach(var entry in ChangeTracker.Entries<Content>().Where(e=>e.State is EntityState.Modified or EntityState.Added).ToArray())
         {
             var c=entry.Entity;
+            var richChanged = entry.State == EntityState.Added || new[] { nameof(Content.RichTextJson), nameof(Content.RichTextVersion) }
+                .Any(p => entry.Property(p).IsModified && !Equals(entry.Property(p).OriginalValue, entry.Property(p).CurrentValue));
+            if (c.RichTextJson is not null && richChanged)
+                c.TextContent = AISAM.Data.RichTextDocument.PlainText(c.RichTextJson, c.RichTextVersion);
+            else if (entry.State == EntityState.Modified && entry.Property(nameof(Content.TextContent)).IsModified &&
+                !Equals(entry.Property(nameof(Content.TextContent)).OriginalValue, c.TextContent))
+            {
+                // Legacy/mobile/AI writers replace the document when they replace its text.
+                c.RichTextJson = null; c.RichTextVersion = null;
+            }
+            if (c.RichTextJson is null && c.RichTextVersion is not null) throw new ArgumentException("RICH_TEXT_DOCUMENT_REQUIRED");
+            ChangeTracker.DetectChanges();
             if(await Assets.IgnoreQueryFilters().AnyAsync(a=>a.ExpiredAt!=null && (c.ImageUrl!=null && c.ImageUrl.Contains(a.StoragePath) || c.VideoUrl==a.StoragePath),ct))
                 throw new ResourceMutationDeniedException();
-            bool payloadChanged=entry.State==EntityState.Modified && new[]{nameof(Content.Title),nameof(Content.TextContent),nameof(Content.ImageUrl),nameof(Content.VideoUrl),nameof(Content.AdType),nameof(Content.Tags),nameof(Content.BrandId),nameof(Content.ProductId)}
+            bool payloadChanged=entry.State==EntityState.Modified && new[]{nameof(Content.RichTextJson),nameof(Content.RichTextVersion),nameof(Content.Title),nameof(Content.TextContent),nameof(Content.ImageUrl),nameof(Content.VideoUrl),nameof(Content.AdType),nameof(Content.Tags),nameof(Content.BrandId),nameof(Content.ProductId)}
                 .Any(p=>entry.Property(p).IsModified && !Equals(entry.Property(p).OriginalValue,entry.Property(p).CurrentValue));
             bool transitioning=entry.State==EntityState.Added || entry.Property(nameof(Content.Status)).IsModified;
             if(payloadChanged)

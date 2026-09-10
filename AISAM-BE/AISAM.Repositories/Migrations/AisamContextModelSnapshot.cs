@@ -1200,6 +1200,14 @@ namespace AISAM.Repositories.Migrations
                         .HasColumnType("text")
                         .HasColumnName("representative_character");
 
+                    b.Property<string>("RichTextJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("rich_text_json");
+
+                    b.Property<int?>("RichTextVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("rich_text_version");
+
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")

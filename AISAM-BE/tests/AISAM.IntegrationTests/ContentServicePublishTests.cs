@@ -15,6 +15,23 @@ namespace AISAM.IntegrationTests;
 
 public class ContentServicePublishTests
 {
+    [Fact]
+    public async Task PublishUsesFrozenPlatformCaptionInsteadOfEditorOrMutableText()
+    {
+        var profile = Guid.NewGuid(); var brand = Guid.NewGuid();
+        var content = new Content { ProfileId=profile, BrandId=brand, Status=ContentStatusEnum.Approved,
+            TextContent="later draft", RichTextJson="editor JSON is never sent to provider",
+            FormattedCaptions = new() { ["facebook"]="1. Mua (https://example.test) #AISAM 👋" } };
+        var account = new SocialAccount { ProfileId=profile, UserAccessToken="test" };
+        var integration = new SocialIntegration { ProfileId=profile, BrandId=brand, SocialAccountId=account.Id,
+            SocialAccount=account, Platform=SocialPlatformEnum.Facebook, AccessToken="test", ExternalId="page" };
+        var provider = new FakeProviderService();
+        var service = CreateService(new FakeContentRepository(content), socialIntegrationRepository:new FakeSocialIntegrationRepository(integration),
+            socialAccountRepository:new FakeSocialAccountRepository(account), providerService:provider);
+        await service.PublishAsync(content.Id, integration.Id, profile);
+        Assert.Equal(content.FormattedCaptions["facebook"], provider.LastPublishedPost?.Message);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
