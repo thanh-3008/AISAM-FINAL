@@ -4,6 +4,29 @@ import { getStoredActiveProfile } from "@/stores/profile-store";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api";
 
+let isRedirectingToLogin = false;
+let isLoggingOut = false;
+
+export function setLoggingOut(value: boolean) {
+  isLoggingOut = value;
+}
+
+export function resetRedirectState() {
+  isRedirectingToLogin = false;
+  isLoggingOut = false;
+}
+
+function redirectToLoginAndHalt(): Promise<never> {
+  if (typeof window !== "undefined") {
+    document.cookie = "aisam_role=; path=/; max-age=0";
+    if (!isRedirectingToLogin && window.location.pathname !== "/login") {
+      isRedirectingToLogin = true;
+      window.location.href = "/login";
+    }
+  }
+  return new Promise(() => {});
+}
+
 type ApiOptions = RequestInit & {
   data?: any;
 };
@@ -128,11 +151,9 @@ async function handleResponse(response: Response, config: RequestInit) {
         removeRefreshToken();
         clearActiveWorkspace();
         if (typeof window !== "undefined") {
-          document.cookie = "aisam_role=; path=/; max-age=0";
           if (window.location.pathname !== "/login") {
-            window.location.href = "/login";
+            return redirectToLoginAndHalt();
           }
-          // Return a hanging promise to stop execution and prevent unhandled rejections while the browser redirects
           throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
         }
       }
@@ -174,10 +195,8 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
     removeRefreshToken();
     clearActiveWorkspace();
     if (typeof window !== "undefined") {
-      document.cookie = "aisam_role=; path=/; max-age=0";
       if (window.location.pathname !== "/login") {
-        window.location.replace("/login");
-        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+        return redirectToLoginAndHalt();
       }
     }
     throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -193,8 +212,16 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
 }
 
 export async function apiClient(endpoint: string, options: ApiOptions = {}) {
+  if (isLoggingOut) {
+    return new Promise(() => {});
+  }
   const isPublic = isPublicAuthEndpoint(endpoint);
   if (!isPublic) {
+    if (typeof window !== "undefined" && !getToken()) {
+      if (window.location.pathname !== "/login") {
+        return redirectToLoginAndHalt();
+      }
+    }
     await ensureValidToken();
   }
   const { data, headers: customHeaders, ...customConfig } = options;
@@ -225,6 +252,14 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 }
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+  if (isLoggingOut) {
+    return new Promise(() => {});
+  }
+  if (typeof window !== "undefined" && !getToken() && !isPublicAuthEndpoint(endpoint)) {
+    if (window.location.pathname !== "/login") {
+      return redirectToLoginAndHalt();
+    }
+  }
   await ensureValidToken();
   const { headers, token } = await buildHeaders(options.headers as Record<string, string> | undefined);
 

@@ -102,6 +102,10 @@ export function invalidateWorkspaceCache() {
   notifyCache();
 }
 
+export function clearWorkspaceCacheSilently() {
+  cachedWorkspaces = null;
+}
+
 export function addWorkspaceToCache(workspace: WorkspaceData) {
   if (cachedWorkspaces) {
     const exists = cachedWorkspaces.some((p) => p.id === workspace.id);

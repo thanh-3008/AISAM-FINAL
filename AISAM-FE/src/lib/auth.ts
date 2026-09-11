@@ -1,6 +1,7 @@
-import { API_URL } from "./apiClient";
+import { API_URL, setLoggingOut } from "./apiClient";
 
 export const setToken = (token: string) => {
+  setLoggingOut(false);
   if (typeof window !== "undefined") {
     localStorage.setItem("aisam_token", token);
   }
@@ -152,18 +153,26 @@ export async function ensureValidToken(): Promise<string | null> {
 }
 
 export async function logout(): Promise<void> {
+  setLoggingOut(true);
   try {
     const token = getToken();
     const refreshToken = getRefreshToken();
     if (token) {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ refreshToken: refreshToken || undefined }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      try {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ refreshToken: refreshToken || undefined }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
     }
   } catch {
     // silently fail — BE call is best-effort
@@ -175,8 +184,20 @@ export async function logout(): Promise<void> {
       document.cookie = "aisam_role=; path=/; max-age=0";
     }
     try {
-      const { invalidateWorkspaceCache } = await import("@/hooks/useWorkspaces");
-      invalidateWorkspaceCache();
+      const { clearActiveWorkspace } = await import("@/stores/workspace-store");
+      clearActiveWorkspace();
+    } catch {
+      // ignore
+    }
+    try {
+      const { clearActiveProfile } = await import("@/stores/profile-store");
+      clearActiveProfile();
+    } catch {
+      // ignore
+    }
+    try {
+      const { clearWorkspaceCacheSilently } = await import("@/hooks/useWorkspaces");
+      clearWorkspaceCacheSilently();
     } catch {
       // ignore
     }
