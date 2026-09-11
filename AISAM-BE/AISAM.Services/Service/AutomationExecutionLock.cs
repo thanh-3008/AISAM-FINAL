@@ -14,7 +14,25 @@ public sealed class AutomationExecutionLock : IAsyncDisposable
     public static async Task<AutomationExecutionLock?> TryAcquireAsync(AisamContext db, long key, CancellationToken ct)
     {
         if (!db.Database.IsNpgsql()) return new(null);
-        var configuration = new NpgsqlConnectionStringBuilder(db.Database.GetConnectionString()) { Pooling = false };
+        var rawConnectionString = db.Database.GetConnectionString();
+        var configuration = new NpgsqlConnectionStringBuilder(rawConnectionString) { Pooling = false };
+        if (string.IsNullOrEmpty(configuration.Password))
+        {
+            try
+            {
+                var fallbackString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+                    ?? AisamContextFactory.ResolveConnectionString();
+                var fallbackBuilder = new NpgsqlConnectionStringBuilder(fallbackString);
+                if (!string.IsNullOrEmpty(fallbackBuilder.Password))
+                {
+                    configuration.Password = fallbackBuilder.Password;
+                }
+            }
+            catch
+            {
+                // Fallback resolution is best-effort
+            }
+        }
         var connection = new NpgsqlConnection(configuration.ConnectionString);
         try
         {

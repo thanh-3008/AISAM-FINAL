@@ -7,6 +7,7 @@ public sealed class CreateContentRequest
 {
     public Guid BrandId { get; set; }
     public Guid? ProductId { get; set; }
+    public Guid? TeamId { get; set; }
     public AdTypeEnum AdType { get; set; }
     [MaxLength(255, ErrorMessage = "Title must not exceed 255 characters")]
     public string? Title { get; set; }

@@ -58,6 +58,10 @@ export default function ContentDetailPage() {
   const formRef = useRef(form);
   const itemRef = useRef(item);
 
+  const handleMediaSaved = useCallback(() => {
+    setItem(p => p ? { ...p, status: "Draft" } : p);
+  }, []);
+
   const updateForm = useCallback((partial: Partial<FormState>) => {
     formRef.current = { ...formRef.current, ...partial };
     setForm((prev) => ({ ...prev, ...partial }));
@@ -363,7 +367,7 @@ export default function ContentDetailPage() {
                   );
                 })()}
 
-                <MediaComposer contentId={String(params.id)} canEdit={allowed(0)} onDirtyChange={setMediaDirty} onSaved={() => { setItem(p => p ? { ...p, status: "Draft" } : p); }} />
+                <MediaComposer contentId={String(params.id)} canEdit={allowed(0)} onDirtyChange={setMediaDirty} onSaved={handleMediaSaved} />
                 {item.type === "TEXT" && (
                   <div className="w-full max-w-2xl mx-auto">
                     <div className="bg-surface-container rounded-xl p-6 min-h-50">
@@ -554,8 +558,8 @@ export default function ContentDetailPage() {
                   </div>
                 )}
 
-                {/* Caption */}
-                {(item.caption || item.textContent || editing) && (
+                {/* Caption - only shown for non-TEXT content (TEXT content is edited in the main body above) */}
+                {item.type !== "TEXT" && (item.caption || item.textContent || editing) && (
                   <div>
                     <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
                     {editing ? (

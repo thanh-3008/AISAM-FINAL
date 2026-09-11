@@ -41,10 +41,16 @@ public partial class AisamContext
                 await BeforePermissionMutation(entry.Entity,entry.State,ct);
             if(entry.Entity is Conversation conversation && entry.State==EntityState.Added && ExecutionActorId.HasValue)
                 conversation.CreatedByUserId=ExecutionActorId;
-            if (entry.Entity is Content draft && ExecutionActorId.HasValue)
+            if (entry.Entity is Content draft)
             {
-                if (entry.State == EntityState.Added) draft.PrimaryCreatorId = ExecutionActorId;
-                draft.UpdatedByUserId = ExecutionActorId;
+                if (entry.State == EntityState.Added)
+                {
+                    if (ExecutionActorId.HasValue && (!draft.PrimaryCreatorId.HasValue || draft.PrimaryCreatorId == Guid.Empty))
+                        draft.PrimaryCreatorId = ExecutionActorId;
+                    await EnsureContentTeamAsync(draft, ct);
+                }
+                if (ExecutionActorId.HasValue)
+                    draft.UpdatedByUserId = ExecutionActorId;
             }
             if (entry.Entity is Post post && entry.State == EntityState.Added)
             {
@@ -114,6 +120,89 @@ public partial class AisamContext
                 if(audit.Item1 is not null && !ChangeTracker.Entries<AuditLog>().Any(a=>a.State==EntityState.Added && a.Entity.TargetId==audit.Item2 && a.Entity.ActionType==audit.Item4))
                     AuditLogs.Add(new AuditLog {ActorId=auditActor,WorkspaceId=audit.Item3==Guid.Empty?null:audit.Item3,
                         TargetTable=audit.Item1,TargetId=audit.Item2,ActionType=audit.Item4,Result="allowed",ExecutedBySystem=ExecutionIsSystem});
+            }
+        }
+    }
+
+    private async Task EnsureContentTeamAsync(Content content, CancellationToken ct)
+    {
+        if (content.WorkspaceId == Guid.Empty || content.BrandId == Guid.Empty)
+            return;
+
+        Guid resolvedTeamId = content.TeamId ?? Guid.Empty;
+
+        if (resolvedTeamId == Guid.Empty)
+        {
+            var creatorId = content.PrimaryCreatorId ?? ExecutionActorId;
+
+            // 1. Check if creator belongs to an active team assigned to this brand in the workspace
+            if (creatorId.HasValue && creatorId.Value != Guid.Empty)
+            {
+                resolvedTeamId = await (from tb in TeamBrands.AsNoTracking()
+                                        join tm in TeamMembers.AsNoTracking() on tb.TeamId equals tm.TeamId
+                                        join t in Teams.AsNoTracking() on tb.TeamId equals t.Id
+                                        where tb.BrandId == content.BrandId && tb.IsActive
+                                           && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted && t.Status == AISAM.Data.Enumeration.TeamStatusEnum.Active
+                                           && tm.UserId == creatorId.Value && tm.IsActive
+                                        select t.Id).FirstOrDefaultAsync(ct);
+            }
+
+            // 2. If not found, check if any active team in workspace is assigned to this brand
+            if (resolvedTeamId == Guid.Empty)
+            {
+                resolvedTeamId = await (from tb in TeamBrands.AsNoTracking()
+                                        join t in Teams.AsNoTracking() on tb.TeamId equals t.Id
+                                        where tb.BrandId == content.BrandId && tb.IsActive
+                                           && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted && t.Status == AISAM.Data.Enumeration.TeamStatusEnum.Active
+                                        select t.Id).FirstOrDefaultAsync(ct);
+            }
+
+            // 3. If brand is not assigned to any team yet, find any active team in the workspace
+            if (resolvedTeamId == Guid.Empty)
+            {
+                resolvedTeamId = await Teams.AsNoTracking()
+                    .Where(t => t.WorkspaceId == content.WorkspaceId && !t.IsDeleted && t.Status == AISAM.Data.Enumeration.TeamStatusEnum.Active)
+                    .Select(t => t.Id)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            // 4. If workspace has no teams at all, create a default team
+            if (resolvedTeamId == Guid.Empty)
+            {
+                var defaultTeam = new Team
+                {
+                    Id = Guid.NewGuid(),
+                    WorkspaceId = content.WorkspaceId,
+                    Name = "Default Team",
+                    Status = AISAM.Data.Enumeration.TeamStatusEnum.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                Teams.Add(defaultTeam);
+                resolvedTeamId = defaultTeam.Id;
+            }
+
+            content.TeamId = resolvedTeamId;
+        }
+
+        // Ensure TeamBrand assignment exists so trigger aisam_content_team_boundary succeeds
+        var hasBrandLink = (ChangeTracker.Entries<TeamBrand>().Any(e => e.Entity.TeamId == resolvedTeamId && e.Entity.BrandId == content.BrandId && e.Entity.IsActive && e.State != EntityState.Deleted))
+            || await TeamBrands.AnyAsync(tb => tb.TeamId == resolvedTeamId && tb.BrandId == content.BrandId && tb.IsActive, ct);
+
+        if (!hasBrandLink)
+        {
+            var teamExists = (ChangeTracker.Entries<Team>().Any(e => e.Entity.Id == resolvedTeamId && e.State != EntityState.Deleted))
+                || await Teams.AnyAsync(t => t.Id == resolvedTeamId && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted, ct);
+
+            if (teamExists)
+            {
+                TeamBrands.Add(new TeamBrand
+                {
+                    TeamId = resolvedTeamId,
+                    BrandId = content.BrandId,
+                    IsActive = true,
+                    AssignedAt = DateTime.UtcNow
+                });
             }
         }
     }

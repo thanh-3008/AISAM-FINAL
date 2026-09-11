@@ -49,8 +49,15 @@ function ToolbarBtn({
   return (
     <button
       type="button"
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
       disabled={disabled}
       title={title}
       className={`w-8 h-8 flex items-center justify-center rounded-lg text-[13px] font-semibold transition-all select-none
@@ -213,12 +220,15 @@ export default function RichTextEditor({
       }, 200);
     },
     immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
   });
 
   // Sync external value changes (e.g., AI fills in content)
   useEffect(() => {
     if (!editor) return;
     if (pendingUpdateRef.current) return;
+    // Do not overwrite editor content from external props while user is actively focused in this editor
+    if (editor.isFocused) return;
     // Only update if value differs from what we last emitted
     if (value !== externalValueRef.current || richTextJson !== externalJsonRef.current) {
       const html = readDocument(richTextJson, value);

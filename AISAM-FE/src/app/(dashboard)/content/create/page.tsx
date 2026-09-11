@@ -462,16 +462,18 @@ export default function CreateContentPage() {
                     placeholder="Add a brief description of this content..." />
                 </div>
 
-                {/* Caption */}
-                <div>
-                  <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Social Media Caption</label>
-                  <RichTextEditor
-                    value={form.caption}
-                    richTextJson={form.captionDocument} onChange={(caption, captionDocument) => update({ caption, captionDocument })}
-                    placeholder="Write the caption that will appear on social media posts..."
-                    minHeight={120}
-                  />
-                </div>
+                {/* Caption - only shown for non-TEXT content (TEXT content uses Content Body above) */}
+                {form.type !== "TEXT" && (
+                  <div>
+                    <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Social Media Caption</label>
+                    <RichTextEditor
+                      value={form.caption}
+                      richTextJson={form.captionDocument} onChange={(caption, captionDocument) => update({ caption, captionDocument })}
+                      placeholder="Write the caption that will appear on social media posts..."
+                      minHeight={120}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Meta section */}

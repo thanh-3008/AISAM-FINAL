@@ -99,6 +99,7 @@ public sealed class ContentService : IContentService
             ProfileId = profileId,
             BrandId = request.BrandId,
             ProductId = request.ProductId,
+            TeamId = request.TeamId,
             AdType = request.AdType,
             Title = request.Title,
             TextContent = request.RichTextJson is null ? request.TextContent : AISAM.Data.RichTextDocument.PlainText(request.RichTextJson, request.RichTextVersion), RichTextJson = request.RichTextJson, RichTextVersion = request.RichTextVersion,
@@ -136,6 +137,7 @@ public sealed class ContentService : IContentService
         {
             PrimaryCreatorId = actorUserId,
             WorkspaceId = workspaceId, ProfileId = profileId, BrandId = request.BrandId, ProductId = request.ProductId,
+            TeamId = request.TeamId,
             AdType = request.AdType, Title = request.Title, TextContent = request.RichTextJson is null ? request.TextContent : AISAM.Data.RichTextDocument.PlainText(request.RichTextJson, request.RichTextVersion), RichTextJson = request.RichTextJson, RichTextVersion = request.RichTextVersion,
             ImageUrl = ResolveImageUrlForStorage(request.ImageUrls, request.ImageUrl), VideoUrl = request.VideoUrl,
             ThumbnailUrl = request.ThumbnailUrl,

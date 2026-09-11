@@ -497,6 +497,7 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
 static string BuildDatabaseConnectionString(string connectionString)
 {
     var builder = new NpgsqlConnectionStringBuilder(connectionString);
+    builder.PersistSecurityInfo = true;
     var configuredMaxPoolSize = builder.ContainsKey("Maximum Pool Size") || builder.ContainsKey("Max Pool Size");
 
     if (!configuredMaxPoolSize)

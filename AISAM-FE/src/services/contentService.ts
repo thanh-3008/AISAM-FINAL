@@ -110,6 +110,7 @@ export interface ContentDetail {
 export interface CreateContentPayload {
   brandId: string;
   productId?: string | null;
+  teamId?: string | null;
   adType: AdType;
   title?: string | null;
   textContent: string;
@@ -130,6 +131,7 @@ export interface CreateContentPayload {
 
 export interface UpdateContentPayload {
   productId?: string | null;
+  teamId?: string | null;
   adType?: AdType;
   title?: string | null;
   textContent?: string | null;
@@ -155,7 +157,7 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   3: "Rejected",
   4: "Published",
   5: "Flagged",
-  6: "RejectedByPlatform",
+  6: "Rejected",
   7: "Failed",
 };
 

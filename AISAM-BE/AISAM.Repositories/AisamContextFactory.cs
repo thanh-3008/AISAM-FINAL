@@ -10,7 +10,8 @@ public class AisamContextFactory : IDesignTimeDbContextFactory<AisamContext>
     public AisamContext CreateDbContext(string[] args)
     {
         var connectionString = ResolveConnectionString();
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+        var csb = new NpgsqlConnectionStringBuilder(connectionString) { PersistSecurityInfo = true };
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(csb.ConnectionString);
         dataSourceBuilder.EnableDynamicJson();
         var dataSource = dataSourceBuilder.Build();
         var optionsBuilder = new DbContextOptionsBuilder<AisamContext>();
