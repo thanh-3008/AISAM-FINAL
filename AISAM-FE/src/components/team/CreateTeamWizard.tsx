@@ -427,9 +427,9 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
                     {selectedBrandIds.length > 0 && !selectedMembers.some((m) => m.role === "Manager") && (
                       <div className="flex items-center gap-2 text-warning-amber text-body-sm p-3 bg-warning-amber/10 rounded-lg mt-3">
                         <span className="material-symbols-outlined text-[16px]">warning</span>
-                        Team cần có ít nhất 1 Manager trước khi gán Brand quản lý.
+                        A team needs at least 1 Manager before assigning Brands.
                         <button type="button" onClick={() => setStep("members")} className="underline ml-1 font-medium">
-                          Quay lại Step 2
+                          Back to Step 2
                         </button>
                       </div>
                     )}

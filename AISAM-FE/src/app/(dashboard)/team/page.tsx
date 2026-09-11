@@ -292,8 +292,78 @@ export default function TeamPage() {
       <div className="p-8 h-[calc(100vh-64px)] overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
 
-          <p className="text-sm">Vai trò workspace không tự cấp quyền mọi Brand. <Link href="/brands" className="underline">Chọn Brand để quản lý Team và quyền kênh</Link>.</p>
-          <Link href="/team/performance" className="underline text-primary">Hiệu suất thành viên</Link>
+          {/* Workspace Brand Permissions Guidance Banner */}
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-container-low border border-outline-variant/30 animate-fade-up">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-primary text-[18px]">info</span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-body-sm leading-snug">
+              <span className="font-semibold text-on-surface">Access is managed by Brand.</span>
+              <span className="text-on-surface-variant">
+                <Link href="/brands" className="text-primary font-medium hover:underline inline-flex items-center gap-0.5">
+                  Select a Brand
+                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                </Link>{" "}
+                to manage Teams and channel permissions.
+              </span>
+            </div>
+          </div>
+
+          {/* Page Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-up">
+            <div className="flex items-center gap-4">
+              <div className="relative w-12 h-12 shrink-0">
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 animate-float shadow-lg shadow-primary/20" />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/15 to-transparent" />
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-primary text-[24px]">group</span>
+                </div>
+              </div>
+              <div>
+                <h1 className="text-headline-sm font-bold text-on-surface">
+                  {activeWorkspace?.name || "Workspace"} Team
+                </h1>
+                <p className="text-label-sm text-outline">
+                  {teams.length} teams · {activeMemberCount} members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/team/performance"
+                className="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container hover:border-outline-variant/60 transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">monitoring</span>
+                <span>Member Performance</span>
+              </Link>
+              <button
+                onClick={() => loadData()}
+                className="px-3.5 py-2.5 rounded-xl border border-outline-variant/30 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container hover:border-outline-variant/60 transition-all flex items-center gap-2"
+                title="Refresh data"
+                aria-label="Refresh data"
+              >
+                <span className="material-symbols-outlined text-[18px]">refresh</span>
+              </button>
+              {canManageTeams && activeTab === "teams" && (
+                <button
+                  onClick={() => setShowCreateTeamWizard(true)}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">group_add</span>
+                  <span>Create Team</span>
+                </button>
+              )}
+              {isOwner && activeTab === "members" && (
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">person_add</span>
+                  <span>Invite Member</span>
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* Tab Switcher */}
           <div className="flex items-center gap-1 bg-surface-container-low rounded-xl p-1 w-fit">
@@ -323,54 +393,6 @@ export default function TeamPage() {
                 Members ({members.length})
               </span>
             </button>
-          </div>
-
-          {/* Page Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-up">
-            <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 shrink-0">
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 animate-float shadow-lg shadow-primary/20" />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/15 to-transparent" />
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-primary text-[24px]">group</span>
-                </div>
-              </div>
-              <div>
-                <h1 className="text-headline-sm font-bold text-on-surface">
-                  {activeWorkspace?.name || "Workspace"} Team
-                </h1>
-                <p className="text-label-sm text-outline">
-                  {teams.length} teams · {activeMemberCount} members · {getWorkspaceTypeLabel(activeWorkspace?.workspaceType || 0)}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => loadData()}
-                className="px-4 py-2.5 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all flex items-center gap-2"
-                title="Refresh data"
-              >
-                <span className="material-symbols-outlined text-[16px]">refresh</span>
-              </button>
-              {canManageTeams && activeTab === "teams" && (
-                <button
-                  onClick={() => setShowCreateTeamWizard(true)}
-                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[16px]">group_add</span>
-                  Create Team
-                </button>
-              )}
-              {isOwner && activeTab === "members" && (
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[16px]">person_add</span>
-                  Invite Member
-                </button>
-              )}
-            </div>
           </div>
 
           {/* Stats */}
