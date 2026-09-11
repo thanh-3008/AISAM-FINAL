@@ -683,6 +683,14 @@ public sealed class AIService : IAIService
             : null);
 
         var referenceUrls = GetReferenceImageUrlsForGeneration(selectedProduct, request.CustomPrompt, rawPrompt);
+        if (referenceUrls.Count == 0 && !string.IsNullOrWhiteSpace(content.ImageUrl))
+        {
+            var fallbackUrls = ParseImageUrls(content.ImageUrl);
+            if (fallbackUrls.Count > 0)
+            {
+                referenceUrls = fallbackUrls.Take(3).ToList();
+            }
+        }
         var hasReferenceImages = referenceUrls.Count > 0;
 
         // Rewrite and enhance prompt using Gemini (bám sát sản phẩm + tối ưu cho FLUX.2 Klein)
@@ -1628,22 +1636,45 @@ Latest user message:
                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
-    private static List<string> GetProductImageUrls(Product? product)
+    private static List<string> ParseImageUrls(string? rawInput)
     {
-        if (string.IsNullOrWhiteSpace(product?.Images)) return new List<string>();
+        if (string.IsNullOrWhiteSpace(rawInput)) return new List<string>();
 
+        var raw = rawInput.Trim();
         try
         {
-            return JsonSerializer.Deserialize<List<string>>(product.Images)?
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim())
-                .ToList() ?? new List<string>();
+            var deserialized = JsonSerializer.Deserialize<List<string>>(raw);
+            if (deserialized != null && deserialized.Count > 0)
+            {
+                return deserialized
+                    .Where(value => !string.IsNullOrWhiteSpace(value) && IsValidImageUrl(value))
+                    .Select(value => value.Trim())
+                    .ToList();
+            }
         }
         catch (JsonException)
         {
-            return new List<string>();
+            // Fall back to handling single URL or comma-separated URLs
         }
+
+        if (raw.Contains(','))
+        {
+            var splitUrls = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(IsValidImageUrl)
+                .ToList();
+            if (splitUrls.Count > 1) return splitUrls;
+        }
+
+        if (IsValidImageUrl(raw))
+        {
+            return new List<string> { raw };
+        }
+
+        return new List<string>();
     }
+
+    private static List<string> GetProductImageUrls(Product? product) =>
+        ParseImageUrls(product?.Images);
 
     private static string AppendOriginalProductImagesToResponse(string responseText, IReadOnlyList<string> imageUrls)
     {
@@ -1673,9 +1704,16 @@ Latest user message:
         var productContext = BuildProductImageContext(product);
         var references = SelectProductReferenceImages(product, userMessage, prompt, request);
         var promptWithReference = ApplyProductImageReferenceRule(prompt, references, userMessage);
+        var hasReferences = references.Count > 0 && !IsFreeCreativeImageRequest($"{userMessage}\n{prompt}");
         var modeInstruction = IsNormalGenerationMode(request)
             ? "Generation mode: normal_generation. Do not use product catalog images as exact product references. If an uploaded user image is provided, use it only as a user-provided visual reference or inspiration unless the user explicitly asks to preserve it exactly."
             : "Generation mode: exact_product_reference. Preserve the selected product identity from product reference images.";
+        var categoryGuidance = PromptEnhancerService.GetCategorySceneGuidance(product?.Category);
+
+        var rule3 = hasReferences
+            ? "3. NO WATERMARKS, no added text overlay, no fake words, no labels rewritten by the model, no gibberish typography. Preserve existing packaging, label graphics, and brand identity exactly as shown in the reference image. Do not redesign, blur, or remove existing brand text or logos on the product itself."
+            : "3. NO TEXT, NO WATERMARKS, NO LOGO TEXT, no readable letters, no numbers, no fake words, no labels rewritten by the model, no gibberish typography, no broken-font characters. If packaging/signage appears, keep all surfaces blank or abstract.";
+
         return $"""
 {promptWithReference}
 {brandContext}{productContext}
@@ -1685,9 +1723,9 @@ Act as an expert commercial product photographer. Create one premium advertising
 Strict safety/composition rules:
 1. NO HUMANS, NO FACES, NO HANDS, NO BODY PARTS. Do not show people, hands holding the product, faces, silhouettes, or human skin.
 2. MINIMALIST commercial background related to the product, clean and elegant, with intentional negative space for future text placement.
-3. NO TEXT, NO WATERMARKS, NO LOGO TEXT, no readable letters, no numbers, no fake words, no labels rewritten by the model, no gibberish typography, no broken-font characters. If packaging/signage appears, keep all surfaces blank or abstract.
+{rule3}
 4. Studio lighting, 4k resolution, hyper-realistic, polished 3D render style, premium commercial product photography. Put the product as the central hero subject.
-Scene guidance: place the product on a tasteful contextual surface or pedestal that fits its tone and category. Add only subtle decor accents such as soft blurred leaves, window light, water reflections, geometric shapes, or material textures when relevant. Keep the scene uncluttered, premium, and product-focused.
+Scene guidance: {categoryGuidance} Keep the scene uncluttered, premium, and product-focused.
 """.Trim();
     }
 

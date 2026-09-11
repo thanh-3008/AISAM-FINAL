@@ -606,6 +606,80 @@ public class AIServiceTests
     }
 
     [Fact]
+    public void BuildSafeImagePrompt_BranchA_PreservesPackaging_WhenProductHasReferenceImages()
+    {
+        var method = typeof(AIService).GetMethod("BuildSafeImagePrompt", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var product = new Product
+        {
+            Name = "Sữa bột Optimum Gold",
+            Category = "Sữa bột dinh dưỡng",
+            Images = "[\"https://storage.aisam.vn/products/optimum.jpg\"]"
+        };
+        var brand = new Brand { Name = "Vinamilk" };
+
+        var prompt = (string)method!.Invoke(null, new object?[] { "Tạo ảnh lon sữa", brand, product, null, null })!;
+
+        // Rule 3 in Branch A must preserve packaging and label graphics
+        Assert.Contains("Preserve existing packaging, label graphics, and brand identity", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Do not redesign, blur, or remove existing brand text or logos", prompt, StringComparison.OrdinalIgnoreCase);
+
+        // Must NOT order surfaces to be blank
+        Assert.DoesNotContain("keep all surfaces blank or abstract", prompt, StringComparison.OrdinalIgnoreCase);
+
+        // Scene guidance must fit Dairy category (kitchen / dining)
+        Assert.Contains("kitchen countertop", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildSafeImagePrompt_BranchB_RequiresSurfacesBlank_WhenNoReferenceImages()
+    {
+        var method = typeof(AIService).GetMethod("BuildSafeImagePrompt", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var product = new Product
+        {
+            Name = "Sữa bột Optimum Gold",
+            Category = "Sữa bột dinh dưỡng",
+            Images = null
+        };
+        var brand = new Brand { Name = "Vinamilk" };
+
+        var prompt = (string)method!.Invoke(null, new object?[] { "Tạo ảnh lon sữa", brand, product, null, null })!;
+
+        // Rule 3 in Branch B must require surfaces blank and no text to avoid gibberish
+        Assert.Contains("keep all surfaces blank or abstract", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NO TEXT, NO WATERMARKS, NO LOGO TEXT", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no readable letters", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GetProductImageUrls_ParsesJsonArray_SingleUrl_AndCommaSeparated()
+    {
+        var method = typeof(AIService).GetMethod("GetProductImageUrls", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        // Case 1: JSON array
+        var pJson = new Product { Images = "[\"https://example.com/1.jpg\", \"https://example.com/2.jpg\"]" };
+        var urlsJson = (List<string>)method!.Invoke(null, new object?[] { pJson })!;
+        Assert.Equal(2, urlsJson.Count);
+        Assert.Equal("https://example.com/1.jpg", urlsJson[0]);
+
+        // Case 2: Raw single URL string
+        var pSingle = new Product { Images = "https://example.com/single.jpg" };
+        var urlsSingle = (List<string>)method!.Invoke(null, new object?[] { pSingle })!;
+        Assert.Single(urlsSingle);
+        Assert.Equal("https://example.com/single.jpg", urlsSingle[0]);
+
+        // Case 3: Comma separated
+        var pComma = new Product { Images = "https://example.com/a.png, https://example.com/b.png" };
+        var urlsComma = (List<string>)method!.Invoke(null, new object?[] { pComma })!;
+        Assert.Equal(2, urlsComma.Count);
+        Assert.Equal("https://example.com/a.png", urlsComma[0]);
+    }
+
+    [Fact]
     public async Task ChatAsync_IncludesSelectedBrandAndProductDetailsInPrompt()
     {
         var profileId = Guid.NewGuid();

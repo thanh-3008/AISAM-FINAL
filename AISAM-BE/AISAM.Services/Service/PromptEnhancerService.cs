@@ -37,9 +37,31 @@ public sealed class PromptEnhancerService : IPromptEnhancerService
         }
 
         var productContext = BuildProductContext(product);
-        var referenceMode = hasReferenceImages
-            ? "The user will supply one or more reference images of the actual product. The product identity (shape, silhouette, color palette, material, label/packaging layout, and distinctive visible details) MUST be preserved exactly. Only the background, lighting, camera angle, and scene composition may change."
-            : "No reference images. Infer the product appearance from the product context provided.";
+        var categoryGuidance = GetCategorySceneGuidance(product?.Category);
+
+        string referenceMode;
+        string rulesBlock;
+
+        if (hasReferenceImages)
+        {
+            referenceMode = "The user will supply one or more reference images of the actual product. The product identity (shape, silhouette, color palette, material, label/packaging layout, brand typography, and distinctive visible details) MUST be preserved exactly as shown in the reference image. Only the background, lighting, camera angle, and scene composition may change.";
+            rulesBlock = """
+- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
+- The prompt must be a single cohesive paragraph or structured sentence block.
+- CRITICAL RULE: Preserve existing packaging, label graphics, and brand identity exactly as shown in the reference image. Do not redesign, blur, or remove existing brand text/logo on the product itself. Do not invent new background typography or floating text.
+- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, preserve exact product identity and label graphics from reference image, no watermarks, no added text overlay, no fake typography, no humans, no faces, no hands."
+""";
+        }
+        else
+        {
+            referenceMode = "No reference images. Infer the product appearance from the product context provided.";
+            rulesBlock = """
+- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
+- The prompt must be a single cohesive paragraph or structured sentence block.
+- CRITICAL RULE: NEVER include any text, typography, letters, branding, names, prices, or watermarks in the generated image. The final image MUST BE COMPLETELY TEXT-FREE, even if the product name or brand is provided in the context.
+- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, completely text-free, no readable text, no typography, no watermark, no letters, no words, no numbers, no humans, no faces, no hands."
+""";
+        }
 
         var metaPrompt = $"""
 You are an expert commercial advertising photographer and AI image-generation prompt engineer.
@@ -49,7 +71,8 @@ FLUX.2 [klein] best practices:
 - Write in descriptive English. Be specific about materials, textures, colors, surface finishes.
 - Specify lighting type (e.g. soft studio diffused light, natural window light, dramatic rim highlight).
 - Specify camera angle and composition (e.g. eye-level close-up, overhead flat-lay, 3/4 product angle).
-- Specify background mood and context (e.g. minimalist white marble, soft cream textile, dark lifestyle scene).
+- Specify background mood and context:
+  {categoryGuidance}
 - Always end with safety rules to prevent AI artifacts.
 
 Product context (use as the SOURCE OF TRUTH — do not invent details not present here):
@@ -62,11 +85,7 @@ User's original request (may be in any language):
 "{cleanPrompt}"
 
 Output rules:
-- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
-- The prompt must be a single cohesive paragraph or structured sentence block.
-- CRITICAL RULE: NEVER include any text, typography, letters, branding, names, prices, or watermarks in the generated image. The final image MUST BE COMPLETELY TEXT-FREE, even if the product name or brand is provided in the context.
-- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, completely text-free, no readable text, no typography, no watermark, no letters, no words, no numbers, no humans, no faces, no hands."
-- If reference images exist: include "Preserve exact product identity: shape, silhouette, proportions, color scheme, material, and label layout from the reference image. Do not redesign or replace the product."
+{rulesBlock}
 """;
 
         try
@@ -434,5 +453,31 @@ Output Rules:
             _logger.LogWarning(ex, "[PromptEnhancer] Failed to download reference image bytes from {Url}. Will silently fallback to text-only generation.", url);
             return null;
         }
+    }
+
+    public static string GetCategorySceneGuidance(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return "Place the product in an elegant, clean commercial setting that fits its style, with purposeful lighting and uncluttered composition.";
+
+        var cat = category.ToLowerInvariant();
+        if (cat.Contains("food") || cat.Contains("beverage") || cat.Contains("drink") || cat.Contains("sữa") || cat.Contains("milk") || cat.Contains("dairy") || cat.Contains("snack") || cat.Contains("thực phẩm") || cat.Contains("dinh dưỡng"))
+        {
+            return "Place the product in a warm, appetizing lifestyle setting such as a modern kitchen countertop or clean dining table with natural morning window light, subtle organic accents, and fresh atmosphere.";
+        }
+        if (cat.Contains("skin") || cat.Contains("cosmetic") || cat.Contains("beauty") || cat.Contains("care") || cat.Contains("mỹ phẩm") || cat.Contains("dưỡng") || cat.Contains("serum") || cat.Contains("lotion"))
+        {
+            return "Place the product in a pristine spa or luxury vanity setting with clean reflective surfaces, soft water ripples, botanical minimalism, and diffused softbox lighting.";
+        }
+        if (cat.Contains("tech") || cat.Contains("electronic") || cat.Contains("gadget") || cat.Contains("điện tử") || cat.Contains("device") || cat.Contains("phone") || cat.Contains("audio") || cat.Contains("tai nghe"))
+        {
+            return "Place the product on a sleek matte dark desk or architectural workspace with subtle ambient rim lights, clean cable-free minimalism, and modern high-tech aesthetic.";
+        }
+        if (cat.Contains("fashion") || cat.Contains("apparel") || cat.Contains("clothing") || cat.Contains("thời trang") || cat.Contains("shoe") || cat.Contains("bag") || cat.Contains("giày") || cat.Contains("túi"))
+        {
+            return "Place the product in a contemporary boutique or editorial studio environment with textured neutral backdrops, tailored dramatic spotlights, and clean architectural lines.";
+        }
+
+        return $"Place the product in an appropriate commercial lifestyle or studio setting suited for {category}, with purposeful lighting, clean textures, and uncluttered composition.";
     }
 }

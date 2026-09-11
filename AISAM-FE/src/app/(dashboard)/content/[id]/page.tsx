@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePublishPermission } from "@/hooks/usePublishPermission";
 import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission } from "@/services/permissionService";
@@ -58,6 +58,11 @@ export default function ContentDetailPage() {
   const formRef = useRef(form);
   const itemRef = useRef(item);
 
+  const updateForm = useCallback((partial: Partial<FormState>) => {
+    formRef.current = { ...formRef.current, ...partial };
+    setForm((prev) => ({ ...prev, ...partial }));
+  }, []);
+
   useEffect(() => {
     formRef.current = form;
     itemRef.current = item;
@@ -91,17 +96,39 @@ export default function ContentDetailPage() {
   }, [generations, params.id]);
 
   useEffect(() => {
-    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", richTextJson: item.richTextJson, ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" });
+    if (item) {
+      const initialForm: FormState = {
+        title: item.title,
+        status: item.status,
+        description: item.description || "",
+        platforms: [...item.platforms],
+        caption: item.caption || item.textContent || "",
+        richTextJson: item.richTextJson,
+        ctaLink: item.ctaLink || "",
+        scheduledAt: item.scheduledAt || "",
+        internalNotes: item.internalNotes || "",
+        hashtags: item.hashtags || [],
+        rejectionReason: item.rejectionReason || "",
+      };
+      formRef.current = initialForm;
+      setForm(initialForm);
+    }
   }, [item?.id]);
 
   const handleSave = async () => {
     if (!allowed(0)) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aisam-flush-editor"));
+    }
+    const currentForm = formRef.current;
     setSaving(true);
     const ok = await updateContent(params.id as string, {
-      title: form.title,
+      title: currentForm.title,
       adType: item ? CONTENTTYPE_TO_ADTYPE[item.type] : undefined,
-      textContent: form.caption, richTextJson: form.richTextJson, richTextVersion: form.richTextJson ? 1 : null,
-      contextDescription: form.description,
+      textContent: currentForm.caption,
+      richTextJson: currentForm.richTextJson,
+      richTextVersion: currentForm.richTextJson ? 1 : null,
+      contextDescription: currentForm.description,
     });
     if (ok && item) {
       setEditing(false);
@@ -343,7 +370,8 @@ export default function ContentDetailPage() {
                       {editing ? (
                         <RichTextEditor
                           value={form.caption}
-                          richTextJson={form.richTextJson} onChange={(caption, richTextJson) => setForm((p) => ({ ...p, caption, richTextJson }))}
+                          richTextJson={form.richTextJson}
+                          onChange={(caption, richTextJson) => updateForm({ caption, richTextJson })}
                           placeholder="Write your content..."
                           minHeight={200}
                         />
@@ -531,7 +559,12 @@ export default function ContentDetailPage() {
                   <div>
                     <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
                     {editing ? (
-                      <RichTextEditor value={form.caption} richTextJson={form.richTextJson} onChange={(caption, richTextJson) => setForm(p => ({ ...p, caption, richTextJson }))} placeholder="Write a caption..." />
+                      <RichTextEditor
+                        value={form.caption}
+                        richTextJson={form.richTextJson}
+                        onChange={(caption, richTextJson) => updateForm({ caption, richTextJson })}
+                        placeholder="Write a caption..."
+                      />
                     ) : (
                       <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption || item.textContent}</p>
                     )}

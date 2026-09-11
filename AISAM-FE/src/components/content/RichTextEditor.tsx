@@ -49,6 +49,7 @@ function ToolbarBtn({
   return (
     <button
       type="button"
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -63,6 +64,17 @@ function ToolbarBtn({
       {children}
     </button>
   );
+}
+
+function computeCounts(ed: any): { characters: number; words: number } {
+  try {
+    const json = ed.getJSON() as RichNode;
+    const characters = formatCaption(json).characters;
+    const words = ed.state.doc.textContent.split(/\s+/).filter(Boolean).length;
+    return { characters, words };
+  } catch {
+    return { characters: 0, words: 0 };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +103,62 @@ export default function RichTextEditor({
   const externalJsonRef = useRef(richTextJson);
   const externalValueRef = useRef(value);
 
+  const [counts, setCounts] = useState<{ characters: number; words: number }>(() => {
+    try {
+      if (richTextJson) {
+        const json = JSON.parse(richTextJson) as RichNode;
+        return {
+          characters: formatCaption(json).characters,
+          words: (value || "").split(/\s+/).filter(Boolean).length,
+        };
+      }
+      return {
+        characters: (value || "").length,
+        words: (value || "").split(/\s+/).filter(Boolean).length,
+      };
+    } catch {
+      return { characters: (value || "").length, words: 0 };
+    }
+  });
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdateRef = useRef<{ markdown: string; json: string } | null>(null);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const flushChange = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (pendingUpdateRef.current) {
+      const { markdown, json } = pendingUpdateRef.current;
+      pendingUpdateRef.current = null;
+      externalValueRef.current = markdown;
+      externalJsonRef.current = json;
+      onChangeRef.current(markdown, json);
+    }
+  }, []);
+
+  const flushChangeRef = useRef(flushChange);
+  useEffect(() => {
+    flushChangeRef.current = flushChange;
+  }, [flushChange]);
+
+  useEffect(() => {
+    const handleFlush = () => {
+      flushChangeRef.current();
+    };
+    window.addEventListener("aisam-flush-editor", handleFlush);
+    return () => {
+      window.removeEventListener("aisam-flush-editor", handleFlush);
+      flushChangeRef.current();
+    };
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -117,12 +185,32 @@ export default function RichTextEditor({
         style: `min-height: ${minHeight}px; padding: 12px;`,
       },
     },
+    onCreate: ({ editor: ed }) => {
+      setCounts(computeCounts(ed));
+    },
+    onBlur: () => {
+      flushChangeRef.current();
+    },
     onUpdate: ({ editor: ed }) => {
       const json = ed.getJSON() as RichNode;
       const markdown = documentText(json);
+      const jsonStr = JSON.stringify(json);
       externalValueRef.current = markdown;
-      externalJsonRef.current = JSON.stringify(json);
-      onChange(markdown, JSON.stringify(json));
+      externalJsonRef.current = jsonStr;
+      setCounts(computeCounts(ed));
+
+      pendingUpdateRef.current = { markdown, json: jsonStr };
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        if (pendingUpdateRef.current) {
+          const updateData = pendingUpdateRef.current;
+          pendingUpdateRef.current = null;
+          debounceTimerRef.current = null;
+          onChangeRef.current(updateData.markdown, updateData.json);
+        }
+      }, 200);
     },
     immediatelyRender: false,
   });
@@ -130,6 +218,7 @@ export default function RichTextEditor({
   // Sync external value changes (e.g., AI fills in content)
   useEffect(() => {
     if (!editor) return;
+    if (pendingUpdateRef.current) return;
     // Only update if value differs from what we last emitted
     if (value !== externalValueRef.current || richTextJson !== externalJsonRef.current) {
       const html = readDocument(richTextJson, value);
@@ -138,6 +227,7 @@ export default function RichTextEditor({
       editor.commands.setContent(html, { emitUpdate: false } as any);
       externalValueRef.current = value;
       externalJsonRef.current = richTextJson;
+      setCounts(computeCounts(editor));
     }
   }, [editor, value, richTextJson]);
 
@@ -293,6 +383,7 @@ export default function RichTextEditor({
                   <button
                     key={emoji}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => insertEmoji(emoji)}
                     className="w-7 h-7 flex items-center justify-center text-[16px] hover:bg-surface-container rounded-lg transition-colors"
                     title={emoji}
@@ -312,10 +403,10 @@ export default function RichTextEditor({
       {/* Word / char count */}
       <div className="flex items-center justify-end gap-3 px-3 pb-2 text-label-xs text-outline">
         <span>
-          {formatCaption(editor.getJSON() as RichNode).characters} caption characters
+          {counts.characters} caption characters
         </span>
         <span>
-          {editor.state.doc.textContent.split(/\s+/).filter(Boolean).length} words
+          {counts.words} words
         </span>
       </div>
     </div>

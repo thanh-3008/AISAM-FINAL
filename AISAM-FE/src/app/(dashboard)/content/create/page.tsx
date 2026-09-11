@@ -54,7 +54,11 @@ export default function CreateContentPage() {
     scheduledAt: "",
     internalNotes: "",
   });
-  const update = useCallback((partial: Partial<typeof form>) => setForm((previous) => ({ ...previous, ...partial })), []);
+  const formRef = useRef(form);
+  const update = useCallback((partial: Partial<typeof form>) => {
+    formRef.current = { ...formRef.current, ...partial };
+    setForm((previous) => ({ ...previous, ...partial }));
+  }, []);
 
   useEffect(() => {
     fetchBrands().then(setBrandList);
@@ -182,7 +186,12 @@ export default function CreateContentPage() {
   const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0;
 
   const handleSave = async () => {
-    if (!isValid) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aisam-flush-editor"));
+    }
+    const currentForm = formRef.current;
+    const isFormValid = currentForm.title.trim().length > 0 && currentForm.productId && currentForm.brandId.length > 0;
+    if (!isFormValid) return;
     setSaving(true);
     setSaveError(null);
 
@@ -193,9 +202,9 @@ export default function CreateContentPage() {
       return;
     }
 
-    let imageUrl = form.imageUrl || undefined;
-    let videoUrl = form.videoUrl || undefined;
-    let thumbnailUrl = form.thumbnail || undefined;
+    let imageUrl = currentForm.imageUrl || undefined;
+    let videoUrl = currentForm.videoUrl || undefined;
+    let thumbnailUrl = currentForm.thumbnail || undefined;
 
     const uploadFile = async (file: File | null): Promise<string | null> => {
       if (!file) return null;
@@ -220,22 +229,22 @@ export default function CreateContentPage() {
     }
 
     const payload: CreateContentPayload = {
-      brandId: form.brandId,
-      productId: form.productId || null,
-      adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
-      title: form.title,
-      textContent: form.type === "TEXT" ? form.textContent : form.caption || form.description || "",
-      richTextJson: form.type === "TEXT" ? form.textDocument : form.captionDocument,
-      richTextVersion: (form.type === "TEXT" ? form.textDocument : form.captionDocument) ? 1 : null,
+      brandId: currentForm.brandId,
+      productId: currentForm.productId || null,
+      adType: currentForm.type === "IMAGE" ? 1 : currentForm.type === "VIDEO" ? 2 : 0,
+      title: currentForm.title,
+      textContent: currentForm.type === "TEXT" ? currentForm.textContent : currentForm.caption || currentForm.description || "",
+      richTextJson: currentForm.type === "TEXT" ? currentForm.textDocument : currentForm.captionDocument,
+      richTextVersion: (currentForm.type === "TEXT" ? currentForm.textDocument : currentForm.captionDocument) ? 1 : null,
       // Multi-image: prefer imageUrls array, fall back to single imageUrl
-      imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
-      imageUrl: form.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
+      imageUrls: currentForm.imageUrls.length > 0 ? currentForm.imageUrls : undefined,
+      imageUrl: currentForm.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
       videoUrl,
       thumbnailUrl: thumbnailUrl || undefined,
-      styleDescription: form.description || undefined,
-      contextDescription: form.caption || undefined,
+      styleDescription: currentForm.description || undefined,
+      contextDescription: currentForm.caption || undefined,
       status: 0, // Always Draft on creation
-      tags: form.tags.length > 0 ? form.tags : undefined,
+      tags: currentForm.tags.length > 0 ? currentForm.tags : undefined,
     };
 
     try {
