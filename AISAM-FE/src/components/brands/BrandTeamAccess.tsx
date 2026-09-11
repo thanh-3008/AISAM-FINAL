@@ -7,7 +7,7 @@ import {
   type AssignmentSnapshot,
 } from "@/services/permissionService";
 import { fetchTeams, type Team } from "@/services/teamService";
-import { apiClient } from "@/lib/apiClient";
+import { fetchSocialIntegrations } from "@/services/socialAccountService";
 
 interface BrandTeamAccessProps {
   brandId: string;
@@ -48,17 +48,21 @@ export default function BrandTeamAccess({ brandId, brandName, isOwner }: BrandTe
     setLoading(true);
     setError(null);
     try {
-      const [snap, teamsRes, intRes] = await Promise.all([
+      const [snap, teamsRes, intItems] = await Promise.all([
         readAssignments(brandId).catch(() => null),
         fetchTeams(),
-        apiClient(`/social/integrations?brandId=${brandId}&pageSize=200`).catch(() => null),
+        fetchSocialIntegrations(brandId).catch(() => []),
       ]);
       setSnapshot(snap);
       setTeams(teamsRes.data);
-      if (intRes?.data) {
-        const items = Array.isArray(intRes.data) ? intRes.data : intRes.data.data || [];
-        setIntegrations(items);
-      }
+      setIntegrations(
+        intItems.map((i) => ({
+          id: i.id,
+          platform: i.provider,
+          accountName: i.accountName,
+          isActive: i.isActive,
+        }))
+      );
     } catch {
       setError("Failed to load team access data");
     }
@@ -331,25 +335,33 @@ export default function BrandTeamAccess({ brandId, brandName, isOwner }: BrandTe
               {unassignedTeams.length === 0 ? (
                 <p className="text-body-sm text-outline text-center py-6">All teams are already assigned.</p>
               ) : (
-                unassignedTeams.map((team) => (
-                  <button
-                    key={team.id}
-                    onClick={() => handleAssignTeam(team.id)}
-                    disabled={saving}
-                    className="w-full flex items-center gap-3 p-3 bg-surface-container-low rounded-xl hover:bg-primary/5 transition-all text-left disabled:opacity-50"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[16px] text-primary">groups</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-body-sm font-semibold text-on-surface">{team.name}</p>
-                      <p className="text-label-xs text-outline">
-                        {team.memberCount} members · {team.brandCount} brands
-                      </p>
-                    </div>
-                    <span className="material-symbols-outlined text-[18px] text-primary">add_circle</span>
-                  </button>
-                ))
+                unassignedTeams.map((team) => {
+                  const cannotAssign = saving || team.hasManager === false;
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => handleAssignTeam(team.id)}
+                      disabled={cannotAssign}
+                      className="w-full flex items-center gap-3 p-3 bg-surface-container-low rounded-xl hover:bg-primary/5 transition-all text-left disabled:opacity-50"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[16px] text-primary">groups</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-body-sm font-semibold text-on-surface">{team.name}</p>
+                        <p className="text-label-xs text-outline">
+                          {team.memberCount} members · {team.brandCount} brands
+                          {team.hasManager === false && (
+                            <span className="text-warning-amber ml-2 font-medium">
+                              (Cần có Manager)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined text-[18px] text-primary">add_circle</span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>

@@ -26,7 +26,7 @@ import ManageTargetsModal from "@/components/social/ManageTargetsModal";
 export default function SocialAccountsPage() {
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
-  const canManage = featureGate.isOwner;
+  const canManage = featureGate.isOwner || featureGate.isManager;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

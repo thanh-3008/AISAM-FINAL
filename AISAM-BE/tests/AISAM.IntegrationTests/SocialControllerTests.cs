@@ -124,6 +124,10 @@ public class SocialControllerTests
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, profileId.ToString())
+        }, "Test"));
         return context;
     }
 

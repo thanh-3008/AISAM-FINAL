@@ -8,6 +8,7 @@ import {
   type TeamDetail,
 } from "@/services/teamService";
 import { fetchBrands } from "@/services/brandService";
+import { fetchSocialIntegrations } from "@/services/socialAccountService";
 import {
   readAssignments,
   changeAssignment,
@@ -94,13 +95,18 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
     }
     const load = async () => {
       try {
-        const res = await apiClient("/social/integrations?pageSize=200");
-        if (res?.data) {
-          const items = (Array.isArray(res.data) ? res.data : res.data.data || []) as SocialIntegration[];
-          setIntegrations(items.filter((i) => selectedBrandIds.includes(i.brandId)));
-        }
-      } catch {
-        // ignore
+        const results = await Promise.all(
+          selectedBrandIds.map((id) => fetchSocialIntegrations(id))
+        );
+        const allIntegrations: SocialIntegration[] = results.flat().map((i) => ({
+          id: i.id,
+          platform: i.provider,
+          accountName: i.accountName,
+          brandId: i.brandId,
+        }));
+        setIntegrations(allIntegrations);
+      } catch (err) {
+        console.error("Failed to load integrations:", err);
       }
     };
     load();
@@ -147,6 +153,10 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
       case "members":
         return true; // optional
       case "brands":
+        if (selectedBrandIds.length > 0) {
+          const hasManager = selectedMembers.some((m) => m.role === "Manager");
+          return hasManager;
+        }
         return true; // optional
       case "channels":
         return true; // optional
@@ -412,6 +422,15 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+                    {selectedBrandIds.length > 0 && !selectedMembers.some((m) => m.role === "Manager") && (
+                      <div className="flex items-center gap-2 text-warning-amber text-body-sm p-3 bg-warning-amber/10 rounded-lg mt-3">
+                        <span className="material-symbols-outlined text-[16px]">warning</span>
+                        Team cần có ít nhất 1 Manager trước khi gán Brand quản lý.
+                        <button type="button" onClick={() => setStep("members")} className="underline ml-1 font-medium">
+                          Quay lại Step 2
+                        </button>
                       </div>
                     )}
                   </div>

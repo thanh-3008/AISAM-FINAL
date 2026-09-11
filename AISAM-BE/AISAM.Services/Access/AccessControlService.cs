@@ -106,7 +106,7 @@ public sealed class AccessControlService(AisamContext db) : IAccessControlServic
         var grants = channel is null ? new List<TeamChannelAccess>() : await db.TeamChannelAccesses.IgnoreQueryFilters().AsNoTracking()
             .Where(g => assignmentIds.Contains(g.TeamBrandId) && g.IntegrationId == channel.Id).ToListAsync(ct);
         var facts = new ResourcePermissionFacts(member.Role, workspace.Status, true, true, owner || assignments.Count > 0,
-            content?.PrimaryCreatorId == r.ActorId, grants.Any(g => g.CanView), grants.Any(g => g.CanView && g.CanPublish),
+            content?.PrimaryCreatorId == r.ActorId, grants.Count == 0 ? (owner || assignments.Count > 0) : grants.Any(g => g.CanView), grants.Any(g => g.CanView && g.CanPublish),
             grants.Any(g => g.CanView && g.CanManage), Key(DelegatedPermissionKeys.ViewAllCreators), Key(DelegatedPermissionKeys.Review),
             Key(DelegatedPermissionKeys.Publish), r.MemberId == r.ActorId);
         var visible = r.Kind switch

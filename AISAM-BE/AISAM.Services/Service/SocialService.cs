@@ -3,7 +3,9 @@ using AISAM.Common.Dtos.Response;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
+using AISAM.Repositories;
 using AISAM.Repositories.IRepositories;
+using AISAM.Services.Access;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Options;
 
@@ -16,6 +18,7 @@ public sealed class SocialService : ISocialService
     private readonly IBrandRepository _brandRepository;
     private readonly IOAuthStateStore _oauthStateStore;
     private readonly ISocialTokenProtector _tokenProtector;
+    private readonly IAccessControlService? _accessControl;
     private readonly FacebookSettings _facebookSettings;
     private readonly InstagramSettings _instagramSettings;
     private readonly TikTokSettings _tikTokSettings;
@@ -30,13 +33,15 @@ public sealed class SocialService : ISocialService
         IOptions<FacebookSettings> facebookSettings,
         IOptions<InstagramSettings> instagramSettings,
         IOptions<TikTokSettings> tikTokSettings,
-        IEnumerable<IProviderService> providers)
+        IEnumerable<IProviderService> providers,
+        IAccessControlService? accessControl = null)
     {
         _socialAccountRepository = socialAccountRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
         _brandRepository = brandRepository;
         _oauthStateStore = oauthStateStore;
         _tokenProtector = tokenProtector;
+        _accessControl = accessControl;
         _facebookSettings = facebookSettings.Value;
         _instagramSettings = instagramSettings.Value;
         _tikTokSettings = tikTokSettings.Value;
@@ -332,11 +337,23 @@ public sealed class SocialService : ISocialService
         return await ListAvailableTargetsForAccountAsync(account.ProfileId, socialAccountId, cancellationToken);
     }
 
-    public async Task<SocialAccountDto> LinkSelectedTargetsInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid socialAccountId, LinkSelectedTargetsRequest request, CancellationToken cancellationToken = default)
+    public async Task<SocialAccountDto> LinkSelectedTargetsInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid socialAccountId, LinkSelectedTargetsRequest request, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
         var account = await RequireWorkspaceAccountAsync(workspaceId, socialAccountId, cancellationToken);
         var brand = await _brandRepository.GetByIdAsync(request.BrandId, cancellationToken);
         if (brand == null || brand.WorkspaceId != workspaceId) throw new ArgumentException("Brand not found.");
+
+        if (_accessControl != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        {
+            var decision = await _accessControl.CheckAsync(
+                new AccessRequest(actorUserId.Value, workspaceId, AccessResourceKind.Brand,
+                    request.BrandId, ResourcePermission.BrandManage), cancellationToken);
+            if (!decision.Allowed)
+            {
+                throw new ResourceMutationDeniedException();
+            }
+        }
+
         return await LinkSelectedTargetsInternalAsync(profileId, account, brand, request, cancellationToken);
     }
 
@@ -346,10 +363,31 @@ public sealed class SocialService : ISocialService
         return await GetLinkedTargetsAsync(account.ProfileId, socialAccountId, cancellationToken);
     }
 
-    public async Task<bool> UnlinkAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default)
+    public async Task<bool> UnlinkAccountInWorkspaceAsync(Guid workspaceId, Guid socialAccountId, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
         var account = await _socialAccountRepository.GetByIdWithIntegrationsAsync(socialAccountId, cancellationToken);
-        return account != null && account.WorkspaceId == workspaceId && await UnlinkAccountAsync(account.ProfileId, socialAccountId, cancellationToken);
+        if (account == null || account.WorkspaceId != workspaceId) return false;
+
+        if (_accessControl != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        {
+            var integrations = await _socialIntegrationRepository.GetBySocialAccountIdAsync(socialAccountId, cancellationToken);
+            var brandIds = integrations.Where(i => !i.IsDeleted).Select(i => i.BrandId).Distinct().ToList();
+            if (brandIds.Count > 0)
+            {
+                foreach (var bId in brandIds)
+                {
+                    var decision = await _accessControl.CheckAsync(
+                        new AccessRequest(actorUserId.Value, workspaceId, AccessResourceKind.Brand,
+                            bId, ResourcePermission.BrandManage), cancellationToken);
+                    if (!decision.Allowed)
+                    {
+                        throw new ResourceMutationDeniedException();
+                    }
+                }
+            }
+        }
+
+        return await UnlinkAccountAsync(account.ProfileId, socialAccountId, cancellationToken);
     }
 
     public async Task<bool> UnlinkTargetInWorkspaceAsync(Guid workspaceId, Guid socialIntegrationId, CancellationToken cancellationToken = default)

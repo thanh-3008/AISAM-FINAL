@@ -96,6 +96,15 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
         }
         else
         {
+            if (request.Active)
+            {
+                var hasManager = await db.TeamMembers.AsNoTracking()
+                    .AnyAsync(m => m.TeamId == team.Id
+                                && m.Role == "Manager"
+                                && m.IsActive, ct);
+                if (!hasManager)
+                    throw new InvalidOperationException("TEAM_REQUIRES_MANAGER");
+            }
             if(assignment is null) { assignment=new(){TeamId=team.Id,BrandId=request.BrandId}; db.Add(assignment); }
             assignment.IsActive=request.Active;
             assignment.AssignedAt=DateTime.UtcNow;

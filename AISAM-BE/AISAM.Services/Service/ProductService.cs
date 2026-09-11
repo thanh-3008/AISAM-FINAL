@@ -15,6 +15,7 @@ namespace AISAM.Services.Service
         private readonly IProductRepository _productRepository;
         private readonly IBrandRepository _brandRepository;
         private readonly IMediaStorageService? _mediaStorageService;
+        private readonly AISAM.Services.Access.IAccessControlService? _accessControl;
         private const int MaxImageCount = 5;
         private const long MaxImageBytes = 10 * 1024 * 1024;
         private static readonly HashSet<string> AllowedImageTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -22,17 +23,26 @@ namespace AISAM.Services.Service
             "image/jpeg", "image/png", "image/webp", "image/gif"
         };
 
-        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository, IMediaStorageService mediaStorageService)
+        public ProductService(
+            IProductRepository productRepository,
+            IBrandRepository brandRepository,
+            IMediaStorageService mediaStorageService,
+            AISAM.Services.Access.IAccessControlService? accessControl = null)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
             _mediaStorageService = mediaStorageService;
+            _accessControl = accessControl;
         }
 
-        public ProductService(IProductRepository productRepository, IBrandRepository brandRepository)
+        public ProductService(
+            IProductRepository productRepository,
+            IBrandRepository brandRepository,
+            AISAM.Services.Access.IAccessControlService? accessControl = null)
         {
             _productRepository = productRepository;
             _brandRepository = brandRepository;
+            _accessControl = accessControl;
         }
 
         public async Task<GenericResponse<PagedResult<ProductResponseDto>>> GetPagedAsync(
@@ -72,7 +82,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError("Product not found");
             }
 
-            if (!IsBrandVisibleInWorkspace(product.Brand, workspaceId, userId))
+            var brand = product.Brand ?? await _brandRepository.GetByIdAsync(product.BrandId, cancellationToken);
+            if (!await IsBrandVisibleInWorkspaceAsync(brand, workspaceId, userId, cancellationToken))
             {
                 return GenericResponse<ProductResponseDto>.CreateError("You are not allowed to access this product");
             }
@@ -202,7 +213,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<ProductResponseDto>.CreateError("Product not found");
             }
 
-            if (!IsBrandVisibleInWorkspace(product.Brand, workspaceId, userId))
+            var brand = product.Brand ?? await _brandRepository.GetByIdAsync(product.BrandId, cancellationToken);
+            if (!await IsBrandVisibleInWorkspaceAsync(brand, workspaceId, userId, cancellationToken))
             {
                 return GenericResponse<ProductResponseDto>.CreateError("You are not allowed to update this product");
             }
@@ -302,7 +314,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Product not found");
             }
 
-            if (!IsBrandVisibleInWorkspace(product.Brand, workspaceId, userId))
+            var brand = product.Brand ?? await _brandRepository.GetByIdAsync(product.BrandId, cancellationToken);
+            if (!await IsBrandVisibleInWorkspaceAsync(brand, workspaceId, userId, cancellationToken))
             {
                 return GenericResponse<bool>.CreateError("You are not allowed to delete this product");
             }
@@ -326,7 +339,8 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Product not found");
             }
 
-            if (!IsBrandVisibleInWorkspace(product.Brand, workspaceId, userId))
+            var brand = product.Brand ?? await _brandRepository.GetByIdAsync(product.BrandId, cancellationToken);
+            if (!await IsBrandVisibleInWorkspaceAsync(brand, workspaceId, userId, cancellationToken))
             {
                 return GenericResponse<bool>.CreateError("You are not allowed to restore this product");
             }
@@ -345,12 +359,12 @@ namespace AISAM.Services.Service
         private async Task<(bool Success, string Message)> EnsureBrandWorkspaceAccessAsync(Guid brandId, Guid workspaceId, Guid userId, CancellationToken cancellationToken)
         {
             var brand = await _brandRepository.GetByIdAsync(brandId, cancellationToken);
-            if (brand == null)
+            if (brand == null || brand.WorkspaceId != workspaceId || brand.IsDeleted)
             {
                 return (false, "Brand not found");
             }
 
-            if (!IsBrandVisibleInWorkspace(brand, workspaceId, userId))
+            if (!await IsBrandVisibleInWorkspaceAsync(brand, workspaceId, userId, cancellationToken))
             {
                 return (false, "You are not allowed to access this brand");
             }
@@ -358,9 +372,17 @@ namespace AISAM.Services.Service
             return (true, string.Empty);
         }
 
-        private static bool IsBrandVisibleInWorkspace(Brand brand, Guid workspaceId, Guid userId)
+        private async Task<bool> IsBrandVisibleInWorkspaceAsync(Brand? brand, Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
         {
-            return brand.WorkspaceId == workspaceId;
+            if (brand == null || brand.WorkspaceId != workspaceId || brand.IsDeleted) return false;
+            if (_accessControl != null && userId != Guid.Empty)
+            {
+                var decision = await _accessControl.CheckAsync(
+                    new AISAM.Services.Access.AccessRequest(userId, workspaceId, AISAM.Services.Access.AccessResourceKind.Brand, brand.Id, AISAM.Services.Access.ResourcePermission.BrandView),
+                    cancellationToken);
+                return decision.Allowed;
+            }
+            return true;
         }
 
         private static ProductResponseDto MapToDto(Product product)

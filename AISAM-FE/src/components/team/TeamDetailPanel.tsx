@@ -17,9 +17,11 @@ interface TeamDetailPanelProps {
   onClose: () => void;
   onUpdated: () => void;
   isOwner: boolean;
+  isManager?: boolean;
 }
 
-export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner }: TeamDetailPanelProps) {
+export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner, isManager = false }: TeamDetailPanelProps) {
+  const canManageTeam = isOwner || isManager;
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -215,7 +217,7 @@ export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner }:
                           Created {new Date(team.createdAt).toLocaleDateString()}
                         </p>
                       </div>
-                      {isOwner && (
+                      {canManageTeam && (
                         <button
                           onClick={() => setEditing(true)}
                           className="p-1.5 hover:bg-surface-container rounded-lg text-outline hover:text-primary transition-all"
@@ -234,7 +236,7 @@ export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner }:
                       <span className="material-symbols-outlined text-[16px] text-primary">group</span>
                       Members ({team.members.length})
                     </h4>
-                    {isOwner && (
+                    {canManageTeam && (
                       <button
                         onClick={() => { setShowAddMember(true); loadWorkspaceMembers(); }}
                         className="px-3 py-1.5 text-label-2xs font-bold text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-all flex items-center gap-1"
@@ -260,7 +262,7 @@ export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner }:
                         <span className="px-2 py-0.5 rounded-full text-label-2xs font-bold bg-surface-container text-outline">
                           {m.role}
                         </span>
-                        {isOwner && (
+                        {canManageTeam && (
                           <button
                             onClick={() => handleRemoveMember(m.userId)}
                             className="opacity-0 group-hover:opacity-100 p-1 hover:bg-danger-red/10 rounded text-outline hover:text-danger-red transition-all"

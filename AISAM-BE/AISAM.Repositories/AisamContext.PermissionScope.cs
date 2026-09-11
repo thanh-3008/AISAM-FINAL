@@ -40,14 +40,17 @@ public partial class AisamContext
         m.Entity<SocialIntegration>().HasQueryFilter(i=>!PermissionScopeEnabled || i.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionBrandIds.Contains(i.BrandId)) &&
             (PermissionOwner || PermissionChannelIds.Contains(i.Id)));
         m.Entity<SocialAccount>().HasQueryFilter(a=>!PermissionScopeEnabled || a.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || SocialIntegrations.Any(i=>i.SocialAccountId==a.Id)));
-        m.Entity<Post>().HasQueryFilter(p=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==p.ContentId && SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.BrandId==c.BrandId && i.WorkspaceId==c.WorkspaceId)));
+        m.Entity<Post>().HasQueryFilter(p=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==p.ContentId && c.WorkspaceId==PermissionWorkspaceId &&
+            (c.PrimaryCreatorId==PermissionActorId ||
+             SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.BrandId==c.BrandId && i.WorkspaceId==PermissionWorkspaceId &&
+                 (PermissionOwner || PermissionChannelIds.Contains(i.Id))))));
         m.Entity<ContentCalendar>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && Contents.Any(x=>x.Id==c.ContentId));
         m.Entity<Approval>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId));
         m.Entity<AiGeneration>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId));
         m.Entity<AutomationPlan>().HasQueryFilter(p=>!PermissionScopeEnabled || p.WorkspaceId==PermissionWorkspaceId &&
             (PermissionOwner || PermissionManager || PermissionCreator && p.CreatedByUserId==PermissionActorId) &&
             (PermissionOwner || PermissionPlanIds.Contains(p.Id)));
-        m.Entity<AutomationItem>().HasQueryFilter(i=>!PermissionScopeEnabled || AutomationPlans.Any(p=>p.Id==i.AutomationPlanId) && i.BrandId.HasValue && PermissionBrandIds.Contains(i.BrandId.Value));
+        m.Entity<AutomationItem>().HasQueryFilter(i=>!PermissionScopeEnabled || (PermissionOwner || AutomationPlans.Any(p=>p.Id==i.AutomationPlanId) && (!i.BrandId.HasValue || PermissionBrandIds.Contains(i.BrandId.Value))));
         m.Entity<AdCampaign>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionBrandIds.Contains(c.BrandId)) && (PermissionOwner || PermissionManager));
         m.Entity<AdSet>().HasQueryFilter(a=>!PermissionScopeEnabled || AdCampaigns.Any(c=>c.Id==a.CampaignId));
         m.Entity<Ad>().HasQueryFilter(a=>!PermissionScopeEnabled || AdSets.Any(s=>s.Id==a.AdSetId));
@@ -61,7 +64,7 @@ public partial class AisamContext
             (PermissionOwner || !c.BrandId.HasValue || PermissionBrandIds.Contains(c.BrandId.Value)) && (PermissionOwner || c.CreatedByUserId==PermissionActorId));
         m.Entity<ChatMessage>().HasQueryFilter(c=>!PermissionScopeEnabled || Conversations.Any(x=>x.Id==c.ConversationId));
         m.Entity<Asset>().HasQueryFilter(a=>!PermissionScopeEnabled || a.ExpiredAt==null && a.WorkspaceId==PermissionWorkspaceId &&
-            (PermissionOwner || PermissionBrandIds.Contains(a.BrandId??Guid.Empty) && (PermissionManager || a.UploadedBy==PermissionActorId)));
+            (PermissionOwner || !a.BrandId.HasValue || (PermissionBrandIds.Contains(a.BrandId.Value) && (PermissionManager || a.UploadedBy==PermissionActorId))));
         // Unknown target types are not safe for non-owner broadcast; explicit targets only.
         m.Entity<Notification>().HasQueryFilter(n=>!PermissionScopeEnabled || n.WorkspaceId==PermissionWorkspaceId &&
             (PermissionOwner || n.TargetType=="content" && Contents.Any(c=>c.Id==n.TargetId) ||

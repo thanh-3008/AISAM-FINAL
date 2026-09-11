@@ -65,6 +65,7 @@ export interface Team {
   memberIds?: string[];
   brandIds?: string[];
   activity?: number | string;
+  hasManager?: boolean;
 }
 
 export interface TeamDetail {

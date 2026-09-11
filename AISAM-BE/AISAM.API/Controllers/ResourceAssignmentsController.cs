@@ -32,6 +32,7 @@ public sealed class ResourceAssignmentsController(AssignmentService assignments,
         try { return Ok(new { data=View(await operation()),statusCode=200,success=true }); }
         catch(AssignmentAccessException e) { return StatusCode(e.Decision.StatusCode,new {success=false,errorCode=e.Decision.ErrorCode}); }
         catch(AssignmentConflictException) { return Conflict(new {success=false,errorCode="ACCESS_REVISION_CONFLICT"}); }
+        catch(InvalidOperationException e) { return BadRequest(new {success=false,errorCode=e.Message,message=e.Message}); }
         catch(ArgumentException e) { return BadRequest(new {success=false,message=e.Message}); }
         catch(Exception e) when ((e as PostgresException ?? (e as DbUpdateException)?.InnerException as PostgresException)?.SqlState is "40001" or "23505")
         { return Conflict(new {success=false,errorCode="ACCESS_REVISION_CONFLICT"}); }

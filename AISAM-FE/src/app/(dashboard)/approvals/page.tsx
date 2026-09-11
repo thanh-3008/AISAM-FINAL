@@ -8,7 +8,7 @@ import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission } from "@/services/permissionService";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
-import { fetchAllVisibleContents as fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
+import { fetchAllVisibleContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import { fetchSchedules } from "@/services/scheduleService";
 import { fetchWorkspaceMembers, type WorkspaceMember } from "@/services/workspaceService";
 import {
@@ -94,7 +94,7 @@ function isApprovedStatus(status: string) {
 }
 
 function isRejectedStatus(status: string) {
-  return status === "Rejected";
+  return status === "Rejected" || status === "RejectedByPlatform";
 }
 
 function isPublishedStatus(status: string) {
@@ -126,7 +126,7 @@ function getStatusMeta(status: string) {
 
   if (isRejectedStatus(status)) {
     return {
-      label: "Rejected",
+      label: status === "RejectedByPlatform" ? "Platform Rejected" : "Rejected",
       icon: "block",
       className: "bg-danger-red/10 text-danger-red ring-1 ring-danger-red/20",
       dotClassName: "bg-danger-red",
@@ -423,8 +423,21 @@ export default function ApprovalsPage() {
 
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); }
-    const contentResult = await fetchContents({ pageSize: 100, reviewQueue: true });
-    setItems((contentResult?.items ?? []).map(item => ({ ...item, approvalSource: "content" })));
+    const [contentResult, scheduleResult] = await Promise.all([
+      fetchAllVisibleContents({ pageSize: 100 }),
+      fetchSchedules({ pageSize: 100 }).catch(() => null),
+    ]);
+    const contentItems: ApprovalListItem[] = (contentResult?.items ?? [])
+      .filter((item) => item.status !== "Draft")
+      .map((item) => ({
+        ...item,
+        approvalSource: "content",
+      }));
+    const contentById = new Map(contentItems.map((item) => [item.id, item]));
+    const failedScheduleItems = (scheduleResult?.data?.data ?? [])
+      .filter((schedule) => schedule.status === "Failed")
+      .map((schedule) => mapFailedScheduleToApprovalItem(schedule, contentById.get(schedule.contentId)));
+    setItems([...contentItems, ...failedScheduleItems]);
     setLoading(false);
   }, [activeWorkspace?.id]);
 
@@ -454,7 +467,7 @@ export default function ApprovalsPage() {
   };
 
   const applyItemStatus = (id: string, status: ContentItem["status"]) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
   };
 
   const handleApprove = async (id: string) => {
@@ -694,8 +707,12 @@ export default function ApprovalsPage() {
           {/* ── Status Tabs ── */}
           <div className="border-b border-outline-variant flex gap-6">
             {([
-              { key: "all", label: "Review queue" },
+              { key: "all", label: "All" },
               { key: "pending", label: "Pending" },
+              { key: "approved", label: "Approved" },
+              { key: "published", label: "Published" },
+              { key: "failed", label: "Failed" },
+              { key: "rejected", label: "Rejected" },
             ] as { key: TabKey; label: string }[]).map((t) => (
               <button key={t.key} onClick={() => { setTab(t.key); setSelected(new Set()); setCurrentPage(1); }}
                 className={`pb-3 text-label-sm font-semibold transition-all border-b-2 ${

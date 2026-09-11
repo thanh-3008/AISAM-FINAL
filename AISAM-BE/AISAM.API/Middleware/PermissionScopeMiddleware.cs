@@ -26,15 +26,26 @@ public sealed class PermissionScopeMiddleware(RequestDelegate next)
             join t in db.Teams.AsNoTracking() on b.TeamId equals t.Id
             join member in db.TeamMembers.AsNoTracking() on t.Id equals member.TeamId
             where b.IsActive && t.WorkspaceId==workspace && !t.IsDeleted && t.Status==TeamStatusEnum.Active && member.UserId==actor && member.IsActive
-            select new {b.Id,b.BrandId,b.TeamId,member.Permissions};
+            select new {b.Id,b.BrandId,b.TeamId,member.Permissions,member.Role};
         var rows=await assignments.ToListAsync(http.RequestAborted);
+        db.PermissionManager=membership.Role==WorkspaceMemberRoleEnum.Manager || rows.Any(r=>r.Role=="Manager");
         db.PermissionTeamIds=rows.Select(r=>r.TeamId).Distinct().ToArray();
         db.PermissionViewAllBrandIds=rows.Where(r=>r.Permissions.Contains(DelegatedPermissionKeys.ViewAllCreators)).Select(r=>r.BrandId).Distinct().ToArray();
         db.PermissionReviewBrandIds=rows.Where(r=>r.Permissions.Contains(DelegatedPermissionKeys.Review)).Select(r=>r.BrandId).Distinct().ToArray();
         var assignmentIds=rows.Select(r=>r.Id).ToArray();
-        db.PermissionChannelIds=await db.TeamChannelAccesses.AsNoTracking().Where(c=>assignmentIds.Contains(c.TeamBrandId) && c.CanView).Select(c=>c.IntegrationId).Distinct().ToArrayAsync(http.RequestAborted);
+        var grantedChannelIds = await db.TeamChannelAccesses.AsNoTracking().Where(c=>assignmentIds.Contains(c.TeamBrandId) && c.CanView).Select(c=>c.IntegrationId).Distinct().ToListAsync(http.RequestAborted);
+        var managedBrandIds = db.PermissionBrandIds;
+        if (db.PermissionManager && managedBrandIds.Length > 0)
+        {
+            var allManagedChannels = await db.SocialIntegrations
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(i => managedBrandIds.Contains(i.BrandId) && i.WorkspaceId == workspace && !i.IsDeleted)
+                .Select(i => i.Id).ToListAsync(http.RequestAborted);
+            grantedChannelIds = grantedChannelIds.Union(allManagedChannels).Distinct().ToList();
+        }
+        db.PermissionChannelIds = grantedChannelIds.ToArray();
         db.PermissionPlanIds=await db.AutomationPlans.AsNoTracking().Where(p=>p.WorkspaceId==workspace &&
-            !db.AutomationItems.Any(i=>i.AutomationPlanId==p.Id && (!i.BrandId.HasValue || !db.PermissionBrandIds.Contains(i.BrandId.Value))))
+            !db.AutomationItems.Any(i=>i.AutomationPlanId==p.Id && i.BrandId.HasValue && !db.PermissionBrandIds.Contains(i.BrandId.Value)))
             .Select(p=>p.Id).ToArrayAsync(http.RequestAborted);
         db.PermissionScopeEnabled=true;
         db.BeforePermissionMutation=async (entity,state,ct)=>

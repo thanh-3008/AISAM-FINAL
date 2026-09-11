@@ -29,7 +29,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
     public sealed record TeamBrandDto(Guid BrandId, string BrandName, bool IsActive, DateTime AssignedAt);
 
     public sealed record TeamSummaryDto(Guid Id, string Name, string? Description, string Status,
-        int MemberCount, int BrandCount, DateTime CreatedAt);
+        int MemberCount, int BrandCount, DateTime CreatedAt, bool HasManager = false);
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -105,7 +105,8 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 t.Id, t.Name, t.Description, t.Status.ToString(),
                 t.TeamMembers.Count(m => m.IsActive),
                 t.TeamBrands.Count(b => b.IsActive),
-                t.CreatedAt))
+                t.CreatedAt,
+                t.TeamMembers.Any(m => m.IsActive && m.Role == "Manager")))
             .ToListAsync(ct);
 
         return (teams, count);

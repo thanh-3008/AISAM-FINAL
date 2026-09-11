@@ -35,6 +35,51 @@ public class ResourcePermissionFilterTests
         Assert.Equal(actor,access.Request!.ActorId); Assert.Equal(content,access.Request.ResourceId); Assert.Equal(permission,access.Request.Permission);
         if(permission==ResourcePermission.PostPublish) Assert.Equal(integration,access.Request.ChannelId);
     }
+
+    [Fact]
+    public async Task SocialAuth_Manager_AllowedThroughFilter()
+    {
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.PermissionScopeEnabled = true;
+        db.PermissionWorkspaceId = Guid.NewGuid();
+        db.PermissionOwner = false;
+        db.PermissionManager = true;
+        var actor = Guid.NewGuid();
+        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actor.ToString())], "test")) };
+        http.Request.Method = "POST";
+        var descriptor = new ActionDescriptor { RouteValues = new Dictionary<string, string?> { { "controller", "SocialAuth" }, { "action", "Callback" } } };
+        var actionContext = new ActionContext(http, new RouteData(), descriptor, new ModelStateDictionary());
+        var executing = new ActionExecutingContext(actionContext, [], new Dictionary<string, object?>(), new object());
+        var access = new Access();
+        var filter = new ResourcePermissionFilter(access, db);
+        bool ran = false;
+        await filter.OnActionExecutionAsync(executing, () => { ran = true; return Task.FromResult(new ActionExecutedContext(actionContext, [], new object())); });
+        Assert.True(ran);
+        Assert.Null(executing.Result);
+    }
+
+    [Fact]
+    public async Task SocialAuth_CreatorOrViewer_BlockedByFilter()
+    {
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.PermissionScopeEnabled = true;
+        db.PermissionWorkspaceId = Guid.NewGuid();
+        db.PermissionOwner = false;
+        db.PermissionManager = false;
+        var actor = Guid.NewGuid();
+        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actor.ToString())], "test")) };
+        http.Request.Method = "POST";
+        var descriptor = new ActionDescriptor { RouteValues = new Dictionary<string, string?> { { "controller", "SocialAuth" }, { "action", "Callback" } } };
+        var actionContext = new ActionContext(http, new RouteData(), descriptor, new ModelStateDictionary());
+        var executing = new ActionExecutingContext(actionContext, [], new Dictionary<string, object?>(), new object());
+        var access = new Access();
+        var filter = new ResourcePermissionFilter(access, db);
+        bool ran = false;
+        await filter.OnActionExecutionAsync(executing, () => { ran = true; return Task.FromResult(new ActionExecutedContext(actionContext, [], new object())); });
+        Assert.False(ran);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(executing.Result).StatusCode);
+    }
+
     private sealed class Access:IAccessControlService
     {
         public AccessRequest? Request;

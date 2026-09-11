@@ -154,8 +154,8 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   2: "Approved",
   3: "Rejected",
   4: "Published",
-  5: "Draft",
-  6: "Rejected",
+  5: "Flagged",
+  6: "RejectedByPlatform",
   7: "Failed",
 };
 
@@ -171,6 +171,8 @@ const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
   "Published": 4,
   "Scheduled": 4,
   "Failed": 7,
+  "Flagged": 5,
+  "RejectedByPlatform": 6,
 };
 
 /**

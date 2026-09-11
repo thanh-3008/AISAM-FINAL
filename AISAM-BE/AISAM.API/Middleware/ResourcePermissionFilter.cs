@@ -21,7 +21,7 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         var controller=context.ActionDescriptor.RouteValues.TryGetValue("controller",out var c)?c??"":"";
         db.PermissionReviewQueue=controller=="Content" && action=="ReviewQueue" && read;
         db.PermissionOnlyMyContent=controller=="Content" && read && context.HttpContext.Request.Query["mine"]=="true";
-        if(!db.PermissionOwner && (controller=="SocialAuth" || controller=="SocialAccounts" && (!read || action.Contains("Target",StringComparison.OrdinalIgnoreCase))))
+        if(!db.PermissionOwner && !db.PermissionManager && (controller=="SocialAuth" || controller=="SocialAccounts" && (!read || action.Contains("Target",StringComparison.OrdinalIgnoreCase))))
         {
             // OAuth credential discovery is account-wide; it has no trusted Brand scope.
             context.Result=new ObjectResult(new {success=false,errorCode="ACCESS_DENIED_CHANNEL"}){StatusCode=403}; return;
@@ -50,10 +50,12 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         }
         if(ids.TryGetValue("postId",out var postId))
         {
-            if(!await Check(AccessResourceKind.Post,postId,ResourcePermission.PostView)) return;
+            var post=await db.Posts.AsNoTracking().Include(p=>p.Content).FirstOrDefaultAsync(p=>p.Id==postId,ct);
+            if(post is null) { context.Result=new NotFoundResult(); return; }
+            bool isAuthor=post.Content!=null && post.Content.PrimaryCreatorId==actor;
+            if(!isAuthor && !await Check(AccessResourceKind.Post,postId,ResourcePermission.PostView)) return;
             if(!read)
             {
-                var post=await db.Posts.AsNoTracking().SingleAsync(p=>p.Id==postId,ct);
                 if(!await Check(AccessResourceKind.Content,post.ContentId,ResourcePermission.ContentDelete)) return;
             }
         }
@@ -63,11 +65,24 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
                 controller is "Content" or "Gemini" ? ResourcePermission.ContentCreate:ResourcePermission.BrandManage;
             if(!await Check(AccessResourceKind.Brand,brand,permission)) return;
         }
-        if(ids.TryGetValue("productId",out var product))
+        if(ids.TryGetValue("productId",out var product) || (controller=="Product" && ids.TryGetValue("id",out product)))
         {
             var value=await db.Products.AsNoTracking().FirstOrDefaultAsync(p=>p.Id==product,ct);
             if(value is null) { context.Result=new NotFoundResult(); return; }
             if(!await Check(AccessResourceKind.Brand,value.BrandId,read?ResourcePermission.BrandView:controller=="Product"?ResourcePermission.BrandManage:ResourcePermission.ContentCreate)) return;
+        }
+        if(ids.TryGetValue("scheduleId",out var scheduleId))
+        {
+            var sched=await db.ContentCalendars.AsNoTracking().Include(s=>s.Content).FirstOrDefaultAsync(s=>s.Id==scheduleId,ct);
+            if(sched is null) { context.Result=new NotFoundResult(); return; }
+            var requiredPerm=read?ResourcePermission.ContentView:ResourcePermission.PostPublish;
+            if(sched.Content!=null && !await Check(AccessResourceKind.Brand,sched.Content.BrandId,requiredPerm)) return;
+        }
+        if(ids.TryGetValue("campaignId",out var campaignId) || (controller=="AdCampaign" && ids.TryGetValue("id",out campaignId)))
+        {
+            var campaign=await db.AdCampaigns.AsNoTracking().FirstOrDefaultAsync(c=>c.Id==campaignId,ct);
+            if(campaign is null) { context.Result=new NotFoundResult(); return; }
+            if(!await Check(AccessResourceKind.Brand,campaign.BrandId,read?ResourcePermission.BrandView:ResourcePermission.BrandManage)) return;
         }
         if(ids.TryGetValue("contentId",out var content))
         {

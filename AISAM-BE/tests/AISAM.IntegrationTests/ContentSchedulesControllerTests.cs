@@ -59,6 +59,8 @@ public class ContentSchedulesControllerTests
         var context = new DefaultHttpContext();
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
+        var claims = new[] { new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()) };
+        context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(claims, "TestAuth"));
 
         return new ContentSchedulesController(service, new FakeProfileRepository())
         {

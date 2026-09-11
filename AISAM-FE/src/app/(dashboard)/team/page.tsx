@@ -67,6 +67,8 @@ export default function TeamPage() {
   const activeMemberCount = members.filter((m) => m.status === "Active").length;
   const canAssignQuota = featureGate.canAccess("lifetimeAssignedLimit") || featureGate.canAccess("monthlyAssignedLimit");
   const isOwner = activeWorkspace?.isOwner === true;
+  const isManager = activeWorkspace?.memberRole === "Manager";
+  const canManageTeams = isOwner || isManager;
 
   const loadData = useCallback(async () => {
     try {
@@ -350,7 +352,7 @@ export default function TeamPage() {
               >
                 <span className="material-symbols-outlined text-[16px]">refresh</span>
               </button>
-              {isOwner && activeTab === "teams" && (
+              {canManageTeams && activeTab === "teams" && (
                 <button
                   onClick={() => setShowCreateTeamWizard(true)}
                   className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
@@ -698,6 +700,7 @@ export default function TeamPage() {
           onClose={() => setSelectedTeamId(null)}
           onUpdated={() => loadData()}
           isOwner={isOwner}
+          isManager={isManager}
         />
 
         {/* Member Modals */}
