@@ -90,6 +90,72 @@ public class PromptEnhancerTests
         Assert.Contains("FLUX.2", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task EnhanceImagePromptAsync_BranchA_PreservesPackagingAndDoesNotDemandCompletelyTextFree_WhenHasReferenceImages()
+    {
+        var capture = new CapturingGeminiClient("Enhanced.");
+        var enhancer = CreateEnhancer(capture);
+
+        var product = new Product
+        {
+            Name = "Sữa bột dinh dưỡng Alpha",
+            Category = "Dairy & Milk",
+            Images = "[\"https://storage.aisam.vn/products/milk-can.jpg\"]"
+        };
+
+        await enhancer.EnhanceImagePromptAsync("Tạo ảnh quảng cáo lon sữa", product, hasReferenceImages: true);
+
+        // Branch A: must request preservation of packaging, label graphics, and brand identity
+        Assert.Contains("Preserve existing packaging, label graphics, and brand identity", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Do not redesign, blur, or remove existing brand text/logo", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+
+        // Branch A: must NOT demand "completely text-free" which erases packaging labels
+        Assert.DoesNotContain("completely text-free", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EnhanceImagePromptAsync_BranchB_EnforcesCompletelyTextFree_WhenNoReferenceImages()
+    {
+        var capture = new CapturingGeminiClient("Enhanced.");
+        var enhancer = CreateEnhancer(capture);
+
+        var product = new Product
+        {
+            Name = "Sữa bột dinh dưỡng Alpha",
+            Category = "Dairy & Milk"
+        };
+
+        await enhancer.EnhanceImagePromptAsync("Tạo ảnh quảng cáo lon sữa", product, hasReferenceImages: false);
+
+        // Branch B: must enforce completely text-free to prevent gibberish fonts
+        Assert.Contains("completely text-free", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NEVER include any text", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no readable text", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EnhanceImagePromptAsync_IncludesCategoryAppropriateSceneGuidance()
+    {
+        var capture = new CapturingGeminiClient("Enhanced.");
+        var enhancer = CreateEnhancer(capture);
+
+        // Test Dairy / Milk category (replaces pedestal + blurred leaves)
+        var milkProduct = new Product { Name = "Sữa bột", Category = "Sữa dinh dưỡng" };
+        await enhancer.EnhanceImagePromptAsync("Quảng cáo sữa", milkProduct, hasReferenceImages: true);
+        Assert.Contains("kitchen", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("morning window light", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+
+        // Test Skincare category
+        var skinProduct = new Product { Name = "Serum", Category = "Skincare Cosmetics" };
+        await enhancer.EnhanceImagePromptAsync("Quảng cáo serum", skinProduct, hasReferenceImages: false);
+        Assert.Contains("spa or luxury vanity", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+
+        // Test Tech category
+        var techProduct = new Product { Name = "Bàn phím cơ", Category = "Electronics Gadget" };
+        await enhancer.EnhanceImagePromptAsync("Quảng cáo bàn phím", techProduct, hasReferenceImages: false);
+        Assert.Contains("sleek matte dark desk", capture.LastPrompt, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ─── Video prompt enhancement ─────────────────────────────────────────────
 
     [Fact]
@@ -203,6 +269,29 @@ public class PromptEnhancerTests
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("Add text reading 'SALE'", false)]
+    [InlineData("Thêm chữ 'SALE'", false)]
+    [InlineData("Create a product video without text", true)]
+    public async Task VideoTextPolicyRespectsExplicitRequest(string request, bool textFree)
+    {
+        var enhancer = CreateEnhancer(new StubGeminiClient("""{"pattern_id":"demo","integrated_multimodal_description":"A bottle rotates under studio lighting."}"""));
+        var result = await enhancer.EnhanceVideoPromptAsync(request, null, 8);
+        Assert.Equal(textFree, result.Prompt.Contains("no text overlay"));
+        Assert.Contains("no watermark", result.Prompt);
+        Assert.Contains("no faces", result.Prompt);
+    }
+
+    [Fact]
+    public async Task UntranslatedFallbackDoesNotReintroduceVietnameseProductDescription()
+    {
+        var enhancer = CreateEnhancer(new StubGeminiClient(new Exception("offline")));
+        var result = await enhancer.EnhanceVideoPromptAsync("Quảng cáo", new Product { Name = "Bình nước", Description = "Giữ nhiệt tốt" }, 8);
+        Assert.True(result.Prompt.All(c => c <= 127));
+        Assert.Contains("the product", result.Prompt);
+        Assert.Null(result.PatternId);
+    }
 
     private static PromptEnhancerService CreateEnhancer(IGeminiTextClient gemini)
         => new(gemini, NullLogger<PromptEnhancerService>.Instance);

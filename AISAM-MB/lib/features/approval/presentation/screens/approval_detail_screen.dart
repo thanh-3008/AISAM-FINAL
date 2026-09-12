@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/approval_provider.dart';
+import '../../../content/presentation/providers/content_permissions.dart';
 import '../../../content/data/models/content_model.dart';
 import '../widgets/reject_reason_dialog.dart';
+
+import '../../../../core/errors/app_exception.dart';
 
 class ApprovalDetailScreen extends ConsumerStatefulWidget {
   final ContentResponseModel content;
@@ -18,17 +21,26 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
 
   Future<void> _handleApprove() async {
     setState(() => _isLoading = true);
-    final success = await ref.read(approvalNotifierProvider.notifier).approveContent(widget.content.id);
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
+    try {
+      final success = await ref.read(approvalNotifierProvider.notifier).approveContent(widget.content.id);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Duyệt bài viết thành công')),
+          );
+          Navigator.pop(context); // Go back to list
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        final message = e is AppException ? e.message : e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Content approved successfully')),
-        );
-        Navigator.pop(context); // Go back to list
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to approve content')),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }
@@ -39,17 +51,26 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
     if (reason == null) return;
 
     setState(() => _isLoading = true);
-    final success = await ref.read(approvalNotifierProvider.notifier).rejectContent(widget.content.id, reason: reason);
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
+    try {
+      final success = await ref.read(approvalNotifierProvider.notifier).rejectContent(widget.content.id, reason: reason);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã từ chối bài viết')),
+          );
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        final message = e is AppException ? e.message : e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Content rejected')),
-        );
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to reject content')),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }
@@ -57,6 +78,9 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final permission=ref.watch(contentPermissionsProvider(widget.content.id));
+    if(permission.isLoading) return const Scaffold(body:Center(child:CircularProgressIndicator()));
+    if(permission.valueOrNull?[3]!=true) return Scaffold(appBar:AppBar(),body:const Center(child:Text('Review is unavailable or no longer permitted.')));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review Content'),
@@ -66,22 +90,32 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.content.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  widget.content.imageUrl!,
-                  width: double.infinity,
-                  height: 250,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      Container(
+            Builder(
+              builder: (context) {
+                final previewImage = widget.content.legacyImageUrls.isNotEmpty
+                    ? widget.content.legacyImageUrls.first
+                    : (widget.content.imageUrl != null && widget.content.imageUrl!.startsWith('http')
+                        ? widget.content.imageUrl
+                        : null);
+                if (previewImage != null) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      previewImage,
+                      width: double.infinity,
+                      height: 250,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
                         height: 250,
                         color: Colors.grey[300],
                         child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
                       ),
-                ),
-              ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
             const SizedBox(height: 16),
             Text(
               widget.content.title ?? 'Untitled',
@@ -108,7 +142,7 @@ class _ApprovalDetailScreenState extends ConsumerState<ApprovalDetailScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(

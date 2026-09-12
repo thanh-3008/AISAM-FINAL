@@ -102,8 +102,13 @@ public sealed class SocialAccountsController : ControllerBase
         try
         {
             var profileId = await GetProfileIdAsync(cancellationToken);
-            var result = await _socialService.LinkSelectedTargetsInWorkspaceAsync(GetWorkspaceId(), profileId, socialAccountId, request, cancellationToken);
+            var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+            var result = await _socialService.LinkSelectedTargetsInWorkspaceAsync(GetWorkspaceId(), profileId, socialAccountId, request, cancellationToken, actorUserId: userId);
             return Ok(GenericResponse<SocialAccountDto>.CreateSuccess(result));
+        }
+        catch (AISAM.Repositories.ResourceMutationDeniedException)
+        {
+            return StatusCode((int)HttpStatusCode.Forbidden, GenericResponse<SocialAccountDto>.CreateError("Not authorized to manage this brand.", HttpStatusCode.Forbidden));
         }
         catch (UnauthorizedAccessException)
         {
@@ -152,13 +157,18 @@ public sealed class SocialAccountsController : ControllerBase
     {
         try
         {
-            var deleted = await _socialService.UnlinkAccountInWorkspaceAsync(GetWorkspaceId(), socialAccountId, cancellationToken);
+            var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+            var deleted = await _socialService.UnlinkAccountInWorkspaceAsync(GetWorkspaceId(), socialAccountId, cancellationToken, actorUserId: userId);
             if (!deleted)
             {
                 return NotFound(GenericResponse<bool>.CreateError("Social account not found.", HttpStatusCode.NotFound));
             }
 
             return Ok(GenericResponse<bool>.CreateSuccess(true));
+        }
+        catch (AISAM.Repositories.ResourceMutationDeniedException)
+        {
+            return StatusCode((int)HttpStatusCode.Forbidden, GenericResponse<bool>.CreateError("Not authorized to manage this brand.", HttpStatusCode.Forbidden));
         }
         catch (UnauthorizedAccessException)
         {

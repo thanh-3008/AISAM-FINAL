@@ -13,6 +13,7 @@ public class AutomationServiceTests
     public async Task ImportCsvAsync_CombinesSimpleDateAndTimeColumns()
     {
         var workspaceId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
         var brand = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Demo Brand" };
         var repository = new FakeAutomationRepository();
         var service = CreateService(repository, brand);
@@ -20,9 +21,10 @@ public class AutomationServiceTests
         var csv = $"Brand,Topic,Platforms,ContentType,Date,Time\nDemo Brand,Launch,Facebook,Text,{future:yyyy-MM-dd},09:30";
         await using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
 
-        var result = await service.ImportCsvAsync(workspaceId, brand.ProfileId, "Simple schedule", "UTC", "schedule.csv", stream);
+        var result = await service.ImportCsvAsync(workspaceId, brand.ProfileId, actorId, "Simple schedule", "UTC", "schedule.csv", stream);
 
         Assert.True(result.Success);
+        Assert.Equal(actorId, repository.Plan!.CreatedByUserId);
         Assert.Equal(1, result.Data!.ValidItems);
         Assert.Equal(9, repository.Plan!.Items.Single().ScheduledAt.Hour);
         Assert.Equal(30, repository.Plan.Items.Single().ScheduledAt.Minute);
@@ -32,11 +34,12 @@ public class AutomationServiceTests
     public async Task CreateAsync_SplitsOneRowIntoPlatformItemsWithStableUniqueKeys()
     {
         var workspaceId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
         var brand = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Demo Brand" };
         var repository = new FakeAutomationRepository();
         var service = CreateService(repository, brand);
 
-        var result = await service.CreateAsync(workspaceId, brand.ProfileId, new CreateAutomationPlanRequest
+        var result = await service.CreateAsync(workspaceId, brand.ProfileId, actorId, new CreateAutomationPlanRequest
         {
             Name = "August plan",
             Rows =
@@ -53,21 +56,30 @@ public class AutomationServiceTests
         });
 
         Assert.True(result.Success);
+        Assert.Equal(actorId, repository.Plan!.CreatedByUserId);
         Assert.Equal(3, result.Data!.TotalItems);
         Assert.Equal(3, result.Data.ValidItems);
         Assert.Equal(3, repository.Plan!.Items.Select(item => item.IdempotencyKey).Distinct().Count());
         Assert.Equal(new[] { "facebook", "instagram", "tiktok" }, repository.Plan.Items.Select(item => item.Platform).OrderBy(value => value));
+        var original = repository.Plan;
+        var cloningActor = Guid.NewGuid();
+        var cloned = await service.CloneAsync(workspaceId, brand.ProfileId, cloningActor, original.Id,
+            new CloneAutomationPlanRequest { Name = "Copy" });
+        Assert.True(cloned.Success);
+        Assert.Equal(cloningActor, repository.Plan!.CreatedByUserId);
+        Assert.Equal(actorId, original.CreatedByUserId);
     }
 
     [Fact]
     public async Task CreateAndConfirm_RejectsInvalidTikTokTextButQueuesValidItems()
     {
         var workspaceId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
         var brand = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Demo Brand" };
         var repository = new FakeAutomationRepository();
         var service = CreateService(repository, brand);
 
-        var created = await service.CreateAsync(workspaceId, brand.ProfileId, new CreateAutomationPlanRequest
+        var created = await service.CreateAsync(workspaceId, brand.ProfileId, actorId, new CreateAutomationPlanRequest
         {
             Name = "Mixed plan",
             Rows =
@@ -88,10 +100,11 @@ public class AutomationServiceTests
     public async Task UpdateItemAsync_RevalidatesInvalidItemBeforeConfirmation()
     {
         var workspaceId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
         var brand = new Brand { Id = Guid.NewGuid(), WorkspaceId = workspaceId, ProfileId = Guid.NewGuid(), Name = "Demo Brand" };
         var repository = new FakeAutomationRepository();
         var service = CreateService(repository, brand);
-        var created = await service.CreateAsync(workspaceId, brand.ProfileId, new CreateAutomationPlanRequest
+        var created = await service.CreateAsync(workspaceId, brand.ProfileId, actorId, new CreateAutomationPlanRequest
         {
             Name = "Editable plan",
             Rows = { new AutomationImportRowRequest { BrandId = brand.Id, Topic = "TikTok post", Platforms = ["TikTok"], ContentType = "Text", ScheduledAt = DateTime.UtcNow.AddDays(2) } }

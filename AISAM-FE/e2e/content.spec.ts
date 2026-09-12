@@ -1,5 +1,5 @@
 import { expect, IDS, test } from "./fixtures/aisam";
-import { Buffer } from "buffer";
+import { readFileSync } from "node:fs";
 
 test("content library sends workspace/profile context and opens create flow", async ({ userPage }) => {
   const apiRequests: import("@playwright/test").Request[] = [];
@@ -24,7 +24,7 @@ test("manual content creation posts the form with workspace context", async ({ u
   await userPage.getByPlaceholder(/compelling title/i).fill("E2E Created Content");
   await userPage.getByRole("combobox").nth(1).selectOption({ label: "E2E Product" });
   const requestPromise = userPage.waitForRequest((request) => new URL(request.url()).pathname === "/api/content" && request.method() === "POST");
-  await userPage.getByRole("button", { name: /save content/i }).click();
+  await userPage.getByRole("button", { name: /Lưu draft và mở composer/i }).click();
   const request = await requestPromise;
   expect(request.headers()["x-workspace-id"]).toBe(IDS.workspace);
   expect(request.postDataJSON()).toMatchObject({ title: "E2E Created Content", brandId: IDS.brand });
@@ -35,31 +35,12 @@ test("selected video keeps its filename and remains playable across post preview
   await userPage.goto("/content/create");
   await userPage.getByRole("button", { name: /^play_circle Video$/i }).click();
 
-  const videoBytes = await userPage.evaluate(async () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 32;
-    canvas.height = 32;
-    const context = canvas.getContext("2d");
-    context?.fillRect(0, 0, canvas.width, canvas.height);
-
-    const stream = canvas.captureStream(5);
-    const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-    const chunks: Blob[] = [];
-    recorder.addEventListener("dataavailable", (event) => chunks.push(event.data));
-    const stopped = new Promise<void>((resolve) => recorder.addEventListener("stop", () => resolve(), { once: true }));
-    recorder.start();
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    recorder.stop();
-    await stopped;
-    stream.getTracks().forEach((track) => track.stop());
-
-    return Array.from(new Uint8Array(await new Blob(chunks, { type: "video/webm" }).arrayBuffer()));
-  });
+  const videoBytes = readFileSync("e2e/fixtures/product-demo.webm");
 
   await userPage.locator('input[type="file"][accept*=".webm"]').setInputFiles({
     name: "product-demo.webm",
     mimeType: "video/webm",
-    buffer: Buffer.from(videoBytes),
+    buffer: videoBytes,
   });
 
   await expect(userPage.getByText("product-demo.webm")).toBeVisible();

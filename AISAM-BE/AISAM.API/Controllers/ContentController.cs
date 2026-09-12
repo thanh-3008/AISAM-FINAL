@@ -61,7 +61,7 @@ public sealed class ContentController : ControllerBase
         [FromBody] CreateContentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
+        var result = await _contentService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), UserClaimsHelper.GetUserIdOrThrow(User), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -100,28 +100,25 @@ public sealed class ContentController : ControllerBase
         }
 
         var workspaceId = GetWorkspaceId();
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var safeExtension = string.IsNullOrWhiteSpace(extension)
-            ? (file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ? ".mp4" : ".jpg")
-            : extension;
-        var fileName = $"{Guid.NewGuid():N}{safeExtension}";
-
         string url;
         try
         {
+            var extension=await AISAM.Services.Service.ContentMediaService.ValidateFileAsync(file,cancellationToken);
+            var fileName=$"{Guid.NewGuid():N}{extension}";
             url = await _mediaStorageService.UploadAsync(file, $"content/{workspaceId:N}", fileName, cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
             var status = ex is ArgumentException ? HttpStatusCode.BadRequest : HttpStatusCode.ServiceUnavailable;
             return StatusCode((int)status,
-                GenericResponse<ContentMediaUploadResponse>.CreateError(ex.Message, status));
+                GenericResponse<ContentMediaUploadResponse>.CreateError(ex is ArgumentException ? ex.Message : "Media storage is unavailable.", status));
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
         {
             return StatusCode((int)HttpStatusCode.InternalServerError,
                 GenericResponse<ContentMediaUploadResponse>.CreateError(
-                    $"Upload failed: {ex.GetType().Name} - {ex.Message}",
+                    "Upload failed. Retry this file.",
                     HttpStatusCode.InternalServerError));
         }
 
@@ -134,6 +131,14 @@ public sealed class ContentController : ControllerBase
         };
 
         return Ok(GenericResponse<ContentMediaUploadResponse>.CreateSuccess(response, "Media uploaded successfully."));
+    }
+
+    [HttpGet("review-queue")]
+    public async Task<IActionResult> ReviewQueue([FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken cancellationToken=default)
+    {
+        var result=await _contentService.GetPagedByWorkspaceAsync(GetWorkspaceId(),new PaginationRequest {Page=Math.Max(1,page),PageSize=Math.Clamp(pageSize,1,100)},
+            status:ContentStatusEnum.PendingApproval,cancellationToken:cancellationToken);
+        return StatusCode(result.StatusCode,result);
     }
 
     [HttpGet]
@@ -218,7 +223,7 @@ public sealed class ContentController : ControllerBase
         Guid contentId,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentService.CloneInWorkspaceAsync(contentId, GetWorkspaceId(), cancellationToken);
+        var result = await _contentService.CloneInWorkspaceAsync(contentId, GetWorkspaceId(), UserClaimsHelper.GetUserIdOrThrow(User), cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

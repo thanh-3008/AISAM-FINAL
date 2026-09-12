@@ -1,10 +1,10 @@
 import { useId } from "react";
 
 export type ContentType = "IMAGE" | "TEXT" | "VIDEO";
-export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled" | "Failed";
+export type ContentStatus = "Draft" | "Awaiting Approval" | "Approved" | "Rejected" | "Published" | "Scheduled" | "Failed" | "Flagged" | "RejectedByPlatform";
 
 export function isRejectedContentStatus(status: string): boolean {
-  return status === "Rejected";
+  return status === "Rejected" || status === "RejectedByPlatform";
 }
 
 export function isFailedContentStatus(status: string): boolean {
@@ -47,6 +47,8 @@ export const STATUS_OPTIONS: { label: string; value: ContentStatus }[] = [
   { label: "Published", value: "Published" },
   { label: "Scheduled", value: "Scheduled" },
   { label: "Failed", value: "Failed" },
+  { label: "Flagged", value: "Flagged" },
+  { label: "Rejected by Platform", value: "RejectedByPlatform" },
 ];
 
 export const CREATE_STATUS_OPTIONS: { label: string; value: Extract<ContentStatus, "Draft" | "Awaiting Approval"> }[] = [
@@ -62,6 +64,8 @@ export const STATUS_STYLES: Record<ContentStatus, string> = {
   "Published": "bg-blue-50 text-blue-600",
   "Scheduled": "bg-blue-50 text-blue-600",
   "Failed": "bg-danger-red/10 text-danger-red",
+  "Flagged": "bg-rose-50 text-rose-600",
+  "RejectedByPlatform": "bg-danger-red/10 text-danger-red",
 };
 
 export const ALL_TAGS = ["Product Launch", "Tutorial", "Seasonal", "Brand Story", "Behind the Scenes", "Testimonial", "Promotion", "Educational"];

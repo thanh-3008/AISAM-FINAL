@@ -57,7 +57,8 @@ class DashboardRepository {
         'sortDescending': true,
       };
       final response = await _dio.get('/Content', queryParameters: queryParams);
-      final items = response.data['data']['items'] as List;
+      final dataObj = response.data['data'];
+      final items = (dataObj is Map ? (dataObj['data'] ?? dataObj['items']) : dataObj) as List? ?? [];
       if (items.isEmpty) return [];
       return await compute(_parseContentList, items);
     } catch (e) {

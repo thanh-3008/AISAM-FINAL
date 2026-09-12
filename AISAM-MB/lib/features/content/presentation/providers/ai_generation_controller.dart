@@ -5,6 +5,8 @@ import '../../data/models/ai_generation_response.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/state/base_state.dart';
 import 'content_list_controller.dart';
+import '../../../billing/presentation/providers/billing_controller.dart';
+import '../../../dashboard/presentation/dashboard_controller.dart';
 
 part 'ai_generation_controller.g.dart';
 
@@ -20,6 +22,8 @@ class AiGenerationController extends _$AiGenerationController {
     try {
       final repository = ref.read(aiContentRepositoryProvider);
       final response = await repository.generateDraft(request);
+      ref.invalidate(billingControllerProvider);
+      ref.invalidate(dashboardControllerProvider);
       state = BaseState.data(response);
     } catch (e) {
       state = BaseState.error(ExceptionHandler.handle(e));
@@ -31,6 +35,8 @@ class AiGenerationController extends _$AiGenerationController {
     try {
       final repository = ref.read(aiContentRepositoryProvider);
       final response = await repository.improveContent(contentId, request);
+      ref.invalidate(billingControllerProvider);
+      ref.invalidate(dashboardControllerProvider);
       state = BaseState.data(response);
     } catch (e) {
       state = BaseState.error(ExceptionHandler.handle(e));
@@ -42,8 +48,10 @@ class AiGenerationController extends _$AiGenerationController {
     try {
       final repository = ref.read(aiContentRepositoryProvider);
       await repository.approveGeneration(aiGenerationId);
-      // We can also trigger content refresh here if we want to.
+      // Trigger content refresh, billing quota refresh and dashboard summary refresh
       ref.read(contentListControllerProvider.notifier).refresh();
+      ref.invalidate(billingControllerProvider);
+      ref.invalidate(dashboardControllerProvider);
       state = const BaseState.initial();
     } catch (e) {
       state = BaseState.error(ExceptionHandler.handle(e));

@@ -85,6 +85,15 @@ public sealed class InstagramProvider : IProviderService
         EnsureConfigured();
         if (string.IsNullOrWhiteSpace(integration.ExternalId) || string.IsNullOrWhiteSpace(integration.AccessToken))
             return Failed("Instagram account is not linked correctly. Please reconnect it.");
+        if(post.Media is {Count:>1} media)
+        {
+            if(media.Count>10)return Failed("MEDIA_LIMIT_EXCEEDED");
+            if(media.Any(m=>!m.MimeType.StartsWith("image/")&&!m.MimeType.StartsWith("video/")))return Failed("MEDIA_TYPE_UNSUPPORTED");
+            if(media.Any(m=>m.MimeType.StartsWith("video/"))&&!_settings.VerifiedCarouselIntegrationIds.Contains(integration.Id))return Failed("MEDIA_TYPE_UNSUPPORTED");
+            return await PublishOrderedCarouselAsync(integration,post,media,cancellationToken);
+        }
+        if (string.IsNullOrWhiteSpace(integration.ExternalId) || string.IsNullOrWhiteSpace(integration.AccessToken))
+            return Failed("Instagram account is not linked correctly. Please reconnect it.");
 
         var images = (post.ImageUrls ?? new List<string>())
             .Where(url => !string.IsNullOrWhiteSpace(url)).Distinct().ToList();
@@ -102,19 +111,46 @@ public sealed class InstagramProvider : IProviderService
             return await PublishReelAsync(integration, post, cancellationToken);
         if (images.Count > 1)
             return await PublishCarouselAsync(integration, post.Message, images, cancellationToken);
-        return await PublishImageAsync(integration, post.Message, images[0], cancellationToken);
+        return await PublishImageAsync(integration, post, images[0], cancellationToken);
     }
 
-    private async Task<PublishResultDto> PublishImageAsync(SocialIntegration integration, string caption, string imageUrl, CancellationToken cancellationToken)
+    private async Task<PublishResultDto> PublishOrderedCarouselAsync(SocialIntegration integration,PostDto post,List<PublishMediaDto> media,CancellationToken ct)
+    {
+        var results=media.Select(m=>new PublishMediaResult(m.Id,"Pending")).ToList();
+        for(int index=0;index<media.Count;index++)
+        {
+            var item=media[index];var video=item.MimeType.StartsWith("video/");
+            if(!video&&!item.MimeType.StartsWith("image/"))return Failed("MEDIA_TYPE_UNSUPPORTED");
+            var fields=new Dictionary<string,string>{{"is_carousel_item","true"},{video?"video_url":"image_url",item.Url}};
+            if(video)fields["media_type"]="VIDEO";
+            var child=await CreateContainerAsync(integration,fields,ct);
+            if(child.Success&&video)child=await WaitForContainerAsync(integration,child.Id!,ct);
+            results[index]=new(item.Id,child.Success?"Uploaded":"Failed",child.Id,child.Success?null:"MEDIA_UPLOAD_FAILED");
+            await post.ReportAsync("UploadingMedia",results,ct);
+            if(!child.Success)return new(){Success=false,ErrorMessage="MEDIA_UPLOAD_FAILED",Media=results};
+        }
+        var parent=await CreateContainerAsync(integration,new(){{"media_type","CAROUSEL"},{"children",string.Join(',',results.Select(r=>r.ProviderMediaId))},{"caption",post.Message}},ct);
+        if(!parent.Success)return new(){Success=false,ErrorMessage="PUBLISH_PROVIDER_REJECTED",Media=results};
+        await post.ReportAsync("Publishing",results,ct);
+        var published=await PublishContainerAsync(integration,parent.Id!,ct);
+        published.Media=published.Success?results.Select(r=>r with{Status="Published"}).ToList():results;
+        return published;
+    }
+
+    private async Task<PublishResultDto> PublishImageAsync(SocialIntegration integration, PostDto post, string imageUrl, CancellationToken cancellationToken)
     {
         var container = await CreateContainerAsync(integration, new Dictionary<string, string>
         {
             ["image_url"] = imageUrl,
-            ["caption"] = caption
+            ["caption"] = post.Message
         }, cancellationToken);
-        return container.Success
+        var media=post.Media?.Select(m=>new PublishMediaResult(m.Id,container.Success?"Uploaded":"Failed",container.Id,container.Success?null:"MEDIA_UPLOAD_FAILED")).ToList()??[];
+        await post.ReportAsync(container.Success?"Publishing":"UploadingMedia",media,cancellationToken);
+        var result=container.Success
             ? await PublishContainerAsync(integration, container.Id!, cancellationToken)
             : Failed(container.Error!);
+        result.Media=post.Media?.Select(m=>new PublishMediaResult(m.Id,result.Success?"Published":container.Success?"Uploaded":"Failed",container.Id,result.Success?null:container.Success?"PUBLISH_PROVIDER_REJECTED":"MEDIA_UPLOAD_FAILED")).ToList()??[];
+        return result;
     }
 
     private async Task<PublishResultDto> PublishReelAsync(SocialIntegration integration, PostDto post, CancellationToken cancellationToken)
@@ -126,12 +162,17 @@ public sealed class InstagramProvider : IProviderService
             ["caption"] = post.Message,
             ["share_to_feed"] = "true"
         }, cancellationToken);
-        if (!container.Success) return Failed(container.Error!);
+        var media=post.Media?.Select(m=>new PublishMediaResult(m.Id,container.Success?"Uploaded":"Failed",container.Id,container.Success?null:"MEDIA_UPLOAD_FAILED")).ToList()??[];
+        await post.ReportAsync("UploadingMedia",media,cancellationToken);
+        if (!container.Success)return new(){ErrorMessage="MEDIA_UPLOAD_FAILED",Media=media};
 
         var ready = await WaitForContainerAsync(integration, container.Id!, cancellationToken);
-        return ready.Success
+        if(ready.Success)await post.ReportAsync("Publishing",media,cancellationToken);
+        var result=ready.Success
             ? await PublishContainerAsync(integration, container.Id!, cancellationToken)
             : Failed(ready.Error!);
+        result.Media=media.Select(m=>m with{Status=result.Success?"Published":ready.Success?"Uploaded":"Failed",ErrorCode=result.Success?null:ready.Success?"PUBLISH_PROVIDER_REJECTED":"MEDIA_PROCESSING_FAILED"}).ToList();
+        return result;
     }
 
     private async Task<PublishResultDto> PublishCarouselAsync(SocialIntegration integration, string caption, IReadOnlyList<string> imageUrls, CancellationToken cancellationToken)

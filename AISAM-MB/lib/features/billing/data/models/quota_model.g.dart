@@ -25,6 +25,12 @@ _$QuotaModelImpl _$$QuotaModelImplFromJson(Map<String, dynamic> json) =>
       textContentCount: (json['textContentCount'] as num?)?.toInt() ?? 0,
       imageContentCount: (json['imageContentCount'] as num?)?.toInt() ?? 0,
       videoContentCount: (json['videoContentCount'] as num?)?.toInt() ?? 0,
+      creditBalance: (json['creditBalance'] as num?)?.toInt() ?? 0,
+      creditsUsed: (json['creditsUsed'] as num?)?.toInt() ?? 0,
+      maxBalanceCap: (json['maxBalanceCap'] as num?)?.toInt() ?? 0,
+      memberCreditLimit: (json['memberCreditLimit'] as num?)?.toInt(),
+      memberCreditUsed: (json['memberCreditUsed'] as num?)?.toInt() ?? 0,
+      memberQuotaMode: (json['memberQuotaMode'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$$QuotaModelImplToJson(_$QuotaModelImpl instance) =>
@@ -42,4 +48,10 @@ Map<String, dynamic> _$$QuotaModelImplToJson(_$QuotaModelImpl instance) =>
       'textContentCount': instance.textContentCount,
       'imageContentCount': instance.imageContentCount,
       'videoContentCount': instance.videoContentCount,
+      'creditBalance': instance.creditBalance,
+      'creditsUsed': instance.creditsUsed,
+      'maxBalanceCap': instance.maxBalanceCap,
+      'memberCreditLimit': instance.memberCreditLimit,
+      'memberCreditUsed': instance.memberCreditUsed,
+      'memberQuotaMode': instance.memberQuotaMode,
     };

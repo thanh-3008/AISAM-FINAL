@@ -29,6 +29,10 @@ class WorkspaceMemberResponseModel with _$WorkspaceMemberResponseModel {
     required String email,
     String? fullName,
     required int role, // enum
+    int? quotaMode,
+    int? creditLimit,
+    int? creditUsed,
+    DateTime? creditPeriodStart,
     required DateTime joinedAt,
   }) = _WorkspaceMemberResponseModel;
 

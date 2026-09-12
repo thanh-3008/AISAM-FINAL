@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, resetRedirectState } from "@/lib/apiClient";
 import { getToken, getUserRoleFromToken, setToken, setRefreshToken, setStoredUser } from "@/lib/auth";
 import { invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import AuthShell from "@/components/auth/AuthShell";
@@ -31,6 +31,7 @@ export default function LoginPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    resetRedirectState();
     let cancelled = false;
 
     const redirectIfAlreadySignedIn = async () => {

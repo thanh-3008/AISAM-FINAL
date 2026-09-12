@@ -8,7 +8,7 @@
  * - Bullet list, Numbered list
  * - Emoji picker (inline)
  * - Paragraph / line break
- * - Markdown output for storage
+ * - Versioned JSON and derived caption text for storage
  * - Backward compatible with legacy plaintext input
  */
 
@@ -18,109 +18,10 @@ import UnderlineExtension from "@tiptap/extension-underline";
 import HighlightExtension from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { marked } from "marked";
+import { Mark } from "@tiptap/react";
+import { readDocument, documentText, formatCaption, safeLink, type RichNode } from "@/lib/richTextDocument";
 
-// Configure marked: no HTML sanitization here, we handle security at the render layer
-// gfm = true enables ~~strikethrough~~, breaks = false preserves paragraph semantics
-marked.setOptions({ gfm: true, breaks: false });
 
-// ---------------------------------------------------------------------------
-// Serialization helpers (Tiptap JSON → Markdown)
-// ---------------------------------------------------------------------------
-
-interface TiptapTextNode {
-  type: "text";
-  text: string;
-  marks?: Array<{ type: string }>;
-}
-
-interface TiptapNode {
-  type: string;
-  content?: TiptapNode[];
-  attrs?: Record<string, unknown>;
-  text?: string;
-  marks?: Array<{ type: string }>;
-}
-
-function serializeNode(node: TiptapNode): string {
-  if (node.type === "text") {
-    const textNode = node as TiptapTextNode;
-    let text = textNode.text ?? "";
-    const markTypes = (textNode.marks ?? []).map((m) => m.type);
-    if (markTypes.includes("strike")) text = `~~${text}~~`;
-    if (markTypes.includes("highlight")) text = `<mark>${text}</mark>`;
-    if (markTypes.includes("underline")) text = `<u>${text}</u>`;
-    if (markTypes.includes("italic")) text = `*${text}*`;
-    if (markTypes.includes("bold")) text = `**${text}**`;
-    return text;
-  }
-
-  const children = (node.content ?? []).map(serializeNode).join("");
-
-  switch (node.type) {
-    case "paragraph":
-      return children ? `${children}\n\n` : "\n";
-    case "bulletList":
-      return `${children}`;
-    case "orderedList":
-      return `${children}`;
-    case "listItem":
-      return `- ${children.trimEnd()}\n`;
-    case "hardBreak":
-      return "\n";
-    case "heading": {
-      const level = (node.attrs?.level as number) ?? 1;
-      return `${"#".repeat(level)} ${children}\n\n`;
-    }
-    case "blockquote":
-      return `> ${children}\n`;
-    case "horizontalRule":
-      return `---\n`;
-    case "doc":
-    default:
-      return children;
-  }
-}
-
-/** Convert Tiptap JSON doc to Markdown string */
-function tiptapToMarkdown(doc: TiptapNode): string {
-  const raw = serializeNode(doc);
-  // Clean excessive newlines but keep paragraph breaks
-  return raw.replace(/\n{3,}/g, "\n\n").trimEnd();
-}
-
-// ---------------------------------------------------------------------------
-// Parsing helpers (Markdown → Tiptap HTML)
-// ---------------------------------------------------------------------------
-
-/**
- * Convert Markdown string to Tiptap-compatible HTML.
- *
- * Uses `marked` (AST-based parser) which correctly handles:
- *  - nested marks: **_Bold Italic_**, ~~**Bold Strike**~~
- *  - bullet/numbered lists with inline formatting
- *  - paragraphs and line breaks
- *  - emoji and unicode pass-through
- *
- * Underline is stored as raw `<u>` tag (Markdown has no underline syntax).
- * marked passes <u> through as inline HTML, so it round-trips correctly.
- *
- * Security: DOMPurify sanitization is applied at render time inside Tiptap.
- * This function intentionally leaves safe tags like <strong>, <em>, <u>, <s>,
- * <ul>, <ol>, <li>, <p> intact for Tiptap to parse.
- */
-function markdownToHtml(markdown: string): string {
-  if (!markdown) return "<p></p>";
-
-  // marked does not know <u> (underline), but it passes inline HTML through
-  // when pedantic=false (the default). So <u>text</u> survives as-is.
-  const html = marked.parse(markdown, { async: false }) as string;
-
-  // Tiptap needs at least one block element; if output is empty return a paragraph
-  return html.trim() || "<p></p>";
-}
-
-// ---------------------------------------------------------------------------
 // Quick emoji list
 // ---------------------------------------------------------------------------
 
@@ -150,7 +51,15 @@ function ToolbarBtn({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
       disabled={disabled}
       title={title}
       className={`w-8 h-8 flex items-center justify-center rounded-lg text-[13px] font-semibold transition-all select-none
@@ -166,13 +75,25 @@ function ToolbarBtn({
   );
 }
 
+function computeCounts(ed: any): { characters: number; words: number } {
+  try {
+    const json = ed.getJSON() as RichNode;
+    const characters = formatCaption(json).characters;
+    const words = ed.state.doc.textContent.split(/\s+/).filter(Boolean).length;
+    return { characters, words };
+  } catch {
+    return { characters: 0, words: 0 };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
 interface RichTextEditorProps {
   value: string;
-  onChange: (markdown: string) => void;
+  richTextJson?: string | null;
+  onChange: (plainText: string, richTextJson: string) => void;
   placeholder?: string;
   minHeight?: number;
   className?: string;
@@ -180,6 +101,7 @@ interface RichTextEditorProps {
 
 export default function RichTextEditor({
   value,
+  richTextJson,
   onChange,
   placeholder = "Write your content here...",
   minHeight = 200,
@@ -187,14 +109,72 @@ export default function RichTextEditor({
 }: RichTextEditorProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const isInitialized = useRef(false);
+  const externalJsonRef = useRef(richTextJson);
   const externalValueRef = useRef(value);
+
+  const [counts, setCounts] = useState<{ characters: number; words: number }>(() => {
+    try {
+      if (richTextJson) {
+        const json = JSON.parse(richTextJson) as RichNode;
+        return {
+          characters: formatCaption(json).characters,
+          words: (value || "").split(/\s+/).filter(Boolean).length,
+        };
+      }
+      return {
+        characters: (value || "").length,
+        words: (value || "").split(/\s+/).filter(Boolean).length,
+      };
+    } catch {
+      return { characters: (value || "").length, words: 0 };
+    }
+  });
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdateRef = useRef<{ markdown: string; json: string } | null>(null);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const flushChange = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (pendingUpdateRef.current) {
+      const { markdown, json } = pendingUpdateRef.current;
+      pendingUpdateRef.current = null;
+      externalValueRef.current = markdown;
+      externalJsonRef.current = json;
+      onChangeRef.current(markdown, json);
+    }
+  }, []);
+
+  const flushChangeRef = useRef(flushChange);
+  useEffect(() => {
+    flushChangeRef.current = flushChange;
+  }, [flushChange]);
+
+  useEffect(() => {
+    const handleFlush = () => {
+      flushChangeRef.current();
+    };
+    window.addEventListener("aisam-flush-editor", handleFlush);
+    return () => {
+      window.removeEventListener("aisam-flush-editor", handleFlush);
+      flushChangeRef.current();
+    };
+  }, []);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        trailingNode: false,
         // Headings not needed for social posts
-        heading: false,
+        heading: { levels: [1, 2, 3] }, underline: false, horizontalRule: false,
+        link: { openOnClick: false, isAllowedUri: safeLink },
         // Keep code block off
         code: false,
         codeBlock: false,
@@ -207,38 +187,61 @@ export default function RichTextEditor({
           "before:content-[attr(data-placeholder)] before:text-outline/40 before:float-left before:h-0 before:pointer-events-none before:text-body-sm",
       }),
     ],
-    content: markdownToHtml(value),
+    content: readDocument(richTextJson, value),
     editorProps: {
       attributes: {
         class: `outline-none text-body-sm text-on-surface leading-relaxed [&>*+*]:mt-3 [&>ul]:pl-5 [&>ul>li]:list-disc [&>ol]:pl-5 [&>ol>li]:list-decimal`,
         style: `min-height: ${minHeight}px; padding: 12px;`,
       },
     },
+    onCreate: ({ editor: ed }) => {
+      setCounts(computeCounts(ed));
+    },
+    onBlur: () => {
+      flushChangeRef.current();
+    },
     onUpdate: ({ editor: ed }) => {
-      const json = ed.getJSON() as TiptapNode;
-      const markdown = tiptapToMarkdown(json);
+      const json = ed.getJSON() as RichNode;
+      const markdown = documentText(json);
+      const jsonStr = JSON.stringify(json);
       externalValueRef.current = markdown;
-      onChange(markdown);
+      externalJsonRef.current = jsonStr;
+      setCounts(computeCounts(ed));
+
+      pendingUpdateRef.current = { markdown, json: jsonStr };
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        if (pendingUpdateRef.current) {
+          const updateData = pendingUpdateRef.current;
+          pendingUpdateRef.current = null;
+          debounceTimerRef.current = null;
+          onChangeRef.current(updateData.markdown, updateData.json);
+        }
+      }, 200);
     },
     immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
   });
 
   // Sync external value changes (e.g., AI fills in content)
   useEffect(() => {
     if (!editor) return;
-    if (!isInitialized.current) {
-      isInitialized.current = true;
-      return;
-    }
+    if (pendingUpdateRef.current) return;
+    // Do not overwrite editor content from external props while user is actively focused in this editor
+    if (editor.isFocused) return;
     // Only update if value differs from what we last emitted
-    if (value !== externalValueRef.current) {
-      const html = markdownToHtml(value);
+    if (value !== externalValueRef.current || richTextJson !== externalJsonRef.current) {
+      const html = readDocument(richTextJson, value);
       // Tiptap 3.x: setContent second arg is SetContentOptions, not boolean
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       editor.commands.setContent(html, { emitUpdate: false } as any);
       externalValueRef.current = value;
+      externalJsonRef.current = richTextJson;
+      setCounts(computeCounts(editor));
     }
-  }, [editor, value]);
+  }, [editor, value, richTextJson]);
 
   // Close emoji picker on outside click
   useEffect(() => {
@@ -280,7 +283,7 @@ export default function RichTextEditor({
           const original = node.text.slice(nodeFrom - pos, nodeTo - pos);
           const upper = original.toUpperCase();
           if (upper !== original) {
-            tr.insertText(upper, nodeFrom, nodeTo);
+            tr.replaceWith(tr.mapping.map(nodeFrom), tr.mapping.map(nodeTo), state.schema.text(upper, node.marks));
             modified = true;
           }
         }
@@ -299,6 +302,16 @@ export default function RichTextEditor({
     <div className={`relative bg-surface-container rounded-xl border border-outline-variant/20 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5 transition-all ${className}`}>
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-outline-variant/10 flex-wrap">
+        <ToolbarBtn title="Heading" active={editor.isActive("heading")} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarBtn>
+        <ToolbarBtn title="Highlight" active={editor.isActive("highlight")} onClick={() => editor.chain().focus().toggleMark("highlight").run()}>▰</ToolbarBtn>
+        <ToolbarBtn title="Link" active={editor.isActive("link")} onClick={() => {
+          const href = window.prompt("Link URL (https://…)", editor.getAttributes("link").href ?? "");
+          if (href === null) return;
+          if (!href) { editor.chain().focus().unsetLink().run(); return; }
+          if (safeLink(href)) editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+        }}>↗</ToolbarBtn>
+        <ToolbarBtn title="Undo" disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>↶</ToolbarBtn>
+        <ToolbarBtn title="Redo" disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>↷</ToolbarBtn>
         {/* Bold */}
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -394,6 +407,7 @@ export default function RichTextEditor({
                   <button
                     key={emoji}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => insertEmoji(emoji)}
                     className="w-7 h-7 flex items-center justify-center text-[16px] hover:bg-surface-container rounded-lg transition-colors"
                     title={emoji}
@@ -413,10 +427,10 @@ export default function RichTextEditor({
       {/* Word / char count */}
       <div className="flex items-center justify-end gap-3 px-3 pb-2 text-label-xs text-outline">
         <span>
-          {editor.state.doc.textContent.length} chars
+          {counts.characters} caption characters
         </span>
         <span>
-          {editor.state.doc.textContent.split(/\s+/).filter(Boolean).length} words
+          {counts.words} words
         </span>
       </div>
     </div>

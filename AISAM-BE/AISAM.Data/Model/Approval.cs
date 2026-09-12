@@ -22,6 +22,9 @@ namespace AISAM.Data.Model
         // New: approver by userId (team member)
         [Column("approver_user_id")]
         public Guid? ApproverUserId { get; set; }
+        [Column("submitted_at")]
+        public DateTime? SubmittedAt { get; set; }
+        [Column("snapshot_id")] public Guid? SnapshotId {get;set;}
 
         [Required]
         [Column("status")]

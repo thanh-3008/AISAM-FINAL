@@ -281,6 +281,17 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddScoped<IContentService, ContentService>();
+builder.Services.AddScoped<AISAM.Services.Access.IAccessControlService, AISAM.Services.Access.AccessControlService>();
+builder.Services.AddScoped<AISAM.Services.Access.AssignmentService>();
+builder.Services.AddScoped<AISAM.Services.Access.TeamService>();
+builder.Services.AddScoped<AISAM.Services.Access.MemberPerformanceService>();
+builder.Services.AddScoped<AISAM.Services.Service.ContentMediaService>();
+builder.Services.AddScoped<AISAM.Services.Service.PublishOperationService>();
+builder.Services.AddScoped<AISAM.Services.Service.PublishProgressContext>();
+builder.Services.AddScoped<AISAM.Services.Service.OrphanAssetCleanup>();
+builder.Services.AddHostedService<AISAM.Services.Service.OrphanAssetCleanupWorker>();
+builder.Services.AddScoped<AISAM.API.Middleware.ResourcePermissionFilter>();
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(o=>o.Filters.AddService<AISAM.API.Middleware.ResourcePermissionFilter>());
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddSingleton<IOriginResolver, OriginResolver>();
 builder.Services.AddScoped<IOAuthStateStore>(sp => new SignedOAuthStateStore(jwtSecretKey, sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
@@ -468,8 +479,10 @@ app.UseMiddleware<MaintenanceModeMiddleware>();
 app.UseRateLimiter();
 
 app.UseAuthentication();
+app.UseMiddleware<AISAM.API.Middleware.ExecutionAttributionMiddleware>();
 app.UseMiddleware<ActiveProfileMiddleware>();
 app.UseMiddleware<ActiveWorkspaceMiddleware>();
+app.UseMiddleware<AISAM.API.Middleware.PermissionScopeMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -505,6 +518,7 @@ static void ApplyEnvironmentOverride(IConfiguration configuration, string enviro
 static string BuildDatabaseConnectionString(string connectionString)
 {
     var builder = new NpgsqlConnectionStringBuilder(connectionString);
+    builder.PersistSecurityInfo = true;
     var configuredMaxPoolSize = builder.ContainsKey("Maximum Pool Size") || builder.ContainsKey("Max Pool Size");
 
     if (!configuredMaxPoolSize)

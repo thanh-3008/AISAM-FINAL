@@ -61,9 +61,10 @@ function notifyCache() {
 }
 
 function resolveMemberRole(role: unknown): string | null {
-  if (typeof role !== "number") return "Owner";
+  if (typeof role === "string" && ["Owner", "Manager", "ContentCreator", "Viewer"].includes(role)) return role;
+  if (typeof role !== "number") return "Viewer";
   const roleMap: Record<number, string> = {
-    0: "Owner",
+    0: "Viewer",
     1: "Owner",
     2: "Manager",
     3: "ContentCreator",
@@ -73,7 +74,7 @@ function resolveMemberRole(role: unknown): string | null {
 }
 
 function isOwnerRole(role: unknown): boolean {
-  return role === 0 || role === 1;
+  return role === 1 || role === "Owner";
 }
 
 function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null {
@@ -90,8 +91,8 @@ function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null
     status: 1,
     createdAt: "",
     updatedAt: "",
-    isOwner: true,
-    memberRole: "Owner",
+    isOwner: false,
+    memberRole: null,
     memberLimit: stored.workspaceType === 2 ? 10 : 1,
   };
 }
@@ -99,6 +100,10 @@ function getStoredWorkspaceFallback(userId: string | null): WorkspaceData | null
 export function invalidateWorkspaceCache() {
   cachedWorkspaces = null;
   notifyCache();
+}
+
+export function clearWorkspaceCacheSilently() {
+  cachedWorkspaces = null;
 }
 
 export function addWorkspaceToCache(workspace: WorkspaceData) {
@@ -205,6 +210,7 @@ export function useWorkspaces() {
     const stored = getStoredActiveWorkspace();
     if (stored) {
       const match = mapped.find((w) => w.id === stored.id);
+      if (!match) { clearActiveWorkspace(); clearActiveProfile(); }
       if (match && match.workspaceType !== stored.workspaceType) {
         storeActiveWorkspace({
           id: match.id,

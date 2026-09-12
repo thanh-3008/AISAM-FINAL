@@ -34,6 +34,7 @@ namespace AISAM.Services.Service
         private readonly IPostRepository _postRepository;
         private readonly Dictionary<string, IProviderService> _providers;
         private readonly ILogger<AdCampaignService> _logger;
+        private readonly AISAM.Services.Access.IAccessControlService? _accessControl;
 
         public AdCampaignService(
             IAdCampaignRepository campaignRepository,
@@ -45,7 +46,8 @@ namespace AISAM.Services.Service
             ISocialService socialService,
             IPostRepository postRepository,
             IEnumerable<IProviderService> providers,
-            ILogger<AdCampaignService> logger)
+            ILogger<AdCampaignService> logger,
+            AISAM.Services.Access.IAccessControlService? accessControl = null)
         {
             _campaignRepository = campaignRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
@@ -58,6 +60,16 @@ namespace AISAM.Services.Service
             _providers = providers.Where(p => p.ProviderName == "facebook" || p.ProviderName == "instagram")
                 .ToDictionary(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
             _logger = logger;
+            _accessControl = accessControl;
+        }
+
+        private async Task<bool> CheckBrandPermissionAsync(Guid workspaceId, Guid userId, Guid brandId, CancellationToken cancellationToken)
+        {
+            if (_accessControl == null || userId == Guid.Empty) return true;
+            var decision = await _accessControl.CheckAsync(
+                new AISAM.Services.Access.AccessRequest(userId, workspaceId, AISAM.Services.Access.AccessResourceKind.Brand, brandId, AISAM.Services.Access.ResourcePermission.BrandManage),
+                cancellationToken);
+            return decision.Allowed;
         }
 
         private IProviderService GetProvider(string platform)
@@ -156,6 +168,11 @@ namespace AISAM.Services.Service
                 return GenericResponse<AdCampaignResponseDto>.CreateError("Brand not found in this workspace");
             }
 
+            if (!await CheckBrandPermissionAsync(workspaceId, userId, brand.Id, cancellationToken))
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError("You do not have permission to manage campaigns for this brand", HttpStatusCode.Forbidden);
+            }
+
             var campaign = new AdCampaign
             {
                 WorkspaceId = workspaceId,
@@ -235,12 +252,22 @@ namespace AISAM.Services.Service
                 nameChanged = true;
             }
 
+            if (!await CheckBrandPermissionAsync(workspaceId, userId, campaign.BrandId, cancellationToken))
+            {
+                return GenericResponse<AdCampaignResponseDto>.CreateError("You do not have permission to manage campaigns for this brand", HttpStatusCode.Forbidden);
+            }
+
             if (request.BrandId.HasValue)
             {
                 var brand = await _brandRepository.GetByIdAsync(request.BrandId.Value, cancellationToken);
                 if (brand == null || brand.WorkspaceId != workspaceId)
                 {
                     return GenericResponse<AdCampaignResponseDto>.CreateError("Brand not found in this workspace");
+                }
+
+                if (!await CheckBrandPermissionAsync(workspaceId, userId, request.BrandId.Value, cancellationToken))
+                {
+                    return GenericResponse<AdCampaignResponseDto>.CreateError("You do not have permission to manage campaigns for this brand", HttpStatusCode.Forbidden);
                 }
 
                 campaign.BrandId = request.BrandId.Value;
@@ -408,6 +435,11 @@ namespace AISAM.Services.Service
             if (workspaceBlocked != null)
             {
                 return GenericResponse<bool>.CreateError(workspaceBlocked, HttpStatusCode.Forbidden);
+            }
+
+            if (!await CheckBrandPermissionAsync(workspaceId, userId, campaign.BrandId, cancellationToken))
+            {
+                return GenericResponse<bool>.CreateError("You do not have permission to delete campaigns for this brand", HttpStatusCode.Forbidden);
             }
 
             if (campaign.DeploymentStatus == DeploymentStatusEnum.Completed && !string.IsNullOrWhiteSpace(campaign.FacebookCampaignId))

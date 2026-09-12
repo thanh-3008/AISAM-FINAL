@@ -78,6 +78,30 @@ public class InstagramProviderTests
         Assert.Contains("children=child-1%2Cchild-2", handler.Requests[2].Body);
     }
 
+    [Fact]
+    public async Task VerifiedMultiVideoWaitsForEveryChildAndPreservesProviderIds()
+    {
+        var handler=new RecordingHandler();var integration=Integration();
+        handler.Enqueue("""{"id":"v1"}""");handler.Enqueue("""{"status_code":"FINISHED"}""");
+        handler.Enqueue("""{"id":"v2"}""");handler.Enqueue("""{"status_code":"FINISHED"}""");
+        handler.Enqueue("""{"id":"parent"}""");handler.Enqueue("""{"id":"published"}""");
+        var provider=new InstagramProvider(new HttpClient(handler),Options.Create(new InstagramSettings{AppId="test",AppSecret="test",RedirectUri="https://client.test/callback",VerifiedCarouselIntegrationIds=[integration.Id]}));
+        var stages=new List<(string Stage,int Requests)>();
+        var result=await provider.PublishAsync(Account(),integration,new(){Media=[new(Guid.NewGuid(),"https://cdn.test/1.mp4","video/mp4"),new(Guid.NewGuid(),"https://cdn.test/2.mp4","video/mp4")],Progress=(stage,items,ct)=>{stages.Add((stage,handler.Requests.Count));return Task.CompletedTask;}});
+        Assert.True(result.Success);Assert.Equal(new[]{"v1","v2"},result.Media.Select(m=>m.ProviderMediaId));Assert.All(result.Media,m=>Assert.Equal("Published",m.Status));
+        Assert.Contains("children=v1%2Cv2",handler.Requests[4].Body);
+        Assert.Equal(new[]{("UploadingMedia",2),("UploadingMedia",4),("Publishing",5)},stages);
+    }
+
+    [Fact]
+    public async Task FailedChildDoesNotPublishIncompleteCarousel()
+    {
+        var handler=new RecordingHandler();handler.Enqueue("""{"id":"first"}""");handler.Enqueue("{}");
+        var result=await CreateProvider(handler).PublishAsync(Account(),Integration(),new(){Media=[new(Guid.NewGuid(),"https://cdn.test/1.jpg","image/jpeg"),new(Guid.NewGuid(),"https://cdn.test/2.jpg","image/jpeg")]});
+        Assert.False(result.Success);Assert.Equal(2,handler.Requests.Count);Assert.Equal("Uploaded",result.Media[0].Status);Assert.Equal("Failed",result.Media[1].Status);
+        Assert.DoesNotContain(handler.Requests,r=>r.Url.Contains("media_publish"));
+    }
+
     private static InstagramProvider CreateProvider(RecordingHandler handler) => new(
         new HttpClient(handler),
         Options.Create(new InstagramSettings

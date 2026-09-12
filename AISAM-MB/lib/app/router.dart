@@ -30,6 +30,7 @@ import '../features/settings/presentation/settings_screen.dart';
 import '../features/settings/presentation/account_screen.dart';
 import '../features/settings/presentation/screens/social_connections_screen.dart';
 import '../features/settings/presentation/team_settings_screen.dart';
+import '../features/settings/presentation/team_list_screen.dart';
 import '../features/settings/presentation/language_screen.dart';
 import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/billing/presentation/billing_screen.dart';
@@ -163,7 +164,21 @@ GoRouter router(RouterRef ref) {
       ),
       GoRoute(
         path: '/settings/team',
-        builder: (context, state) => const TeamSettingsScreen(),
+        builder: (context, state) => const TeamListScreen(),
+      ),
+      GoRoute(
+        path: '/settings/team/members',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final teamId = extra?['teamId'] as String? ?? state.uri.queryParameters['teamId'];
+          final teamName = extra?['teamName'] as String? ?? state.uri.queryParameters['teamName'];
+          final isAll = extra?['isAll'] as bool? ?? (state.uri.queryParameters['all'] == 'true');
+          return TeamSettingsScreen(
+            teamId: teamId,
+            teamName: teamName,
+            isAll: isAll,
+          );
+        },
       ),
       GoRoute(
         path: '/settings/social',

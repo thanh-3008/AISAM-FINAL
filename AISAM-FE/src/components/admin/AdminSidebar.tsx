@@ -64,7 +64,6 @@ export default function AdminSidebar() {
   const handleLogout = async () => {
     await logout();
     window.location.href = "/login";
- window.location.href = "/login";
   };
 
   const isItemActive = (href: string) =>

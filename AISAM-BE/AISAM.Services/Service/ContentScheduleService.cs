@@ -21,19 +21,24 @@ public sealed class ContentScheduleService : IContentScheduleService
     private readonly IContentCalendarRepository _contentCalendarRepository;
     private readonly INotificationRepository _notificationRepository;
     private readonly ILogger<ContentScheduleService> _logger;
+    private readonly AISAM.Repositories.AisamContext? _db;
+    private readonly InstagramSettings _instagram;
 
     public ContentScheduleService(
         IContentRepository contentRepository,
         ISocialIntegrationRepository socialIntegrationRepository,
         IContentCalendarRepository contentCalendarRepository,
         INotificationRepository notificationRepository,
-        ILogger<ContentScheduleService> logger)
+        ILogger<ContentScheduleService> logger,
+        AISAM.Repositories.AisamContext? db=null,
+        Microsoft.Extensions.Options.IOptions<InstagramSettings>? instagram=null)
     {
         _contentRepository = contentRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
         _contentCalendarRepository = contentCalendarRepository;
         _notificationRepository = notificationRepository;
         _logger = logger;
+        _db=db;_instagram=instagram?.Value??new();
     }
 
     public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
@@ -160,10 +165,19 @@ public sealed class ContentScheduleService : IContentScheduleService
 
         if (schedule.Status == ScheduleStatusEnum.Failed && request.ScheduledAt.HasValue)
         {
+            if(schedule.LastError?.StartsWith("PUBLISH_OUTCOME_",StringComparison.Ordinal)==true)
+                return GenericResponse<ContentScheduleDto>.CreateError("Reconcile the provider outcome before scheduling again.",HttpStatusCode.Conflict,"PUBLISH_OUTCOME_UNKNOWN");
             schedule.Status = ScheduleStatusEnum.Pending;
             schedule.LastError = null;
         }
 
+        if(_db is not null)
+        {
+            var target=schedule.Integration??await _socialIntegrationRepository.GetByIdAsync(schedule.IntegrationId??Guid.Empty,cancellationToken);
+            if(target is null)return GenericResponse<ContentScheduleDto>.CreateError("Channel unavailable.",HttpStatusCode.NotFound);
+            var capabilityError=await ValidateCapabilityAsync(content,target,cancellationToken,schedule.SnapshotId);
+            if(capabilityError is not null)return GenericResponse<ContentScheduleDto>.CreateError(capabilityError,HttpStatusCode.BadRequest,capabilityError);
+        }
         await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
         await CreateNotificationAsync(
             profileId,
@@ -233,7 +247,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         return schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted ? GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound) : GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), MessageConstants.Schedule.RetrievedSuccess);
     }
 
-    public async Task<GenericResponse<ContentScheduleDto>> UpdateInWorkspaceAsync(Guid workspaceId, Guid scheduleId, UpdateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentScheduleDto>> UpdateInWorkspaceAsync(Guid workspaceId, Guid scheduleId, UpdateContentScheduleRequest request, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
@@ -242,6 +256,23 @@ public sealed class ContentScheduleService : IContentScheduleService
         var content = schedule.Content ?? await _contentRepository.GetByIdAsync(schedule.ContentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId || content.IsDeleted)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ContentNotFound, HttpStatusCode.NotFound);
+
+        if (_db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        {
+            var isOwner = await _db.WorkspaceMembers.AsNoTracking()
+                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && m.Role == WorkspaceMemberRoleEnum.Owner && m.IsActive, cancellationToken);
+            if (!isOwner)
+            {
+                var hasBrandAccess = await (from tb in _db.TeamBrands.AsNoTracking()
+                                            join tm in _db.TeamMembers.AsNoTracking() on tb.TeamId equals tm.TeamId
+                                            where tb.BrandId == content.BrandId && tb.IsActive
+                                               && tm.UserId == actorUserId.Value && tm.IsActive
+                                            select tb.Id).AnyAsync(cancellationToken);
+                if (!hasBrandAccess)
+                    return GenericResponse<ContentScheduleDto>.CreateError("You do not have permission to manage schedules for this brand.", HttpStatusCode.Forbidden);
+            }
+        }
+
         if (request.ScheduledAt.HasValue) { var at = NormalizeScheduledAt(request.ScheduledAt.Value); if (at == default) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeInvalid, HttpStatusCode.BadRequest); if (at <= DateTime.UtcNow) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeMustBeFuture, HttpStatusCode.BadRequest); schedule.ScheduledAt = at; schedule.ScheduledDate = at; schedule.ScheduledTime = at.TimeOfDay; }
         if (request.IntegrationId.HasValue) { var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId.Value, cancellationToken); if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != content.BrandId || integration.IsDeleted) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.SocialIntegrationNotFound, HttpStatusCode.NotFound); schedule.IntegrationId = integration.Id; schedule.Integration = integration; }
         if (schedule.Status == ScheduleStatusEnum.Failed && request.ScheduledAt.HasValue)
@@ -254,10 +285,26 @@ public sealed class ContentScheduleService : IContentScheduleService
         return GenericResponse<ContentScheduleDto>.CreateSuccess(Map(schedule), "Schedule updated successfully.");
     }
 
-    public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid scheduleId, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<bool>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
+        var content = schedule.Content ?? await _contentRepository.GetByIdAsync(schedule.ContentId, cancellationToken);
+        if (content != null && _db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        {
+            var isOwner = await _db.WorkspaceMembers.AsNoTracking()
+                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && m.Role == WorkspaceMemberRoleEnum.Owner && m.IsActive, cancellationToken);
+            if (!isOwner)
+            {
+                var hasBrandAccess = await (from tb in _db.TeamBrands.AsNoTracking()
+                                            join tm in _db.TeamMembers.AsNoTracking() on tb.TeamId equals tm.TeamId
+                                            where tb.BrandId == content.BrandId && tb.IsActive
+                                               && tm.UserId == actorUserId.Value && tm.IsActive
+                                            select tb.Id).AnyAsync(cancellationToken);
+                if (!hasBrandAccess)
+                    return GenericResponse<bool>.CreateError("You do not have permission to delete schedules for this brand.", HttpStatusCode.Forbidden);
+            }
+        }
         schedule.IsDeleted = true; schedule.IsActive = false; await _contentCalendarRepository.UpdateAsync(schedule, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Schedule deleted successfully.");
     }
@@ -329,6 +376,8 @@ public sealed class ContentScheduleService : IContentScheduleService
         if (scheduledAt == default) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeInvalid, HttpStatusCode.BadRequest);
         if (scheduledAt <= DateTime.UtcNow)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ScheduledTimeMustBeFuture, HttpStatusCode.BadRequest);
+        var capabilityError=await ValidateCapabilityAsync(content,integration,cancellationToken);
+        if(capabilityError is not null)return GenericResponse<ContentScheduleDto>.CreateError(capabilityError,HttpStatusCode.BadRequest,capabilityError);
         var schedule = new ContentCalendar { WorkspaceId = workspaceId, ProfileId = profileId, ContentId = content.Id, Content = content, IntegrationId = integration.Id, Integration = integration, ScheduledAt = scheduledAt, ScheduledDate = scheduledAt, ScheduledTime = scheduledAt.TimeOfDay, Status = ScheduleStatusEnum.Pending };
         try
         {
@@ -346,6 +395,16 @@ public sealed class ContentScheduleService : IContentScheduleService
     {
         return ex.InnerException is Npgsql.PostgresException pgEx
                && pgEx.SqlState == "23505";
+    }
+
+    private async Task<string?> ValidateCapabilityAsync(Content content,SocialIntegration integration,CancellationToken ct,Guid? snapshotId=null)
+    {
+        if(_db is null)return null;
+        var id=snapshotId??content.ApprovedSnapshotId;
+        var snapshot=await _db.PublishSnapshots.IgnoreQueryFilters().Include(s=>s.Media).SingleOrDefaultAsync(s=>s.Id==id&&s.ContentId==content.Id,ct);
+        if(snapshot is null)return "REVIEWED_SNAPSHOT_REQUIRED";
+        var account=await _db.SocialAccounts.IgnoreQueryFilters().SingleOrDefaultAsync(a=>a.Id==integration.SocialAccountId,ct);
+        return PublishingCapabilities.Validate(PublishingCapabilities.For(integration,account,DateTime.UtcNow,_instagram.VerifiedCarouselIntegrationIds.Contains(integration.Id)),snapshot.Media);
     }
 
     private async Task<(bool Success, Content? Content, SocialIntegration? Integration, GenericResponse<ContentScheduleDto>? Error)> ValidateContentAndIntegrationAsync(
@@ -371,6 +430,8 @@ public sealed class ContentScheduleService : IContentScheduleService
             return (false, null, null, integrationResult.Error);
         }
 
+        var capabilityError=await ValidateCapabilityAsync(content,integrationResult.Integration!,cancellationToken);
+        if(capabilityError is not null)return(false,null,null,GenericResponse<ContentScheduleDto>.CreateError(capabilityError,HttpStatusCode.BadRequest,capabilityError));
         return (true, content, integrationResult.Integration, null);
     }
 

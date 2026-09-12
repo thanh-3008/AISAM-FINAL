@@ -37,9 +37,31 @@ public sealed class PromptEnhancerService : IPromptEnhancerService
         }
 
         var productContext = BuildProductContext(product);
-        var referenceMode = hasReferenceImages
-            ? "The user will supply one or more reference images of the actual product. The product identity (shape, silhouette, color palette, material, label/packaging layout, and distinctive visible details) MUST be preserved exactly. Only the background, lighting, camera angle, and scene composition may change."
-            : "No reference images. Infer the product appearance from the product context provided.";
+        var categoryGuidance = GetCategorySceneGuidance(product?.Category);
+
+        string referenceMode;
+        string rulesBlock;
+
+        if (hasReferenceImages)
+        {
+            referenceMode = "The user will supply one or more reference images of the actual product. The product identity (shape, silhouette, color palette, material, label/packaging layout, brand typography, and distinctive visible details) MUST be preserved exactly as shown in the reference image. Only the background, lighting, camera angle, and scene composition may change.";
+            rulesBlock = """
+- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
+- The prompt must be a single cohesive paragraph or structured sentence block.
+- CRITICAL RULE: Preserve existing packaging, label graphics, and brand identity exactly as shown in the reference image. Do not redesign, blur, or remove existing brand text/logo on the product itself. Do not invent new background typography or floating text.
+- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, preserve exact product identity and label graphics from reference image, no watermarks, no added text overlay, no fake typography, no humans, no faces, no hands."
+""";
+        }
+        else
+        {
+            referenceMode = "No reference images. Infer the product appearance from the product context provided.";
+            rulesBlock = """
+- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
+- The prompt must be a single cohesive paragraph or structured sentence block.
+- CRITICAL RULE: NEVER include any text, typography, letters, branding, names, prices, or watermarks in the generated image. The final image MUST BE COMPLETELY TEXT-FREE, even if the product name or brand is provided in the context.
+- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, completely text-free, no readable text, no typography, no watermark, no letters, no words, no numbers, no humans, no faces, no hands."
+""";
+        }
 
         var metaPrompt = $"""
 You are an expert commercial advertising photographer and AI image-generation prompt engineer.
@@ -49,7 +71,8 @@ FLUX.2 [klein] best practices:
 - Write in descriptive English. Be specific about materials, textures, colors, surface finishes.
 - Specify lighting type (e.g. soft studio diffused light, natural window light, dramatic rim highlight).
 - Specify camera angle and composition (e.g. eye-level close-up, overhead flat-lay, 3/4 product angle).
-- Specify background mood and context (e.g. minimalist white marble, soft cream textile, dark lifestyle scene).
+- Specify background mood and context:
+  {categoryGuidance}
 - Always end with safety rules to prevent AI artifacts.
 
 Product context (use as the SOURCE OF TRUTH — do not invent details not present here):
@@ -62,11 +85,7 @@ User's original request (may be in any language):
 "{cleanPrompt}"
 
 Output rules:
-- Output ONLY the final English prompt. No explanation, no markdown, no quotes, no extra text.
-- The prompt must be a single cohesive paragraph or structured sentence block.
-- CRITICAL RULE: NEVER include any text, typography, letters, branding, names, prices, or watermarks in the generated image. The final image MUST BE COMPLETELY TEXT-FREE, even if the product name or brand is provided in the context.
-- Always include at the end of the prompt: "commercial advertising photography, high fidelity, 4k ultra-realistic, completely text-free, no readable text, no typography, no watermark, no letters, no words, no numbers, no humans, no faces, no hands."
-- If reference images exist: include "Preserve exact product identity: shape, silhouette, proportions, color scheme, material, and label layout from the reference image. Do not redesign or replace the product."
+{rulesBlock}
 """;
 
         try
@@ -205,7 +224,7 @@ Output rules:
             if (!string.IsNullOrWhiteSpace(enhanced))
             {
                 var (parsedPrompt, patternId) = ExtractVisualPromptFromT2va(enhanced);
-                var safePrompt = EnforceVideoSafety(parsedPrompt);
+                var safePrompt = EnforceVideoSafety(parsedPrompt, RequestsVideoText(rawPrompt));
                 _logger.LogInformation("[PromptEnhancer] Video prompt enhanced. Original length={OrigLen}, Enhanced length={EhLen}, Final length={FinalLen}, Pattern={PatternId}, Img2Video={HasImg}",
                     rawPrompt.Length, enhanced.Trim().Length, safePrompt.Length, patternId, imageBytes != null);
                 return (safePrompt, patternId);
@@ -224,15 +243,14 @@ Output rules:
         // Fallback: Check if the raw prompt is safe.
         try
         {
-            var fallbackSafe = EnforceVideoSafety(rawPrompt);
+            var fallbackSafe = EnforceVideoSafety(rawPrompt, RequestsVideoText(rawPrompt));
             return (fallbackSafe, null);
         }
         catch (InvalidOperationException ioe) when (ioe.Message.Contains("non-ASCII"))
         {
             _logger.LogWarning("[PromptEnhancer][NonAscii] rawPrompt from Chat Orchestrator contained non-ASCII. Using DefaultSafeEnglish. RawPromptLength={Len}", rawPrompt?.Length ?? 0);
-            var productName = product?.Name ?? "the product";
-            var productDesc = string.IsNullOrWhiteSpace(product?.Description) ? "" : $" ({product.Description})";
-            var defaultSafeEnglish = $"A high-quality commercial advertising video showcasing {productName}{productDesc} in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
+            // Translation is unavailable: do not reinsert untranslated product fields.
+            var defaultSafeEnglish = "A high-quality commercial advertising video showcasing the product in a professional setting, cinematic lighting, 8k resolution, ultra-realistic, no text overlay, no watermark, no hands, no faces.";
             return (defaultSafeEnglish, null);
         }
     }
@@ -391,23 +409,27 @@ Output Rules:
         throw new FormatException("Gemini did not return the expected JSON format or missing integrated_multimodal_description/pattern_id.");
     }
 
-    private static string EnforceVideoSafety(string prompt)
+    private static bool RequestsVideoText(string prompt) =>
+        !Regex.IsMatch(prompt, @"\b(no|without|avoid)\s+(text|typography|lettering)\b|không\s+(?:có\s+)?chữ", RegexOptions.IgnoreCase) &&
+        Regex.IsMatch(prompt, @"\b(include|add|show|display|render|write|thêm|viết)\b.{0,35}\b(text|typography|lettering|chữ)\b|hiển thị chữ", RegexOptions.IgnoreCase);
+
+    private static string EnforceVideoSafety(string prompt, bool allowText)
     {
         if (string.IsNullOrWhiteSpace(prompt)) return string.Empty;
 
-        // Count non-ASCII characters. If a large portion is non-ASCII, it's likely not translated.
-        // We allow some non-ASCII because product names (like Vietnamese names) might be retained.
-        int nonAsciiCount = prompt.Count(c => c > 127);
-        if (nonAsciiCount > 20 && nonAsciiCount > prompt.Length * 0.2)
+        // Reject untranslated prose even when short. Quoted labels/dialogue may
+        // retain their original language; punctuation is not a language signal.
+        var prose = Regex.Replace(prompt, "\"[^\"]*\"|'[^']*'|<d>.*?</d>", "", RegexOptions.Singleline);
+        if (prose.Any(c => c > 127 && char.IsLetter(c)))
         {
             throw new InvalidOperationException("Prompt contains too many non-ASCII characters. Rejecting to fallback.");
         }
 
         var safePrompt = prompt;
 
-        // Optionally, we could still force "no faces, no hands" here if needed, 
-        // but since we allow text now, we should not blindly append "no text overlay".
-        string[] requiredClauses = { "no faces", "no hands" };
+        string[] requiredClauses = allowText
+            ? ["no watermark", "no faces", "no hands"]
+            : ["no text overlay", "no watermark", "no readable letters", "no faces", "no hands"];
         var missing = requiredClauses.Where(c => !safePrompt.Contains(c, StringComparison.OrdinalIgnoreCase)).ToList();
         
         if (missing.Any())
@@ -431,5 +453,31 @@ Output Rules:
             _logger.LogWarning(ex, "[PromptEnhancer] Failed to download reference image bytes from {Url}. Will silently fallback to text-only generation.", url);
             return null;
         }
+    }
+
+    public static string GetCategorySceneGuidance(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return "Place the product in an elegant, clean commercial setting that fits its style, with purposeful lighting and uncluttered composition.";
+
+        var cat = category.ToLowerInvariant();
+        if (cat.Contains("food") || cat.Contains("beverage") || cat.Contains("drink") || cat.Contains("sữa") || cat.Contains("milk") || cat.Contains("dairy") || cat.Contains("snack") || cat.Contains("thực phẩm") || cat.Contains("dinh dưỡng"))
+        {
+            return "Place the product in a warm, appetizing lifestyle setting such as a modern kitchen countertop or clean dining table with natural morning window light, subtle organic accents, and fresh atmosphere.";
+        }
+        if (cat.Contains("skin") || cat.Contains("cosmetic") || cat.Contains("beauty") || cat.Contains("care") || cat.Contains("mỹ phẩm") || cat.Contains("dưỡng") || cat.Contains("serum") || cat.Contains("lotion"))
+        {
+            return "Place the product in a pristine spa or luxury vanity setting with clean reflective surfaces, soft water ripples, botanical minimalism, and diffused softbox lighting.";
+        }
+        if (cat.Contains("tech") || cat.Contains("electronic") || cat.Contains("gadget") || cat.Contains("điện tử") || cat.Contains("device") || cat.Contains("phone") || cat.Contains("audio") || cat.Contains("tai nghe"))
+        {
+            return "Place the product on a sleek matte dark desk or architectural workspace with subtle ambient rim lights, clean cable-free minimalism, and modern high-tech aesthetic.";
+        }
+        if (cat.Contains("fashion") || cat.Contains("apparel") || cat.Contains("clothing") || cat.Contains("thời trang") || cat.Contains("shoe") || cat.Contains("bag") || cat.Contains("giày") || cat.Contains("túi"))
+        {
+            return "Place the product in a contemporary boutique or editorial studio environment with textured neutral backdrops, tailored dramatic spotlights, and clean architectural lines.";
+        }
+
+        return $"Place the product in an appropriate commercial lifestyle or studio setting suited for {category}, with purposeful lighting, clean textures, and uncluttered composition.";
     }
 }

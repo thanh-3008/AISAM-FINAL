@@ -6,7 +6,16 @@ import AdminDataTable from "@/components/admin/AdminDataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { fetchAdminContent, setContentStatus, deleteContent, AdminContent } from "@/services/adminService";
 
-const contentStatusLabels: Record<number, string> = { 0: "Draft", 1: "Pending", 2: "Approved", 3: "Rejected", 4: "Published", 5: "Flagged" };
+const contentStatusLabels: Record<number, string> = { 
+  0: "Draft", 
+  1: "Pending", 
+  2: "Approved", 
+  3: "Rejected", 
+  4: "Published", 
+  5: "Flagged",
+  6: "Rejected by Platform",
+  7: "Failed"
+};
 
 export default function AdminContentPage() {
   const [contents, setContents] = useState<AdminContent[]>([]);
@@ -61,7 +70,7 @@ export default function AdminContentPage() {
       header: "Status",
       render: (c: AdminContent) => {
         const label = contentStatusLabels[c.status] ?? "Unknown";
-        const variant = c.status === 2 || c.status === 4 ? "success" : c.status === 5 || c.status === 3 ? "error" : c.status === 1 ? "warning" : "neutral";
+        const variant = c.status === 2 || c.status === 4 ? "success" : c.status === 5 || c.status === 3 || c.status === 6 || c.status === 7 ? "error" : c.status === 1 ? "warning" : "neutral";
         return <StatusBadge status={label} variant={variant} />;
       },
     },
@@ -122,6 +131,7 @@ export default function AdminContentPage() {
             <option value={2}>Approved</option>
             <option value={3}>Rejected</option>
             <option value={6}>Rejected by Platform</option>
+            <option value={7}>Failed</option>
             <option value={4}>Published</option>
             <option value={0}>Draft</option>
           </select>

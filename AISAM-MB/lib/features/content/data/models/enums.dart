@@ -6,6 +6,9 @@ enum ContentStatusEnum {
   @JsonValue(2) approved,
   @JsonValue(3) rejected,
   @JsonValue(4) published,
+  @JsonValue(5) flagged,
+  @JsonValue(6) rejectedByPlatform,
+  @JsonValue(7) failed,
 }
 
 enum AiStatusEnum {

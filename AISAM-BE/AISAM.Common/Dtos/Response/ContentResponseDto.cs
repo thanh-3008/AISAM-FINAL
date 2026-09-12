@@ -12,6 +12,9 @@ public sealed class ContentResponseDto
     public AdTypeEnum AdType { get; set; }
     public string? Title { get; set; }
     public string TextContent { get; set; } = string.Empty;
+    public string? RichTextJson { get; set; }
+    public int? RichTextVersion { get; set; }
+    public string PlainText => TextContent;
     /// <summary>Raw JSONB value from the database (may be JSON array or single URL string).</summary>
     public string? ImageUrl { get; set; }
     /// <summary>Parsed image URLs list. Populated from ImageUrl JSONB on mapping.</summary>

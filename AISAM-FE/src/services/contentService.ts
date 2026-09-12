@@ -38,6 +38,8 @@ export interface ContentApiItem {
   adType: AdType;
   title: string | null;
   textContent: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl: string | null;
   videoUrl: string | null;
   thumbnailUrl?: string | null;
@@ -64,6 +66,8 @@ export interface ContentItem {
   imageUrl?: string;
   videoUrl?: string;
   textContent?: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   createdAt: string;
   platforms: string[];
   tags: string[];
@@ -84,6 +88,8 @@ export interface ContentDetail {
   platforms: string[];
   updatedAt: string;
   textContent?: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string;
   videoUrl?: string;
   styleDescription?: string;
@@ -105,9 +111,12 @@ export interface ContentDetail {
 export interface CreateContentPayload {
   brandId: string;
   productId?: string | null;
+  teamId?: string | null;
   adType: AdType;
   title?: string | null;
   textContent: string;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string | null;
   /** Multi-image support: array of URLs. Serialized to JSON by the service. */
   imageUrls?: string[] | null;
@@ -123,9 +132,12 @@ export interface CreateContentPayload {
 
 export interface UpdateContentPayload {
   productId?: string | null;
+  teamId?: string | null;
   adType?: AdType;
   title?: string | null;
   textContent?: string | null;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string | null;
   /** Multi-image support: array of URLs. Serialized to JSON by the service. */
   imageUrls?: string[] | null;
@@ -145,7 +157,7 @@ const API_STATUS_TO_STATUS: Record<ContentApiStatus, ContentStatus> = {
   2: "Approved",
   3: "Rejected",
   4: "Published",
-  5: "Draft",
+  5: "Flagged",
   6: "Rejected",
   7: "Failed",
 };
@@ -162,6 +174,8 @@ const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
   "Published": 4,
   "Scheduled": 4,
   "Failed": 7,
+  "Flagged": 5,
+  "RejectedByPlatform": 6,
 };
 
 /**
@@ -257,7 +271,7 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,
-    textContent: api.textContent,
+    textContent: api.textContent, richTextJson: api.richTextJson, richTextVersion: api.richTextVersion,
     imageUrl: parseApiUrl(api.imageUrl) || undefined,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
     description: api.contextDescription || undefined,
@@ -276,6 +290,8 @@ export async function fetchContents(params?: {
   brandId?: string;
   adType?: number;
   status?: number;
+  mine?: boolean;
+  reviewQueue?: boolean;
 }): Promise<{ items: ContentItem[]; total: number; page: number; pageSize: number } | null> {
   try {
     const query = new URLSearchParams();
@@ -288,7 +304,8 @@ export async function fetchContents(params?: {
     if (params?.adType !== undefined) query.set("adType", String(params.adType));
     if (params?.status !== undefined) query.set("status", String(params.status));
 
-    const res: GenericResponse<PagedResult<ContentApiItem>> = await apiClient(`/content?${query.toString()}`);
+    if (params?.mine) query.set("mine", "true");
+    const res: GenericResponse<PagedResult<ContentApiItem>> = await apiClient(`/content${params?.reviewQueue ? "/review-queue" : ""}?${query.toString()}`);
     const data = res?.data;
     if (data?.data) {
       return {
@@ -301,6 +318,19 @@ export async function fetchContents(params?: {
     return null;
   } catch {
     return null;
+  }
+}
+
+// Existing library filters and counters work on the loaded collection. Fetch
+// every scoped page, rather than silently hiding the queue after item 100.
+export async function fetchAllVisibleContents(params?: Parameters<typeof fetchContents>[0]) {
+  const items: ContentItem[] = [];
+  for (let page = 1; ; page++) {
+    const result = await fetchContents({ ...params, page, pageSize: 100 });
+    if (!result) return null;
+    items.push(...result.items);
+    if (result.items.length === 0 || items.length >= result.total)
+      return { ...result, items };
   }
 }
 
@@ -551,14 +581,10 @@ export async function getConversationMessages(
 
 /* ─── Brand helpers for name resolution ─── */
 
-const brandNameCache = new Map<string, string>();
-
 export async function resolveBrandName(brandId: string): Promise<string> {
-  if (brandNameCache.has(brandId)) return brandNameCache.get(brandId)!;
   try {
     const res: GenericResponse<{ id: string; name: string }> = await apiClient(`/brands/${brandId}`);
     if (res?.success && res.data?.name) {
-      brandNameCache.set(brandId, res.data.name);
       return res.data.name;
     }
   } catch { /* fallback */ }

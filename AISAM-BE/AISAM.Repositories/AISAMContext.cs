@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.Repositories
 {
-    public class AisamContext : DbContext
+    public partial class AisamContext : DbContext
     {
         public AisamContext(DbContextOptions<AisamContext> options) : base(options)
         {
@@ -28,6 +28,7 @@ namespace AISAM.Repositories
         public DbSet<Team> Teams { get; set; }
         public DbSet<TeamMember> TeamMembers { get; set; }
         public DbSet<TeamBrand> TeamBrands { get; set; }
+        public DbSet<TeamChannelAccess> TeamChannelAccesses { get; set; }
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Approval> Approvals { get; set; }
         public DbSet<Ad> Ads { get; set; }
@@ -53,6 +54,11 @@ namespace AISAM.Repositories
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            ConfigurePermissionScope(modelBuilder);
+            ConfigureMedia(modelBuilder);
+            modelBuilder.Entity<Content>().HasIndex(c => new { c.WorkspaceId, c.BrandId, c.PrimaryCreatorId, c.CreatedAt });
+            modelBuilder.Entity<AuditLog>().HasIndex(a => new { a.WorkspaceId, a.CreatedAt });
+            modelBuilder.Entity<Post>().HasIndex(p => new { p.PublishedByUserId, p.PublishedAt });
 
             // User entity indexes and constraints
             modelBuilder.Entity<User>(entity =>
@@ -343,9 +349,21 @@ namespace AISAM.Repositories
             });
 
             // Team entity configuration
+            modelBuilder.Entity<TeamChannelAccess>(entity =>
+            {
+                entity.HasIndex(x => new { x.TeamBrandId, x.IntegrationId }).IsUnique();
+                entity.HasOne(x => x.TeamBrand).WithMany(x => x.Channels)
+                    .HasForeignKey(x => x.TeamBrandId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Integration).WithMany()
+                    .HasForeignKey(x => x.IntegrationId).OnDelete(DeleteBehavior.Cascade);
+            });
+
             modelBuilder.Entity<Team>(entity =>
             {
                 entity.HasKey(t => t.Id);
+                entity.HasIndex(t => t.WorkspaceId);
+                entity.HasOne(t => t.Workspace).WithMany().HasForeignKey(t => t.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(t => t.Status).HasConversion<int>().HasDefaultValue(TeamStatusEnum.Active);
                 entity.HasIndex(t => t.ProfileId);
                 entity.HasIndex(t => t.Name);
@@ -360,6 +378,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<TeamMember>(entity =>
             {
                 entity.HasKey(tm => tm.Id);
+                entity.HasIndex(tm => new { tm.TeamId, tm.UserId }).IsUnique();
                 entity.HasIndex(tm => tm.TeamId);
                 entity.HasIndex(tm => tm.UserId);
                 entity.HasOne(tm => tm.Team)
@@ -376,6 +395,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<TeamBrand>(entity =>
             {
                 entity.HasKey(tb => tb.Id);
+                entity.HasIndex(tb => new { tb.TeamId, tb.BrandId }).IsUnique();
                 entity.HasIndex(tb => tb.TeamId);
                 entity.HasIndex(tb => tb.BrandId);
                 entity.HasIndex(tb => tb.IsActive);

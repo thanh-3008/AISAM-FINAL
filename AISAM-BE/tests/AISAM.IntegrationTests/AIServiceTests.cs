@@ -17,6 +17,34 @@ namespace AISAM.IntegrationTests;
 public class AIServiceTests
 {
     [Fact]
+    public async Task DraftRecordsAuthenticatedActorAsCreator()
+    {
+        var profileId = Guid.NewGuid();
+        var actor = Guid.NewGuid();
+        var brand = CreateBrand(profileId);
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeAiGenerationRepository(),
+            new FakeBrandRepository(brand), new FakeGeminiTextClient("Generated copy"));
+        var result = await service.GenerateDraftAsync(profileId, brand.WorkspaceId, actor,
+            new CreateDraftRequest { BrandId = brand.Id, Prompt = "Create an ad" });
+        Assert.True(result.Success);
+        Assert.Equal(actor, Assert.Single(repository.Created).PrimaryCreatorId);
+    }
+
+    [Fact]
+    public async Task MissingActorCannotCreateDraftOrStartWorkspaceChat()
+    {
+        var repository = new FakeContentRepository();
+        var service = CreateService(repository, new FakeAiGenerationRepository(),
+            new FakeBrandRepository(), new FakeGeminiTextClient("Unused"));
+        var draft = await service.GenerateDraftAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, new CreateDraftRequest());
+        var chat = await service.ChatInWorkspaceAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, new ChatRequest { Message = "Hello" });
+        Assert.Equal(401, draft.StatusCode);
+        Assert.Equal(401, chat.StatusCode);
+        Assert.Empty(repository.Created);
+    }
+
+    [Fact]
     public async Task StartVideoGenerationAsync_ReturnsExistingProcessingGeneration_WithoutCreatingDuplicateProviderJob()
     {
         var workspaceId = Guid.NewGuid();
@@ -578,6 +606,80 @@ public class AIServiceTests
     }
 
     [Fact]
+    public void BuildSafeImagePrompt_BranchA_PreservesPackaging_WhenProductHasReferenceImages()
+    {
+        var method = typeof(AIService).GetMethod("BuildSafeImagePrompt", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var product = new Product
+        {
+            Name = "Sữa bột Optimum Gold",
+            Category = "Sữa bột dinh dưỡng",
+            Images = "[\"https://storage.aisam.vn/products/optimum.jpg\"]"
+        };
+        var brand = new Brand { Name = "Vinamilk" };
+
+        var prompt = (string)method!.Invoke(null, new object?[] { "Tạo ảnh lon sữa", brand, product, null, null })!;
+
+        // Rule 3 in Branch A must preserve packaging and label graphics
+        Assert.Contains("Preserve existing packaging, label graphics, and brand identity", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Do not redesign, blur, or remove existing brand text or logos", prompt, StringComparison.OrdinalIgnoreCase);
+
+        // Must NOT order surfaces to be blank
+        Assert.DoesNotContain("keep all surfaces blank or abstract", prompt, StringComparison.OrdinalIgnoreCase);
+
+        // Scene guidance must fit Dairy category (kitchen / dining)
+        Assert.Contains("kitchen countertop", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildSafeImagePrompt_BranchB_RequiresSurfacesBlank_WhenNoReferenceImages()
+    {
+        var method = typeof(AIService).GetMethod("BuildSafeImagePrompt", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var product = new Product
+        {
+            Name = "Sữa bột Optimum Gold",
+            Category = "Sữa bột dinh dưỡng",
+            Images = null
+        };
+        var brand = new Brand { Name = "Vinamilk" };
+
+        var prompt = (string)method!.Invoke(null, new object?[] { "Tạo ảnh lon sữa", brand, product, null, null })!;
+
+        // Rule 3 in Branch B must require surfaces blank and no text to avoid gibberish
+        Assert.Contains("keep all surfaces blank or abstract", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NO TEXT, NO WATERMARKS, NO LOGO TEXT", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no readable letters", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GetProductImageUrls_ParsesJsonArray_SingleUrl_AndCommaSeparated()
+    {
+        var method = typeof(AIService).GetMethod("GetProductImageUrls", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        // Case 1: JSON array
+        var pJson = new Product { Images = "[\"https://example.com/1.jpg\", \"https://example.com/2.jpg\"]" };
+        var urlsJson = (List<string>)method!.Invoke(null, new object?[] { pJson })!;
+        Assert.Equal(2, urlsJson.Count);
+        Assert.Equal("https://example.com/1.jpg", urlsJson[0]);
+
+        // Case 2: Raw single URL string
+        var pSingle = new Product { Images = "https://example.com/single.jpg" };
+        var urlsSingle = (List<string>)method!.Invoke(null, new object?[] { pSingle })!;
+        Assert.Single(urlsSingle);
+        Assert.Equal("https://example.com/single.jpg", urlsSingle[0]);
+
+        // Case 3: Comma separated
+        var pComma = new Product { Images = "https://example.com/a.png, https://example.com/b.png" };
+        var urlsComma = (List<string>)method!.Invoke(null, new object?[] { pComma })!;
+        Assert.Equal(2, urlsComma.Count);
+        Assert.Equal("https://example.com/a.png", urlsComma[0]);
+    }
+
+    [Fact]
     public async Task ChatAsync_IncludesSelectedBrandAndProductDetailsInPrompt()
     {
         var profileId = Guid.NewGuid();
@@ -891,6 +993,7 @@ public class AIServiceTests
 
     private sealed class FakeContentRepository : IContentRepository
     {
+        public List<Content> Created { get; } = new();
         public Task HardDeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         private readonly Dictionary<Guid, Content> _contents;
         public FakeContentRepository(params Content[] contents) => _contents = contents.ToDictionary(content => content.Id);
@@ -899,6 +1002,7 @@ public class AIServiceTests
         public Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(Guid profileId, PaginationRequest request, Guid? brandId = null, AdTypeEnum? adType = null, bool includeDeleted = false, ContentStatusEnum? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Content> AddAsync(Content content, CancellationToken cancellationToken = default)
         {
+            Created.Add(content);
             _contents[content.Id] = content;
             return Task.FromResult(content);
         }

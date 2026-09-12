@@ -78,7 +78,7 @@ describe("apiClient", () => {
     const request = apiClient("/content", { method: "POST" });
 
     await expect(request).rejects.toMatchObject({
-      message: "Authentication is required.",
+      message: "Bạn không còn quyền thực hiện thao tác này. Hãy kiểm tra workspace hoặc liên hệ Owner.",
       status: 403,
     });
     expect(auth.refreshAccessToken).not.toHaveBeenCalled();

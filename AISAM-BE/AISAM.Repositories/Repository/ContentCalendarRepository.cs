@@ -194,18 +194,11 @@ public sealed class ContentCalendarRepository : IContentCalendarRepository
             WHERE id IN (
                 SELECT id FROM content_calendar
                 WHERE is_deleted = false
-                  AND (
-                      (status = {1} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2}))
-                      OR
-                      (status = {3} AND attempt_count < {4} AND (scheduled_at IS NOT NULL AND scheduled_at <= {2})
-                       AND NOT EXISTS (
-                           SELECT 1 FROM content_calendar cc2
-                           WHERE cc2.content_id = content_calendar.content_id
-                             AND cc2.is_deleted = false
-                             AND cc2.status IN ({1}, {0})
-                             AND cc2.id != content_calendar.id
-                       ))
-                  )
+                    AND is_active = true
+                    AND status = {1}
+                    AND attempt_count < {4}
+                    AND scheduled_at IS NOT NULL AND scheduled_at <= {2}
+                    AND (attempt_count = 0 OR updated_at + INTERVAL '1 minute' * POWER(2, attempt_count) <= {2})
                 ORDER BY scheduled_at
                 LIMIT {5}
                 FOR UPDATE SKIP LOCKED

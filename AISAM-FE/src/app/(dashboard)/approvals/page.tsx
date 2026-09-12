@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useResourcePermissions } from "@/hooks/useResourcePermissions";
+import { Kind, Permission } from "@/services/permissionService";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
-import { fetchContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
+import { fetchAllVisibleContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import { fetchSchedules } from "@/services/scheduleService";
 import { fetchWorkspaceMembers, type WorkspaceMember } from "@/services/workspaceService";
 import {
@@ -92,7 +94,7 @@ function isApprovedStatus(status: string) {
 }
 
 function isRejectedStatus(status: string) {
-  return status === "Rejected";
+  return status === "Rejected" || status === "RejectedByPlatform";
 }
 
 function isPublishedStatus(status: string) {
@@ -124,7 +126,7 @@ function getStatusMeta(status: string) {
 
   if (isRejectedStatus(status)) {
     return {
-      label: "Rejected",
+      label: status === "RejectedByPlatform" ? "Platform Rejected" : "Rejected",
       icon: "block",
       className: "bg-danger-red/10 text-danger-red ring-1 ring-danger-red/20",
       dotClassName: "bg-danger-red",
@@ -389,10 +391,40 @@ export default function ApprovalsPage() {
   const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
-  const canReview = featureGate.can("reviewContent");
+
   const canPublish = featureGate.can("publishPost");
   const canManageSchedules = featureGate.can("manageSchedules");
+  const isOwnerOrManager = !!(
+    activeWorkspace?.isOwner ||
+    activeWorkspace?.memberRole === "Owner" ||
+    activeWorkspace?.memberRole === "Manager" ||
+    featureGate.can("reviewContent")
+  );
   const [items, setItems] = useState<ApprovalListItem[]>([]);
+  const contentItemsForReview = useMemo(
+    () => items.filter((item) => item.approvalSource === "content" && !item.id.startsWith("schedule-")),
+    [items]
+  );
+  const reviewChecks = useMemo(
+    () =>
+      contentItemsForReview.map((item) => ({
+        kind: Kind.Content,
+        resourceId: item.id,
+        permission: Permission.ApprovalReview,
+      })),
+    [contentItemsForReview]
+  );
+  const reviewAllowed = useResourcePermissions(reviewChecks);
+  const isReviewAllowed = useCallback(
+    (id: string) => {
+      if (isOwnerOrManager) return true;
+      const index = contentItemsForReview.findIndex((item) => item.id === id);
+      if (index === -1) return false;
+      return reviewAllowed(index);
+    },
+    [isOwnerOrManager, contentItemsForReview, reviewAllowed]
+  );
+  const canReview = isOwnerOrManager || contentItemsForReview.some((_, index) => reviewAllowed(index));
   const [teamMembers, setTeamMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -419,8 +451,8 @@ export default function ApprovalsPage() {
   const load = useCallback(async (reset = true) => {
     if (reset) { setLoading(true); }
     const [contentResult, scheduleResult] = await Promise.all([
-      fetchContents({ pageSize: 100 }),
-      fetchSchedules({ pageSize: 100 }),
+      fetchAllVisibleContents({ pageSize: 100 }),
+      fetchSchedules({ pageSize: 100 }).catch(() => null),
     ]);
     const contentItems: ApprovalListItem[] = (contentResult?.items ?? [])
       .filter((item) => item.status !== "Draft")
@@ -429,7 +461,7 @@ export default function ApprovalsPage() {
         approvalSource: "content",
       }));
     const contentById = new Map(contentItems.map((item) => [item.id, item]));
-    const failedScheduleItems = (scheduleResult.data.data ?? [])
+    const failedScheduleItems = (scheduleResult?.data?.data ?? [])
       .filter((schedule) => schedule.status === "Failed")
       .map((schedule) => mapFailedScheduleToApprovalItem(schedule, contentById.get(schedule.contentId)));
     setItems([...contentItems, ...failedScheduleItems]);
@@ -466,7 +498,7 @@ export default function ApprovalsPage() {
   };
 
   const handleApprove = async (id: string) => {
-    if (!canReview) return;
+    if (!isReviewAllowed(id)) return;
     setActionId(id);
     const item = items.find((i) => i.id === id);
     const success = await approveContent(id);
@@ -587,7 +619,7 @@ export default function ApprovalsPage() {
   };
 
   const toggleSelectAll = () => {
-    const selectableIds = paged.filter((item) => !isScheduleFailureItem(item)).map((item) => item.id);
+    const selectableIds = paged.filter((item) => isReviewAllowed(item.id) && !isScheduleFailureItem(item)).map((item) => item.id);
     if (selectableIds.length === 0) return;
     const allSelected = selectableIds.every((id) => selected.has(id));
     setSelected((prev) => {
@@ -620,7 +652,7 @@ export default function ApprovalsPage() {
   const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
   const paged = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
   
-  const selectableFiltered = canReview ? paged.filter((item) => !isScheduleFailureItem(item)) : [];
+  const selectableFiltered = canReview ? paged.filter((item) => isReviewAllowed(item.id) && !isScheduleFailureItem(item)) : [];
   const allSelectableSelected = selectableFiltered.length > 0 && selectableFiltered.every((item) => selected.has(item.id));
 
   const tabCounts: Record<TabKey, number> = {
@@ -853,9 +885,9 @@ export default function ApprovalsPage() {
                       const priority = getPriority(item);
                       const brandColor = getBrandColor(item.brandName);
                       const isSelected = selected.has(item.id);
-                      const isSelectable = canReview && !isScheduleFailureItem(item);
+                      const isSelectable = isReviewAllowed(item.id) && !isScheduleFailureItem(item);
                       const statusMeta = getStatusMeta(item.status);
-                      const canReviewItem = isPendingStatus(item.status) && canReview;
+                      const canReviewItem = isPendingStatus(item.status) && isReviewAllowed(item.id);
                       const canDelete = isRejectedStatus(item.status);
                       const rowImageUrl = getPreviewImageUrl(item);
                       const rowVideoUrl = getPreviewVideoUrl(item);
@@ -1404,27 +1436,34 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/80 backdrop-blur-sm flex items-center gap-3 shrink-0">
-                {isPendingStatus(drawerItem.status) && canReview && (
-                  <>
-                    <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
-                      className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
-                      {actionId === drawerItem.id ? (
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <span className="material-symbols-outlined text-[17px]">verified</span>
-                      )}
-                      Approve
-                    </button>
-                    <button onClick={() => { handleRequestChanges(drawerItem); setDrawerItem(null); }}
-                      className="flex-1 bg-secondary/5 text-secondary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary/10 active:scale-[0.98] transition-all border border-secondary/20">
-                      <span className="material-symbols-outlined text-[17px]">rate_review</span>
-                      Revise
-                    </button>
-                    <button onClick={() => { setConfirmItem(drawerItem); setDrawerItem(null); }} disabled={actionId === drawerItem.id}
-                      className="px-4 py-3 bg-danger-red/5 text-danger-red rounded-xl text-label-sm font-bold hover:bg-danger-red/10 active:scale-[0.98] transition-all disabled:opacity-50 border border-danger-red/20">
-                      <span className="material-symbols-outlined text-[17px]">block</span>
-                    </button>
-                  </>
+                {isPendingStatus(drawerItem.status) && (
+                  isReviewAllowed(drawerItem.id) ? (
+                    <>
+                      <button onClick={() => handleApprove(drawerItem.id)} disabled={actionId === drawerItem.id}
+                        className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
+                        {actionId === drawerItem.id ? (
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <span className="material-symbols-outlined text-[17px]">verified</span>
+                        )}
+                        Approve
+                      </button>
+                      <button onClick={() => { handleRequestChanges(drawerItem); setDrawerItem(null); }}
+                        className="flex-1 bg-secondary/5 text-secondary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary/10 active:scale-[0.98] transition-all border border-secondary/20">
+                        <span className="material-symbols-outlined text-[17px]">rate_review</span>
+                        Revise
+                      </button>
+                      <button onClick={() => { setConfirmItem(drawerItem); setDrawerItem(null); }} disabled={actionId === drawerItem.id}
+                        className="px-4 py-3 bg-danger-red/5 text-danger-red rounded-xl text-label-sm font-bold hover:bg-danger-red/10 active:scale-[0.98] transition-all disabled:opacity-50 border border-danger-red/20">
+                        <span className="material-symbols-outlined text-[17px]">block</span>
+                      </button>
+                    </>
+                  ) : (
+                    <div className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-outline bg-surface-container/60 rounded-xl border border-outline-variant/10 text-body-sm">
+                      <span className="material-symbols-outlined text-[18px]">lock</span>
+                      <span>Bạn không có quyền duyệt bài viết này</span>
+                    </div>
+                  )
                 )}
                 {isRejectedStatus(drawerItem.status) && (
                   <button onClick={() => handleDeleteRejected(drawerItem)} disabled={actionId === drawerItem.id}

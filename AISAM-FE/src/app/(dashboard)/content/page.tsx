@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon, isRejectedContentStatus, isFailedContentStatus } from "@/lib/contentConstants";
-import { fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import { fetchAllVisibleContents as fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
 import { apiFetch } from "@/lib/apiClient";
@@ -13,6 +13,9 @@ import PostNowModal from "@/components/content/PostNowModal";
 import BulkScheduleModal from "@/components/content/BulkScheduleModal";
 import { matchesApprovalBrand } from "@/lib/approvalBrands";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { usePublishPermission } from "@/hooks/usePublishPermission";
+import { useResourcePermissions } from "@/hooks/useResourcePermissions";
+import { Kind, Permission, checkPermissions } from "@/services/permissionService";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -42,7 +45,9 @@ export default function ContentPage() {
   const router = useRouter();
   const featureGate = useFeatureGate();
   const canReview = featureGate.can("reviewContent");
-  const canPublish = featureGate.can("publishPost");
+  const canPublish = featureGate.can("publishPost") || featureGate.isContentCreator;
+  const [mineChoice, setMineChoice] = useState<boolean | null>(null);
+  const mine = mineChoice ?? featureGate.isContentCreator;
   const canManageSchedules = featureGate.can("manageSchedules");
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -73,8 +78,10 @@ export default function ContentPage() {
   const [scheduledCount, setScheduledCount] = useState(0);
   const [quota, setQuota] = useState<{ promptUsage: number; promptQuotaLimit: number; postUsage: number; postQuotaLimit: number; textContentCount: number; imageContentCount: number; videoContentCount: number } | null>(null);
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
+  const createAllowed = useResourcePermissions(brandList.map(brand => ({ kind: Kind.Brand, resourceId: brand.id, permission: Permission.ContentCreate })));
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
+  const loadVersion = useRef(0);
   const [createMenuStyle, setCreateMenuStyle] = useState<{ top: number; right: number } | null>(null);
 
   const addToast = useCallback((message: string, icon: string) => {
@@ -97,15 +104,16 @@ export default function ContentPage() {
   }, [viewMode]);
 
   const loadContent = useCallback(async () => {
+    const version = ++loadVersion.current;
+    setAllContent([]);
     setLoading(true);
     const [result, dashRes, quotaRes] = await Promise.all([
-      fetchContents({ pageSize: 100 }),
+      fetchContents({ pageSize: 100, mine }),
       apiFetch("/dashboard/summary").catch(() => null),
       fetchContentQuota(),
     ]);
-    if (result) {
-      setAllContent(result.items);
-    }
+    if (version !== loadVersion.current) return;
+    setAllContent(result?.items ?? []);
     if (dashRes?.success && dashRes.data) {
       setScheduledCount((dashRes.data as { upcomingScheduleCount?: number }).upcomingScheduleCount ?? 0);
     }
@@ -113,7 +121,7 @@ export default function ContentPage() {
       setQuota(quotaRes);
     }
     setLoading(false);
-  }, []);
+  }, [mine]);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 80);
@@ -145,7 +153,7 @@ export default function ContentPage() {
       case "brand-asc": list.sort((a, b) => a.brandName.localeCompare(b.brandName)); break;
       case "product-asc": list.sort((a, b) => a.productName.localeCompare(b.productName)); break;
       case "status": {
-        const order: Record<ContentStatus, number> = { "Published": 0, "Scheduled": 1, "Approved": 2, "Awaiting Approval": 3, "Draft": 4, "Rejected": 5, "Failed": 6 };
+        const order: Record<ContentStatus, number> = { "Published": 0, "Scheduled": 1, "Approved": 2, "Awaiting Approval": 3, "Draft": 4, "Rejected": 5, "Failed": 6, "Flagged": 7, "RejectedByPlatform": 8 };
         list.sort((a, b) => order[a.status] - order[b.status]); break;
       }
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -214,6 +222,10 @@ export default function ContentPage() {
 
   const handleBatchDelete = async () => {
     const ids = new Set(selectedIds);
+    try {
+      const decisions = await checkPermissions([...ids].map(resourceId => ({ kind: Kind.Content, resourceId, permission: Permission.ContentDelete })));
+      if (decisions.some(allowed => !allowed)) { addToast("Có nội dung bạn không được xóa. Hãy chọn lại.", "error"); return; }
+    } catch { addToast("Không xác nhận được quyền xóa.", "error"); return; }
     const results = await Promise.all(Array.from(ids).map((id) => deleteContentWithResult(id)));
     const deletedCount = results.filter((result) => result.success).length;
     const firstError = results.find((result) => !result.success)?.error;
@@ -262,8 +274,15 @@ export default function ContentPage() {
   };
 
   // Card actions
-  const handleCardAction = (action: string, item: ContentItem) => {
+  const handleCardAction = async (action: string, item: ContentItem) => {
     setOpenMenuId(null);
+    const permission = action === "delete" ? Permission.ContentDelete : ["Edit", "Submit for Approval"].includes(action) ? Permission.ContentEdit : null;
+    if (permission !== null) {
+      try {
+        const [allowed] = await checkPermissions([{ kind: Kind.Content, resourceId: item.id, permission }]);
+        if (!allowed) { addToast("Bạn không có quyền thực hiện thao tác này.", "error"); return; }
+      } catch { addToast("Không xác nhận được quyền thao tác.", "error"); return; }
+    }
     switch (action) {
       case "Preview":
         setPreviewItem(item);
@@ -379,7 +398,7 @@ export default function ContentPage() {
               </div>
             </div>
             <div>
-              <h1 className="text-headline-sm font-bold text-on-surface">Content Library</h1>
+              <h1 className="text-headline-sm font-bold text-on-surface">{mine ? "My content" : "Content Library"}</h1><label className="flex gap-2 text-sm"><input type="checkbox" checked={mine} onChange={e => { setMineChoice(e.target.checked); setSelectedIds(new Set()); setPage(1); }} />Chỉ nội dung của tôi</label>
               <p className="text-body-sm text-on-surface-variant">Create, manage, and publish your brand content</p>
             </div>
           </div>
@@ -397,7 +416,7 @@ export default function ContentPage() {
               </button>
             </div>
             <div className="relative">
-              <button ref={createBtnRef} onClick={() => {
+              <button disabled={!brandList.some((_, index) => createAllowed(index))} ref={createBtnRef} onClick={() => {
                   if (!showCreateMenu && createBtnRef.current) {
                     const rect = createBtnRef.current.getBoundingClientRect();
                     setCreateMenuStyle({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
@@ -1004,6 +1023,8 @@ function FilterChip({ label, color, onRemove }: { label: string; color?: string;
 }
 
 function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: { item: ContentItem; onClose: () => void; onAction: (action: string, item: ContentItem) => void; canPublish: boolean; canManageSchedules: boolean }) {
+  const allowed = useResourcePermissions([Permission.ContentEdit, Permission.ContentDelete].map(permission => ({ kind: Kind.Content, resourceId: item.id, permission })));
+  const publishAllowed = usePublishPermission(item.id, item.brandId);
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
@@ -1016,7 +1037,7 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">open_in_new</span>
           View Details
         </button>
-        <button onClick={(e) => { e.stopPropagation(); onAction("Edit", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+        <button disabled={!allowed(0)} onClick={(e) => { e.stopPropagation(); onAction("Edit", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">edit</span>
           Edit
         </button>
@@ -1026,14 +1047,14 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
         </button>
         <div className="h-px bg-outline-variant/10 mx-3" />
         {(item.status === "Draft" || item.status === "Rejected") && (
-          <button onClick={(e) => { e.stopPropagation(); onAction("Submit for Approval", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+          <button disabled={!allowed(0)} onClick={(e) => { e.stopPropagation(); onAction("Submit for Approval", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
             <span className="material-symbols-outlined text-[14px] text-amber-500 group-hover:text-amber-600">send</span>
             Submit for Approval
           </button>
         )}
-        {item.status === "Approved" && (canPublish || canManageSchedules) && (
+        {item.status === "Approved" && (publishAllowed || canManageSchedules) && (
           <>
-            {canPublish && <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+            {publishAllowed && <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
               <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">send</span>
               Post Now
             </button>}
@@ -1044,7 +1065,7 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
           </>
         )}
         <div className="h-px bg-outline-variant/10 mx-3" />
-        <button onClick={(e) => { e.stopPropagation(); onAction("delete", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-danger-red group">
+        <button disabled={!allowed(1)} onClick={(e) => { e.stopPropagation(); onAction("delete", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-danger-red group">
           <span className="material-symbols-outlined text-[14px]">delete</span>
           Delete
         </button>

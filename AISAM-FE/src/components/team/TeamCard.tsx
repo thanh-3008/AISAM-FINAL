@@ -71,12 +71,12 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-label-2xs text-outline">Activity</span>
-              <span className="text-label-2xs text-outline font-semibold">{team.activity}%</span>
+              <span className="text-label-2xs text-outline font-semibold">{team.activity ?? 0}%</span>
             </div>
             <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full bg-gradient-to-r ${colors.bg} transition-all duration-700`}
-                style={{ width: `${team.activity}%` }}
+                style={{ width: `${team.activity ?? 0}%` }}
               />
             </div>
           </div>
@@ -85,7 +85,7 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
         <div className="flex items-center justify-between pt-4 border-t border-outline-variant/20">
           <div className="flex items-center gap-2">
             <div className="flex -space-x-1.5">
-              {Array.from({ length: Math.min(team.memberIds.length, 3) }).map((_, i) => (
+              {Array.from({ length: Math.min(team.memberIds?.length ?? team.memberCount ?? 0, 3) }).map((_, i) => (
                 <div
                   key={i}
                   className={`w-6 h-6 rounded-full border-2 border-white bg-gradient-to-br ${TEAM_COLORS[i % TEAM_COLORS.length].bg} flex items-center justify-center text-label-3xs font-bold text-on-primary`}
@@ -94,7 +94,7 @@ export default function TeamCard({ team, index, isSelected, isLoading, onSelect,
                 </div>
               ))}
             </div>
-            <span className="text-label-xs text-outline">{team.memberIds.length} members</span>
+            <span className="text-label-xs text-outline">{team.memberIds?.length ?? team.memberCount ?? 0} members</span>
           </div>
           <span className={`text-label-xs ${colors.badge} px-2 py-0.5 rounded font-semibold`}>{team.brandCount} Brands</span>
         </div>

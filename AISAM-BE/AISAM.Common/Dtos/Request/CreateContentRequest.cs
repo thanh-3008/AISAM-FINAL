@@ -7,10 +7,13 @@ public sealed class CreateContentRequest
 {
     public Guid BrandId { get; set; }
     public Guid? ProductId { get; set; }
+    public Guid? TeamId { get; set; }
     public AdTypeEnum AdType { get; set; }
     [MaxLength(255, ErrorMessage = "Title must not exceed 255 characters")]
     public string? Title { get; set; }
     public string TextContent { get; set; } = string.Empty;
+    public string? RichTextJson { get; set; }
+    public int? RichTextVersion { get; set; }
     /// <summary>
     /// Legacy single image URL (backward compat). If ImageUrls is provided, it takes precedence.
     /// </summary>

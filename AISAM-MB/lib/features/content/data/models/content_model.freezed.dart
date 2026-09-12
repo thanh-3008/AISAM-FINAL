@@ -15,10 +15,6 @@ final _privateConstructorUsedError = UnsupportedError(
   'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
 );
 
-ContentResponseModel _$ContentResponseModelFromJson(Map<String, dynamic> json) {
-  return _ContentResponseModel.fromJson(json);
-}
-
 /// @nodoc
 mixin _$ContentResponseModel {
   String get id => throw _privateConstructorUsedError;
@@ -43,9 +39,6 @@ mixin _$ContentResponseModel {
   ContentStatusEnum get status => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
   DateTime get updatedAt => throw _privateConstructorUsedError;
-
-  /// Serializes this ContentResponseModel to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
   /// Create a copy of ContentResponseModel
   /// with the given fields replaced by the non-null parameter values.
@@ -392,7 +385,7 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
 }
 
 /// @nodoc
-@JsonSerializable()
+
 class _$ContentResponseModelImpl implements _ContentResponseModel {
   const _$ContentResponseModelImpl({
     required this.id,
@@ -418,9 +411,6 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     required this.createdAt,
     required this.updatedAt,
   });
-
-  factory _$ContentResponseModelImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ContentResponseModelImplFromJson(json);
 
   @override
   final String id;
@@ -524,7 +514,6 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
                 other.updatedAt == updatedAt));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
@@ -563,11 +552,6 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
         this,
         _$identity,
       );
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$ContentResponseModelImplToJson(this);
-  }
 }
 
 abstract class _ContentResponseModel implements ContentResponseModel {
@@ -595,9 +579,6 @@ abstract class _ContentResponseModel implements ContentResponseModel {
     required final DateTime createdAt,
     required final DateTime updatedAt,
   }) = _$ContentResponseModelImpl;
-
-  factory _ContentResponseModel.fromJson(Map<String, dynamic> json) =
-      _$ContentResponseModelImpl.fromJson;
 
   @override
   String get id;

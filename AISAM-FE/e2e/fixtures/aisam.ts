@@ -47,7 +47,11 @@ export async function installApiMock(page: Page) {
     if (path.startsWith("/profiles/user/")) return fulfill(route, [{ id: IDS.profile, name: "E2E Profile", profileType: 0, workspaceId: IDS.workspace }]);
     if (path.startsWith("/brands") && method === "GET") return fulfill(route, { data: [{ id: IDS.brand, name: "E2E Brand", description: "Deterministic test brand", status: 1 }], totalCount: 1, page: 1, pageSize: 100 });
     if (path.startsWith("/products")) return fulfill(route, { data: [{ id: "60000000-0000-4000-8000-000000000006", name: "E2E Product", brandId: IDS.brand }], totalCount: 1, page: 1, pageSize: 100 });
-    if (path.startsWith("/content") && method === "GET") return fulfill(route, { data: [{ id: IDS.content, title: "E2E Launch Post", contentType: 0, status: 0, platforms: ["Facebook"], createdAt: new Date().toISOString() }], totalCount: 1, page: 1, pageSize: 12, totalPages: 1 });
+    if (path === "/permissions/check" && method === "POST") {
+      const checks = request.postDataJSON() as { resourceId: string; permission: number }[];
+      return fulfill(route, checks.map(check => [IDS.brand, IDS.content].includes(check.resourceId) && [0, 2, 3, 4, 7].includes(check.permission)));
+    }
+    if (path === "/content" && method === "GET") return fulfill(route, { data: [{ id: IDS.content, brandId: IDS.brand, brandName: "E2E Brand", title: "E2E Launch Post", contentType: 0, status: 0, platforms: ["Facebook"], createdAt: new Date().toISOString() }], totalCount: 1, page: 1, pageSize: 12, totalPages: 1 });
     if (path === "/content" && method === "POST") return fulfill(route, { id: IDS.content, title: "E2E Created Content", contentType: 0, status: 0, platforms: ["Facebook"], createdAt: new Date().toISOString() });
     if (path.startsWith("/tags")) return fulfill(route, ["launch", "e2e"]);
     if (path.startsWith("/notifications/unread-count")) return fulfill(route, { count: 1 });

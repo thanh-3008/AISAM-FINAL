@@ -21,6 +21,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
     private readonly ILogger<AutomationGenerationService> _logger;
     private readonly ImageProviderSettings _imageSettings;
     private readonly VideoProviderSettings _videoSettings;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
 
     public AutomationGenerationService(
         AisamContext context,
@@ -31,7 +32,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         IAutomationCreditService automationCredits,
         IOptions<ImageProviderSettings> imageOptions,
         IOptions<VideoProviderSettings> videoOptions,
-        ILogger<AutomationGenerationService> logger)
+        ILogger<AutomationGenerationService> logger,
+        AISAM.Services.Access.IAccessControlService? access = null)
     {
         _context = context;
         _textClient = textClient;
@@ -42,10 +44,13 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         _imageSettings = imageOptions.Value;
         _videoSettings = videoOptions.Value;
         _logger = logger;
+        _access = access;
     }
 
     public async Task<TimeSpan> ProcessNextAsync(CancellationToken cancellationToken = default)
     {
+        await using var executionLock = await AutomationExecutionLock.TryAcquireAsync(_context, 0x414953414D47454E, cancellationToken);
+        if (executionLock is null) return TimeSpan.FromSeconds(5);
         var item = await _context.AutomationItems
             .Include(value => value.AutomationPlan)
             .Include(value => value.Brand)
@@ -61,12 +66,28 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
         if (item is null) return TimeSpan.FromSeconds(5);
 
+        var creatorId = item.AutomationPlan.CreatedByUserId;
+        if (!creatorId.HasValue || creatorId == Guid.Empty ||
+            !await _context.Users.AnyAsync(u => u.Id == creatorId && u.IsActive, cancellationToken) ||
+            !await _context.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == item.AutomationPlan.WorkspaceId &&
+                m.UserId == creatorId && m.IsActive, cancellationToken))
+        {
+            await PauseForAccessAsync(item, cancellationToken);
+            return TimeSpan.FromMilliseconds(250);
+        }
+
         var profile = await _context.Profiles.AsNoTracking()
             .FirstOrDefaultAsync(value => value.Id == item.AutomationPlan.ProfileId, cancellationToken);
         if (profile is null)
         {
             await FailAsync(item, "The profile that created this plan no longer exists.", cancellationToken);
             return TimeSpan.FromMilliseconds(250);
+        }
+
+        if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+        {
+            await PauseForAccessAsync(item, cancellationToken);
+            return TimeSpan.FromSeconds(5);
         }
 
         var resumingVideo = item.Status == AutomationItemStatusEnum.GeneratingMedia && !string.IsNullOrWhiteSpace(item.VideoJobId);
@@ -79,6 +100,10 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        var previousActor = _context.ExecutionActorId;
+        var previousSystem = _context.ExecutionIsSystem;
+        _context.ExecutionActorId = creatorId;
+        _context.ExecutionIsSystem = true;
         try
         {
             if (!item.BrandId.HasValue || item.BrandId.Value == Guid.Empty)
@@ -101,6 +126,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 Id = Guid.NewGuid(),
                 ProfileId = item.AutomationPlan.ProfileId,
                 WorkspaceId = item.AutomationPlan.WorkspaceId,
+                PrimaryCreatorId = creatorId,
                 BrandId = item.BrandId.Value,
                 ProductId = item.ProductId,
                 Title = item.Topic,
@@ -131,6 +157,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
                 try
                 {
+                    if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+                        throw new AISAM.Repositories.ResourceMutationDeniedException();
                     var generatedText = await _textClient.GenerateAsync(textPrompt, cancellationToken);
                     if (string.IsNullOrWhiteSpace(generatedText)) throw new InvalidOperationException("AI returned empty content.");
                     content.TextContent = EnsureProductLandingUrlInCaption(generatedText.Trim(), item.Product, $"{item.Notes}\n{item.Cta}");
@@ -150,13 +178,15 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
 
                 if (item.UsedCredits < 1)
                 {
-                    var textCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateText, 1, 1, cancellationToken);
+                    var textCharge = await _automationCredits.SettleAsync(item.Id, creatorId.Value, CreditActionEnum.GenerateText, 1, 1, cancellationToken);
                     if (!textCharge.Success) throw new InvalidOperationException(textCharge.Message ?? "Unable to charge text generation credits.");
                 }
             }
 
             if (requiresVideo)
             {
+                if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+                    throw new AISAM.Repositories.ResourceMutationDeniedException();
                 var video = string.IsNullOrWhiteSpace(item.VideoJobId)
                     ? await _videoProvider.StartVideoGenerationAsync(BuildVideoPrompt(item),
                         new VideoGenerationOptions { DurationSeconds = 4, AspectRatio = "9:16" }, cancellationToken)
@@ -181,7 +211,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 }
                 if (item.UsedCredits < 101)
                 {
-                    var videoCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateVideo, 100, 101, cancellationToken);
+                    var videoCharge = await _automationCredits.SettleAsync(item.Id, creatorId.Value, CreditActionEnum.GenerateVideo, 100, 101, cancellationToken);
                     if (!videoCharge.Success) throw new InvalidOperationException(videoCharge.Message ?? "Unable to charge video generation credits.");
                 }
                 item.Status = AutomationItemStatusEnum.AwaitingApproval;
@@ -192,6 +222,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 {
                     item.Status = AutomationItemStatusEnum.GeneratingMedia;
                     await _context.SaveChangesAsync(cancellationToken);
+                    if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+                        throw new AISAM.Repositories.ResourceMutationDeniedException();
                     var media = await _imageProvider.GenerateImageAsync(
                         BuildImagePrompt(item),
                         new ImageGenerationOptions
@@ -208,7 +240,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     await _context.SaveChangesAsync(cancellationToken);
                     if (item.UsedCredits < 11)
                     {
-                        var imageCharge = await _automationCredits.SettleAsync(item.Id, profile.UserId, CreditActionEnum.GenerateImage, 10, 11, cancellationToken);
+                        var imageCharge = await _automationCredits.SettleAsync(item.Id, creatorId.Value, CreditActionEnum.GenerateImage, 10, 11, cancellationToken);
                         if (!imageCharge.Success) throw new InvalidOperationException(imageCharge.Message ?? "Unable to charge image generation credits.");
                     }
                 }
@@ -236,6 +268,11 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         {
             throw;
         }
+        catch (AISAM.Repositories.ResourceMutationDeniedException)
+        {
+            await PauseForAccessAsync(item, cancellationToken);
+            return TimeSpan.FromSeconds(5);
+        }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Automation generation failed for item {AutomationItemId}", item.Id);
@@ -249,6 +286,30 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             
             return TimeSpan.FromSeconds(5); // Default error delay to avoid rapid cascading failures
         }
+        finally
+        {
+            _context.ExecutionActorId = previousActor;
+            _context.ExecutionIsSystem = previousSystem;
+        }
+    }
+
+    private async Task<bool> HasGenerationAccessAsync(AutomationItem item, Guid actor, CancellationToken ct)
+        => _access is null || (item.BrandId.HasValue && (await _access.CheckAsync(new(actor,
+            item.AutomationPlan.WorkspaceId, AISAM.Services.Access.AccessResourceKind.Brand, item.BrandId.Value,
+            AISAM.Services.Access.ResourcePermission.ContentCreate), ct)).Allowed);
+
+    private async Task PauseForAccessAsync(AutomationItem item, CancellationToken ct)
+    {
+        item.Status = AutomationItemStatusEnum.NeedsAttention;
+        item.LastError = "AUTOMATION_ACCESS_REVOKED";
+        item.AutomationPlan.AutoApprove = false;
+        item.AutomationPlan.Status = AutomationPlanStatusEnum.PartiallyFailed;
+        item.UpdatedAt = item.AutomationPlan.UpdatedAt = DateTime.UtcNow;
+        _context.Notifications.Add(new Notification { ProfileId = item.AutomationPlan.ProfileId,
+            WorkspaceId = item.AutomationPlan.WorkspaceId, Title = "Automation needs permission review",
+            Message = item.LastError, TargetId = item.AutomationPlanId, TargetType = "AutomationPlan",
+            Type = NotificationTypeEnum.ApprovalNeeded });
+        await _context.SaveChangesAsync(ct);
     }
 
     private async Task FailAsync(AutomationItem item, string message, CancellationToken cancellationToken)

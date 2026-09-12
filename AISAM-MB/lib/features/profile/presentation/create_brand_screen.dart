@@ -42,11 +42,14 @@ class _CreateBrandScreenState extends ConsumerState<CreateBrandScreen> {
 
   void _onSubmit() {
     if (_formKey.currentState!.validate()) {
+      final logoUrl = _logoImage != null && (_logoImage!.path.startsWith('http://') || _logoImage!.path.startsWith('https://'))
+          ? _logoImage!.path
+          : null;
       ref.read(createBrandControllerProvider.notifier).createBrand(
         CreateBrandRequest(
           name: _nameController.text.trim(),
           description: _descController.text.trim().isNotEmpty ? _descController.text.trim() : null,
-          logoUrl: _logoImage?.path, // Currently using local path. Pending BE upload endpoint.
+          logoUrl: logoUrl,
         )
       );
     }

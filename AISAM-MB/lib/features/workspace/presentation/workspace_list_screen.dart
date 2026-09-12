@@ -288,12 +288,18 @@ class _WorkspaceListItem extends ConsumerWidget {
   const _WorkspaceListItem({required this.workspace, required this.index});
 
   String _getRoleName(int roleInt) {
-    // Basic mapping assumption
-    if (roleInt == 0) return 'Owner';
-    if (roleInt == 1) return 'Admin';
-    if (roleInt == 2) return 'Member';
-    if (roleInt == 3) return 'Client';
-    return 'Member';
+    switch (roleInt) {
+      case 1:
+        return 'Owner';
+      case 2:
+        return 'Manager';
+      case 3:
+        return 'Content Creator';
+      case 4:
+        return 'Viewer';
+      default:
+        return 'Member';
+    }
   }
 
   @override

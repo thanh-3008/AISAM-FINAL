@@ -16,6 +16,39 @@ namespace AISAM.IntegrationTests;
 public class ContentServicePublishTests
 {
     [Fact]
+    public async Task PublishUsesFrozenPlatformCaptionInsteadOfEditorOrMutableText()
+    {
+        var profile = Guid.NewGuid(); var brand = Guid.NewGuid();
+        var content = new Content { ProfileId=profile, BrandId=brand, Status=ContentStatusEnum.Approved,
+            TextContent="later draft", RichTextJson="editor JSON is never sent to provider",
+            FormattedCaptions = new() { ["facebook"]="1. Mua (https://example.test) #AISAM 👋" } };
+        var account = new SocialAccount { ProfileId=profile, UserAccessToken="test" };
+        var integration = new SocialIntegration { ProfileId=profile, BrandId=brand, SocialAccountId=account.Id,
+            SocialAccount=account, Platform=SocialPlatformEnum.Facebook, AccessToken="test", ExternalId="page" };
+        var provider = new FakeProviderService();
+        var service = CreateService(new FakeContentRepository(content), socialIntegrationRepository:new FakeSocialIntegrationRepository(integration),
+            socialAccountRepository:new FakeSocialAccountRepository(account), providerService:provider);
+        await service.PublishAsync(content.Id, integration.Id, profile);
+        Assert.Equal(content.FormattedCaptions["facebook"], provider.LastPublishedPost?.Message);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PublishAsync_PreservesUnknownOutcomeForLegacyCallers(bool providerTimeout)
+    {
+        var profile=Guid.NewGuid();var brand=Guid.NewGuid();
+        var content=new Content{ProfileId=profile,BrandId=brand,Status=ContentStatusEnum.Approved};
+        var account=new SocialAccount{ProfileId=profile,UserAccessToken="test"};
+        var integration=new SocialIntegration{ProfileId=profile,BrandId=brand,SocialAccountId=account.Id,SocialAccount=account,Platform=SocialPlatformEnum.Facebook,AccessToken="test",ExternalId="page"};
+        var provider=new FakeProviderService{ThrowOnPublish=providerTimeout};var posts=new FakePostRepository{ThrowOnAdd=!providerTimeout};
+        var service=CreateService(new FakeContentRepository(content),socialIntegrationRepository:new FakeSocialIntegrationRepository(integration),socialAccountRepository:new FakeSocialAccountRepository(account),postRepository:posts,providerService:provider);
+        var result=await service.PublishAsync(content.Id,integration.Id,profile);
+        Assert.True(result.Data?.RequiresReconciliation);Assert.Empty(posts.Added);
+        Assert.Equal(ContentStatusEnum.Approved,content.Status);
+        if(!providerTimeout)Assert.Equal("provider-post-id",result.Data!.ProviderPostId);
+    }
+    [Fact]
     public async Task PublishAsync_SetsContentPublishedAndCreatesPost_WhenFacebookReturnsSuccess()
     {
         var profileId = Guid.NewGuid();
@@ -185,8 +218,8 @@ public class ContentServicePublishTests
         var result = await service.PublishAsync(content.Id, integration.Id, profileId);
 
         Assert.False(result.Success);
-        Assert.Equal((int)HttpStatusCode.Unauthorized, result.StatusCode);
-        Assert.Equal("SOCIAL_RECONNECT_REQUIRED", result.Error?.ErrorCode);
+        Assert.Equal((int)HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal("SOCIAL_REAUTH_REQUIRED", result.Error?.ErrorCode);
         Assert.Contains("Disconnect and reconnect", result.Message);
         Assert.Null(provider.LastPublishedPost);
     }
@@ -573,12 +606,14 @@ public class ContentServicePublishTests
 
     private sealed class FakePostRepository : IPostRepository
     {
+        public bool ThrowOnAdd;
         public List<Post> Added { get; } = new();
 
         public Task<Post?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<Post?>(null);
 
         public Task<Post> AddAsync(Post post, CancellationToken cancellationToken = default)
         {
+            if(ThrowOnAdd)throw new InvalidOperationException("local persistence failure");
             Added.Add(post);
             return Task.FromResult(post);
         }
@@ -592,6 +627,7 @@ public class ContentServicePublishTests
 
     private sealed class FakeProviderService : IProviderService
     {
+        public bool ThrowOnPublish;
         public string ProviderName { get; set; } = "facebook";
         public PublishResultDto PublishResult { get; set; } = new() { Success = true, ProviderPostId = "provider-post-id", PostedAt = DateTime.UtcNow };
         public SocialAccount? LastPublishedAccount { get; private set; }
@@ -647,7 +683,7 @@ public class ContentServicePublishTests
                 ImageUrls = post.ImageUrls,
                 VideoUrl = post.VideoUrl
             };
-            return Task.FromResult(PublishResult);
+            return ThrowOnPublish?Task.FromException<PublishResultDto>(new TimeoutException("unknown external result")):Task.FromResult(PublishResult);
         }
     }
 

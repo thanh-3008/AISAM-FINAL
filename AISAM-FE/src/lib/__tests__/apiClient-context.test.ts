@@ -12,6 +12,7 @@ describe("apiClient context headers", () => {
   });
 
   it("always sends workspace header from workspace storage", async () => {
+    localStorage.setItem("aisam_token", "fake-token");
     localStorage.setItem("aisam_active_workspace", JSON.stringify({
       id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
       name: "Workspace",

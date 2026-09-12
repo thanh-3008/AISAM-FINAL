@@ -73,7 +73,7 @@ export default function TeamListView({
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-1.5">
-                        {Array.from({ length: Math.min(team.memberIds.length, 3) }).map((_, i) => (
+                        {Array.from({ length: Math.min(team.memberIds?.length ?? team.memberCount ?? 0, 3) }).map((_, i) => (
                           <div
                             key={i}
                             className={`w-6 h-6 rounded-full border-2 border-white bg-gradient-to-br ${TEAM_COLORS[i % TEAM_COLORS.length].bg} flex items-center justify-center text-label-3xs font-bold text-on-primary`}
@@ -82,7 +82,7 @@ export default function TeamListView({
                           </div>
                         ))}
                       </div>
-                      <span className="text-label-xs text-outline">{team.memberIds.length}</span>
+                      <span className="text-label-xs text-outline">{team.memberIds?.length ?? team.memberCount ?? 0}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -93,10 +93,10 @@ export default function TeamListView({
                       <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full bg-gradient-to-r ${colors.bg}`}
-                          style={{ width: `${team.activity}%` }}
+                          style={{ width: `${Number(team.activity) || 0}%` }}
                         />
                       </div>
-                      <span className="text-label-xs text-outline font-semibold w-8">{team.activity}%</span>
+                      <span className="text-label-xs text-outline font-semibold w-8">{Number(team.activity) || 0}%</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">

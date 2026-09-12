@@ -34,9 +34,11 @@ export function getStoredActiveWorkspace(): ActiveWorkspace | null {
 export function storeActiveWorkspace(workspace: ActiveWorkspace): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace));
+  window.dispatchEvent(new Event("aisam-workspace-changed"));
 }
 
 export function clearActiveWorkspace(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new Event("aisam-workspace-changed"));
 }

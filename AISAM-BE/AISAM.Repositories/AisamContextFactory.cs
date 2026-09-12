@@ -9,6 +9,20 @@ public class AisamContextFactory : IDesignTimeDbContextFactory<AisamContext>
 {
     public AisamContext CreateDbContext(string[] args)
     {
+        var connectionString = ResolveConnectionString();
+        var csb = new NpgsqlConnectionStringBuilder(connectionString) { PersistSecurityInfo = true };
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(csb.ConnectionString);
+        dataSourceBuilder.EnableDynamicJson();
+        var dataSource = dataSourceBuilder.Build();
+        var optionsBuilder = new DbContextOptionsBuilder<AisamContext>();
+        optionsBuilder.UseNpgsql(dataSource, npgsqlOptions =>
+            npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
+        return new AisamContext(optionsBuilder.Options);
+    }
+
+    // Tooling must use this only in memory, never log the result.
+    public static string ResolveConnectionString()
+    {
         var apiDirectory = FindApiDirectory();
         var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
             ?? LoadConnectionStringFromEnvFile(Path.Combine(apiDirectory, ".env"))
@@ -20,15 +34,7 @@ public class AisamContextFactory : IDesignTimeDbContextFactory<AisamContext>
                 "Missing PostgreSQL connection string. Add CONNECTION_STRING to AISAM.API/.env or ConnectionStrings:DefaultConnection to AISAM.API/appsettings.Development.json.");
         }
 
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-        dataSourceBuilder.EnableDynamicJson();
-        var dataSource = dataSourceBuilder.Build();
-
-        var optionsBuilder = new DbContextOptionsBuilder<AisamContext>();
-        optionsBuilder.UseNpgsql(dataSource, npgsqlOptions =>
-            npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
-
-        return new AisamContext(optionsBuilder.Options);
+        return connectionString;
     }
 
     private static string FindApiDirectory()

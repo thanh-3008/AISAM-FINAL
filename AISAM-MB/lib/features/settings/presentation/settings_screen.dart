@@ -111,7 +111,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _buildListTile(
                   context: context,
                   icon: Icons.group_outlined,
-                  title: 'Team (Members/Roles)',
+                  title: isEn ? 'Teams & Members' : 'Nhóm & Thành viên',
                   onTap: () => context.push('/settings/team'),
                 ),
               ],
@@ -150,7 +150,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildListTile(
                 context: context,
                 icon: Icons.credit_card,
-                title: 'Billing & Credit',
+                title: isEn ? 'Billing & Credit' : 'Thanh toán & Token',
                 onTap: () => context.push('/settings/billing'),
               ),
               _buildDivider(context),

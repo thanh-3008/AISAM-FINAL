@@ -43,7 +43,7 @@ public sealed class AutomationController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<GenericResponse<AutomationPlanDto>>> Create([FromBody] CreateAutomationPlanRequest request, CancellationToken cancellationToken)
     {
-        var result = await _automationService.CreateAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken: cancellationToken);
+        var result = await _automationService.CreateAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), UserClaimsHelper.GetUserIdOrThrow(User), request, cancellationToken: cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -59,7 +59,7 @@ public sealed class AutomationController : ControllerBase
         if (file.Length == 0 || !string.Equals(Path.GetExtension(file.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
             return BadRequest(GenericResponse<AutomationPlanDto>.CreateError("A non-empty CSV file is required."));
         await using var stream = file.OpenReadStream();
-        var result = await _automationService.ImportCsvAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), name, timezone ?? "UTC", file.FileName, stream, cancellationToken);
+        var result = await _automationService.ImportCsvAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), UserClaimsHelper.GetUserIdOrThrow(User), name, timezone ?? "UTC", file.FileName, stream, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -115,14 +115,14 @@ public sealed class AutomationController : ControllerBase
     [HttpPost("import-google-sheet")]
     public async Task<ActionResult<GenericResponse<AutomationPlanDto>>> ImportGoogleSheet([FromBody] ImportGoogleSheetRequest request, CancellationToken cancellationToken)
     {
-        var result = await _automationService.ImportGoogleSheetAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
+        var result = await _automationService.ImportGoogleSheetAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), UserClaimsHelper.GetUserIdOrThrow(User), request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
     [HttpPost("{planId:guid}/clone")]
     public async Task<ActionResult<GenericResponse<AutomationPlanDto>>> Clone(Guid planId, [FromBody] CloneAutomationPlanRequest request, CancellationToken cancellationToken)
     {
-        var result = await _automationService.CloneAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), planId, request, cancellationToken);
+        var result = await _automationService.CloneAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), UserClaimsHelper.GetUserIdOrThrow(User), planId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

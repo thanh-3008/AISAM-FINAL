@@ -177,6 +177,15 @@ public class TikTokProviderTests
         Assert.Empty(handler.Requests);
     }
 
+    [Fact]
+    public async Task PublishAsync_RejectsVideoAboveLiveCreatorLimitBeforeDownload()
+    {
+        var handler=new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.OK,"""{"data":{"privacy_level_options":["SELF_ONLY"],"max_video_post_duration_sec":15},"error":{"code":"ok"}}""");
+        var result=await CreateProvider(handler,CreateSettings()).PublishAsync(new(){UserAccessToken="test"},new(){AccessToken="test"},new(){VideoUrl="https://cdn.test/video.mp4",Media=[new(Guid.NewGuid(),"https://cdn.test/video.mp4","video/mp4",30)]});
+        Assert.False(result.Success);Assert.Single(handler.Requests);Assert.Contains("duration limit",result.ErrorMessage);
+    }
+
     private static TikTokProvider CreateProvider(RecordingHandler handler, TikTokSettings settings) =>
         new(new HttpClient(handler), Options.Create(settings), NullLogger<TikTokProvider>.Instance);
 

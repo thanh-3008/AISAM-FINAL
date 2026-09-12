@@ -96,7 +96,7 @@ public class ContentControllerTests
 
     private static FormFile CreateFormFile(string fileName, string contentType, long length)
     {
-        var file = new FormFile(Stream.Null, 0, length, "File", fileName)
+        var file = new FormFile(new MemoryStream(new byte[]{0,0,0,24,102,116,121,112,105,115,111,109}), 0, length, "File", fileName)
         {
             Headers = new HeaderDictionary(),
             ContentType = contentType
@@ -107,6 +107,8 @@ public class ContentControllerTests
     private static ContentController CreateController(IContentService service, Guid profileId, IMediaStorageService? mediaStorage = null)
     {
         var context = new DefaultHttpContext();
+        context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            new[] { new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()) }, "Test"));
         context.Items[ProfileContextHelper.ActiveProfileItemKey] = profileId;
         context.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey] = profileId;
 
@@ -132,6 +134,8 @@ public class ContentControllerTests
 
     private sealed class FakeContentService : IContentService
     {
+        public Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid actorUserId, CreateContentRequest request, CancellationToken cancellationToken = default)
+            => CreateAsync(profileId, request, cancellationToken);
         public Guid LastProfileId { get; private set; }
         public GenericResponse<ContentResponseDto> CreateResult { get; set; } = GenericResponse<ContentResponseDto>.CreateSuccess(new ContentResponseDto());
         public GenericResponse<PagedResult<ContentListDto>> PagedResult { get; set; } = GenericResponse<PagedResult<ContentListDto>>.CreateSuccess(new PagedResult<ContentListDto>());

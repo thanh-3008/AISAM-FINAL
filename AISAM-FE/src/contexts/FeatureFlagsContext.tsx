@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
+import { getToken } from "@/lib/auth";
 
 interface FeatureFlags {
   enabledFeatures: string[];
@@ -24,10 +25,16 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   useEffect(() => {
+    const publicAuthRoutes = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/resend-verification"];
+    if (!getToken() || publicAuthRoutes.includes(pathname ?? "")) {
+      setFeatures(null);
+      return;
+    }
+    let cancelled = false;
     async function fetchFlags() {
       try {
         const res: any = await apiClient("/feature-flags");
-        if (res?.success && res?.data) {
+        if (!cancelled && res?.success && res?.data) {
           setFeatures(res.data);
         }
       } catch (err) {
@@ -35,7 +42,8 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
       }
     }
     fetchFlags();
-  }, []);
+    return () => { cancelled = true; };
+  }, [pathname]);
 
   const hasFeature = (key: string) => {
     if (!features) return true; // optimistic

@@ -42,6 +42,12 @@ _$WorkspaceMemberResponseModelImpl _$$WorkspaceMemberResponseModelImplFromJson(
   email: json['email'] as String,
   fullName: json['fullName'] as String?,
   role: (json['role'] as num).toInt(),
+  quotaMode: (json['quotaMode'] as num?)?.toInt(),
+  creditLimit: (json['creditLimit'] as num?)?.toInt(),
+  creditUsed: (json['creditUsed'] as num?)?.toInt(),
+  creditPeriodStart: json['creditPeriodStart'] == null
+      ? null
+      : DateTime.parse(json['creditPeriodStart'] as String),
   joinedAt: DateTime.parse(json['joinedAt'] as String),
 );
 
@@ -53,5 +59,9 @@ Map<String, dynamic> _$$WorkspaceMemberResponseModelImplToJson(
   'email': instance.email,
   'fullName': instance.fullName,
   'role': instance.role,
+  'quotaMode': instance.quotaMode,
+  'creditLimit': instance.creditLimit,
+  'creditUsed': instance.creditUsed,
+  'creditPeriodStart': instance.creditPeriodStart?.toIso8601String(),
   'joinedAt': instance.joinedAt.toIso8601String(),
 };

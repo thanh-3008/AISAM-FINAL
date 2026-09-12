@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { getStoredAutosave } from "@/hooks/useSettings";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { usePublishPermission } from "@/hooks/usePublishPermission";
+import { useResourcePermissions } from "@/hooks/useResourcePermissions";
+import { Kind, Permission } from "@/services/permissionService";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
@@ -12,13 +14,14 @@ import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, 
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
+import MediaComposer from "@/components/content/MediaComposer";
 
 interface FormState {
   title: string;
   status: ContentStatus;
   description: string;
   platforms: string[];
-  caption: string;
+  caption: string; richTextJson?: string | null;
   ctaLink: string;
   scheduledAt: string;
   internalNotes: string;
@@ -30,8 +33,10 @@ export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const featureGate = useFeatureGate();
-  const canPublish = featureGate.can("publishPost");
+
+  const allowed = useResourcePermissions([Permission.ContentEdit, Permission.ContentDelete].map(permission => ({ kind: Kind.Content, resourceId: String(params.id), permission })));
   const canManageSchedules = featureGate.can("manageSchedules");
+  const [mediaDirty, setMediaDirty] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -41,6 +46,7 @@ export default function ContentDetailPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const [item, setItem] = useState<ContentDetail | null>(null);
+  const canPublish = usePublishPermission(String(params.id), item?.brandId);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
@@ -52,28 +58,19 @@ export default function ContentDetailPage() {
   const formRef = useRef(form);
   const itemRef = useRef(item);
 
+  const handleMediaSaved = useCallback(() => {
+    setItem(p => p ? { ...p, status: "Draft" } : p);
+  }, []);
+
+  const updateForm = useCallback((partial: Partial<FormState>) => {
+    formRef.current = { ...formRef.current, ...partial };
+    setForm((prev) => ({ ...prev, ...partial }));
+  }, []);
+
   useEffect(() => {
     formRef.current = form;
     itemRef.current = item;
   }, [form, item]);
-
-  useEffect(() => {
-    return () => {
-      const currentItem = itemRef.current;
-      const currentForm = formRef.current;
-      if (getStoredAutosave() && currentItem && currentForm.title) {
-        // Autosave only content fields, NOT status.
-        // Status changes must go through explicit actions (submit/approve/reject/handleSave)
-        // to prevent race conditions where unmount cleanup overwrites approval transitions.
-        updateContent(currentItem.id, {
-          title: currentForm.title,
-          adType: CONTENTTYPE_TO_ADTYPE[currentItem.type],
-          textContent: currentForm.caption,
-          contextDescription: currentForm.description,
-        }).catch(() => {});
-      }
-    };
-  }, []);
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 80); return () => clearTimeout(t); }, []);
 
@@ -103,16 +100,39 @@ export default function ContentDetailPage() {
   }, [generations, params.id]);
 
   useEffect(() => {
-    if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" });
+    if (item) {
+      const initialForm: FormState = {
+        title: item.title,
+        status: item.status,
+        description: item.description || "",
+        platforms: [...item.platforms],
+        caption: item.caption || item.textContent || "",
+        richTextJson: item.richTextJson,
+        ctaLink: item.ctaLink || "",
+        scheduledAt: item.scheduledAt || "",
+        internalNotes: item.internalNotes || "",
+        hashtags: item.hashtags || [],
+        rejectionReason: item.rejectionReason || "",
+      };
+      formRef.current = initialForm;
+      setForm(initialForm);
+    }
   }, [item?.id]);
 
   const handleSave = async () => {
+    if (!allowed(0)) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aisam-flush-editor"));
+    }
+    const currentForm = formRef.current;
     setSaving(true);
     const ok = await updateContent(params.id as string, {
-      title: form.title,
+      title: currentForm.title,
       adType: item ? CONTENTTYPE_TO_ADTYPE[item.type] : undefined,
-      textContent: form.caption,
-      contextDescription: form.description,
+      textContent: currentForm.caption,
+      richTextJson: currentForm.richTextJson,
+      richTextVersion: currentForm.richTextJson ? 1 : null,
+      contextDescription: currentForm.description,
     });
     if (ok && item) {
       setEditing(false);
@@ -125,6 +145,7 @@ export default function ContentDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (!allowed(1)) return;
     const ok = await deleteContent(params.id as string);
     if (ok) router.push("/content");
   };
@@ -219,12 +240,12 @@ export default function ContentDetailPage() {
               <>
                 {item.status === "Approved" && (canPublish || canManageSchedules) && (
                   <>
-                    {canPublish && <button onClick={() => setShowPostNow(true)}
+                    {canPublish && <button disabled={mediaDirty} onClick={() => setShowPostNow(true)}
                       className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">send</span>
                       Post Now
                     </button>}
-                    {canManageSchedules && <button onClick={() => router.push(`/calendar?contentId=${item.id}`)}
+                    {canManageSchedules && <button disabled={mediaDirty} onClick={() => router.push(`/calendar?contentId=${item.id}`)}
                       className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">calendar_month</span>
                       Schedule
@@ -232,7 +253,7 @@ export default function ContentDetailPage() {
                   </>
                 )}
                 {(item.status === "Draft" || item.status === "Rejected") && (
-                  <button onClick={handleSubmit} disabled={isSubmitting}
+                  <button onClick={handleSubmit} disabled={mediaDirty || isSubmitting || !allowed(0)}
                     className="px-4 py-2 rounded-xl bg-amber-500 text-white text-label-sm font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5">
                     {isSubmitting ? (
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -242,12 +263,12 @@ export default function ContentDetailPage() {
                     Submit for Approval
                   </button>
                 )}
-                <button onClick={() => setEditing(true)}
+                <button disabled={!allowed(0)} onClick={() => setEditing(true)}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">edit</span>
                   Edit
                 </button>
-                <button onClick={() => setShowDelete(true)}
+                <button disabled={!allowed(1)} onClick={() => setShowDelete(true)}
                   className="px-4 py-2 rounded-xl border border-danger-red/20 text-danger-red hover:bg-danger-red/5 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                   Delete
@@ -255,11 +276,11 @@ export default function ContentDetailPage() {
               </>
             ) : (
               <>
-                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || "", ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" }); }}
+                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", richTextJson: item.richTextJson, ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" }); }}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] text-label-sm font-semibold">
                   Cancel
                 </button>
-                <button onClick={handleSave} disabled={saving}
+                <button onClick={handleSave} disabled={saving || !allowed(0)}
                   className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5 disabled:opacity-60">
                   {saving ? (
                     <>Saving...</>
@@ -346,19 +367,21 @@ export default function ContentDetailPage() {
                   );
                 })()}
 
+                <MediaComposer contentId={String(params.id)} canEdit={allowed(0)} onDirtyChange={setMediaDirty} onSaved={handleMediaSaved} />
                 {item.type === "TEXT" && (
                   <div className="w-full max-w-2xl mx-auto">
                     <div className="bg-surface-container rounded-xl p-6 min-h-50">
                       {editing ? (
                         <RichTextEditor
                           value={form.caption}
-                          onChange={(md) => setForm((p) => ({ ...p, caption: md }))}
+                          richTextJson={form.richTextJson}
+                          onChange={(caption, richTextJson) => updateForm({ caption, richTextJson })}
                           placeholder="Write your content..."
                           minHeight={200}
                         />
                       ) : (
                         <RichTextPreview
-                          content={item.textContent || ""}
+                          content={item.textContent || ""} richTextJson={item.richTextJson}
                           className="text-body-md"
                         />
                       )}
@@ -535,14 +558,17 @@ export default function ContentDetailPage() {
                   </div>
                 )}
 
-                {/* Caption */}
-                {(item.caption || item.textContent || editing) && (
+                {/* Caption - only shown for non-TEXT content (TEXT content is edited in the main body above) */}
+                {item.type !== "TEXT" && (item.caption || item.textContent || editing) && (
                   <div>
                     <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Caption</p>
                     {editing ? (
-                      <textarea value={form.caption} onChange={(e) => setForm((p) => ({ ...p, caption: e.target.value }))}
-                        className="w-full bg-surface-container border border-outline-variant/20 rounded-xl p-3 text-body-sm text-on-surface placeholder:text-outline/30 focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all min-h-30 resize-y"
-                        placeholder="Write a caption..." />
+                      <RichTextEditor
+                        value={form.caption}
+                        richTextJson={form.richTextJson}
+                        onChange={(caption, richTextJson) => updateForm({ caption, richTextJson })}
+                        placeholder="Write a caption..."
+                      />
                     ) : (
                       <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption || item.textContent}</p>
                     )}

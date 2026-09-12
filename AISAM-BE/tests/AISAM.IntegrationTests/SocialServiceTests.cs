@@ -183,6 +183,83 @@ public class SocialServiceTests
     }
 
     [Fact]
+    public async Task LinkSelectedTargetsInWorkspaceAsync_ThrowsResourceMutationDeniedException_WhenBOLA()
+    {
+        var workspaceId = Guid.NewGuid();
+        var memberProfileId = Guid.NewGuid();
+        var actorUserId = Guid.NewGuid();
+        var account = CreateAccount(memberProfileId);
+        account.WorkspaceId = workspaceId;
+        var targetBrand = new Brand
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Name = "Unassigned brand"
+        };
+        var service = CreateService(
+            accountRepository: new FakeSocialAccountRepository(account),
+            brandRepository: new FakeBrandRepository(targetBrand),
+            accessControl: new FakeAccessControlService(allowed: false));
+
+        await Assert.ThrowsAsync<AISAM.Repositories.ResourceMutationDeniedException>(() =>
+            service.LinkSelectedTargetsInWorkspaceAsync(
+                workspaceId,
+                memberProfileId,
+                account.Id,
+                new LinkSelectedTargetsRequest
+                {
+                    BrandId = targetBrand.Id,
+                    Provider = "facebook",
+                    ProviderTargetIds = new List<string> { "page-1" }
+                },
+                actorUserId: actorUserId));
+    }
+
+    [Fact]
+    public async Task LinkSelectedTargetsInWorkspaceAsync_Succeeds_WhenActorAuthorized()
+    {
+        var workspaceId = Guid.NewGuid();
+        var memberProfileId = Guid.NewGuid();
+        var actorUserId = Guid.NewGuid();
+        var account = CreateAccount(memberProfileId);
+        account.WorkspaceId = workspaceId;
+        var targetBrand = new Brand
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = Guid.NewGuid(),
+            WorkspaceId = workspaceId,
+            Name = "Managed brand"
+        };
+        var provider = new FakeProviderService
+        {
+            Targets = new[] { new AvailableTargetDto { ProviderTargetId = "page-1", Name = "Page One", Type = "page" } },
+            TargetAccessTokens = new Dictionary<string, string> { ["page-1"] = "page-token" }
+        };
+        var integrations = new FakeSocialIntegrationRepository();
+        var service = CreateService(
+            accountRepository: new FakeSocialAccountRepository(account),
+            integrationRepository: integrations,
+            brandRepository: new FakeBrandRepository(targetBrand),
+            providerService: provider,
+            accessControl: new FakeAccessControlService(allowed: true));
+
+        var result = await service.LinkSelectedTargetsInWorkspaceAsync(
+            workspaceId,
+            memberProfileId,
+            account.Id,
+            new LinkSelectedTargetsRequest
+            {
+                BrandId = targetBrand.Id,
+                Provider = "facebook",
+                ProviderTargetIds = new List<string> { "page-1" }
+            },
+            actorUserId: actorUserId);
+
+        Assert.Single(result.Targets);
+    }
+
+    [Fact]
     public async Task LinkSelectedTargetsForAccountAsync_ReturnsBrandError_WhenBrandBelongsToAnotherProfile()
     {
         var profileId = Guid.NewGuid();
@@ -363,7 +440,8 @@ public class SocialServiceTests
         FakeBrandRepository? brandRepository = null,
         FakeProviderService? providerService = null,
         FakeOAuthStateStore? oauthStateStore = null,
-        ISocialTokenProtector? tokenProtector = null)
+        ISocialTokenProtector? tokenProtector = null,
+        AISAM.Services.Access.IAccessControlService? accessControl = null)
     {
         return new SocialService(
             accountRepository ?? new FakeSocialAccountRepository(),
@@ -383,7 +461,8 @@ public class SocialServiceTests
             {
                 RedirectUri = "https://client/social-callback/tiktok"
             }),
-            new IProviderService[] { providerService ?? new FakeProviderService() });
+            new IProviderService[] { providerService ?? new FakeProviderService() },
+            accessControl);
     }
 
     [Fact]
@@ -703,6 +782,16 @@ public class SocialServiceTests
         public string Protect(string plaintext) => plaintext;
         public string Unprotect(string ciphertext) => throw new InvalidOperationException("Token cannot be decrypted.");
         public string? TryUnprotect(string ciphertext) => null;
+    }
+
+    private sealed class FakeAccessControlService : AISAM.Services.Access.IAccessControlService
+    {
+        private readonly bool _allowed;
+        public FakeAccessControlService(bool allowed = true) => _allowed = allowed;
+        public Task<AISAM.Services.Access.AccessDecision> CheckAsync(AISAM.Services.Access.AccessRequest request, CancellationToken ct = default)
+            => Task.FromResult(_allowed ? AISAM.Services.Access.AccessDecision.Permit : AISAM.Services.Access.AccessDecision.Denied);
+        public Task<IReadOnlyList<Guid>> GetAccessibleBrandIdsAsync(Guid actorId, Guid workspaceId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Guid>>([]);
     }
 }
 

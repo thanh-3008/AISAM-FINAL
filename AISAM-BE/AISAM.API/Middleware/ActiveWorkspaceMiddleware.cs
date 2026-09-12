@@ -33,6 +33,9 @@ public sealed class ActiveWorkspaceMiddleware
         new("/api/credit-usage"),
         new("/api/campaigns"),
         new("/api/tags"),
+        new("/api/teams"),
+        new("/api/team"),
+        new("/api/permissions"),
         new("/api/automation-plans")
     };
 
@@ -46,7 +49,8 @@ public sealed class ActiveWorkspaceMiddleware
     public async Task InvokeAsync(
         HttpContext context,
         IWorkspaceMemberRepository workspaceMemberRepository,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository,
+        AISAM.Services.Access.IAccessControlService? resourceAccess = null)
     {
         if (context.Request.Method == HttpMethods.Get &&
             context.Request.Path.Equals("/api/social-auth/facebook/callback", StringComparison.OrdinalIgnoreCase))
@@ -111,6 +115,19 @@ public sealed class ActiveWorkspaceMiddleware
 
         WorkspaceLifecyclePolicy.SynchronizeStatus(membership.Workspace, DateTime.UtcNow);
         var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository);
+        if(authorizationError is not null && resourceAccess is not null && membership.Role==WorkspaceMemberRoleEnum.ContentCreator &&
+            !WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) && context.Request.Method==HttpMethods.Post)
+        {
+            var parts=context.Request.Path.Value?.Split('/',StringSplitOptions.RemoveEmptyEntries) ?? [];
+            if(parts.Length>=4 && parts[0]=="api" && parts[1]=="content" && Guid.TryParse(parts[2],out var contentId) &&
+                parts[3] is "approve" or "reject" or "publish")
+            {
+                Guid? channel=parts.Length==5 && Guid.TryParse(parts[4],out var channelId)?channelId:null;
+                var permission=parts[3]=="publish"?AISAM.Services.Access.ResourcePermission.PostPublish:AISAM.Services.Access.ResourcePermission.ApprovalReview;
+                if((await resourceAccess.CheckAsync(new(userId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,contentId,permission,channel),context.RequestAborted)).Allowed)
+                    authorizationError=null;
+            }
+        }
         if (authorizationError != null)
         {
             await WriteErrorAsync(context, authorizationError.Value.Status, authorizationError.Value.Message, authorizationError.Value.ErrorCode);
@@ -129,6 +146,10 @@ public sealed class ActiveWorkspaceMiddleware
     {
         var path = context.Request.Path;
         var method = context.Request.Method;
+
+        // This POST only reads decisions and never changes resource state.
+        if (path.Equals(new PathString("/api/permissions/check")) && method == HttpMethods.Post)
+            return null;
 
         if (path.StartsWithSegments("/api/payment"))
         {
@@ -374,7 +395,7 @@ public sealed class ActiveWorkspaceMiddleware
             WorkspacePermissionEnum.ManageContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
             WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.ReviewContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
-            WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.ContentCreator,
+            WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
             WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
             _ => false

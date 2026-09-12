@@ -14,7 +14,7 @@ class AiContentRepository {
 
   Future<AiGenerationResponseModel> generateDraft(CreateDraftRequest request) async {
     try {
-      final response = await _dio.post('/Gemini/generate-draft', data: request.toJson());
+      final response = await _dio.post('/ai/generate-draft', data: request.toJson());
       return AiGenerationResponseModel.fromJson(response.data['data']);
     } catch (e) {
       throw ExceptionHandler.handle(e);
@@ -23,7 +23,7 @@ class AiContentRepository {
 
   Future<AiGenerationResponseModel> improveContent(String contentId, ImproveContentRequest request) async {
     try {
-      final response = await _dio.post('/Gemini/improve/$contentId', data: request.toJson());
+      final response = await _dio.post('/ai/improve/$contentId', data: request.toJson());
       return AiGenerationResponseModel.fromJson(response.data['data']);
     } catch (e) {
       throw ExceptionHandler.handle(e);
@@ -32,7 +32,7 @@ class AiContentRepository {
 
   Future<void> approveGeneration(String aiGenerationId) async {
     try {
-      await _dio.post('/Gemini/approve/$aiGenerationId');
+      await _dio.post('/ai/approve/$aiGenerationId');
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }

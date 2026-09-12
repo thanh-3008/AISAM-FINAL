@@ -10,6 +10,9 @@ namespace AISAM.Data.Model
         [Key]
         [Column("id")]
         public Guid Id { get; set; } = Guid.NewGuid();
+        [Column("media_version")] public Guid MediaVersion {get;set;}=Guid.NewGuid();
+        [Column("submitted_snapshot_id")] public Guid? SubmittedSnapshotId {get;set;}
+        [Column("approved_snapshot_id")] public Guid? ApprovedSnapshotId {get;set;}
 
         [Required]
         [Column("profile_id")]
@@ -21,6 +24,14 @@ namespace AISAM.Data.Model
         [Required]
         [Column("brand_id")]
         public Guid BrandId { get; set; }
+
+        [Column("primary_creator_id")]
+        public Guid? PrimaryCreatorId { get; set; }
+        [Column("updated_by_user_id")]
+        public Guid? UpdatedByUserId { get; set; }
+
+        [Column("team_id")]
+        public Guid? TeamId { get; set; }
 
         [Column("product_id")]
         public Guid? ProductId { get; set; }
@@ -36,6 +47,9 @@ namespace AISAM.Data.Model
         [Required]
         [Column("text_content")]
         public string TextContent { get; set; } = string.Empty;
+        [Column("rich_text_json", TypeName = "jsonb")] public string? RichTextJson { get; set; }
+        [Column("rich_text_version")] public int? RichTextVersion { get; set; }
+        [NotMapped] public Dictionary<string, string>? FormattedCaptions { get; set; }
 
         [Column("image_url", TypeName = "jsonb")]
 		public string? ImageUrl { get; set; }

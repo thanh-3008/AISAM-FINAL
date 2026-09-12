@@ -6,7 +6,7 @@ part of 'approval_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$approvalNotifierHash() => r'ebbbe24dc4fa458ed634d5d0cff575f52769b7da';
+String _$approvalNotifierHash() => r'3d6c9ef5d413aec286ca9d2518db445872e7c860';
 
 /// See also [ApprovalNotifier].
 @ProviderFor(ApprovalNotifier)
@@ -27,7 +27,7 @@ final approvalNotifierProvider =
 typedef _$ApprovalNotifier =
     AutoDisposeAsyncNotifier<List<ContentResponseModel>>;
 String _$historyApprovalNotifierHash() =>
-    r'5ef3a4de60d347c6aefcbf835fb0c59a2024f540';
+    r'5ed8c9a2972db3351bcef85e7eabd97b8b72f1f8';
 
 /// See also [HistoryApprovalNotifier].
 @ProviderFor(HistoryApprovalNotifier)

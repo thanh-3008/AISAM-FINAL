@@ -10,10 +10,13 @@ namespace AISAM.Data.Model
         [Key]
         [Column("id")]
         public Guid Id { get; set; } = Guid.NewGuid();
+        [Column("snapshot_id")] public Guid? SnapshotId {get;set;}
 
         [Required]
         [Column("content_id")]
         public Guid ContentId { get; set; }
+        [Column("scheduled_by_user_id")]
+        public Guid? ScheduledByUserId { get; set; }
 
         [Required]
         [Column("scheduled_date")]

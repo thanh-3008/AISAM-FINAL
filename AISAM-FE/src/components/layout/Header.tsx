@@ -146,7 +146,6 @@ export default function Header({ breadcrumbs }: HeaderProps) {
     setUserMenuOpen(false);
     await logout();
     window.location.href = "/login";
- window.location.href = "/login";
   };
 
   const displayName = mounted ? (user?.name || activeWorkspace?.name || "User") : "User";

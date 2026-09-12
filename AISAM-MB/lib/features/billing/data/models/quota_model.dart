@@ -19,6 +19,12 @@ class QuotaModel with _$QuotaModel {
     @Default(0) int textContentCount,
     @Default(0) int imageContentCount,
     @Default(0) int videoContentCount,
+    @Default(0) int creditBalance,
+    @Default(0) int creditsUsed,
+    @Default(0) int maxBalanceCap,
+    int? memberCreditLimit,
+    @Default(0) int memberCreditUsed,
+    int? memberQuotaMode,
   }) = _QuotaModel;
 
   factory QuotaModel.fromJson(Map<String, dynamic> json) => _$QuotaModelFromJson(json);

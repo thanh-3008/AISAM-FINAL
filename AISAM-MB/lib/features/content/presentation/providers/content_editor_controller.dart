@@ -5,6 +5,7 @@ import '../../data/models/content_request.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/state/base_state.dart';
 import 'content_list_controller.dart';
+import '../../../workspace/presentation/providers/workspace_controller.dart';
 
 part 'content_editor_controller.g.dart';
 
@@ -42,19 +43,26 @@ class ContentEditorController extends _$ContentEditorController {
 
 @riverpod
 class ContentDetailController extends _$ContentDetailController {
+  int _generation = 0;
   @override
   AsyncValue<ContentResponseModel> build(String id) {
+    ref.watch(activeWorkspaceControllerProvider);
+    _generation++;
+    ref.onDispose(() => _generation++);
     _fetchDetail(id);
     return const AsyncValue.loading();
   }
 
   Future<void> _fetchDetail(String id) async {
+    final generation = _generation;
     try {
       state = const AsyncValue.loading();
       final repository = ref.read(contentRepositoryProvider);
       final content = await repository.getContentById(id);
+      if(generation != _generation) return;
       state = AsyncValue.data(content);
     } catch (e, st) {
+      if(generation != _generation) return;
       state = AsyncValue.error(ExceptionHandler.handle(e), st);
     }
   }

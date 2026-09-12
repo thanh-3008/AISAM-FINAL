@@ -36,3 +36,4 @@ build/
 # Local tool state
 .serena/
 .tmp/
+.artifacts/

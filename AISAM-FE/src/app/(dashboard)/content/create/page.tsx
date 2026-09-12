@@ -43,7 +43,7 @@ export default function CreateContentPage() {
     tags: [] as string[],
     hashtags: [] as string[],
     thumbnail: "",
-    textContent: "",
+    textContent: "", textDocument: null as string | null, captionDocument: null as string | null,
     imageUrl: "",
     imageUrls: [] as string[], // Multi-image support
     videoUrl: "",
@@ -54,7 +54,11 @@ export default function CreateContentPage() {
     scheduledAt: "",
     internalNotes: "",
   });
-  const update = useCallback((partial: Partial<typeof form>) => setForm((previous) => ({ ...previous, ...partial })), []);
+  const formRef = useRef(form);
+  const update = useCallback((partial: Partial<typeof form>) => {
+    formRef.current = { ...formRef.current, ...partial };
+    setForm((previous) => ({ ...previous, ...partial }));
+  }, []);
 
   useEffect(() => {
     fetchBrands().then(setBrandList);
@@ -74,6 +78,8 @@ export default function CreateContentPage() {
     }
   }, [brandList, form.brandId, update]);
 
+  const captionText = form.type === "TEXT" ? form.textContent : form.caption || form.description;
+  const captionDocument = form.type === "TEXT" ? form.textDocument : form.captionDocument;
   const [hashtagInput, setHashtagInput] = useState("");
 
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
@@ -180,7 +186,12 @@ export default function CreateContentPage() {
   const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0;
 
   const handleSave = async () => {
-    if (!isValid) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aisam-flush-editor"));
+    }
+    const currentForm = formRef.current;
+    const isFormValid = currentForm.title.trim().length > 0 && currentForm.productId && currentForm.brandId.length > 0;
+    if (!isFormValid) return;
     setSaving(true);
     setSaveError(null);
 
@@ -191,9 +202,9 @@ export default function CreateContentPage() {
       return;
     }
 
-    let imageUrl = form.imageUrl || undefined;
-    let videoUrl = form.videoUrl || undefined;
-    let thumbnailUrl = form.thumbnail || undefined;
+    let imageUrl = currentForm.imageUrl || undefined;
+    let videoUrl = currentForm.videoUrl || undefined;
+    let thumbnailUrl = currentForm.thumbnail || undefined;
 
     const uploadFile = async (file: File | null): Promise<string | null> => {
       if (!file) return null;
@@ -218,20 +229,22 @@ export default function CreateContentPage() {
     }
 
     const payload: CreateContentPayload = {
-      brandId: form.brandId,
-      productId: form.productId || null,
-      adType: form.type === "IMAGE" ? 1 : form.type === "VIDEO" ? 2 : 0,
-      title: form.title,
-      textContent: form.textContent || form.caption || form.description || "",
+      brandId: currentForm.brandId,
+      productId: currentForm.productId || null,
+      adType: currentForm.type === "IMAGE" ? 1 : currentForm.type === "VIDEO" ? 2 : 0,
+      title: currentForm.title,
+      textContent: currentForm.type === "TEXT" ? currentForm.textContent : currentForm.caption || currentForm.description || "",
+      richTextJson: currentForm.type === "TEXT" ? currentForm.textDocument : currentForm.captionDocument,
+      richTextVersion: (currentForm.type === "TEXT" ? currentForm.textDocument : currentForm.captionDocument) ? 1 : null,
       // Multi-image: prefer imageUrls array, fall back to single imageUrl
-      imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
-      imageUrl: form.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
+      imageUrls: currentForm.imageUrls.length > 0 ? currentForm.imageUrls : undefined,
+      imageUrl: currentForm.imageUrls.length === 0 ? (imageUrl || undefined) : undefined,
       videoUrl,
       thumbnailUrl: thumbnailUrl || undefined,
-      styleDescription: form.description || undefined,
-      contextDescription: form.caption || undefined,
+      styleDescription: currentForm.description || undefined,
+      contextDescription: currentForm.caption || undefined,
       status: 0, // Always Draft on creation
-      tags: form.tags.length > 0 ? form.tags : undefined,
+      tags: currentForm.tags.length > 0 ? currentForm.tags : undefined,
     };
 
     try {
@@ -306,7 +319,7 @@ export default function CreateContentPage() {
                     Saving...
                   </span>
                 ) : (
-                  <><span className="material-symbols-outlined text-[16px]">check</span> Save Content</>
+                  <><span className="material-symbols-outlined text-[16px]">check</span> Lưu draft và mở composer</>
                 )}
               </button>
             </div>
@@ -368,7 +381,7 @@ export default function CreateContentPage() {
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Content Body</label>
                     <RichTextEditor
                       value={form.textContent}
-                      onChange={(md) => update({ textContent: md })}
+                      richTextJson={form.textDocument} onChange={(textContent, textDocument) => update({ textContent, textDocument })}
                       placeholder="Write your content here..."
                       minHeight={200}
                     />
@@ -449,16 +462,18 @@ export default function CreateContentPage() {
                     placeholder="Add a brief description of this content..." />
                 </div>
 
-                {/* Caption */}
-                <div>
-                  <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Social Media Caption</label>
-                  <RichTextEditor
-                    value={form.caption}
-                    onChange={(md) => update({ caption: md })}
-                    placeholder="Write the caption that will appear on social media posts..."
-                    minHeight={120}
-                  />
-                </div>
+                {/* Caption - only shown for non-TEXT content (TEXT content uses Content Body above) */}
+                {form.type !== "TEXT" && (
+                  <div>
+                    <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Social Media Caption</label>
+                    <RichTextEditor
+                      value={form.caption}
+                      richTextJson={form.captionDocument} onChange={(caption, captionDocument) => update({ caption, captionDocument })}
+                      placeholder="Write the caption that will appear on social media posts..."
+                      minHeight={120}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Meta section */}
@@ -629,10 +644,10 @@ export default function CreateContentPage() {
                         </div>
                         <span className="material-symbols-outlined text-[18px] text-[#65676b]">more_horiz</span>
                       </div>
-                      {(form.caption || form.description || form.textContent) && (
+                      {(captionText) && (
                         <div className="px-3.5 mb-2.5">
                           <RichTextPreview
-                            content={form.caption || form.description || form.textContent}
+                            content={captionText} richTextJson={captionDocument} platform={previewPlatform}
                             className="text-[15px] text-[#1a1a1a] leading-[1.35]"
                           />
                         </div>
@@ -641,7 +656,7 @@ export default function CreateContentPage() {
                         <div className="px-3.5 mb-2.5">
                           <div className="p-2.5 bg-[#f0f2f5] rounded-lg border border-[#e4e6eb]">
                             <p className="text-[11px] text-[#65676b] font-semibold uppercase tracking-wide mb-1">Article</p>
-                            <RichTextPreview content={form.textContent} className="text-[13px] text-[#1a1a1a] leading-[1.4] line-clamp-4" />
+                            <RichTextPreview richTextJson={form.textDocument} platform={previewPlatform} content={form.textContent} className="text-[13px] text-[#1a1a1a] leading-[1.4] line-clamp-4" />
                           </div>
                         </div>
                       )}
@@ -722,7 +737,7 @@ export default function CreateContentPage() {
                         </div>
                         <div className="text-[12px] text-[#262626]">
                           {selectedBrandName && <span className="font-semibold">{selectedBrandName.toLowerCase().replace(/\s+/g, "")} </span>}
-                          <RichTextPreview content={form.caption || form.description || form.title || "Write a caption..."} />
+                          <RichTextPreview richTextJson={form.captionDocument} platform={previewPlatform} content={captionText || "Write a caption..."} />
                         </div>
                         {form.hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
@@ -758,7 +773,7 @@ export default function CreateContentPage() {
                             </div>
                             <p className="text-[13px] font-semibold">@{selectedBrandName?.toLowerCase().replace(/\s+/g, "") || "brand"}</p>
                           </div>
-                          <p className="text-[12px] leading-relaxed whitespace-pre-line">{form.caption || form.description || form.title || "Add a caption..."}</p>
+                          <p className="text-[12px] leading-relaxed whitespace-pre-line">{captionText || "Add a caption..."}</p>
                           {form.hashtags.length > 0 && (
                             <p className="text-[12px] text-[#00acee] mt-0.5">{form.hashtags.map((h) => `#${h}`).join(" ")}</p>
                           )}

@@ -42,7 +42,19 @@ class ProductRepository {
 
   Future<ProductResponseModel> createProduct(CreateProductRequest request) async {
     try {
-      final response = await _dio.post('/Products', data: request.toJson());
+      final map = <String, dynamic>{
+        'BrandId': request.brandId,
+        'Name': request.name,
+      };
+      if (request.description != null) map['Description'] = request.description;
+      if (request.price != null) map['Price'] = request.price;
+      if (request.stock != null) map['Stock'] = request.stock;
+      final formData = FormData.fromMap(map);
+      final response = await _dio.post(
+        '/Products',
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
       return ProductResponseModel.fromJson(response.data['data']);
     } catch (e) {
       throw ExceptionHandler.handle(e);
@@ -51,7 +63,17 @@ class ProductRepository {
 
   Future<ProductResponseModel> updateProduct(String id, UpdateProductRequest request) async {
     try {
-      final response = await _dio.put('/Products/$id', data: request.toJson());
+      final map = <String, dynamic>{};
+      if (request.name != null) map['Name'] = request.name;
+      if (request.description != null) map['Description'] = request.description;
+      if (request.price != null) map['Price'] = request.price;
+      if (request.stock != null) map['Stock'] = request.stock;
+      final formData = FormData.fromMap(map);
+      final response = await _dio.put(
+        '/Products/$id',
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
       return ProductResponseModel.fromJson(response.data['data']);
     } catch (e) {
       throw ExceptionHandler.handle(e);
