@@ -6,6 +6,7 @@ public static class WorkspaceContextHelper
 {
     public const string ActiveWorkspaceItemKey = "ActiveWorkspaceId";
     public const string ActiveWorkspaceMembershipItemKey = "ActiveWorkspaceMembership";
+    public const string EffectivePermissionContextItemKey = "EffectivePermissionContext";
 
     public static Guid GetActiveWorkspaceIdOrThrow(HttpContext context)
     {
@@ -29,4 +30,14 @@ public static class WorkspaceContextHelper
         throw new InvalidOperationException("Invalid workspace membership context.");
     }
 
+    public static AISAM.Services.Access.IEffectivePermissionContext? GetEffectivePermissionContext(HttpContext context)
+    {
+        if (context.Items.TryGetValue(EffectivePermissionContextItemKey, out var value) &&
+            value is AISAM.Services.Access.IEffectivePermissionContext ctx)
+        {
+            return ctx;
+        }
+
+        return null;
+    }
 }

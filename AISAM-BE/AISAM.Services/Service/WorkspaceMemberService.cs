@@ -50,7 +50,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         UpdateWorkspaceMemberRoleRequest request,
         CancellationToken cancellationToken = default)
     {
-        var authorizationError = await RequireOwnerAsync(workspaceId, actorUserId, cancellationToken);
+        var authorizationError = await RequireOwnerOrWorkspaceManagerAsync(workspaceId, actorUserId, cancellationToken);
         if (authorizationError != null)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
@@ -90,7 +90,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         UpdateWorkspaceMemberQuotaRequest request,
         CancellationToken cancellationToken = default)
     {
-        var authorizationError = await RequireOwnerAsync(workspaceId, actorUserId, cancellationToken);
+        var authorizationError = await RequireOwnerOrWorkspaceManagerAsync(workspaceId, actorUserId, cancellationToken);
         if (authorizationError != null)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
@@ -139,7 +139,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         Guid memberId,
         CancellationToken cancellationToken = default)
     {
-        var authorizationError = await RequireOwnerAsync(workspaceId, actorUserId, cancellationToken);
+        var authorizationError = await RequireOwnerOrWorkspaceManagerAsync(workspaceId, actorUserId, cancellationToken);
         if (authorizationError != null)
         {
             return GenericResponse<object>.CreateError(
@@ -185,7 +185,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 HttpStatusCode.NotFound);
         }
 
-        if (target.Role != WorkspaceMemberRoleEnum.Manager)
+        if (target.Role != WorkspaceMemberRoleEnum.WorkspaceManager)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
                 "Ownership can only be transferred to an active workspace manager.");
@@ -215,6 +215,26 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         if (actor?.Role != WorkspaceMemberRoleEnum.Owner)
         {
             return ("Only the workspace owner can manage members.", HttpStatusCode.Forbidden);
+        }
+
+        return actor.Workspace.Status == WorkspaceStatusEnum.Active
+            ? null
+            : ("Workspace must be active to manage members.", HttpStatusCode.Forbidden);
+    }
+
+    private async Task<(string Message, HttpStatusCode Status)?> RequireOwnerOrWorkspaceManagerAsync(
+        Guid workspaceId,
+        Guid actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(
+            workspaceId,
+            actorUserId,
+            cancellationToken);
+
+        if (actor?.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
+        {
+            return ("Only workspace owners or managers can manage members.", HttpStatusCode.Forbidden);
         }
 
         return actor.Workspace.Status == WorkspaceStatusEnum.Active

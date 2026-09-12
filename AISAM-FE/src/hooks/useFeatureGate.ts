@@ -71,8 +71,10 @@ export function useFeatureGate(enabled = true) {
     role,
     isResolvingPlan,
     isOwner: role === "Owner",
-    isManager: role === "Manager",
-    isContentCreator: role === "ContentCreator",
+    isWorkspaceManager: role === "WorkspaceManager",
+    isManager: role === "Manager" || role === "WorkspaceManager",
+    isMember: role === "Member" || role === "ContentCreator",
+    isContentCreator: role === "ContentCreator" || role === "Member",
     isViewer: role === "Viewer",
     isBusiness: activeWorkspace?.workspaceType === 2,
 

@@ -45,7 +45,7 @@ public partial class AisamContext
             {
                 if (entry.State == EntityState.Added)
                 {
-                    if (ExecutionActorId.HasValue && (!draft.PrimaryCreatorId.HasValue || draft.PrimaryCreatorId == Guid.Empty))
+                    if (ExecutionActorId.HasValue)
                         draft.PrimaryCreatorId = ExecutionActorId;
                     await EnsureContentTeamAsync(draft, ct);
                 }
@@ -157,52 +157,34 @@ public partial class AisamContext
                                         select t.Id).FirstOrDefaultAsync(ct);
             }
 
-            // 3. If brand is not assigned to any team yet, find any active team in the workspace
-            if (resolvedTeamId == Guid.Empty)
+            if (resolvedTeamId != Guid.Empty)
             {
-                resolvedTeamId = await Teams.AsNoTracking()
-                    .Where(t => t.WorkspaceId == content.WorkspaceId && !t.IsDeleted && t.Status == AISAM.Data.Enumeration.TeamStatusEnum.Active)
-                    .Select(t => t.Id)
-                    .FirstOrDefaultAsync(ct);
+                content.TeamId = resolvedTeamId;
             }
-
-            // 4. If workspace has no teams at all, create a default team
-            if (resolvedTeamId == Guid.Empty)
-            {
-                var defaultTeam = new Team
-                {
-                    Id = Guid.NewGuid(),
-                    WorkspaceId = content.WorkspaceId,
-                    Name = "Default Team",
-                    Status = AISAM.Data.Enumeration.TeamStatusEnum.Active,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                Teams.Add(defaultTeam);
-                resolvedTeamId = defaultTeam.Id;
-            }
-
-            content.TeamId = resolvedTeamId;
         }
 
-        // Ensure TeamBrand assignment exists so trigger aisam_content_team_boundary succeeds
-        var hasBrandLink = (ChangeTracker.Entries<TeamBrand>().Any(e => e.Entity.TeamId == resolvedTeamId && e.Entity.BrandId == content.BrandId && e.Entity.IsActive && e.State != EntityState.Deleted))
-            || await TeamBrands.AnyAsync(tb => tb.TeamId == resolvedTeamId && tb.BrandId == content.BrandId && tb.IsActive, ct);
-
-        if (!hasBrandLink)
+        if (content.TeamId.HasValue && content.TeamId.Value != Guid.Empty)
         {
-            var teamExists = (ChangeTracker.Entries<Team>().Any(e => e.Entity.Id == resolvedTeamId && e.State != EntityState.Deleted))
-                || await Teams.AnyAsync(t => t.Id == resolvedTeamId && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted, ct);
+            var targetTeamId = content.TeamId.Value;
+            // Ensure TeamBrand assignment exists so trigger aisam_content_team_boundary succeeds
+            var hasBrandLink = (ChangeTracker.Entries<TeamBrand>().Any(e => e.Entity.TeamId == targetTeamId && e.Entity.BrandId == content.BrandId && e.Entity.IsActive && e.State != EntityState.Deleted))
+                || await TeamBrands.AnyAsync(tb => tb.TeamId == targetTeamId && tb.BrandId == content.BrandId && tb.IsActive, ct);
 
-            if (teamExists)
+            if (!hasBrandLink)
             {
-                TeamBrands.Add(new TeamBrand
+                var teamExists = (ChangeTracker.Entries<Team>().Any(e => e.Entity.Id == targetTeamId && e.State != EntityState.Deleted))
+                    || await Teams.AnyAsync(t => t.Id == targetTeamId && t.WorkspaceId == content.WorkspaceId && !t.IsDeleted, ct);
+
+                if (teamExists)
                 {
-                    TeamId = resolvedTeamId,
-                    BrandId = content.BrandId,
-                    IsActive = true,
-                    AssignedAt = DateTime.UtcNow
-                });
+                    TeamBrands.Add(new TeamBrand
+                    {
+                        TeamId = targetTeamId,
+                        BrandId = content.BrandId,
+                        IsActive = true,
+                        AssignedAt = DateTime.UtcNow
+                    });
+                }
             }
         }
     }

@@ -216,9 +216,9 @@ public sealed class ContentScheduleService : IContentScheduleService
         return GenericResponse<IReadOnlyList<ContentScheduleDto>>.CreateSuccess(schedules.Select(Map).ToList(), "Upcoming schedules retrieved successfully.");
     }
 
-    public async Task<GenericResponse<ContentScheduleDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<ContentScheduleDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
-        var result = await CreateSingleInWorkspaceAsync(workspaceId, profileId, request, cancellationToken);
+        var result = await CreateSingleInWorkspaceAsync(workspaceId, profileId, request, cancellationToken, actorUserId);
         if (result.Success && result.Data != null)
         {
             try
@@ -260,13 +260,13 @@ public sealed class ContentScheduleService : IContentScheduleService
         if (_db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
         {
             var isOwner = await _db.WorkspaceMembers.AsNoTracking()
-                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && m.Role == WorkspaceMemberRoleEnum.Owner && m.IsActive, cancellationToken);
+                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && (m.Role == WorkspaceMemberRoleEnum.Owner || m.Role == WorkspaceMemberRoleEnum.WorkspaceManager) && m.IsActive, cancellationToken);
             if (!isOwner)
             {
                 var hasBrandAccess = await (from tb in _db.TeamBrands.AsNoTracking()
                                             join tm in _db.TeamMembers.AsNoTracking() on tb.TeamId equals tm.TeamId
                                             where tb.BrandId == content.BrandId && tb.IsActive
-                                               && tm.UserId == actorUserId.Value && tm.IsActive
+                                               && tm.UserId == actorUserId.Value && tm.Role == TeamRoleEnum.Manager && tm.IsActive
                                             select tb.Id).AnyAsync(cancellationToken);
                 if (!hasBrandAccess)
                     return GenericResponse<ContentScheduleDto>.CreateError("You do not have permission to manage schedules for this brand.", HttpStatusCode.Forbidden);
@@ -293,13 +293,13 @@ public sealed class ContentScheduleService : IContentScheduleService
         if (content != null && _db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
         {
             var isOwner = await _db.WorkspaceMembers.AsNoTracking()
-                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && m.Role == WorkspaceMemberRoleEnum.Owner && m.IsActive, cancellationToken);
+                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && (m.Role == WorkspaceMemberRoleEnum.Owner || m.Role == WorkspaceMemberRoleEnum.WorkspaceManager) && m.IsActive, cancellationToken);
             if (!isOwner)
             {
                 var hasBrandAccess = await (from tb in _db.TeamBrands.AsNoTracking()
                                             join tm in _db.TeamMembers.AsNoTracking() on tb.TeamId equals tm.TeamId
                                             where tb.BrandId == content.BrandId && tb.IsActive
-                                               && tm.UserId == actorUserId.Value && tm.IsActive
+                                               && tm.UserId == actorUserId.Value && tm.Role == TeamRoleEnum.Manager && tm.IsActive
                                             select tb.Id).AnyAsync(cancellationToken);
                 if (!hasBrandAccess)
                     return GenericResponse<bool>.CreateError("You do not have permission to delete schedules for this brand.", HttpStatusCode.Forbidden);
@@ -312,7 +312,7 @@ public sealed class ContentScheduleService : IContentScheduleService
     public async Task<GenericResponse<IReadOnlyList<ContentScheduleDto>>> GetUpcomingByWorkspaceAsync(Guid workspaceId, int limit, CancellationToken cancellationToken = default)
         => GenericResponse<IReadOnlyList<ContentScheduleDto>>.CreateSuccess((await _contentCalendarRepository.GetUpcomingByWorkspaceIdAsync(workspaceId, limit, cancellationToken)).Select(Map).ToList(), "Upcoming schedules retrieved successfully.");
 
-    public async Task<GenericResponse<BulkCreateResultDto>> BulkCreateInWorkspaceAsync(Guid workspaceId, Guid profileId, BulkCreateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenericResponse<BulkCreateResultDto>> BulkCreateInWorkspaceAsync(Guid workspaceId, Guid profileId, BulkCreateContentScheduleRequest request, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
         var result = new BulkCreateResultDto
         {
@@ -321,7 +321,7 @@ public sealed class ContentScheduleService : IContentScheduleService
 
         foreach (var item in request.Items)
         {
-            var createResult = await CreateSingleInWorkspaceAsync(workspaceId, profileId, item, cancellationToken);
+            var createResult = await CreateSingleInWorkspaceAsync(workspaceId, profileId, item, cancellationToken, actorUserId);
             if (createResult.Success)
             {
                 result.SuccessCount++;
@@ -362,7 +362,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         return GenericResponse<BulkCreateResultDto>.CreateSuccess(result, notifMessage);
     }
 
-    private async Task<GenericResponse<ContentScheduleDto>> CreateSingleInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
+    private async Task<GenericResponse<ContentScheduleDto>> CreateSingleInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default, Guid? actorUserId = null)
     {
         var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
         var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId, cancellationToken);
@@ -370,6 +370,22 @@ public sealed class ContentScheduleService : IContentScheduleService
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ContentNotFound, HttpStatusCode.NotFound);
         if (integration == null || integration.WorkspaceId != workspaceId || integration.BrandId != content.BrandId || integration.IsDeleted)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.SocialIntegrationNotFound, HttpStatusCode.NotFound);
+
+        if (_db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        {
+            var isOwnerOrWm = await _db.WorkspaceMembers.AsNoTracking()
+                .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && (m.Role == WorkspaceMemberRoleEnum.Owner || m.Role == WorkspaceMemberRoleEnum.WorkspaceManager) && m.IsActive, cancellationToken);
+            if (!isOwnerOrWm)
+            {
+                var hasBrandAccess = await (from tb in _db.TeamBrands.AsNoTracking()
+                                            join tm in _db.TeamMembers.AsNoTracking() on tb.TeamId equals tm.TeamId
+                                            where tb.BrandId == content.BrandId && tb.IsActive
+                                               && tm.UserId == actorUserId.Value && tm.Role == TeamRoleEnum.Manager && tm.IsActive
+                                            select tb.Id).AnyAsync(cancellationToken);
+                if (!hasBrandAccess)
+                    return GenericResponse<ContentScheduleDto>.CreateError("You do not have permission to manage schedules for this brand.", HttpStatusCode.Forbidden);
+            }
+        }
         if (content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)
             return GenericResponse<ContentScheduleDto>.CreateError("Content must be approved before scheduling.", HttpStatusCode.BadRequest);
         var scheduledAt = NormalizeScheduledAt(request.ScheduledAt);

@@ -130,7 +130,7 @@ public class ContentSchedulesControllerTests
             return Task.FromResult(UpcomingResult);
         }
 
-        public Task<GenericResponse<BulkCreateResultDto>> BulkCreateInWorkspaceAsync(Guid workspaceId, Guid profileId, BulkCreateContentScheduleRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<GenericResponse<BulkCreateResultDto>> BulkCreateInWorkspaceAsync(Guid workspaceId, Guid profileId, BulkCreateContentScheduleRequest request, CancellationToken cancellationToken = default, Guid? actorUserId = null) => throw new NotImplementedException();
     }
 }
 

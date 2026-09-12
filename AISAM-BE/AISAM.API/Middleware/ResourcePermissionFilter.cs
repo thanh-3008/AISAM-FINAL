@@ -21,7 +21,14 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         var controller=context.ActionDescriptor.RouteValues.TryGetValue("controller",out var c)?c??"":"";
         db.PermissionReviewQueue=controller=="Content" && action=="ReviewQueue" && read;
         db.PermissionOnlyMyContent=controller=="Content" && read && context.HttpContext.Request.Query["mine"]=="true";
-        if(!db.PermissionOwner && !db.PermissionManager && (controller=="SocialAuth" || controller=="SocialAccounts" && (!read || action.Contains("Target",StringComparison.OrdinalIgnoreCase))))
+        var effectiveCtx = WorkspaceContextHelper.GetEffectivePermissionContext(context.HttpContext);
+        bool canAccessSocialAuth = db.PermissionOwner || db.PermissionManager;
+        if (effectiveCtx != null)
+        {
+            canAccessSocialAuth = effectiveCtx.IsOwner || effectiveCtx.IsWorkspaceManager || effectiveCtx.BrandMaxRole.Values.Any(r => r == AISAM.Data.Enumeration.TeamRoleEnum.Manager);
+        }
+
+        if(!canAccessSocialAuth && (controller=="SocialAuth" || controller=="SocialAccounts" && (!read || action.Contains("Target",StringComparison.OrdinalIgnoreCase))))
         {
             // OAuth credential discovery is account-wide; it has no trusted Brand scope.
             context.Result=new ObjectResult(new {success=false,errorCode="ACCESS_DENIED_CHANNEL"}){StatusCode=403}; return;

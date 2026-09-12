@@ -51,7 +51,9 @@ public class AccessControlServiceTests
     {
         await using var f = new Fixture(); await f.Seed(role);
         Assert.Equal(allowed,(await f.Check(ResourcePermission.ContentEdit)).Allowed);
-        Assert.Equal(role == WorkspaceMemberRoleEnum.Owner ? 2 : 1,
+        // NC-07: Owner and WorkspaceManager (Manager alias) both have workspace-wide brand scope (2 brands)
+        var isWorkspaceAdmin = role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager;
+        Assert.Equal(isWorkspaceAdmin ? 2 : 1,
             (await f.Service.GetAccessibleBrandIdsAsync(f.User.Id,f.W.Id)).Count);
     }
 

@@ -281,6 +281,8 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddScoped<IContentService, ContentService>();
+builder.Services.AddScoped<AISAM.Services.Access.EffectivePermissionContext>();
+builder.Services.AddScoped<AISAM.Services.Access.IEffectivePermissionContext>(sp => sp.GetRequiredService<AISAM.Services.Access.EffectivePermissionContext>());
 builder.Services.AddScoped<AISAM.Services.Access.IAccessControlService, AISAM.Services.Access.AccessControlService>();
 builder.Services.AddScoped<AISAM.Services.Access.AssignmentService>();
 builder.Services.AddScoped<AISAM.Services.Access.TeamService>();

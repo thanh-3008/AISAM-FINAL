@@ -112,13 +112,19 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
     load();
   }, [selectedBrandIds]);
 
-  const toggleMember = useCallback((userId: string, role: string) => {
+  const toggleMember = useCallback((userId: string, defaultRole: string = "ContentCreator") => {
     setSelectedMembers((prev) => {
       if (prev.some((m) => m.userId === userId)) {
         return prev.filter((m) => m.userId !== userId);
       }
-      return [...prev, { userId, role }];
+      return [...prev, { userId, role: defaultRole }];
     });
+  }, []);
+
+  const setMemberTeamRole = useCallback((userId: string, role: string) => {
+    setSelectedMembers((prev) =>
+      prev.map((m) => (m.userId === userId ? { ...m, role } : m))
+    );
   }, []);
 
   const toggleBrand = useCallback((id: string) => {
@@ -328,54 +334,74 @@ export default function CreateTeamWizard({ open, onClose, onCreated }: CreateTea
                         {workspaceMembers.map((m) => {
                           const memberUserId = m.userId ?? m.id;
                           const selected = selectedMembers.some((s) => s.userId === memberUserId);
+                          const currentTeamRole = selectedMembers.find((s) => s.userId === memberUserId)?.role ?? "ContentCreator";
                           return (
-                            <button
+                            <div
                               key={m.id}
-                              type="button"
-                              onClick={() => toggleMember(memberUserId, m.role)}
-                              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                                 selected
                                   ? "border-primary bg-primary/5"
                                   : "border-outline-variant/20 hover:border-outline-variant/40"
                               }`}
                             >
-                              <div
-                                className={`w-9 h-9 rounded-full flex items-center justify-center text-label-2xs font-bold ${
-                                  selected
-                                    ? "bg-primary text-on-primary"
-                                    : "bg-surface-container-high text-outline"
-                                }`}
+                              <button
+                                type="button"
+                                onClick={() => toggleMember(memberUserId, m.role === "Viewer" ? "Viewer" : "ContentCreator")}
+                                className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
                               >
-                                {m.name
-                                  .split(" ")
-                                  .map((w) => w[0])
-                                  .join("")
-                                  .toUpperCase()
-                                  .slice(0, 2)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-body-sm font-semibold text-on-surface truncate">{m.name}</p>
-                                <p className="text-label-xs text-outline truncate">{m.email}</p>
-                              </div>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-label-2xs font-bold ${
-                                  m.role === "Owner"
-                                    ? "bg-primary-fixed text-primary"
-                                    : m.role === "Manager"
-                                    ? "bg-secondary-fixed text-secondary"
-                                    : m.role === "ContentCreator"
-                                    ? "bg-tertiary-fixed text-tertiary"
-                                    : "bg-surface-container text-outline"
-                                }`}
-                              >
-                                {m.role === "ContentCreator" ? "Creator" : m.role}
-                              </span>
-                              {selected && (
-                                <span className="material-symbols-outlined text-primary text-[20px]">
-                                  check_circle
+                                <div
+                                  className={`w-9 h-9 rounded-full flex items-center justify-center text-label-2xs font-bold shrink-0 ${
+                                    selected
+                                      ? "bg-primary text-on-primary"
+                                      : "bg-surface-container-high text-outline"
+                                  }`}
+                                >
+                                  {m.name
+                                    .split(" ")
+                                    .map((w) => w[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .slice(0, 2)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-body-sm font-semibold text-on-surface truncate">{m.name}</p>
+                                  <p className="text-label-xs text-outline truncate">{m.email}</p>
+                                </div>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-label-2xs font-bold shrink-0 ${
+                                    m.role === "Owner"
+                                      ? "bg-primary-fixed text-primary"
+                                      : m.role === "WorkspaceManager" || m.role === "Manager"
+                                      ? "bg-secondary-fixed text-secondary"
+                                      : m.role === "Member" || m.role === "ContentCreator"
+                                      ? "bg-tertiary-fixed text-tertiary"
+                                      : "bg-surface-container text-outline"
+                                  }`}
+                                  title="Workspace Role"
+                                >
+                                  {m.role === "ContentCreator" ? "Creator" : m.role}
                                 </span>
+                                {selected && (
+                                  <span className="material-symbols-outlined text-primary text-[20px] shrink-0">
+                                    check_circle
+                                  </span>
+                                )}
+                              </button>
+                              {selected && (
+                                <div className="flex items-center gap-1.5 bg-surface-container-high/80 px-2 py-1 rounded-lg border border-outline-variant/20 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <label className="text-label-2xs text-outline font-medium">Team Role:</label>
+                                  <select
+                                    value={currentTeamRole}
+                                    onChange={(e) => setMemberTeamRole(memberUserId, e.target.value)}
+                                    className="bg-transparent text-label-xs font-bold text-on-surface outline-none cursor-pointer"
+                                  >
+                                    <option value="Manager">Manager</option>
+                                    <option value="ContentCreator">Creator</option>
+                                    <option value="Viewer">Viewer</option>
+                                  </select>
+                                </div>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </div>

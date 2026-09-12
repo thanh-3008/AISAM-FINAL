@@ -48,19 +48,55 @@ public class WorkspaceMemberServiceTests
         var fixture = SeedWorkspace(context);
         var service = CreateService(context);
 
+        // Plain member cannot update roles
         var nonOwnerResult = await service.UpdateRoleAsync(
             fixture.Workspace.Id,
-            fixture.Manager.UserId,
+            fixture.Viewer.UserId,
             fixture.Viewer.Id,
-            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.ContentCreator });
+            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.Member });
         var ownerTargetResult = await service.UpdateRoleAsync(
             fixture.Workspace.Id,
             fixture.Owner.UserId,
             fixture.Owner.Id,
-            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.Manager });
+            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.WorkspaceManager });
 
         Assert.Equal((int)HttpStatusCode.Forbidden, nonOwnerResult.StatusCode);
         Assert.Equal((int)HttpStatusCode.BadRequest, ownerTargetResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateRoleAsync_AllowsWorkspaceManagerToUpdateNonOwnerRole()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context);
+        var service = CreateService(context);
+
+        // WorkspaceManager can update non-owner member role
+        var result = await service.UpdateRoleAsync(
+            fixture.Workspace.Id,
+            fixture.Manager.UserId,
+            fixture.Viewer.Id,
+            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.WorkspaceManager });
+
+        Assert.True(result.Success);
+        Assert.Equal(WorkspaceMemberRoleEnum.WorkspaceManager, result.Data!.Role);
+    }
+
+    [Fact]
+    public async Task RemoveAsync_AllowsWorkspaceManagerToRemoveMember()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context);
+        var service = CreateService(context);
+
+        // WorkspaceManager can remove member
+        var result = await service.RemoveAsync(
+            fixture.Workspace.Id,
+            fixture.Manager.UserId,
+            fixture.Viewer.Id);
+
+        Assert.True(result.Success);
+        Assert.False(await context.WorkspaceMembers.AnyAsync(m => m.Id == fixture.Viewer.Id && m.IsActive));
     }
 
     [Fact]
@@ -127,10 +163,11 @@ public class WorkspaceMemberServiceTests
         var fixture = SeedWorkspace(context);
         var service = CreateService(context);
 
-        var nonOwnerResult = await service.RemoveAsync(fixture.Workspace.Id, fixture.Manager.UserId, fixture.Viewer.Id);
+        // Plain member cannot remove members
+        var nonAdminResult = await service.RemoveAsync(fixture.Workspace.Id, fixture.Viewer.UserId, fixture.Viewer.Id);
         var ownerTargetResult = await service.RemoveAsync(fixture.Workspace.Id, fixture.Owner.UserId, fixture.Owner.Id);
 
-        Assert.Equal((int)HttpStatusCode.Forbidden, nonOwnerResult.StatusCode);
+        Assert.Equal((int)HttpStatusCode.Forbidden, nonAdminResult.StatusCode);
         Assert.Equal((int)HttpStatusCode.BadRequest, ownerTargetResult.StatusCode);
     }
 
@@ -170,21 +207,23 @@ public class WorkspaceMemberServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(WorkspaceMemberRoleEnum.Owner, result.Data!.Role);
-        Assert.Equal(WorkspaceMemberRoleEnum.Manager, fixture.Owner.Role);
+        Assert.Equal(WorkspaceMemberRoleEnum.WorkspaceManager, fixture.Owner.Role);
         Assert.Equal(WorkspaceMemberRoleEnum.Owner, fixture.Manager.Role);
 
-        var formerOwnerManageResult = await service.RemoveAsync(
-            fixture.Workspace.Id,
-            fixture.Owner.UserId,
-            fixture.Viewer.Id);
+        // New owner updates member role
         var newOwnerManageResult = await service.UpdateRoleAsync(
             fixture.Workspace.Id,
             fixture.Manager.UserId,
             fixture.Viewer.Id,
-            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.ContentCreator });
-
-        Assert.Equal((int)HttpStatusCode.Forbidden, formerOwnerManageResult.StatusCode);
+            new UpdateWorkspaceMemberRoleRequest { Role = WorkspaceMemberRoleEnum.Member });
         Assert.True(newOwnerManageResult.Success);
+
+        // Former owner is now WorkspaceManager -> can remove members
+        var formerOwnerManageResult = await service.RemoveAsync(
+            fixture.Workspace.Id,
+            fixture.Owner.UserId,
+            fixture.Viewer.Id);
+        Assert.True(formerOwnerManageResult.Success);
     }
 
     [Fact]

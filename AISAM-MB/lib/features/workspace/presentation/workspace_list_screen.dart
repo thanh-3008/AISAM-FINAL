@@ -288,11 +288,12 @@ class _WorkspaceListItem extends ConsumerWidget {
   const _WorkspaceListItem({required this.workspace, required this.index});
 
   String _getRoleName(int roleInt) {
-    // Basic mapping assumption
+    if (roleInt == 1) return 'Owner';
+    if (roleInt == 2) return 'Workspace Manager';
+    if (roleInt == 3) return 'Member';
+    if (roleInt == 4) return 'Viewer';
+    // Legacy 0-based fallback
     if (roleInt == 0) return 'Owner';
-    if (roleInt == 1) return 'Admin';
-    if (roleInt == 2) return 'Member';
-    if (roleInt == 3) return 'Client';
     return 'Member';
   }
 
@@ -306,7 +307,7 @@ class _WorkspaceListItem extends ConsumerWidget {
     final role = _getRoleName(workspace.currentUserRole);
     Color roleBgColor = _surfaceContainerHighest;
     Color roleTextColor = _onSurface;
-    if (role.toLowerCase() == 'admin' || role.toLowerCase() == 'owner') {
+    if (role.toLowerCase().contains('manager') || role.toLowerCase() == 'admin' || role.toLowerCase() == 'owner') {
       roleBgColor = _secondaryContainer;
       roleTextColor = _onSecondaryContainer;
     }

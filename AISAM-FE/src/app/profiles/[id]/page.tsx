@@ -644,10 +644,10 @@ export default function ProfileDetailPage() {
       if (result.success) {
         setMembers(prev => prev.map(m => {
           if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
-          if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
+          if (m.role === "Owner") return { ...m, role: "WorkspaceManager" as WorkspaceMemberRole };
           return m;
         }));
-        setWorkspace(prev => prev ? { ...prev, isOwner: false, memberRole: "Manager" } : prev);
+        setWorkspace(prev => prev ? { ...prev, isOwner: false, memberRole: "WorkspaceManager" } : prev);
         invalidateWorkspaceCache();
         await refetchWorkspaces();
         setShowTransferModal(false);
@@ -1753,7 +1753,9 @@ export default function ProfileDetailPage() {
                                 {paginatedMembers.map((member) => {
                                   const roleConfig: Record<WorkspaceMemberRole, { label: string; color: string; bg: string; icon: string }> = {
                                     Owner: { label: "Owner", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", icon: "star" },
+                                    WorkspaceManager: { label: "Workspace Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
                                     Manager: { label: "Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
+                                    Member: { label: "Member", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
                                     ContentCreator: { label: "Content Creator", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
                                     Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "visibility" },
                                   };
@@ -3176,14 +3178,14 @@ export default function ProfileDetailPage() {
                     <div className="mb-6">
                       <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Manager only)</label>
                       <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {members.filter(m => m.role === "Manager").length === 0 ? (
+                        {members.filter(m => m.role === "Manager" || m.role === "WorkspaceManager").length === 0 ? (
                           <div className="text-center py-8">
                             <span className="material-symbols-outlined text-outline/40 text-4xl mb-2 block">person_off</span>
                             <p className="text-body-sm text-on-surface-variant">No Manager members found</p>
                             <p className="text-label-xs text-outline mt-1">You need to have at least one Manager to transfer ownership</p>
                           </div>
                         ) : (
-                          members.filter(m => m.role === "Manager").map((member) => (
+                          members.filter(m => m.role === "Manager" || m.role === "WorkspaceManager").map((member) => (
                             <button
                               key={member.id}
                               onClick={() => setSelectedNewOwner(member)}

@@ -141,6 +141,7 @@ namespace AISAM.Repositories
                 entity.HasIndex(c => c.ProductId);
                 entity.HasIndex(c => c.Status);
                 entity.HasIndex(c => c.CreatedAt);
+                entity.HasIndex(c => c.TeamId);
                 entity.HasIndex(c => new { c.ProfileId, c.CreatedAt });
                 entity.HasOne(c => c.Brand)
                       .WithMany(b => b.Contents)
@@ -151,6 +152,10 @@ namespace AISAM.Repositories
                       .HasForeignKey(c => c.ProductId)
                       .OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(c => c.Workspace).WithMany(w => w.Contents).HasForeignKey(c => c.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(c => c.Team)
+                      .WithMany(t => t.Contents)
+                      .HasForeignKey(c => c.TeamId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // Product entity configuration
@@ -378,6 +383,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<TeamMember>(entity =>
             {
                 entity.HasKey(tm => tm.Id);
+                entity.Property(tm => tm.Role).HasConversion<int>();
                 entity.HasIndex(tm => new { tm.TeamId, tm.UserId }).IsUnique();
                 entity.HasIndex(tm => tm.TeamId);
                 entity.HasIndex(tm => tm.UserId);

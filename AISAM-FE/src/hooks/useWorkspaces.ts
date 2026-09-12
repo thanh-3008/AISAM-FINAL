@@ -61,13 +61,13 @@ function notifyCache() {
 }
 
 function resolveMemberRole(role: unknown): string | null {
-  if (typeof role === "string" && ["Owner", "Manager", "ContentCreator", "Viewer"].includes(role)) return role;
+  if (typeof role === "string" && ["Owner", "WorkspaceManager", "Manager", "Member", "ContentCreator", "Viewer"].includes(role)) return role;
   if (typeof role !== "number") return "Viewer";
   const roleMap: Record<number, string> = {
     0: "Viewer",
     1: "Owner",
-    2: "Manager",
-    3: "ContentCreator",
+    2: "WorkspaceManager",
+    3: "Member",
     4: "Viewer",
   };
   return roleMap[role] ?? "Viewer";

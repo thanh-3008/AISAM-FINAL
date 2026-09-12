@@ -258,7 +258,7 @@ export async function fetchDailyCreditSummary(days: number = 7): Promise<DailyCr
 }
 
 // Workspace Members
-export type WorkspaceMemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
+export type WorkspaceMemberRole = "Owner" | "WorkspaceManager" | "Manager" | "Member" | "ContentCreator" | "Viewer";
 
 export interface WorkspaceMember {
   id: string;
@@ -276,8 +276,8 @@ export interface WorkspaceMembersResponse {
 
 const BE_ROLE_MAP: Record<number, WorkspaceMemberRole> = {
   1: "Owner",
-  2: "Manager",
-  3: "ContentCreator",
+  2: "WorkspaceManager",
+  3: "Member",
   4: "Viewer",
 };
 

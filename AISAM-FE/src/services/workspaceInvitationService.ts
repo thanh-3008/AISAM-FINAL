@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/apiClient";
 
-export type WorkspaceMemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
+export type WorkspaceMemberRole = "Owner" | "WorkspaceManager" | "Manager" | "Member" | "ContentCreator" | "Viewer";
 
 export interface InviteMemberRequest {
   email: string;
@@ -24,9 +24,21 @@ export interface WorkspaceInvitation {
   expiresAt: string;
 }
 
-const ROLE_TO_ENUM: Record<WorkspaceMemberRole, number> = { Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 };
+const ROLE_TO_ENUM: Record<WorkspaceMemberRole, number> = {
+  Owner: 1,
+  WorkspaceManager: 2,
+  Manager: 2,
+  Member: 3,
+  ContentCreator: 3,
+  Viewer: 4,
+};
 
-const ENUM_TO_ROLE: Record<number, WorkspaceMemberRole> = { 1: "Owner", 2: "Manager", 3: "ContentCreator", 4: "Viewer" };
+const ENUM_TO_ROLE: Record<number, WorkspaceMemberRole> = {
+  1: "Owner",
+  2: "WorkspaceManager",
+  3: "Member",
+  4: "Viewer",
+};
 
 export async function inviteMember(data: InviteMemberRequest): Promise<{ data?: WorkspaceInvitation; error?: string } | null> {
   try {

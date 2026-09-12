@@ -45,5 +45,6 @@ namespace AISAM.Data.Model
 
         public virtual ICollection<TeamMember> TeamMembers { get; set; } = new List<TeamMember>();
         public virtual ICollection<TeamBrand> TeamBrands { get; set; } = new List<TeamBrand>();
+        public virtual ICollection<Content> Contents { get; set; } = new List<Content>();
     }
 }

@@ -3,8 +3,11 @@ using AISAM.API.Utils;
 using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
+using AISAM.Repositories;
 using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Net;
 using System.Security.Claims;
 
@@ -597,6 +600,83 @@ public class ActiveWorkspaceMiddlewareTests
 
         await middleware.InvokeAsync(context, new FakeWorkspaceMemberRepository(membership), new FakeSubscriptionRepository());
 
+        Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AllowsMemberWithTeamManagerRoleToManageContentSchedules()
+    {
+        var options = new DbContextOptionsBuilder<AisamContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        await using var db = new AisamContext(options);
+
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Member);
+        var team = new Team { WorkspaceId = membership.WorkspaceId, Name = "Marketing", Status = TeamStatusEnum.Active };
+        var teamMember = new TeamMember { TeamId = team.Id, UserId = userId, Role = TeamRoleEnum.Manager, IsActive = true };
+
+        db.Add(team);
+        db.Add(teamMember);
+        await db.SaveChangesAsync();
+
+        var context = CreateContext(userId, "/api/content-schedules");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(CreatePaidSubscription(membership.WorkspaceId)),
+            null,
+            db);
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_BlocksPlainMemberWithoutTeamManagerRoleFromManagingContentSchedules()
+    {
+        var options = new DbContextOptionsBuilder<AisamContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        await using var db = new AisamContext(options);
+
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Member);
+        var team = new Team { WorkspaceId = membership.WorkspaceId, Name = "Marketing", Status = TeamStatusEnum.Active };
+        var teamMember = new TeamMember { TeamId = team.Id, UserId = userId, Role = TeamRoleEnum.ContentCreator, IsActive = true };
+
+        db.Add(team);
+        db.Add(teamMember);
+        await db.SaveChangesAsync();
+
+        var context = CreateContext(userId, "/api/content-schedules");
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            context,
+            new FakeWorkspaceMemberRepository(membership),
+            new FakeSubscriptionRepository(CreatePaidSubscription(membership.WorkspaceId)),
+            null,
+            db);
+
+        Assert.False(nextCalled);
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
 

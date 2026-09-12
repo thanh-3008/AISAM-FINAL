@@ -24,7 +24,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
 
     private async Task<AssignmentSnapshot> VisibleSnapshot(Guid actor,Guid workspace,AssignmentSnapshot snapshot,CancellationToken ct)
     {
-        if(await db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().AnyAsync(m=>m.WorkspaceId==workspace && m.UserId==actor && m.IsActive && m.Role==WorkspaceMemberRoleEnum.Owner,ct)) return snapshot;
+        if(await db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().AnyAsync(m=>m.WorkspaceId==workspace && m.UserId==actor && m.IsActive && (m.Role==WorkspaceMemberRoleEnum.Owner || m.Role==WorkspaceMemberRoleEnum.WorkspaceManager),ct)) return snapshot;
         var ids=await (from m in db.TeamMembers.IgnoreQueryFilters().AsNoTracking()
             join t in db.Teams.IgnoreQueryFilters().AsNoTracking() on m.TeamId equals t.Id
             where m.UserId==actor && m.IsActive && t.WorkspaceId==workspace && !t.IsDeleted && t.Status==TeamStatusEnum.Active select t.Id).ToListAsync(ct);
@@ -68,14 +68,14 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
         var team=await db.Teams.AsNoTracking().SingleOrDefaultAsync(t=>t.Id==request.TeamId && t.WorkspaceId==request.WorkspaceId && !t.IsDeleted && t.Status==TeamStatusEnum.Active,ct);
         if(team is null) throw new AssignmentAccessException(AccessDecision.Hidden);
         var member=await db.WorkspaceMembers.AsNoTracking().SingleAsync(m=>m.UserId==request.ActorId && m.WorkspaceId==request.WorkspaceId && m.IsActive,ct);
-        if(member.Role!=WorkspaceMemberRoleEnum.Owner && !await db.TeamMembers.AsNoTracking().AnyAsync(m=>m.TeamId==team.Id && m.UserId==request.ActorId && m.IsActive,ct))
+        if(member.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager) && !await db.TeamMembers.AsNoTracking().AnyAsync(m=>m.TeamId==team.Id && m.UserId==request.ActorId && m.IsActive,ct))
             throw new AssignmentAccessException(AccessDecision.Denied);
         var assignment=await db.TeamBrands.SingleOrDefaultAsync(t=>t.TeamId==team.Id && t.BrandId==request.BrandId,ct);
         if(request.IntegrationId is { } channelId)
         {
             var channel=await db.SocialIntegrations.AsNoTracking().SingleOrDefaultAsync(i=>i.Id==channelId && i.WorkspaceId==request.WorkspaceId && i.BrandId==request.BrandId && !i.IsDeleted,ct);
             if(channel is null || assignment is null || !assignment.IsActive) throw new AssignmentAccessException(AccessDecision.Hidden);
-            if(member.Role!=WorkspaceMemberRoleEnum.Owner)
+            if(member.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
             {
                 var manage=await access.CheckAsync(new(request.ActorId,request.WorkspaceId,AccessResourceKind.Channel,channelId,ResourcePermission.SocialManage),ct);
                 if(!manage.Allowed) throw new AssignmentAccessException(manage);
@@ -96,11 +96,14 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
         }
         else
         {
+            if (member.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
+                throw new AssignmentAccessException(AccessDecision.Denied);
+
             if (request.Active)
             {
                 var hasManager = await db.TeamMembers.AsNoTracking()
                     .AnyAsync(m => m.TeamId == team.Id
-                                && m.Role == "Manager"
+                                && m.Role == TeamRoleEnum.Manager
                                 && m.IsActive, ct);
                 if (!hasManager)
                     throw new InvalidOperationException("TEAM_REQUIRES_MANAGER");

@@ -41,17 +41,28 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         return member;
     }
 
-    private async Task RequireTeamManage(Guid actor, Guid workspace, Guid teamId, CancellationToken ct)
+    private async Task RequireTeamEntityManage(Guid actor, Guid workspace, Guid teamId, CancellationToken ct)
     {
         var member = await RequireMembership(actor, workspace, ct);
-        if (member.Role == WorkspaceMemberRoleEnum.Owner) return;
-        if (member.Role != WorkspaceMemberRoleEnum.Manager)
-            throw new UnauthorizedAccessException("Only Owner or Manager can manage teams.");
-        // Manager must be a member of the team they are managing
-        var isTeamMember = await db.TeamMembers.AsNoTracking()
-            .AnyAsync(m => m.TeamId == teamId && m.UserId == actor && m.IsActive, ct);
-        if (!isTeamMember)
-            throw new UnauthorizedAccessException("Manager can only manage teams they belong to.");
+        if (member.Role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager)
+            return;
+
+        throw new UnauthorizedAccessException("Only Owner or Workspace Manager can manage teams.");
+    }
+
+    private async Task RequireTeamMemberManage(Guid actor, Guid workspace, Guid teamId, CancellationToken ct)
+    {
+        var member = await RequireMembership(actor, workspace, ct);
+        if (member.Role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager)
+            return;
+
+        // Team Manager can manage members in their own team
+        var isTeamManager = await db.TeamMembers.AsNoTracking()
+            .AnyAsync(m => m.TeamId == teamId && m.UserId == actor && m.Role == TeamRoleEnum.Manager && m.IsActive, ct);
+        if (isTeamManager)
+            return;
+
+        throw new UnauthorizedAccessException("Only Owner, Workspace Manager, or Team Manager can manage team members.");
     }
 
     private async Task<bool> HasDelegatedPermission(Guid actor, Guid workspace, string key, CancellationToken ct)
@@ -106,7 +117,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 t.TeamMembers.Count(m => m.IsActive),
                 t.TeamBrands.Count(b => b.IsActive),
                 t.CreatedAt,
-                t.TeamMembers.Any(m => m.IsActive && m.Role == "Manager")))
+                t.TeamMembers.Any(m => m.IsActive && m.Role == TeamRoleEnum.Manager)))
             .ToListAsync(ct);
 
         return (teams, count);
@@ -132,7 +143,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             team.CreatedAt, team.UpdatedAt,
             team.TeamMembers.Select(m => new TeamMemberDto(
                 m.UserId, m.User?.FullName ?? m.User?.Email ?? "Unknown",
-                m.User?.Email ?? "", m.Role, m.JoinedAt, m.IsActive)).ToList(),
+                m.User?.Email ?? "", m.Role.ToString(), m.JoinedAt, m.IsActive)).ToList(),
             team.TeamBrands.Select(b => new TeamBrandDto(
                 b.BrandId, b.Brand?.Name ?? "Unknown", b.IsActive, b.AssignedAt)).ToList());
     }
@@ -147,18 +158,9 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             throw new ArgumentException("Team name must be at most 255 characters.");
 
         var member = await RequireMembership(actor, workspace, ct);
-        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        if (member.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
         {
-            // Owner always allowed
-        }
-        else if (member.Role == WorkspaceMemberRoleEnum.Manager)
-        {
-            if (!await HasDelegatedPermission(actor, workspace, DelegatedPermissionKeys.TeamCreate, ct))
-                throw new UnauthorizedAccessException("Manager needs TeamCreate permission to create teams.");
-        }
-        else
-        {
-            throw new UnauthorizedAccessException("Only Owner or Manager with TeamCreate permission can create teams.");
+            throw new UnauthorizedAccessException("Only Owner or Workspace Manager can create teams.");
         }
 
         // Check duplicate name in workspace
@@ -183,7 +185,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         {
             TeamId = team.Id,
             UserId = actor,
-            Role = member.Role.ToString(),
+            Role = TeamRoleEnum.Manager,
             JoinedAt = DateTime.UtcNow,
             IsActive = true
         });
@@ -227,7 +229,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 {
                     TeamId = team.Id,
                     UserId = resolvedUserId,
-                    Role = string.IsNullOrWhiteSpace(mi.Role) ? "ContentCreator" : mi.Role,
+                    Role = ParseTeamRole(mi.Role),
                     JoinedAt = DateTime.UtcNow,
                     IsActive = true
                 });
@@ -250,7 +252,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         if (string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("Team name is required.");
 
-        await RequireTeamManage(actor, workspace, teamId, ct);
+        await RequireTeamEntityManage(actor, workspace, teamId, ct);
 
         var team = await db.Teams
             .SingleOrDefaultAsync(t => t.Id == teamId && t.WorkspaceId == workspace && !t.IsDeleted, ct)
@@ -281,7 +283,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
 
     public async Task DeleteAsync(Guid actor, Guid workspace, Guid teamId, CancellationToken ct = default)
     {
-        await RequireTeamManage(actor, workspace, teamId, ct);
+        await RequireTeamEntityManage(actor, workspace, teamId, ct);
 
         var team = await db.Teams
             .SingleOrDefaultAsync(t => t.Id == teamId && t.WorkspaceId == workspace && !t.IsDeleted, ct)
@@ -318,7 +320,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
     public async Task<TeamMemberDto> AddMemberAsync(Guid actor, Guid workspace, Guid teamId,
         Guid userId, string role, CancellationToken ct = default)
     {
-        await RequireTeamManage(actor, workspace, teamId, ct);
+        await RequireTeamMemberManage(actor, workspace, teamId, ct);
 
         // Verify team exists
         var team = await db.Teams.AsNoTracking()
@@ -369,7 +371,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 throw new ArgumentException("User is already an active member of this team.");
             // Reactivate
             existing.IsActive = true;
-            existing.Role = string.IsNullOrWhiteSpace(role) ? wsMember.Role.ToString() : role;
+            existing.Role = ParseTeamRole(role);
             existing.JoinedAt = DateTime.UtcNow;
         }
         else
@@ -378,7 +380,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             {
                 TeamId = teamId,
                 UserId = resolvedUserId,
-                Role = string.IsNullOrWhiteSpace(role) ? wsMember.Role.ToString() : role,
+                Role = ParseTeamRole(role),
                 JoinedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -393,7 +395,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
 
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == resolvedUserId, ct);
         return new TeamMemberDto(resolvedUserId, user?.FullName ?? user?.Email ?? "Unknown",
-            user?.Email ?? "", existing.Role, existing.JoinedAt, true);
+            user?.Email ?? "", existing.Role.ToString(), existing.JoinedAt, true);
     }
 
     // ── Remove Team Member ──────────────────────────────────────────────
@@ -401,7 +403,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
     public async Task RemoveMemberAsync(Guid actor, Guid workspace, Guid teamId, Guid userId,
         CancellationToken ct = default)
     {
-        await RequireTeamManage(actor, workspace, teamId, ct);
+        await RequireTeamMemberManage(actor, workspace, teamId, ct);
 
         var member = await db.TeamMembers
             .SingleOrDefaultAsync(m => m.TeamId == teamId && m.UserId == userId && m.IsActive, ct)
@@ -410,7 +412,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         member.IsActive = false;
 
         Audit(actor, workspace, "team.member_remove", "team_members", teamId,
-            oldValues: new { UserId = userId, member.Role },
+            oldValues: new { UserId = userId, Role = member.Role.ToString() },
             teamId: teamId, affectedUser: userId);
 
         await db.SaveChangesAsync(ct);
@@ -421,24 +423,31 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
     public async Task<TeamMemberDto> UpdateMemberRoleAsync(Guid actor, Guid workspace, Guid teamId,
         Guid userId, string newRole, CancellationToken ct = default)
     {
-        await RequireTeamManage(actor, workspace, teamId, ct);
+        await RequireTeamMemberManage(actor, workspace, teamId, ct);
 
         var member = await db.TeamMembers
             .SingleOrDefaultAsync(m => m.TeamId == teamId && m.UserId == userId && m.IsActive, ct)
             ?? throw new KeyNotFoundException("Team member not found.");
 
         var oldRole = member.Role;
-        member.Role = newRole;
+        member.Role = ParseTeamRole(newRole);
 
         Audit(actor, workspace, "team.member_role_update", "team_members", teamId,
-            oldValues: new { UserId = userId, Role = oldRole },
-            newValues: new { Role = newRole },
+            oldValues: new { UserId = userId, Role = oldRole.ToString() },
+            newValues: new { Role = member.Role.ToString() },
             teamId: teamId, affectedUser: userId);
 
         await db.SaveChangesAsync(ct);
 
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId, ct);
         return new TeamMemberDto(userId, user?.FullName ?? user?.Email ?? "Unknown",
-            user?.Email ?? "", member.Role, member.JoinedAt, true);
+            user?.Email ?? "", member.Role.ToString(), member.JoinedAt, true);
+    }
+
+    private static TeamRoleEnum ParseTeamRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return TeamRoleEnum.ContentCreator;
+        if (Enum.TryParse<TeamRoleEnum>(role.Trim(), true, out var parsed)) return parsed;
+        return TeamRoleEnum.ContentCreator;
     }
 }

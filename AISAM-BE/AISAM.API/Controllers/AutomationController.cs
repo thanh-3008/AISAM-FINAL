@@ -131,7 +131,7 @@ public sealed class AutomationController : ControllerBase
     {
         var workspaceId = GetWorkspaceId();
         var membership = await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId, UserClaimsHelper.GetUserIdOrThrow(User), cancellationToken);
-        if (membership?.Role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager)
+        if (membership?.Role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager and not WorkspaceMemberRoleEnum.WorkspaceManager)
             return StatusCode(StatusCodes.Status403Forbidden, GenericResponse<AutomationPlanDto>.CreateError("Only workspace owners and managers can configure auto-approve.", System.Net.HttpStatusCode.Forbidden));
         var result = await _automationService.SetAutoApproveAsync(workspaceId, planId, request.Enabled, cancellationToken);
         return StatusCode(result.StatusCode, result);

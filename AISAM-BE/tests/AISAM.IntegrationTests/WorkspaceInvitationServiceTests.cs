@@ -81,7 +81,7 @@ public class WorkspaceInvitationServiceTests
 
     [Theory]
     [InlineData(WorkspaceTypeEnum.Personal, WorkspaceMemberRoleEnum.Owner, HttpStatusCode.Forbidden)]
-    [InlineData(WorkspaceTypeEnum.Business, WorkspaceMemberRoleEnum.Manager, HttpStatusCode.Forbidden)]
+    [InlineData(WorkspaceTypeEnum.Business, WorkspaceMemberRoleEnum.Member, HttpStatusCode.Forbidden)]
     public async Task InviteAsync_RejectsUnsupportedWorkspaceOrInviter(
         WorkspaceTypeEnum workspaceType,
         WorkspaceMemberRoleEnum inviterRole,
@@ -94,12 +94,30 @@ public class WorkspaceInvitationServiceTests
         var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
         {
             Email = "invited@example.com",
-            Role = WorkspaceMemberRoleEnum.Viewer
+            Role = WorkspaceMemberRoleEnum.Member
         });
 
         Assert.False(result.Success);
         Assert.Equal((int)expectedStatus, result.StatusCode);
         Assert.Empty(context.WorkspaceInvitations);
+    }
+
+    [Fact]
+    public async Task InviteAsync_Succeeds_WhenInviterIsWorkspaceManager()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business, WorkspaceMemberRoleEnum.WorkspaceManager);
+        var service = CreateService(context);
+
+        var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
+        {
+            Email = "invited-wm@example.com",
+            Role = WorkspaceMemberRoleEnum.Member
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal((int)HttpStatusCode.OK, result.StatusCode);
+        Assert.Single(context.WorkspaceInvitations);
     }
 
     [Fact]

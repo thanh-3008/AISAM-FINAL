@@ -48,7 +48,9 @@ public class MemberPerformanceTests
         Assert.Equal(30,row.Engagement);Assert.Equal(200,row.Impressions);Assert.Equal(120,row.Reach);Assert.Equal(15m,row.EngagementRate);Assert.Null(result.UnattributedContents);
         var managerResult=await service.GetAsync(manager.Id,w.Id,start,end,memberId:creator.Id);
         Assert.Equal(1,Assert.Single(managerResult.Items).ContentsCreated);
-        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(manager.Id,w.Id,start,end,brandId:hidden.Id))).StatusCode);
+        // NC-07: WorkspaceManager has workspace-wide brand scope — 'hidden' brand is still in same workspace, so must NOT be 404
+        var wmHiddenResult = await service.GetAsync(manager.Id,w.Id,start,end,brandId:hidden.Id);
+        Assert.NotNull(wmHiddenResult); // WM sees all brands in the workspace
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(creator.Id,w.Id,start,end,memberId:owner.Id))).StatusCode);
         Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,start,end))).StatusCode);
         var ownerResult=await service.GetAsync(owner.Id,w.Id,start,end);
@@ -59,6 +61,8 @@ public class MemberPerformanceTests
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(owner.Id,w.Id,start,end,teamId:Guid.NewGuid()))).StatusCode);
         var assignment=await db.TeamBrands.SingleAsync();assignment.IsActive=false;await db.SaveChangesAsync();
         Assert.Empty((await service.GetAsync(creator.Id,w.Id,start,end)).Items);
-        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(manager.Id,w.Id,start,end,brandId:brand.Id))).StatusCode);
+        // NC-07: WorkspaceManager sees workspace-wide brands regardless of TeamBrand.IsActive
+        var wmResult = await service.GetAsync(manager.Id,w.Id,start,end,brandId:brand.Id);
+        Assert.NotNull(wmResult); // WM must NOT get 404; workspace-wide scope applies
     }
 }

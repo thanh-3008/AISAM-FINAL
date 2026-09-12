@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using AISAM.Data.Enumeration;
 
 namespace AISAM.Data.Model
 {
@@ -19,9 +20,8 @@ namespace AISAM.Data.Model
         public Guid UserId { get; set; }
 
         [Required]
-        [MaxLength(100)]
         [Column("role")]
-        public string Role { get; set; } = string.Empty;
+        public TeamRoleEnum Role { get; set; }
 
         [Column("permissions", TypeName = "jsonb")]
         public List<string> Permissions { get; set; } = new(); // JSON permissions

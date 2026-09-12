@@ -115,6 +115,38 @@ public class BrandWorkspaceOwnershipTests
         Assert.Empty(context.Brands);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_SucceedsForRegularMember_WithoutRequiringOwnerOrWorkspaceManager()
+    {
+        await using var context = CreateContext();
+        var owner = AddUser(context);
+        var member = AddUser(context);
+        var profile = AddProfile(context, owner);
+        var workspace = AddWorkspace(context, owner);
+
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = member.Id,
+            Role = WorkspaceMemberRoleEnum.Member,
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var created = await service.CreateAsync(workspace.Id, owner.Id, new CreateBrandRequest
+        {
+            ProfileId = profile.Id,
+            Name = "Public brand"
+        });
+        Assert.True(created.Success);
+
+        // Regular Member must be able to view brand details
+        var result = await service.GetByIdAsync(created.Data!.Id, workspace.Id, member.Id);
+        Assert.True(result.Success);
+        Assert.Equal("Public brand", result.Data!.Name);
+    }
+
     private static BrandService CreateService(AisamContext context)
     {
         return new BrandService(

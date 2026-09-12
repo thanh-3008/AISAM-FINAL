@@ -4,6 +4,8 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 
 namespace AISAM.API.Middleware;
@@ -50,7 +52,8 @@ public sealed class ActiveWorkspaceMiddleware
         HttpContext context,
         IWorkspaceMemberRepository workspaceMemberRepository,
         ISubscriptionRepository subscriptionRepository,
-        AISAM.Services.Access.IAccessControlService? resourceAccess = null)
+        AISAM.Services.Access.IAccessControlService? resourceAccess = null,
+        AISAM.Repositories.AisamContext? db = null)
     {
         if (context.Request.Method == HttpMethods.Get &&
             context.Request.Path.Equals("/api/social-auth/facebook/callback", StringComparison.OrdinalIgnoreCase))
@@ -114,8 +117,8 @@ public sealed class ActiveWorkspaceMiddleware
         }
 
         WorkspaceLifecyclePolicy.SynchronizeStatus(membership.Workspace, DateTime.UtcNow);
-        var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository);
-        if(authorizationError is not null && resourceAccess is not null && membership.Role==WorkspaceMemberRoleEnum.ContentCreator &&
+        var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository, db);
+        if(authorizationError is not null && resourceAccess is not null && (membership.Role is WorkspaceMemberRoleEnum.Member or WorkspaceMemberRoleEnum.ContentCreator) &&
             !WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) && context.Request.Method==HttpMethods.Post)
         {
             var parts=context.Request.Path.Value?.Split('/',StringSplitOptions.RemoveEmptyEntries) ?? [];
@@ -142,7 +145,8 @@ public sealed class ActiveWorkspaceMiddleware
     private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> ValidateRequestAuthorizationAsync(
         HttpContext context,
         WorkspaceMember membership,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository,
+        AISAM.Repositories.AisamContext? db = null)
     {
         var path = context.Request.Path;
         var method = context.Request.Method;
@@ -155,6 +159,10 @@ public sealed class ActiveWorkspaceMiddleware
         {
             if (method == HttpMethods.Get)
             {
+                if (membership.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
+                {
+                    return (HttpStatusCode.Forbidden, "You do not have permission to view billing in the active workspace.", "WORKSPACE_PERMISSION_DENIED");
+                }
                 return null;
             }
 
@@ -243,6 +251,24 @@ public sealed class ActiveWorkspaceMiddleware
             }
 
             var permissionError = EnsurePermission(membership.Role, WorkspacePermissionEnum.ManageSchedules);
+            if (permissionError != null && membership.Role == WorkspaceMemberRoleEnum.Member)
+            {
+                var effectiveDb = db ?? context.RequestServices?.GetService<AISAM.Repositories.AisamContext>();
+                if (effectiveDb != null)
+                {
+                    var isTeamManager = await effectiveDb.TeamMembers.AsNoTracking()
+                        .AnyAsync(tm => tm.UserId == membership.UserId
+                            && tm.Role == TeamRoleEnum.Manager
+                            && tm.IsActive
+                            && effectiveDb.Teams.Any(t => t.Id == tm.TeamId && t.WorkspaceId == membership.WorkspaceId && t.Status == TeamStatusEnum.Active),
+                            context.RequestAborted);
+                    if (isTeamManager)
+                    {
+                        permissionError = null;
+                    }
+                }
+            }
+
             if (permissionError != null)
             {
                 return permissionError;
@@ -390,14 +416,14 @@ public sealed class ActiveWorkspaceMiddleware
         var allowed = permission switch
         {
             WorkspacePermissionEnum.ManageBilling => role == WorkspaceMemberRoleEnum.Owner,
-            WorkspacePermissionEnum.ManageBrands => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
-            WorkspacePermissionEnum.ManageProducts => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
-            WorkspacePermissionEnum.ManageContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
-            WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
-            WorkspacePermissionEnum.ReviewContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
-            WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator,
-            WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
-            WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager,
+            WorkspacePermissionEnum.ManageBrands => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.ManageProducts => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.ManageContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.PublishContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.ReviewContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.GenerateAiContent => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.ContentCreator or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.ManageSchedules => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.WorkspaceManager,
+            WorkspacePermissionEnum.ManageCampaigns => role is WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.Manager or WorkspaceMemberRoleEnum.WorkspaceManager,
             _ => false
         };
 

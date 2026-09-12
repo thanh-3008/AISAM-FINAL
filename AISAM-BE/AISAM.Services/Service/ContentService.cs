@@ -204,7 +204,7 @@ public sealed class ContentService : IContentService
         {
             var previousStatus = content.Status;
             if (request.Status.Value != content.Status &&
-                role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager)
+                role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager and not WorkspaceMemberRoleEnum.WorkspaceManager)
             {
                 return GenericResponse<ContentResponseDto>.CreateError(
                     "Only workspace owners and managers can change content status.",

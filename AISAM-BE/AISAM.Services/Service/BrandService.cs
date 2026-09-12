@@ -64,7 +64,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken);
             if (!access.Success)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(access.Message);
@@ -79,28 +79,6 @@ namespace AISAM.Services.Service
             if (!success || membership == null)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(message);
-            }
-
-            if (membership.Role == WorkspaceMemberRoleEnum.Manager && _context != null)
-            {
-                var teamIds = await (from m in _context.TeamMembers
-                                     join t in _context.Teams on m.TeamId equals t.Id
-                                     where m.UserId == userId && m.IsActive && t.WorkspaceId == workspaceId && !t.IsDeleted && t.Status == TeamStatusEnum.Active
-                                     select m.TeamId).ToListAsync(cancellationToken);
-                if (teamIds.Count == 0)
-                {
-                    return GenericResponse<BrandResponseDto>.CreateError("Manager needs BrandCreate permission to create brands");
-                }
-
-                var perms = await _context.TeamMembers
-                    .Where(m => m.UserId == userId && m.IsActive && teamIds.Contains(m.TeamId))
-                    .Select(m => m.Permissions).ToListAsync(cancellationToken);
-
-                bool hasPerm = perms.Any(list => list != null && list.Contains(DelegatedPermissionKeys.BrandCreate, StringComparer.Ordinal));
-                if (!hasPerm)
-                {
-                    return GenericResponse<BrandResponseDto>.CreateError("Manager needs BrandCreate permission to create brands");
-                }
             }
 
             var profile = request.ProfileId.HasValue
@@ -327,8 +305,8 @@ namespace AISAM.Services.Service
             if (membership == null)
                 return (false, "You are not allowed to access this workspace", null);
 
-            if (membership.Role != WorkspaceMemberRoleEnum.Owner && membership.Role != WorkspaceMemberRoleEnum.Manager)
-                return (false, "Only workspace Owner and Manager can manage brands", null);
+            if (membership.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
+                return (false, "Only workspace Owner and Workspace Manager can manage brands", null);
 
             return (true, string.Empty, membership);
         }

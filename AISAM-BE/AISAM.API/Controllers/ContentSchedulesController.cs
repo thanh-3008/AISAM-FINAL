@@ -28,7 +28,8 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromBody] CreateContentScheduleRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _contentScheduleService.CreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken, actorUserId: userId);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -81,7 +82,8 @@ public sealed class ContentSchedulesController : ControllerBase
         [FromBody] BulkCreateContentScheduleRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _contentScheduleService.BulkCreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken);
+        var userId = UserClaimsHelper.GetUserIdOrThrow(User);
+        var result = await _contentScheduleService.BulkCreateInWorkspaceAsync(GetWorkspaceId(), await GetProfileIdAsync(cancellationToken), request, cancellationToken, actorUserId: userId);
         return StatusCode(result.StatusCode, result);
     }
 

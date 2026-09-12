@@ -35,6 +35,7 @@ export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner, i
   const [showAddMember, setShowAddMember] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<TeamMember[]>([]);
   const [addingMember, setAddingMember] = useState(false);
+  const [addRoles, setAddRoles] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!teamId) {
@@ -357,24 +358,45 @@ export default function TeamDetailPanel({ teamId, onClose, onUpdated, isOwner, i
                   .filter((wm) => !team?.members.some((tm) => tm.userId === (wm.userId ?? wm.id)))
                   .map((wm) => {
                     const memberUserId = wm.userId ?? wm.id;
+                    const selectedRole = addRoles[memberUserId] ?? (wm.role === "Viewer" ? "Viewer" : "ContentCreator");
                     return (
-                      <button
+                      <div
                         key={wm.id}
-                        onClick={() => handleAddMember(memberUserId, wm.role)}
-                        disabled={addingMember}
-                        className="w-full flex items-center gap-3 p-3 bg-surface-container-low rounded-xl hover:bg-primary/5 transition-all text-left disabled:opacity-50"
+                        className="w-full flex items-center gap-3 p-3 bg-surface-container-low rounded-xl transition-all"
                       >
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-label-2xs font-bold text-primary">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-label-2xs font-bold text-primary shrink-0">
                           {wm.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-body-sm font-semibold text-on-surface truncate">{wm.name}</p>
                           <p className="text-label-xs text-outline truncate">{wm.email}</p>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-label-2xs font-bold bg-surface-container text-outline">
+                        <span
+                          className="px-2 py-0.5 rounded-full text-label-2xs font-bold bg-surface-container text-outline shrink-0"
+                          title="Workspace Role"
+                        >
                           {wm.role === "ContentCreator" ? "Creator" : wm.role}
                         </span>
-                      </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <select
+                            value={selectedRole}
+                            onChange={(e) => setAddRoles((prev) => ({ ...prev, [memberUserId]: e.target.value }))}
+                            className="p-1.5 bg-surface-container border border-outline-variant/30 rounded-lg text-label-xs font-bold text-on-surface outline-none cursor-pointer"
+                          >
+                            <option value="Manager">Manager</option>
+                            <option value="ContentCreator">Creator</option>
+                            <option value="Viewer">Viewer</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleAddMember(memberUserId, selectedRole)}
+                            disabled={addingMember}
+                            className="px-3 py-1.5 bg-primary text-on-primary rounded-lg text-label-xs font-bold hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 {workspaceMembers.filter((wm) => !team?.members.some((tm) => tm.userId === (wm.userId ?? wm.id))).length ===

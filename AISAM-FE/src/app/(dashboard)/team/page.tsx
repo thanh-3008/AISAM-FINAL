@@ -67,7 +67,7 @@ export default function TeamPage() {
   const activeMemberCount = members.filter((m) => m.status === "Active").length;
   const canAssignQuota = featureGate.canAccess("lifetimeAssignedLimit") || featureGate.canAccess("monthlyAssignedLimit");
   const isOwner = activeWorkspace?.isOwner === true;
-  const isManager = activeWorkspace?.memberRole === "Manager";
+  const isManager = activeWorkspace?.memberRole === "Manager" || activeWorkspace?.memberRole === "WorkspaceManager";
   const canManageTeams = isOwner || isManager;
 
   const loadData = useCallback(async () => {
@@ -193,7 +193,7 @@ export default function TeamPage() {
   };
 
   const handleOpenTransferOwnership = (member: TeamMember) => {
-    if (member.status !== "Active" || member.role !== "Manager") {
+    if (member.status !== "Active" || (member.role !== "Manager" && member.role !== "WorkspaceManager")) {
       showToast("Ownership can only be transferred to an active manager", "error");
       return;
     }
@@ -632,11 +632,11 @@ export default function TeamPage() {
                               <td className="px-6 py-4">
                                 <span className={`px-2.5 py-1 rounded-full text-label-2xs font-bold uppercase tracking-wider ${
                                   member.role === "Owner" ? "bg-primary-fixed text-primary" :
-                                  member.role === "Manager" ? "bg-secondary-fixed text-secondary" :
+                                  (member.role === "Manager" || member.role === "WorkspaceManager") ? "bg-secondary-fixed text-secondary" :
                                   member.role === "ContentCreator" ? "bg-tertiary-fixed text-tertiary" :
                                   "bg-surface-container text-outline"
                                 }`}>
-                                  {member.role === "ContentCreator" ? "Content Creator" : member.role}
+                                  {member.role === "ContentCreator" ? "Content Creator" : member.role === "WorkspaceManager" ? "Workspace Manager" : member.role}
                                 </span>
                               </td>
                               <td className="px-6 py-4">

@@ -199,13 +199,13 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
         }
 
         var target = members.FirstOrDefault(member => member.Id == targetMemberId);
-        if (target?.Role != WorkspaceMemberRoleEnum.Manager)
+        if (target?.Role != WorkspaceMemberRoleEnum.WorkspaceManager)
         {
             throw new InvalidOperationException("Ownership can only be transferred to an active workspace manager.");
         }
 
         var currentOwner = owners[0];
-        currentOwner.Role = WorkspaceMemberRoleEnum.Manager;
+        currentOwner.Role = WorkspaceMemberRoleEnum.WorkspaceManager;
 
         if (saveInTwoSteps)
         {

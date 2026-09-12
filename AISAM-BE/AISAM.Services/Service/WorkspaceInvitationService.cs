@@ -54,10 +54,10 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
 
         var inviterMembership = workspace.Members.FirstOrDefault(member =>
             member.UserId == inviterUserId && member.IsActive);
-        if (inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
+        if (inviterMembership?.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
         {
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError(
-                "Only the workspace owner can invite members.",
+                "Only workspace owners or managers can invite members.",
                 HttpStatusCode.Forbidden);
         }
 
@@ -255,9 +255,9 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
     {
         var inviterMembership = (await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken))
             .FirstOrDefault(m => m.UserId == userId && m.IsActive);
-        if (inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
+        if (inviterMembership?.Role is not (WorkspaceMemberRoleEnum.Owner or WorkspaceMemberRoleEnum.WorkspaceManager))
         {
-            return GenericResponse<bool>.CreateError("Only the workspace owner can revoke invitations.", HttpStatusCode.Forbidden);
+            return GenericResponse<bool>.CreateError("Only workspace owners or managers can revoke invitations.", HttpStatusCode.Forbidden);
         }
 
         var invitation = await _workspaceInvitationRepository.GetByWorkspaceAndIdAsync(workspaceId, invitationId, cancellationToken);

@@ -2,7 +2,8 @@ import { apiClient } from "@/lib/apiClient";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 import { getWorkspaceInvitations, type WorkspaceInvitation } from "./workspaceInvitationService";
 
-export type MemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
+export type MemberRole = "Owner" | "WorkspaceManager" | "Manager" | "Member" | "ContentCreator" | "Viewer";
+export type TeamRole = "Manager" | "ContentCreator" | "Viewer";
 export type MemberStatus = "Active" | "Pending" | "Inactive";
 export type QuotaMode = "SharedPool" | "LifetimeAssigned" | "MonthlyAssigned";
 
@@ -150,9 +151,18 @@ interface BEWorkspaceInvitationDto {
 // Role mapping: BE enum values match FE string values
 const ROLE_MAP: Record<number, MemberRole> = {
   1: "Owner",
-  2: "Manager",
-  3: "ContentCreator",
+  2: "WorkspaceManager",
+  3: "Member",
   4: "Viewer",
+};
+
+export const ROLE_TO_BE: Record<MemberRole, number> = {
+  Owner: 1,
+  WorkspaceManager: 2,
+  Manager: 2,
+  Member: 3,
+  ContentCreator: 3,
+  Viewer: 4,
 };
 
 function mapRole(beRole: number): MemberRole {
@@ -326,7 +336,7 @@ export async function fetchMembers(): Promise<{ data: TeamMember[]; total: numbe
 }
 
 export async function inviteMember(data: InviteMemberData): Promise<TeamMember> {
-  const roleValue = ({ Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 } as const)[data.role];
+  const roleValue = ROLE_TO_BE[data.role] ?? 3;
   const payload: Record<string, unknown> = { email: data.email, role: roleValue, teamIds: data.teamIds };
   if (data.quotaMode) {
     payload.quotaMode = QUOTA_MODE_BE[data.quotaMode];
@@ -359,7 +369,7 @@ export async function inviteMember(data: InviteMemberData): Promise<TeamMember> 
 }
 
 export async function updateMemberRole(id: string, role: MemberRole): Promise<TeamMember | null> {
-  const roleValue = ({ Owner: 1, Manager: 2, ContentCreator: 3, Viewer: 4 } as const)[role];
+  const roleValue = ROLE_TO_BE[role] ?? 3;
   const res: GenericResponse<BEWorkspaceMemberDto> = await apiClient(`/workspace-members/${id}/role`, {
     method: "PUT",
     data: { role: roleValue },

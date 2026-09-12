@@ -1,0 +1,73 @@
+name: Backend CI & PostgreSQL Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "AISAM-BE/**"
+      - ".github/workflows/ci-postgres-test.yml"
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - "AISAM-BE/**"
+      - ".github/workflows/ci-postgres-test.yml"
+
+jobs:
+  test:
+    name: Build & Test (.NET 8 + Real PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aisam_user
+          POSTGRES_PASSWORD: aisam_secure_password
+          POSTGRES_DB: aisam_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install EF Core CLI Tools
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Restore dependencies
+        run: dotnet restore AISAM-BE/AISAM.sln
+
+      - name: Build Solution
+        run: dotnet build AISAM-BE/AISAM.sln --no-restore --configuration Release
+
+      - name: Apply EF Core Migrations to PostgreSQL
+        env:
+          CONNECTION_STRING: "Host=localhost;Port=5432;Database=aisam_ci_test;Username=aisam_user;Password=aisam_secure_password"
+        run: >
+          dotnet ef database update
+          --project AISAM-BE/AISAM.Repositories/AISAM.Repositories.csproj
+          --startup-project AISAM-BE/AISAM.API/AISAM.API.csproj
+          --connection "$CONNECTION_STRING"
+
+      - name: Run Integration Tests (Real PostgreSQL + Lock + Trigger Integrity)
+        env:
+          CONNECTION_STRING: "Host=localhost;Port=5432;Database=aisam_ci_test;Username=aisam_user;Password=aisam_secure_password"
+        run: >
+          dotnet test AISAM-BE/tests/AISAM.IntegrationTests/AISAM.IntegrationTests.csproj
+          --no-build
+          --configuration Release
+          --verbosity normal

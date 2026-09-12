@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 
@@ -17,6 +18,7 @@ public class AisamContextFactory : IDesignTimeDbContextFactory<AisamContext>
         var optionsBuilder = new DbContextOptionsBuilder<AisamContext>();
         optionsBuilder.UseNpgsql(dataSource, npgsqlOptions =>
             npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         return new AisamContext(optionsBuilder.Options);
     }
 
