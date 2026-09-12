@@ -17,11 +17,16 @@ public sealed class SocialAuthController : ControllerBase
 {
     private readonly ISocialService _socialService;
     private readonly IProfileRepository _profileRepository;
+    private readonly IOriginResolver _originResolver;
 
-    public SocialAuthController(ISocialService socialService, IProfileRepository profileRepository)
+    public SocialAuthController(
+        ISocialService socialService,
+        IProfileRepository profileRepository,
+        IOriginResolver originResolver)
     {
         _socialService = socialService;
         _profileRepository = profileRepository;
+        _originResolver = originResolver;
     }
 
     [HttpGet("facebook")]
@@ -30,7 +35,8 @@ public sealed class SocialAuthController : ControllerBase
         try
         {
             var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
-            var result = await _socialService.GetAuthUrlAsync("facebook", profileId, cancellationToken);
+            var origin = _originResolver.ResolveOrigin(Request);
+            var result = await _socialService.GetAuthUrlAsync("facebook", profileId, origin, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -90,7 +96,8 @@ public sealed class SocialAuthController : ControllerBase
         try
         {
             var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
-            var result = await _socialService.GetAuthUrlAsync("instagram", profileId, cancellationToken);
+            var origin = _originResolver.ResolveOrigin(Request);
+            var result = await _socialService.GetAuthUrlAsync("instagram", profileId, origin, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -149,7 +156,8 @@ public sealed class SocialAuthController : ControllerBase
         try
         {
             var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
-            var result = await _socialService.GetAuthUrlAsync("tiktok", profileId, cancellationToken);
+            var origin = _originResolver.ResolveOrigin(Request);
+            var result = await _socialService.GetAuthUrlAsync("tiktok", profileId, origin, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)

@@ -1022,7 +1022,7 @@ public class AdCampaignServiceTests
 
     private sealed class FakeSocialService : ISocialService
     {
-        public Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, CancellationToken cancellationToken = default) => Task.FromResult(new AuthUrlResponse());
+        public Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, string? origin = null, CancellationToken cancellationToken = default) => Task.FromResult(new AuthUrlResponse());
         public Task<SocialAccountDto> LinkAccountAsync(string provider, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default) => Task.FromResult(new SocialAccountDto());
         public Task<IReadOnlyList<SocialAccountDto>> GetProfileAccountsAsync(Guid profileId, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<SocialAccountDto>>(new List<SocialAccountDto> { new SocialAccountDto { Provider = "facebook", AccessToken = "test-token" } });

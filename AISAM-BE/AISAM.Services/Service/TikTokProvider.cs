@@ -428,7 +428,7 @@ public sealed class TikTokProvider : IProviderService
     {
         if (string.IsNullOrWhiteSpace(_settings.ClientKey) ||
             string.IsNullOrWhiteSpace(_settings.ClientSecret) ||
-            string.IsNullOrWhiteSpace(_settings.RedirectUri))
+            (string.IsNullOrWhiteSpace(_settings.RedirectUri) && string.IsNullOrWhiteSpace(_settings.RedirectPath)))
         {
             throw new InvalidOperationException("TikTok integration is not configured.");
         }

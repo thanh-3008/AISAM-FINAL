@@ -9,6 +9,7 @@ import { useToast } from "@/contexts/ToastContext";
 import WorkspaceSettingsSidebar, { WorkspaceSection } from "@/components/layout/WorkspaceSettingsSidebar";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { apiFetch } from "@/lib/apiClient";
+import { resolveClientOrigin } from "@/lib/originResolver";
 import {
   changePassword,
   getPaymentHistory,
@@ -492,8 +493,8 @@ export default function ProfileDetailPage() {
       const category = workspace?.workspaceType === 2 ? "business" : "personal";
       const checkout = await createCheckout({
         planCode: planCodes[planType] || "Plus",
-        returnUrl: `${window.location.origin}/pricing?category=${category}`,
-        cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
+        returnUrl: `${resolveClientOrigin()}/pricing?category=${category}`,
+        cancelUrl: `${resolveClientOrigin()}/profiles/${id}?section=subscription&payment=cancelled`,
       });
       if (!checkout?.checkoutUrl) {
         throw new Error("Backend did not return a PayOS checkout URL.");
@@ -736,8 +737,8 @@ export default function ProfileDetailPage() {
     try {
       const checkout = await createCreditPackCheckout({
         creditPackCode: CREDIT_PACK_CODES_BY_ID[selectedCreditPack.id] || 1,
-        returnUrl: `${window.location.origin}/profiles/${id}?section=subscription`,
-        cancelUrl: `${window.location.origin}/profiles/${id}?section=subscription&payment=cancelled`,
+        returnUrl: `${resolveClientOrigin()}/profiles/${id}?section=subscription`,
+        cancelUrl: `${resolveClientOrigin()}/profiles/${id}?section=subscription&payment=cancelled`,
       });
       if (checkout?.checkoutUrl) {
         if (checkout.orderCode) {

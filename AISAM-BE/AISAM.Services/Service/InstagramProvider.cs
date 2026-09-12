@@ -261,8 +261,12 @@ public sealed class InstagramProvider : IProviderService
 
     private void EnsureConfigured()
     {
-        if (string.IsNullOrWhiteSpace(_settings.AppId) || string.IsNullOrWhiteSpace(_settings.AppSecret) || string.IsNullOrWhiteSpace(_settings.RedirectUri))
+        if (string.IsNullOrWhiteSpace(_settings.AppId) ||
+            string.IsNullOrWhiteSpace(_settings.AppSecret) ||
+            (string.IsNullOrWhiteSpace(_settings.RedirectUri) && string.IsNullOrWhiteSpace(_settings.RedirectPath)))
+        {
             throw new InvalidOperationException("Instagram integration is not configured.");
+        }
     }
 
     private static T? TryDeserialize<T>(string json)

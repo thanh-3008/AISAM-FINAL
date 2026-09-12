@@ -38,6 +38,7 @@ public sealed class PayOSPaymentService : IPaymentService
     private readonly AisamContext? _context;
     private readonly ISystemSettingRepository _systemSettingRepository;
     private readonly ILogger<PayOSPaymentService> _logger;
+    private readonly IOriginResolver? _originResolver;
 
     public PayOSPaymentService(
         IPaymentRepository paymentRepository,
@@ -51,7 +52,8 @@ public sealed class PayOSPaymentService : IPaymentService
         HttpClient httpClient,
         ISystemSettingRepository systemSettingRepository,
         AisamContext? context = null,
-        ILogger<PayOSPaymentService>? logger = null)
+        ILogger<PayOSPaymentService>? logger = null,
+        IOriginResolver? originResolver = null)
     {
         _paymentRepository = paymentRepository;
         _subscriptionRepository = subscriptionRepository;
@@ -63,9 +65,9 @@ public sealed class PayOSPaymentService : IPaymentService
         _settings = settings.Value;
         _httpClient = httpClient;
         _systemSettingRepository = systemSettingRepository;
-        _logger = logger;
         _context = context;
         _logger = logger ?? NullLogger<PayOSPaymentService>.Instance;
+        _originResolver = originResolver;
     }
 
     public async Task<GenericResponse<PayOSCheckoutResponse>> CreateCheckoutAsync(
@@ -154,8 +156,14 @@ public sealed class PayOSPaymentService : IPaymentService
         }
 
         var planDefinition = await GetPlanDefinitionAsync(WorkspaceTypeEnum.Business, plan.Value);
-        var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
-        var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
+        var (returnUrl, cancelUrl, urlError) = ResolvePayOsUrls(request.ReturnUrl, request.CancelUrl);
+        if (!string.IsNullOrWhiteSpace(urlError))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                urlError,
+                HttpStatusCode.BadRequest,
+                "PAYOS_INVALID_REDIRECT_URL");
+        }
         if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
         {
             return GenericResponse<PayOSCheckoutResponse>.CreateError(
@@ -337,11 +345,20 @@ public sealed class PayOSPaymentService : IPaymentService
             return GenericResponse<PayOSCheckoutResponse>.CreateError("Selected plan does not require PayOS checkout.", HttpStatusCode.BadRequest, "PLAN_DOES_NOT_REQUIRE_PAYMENT");
         }
 
-        var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
-        var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
+        var (returnUrl, cancelUrl, urlError) = ResolvePayOsUrls(request.ReturnUrl, request.CancelUrl);
+        if (!string.IsNullOrWhiteSpace(urlError))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                urlError,
+                HttpStatusCode.BadRequest,
+                "PAYOS_INVALID_REDIRECT_URL");
+        }
         if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
         {
-            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS return/cancel URL is not configured.", HttpStatusCode.ServiceUnavailable, "PAYOS_URL_NOT_CONFIGURED");
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "PayOS return/cancel URL is not configured.",
+                HttpStatusCode.ServiceUnavailable,
+                "PAYOS_URL_NOT_CONFIGURED");
         }
 
         var orderCode = GenerateOrderCode();
@@ -446,11 +463,20 @@ public sealed class PayOSPaymentService : IPaymentService
         }
 
         var pack = await GetCreditPackDefinitionAsync(request.CreditPackCode.Value);
-        var returnUrl = FirstNonEmpty(request.ReturnUrl, _settings.ReturnUrl);
-        var cancelUrl = FirstNonEmpty(request.CancelUrl, _settings.CancelUrl);
+        var (returnUrl, cancelUrl, urlError) = ResolvePayOsUrls(request.ReturnUrl, request.CancelUrl);
+        if (!string.IsNullOrWhiteSpace(urlError))
+        {
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                urlError,
+                HttpStatusCode.BadRequest,
+                "PAYOS_INVALID_REDIRECT_URL");
+        }
         if (string.IsNullOrWhiteSpace(returnUrl) || string.IsNullOrWhiteSpace(cancelUrl))
         {
-            return GenericResponse<PayOSCheckoutResponse>.CreateError("PayOS return/cancel URL is not configured.", HttpStatusCode.ServiceUnavailable, "PAYOS_URL_NOT_CONFIGURED");
+            return GenericResponse<PayOSCheckoutResponse>.CreateError(
+                "PayOS return/cancel URL is not configured.",
+                HttpStatusCode.ServiceUnavailable,
+                "PAYOS_URL_NOT_CONFIGURED");
         }
 
         var orderCode = GenerateOrderCode();
@@ -1308,6 +1334,81 @@ public sealed class PayOSPaymentService : IPaymentService
             Status = payment.Status.ToString(),
             CreatedAt = payment.CreatedAt
         };
+    }
+
+    private (string returnUrl, string cancelUrl, string? errorMessage) ResolvePayOsUrls(string? candidateReturnUrl, string? candidateCancelUrl)
+    {
+        string returnUrl;
+        string cancelUrl;
+
+        // 1. Resolve returnUrl
+        if (!string.IsNullOrWhiteSpace(candidateReturnUrl))
+        {
+            if (!Uri.TryCreate(candidateReturnUrl, UriKind.Absolute, out var returnUri) ||
+                (returnUri.Scheme != Uri.UriSchemeHttp && returnUri.Scheme != Uri.UriSchemeHttps))
+            {
+                return (string.Empty, string.Empty, "Invalid PayOS return URL format.");
+            }
+
+            var origin = $"{returnUri.Scheme}://{returnUri.Authority}".ToLowerInvariant();
+            if (_originResolver != null && !_originResolver.IsAllowedOrigin(origin))
+            {
+                return (string.Empty, string.Empty, $"Return URL origin '{origin}' is not allowed.");
+            }
+
+            returnUrl = candidateReturnUrl;
+        }
+        else if (!string.IsNullOrWhiteSpace(_settings.ReturnUrl))
+        {
+            returnUrl = _settings.ReturnUrl;
+        }
+        else
+        {
+            var origin = _originResolver?.ResolveOrigin((string?)null) ?? "https://aisam.io.vn";
+            var path = !string.IsNullOrWhiteSpace(_settings.ReturnPath) ? _settings.ReturnPath : "/payment/success";
+            var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
+            returnUrl = $"{origin.TrimEnd('/')}{normalizedPath}";
+        }
+
+        // 2. Resolve cancelUrl
+        if (!string.IsNullOrWhiteSpace(candidateCancelUrl))
+        {
+            if (!Uri.TryCreate(candidateCancelUrl, UriKind.Absolute, out var cancelUri) ||
+                (cancelUri.Scheme != Uri.UriSchemeHttp && cancelUri.Scheme != Uri.UriSchemeHttps))
+            {
+                return (string.Empty, string.Empty, "Invalid PayOS cancel URL format.");
+            }
+
+            var origin = $"{cancelUri.Scheme}://{cancelUri.Authority}".ToLowerInvariant();
+            if (_originResolver != null && !_originResolver.IsAllowedOrigin(origin))
+            {
+                return (string.Empty, string.Empty, $"Cancel URL origin '{origin}' is not allowed.");
+            }
+
+            cancelUrl = candidateCancelUrl;
+        }
+        else if (!string.IsNullOrWhiteSpace(_settings.CancelUrl))
+        {
+            cancelUrl = _settings.CancelUrl;
+        }
+        else
+        {
+            string baseOrigin;
+            if (Uri.TryCreate(returnUrl, UriKind.Absolute, out var parsedReturnUri))
+            {
+                baseOrigin = $"{parsedReturnUri.Scheme}://{parsedReturnUri.Authority}".ToLowerInvariant();
+            }
+            else
+            {
+                baseOrigin = _originResolver?.ResolveOrigin((string?)null) ?? "https://aisam.io.vn";
+            }
+
+            var path = !string.IsNullOrWhiteSpace(_settings.CancelPath) ? _settings.CancelPath : "/payment/cancel";
+            var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
+            cancelUrl = $"{baseOrigin.TrimEnd('/')}{normalizedPath}";
+        }
+
+        return (returnUrl, cancelUrl, null);
     }
 
     private sealed record PlanDefinition(

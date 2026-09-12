@@ -6,7 +6,7 @@ namespace AISAM.Services.IServices;
 
 public interface ISocialService
 {
-    Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, CancellationToken cancellationToken = default);
+    Task<AuthUrlResponse> GetAuthUrlAsync(string provider, Guid profileId, string? origin = null, CancellationToken cancellationToken = default);
     Task<SocialAccountDto> LinkAccountAsync(string provider, Guid profileId, SocialCallbackRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SocialAccountDto>> GetProfileAccountsAsync(Guid profileId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AvailableTargetDto>> ListAvailableTargetsForAccountAsync(Guid profileId, Guid socialAccountId, CancellationToken cancellationToken = default);

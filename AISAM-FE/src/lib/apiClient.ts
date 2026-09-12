@@ -1,8 +1,9 @@
 import { getToken, refreshAccessToken, removeToken, removeRefreshToken, ensureValidToken } from "./auth";
 import { getStoredActiveWorkspace, clearActiveWorkspace } from "@/stores/workspace-store";
 import { getStoredActiveProfile } from "@/stores/profile-store";
+import { fetchWithFailover, getActiveApiUrl, API_URL } from "./apiEndpoint";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api";
+export { getActiveApiUrl, API_URL };
 
 let isRedirectingToLogin = false;
 let isLoggingOut = false;
@@ -33,6 +34,7 @@ type ApiOptions = RequestInit & {
 
 const PUBLIC_AUTH_ENDPOINTS = [
   "/auth/login",
+  "/auth/google",
   "/auth/register",
   "/auth/forgot-password",
   "/auth/reset-password",
@@ -206,7 +208,7 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
     ...(config.headers as Record<string, string> || {}),
     Authorization: `Bearer ${newToken}`,
   };
-  const retryResponse = await fetch(`${API_URL}${endpoint}`, { ...config, headers: newHeaders });
+  const retryResponse = await fetchWithFailover(endpoint, { ...config, headers: newHeaders });
   assertWorkspace(config);
   return handleResponse(retryResponse, config);
 }
@@ -241,7 +243,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
     ...customConfig,
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  const response = await fetchWithFailover(endpoint, config);
   assertWorkspace(config);
 
   if (response.status === 401 && token && !isPublic && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
@@ -265,7 +267,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   const config: RequestInit = { ...options, headers, cache: "no-store" };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  const response = await fetchWithFailover(endpoint, config);
   assertWorkspace(config);
 
   if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {

@@ -15,10 +15,12 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExtension from "@tiptap/extension-underline";
+import HighlightExtension from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Mark } from "@tiptap/react";
 import { readDocument, documentText, formatCaption, safeLink, type RichNode } from "@/lib/richTextDocument";
+
 
 // Quick emoji list
 // ---------------------------------------------------------------------------
@@ -178,7 +180,7 @@ export default function RichTextEditor({
         codeBlock: false,
       }),
       UnderlineExtension,
-      Mark.create({ name: "highlight", parseHTML: () => [{ tag: "mark" }], renderHTML: () => ["mark", {}, 0] }),
+      HighlightExtension,
       Placeholder.configure({
         placeholder,
         emptyNodeClass:
@@ -344,6 +346,18 @@ export default function RichTextEditor({
           title="Strikethrough"
         >
           <span className="line-through">S</span>
+        </ToolbarBtn>
+
+        {/* Highlight */}
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleHighlight().run()}
+          active={editor.isActive("highlight")}
+          title="Highlight"
+        >
+          <span className="relative inline-flex items-center justify-center w-full h-full">
+            <span className="absolute inset-x-0.5 bottom-0.5 h-[60%] bg-yellow-300/60 rounded-sm" />
+            <span className="relative font-bold text-[12px]">H</span>
+          </span>
         </ToolbarBtn>
 
         {/* Uppercase — one-time transform, preserves bold/italic/underline marks */}

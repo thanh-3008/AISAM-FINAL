@@ -92,7 +92,7 @@ export function isLegacyPlaintext(text: string): boolean {
 // Markdown sanitization
 // ---------------------------------------------------------------------------
 
-const ALLOWED_MARKDOWN_MARKS = ["bold", "italic", "underline", "strikethrough"];
+const ALLOWED_MARKDOWN_MARKS = ["bold", "italic", "underline", "strikethrough", "highlight"];
 
 /**
  * Basic markdown sanitization — strips any HTML that might sneak in.
@@ -127,6 +127,8 @@ export function markdownToPlaintext(markdown: string): string {
     .replace(/__([^_]+)__/g, "$1")
     // Remove strikethrough markers
     .replace(/~~([^~]+)~~/g, "$1")
+    // Remove highlight markers
+    .replace(/<mark>([^<]+)<\/mark>/gi, "$1")
     // Convert headings to uppercase text
     .replace(/^#{1,6} (.+)$/gm, (_, text: string) => text.toUpperCase())
     // Convert bullet lists to plain bullets

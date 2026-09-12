@@ -379,6 +379,12 @@ input::-ms-clear {
   content: "";
   margin-bottom: 0.25em;
 }
+.rich-text-preview mark {
+  background-color: #fde68a;
+  color: inherit;
+  padding: 0.05em 0.2em;
+  border-radius: 2px;
+}
 
 /* ── Tiptap Editor Content Styles ────────────────────────────────────── */
 .tiptap p {
@@ -416,6 +422,12 @@ input::-ms-clear {
 }
 .tiptap s {
   text-decoration: line-through;
+}
+.tiptap mark {
+  background-color: #fde68a;
+  color: inherit;
+  padding: 0.05em 0.2em;
+  border-radius: 2px;
 }
 .tiptap:focus {
   outline: none;

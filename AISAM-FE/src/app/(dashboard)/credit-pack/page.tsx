@@ -7,6 +7,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useToast } from "@/contexts/ToastContext";
 import { fetchCreditWallet, type CreditWallet } from "@/services/workspaceService";
 import { createPayment, CREDIT_PACK_CODES_BY_ID, exitPayment, fetchPublicPricing, synchronizeBusinessWorkspacePayment, syncPayOSCallback } from "@/services/paymentService";
+import { resolveClientOrigin } from "@/lib/originResolver";
 
 interface CreditPack {
   id: string;
@@ -202,8 +203,8 @@ export default function CreditPackPage() {
       const payment = await createPayment({
         paymentType: 2,
         creditPackCode,
-        returnUrl: window.location.origin + "/credit-pack?payment=success",
-        cancelUrl: window.location.origin + "/credit-pack?payment=cancelled",
+        returnUrl: resolveClientOrigin() + "/credit-pack?payment=success",
+        cancelUrl: resolveClientOrigin() + "/credit-pack?payment=cancelled",
       });
 
       if (payment?.checkoutUrl) {
