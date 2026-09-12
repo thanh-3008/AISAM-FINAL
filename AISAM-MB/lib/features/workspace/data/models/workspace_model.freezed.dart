@@ -381,6 +381,10 @@ mixin _$WorkspaceMemberResponseModel {
   String get email => throw _privateConstructorUsedError;
   String? get fullName => throw _privateConstructorUsedError;
   int get role => throw _privateConstructorUsedError; // enum
+  int? get quotaMode => throw _privateConstructorUsedError;
+  int? get creditLimit => throw _privateConstructorUsedError;
+  int? get creditUsed => throw _privateConstructorUsedError;
+  DateTime? get creditPeriodStart => throw _privateConstructorUsedError;
   DateTime get joinedAt => throw _privateConstructorUsedError;
 
   /// Serializes this WorkspaceMemberResponseModel to a JSON map.
@@ -410,6 +414,10 @@ abstract class $WorkspaceMemberResponseModelCopyWith<$Res> {
     String email,
     String? fullName,
     int role,
+    int? quotaMode,
+    int? creditLimit,
+    int? creditUsed,
+    DateTime? creditPeriodStart,
     DateTime joinedAt,
   });
 }
@@ -437,6 +445,10 @@ class _$WorkspaceMemberResponseModelCopyWithImpl<
     Object? email = null,
     Object? fullName = freezed,
     Object? role = null,
+    Object? quotaMode = freezed,
+    Object? creditLimit = freezed,
+    Object? creditUsed = freezed,
+    Object? creditPeriodStart = freezed,
     Object? joinedAt = null,
   }) {
     return _then(
@@ -461,6 +473,22 @@ class _$WorkspaceMemberResponseModelCopyWithImpl<
                 ? _value.role
                 : role // ignore: cast_nullable_to_non_nullable
                       as int,
+            quotaMode: freezed == quotaMode
+                ? _value.quotaMode
+                : quotaMode // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            creditLimit: freezed == creditLimit
+                ? _value.creditLimit
+                : creditLimit // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            creditUsed: freezed == creditUsed
+                ? _value.creditUsed
+                : creditUsed // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            creditPeriodStart: freezed == creditPeriodStart
+                ? _value.creditPeriodStart
+                : creditPeriodStart // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
             joinedAt: null == joinedAt
                 ? _value.joinedAt
                 : joinedAt // ignore: cast_nullable_to_non_nullable
@@ -486,6 +514,10 @@ abstract class _$$WorkspaceMemberResponseModelImplCopyWith<$Res>
     String email,
     String? fullName,
     int role,
+    int? quotaMode,
+    int? creditLimit,
+    int? creditUsed,
+    DateTime? creditPeriodStart,
     DateTime joinedAt,
   });
 }
@@ -513,6 +545,10 @@ class __$$WorkspaceMemberResponseModelImplCopyWithImpl<$Res>
     Object? email = null,
     Object? fullName = freezed,
     Object? role = null,
+    Object? quotaMode = freezed,
+    Object? creditLimit = freezed,
+    Object? creditUsed = freezed,
+    Object? creditPeriodStart = freezed,
     Object? joinedAt = null,
   }) {
     return _then(
@@ -537,6 +573,22 @@ class __$$WorkspaceMemberResponseModelImplCopyWithImpl<$Res>
             ? _value.role
             : role // ignore: cast_nullable_to_non_nullable
                   as int,
+        quotaMode: freezed == quotaMode
+            ? _value.quotaMode
+            : quotaMode // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        creditLimit: freezed == creditLimit
+            ? _value.creditLimit
+            : creditLimit // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        creditUsed: freezed == creditUsed
+            ? _value.creditUsed
+            : creditUsed // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        creditPeriodStart: freezed == creditPeriodStart
+            ? _value.creditPeriodStart
+            : creditPeriodStart // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
         joinedAt: null == joinedAt
             ? _value.joinedAt
             : joinedAt // ignore: cast_nullable_to_non_nullable
@@ -556,6 +608,10 @@ class _$WorkspaceMemberResponseModelImpl
     required this.email,
     this.fullName,
     required this.role,
+    this.quotaMode,
+    this.creditLimit,
+    this.creditUsed,
+    this.creditPeriodStart,
     required this.joinedAt,
   });
 
@@ -575,11 +631,19 @@ class _$WorkspaceMemberResponseModelImpl
   final int role;
   // enum
   @override
+  final int? quotaMode;
+  @override
+  final int? creditLimit;
+  @override
+  final int? creditUsed;
+  @override
+  final DateTime? creditPeriodStart;
+  @override
   final DateTime joinedAt;
 
   @override
   String toString() {
-    return 'WorkspaceMemberResponseModel(id: $id, userId: $userId, email: $email, fullName: $fullName, role: $role, joinedAt: $joinedAt)';
+    return 'WorkspaceMemberResponseModel(id: $id, userId: $userId, email: $email, fullName: $fullName, role: $role, quotaMode: $quotaMode, creditLimit: $creditLimit, creditUsed: $creditUsed, creditPeriodStart: $creditPeriodStart, joinedAt: $joinedAt)';
   }
 
   @override
@@ -593,14 +657,33 @@ class _$WorkspaceMemberResponseModelImpl
             (identical(other.fullName, fullName) ||
                 other.fullName == fullName) &&
             (identical(other.role, role) || other.role == role) &&
+            (identical(other.quotaMode, quotaMode) ||
+                other.quotaMode == quotaMode) &&
+            (identical(other.creditLimit, creditLimit) ||
+                other.creditLimit == creditLimit) &&
+            (identical(other.creditUsed, creditUsed) ||
+                other.creditUsed == creditUsed) &&
+            (identical(other.creditPeriodStart, creditPeriodStart) ||
+                other.creditPeriodStart == creditPeriodStart) &&
             (identical(other.joinedAt, joinedAt) ||
                 other.joinedAt == joinedAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, userId, email, fullName, role, joinedAt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    userId,
+    email,
+    fullName,
+    role,
+    quotaMode,
+    creditLimit,
+    creditUsed,
+    creditPeriodStart,
+    joinedAt,
+  );
 
   /// Create a copy of WorkspaceMemberResponseModel
   /// with the given fields replaced by the non-null parameter values.
@@ -629,6 +712,10 @@ abstract class _WorkspaceMemberResponseModel
     required final String email,
     final String? fullName,
     required final int role,
+    final int? quotaMode,
+    final int? creditLimit,
+    final int? creditUsed,
+    final DateTime? creditPeriodStart,
     required final DateTime joinedAt,
   }) = _$WorkspaceMemberResponseModelImpl;
 
@@ -645,6 +732,14 @@ abstract class _WorkspaceMemberResponseModel
   String? get fullName;
   @override
   int get role; // enum
+  @override
+  int? get quotaMode;
+  @override
+  int? get creditLimit;
+  @override
+  int? get creditUsed;
+  @override
+  DateTime? get creditPeriodStart;
   @override
   DateTime get joinedAt;
 

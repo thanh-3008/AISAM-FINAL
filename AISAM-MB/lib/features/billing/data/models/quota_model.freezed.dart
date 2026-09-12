@@ -34,6 +34,12 @@ mixin _$QuotaModel {
   int get textContentCount => throw _privateConstructorUsedError;
   int get imageContentCount => throw _privateConstructorUsedError;
   int get videoContentCount => throw _privateConstructorUsedError;
+  int get creditBalance => throw _privateConstructorUsedError;
+  int get creditsUsed => throw _privateConstructorUsedError;
+  int get maxBalanceCap => throw _privateConstructorUsedError;
+  int? get memberCreditLimit => throw _privateConstructorUsedError;
+  int get memberCreditUsed => throw _privateConstructorUsedError;
+  int? get memberQuotaMode => throw _privateConstructorUsedError;
 
   /// Serializes this QuotaModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -66,6 +72,12 @@ abstract class $QuotaModelCopyWith<$Res> {
     int textContentCount,
     int imageContentCount,
     int videoContentCount,
+    int creditBalance,
+    int creditsUsed,
+    int maxBalanceCap,
+    int? memberCreditLimit,
+    int memberCreditUsed,
+    int? memberQuotaMode,
   });
 }
 
@@ -97,6 +109,12 @@ class _$QuotaModelCopyWithImpl<$Res, $Val extends QuotaModel>
     Object? textContentCount = null,
     Object? imageContentCount = null,
     Object? videoContentCount = null,
+    Object? creditBalance = null,
+    Object? creditsUsed = null,
+    Object? maxBalanceCap = null,
+    Object? memberCreditLimit = freezed,
+    Object? memberCreditUsed = null,
+    Object? memberQuotaMode = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -152,6 +170,30 @@ class _$QuotaModelCopyWithImpl<$Res, $Val extends QuotaModel>
                 ? _value.videoContentCount
                 : videoContentCount // ignore: cast_nullable_to_non_nullable
                       as int,
+            creditBalance: null == creditBalance
+                ? _value.creditBalance
+                : creditBalance // ignore: cast_nullable_to_non_nullable
+                      as int,
+            creditsUsed: null == creditsUsed
+                ? _value.creditsUsed
+                : creditsUsed // ignore: cast_nullable_to_non_nullable
+                      as int,
+            maxBalanceCap: null == maxBalanceCap
+                ? _value.maxBalanceCap
+                : maxBalanceCap // ignore: cast_nullable_to_non_nullable
+                      as int,
+            memberCreditLimit: freezed == memberCreditLimit
+                ? _value.memberCreditLimit
+                : memberCreditLimit // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            memberCreditUsed: null == memberCreditUsed
+                ? _value.memberCreditUsed
+                : memberCreditUsed // ignore: cast_nullable_to_non_nullable
+                      as int,
+            memberQuotaMode: freezed == memberQuotaMode
+                ? _value.memberQuotaMode
+                : memberQuotaMode // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -181,6 +223,12 @@ abstract class _$$QuotaModelImplCopyWith<$Res>
     int textContentCount,
     int imageContentCount,
     int videoContentCount,
+    int creditBalance,
+    int creditsUsed,
+    int maxBalanceCap,
+    int? memberCreditLimit,
+    int memberCreditUsed,
+    int? memberQuotaMode,
   });
 }
 
@@ -211,6 +259,12 @@ class __$$QuotaModelImplCopyWithImpl<$Res>
     Object? textContentCount = null,
     Object? imageContentCount = null,
     Object? videoContentCount = null,
+    Object? creditBalance = null,
+    Object? creditsUsed = null,
+    Object? maxBalanceCap = null,
+    Object? memberCreditLimit = freezed,
+    Object? memberCreditUsed = null,
+    Object? memberQuotaMode = freezed,
   }) {
     return _then(
       _$QuotaModelImpl(
@@ -266,6 +320,30 @@ class __$$QuotaModelImplCopyWithImpl<$Res>
             ? _value.videoContentCount
             : videoContentCount // ignore: cast_nullable_to_non_nullable
                   as int,
+        creditBalance: null == creditBalance
+            ? _value.creditBalance
+            : creditBalance // ignore: cast_nullable_to_non_nullable
+                  as int,
+        creditsUsed: null == creditsUsed
+            ? _value.creditsUsed
+            : creditsUsed // ignore: cast_nullable_to_non_nullable
+                  as int,
+        maxBalanceCap: null == maxBalanceCap
+            ? _value.maxBalanceCap
+            : maxBalanceCap // ignore: cast_nullable_to_non_nullable
+                  as int,
+        memberCreditLimit: freezed == memberCreditLimit
+            ? _value.memberCreditLimit
+            : memberCreditLimit // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        memberCreditUsed: null == memberCreditUsed
+            ? _value.memberCreditUsed
+            : memberCreditUsed // ignore: cast_nullable_to_non_nullable
+                  as int,
+        memberQuotaMode: freezed == memberQuotaMode
+            ? _value.memberQuotaMode
+            : memberQuotaMode // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -288,6 +366,12 @@ class _$QuotaModelImpl implements _QuotaModel {
     this.textContentCount = 0,
     this.imageContentCount = 0,
     this.videoContentCount = 0,
+    this.creditBalance = 0,
+    this.creditsUsed = 0,
+    this.maxBalanceCap = 0,
+    this.memberCreditLimit,
+    this.memberCreditUsed = 0,
+    this.memberQuotaMode,
   });
 
   factory _$QuotaModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -330,10 +414,26 @@ class _$QuotaModelImpl implements _QuotaModel {
   @override
   @JsonKey()
   final int videoContentCount;
+  @override
+  @JsonKey()
+  final int creditBalance;
+  @override
+  @JsonKey()
+  final int creditsUsed;
+  @override
+  @JsonKey()
+  final int maxBalanceCap;
+  @override
+  final int? memberCreditLimit;
+  @override
+  @JsonKey()
+  final int memberCreditUsed;
+  @override
+  final int? memberQuotaMode;
 
   @override
   String toString() {
-    return 'QuotaModel(planName: $planName, subscriptionStatus: $subscriptionStatus, windowStart: $windowStart, windowEnd: $windowEnd, promptQuotaLimit: $promptQuotaLimit, promptUsage: $promptUsage, promptRemaining: $promptRemaining, postQuotaLimit: $postQuotaLimit, postUsage: $postUsage, postRemaining: $postRemaining, textContentCount: $textContentCount, imageContentCount: $imageContentCount, videoContentCount: $videoContentCount)';
+    return 'QuotaModel(planName: $planName, subscriptionStatus: $subscriptionStatus, windowStart: $windowStart, windowEnd: $windowEnd, promptQuotaLimit: $promptQuotaLimit, promptUsage: $promptUsage, promptRemaining: $promptRemaining, postQuotaLimit: $postQuotaLimit, postUsage: $postUsage, postRemaining: $postRemaining, textContentCount: $textContentCount, imageContentCount: $imageContentCount, videoContentCount: $videoContentCount, creditBalance: $creditBalance, creditsUsed: $creditsUsed, maxBalanceCap: $maxBalanceCap, memberCreditLimit: $memberCreditLimit, memberCreditUsed: $memberCreditUsed, memberQuotaMode: $memberQuotaMode)';
   }
 
   @override
@@ -366,12 +466,24 @@ class _$QuotaModelImpl implements _QuotaModel {
             (identical(other.imageContentCount, imageContentCount) ||
                 other.imageContentCount == imageContentCount) &&
             (identical(other.videoContentCount, videoContentCount) ||
-                other.videoContentCount == videoContentCount));
+                other.videoContentCount == videoContentCount) &&
+            (identical(other.creditBalance, creditBalance) ||
+                other.creditBalance == creditBalance) &&
+            (identical(other.creditsUsed, creditsUsed) ||
+                other.creditsUsed == creditsUsed) &&
+            (identical(other.maxBalanceCap, maxBalanceCap) ||
+                other.maxBalanceCap == maxBalanceCap) &&
+            (identical(other.memberCreditLimit, memberCreditLimit) ||
+                other.memberCreditLimit == memberCreditLimit) &&
+            (identical(other.memberCreditUsed, memberCreditUsed) ||
+                other.memberCreditUsed == memberCreditUsed) &&
+            (identical(other.memberQuotaMode, memberQuotaMode) ||
+                other.memberQuotaMode == memberQuotaMode));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     planName,
     subscriptionStatus,
@@ -386,7 +498,13 @@ class _$QuotaModelImpl implements _QuotaModel {
     textContentCount,
     imageContentCount,
     videoContentCount,
-  );
+    creditBalance,
+    creditsUsed,
+    maxBalanceCap,
+    memberCreditLimit,
+    memberCreditUsed,
+    memberQuotaMode,
+  ]);
 
   /// Create a copy of QuotaModel
   /// with the given fields replaced by the non-null parameter values.
@@ -417,6 +535,12 @@ abstract class _QuotaModel implements QuotaModel {
     final int textContentCount,
     final int imageContentCount,
     final int videoContentCount,
+    final int creditBalance,
+    final int creditsUsed,
+    final int maxBalanceCap,
+    final int? memberCreditLimit,
+    final int memberCreditUsed,
+    final int? memberQuotaMode,
   }) = _$QuotaModelImpl;
 
   factory _QuotaModel.fromJson(Map<String, dynamic> json) =
@@ -448,6 +572,18 @@ abstract class _QuotaModel implements QuotaModel {
   int get imageContentCount;
   @override
   int get videoContentCount;
+  @override
+  int get creditBalance;
+  @override
+  int get creditsUsed;
+  @override
+  int get maxBalanceCap;
+  @override
+  int? get memberCreditLimit;
+  @override
+  int get memberCreditUsed;
+  @override
+  int? get memberQuotaMode;
 
   /// Create a copy of QuotaModel
   /// with the given fields replaced by the non-null parameter values.

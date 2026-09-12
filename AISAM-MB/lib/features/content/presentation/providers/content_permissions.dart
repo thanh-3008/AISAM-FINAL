@@ -11,7 +11,16 @@ final contentPermissionsProvider = FutureProvider.autoDispose
           workspace.valueOrNull == null) {
         return [false, false, false, false];
       }
-      return PublishingRepository(
-        ref.watch(dioProvider),
-      ).contentPermissions(id);
+      final role = workspace.valueOrNull?.currentUserRole;
+      // Owner (1) or Manager (2) always has full content & review permissions
+      if (role == 1 || role == 2) {
+        return [true, true, true, true];
+      }
+      try {
+        return await PublishingRepository(
+          ref.watch(dioProvider),
+        ).contentPermissions(id);
+      } catch (_) {
+        return [false, false, false, false];
+      }
     });

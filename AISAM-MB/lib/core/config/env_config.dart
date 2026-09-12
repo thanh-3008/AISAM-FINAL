@@ -12,10 +12,10 @@ class EnvConfig {
   }
 
   static int get connectTimeoutMs =>
-      int.tryParse(dotenv.env['CONNECT_TIMEOUT_MS'] ?? '10000') ?? 10000;
+      int.tryParse(dotenv.env['CONNECT_TIMEOUT_MS'] ?? '30000') ?? 30000;
 
   static int get receiveTimeoutMs =>
-      int.tryParse(dotenv.env['RECEIVE_TIMEOUT_MS'] ?? '15000') ?? 15000;
+      int.tryParse(dotenv.env['RECEIVE_TIMEOUT_MS'] ?? '60000') ?? 60000;
 
   static bool get isDebugMode => kDebugMode;
 }

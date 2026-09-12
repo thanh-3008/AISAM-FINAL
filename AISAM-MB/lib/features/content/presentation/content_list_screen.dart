@@ -151,6 +151,18 @@ class _ContentListItem extends StatelessWidget {
         color = Colors.green;
         text = 'Published';
         break;
+      case ContentStatusEnum.flagged:
+        color = Colors.purple;
+        text = 'Flagged';
+        break;
+      case ContentStatusEnum.rejectedByPlatform:
+        color = Colors.deepOrange;
+        text = 'Platform Rejected';
+        break;
+      case ContentStatusEnum.failed:
+        color = Colors.red.shade900;
+        text = 'Failed';
+        break;
     }
 
     return Container(

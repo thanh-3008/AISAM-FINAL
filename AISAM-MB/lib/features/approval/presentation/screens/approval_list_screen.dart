@@ -9,6 +9,7 @@ import 'approval_detail_screen.dart';
 import '../../../../core/shared/aisam_logo_widget.dart';
 import '../../../../core/shared/profile_avatar_widget.dart';
 import '../widgets/reject_reason_dialog.dart';
+import '../../../../core/errors/app_exception.dart';
 
 class ApprovalListScreen extends ConsumerStatefulWidget {
   const ApprovalListScreen({super.key});
@@ -38,12 +39,26 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
     );
   }
 
+  void _showErrorSnackbar(String prefix, dynamic error) {
+    if (!mounted) return;
+    final message = error is AppException ? error.message : error.toString();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$prefix: $message'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
   Future<void> _showRejectDialogForSwiper(ContentResponseModel item) async {
     final reason = await RejectReasonDialog.show(context);
     if (reason != null) {
       _pendingRejectIds.add(item.id);
       _swiperController.swipe(CardSwiperDirection.left);
-      ref.read(approvalNotifierProvider.notifier).rejectContent(item.id, reason: reason);
+      ref.read(approvalNotifierProvider.notifier).rejectContent(item.id, reason: reason).catchError((e) {
+        _showErrorSnackbar('Lỗi từ chối', e);
+        return false;
+      });
       _showUndoSnackbar(item.id, item.title ?? 'Untitled');
     }
   }
@@ -84,28 +99,57 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
     return pendingAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Error: $error', style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => ref.read(approvalNotifierProvider.notifier).refresh(),
-              child: const Text('Thử lại'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                error is AppException ? error.message : '$error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh),
+                onPressed: () => ref.read(approvalNotifierProvider.notifier).refresh(),
+                label: const Text('Thử lại'),
+              ),
+            ],
+          ),
         ),
       ),
       data: (contents) {
         if (contents.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          return RefreshIndicator(
+            onRefresh: () async => ref.read(approvalNotifierProvider.notifier).refresh(),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Icon(Icons.done_all, size: 80, color: Colors.green),
-                SizedBox(height: 16),
-                Text('Tuyệt vời!', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                Text('Bạn đã duyệt hết tất cả bài viết hôm nay.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+                const Icon(Icons.done_all, size: 80, color: Colors.green),
+                const SizedBox(height: 16),
+                const Text(
+                  'Tuyệt vời!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Bạn đã duyệt hết tất cả bài viết hôm nay.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: () => ref.read(approvalNotifierProvider.notifier).refresh(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Làm mới'),
+                  ),
+                ),
               ],
             ),
           );
@@ -163,7 +207,10 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
                   onSwipe: (previousIndex, currentIndex, direction) {
                     final item = contents[previousIndex];
                     if (direction == CardSwiperDirection.right) {
-                      ref.read(approvalNotifierProvider.notifier).approveContent(item.id);
+                      ref.read(approvalNotifierProvider.notifier).approveContent(item.id).catchError((e) {
+                        _showErrorSnackbar('Lỗi duyệt bài', e);
+                        return false;
+                      });
                       _showUndoSnackbar(item.id, item.title ?? 'Untitled');
                       return true;
                     } else if (direction == CardSwiperDirection.left) {
@@ -390,16 +437,35 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (item.imageUrl != null)
-                        Image.network(item.imageUrl!, fit: BoxFit.cover)
-                      else
-                        Center(
-                          child: Icon(
-                            item.adType == AdTypeEnum.videoText ? Icons.videocam : Icons.image,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final previewImage = item.legacyImageUrls.isNotEmpty
+                              ? item.legacyImageUrls.first
+                              : (item.imageUrl != null && item.imageUrl!.startsWith('http')
+                                  ? item.imageUrl
+                                  : null);
+                          if (previewImage != null) {
+                            return Image.network(
+                              previewImage,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Icon(
+                                  item.adType == AdTypeEnum.videoText ? Icons.videocam : Icons.image,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            );
+                          }
+                          return Center(
+                            child: Icon(
+                              item.adType == AdTypeEnum.videoText ? Icons.videocam : Icons.image,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
+                      ),
                       // AI Badge overlay
                       Positioned(
                         bottom: 12,
@@ -482,7 +548,29 @@ class _ApprovalListScreenState extends ConsumerState<ApprovalListScreen> {
 
     return historyAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(child: Text('Error: $error')),
+      error: (error, stack) => Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 8),
+              Text(
+                error is AppException ? error.message : '$error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh),
+                onPressed: () => ref.read(historyApprovalNotifierProvider.notifier).refresh(),
+                label: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      ),
       data: (contents) {
         if (contents.isEmpty) {
           return const Center(

@@ -7,7 +7,7 @@ part of 'ai_generation_controller.dart';
 // **************************************************************************
 
 String _$aiGenerationControllerHash() =>
-    r'675b3cdfbe0db759828a6bf897e7e10424828235';
+    r'6f35cf97a786ed0e64547ccdf7ca9bb8e4320941';
 
 /// See also [AiGenerationController].
 @ProviderFor(AiGenerationController)

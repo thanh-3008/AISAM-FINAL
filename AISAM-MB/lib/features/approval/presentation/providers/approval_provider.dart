@@ -28,7 +28,7 @@ class ApprovalNotifier extends _$ApprovalNotifier {
       return true;
     } catch (e) {
       debugPrint('Approve error: $e');
-      return false;
+      rethrow;
     }
   }
 
@@ -40,7 +40,7 @@ class ApprovalNotifier extends _$ApprovalNotifier {
       return true;
     } catch (e) {
       debugPrint('Reject error: $e');
-      return false;
+      rethrow;
     }
   }
 
@@ -48,7 +48,9 @@ class ApprovalNotifier extends _$ApprovalNotifier {
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _fetchPendingApprovals());
-    ref.read(historyApprovalNotifierProvider.notifier).refresh();
+    try {
+      ref.read(historyApprovalNotifierProvider.notifier).refresh();
+    } catch (_) {}
   }
 }
 

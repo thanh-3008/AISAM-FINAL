@@ -43,13 +43,14 @@ class _RejectReasonDialogState extends State<RejectReasonDialog> {
     }
 
     if (_selectedReason == 'Khác (tự nhập)') {
-      if (_customReasonController.text.trim().isEmpty) {
+      final customText = _customReasonController.text.trim();
+      if (customText.length < 5) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vui lòng nhập lý do')),
+          const SnackBar(content: Text('Vui lòng nhập lý do tối thiểu 5 ký tự')),
         );
         return;
       }
-      Navigator.of(context).pop(_customReasonController.text.trim());
+      Navigator.of(context).pop(customText);
     } else {
       Navigator.of(context).pop(_selectedReason);
     }

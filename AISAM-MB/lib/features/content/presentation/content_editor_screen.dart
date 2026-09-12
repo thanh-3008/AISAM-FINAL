@@ -10,6 +10,7 @@ import '../data/models/content_request.dart';
 import '../data/models/content_model.dart';
 import '../data/models/enums.dart';
 import '../../../core/state/base_state.dart';
+import '../../profile/presentation/providers/brand_controller.dart';
 import 'dart:convert';
 
 // In-memory draft fallback
@@ -168,10 +169,47 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
             child: ListView(
               children: [
                 if (widget.contentId == null) ...[
-                  TextFormField(
-                    controller: _brandIdController,
-                    decoration: const InputDecoration(labelText: 'Brand ID * (UUID)'),
-                    validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+                  ref.watch(brandControllerProvider).when(
+                    data: (brands) {
+                      if (brands.isEmpty) {
+                        return TextFormField(
+                          controller: _brandIdController,
+                          decoration: const InputDecoration(
+                            labelText: 'Brand ID * (UUID)',
+                            helperText: 'Chưa có Brand nào, vui lòng tạo Brand trước',
+                          ),
+                          validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+                        );
+                      }
+                      final currentVal = _brandIdController.text.isNotEmpty && brands.any((b) => b.id == _brandIdController.text)
+                          ? _brandIdController.text
+                          : null;
+                      return DropdownButtonFormField<String>(
+                        value: currentVal,
+                        decoration: const InputDecoration(
+                          labelText: 'Chọn Brand *',
+                          prefixIcon: Icon(Icons.business_outlined),
+                        ),
+                        items: brands.map((b) => DropdownMenuItem(
+                          value: b.id,
+                          child: Text(b.name, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _brandIdController.text = val;
+                            });
+                          }
+                        },
+                        validator: (value) => (_brandIdController.text.isEmpty) ? 'Vui lòng chọn Brand' : null,
+                      );
+                    },
+                    loading: () => const LinearProgressIndicator(),
+                    error: (_, __) => TextFormField(
+                      controller: _brandIdController,
+                      decoration: const InputDecoration(labelText: 'Brand ID * (UUID)'),
+                      validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+                    ),
                   ),
                   const SizedBox(height: 16),
                 ],

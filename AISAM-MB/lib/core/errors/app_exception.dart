@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 
 abstract class AppException implements Exception {
@@ -30,6 +31,10 @@ class AccessDeniedException extends AppException {
   AccessDeniedException(super.message, {super.code, super.originalError});
 }
 
+class NotFoundException extends AppException {
+  NotFoundException(super.message, {super.code, super.originalError});
+}
+
 class ConflictException extends AppException {
   ConflictException(super.message, {super.code, super.originalError});
 }
@@ -60,31 +65,107 @@ class ExceptionHandler {
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.connectionError:
         return NetworkException(
-          'Network connection timeout.',
+          'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.',
+          originalError: error,
+        );
+      case DioExceptionType.cancel:
+        return UnknownException(
+          error.message ?? 'Yêu cầu đã bị hủy.',
           originalError: error,
         );
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
-        String message = 'Unexpected server response.';
+        String message = '';
         String? code;
 
         try {
-          if (error.response?.data != null) {
-            final data = error.response!.data;
-            if (data is Map<String, dynamic>) {
-              // Try to map to GenericResponse
-              final detail = data['error'];
-              message =
-                  (detail is Map ? detail['errorMessage'] : null)?.toString() ??
-                  data['message']?.toString() ??
-                  message;
-              code =
-                  (detail is Map ? detail['errorCode'] : null)?.toString() ??
-                  data['errorCode']?.toString();
+          dynamic data = error.response?.data;
+          // If response data is a String, attempt to decode it as JSON or use as plain text
+          if (data is String && data.trim().isNotEmpty) {
+            try {
+              data = jsonDecode(data);
+            } catch (_) {
+              final trimmed = data.trim();
+              if (!trimmed.startsWith('<') && trimmed.length <= 500) {
+                message = trimmed;
+              }
+            }
+          }
+
+          if (data is Map) {
+            final detail = data['error'];
+            if (detail is Map) {
+              message = detail['errorMessage']?.toString() ??
+                  detail['message']?.toString() ??
+                  '';
+              code = detail['errorCode']?.toString();
+            } else if (detail is String && detail.trim().isNotEmpty) {
+              message = detail.trim();
+            }
+
+            if (message.isEmpty) {
+              message = data['message']?.toString() ??
+                  data['errorMessage']?.toString() ??
+                  data['detail']?.toString() ??
+                  data['title']?.toString() ??
+                  '';
+            }
+            code ??= data['errorCode']?.toString() ?? data['code']?.toString();
+
+            // Extract ASP.NET Core model validation errors if message is still empty or generic
+            if ((message.isEmpty || message == 'One or more validation errors occurred.') &&
+                data['errors'] is Map) {
+              final errorsMap = data['errors'] as Map;
+              for (final val in errorsMap.values) {
+                if (val is List && val.isNotEmpty) {
+                  message = val.first.toString();
+                  break;
+                } else if (val is String && val.isNotEmpty) {
+                  message = val;
+                  break;
+                }
+              }
             }
           }
         } catch (_) {
           // Ignore parsing error
+        }
+
+        // Meaningful Vietnamese fallbacks based on HTTP status code if no server message
+        if (message.trim().isEmpty) {
+          switch (statusCode) {
+            case 400:
+              message = 'Yêu cầu không hợp lệ hoặc dữ liệu không đúng.';
+              break;
+            case 401:
+              message = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+              break;
+            case 403:
+              message = 'Bạn không có quyền thực hiện thao tác này trong workspace hiện tại.';
+              break;
+            case 404:
+              message = 'Không tìm thấy nội dung yêu cầu.';
+              break;
+            case 409:
+              message = 'Dữ liệu đã bị thay đổi hoặc xung đột. Vui lòng tải lại.';
+              break;
+            case 413:
+              message = 'Dung lượng tải lên vượt quá giới hạn cho phép.';
+              break;
+            case 422:
+              message = 'Dữ liệu không đáp ứng quy chuẩn xử lý.';
+              break;
+            case 500:
+              message = 'Máy chủ gặp sự cố nội bộ. Vui lòng thử lại sau.';
+              break;
+            case 502:
+            case 503:
+            case 504:
+              message = 'Máy chủ đang bảo trì hoặc tạm thời không phản hồi. Vui lòng thử lại sau.';
+              break;
+            default:
+              message = 'Lỗi phản hồi từ máy chủ (${statusCode ?? "unknown"}).';
+          }
         }
 
         if (statusCode == 401) {
@@ -93,8 +174,14 @@ class ExceptionHandler {
             code: code,
             originalError: error,
           );
-        } else if (statusCode == 403 || statusCode == 404) {
+        } else if (statusCode == 403) {
           return AccessDeniedException(
+            message,
+            code: code,
+            originalError: error,
+          );
+        } else if (statusCode == 404) {
+          return NotFoundException(
             message,
             code: code,
             originalError: error,
@@ -115,7 +202,7 @@ class ExceptionHandler {
         return UnknownException(message, code: code, originalError: error);
       default:
         return UnknownException(
-          'An unexpected error occurred.',
+          'Đã xảy ra lỗi không xác định.',
           originalError: error,
         );
     }

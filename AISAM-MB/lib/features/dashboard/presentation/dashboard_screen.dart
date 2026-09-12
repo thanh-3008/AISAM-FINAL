@@ -530,6 +530,12 @@ class DashboardScreen extends ConsumerWidget {
         return 'Bị từ chối';
       case ContentStatusEnum.draft:
         return 'Bản nháp';
+      case ContentStatusEnum.flagged:
+        return 'Cần xem xét';
+      case ContentStatusEnum.rejectedByPlatform:
+        return 'Nền tảng từ chối';
+      case ContentStatusEnum.failed:
+        return 'Đăng thất bại';
     }
   }
 

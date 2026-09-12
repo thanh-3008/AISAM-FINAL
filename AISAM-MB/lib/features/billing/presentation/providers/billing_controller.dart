@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/billing_repository.dart';
 import '../../data/models/quota_model.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../workspace/presentation/providers/workspace_controller.dart';
 
 part 'billing_controller.g.dart';
 
@@ -9,6 +10,7 @@ part 'billing_controller.g.dart';
 class BillingController extends _$BillingController {
   @override
   AsyncValue<QuotaModel> build() {
+    ref.watch(activeWorkspaceControllerProvider);
     _fetchQuota();
     return const AsyncValue.loading();
   }

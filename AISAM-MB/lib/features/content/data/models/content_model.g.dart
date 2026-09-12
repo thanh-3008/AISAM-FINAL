@@ -72,4 +72,7 @@ const _$ContentStatusEnumEnumMap = {
   ContentStatusEnum.approved: 2,
   ContentStatusEnum.rejected: 3,
   ContentStatusEnum.published: 4,
+  ContentStatusEnum.flagged: 5,
+  ContentStatusEnum.rejectedByPlatform: 6,
+  ContentStatusEnum.failed: 7,
 };

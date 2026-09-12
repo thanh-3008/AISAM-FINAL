@@ -33,7 +33,8 @@ class ChatRepository {
       };
       final response = await _dio.get('/conversations', queryParameters: queryParams);
       // Expected: GenericResponse<PagedResult<ConversationResponseDto>>
-      final items = response.data['data']['items'] as List;
+      final dataObj = response.data['data'];
+      final items = (dataObj is Map ? (dataObj['data'] ?? dataObj['items']) : dataObj) as List? ?? [];
       if (items.isEmpty) return [];
       return await compute(_parseConversationList, items);
     } catch (e) {
