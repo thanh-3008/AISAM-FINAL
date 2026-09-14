@@ -102,6 +102,44 @@ describe("apiEndpoint", () => {
     expect(getActiveApiUrl()).toContain("ddns.net");
   });
 
+  it("automatically fails over on HTTP 500 Internal Server Error", async () => {
+    // Attempt 1: HTTP 500 Internal Server Error on primary
+    (global.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+    });
+    // Attempt 2: Fallback succeeds
+    (global.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+    });
+
+    const response = await fetchWithFailover("/brands");
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(getActiveApiUrl()).toContain("ddns.net");
+  });
+
+  it("prioritizes ddns.net endpoint when window.location.hostname is aisam.ddns.net", () => {
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = {
+      ...originalLocation,
+      hostname: "aisam.ddns.net",
+      origin: "https://aisam.ddns.net",
+    } as any;
+
+    try {
+      const endpoints = getApiEndpoints();
+      expect(endpoints[0]).toContain("aisam.ddns.net");
+      expect(getActiveApiUrl()).toContain("aisam.ddns.net");
+    } finally {
+      window.location = originalLocation as any;
+    }
+  });
+
   it("does not failover when caller signal is intentionally aborted", async () => {
     const controller = new AbortController();
     controller.abort(new DOMException("User cancelled", "AbortError"));
@@ -111,5 +149,15 @@ describe("apiEndpoint", () => {
     ).rejects.toThrow();
 
     expect(global.fetch).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not ping-pong active API url when all endpoints fail", async () => {
+    const initial = getActiveApiUrl();
+    (global.fetch as Mock).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(fetchWithFailover("/test")).rejects.toThrow("Failed to fetch");
+
+    // Active URL should NOT oscillate or mutate to an unverified endpoint
+    expect(getActiveApiUrl()).toBe(initial);
   });
 });

@@ -378,6 +378,7 @@ namespace AISAM.Repositories
             modelBuilder.Entity<TeamMember>(entity =>
             {
                 entity.HasKey(tm => tm.Id);
+                entity.Property(tm => tm.Role).HasConversion<int>();
                 entity.HasIndex(tm => new { tm.TeamId, tm.UserId }).IsUnique();
                 entity.HasIndex(tm => tm.TeamId);
                 entity.HasIndex(tm => tm.UserId);

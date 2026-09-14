@@ -9,6 +9,7 @@ public sealed class AutomationGenerationBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AutomationGenerationBackgroundService> _logger;
+    private int _consecutiveFailures = 0;
 
     public AutomationGenerationBackgroundService(IServiceScopeFactory scopeFactory, ILogger<AutomationGenerationBackgroundService> logger)
     {
@@ -26,12 +27,19 @@ public sealed class AutomationGenerationBackgroundService : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 delay = await scope.ServiceProvider.GetRequiredService<IAutomationGenerationService>()
                     .ProcessNextAsync(stoppingToken);
+
+                _consecutiveFailures = 0;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Automation generation worker iteration failed.");
-                delay = TimeSpan.FromSeconds(5);
+                _consecutiveFailures++;
+                var backoffSeconds = Math.Min(5 * (int)Math.Pow(2, Math.Min(_consecutiveFailures, 4)), 60);
+                delay = TimeSpan.FromSeconds(backoffSeconds);
+
+                _logger.LogError(exception,
+                    "Automation generation worker iteration failed (attempt #{Failures}). Backing off for {DelaySeconds}s.",
+                    _consecutiveFailures, backoffSeconds);
             }
 
             try { await Task.Delay(delay, stoppingToken); }

@@ -17,7 +17,35 @@ function cleanUrl(url: string): string {
 export function getApiEndpoints(): string[] {
   const endpoints: string[] = [];
 
-  // 1. Support comma-separated list
+  // 1. Determine current domain context in browser
+  let isDdnsHost = false;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname.toLowerCase();
+    isDdnsHost = host === "aisam.ddns.net" || host.endsWith(".ddns.net");
+  }
+
+  const primary = cleanUrl(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api");
+  const fallback = cleanUrl(process.env.NEXT_PUBLIC_FALLBACK_API_URL || "https://aisam.ddns.net/api");
+
+  // 2. If user is accessing via ddns.net, prioritize DDNS endpoint as primary
+  if (isDdnsHost) {
+    if (fallback && !endpoints.includes(fallback)) {
+      endpoints.push(fallback);
+    }
+    if (primary && !endpoints.includes(primary)) {
+      endpoints.push(primary);
+    }
+  } else {
+    // Normal order: Primary first, Fallback second
+    if (primary && !endpoints.includes(primary)) {
+      endpoints.push(primary);
+    }
+    if (fallback && !endpoints.includes(fallback)) {
+      endpoints.push(fallback);
+    }
+  }
+
+  // 3. Support comma-separated list
   const listEnv = process.env.NEXT_PUBLIC_API_URLS;
   if (listEnv) {
     for (const item of listEnv.split(",")) {
@@ -26,18 +54,6 @@ export function getApiEndpoints(): string[] {
         endpoints.push(cleaned);
       }
     }
-  }
-
-  // 2. Primary endpoint
-  const primary = cleanUrl(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api");
-  if (!endpoints.includes(primary)) {
-    endpoints.push(primary);
-  }
-
-  // 3. Fallback endpoint
-  const fallback = cleanUrl(process.env.NEXT_PUBLIC_FALLBACK_API_URL || "https://aisam.ddns.net/api");
-  if (!endpoints.includes(fallback)) {
-    endpoints.push(fallback);
   }
 
   return endpoints;
@@ -49,15 +65,23 @@ let currentActiveUrl = endpoints[0] || "http://localhost:5027/api";
 export function getActiveApiUrl(): string {
   if (typeof window !== "undefined") {
     try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
+      const all = getApiEndpoints();
+      const storageKey = `${STORAGE_KEY}_${window.location.hostname}`;
+      const saved = sessionStorage.getItem(storageKey);
       if (saved) {
         const cleaned = cleanUrl(saved);
-        const all = getApiEndpoints();
         if (all.includes(cleaned)) {
           currentActiveUrl = cleaned;
           API_URL = cleaned;
           return cleaned;
         }
+      }
+
+      // Default to endpoints[0] (which auto-prioritizes DDNS when on aisam.ddns.net)
+      if (all.length > 0) {
+        currentActiveUrl = all[0];
+        API_URL = all[0];
+        return all[0];
       }
     } catch {
       // Ignore sessionStorage read errors
@@ -72,6 +96,8 @@ export function setActiveApiUrl(url: string): void {
   API_URL = cleaned;
   if (typeof window !== "undefined") {
     try {
+      const storageKey = `${STORAGE_KEY}_${window.location.hostname}`;
+      sessionStorage.setItem(storageKey, cleaned);
       sessionStorage.setItem(STORAGE_KEY, cleaned);
     } catch {
       // Ignore sessionStorage write errors
@@ -143,15 +169,26 @@ export async function fetchWithFailover(
   options?: FetchWithFailoverOptions
 ): Promise<Response> {
   const allEndpoints = getApiEndpoints();
-  const maxAttempts = options?.disableFailover ? 1 : Math.min(allEndpoints.length, 3);
+  if (allEndpoints.length === 0) {
+    throw new Error("No API endpoint configured");
+  }
+
+  const initialActive = getActiveApiUrl();
+  // Build candidate endpoints starting from the currently active endpoint
+  const candidates: string[] = [
+    initialActive,
+    ...allEndpoints.filter((ep) => ep !== initialActive),
+  ];
+
+  const maxAttempts = options?.disableFailover ? 1 : Math.min(candidates.length, 3);
   const timeoutMs = options?.timeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
 
   let lastError: unknown = null;
   let lastResponse: Response | null = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const activeBase = getActiveApiUrl();
-    const targetUrl = buildTargetUrl(pathOrUrl, activeBase);
+    const candidateBase = candidates[attempt];
+    const targetUrl = buildTargetUrl(pathOrUrl, candidateBase);
 
     // Timeout controller linked with caller signal
     const timeoutController = new AbortController();
@@ -181,22 +218,28 @@ export async function fetchWithFailover(
       clearTimeout(timeoutId);
       callerSignal?.removeEventListener("abort", onCallerAbort);
 
-      // Treat 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout as eligible for failover
+      // Treat 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout as eligible for failover
       if (
-        (response.status === 502 || response.status === 503 || response.status === 504) &&
+        response.status >= 500 &&
+        response.status <= 504 &&
         attempt < maxAttempts - 1
       ) {
         lastResponse = response;
         if (typeof console !== "undefined") {
           console.warn(
-            `[API Failover] Endpoint ${activeBase} returned HTTP ${response.status}. Attempting failover...`
+            `[API Failover] Endpoint ${candidateBase} returned HTTP ${response.status}. Attempting failover...`
           );
         }
-        switchActiveApiUrl();
         continue;
       }
 
-      // Success or application-level status (2xx, 4xx, 500, etc.)
+      // Success or application-level status (2xx, 4xx, 500 on last attempt, etc.)
+      // If we recovered using a fallback candidate and it returned a valid response (< 500),
+      // update the global active URL so future requests go to the working endpoint.
+      if (candidateBase !== initialActive && response.status < 500) {
+        setActiveApiUrl(candidateBase);
+      }
+
       return response;
     } catch (err: any) {
       clearTimeout(timeoutId);
@@ -212,10 +255,9 @@ export async function fetchWithFailover(
       if (attempt < maxAttempts - 1) {
         if (typeof console !== "undefined") {
           console.warn(
-            `[API Failover] Endpoint ${activeBase} failed (${err?.message || err}). Attempting failover...`
+            `[API Failover] Endpoint ${candidateBase} failed (${err?.message || err}). Attempting failover...`
           );
         }
-        switchActiveApiUrl();
         continue;
       }
 

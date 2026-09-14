@@ -135,6 +135,41 @@ public sealed class GoogleAuthCorsTests
         Assert.Contains("Invalid Google token", body.Message);
     }
 
+    [Fact]
+    public async Task GoogleLogin_SupportsMultipleGoogleClientIds()
+    {
+        await using var context = CreateContext();
+        var userRepo = new UserRepository(context);
+        var sessionRepo = new InMemorySessionRepository();
+        var emailService = new NoOpEmailService();
+        var jwtSettings = Options.Create(new JwtSettings
+        {
+            SecretKey = "super-secret-key-that-is-at-least-thirty-two-bytes-long",
+            Issuer = "AISAM.Tests",
+            Audience = "AISAM.Tests"
+        });
+        var googleSettings = Options.Create(new GoogleSettings
+        {
+            ClientId = "43118156867-0dh5ovhipv99k69jubp3oqcetaflcss6.apps.googleusercontent.com,1040352896411-m2o2nrfbf2mad913tkl0p49g3bj70hsj.apps.googleusercontent.com"
+        });
+
+        var authService = new AuthService(userRepo, sessionRepo, emailService, jwtSettings, googleSettings);
+        var controller = new AuthController(authService, NullLogger<AuthController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        var response = await controller.GoogleLogin(new GoogleLoginRequest { IdToken = "invalid-token" });
+
+        var unauthorizedResult = Assert.IsType<UnauthorizedObjectResult>(response);
+        var body = Assert.IsType<GenericResponse<object>>(unauthorizedResult.Value);
+        Assert.False(body.Success);
+        Assert.Contains("Invalid Google token", body.Message);
+    }
+
     private sealed class InMemorySessionRepository : ISessionRepository
     {
         private readonly List<Session> _sessions = [];

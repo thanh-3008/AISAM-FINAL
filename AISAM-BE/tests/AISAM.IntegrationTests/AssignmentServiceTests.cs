@@ -35,7 +35,7 @@ public class AssignmentServiceTests
         db.Add(new WorkspaceMember { WorkspaceId = workspace.Id, UserId = owner.Id, Role = WorkspaceMemberRoleEnum.Owner, IsActive = true });
         db.Add(new WorkspaceMember { WorkspaceId = workspace.Id, UserId = member.Id, Role = WorkspaceMemberRoleEnum.ContentCreator, IsActive = true });
         // Team has only a ContentCreator, no Manager
-        db.Add(new TeamMember { TeamId = team.Id, UserId = member.Id, Role = "ContentCreator", IsActive = true });
+        db.Add(new TeamMember { TeamId = team.Id, UserId = member.Id, Role = TeamRoleEnum.ContentCreator, IsActive = true });
         await db.SaveChangesAsync();
 
         var access = new FakeAccessControlService();
@@ -68,7 +68,7 @@ public class AssignmentServiceTests
         db.Add(new WorkspaceMember { WorkspaceId = workspace.Id, UserId = owner.Id, Role = WorkspaceMemberRoleEnum.Owner, IsActive = true });
         db.Add(new WorkspaceMember { WorkspaceId = workspace.Id, UserId = manager.Id, Role = WorkspaceMemberRoleEnum.Manager, IsActive = true });
         // Team has a Manager
-        db.Add(new TeamMember { TeamId = team.Id, UserId = manager.Id, Role = "Manager", IsActive = true });
+        db.Add(new TeamMember { TeamId = team.Id, UserId = manager.Id, Role = TeamRoleEnum.Manager, IsActive = true });
         await db.SaveChangesAsync();
 
         var access = new FakeAccessControlService();
