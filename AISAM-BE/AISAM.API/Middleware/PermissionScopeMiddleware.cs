@@ -28,10 +28,10 @@ public sealed class PermissionScopeMiddleware(RequestDelegate next)
             where b.IsActive && t.WorkspaceId==workspace && !t.IsDeleted && t.Status==TeamStatusEnum.Active && member.UserId==actor && member.IsActive
             select new {b.Id,b.BrandId,b.TeamId,member.Permissions,member.Role};
         var rows=await assignments.ToListAsync(http.RequestAborted);
-        db.PermissionManager=membership.Role==WorkspaceMemberRoleEnum.Manager || rows.Any(r=>r.Role=="Manager");
+        db.PermissionManager=membership.Role==WorkspaceMemberRoleEnum.Manager || rows.Any(r=>r.Role==TeamRoleEnum.Manager);
         db.PermissionTeamIds=rows.Select(r=>r.TeamId).Distinct().ToArray();
-        db.PermissionViewAllBrandIds=rows.Where(r=>r.Permissions.Contains(DelegatedPermissionKeys.ViewAllCreators)).Select(r=>r.BrandId).Distinct().ToArray();
-        db.PermissionReviewBrandIds=rows.Where(r=>r.Permissions.Contains(DelegatedPermissionKeys.Review)).Select(r=>r.BrandId).Distinct().ToArray();
+        db.PermissionViewAllBrandIds=rows.Where(r=>r.Permissions!=null && r.Permissions.Contains(DelegatedPermissionKeys.ViewAllCreators)).Select(r=>r.BrandId).Distinct().ToArray();
+        db.PermissionReviewBrandIds=rows.Where(r=>r.Permissions!=null && r.Permissions.Contains(DelegatedPermissionKeys.Review)).Select(r=>r.BrandId).Distinct().ToArray();
         var assignmentIds=rows.Select(r=>r.Id).ToArray();
         var grantedChannelIds = await db.TeamChannelAccesses.AsNoTracking().Where(c=>assignmentIds.Contains(c.TeamBrandId) && c.CanView).Select(c=>c.IntegrationId).Distinct().ToListAsync(http.RequestAborted);
         var managedBrandIds = db.PermissionBrandIds;

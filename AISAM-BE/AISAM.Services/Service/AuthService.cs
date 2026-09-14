@@ -118,9 +118,25 @@ namespace AISAM.Services.Service
                     throw new UnauthorizedAccessException("Google login is not configured");
                 }
 
+                // Collect all configured Google client IDs (supports comma/semicolon separated values)
+                var trustedAudiences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var id in _googleSettings.ClientId.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    trustedAudiences.Add(id);
+                }
+
+                if (trustedAudiences.Count == 0)
+                {
+                    throw new UnauthorizedAccessException("Google login is not configured");
+                }
+
+                // Allow both known client IDs for this system (Web frontend and Mobile app/dev)
+                trustedAudiences.Add("43118156867-0dh5ovhipv99k69jubp3oqcetaflcss6.apps.googleusercontent.com");
+                trustedAudiences.Add("1040352896411-m2o2nrfbf2mad913tkl0p49g3bj70hsj.apps.googleusercontent.com");
+
                 var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, new GoogleJsonWebSignature.ValidationSettings
                 {
-                    Audience = new[] { _googleSettings.ClientId }
+                    Audience = trustedAudiences
                 });
 
                 if (payload == null)

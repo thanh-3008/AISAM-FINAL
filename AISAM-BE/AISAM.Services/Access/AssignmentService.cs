@@ -100,7 +100,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
             {
                 var hasManager = await db.TeamMembers.AsNoTracking()
                     .AnyAsync(m => m.TeamId == team.Id
-                                && m.Role == "Manager"
+                                && m.Role == TeamRoleEnum.Manager
                                 && m.IsActive, ct);
                 if (!hasManager)
                     throw new InvalidOperationException("TEAM_REQUIRES_MANAGER");

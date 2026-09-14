@@ -38,4 +38,32 @@ public class PermissionScopeMiddlewareTests
         Assert.Equal("Original",(await verify.Contents.SingleAsync()).TextContent);
         Assert.Empty(await verify.AuditLogs.ToListAsync());
     }
+
+    [Fact]
+    public async Task TeamMemberWithManagerRoleEnablesPermissionManager()
+    {
+        var options = new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new AisamContext(options);
+        var user = new User { Email = "team-mgr@example.test" };
+        var w = new Workspace { WorkspaceType = WorkspaceTypeEnum.Business };
+        var membership = new WorkspaceMember { WorkspaceId = w.Id, UserId = user.Id, Workspace = w, Role = WorkspaceMemberRoleEnum.ContentCreator };
+        var b = new Brand { WorkspaceId = w.Id }; var team = new Team { WorkspaceId = w.Id, Status = TeamStatusEnum.Active };
+        db.AddRange(user, w, membership, b, team,
+            new TeamBrand { TeamId = team.Id, BrandId = b.Id, IsActive = true },
+            new TeamMember { TeamId = team.Id, UserId = user.Id, Role = TeamRoleEnum.Manager, IsActive = true, Permissions = new List<string>() });
+        await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+
+        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], "test")) };
+        http.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey] = membership;
+
+        bool managerScopeObserved = false;
+        var middleware = new PermissionScopeMiddleware(async ctx =>
+        {
+            managerScopeObserved = db.PermissionManager;
+            await Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(http, db, new AccessControlService(db));
+        Assert.True(managerScopeObserved);
+    }
 }

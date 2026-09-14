@@ -9,13 +9,25 @@ namespace AISAM.Services.Service;
 public sealed class AutomationExecutionLock : IAsyncDisposable
 {
     private readonly NpgsqlConnection? _connection;
-    private AutomationExecutionLock(NpgsqlConnection? connection) => _connection = connection;
+    private readonly NpgsqlTransaction? _transaction;
+
+    private AutomationExecutionLock(NpgsqlConnection? connection, NpgsqlTransaction? transaction = null)
+    {
+        _connection = connection;
+        _transaction = transaction;
+    }
 
     public static async Task<AutomationExecutionLock?> TryAcquireAsync(AisamContext db, long key, CancellationToken ct)
     {
         if (!db.Database.IsNpgsql()) return new(null);
         var rawConnectionString = db.Database.GetConnectionString();
-        var configuration = new NpgsqlConnectionStringBuilder(rawConnectionString) { Pooling = false };
+        var configuration = new NpgsqlConnectionStringBuilder(rawConnectionString)
+        {
+            Pooling = true,
+            MaxPoolSize = 2,
+            Timeout = 5,
+            ConnectionIdleLifetime = 15
+        };
         if (string.IsNullOrEmpty(configuration.Password))
         {
             try
@@ -40,12 +52,27 @@ public sealed class AutomationExecutionLock : IAsyncDisposable
             var transaction = await connection.BeginTransactionAsync(ct);
             await using var command = new NpgsqlCommand("SELECT pg_try_advisory_xact_lock(@key)", connection, transaction);
             command.Parameters.AddWithValue("key", key);
-            if (await command.ExecuteScalarAsync(ct) is true) return new(connection);
+            if (await command.ExecuteScalarAsync(ct) is true) return new(connection, transaction);
+            await transaction.DisposeAsync();
             await connection.DisposeAsync();
             return null;
         }
-        catch { await connection.DisposeAsync(); throw; }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
 
-    public ValueTask DisposeAsync() => _connection?.DisposeAsync() ?? ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
+    {
+        if (_transaction != null)
+        {
+            try { await _transaction.DisposeAsync(); } catch { }
+        }
+        if (_connection != null)
+        {
+            try { await _connection.DisposeAsync(); } catch { }
+        }
+    }
 }

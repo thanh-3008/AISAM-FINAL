@@ -106,7 +106,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 t.TeamMembers.Count(m => m.IsActive),
                 t.TeamBrands.Count(b => b.IsActive),
                 t.CreatedAt,
-                t.TeamMembers.Any(m => m.IsActive && m.Role == "Manager")))
+                t.TeamMembers.Any(m => m.IsActive && m.Role == TeamRoleEnum.Manager)))
             .ToListAsync(ct);
 
         return (teams, count);
@@ -132,7 +132,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             team.CreatedAt, team.UpdatedAt,
             team.TeamMembers.Select(m => new TeamMemberDto(
                 m.UserId, m.User?.FullName ?? m.User?.Email ?? "Unknown",
-                m.User?.Email ?? "", m.Role, m.JoinedAt, m.IsActive)).ToList(),
+                m.User?.Email ?? "", m.Role.ToString(), m.JoinedAt, m.IsActive)).ToList(),
             team.TeamBrands.Select(b => new TeamBrandDto(
                 b.BrandId, b.Brand?.Name ?? "Unknown", b.IsActive, b.AssignedAt)).ToList());
     }
@@ -183,7 +183,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         {
             TeamId = team.Id,
             UserId = actor,
-            Role = member.Role.ToString(),
+            Role = TeamRoleEnum.Manager,
             JoinedAt = DateTime.UtcNow,
             IsActive = true
         });
@@ -227,7 +227,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 {
                     TeamId = team.Id,
                     UserId = resolvedUserId,
-                    Role = string.IsNullOrWhiteSpace(mi.Role) ? "ContentCreator" : mi.Role,
+                    Role = ParseTeamRole(mi.Role),
                     JoinedAt = DateTime.UtcNow,
                     IsActive = true
                 });
@@ -369,7 +369,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
                 throw new ArgumentException("User is already an active member of this team.");
             // Reactivate
             existing.IsActive = true;
-            existing.Role = string.IsNullOrWhiteSpace(role) ? wsMember.Role.ToString() : role;
+            existing.Role = ParseTeamRole(role);
             existing.JoinedAt = DateTime.UtcNow;
         }
         else
@@ -378,7 +378,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             {
                 TeamId = teamId,
                 UserId = resolvedUserId,
-                Role = string.IsNullOrWhiteSpace(role) ? wsMember.Role.ToString() : role,
+                Role = ParseTeamRole(role),
                 JoinedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -386,14 +386,14 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         }
 
         Audit(actor, workspace, "team.member_add", "team_members", teamId,
-            newValues: new { UserId = resolvedUserId, Role = existing.Role },
+            newValues: new { UserId = resolvedUserId, Role = existing.Role.ToString() },
             teamId: teamId, affectedUser: resolvedUserId);
 
         await db.SaveChangesAsync(ct);
 
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == resolvedUserId, ct);
         return new TeamMemberDto(resolvedUserId, user?.FullName ?? user?.Email ?? "Unknown",
-            user?.Email ?? "", existing.Role, existing.JoinedAt, true);
+            user?.Email ?? "", existing.Role.ToString(), existing.JoinedAt, true);
     }
 
     // ── Remove Team Member ──────────────────────────────────────────────
@@ -410,7 +410,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         member.IsActive = false;
 
         Audit(actor, workspace, "team.member_remove", "team_members", teamId,
-            oldValues: new { UserId = userId, member.Role },
+            oldValues: new { UserId = userId, Role = member.Role.ToString() },
             teamId: teamId, affectedUser: userId);
 
         await db.SaveChangesAsync(ct);
@@ -428,17 +428,24 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             ?? throw new KeyNotFoundException("Team member not found.");
 
         var oldRole = member.Role;
-        member.Role = newRole;
+        member.Role = ParseTeamRole(newRole);
 
         Audit(actor, workspace, "team.member_role_update", "team_members", teamId,
-            oldValues: new { UserId = userId, Role = oldRole },
-            newValues: new { Role = newRole },
+            oldValues: new { UserId = userId, Role = oldRole.ToString() },
+            newValues: new { Role = member.Role.ToString() },
             teamId: teamId, affectedUser: userId);
 
         await db.SaveChangesAsync(ct);
 
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId, ct);
         return new TeamMemberDto(userId, user?.FullName ?? user?.Email ?? "Unknown",
-            user?.Email ?? "", member.Role, member.JoinedAt, true);
+            user?.Email ?? "", member.Role.ToString(), member.JoinedAt, true);
+    }
+
+    private static TeamRoleEnum ParseTeamRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return TeamRoleEnum.ContentCreator;
+        if (Enum.TryParse<TeamRoleEnum>(role.Trim(), true, out var parsed)) return parsed;
+        return TeamRoleEnum.ContentCreator;
     }
 }
