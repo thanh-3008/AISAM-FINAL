@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
+import { useRbac } from "@/contexts/RbacContext";
 import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission } from "@/services/permissionService";
 import Header from "@/components/layout/Header";
@@ -391,10 +392,11 @@ export default function ApprovalsPage() {
   const router = useRouter();
   const { activeWorkspace } = useWorkspaces();
   const featureGate = useFeatureGate();
+  const rbac = useRbac();
 
   const canPublish = featureGate.can("publishPost");
   const canManageSchedules = featureGate.can("manageSchedules");
-  const isOwnerOrManager = !!(
+  const isOwnerOrManager = !rbac && !!(
     activeWorkspace?.isOwner ||
     activeWorkspace?.memberRole === "Owner" ||
     activeWorkspace?.memberRole === "Manager" ||
@@ -1016,7 +1018,8 @@ export default function ApprovalsPage() {
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
                                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
                               </button>
-                              {isApprovedStatus(item.status) && (canPublish || canManageSchedules) && (
+                              {rbac && isApprovedStatus(item.status) && <button className="text-sm text-primary underline" onClick={() => router.push(`/content/${item.id}`)}>Xem quyền đăng và lên lịch</button>}
+                              {!rbac && isApprovedStatus(item.status) && (canPublish || canManageSchedules) && (
                                 <>
                                   {canPublish && <button onClick={() => { setPostNowItem(item); }}
                                     className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all relative group/btn" title="Post Now">
@@ -1476,7 +1479,8 @@ export default function ApprovalsPage() {
                     Delete Rejected Content
                   </button>
                 )}
-                {isApprovedStatus(drawerItem.status) && (canPublish || canManageSchedules) && (
+                {rbac && isApprovedStatus(drawerItem.status) && <button className="text-sm text-primary underline" onClick={() => router.push(`/content/${drawerItem.id}`)}>Xem quyền đăng và lên lịch</button>}
+                {!rbac && isApprovedStatus(drawerItem.status) && (canPublish || canManageSchedules) && (
                   <>
                     {canPublish && <button onClick={() => { setPostNowItem(drawerItem); setDrawerItem(null); }}
                       className="flex-1 bg-primary text-on-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all shadow-sm">

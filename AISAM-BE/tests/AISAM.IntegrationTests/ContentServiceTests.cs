@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+using AISAM.Repositories;
+using AISAM.Services.Access;
 using AISAM.Common.Dtos.Response;
 using AISAM.Common;
 using AISAM.Common.Dtos;
@@ -14,6 +17,35 @@ namespace AISAM.IntegrationTests;
 
 public class ContentServiceTests
 {
+    [Fact]
+    public async Task V2ServiceRequiresTeamAndRejectsReviewOrStatusBypass()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var w=new Workspace();var u=new User{Email="creator@example.test"};var b=new Brand{WorkspaceId=w.Id};var t=new Team{WorkspaceId=w.Id};
+        var c=new Content{WorkspaceId=w.Id,BrandId=b.Id,TeamId=t.Id,PrimaryCreatorId=u.Id};
+        db.AddRange(w,u,b,t,c,new WorkspaceMember{WorkspaceId=w.Id,UserId=u.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},new TeamBrand{TeamId=t.Id,BrandId=b.Id},new TeamMember{TeamId=t.Id,UserId=u.Id,Role=TeamRoleEnum.ContentCreator});await db.SaveChangesAsync();
+        db.PermissionActorId=u.Id;
+        var repo=new FakeContentRepository(c);
+        var service=CreateService(repo,new FakeBrandRepository(b),access:new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)),context:db);
+        Assert.False((await service.CreateInWorkspaceAsync(w.Id,Guid.NewGuid(),u.Id,new CreateContentRequest{BrandId=b.Id})).Success);
+        Assert.True((await service.CreateInWorkspaceAsync(w.Id,Guid.NewGuid(),u.Id,new CreateContentRequest{BrandId=b.Id,TeamId=t.Id})).Success);
+        Assert.False((await service.UpdateInWorkspaceAsync(c.Id,w.Id,new UpdateContentRequest{Status=ContentStatusEnum.Approved},WorkspaceMemberRoleEnum.Owner)).Success);
+        Assert.Equal(ContentStatusEnum.Draft,c.Status);
+        Assert.False((await service.ApproveAsync(c.Id,w.Id,u.Id)).Success);
+        c.Status=ContentStatusEnum.Approved; await db.SaveChangesAsync();
+        Assert.Equal(403,(await service.WithdrawApprovalAsync(c.Id,w.Id)).StatusCode);
+        var member=await db.TeamMembers.SingleAsync();member.Role=TeamRoleEnum.Manager;
+        var schedule=new ContentCalendar{ContentId=c.Id,WorkspaceId=w.Id,Status=ScheduleStatusEnum.Pending};
+        db.Add(schedule);await db.SaveChangesAsync();
+        Assert.Equal(409,(await service.WithdrawApprovalAsync(c.Id,w.Id)).StatusCode);
+        Assert.Equal(ContentStatusEnum.Approved,c.Status);
+        schedule.IsActive=false;await db.SaveChangesAsync();
+        Assert.True((await service.WithdrawApprovalAsync(c.Id,w.Id)).Success);
+        Assert.Equal(ContentStatusEnum.Draft,c.Status);
+        Assert.Null(c.ApprovedSnapshotId);
+        Assert.Null(c.SubmittedSnapshotId);
+        Assert.Contains(c.Approvals,a=>a.Status==ContentStatusEnum.Draft);
+    }
     [Fact]
     public async Task WorkspaceCreateAttributesActorInsteadOfProfile()
     {
@@ -355,7 +387,7 @@ public class ContentServiceTests
         IProductRepository? productRepository = null,
         IContentCalendarRepository? contentCalendarRepository = null,
         IWorkspaceRepository? workspaceRepository = null,
-        INotificationRepository? notificationRepository = null)
+        INotificationRepository? notificationRepository = null, IAccessControlService? access=null, AisamContext? context=null)
     {
         return new ContentService(
             contentRepository,
@@ -369,7 +401,7 @@ public class ContentServiceTests
             new FakeQuotaService(),
             contentCalendarRepository ?? new FakeContentCalendarRepository(),
             workspaceRepository ?? new FakeWorkspaceRepository(),
-            notificationRepository);
+            notificationRepository,access,context);
     }
 
     private sealed class FakeNotificationRepository : INotificationRepository

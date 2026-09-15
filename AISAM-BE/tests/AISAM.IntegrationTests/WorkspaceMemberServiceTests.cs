@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using AISAM.Common.Dtos.Request;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
@@ -11,6 +12,23 @@ namespace AISAM.IntegrationTests;
 
 public class WorkspaceMemberServiceTests
 {
+    [Fact]
+    public async Task V2ManagerRemovalRevokesTeamsAndOwnerTransferUsesV2()
+    {
+        await using var db=CreateContext();var f=SeedWorkspace(db);
+        f.Owner.WorkspaceRoleV2=WorkspaceRoleV2.Owner;f.Manager.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;f.Viewer.WorkspaceRoleV2=WorkspaceRoleV2.Member;
+        var team=new Team{WorkspaceId=f.Workspace.Id};
+        var tm=new TeamMember{TeamId=team.Id,UserId=f.Viewer.UserId};db.AddRange(team,tm);await db.SaveChangesAsync();
+        var cfg=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{["Rbac:UseV2"]="true"}).Build();
+        var service=new WorkspaceMemberService(new WorkspaceMemberRepository(db,cfg),new WorkspaceRepository(db),new SubscriptionRepository(db),cfg,db);
+        Assert.False((await service.UpdateRoleAsync(f.Workspace.Id,f.Manager.UserId,f.Viewer.Id,new UpdateWorkspaceMemberRoleRequest{WorkspaceRole=WorkspaceRoleV2.WorkspaceManager})).Success);
+        Assert.False((await service.RemoveAsync(f.Workspace.Id,f.Manager.UserId,f.Owner.Id)).Success);
+        Assert.True((await service.RemoveAsync(f.Workspace.Id,f.Manager.UserId,f.Viewer.Id)).Success);
+        Assert.False(tm.IsActive);
+        Assert.True((await service.TransferOwnershipAsync(f.Workspace.Id,f.Owner.UserId,new TransferWorkspaceOwnershipRequest{TargetMemberId=f.Manager.Id})).Success);
+        Assert.Equal(WorkspaceRoleV2.Owner,f.Manager.WorkspaceRoleV2);
+        Assert.Equal(WorkspaceRoleV2.WorkspaceManager,f.Owner.WorkspaceRoleV2);
+    }
     [Fact]
     public async Task GetMembersAsync_AllowsActiveMember()
     {

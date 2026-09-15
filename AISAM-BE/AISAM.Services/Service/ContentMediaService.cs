@@ -53,7 +53,7 @@ public sealed class ContentMediaService(AisamContext db,IAccessControlService ac
     public async Task<IReadOnlyList<UploadItemResult>> UploadAsync(Guid actor,Guid workspace,Guid contentId,IReadOnlyList<IFormFile> files,CancellationToken ct)
     {
         await Require(actor,workspace,contentId,ResourcePermission.ContentEdit,ct);
-        if(files.Count is <1 or >10 || files.Sum(f=>f.Length)>200L*1024*1024)throw new ArgumentException("Upload 1–10 files, maximum 200MB total and 50MB per file.");
+        if(files.Count is <1 or >10 || files.Sum(f=>f.Length)>200L*1024*1024)throw new ArgumentException("Upload 1â€“10 files, maximum 200MB total and 50MB per file.");
         var content=await db.Contents.AsNoTracking().SingleAsync(c=>c.Id==contentId,ct);
         var results=new List<UploadItemResult>();
         for(int index=0;index<files.Count;index++)
@@ -109,7 +109,22 @@ public sealed class ContentMediaService(AisamContext db,IAccessControlService ac
             if(content.MediaVersion!=expectedVersion)throw new MediaConflictException();
             var ids=items.Select(i=>i.AssetId).ToArray();
             var assets=await db.Assets.IgnoreQueryFilters().Where(a=>ids.Contains(a.Id) && a.WorkspaceId==workspace && a.BrandId==content.BrandId && a.ExpiredAt==null).ToListAsync(ct);
-            if(assets.Count!=ids.Length || assets.Any(a=>a.UploadedBy!=actor && !db.PermissionOwner && !db.PermissionManager))throw new ResourceMutationDeniedException();
+            if(access is RbacV2AccessAdapter)
+            {
+                if(assets.Count!=ids.Length)throw new ResourceMutationDeniedException();
+                foreach(var asset in assets)
+                {
+                    var references=await db.ContentMedia.IgnoreQueryFilters().Where(m=>m.AssetId==asset.Id).Select(m=>m.ContentId).Distinct().ToListAsync(ct);
+                    if(references.Count==0)
+                    {
+                        if(asset.UploadedBy!=actor)throw new ResourceMutationDeniedException();
+                    }
+                    else foreach(var reference in references)
+                        if(!(await access.CheckAsync(new(actor,workspace,AccessResourceKind.Content,reference,ResourcePermission.ContentView),ct)).Allowed)
+                            throw new ResourceMutationDeniedException();
+                }
+            }
+            else if(assets.Count!=ids.Length || assets.Any(a=>a.UploadedBy!=actor && !db.PermissionOwner && !db.PermissionManager))throw new ResourceMutationDeniedException();
             db.ContentMedia.RemoveRange(await db.ContentMedia.Where(m=>m.ContentId==contentId).ToListAsync(ct));
             // Delete before insertion avoids transient unique order collisions.
             await db.SaveChangesAsync(ct);

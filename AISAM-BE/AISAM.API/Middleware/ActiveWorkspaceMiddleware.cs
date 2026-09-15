@@ -114,8 +114,8 @@ public sealed class ActiveWorkspaceMiddleware
         }
 
         WorkspaceLifecyclePolicy.SynchronizeStatus(membership.Workspace, DateTime.UtcNow);
-        var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository);
-        if(authorizationError is not null && resourceAccess is not null && membership.Role==WorkspaceMemberRoleEnum.ContentCreator &&
+        var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository, resourceAccess is AISAM.Services.Access.RbacV2AccessAdapter);
+        if(authorizationError is not null && resourceAccess is not null && resourceAccess is not AISAM.Services.Access.RbacV2AccessAdapter && membership.Role==WorkspaceMemberRoleEnum.ContentCreator &&
             !WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) && context.Request.Method==HttpMethods.Post)
         {
             var parts=context.Request.Path.Value?.Split('/',StringSplitOptions.RemoveEmptyEntries) ?? [];
@@ -142,11 +142,31 @@ public sealed class ActiveWorkspaceMiddleware
     private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> ValidateRequestAuthorizationAsync(
         HttpContext context,
         WorkspaceMember membership,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository, bool v2=false)
     {
         var path = context.Request.Path;
         var method = context.Request.Method;
 
+        if(v2)
+        {
+            if(context.Request.Headers["X-RBAC-Contract-Version"]!="2")
+                return (HttpStatusCode.Conflict,"Client requires RBAC contract v2.","RBAC_CLIENT_UPDATE_REQUIRED");
+            if(!membership.IsActive || membership.WorkspaceRoleV2 is not { } role || !Enum.IsDefined(role))
+                return (HttpStatusCode.Forbidden,"Membership has no valid v2 role.","ACTION_NOT_ALLOWED");
+            bool admin=role is WorkspaceRoleV2.Owner or WorkspaceRoleV2.WorkspaceManager;
+            if(path.StartsWithSegments("/api/payment"))
+                return (method==HttpMethods.Get ? admin : role==WorkspaceRoleV2.Owner) ? null :
+                    (HttpStatusCode.Forbidden,"Billing action not allowed.","ACTION_NOT_ALLOWED");
+            if(WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) && method!=HttpMethods.Get &&
+                !(path.Equals(new PathString("/api/permissions/check")) && method==HttpMethods.Post))
+                return (HttpStatusCode.Forbidden,"Workspace is read-only.","WORKSPACE_READ_ONLY");
+            var feature=await EnsureFeatureByRouteAsync(context,membership,subscriptionRepository);
+            if(feature is not null)return feature;
+            if(!admin && ((method!=HttpMethods.Get && (path.StartsWithSegments("/api/brands") || path.StartsWithSegments("/api/products") || (path.StartsWithSegments("/api/teams") && !(path.Value?.Contains("/members")==true)) || path.StartsWithSegments("/api/workspace-members") || path.StartsWithSegments("/api/workspace-invitations"))) ||
+                path.StartsWithSegments("/api/social-auth") || method!=HttpMethods.Get && path.StartsWithSegments("/api/social")))
+                return (HttpStatusCode.Forbidden,"Administrative action not allowed.","ACTION_NOT_ALLOWED");
+            return null; // resource action checks and scoped queries still required
+        }
         // This POST only reads decisions and never changes resource state.
         if (path.Equals(new PathString("/api/permissions/check")) && method == HttpMethods.Post)
             return null;
@@ -295,7 +315,7 @@ public sealed class ActiveWorkspaceMiddleware
     private static async Task<(HttpStatusCode Status, string Message, string? ErrorCode)?> EnsureFeatureByRouteAsync(
         HttpContext context,
         WorkspaceMember membership,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository, bool v2=false)
     {
         if (context.Request.Method == HttpMethods.Get &&
             context.Request.Path.StartsWithSegments("/api/content-schedules"))

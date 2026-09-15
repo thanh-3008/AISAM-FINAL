@@ -10,6 +10,28 @@ using Microsoft.EntityFrameworkCore;
 namespace AISAM.IntegrationTests;
 public class ContentMediaTests
 {
+    [Fact]
+    public async Task V2CannotReuseAnAssetFromAnotherTeamsDraftEvenWhenUploaderMatches()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var w=new Workspace();var u=new User{Email="media@example.test"};var b=new Brand{WorkspaceId=w.Id};
+        var a=new Team{WorkspaceId=w.Id};var other=new Team{WorkspaceId=w.Id};
+        var own=new Content{WorkspaceId=w.Id,BrandId=b.Id,TeamId=a.Id,PrimaryCreatorId=u.Id};
+        var hidden=new Content{WorkspaceId=w.Id,BrandId=b.Id,TeamId=other.Id};
+        var asset=new Asset{Id=Guid.NewGuid(),WorkspaceId=w.Id,BrandId=b.Id,UploadedBy=u.Id,StoragePath="https://storage.test/private.png"};
+        db.AddRange(w,u,b,a,other,own,hidden,asset,
+            new WorkspaceMember{WorkspaceId=w.Id,UserId=u.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
+            new TeamMember{TeamId=a.Id,UserId=u.Id,Role=TeamRoleEnum.ContentCreator},
+            new TeamBrand{TeamId=a.Id,BrandId=b.Id},new TeamBrand{TeamId=other.Id,BrandId=b.Id});
+        await db.SaveChangesAsync();
+        db.Add(new ContentMedia{ContentId=hidden.Id,AssetId=asset.Id});await db.SaveChangesAsync();
+        var service=new ContentMediaService(db,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)),new Storage());
+        await Assert.ThrowsAsync<ResourceMutationDeniedException>(()=>service.ReplaceAsync(u.Id,w.Id,own.Id,own.MediaVersion,[new(asset.Id,0)],default));
+        db.PermissionScopeEnabled=db.PermissionV2Enabled=true;db.PermissionWorkspaceId=w.Id;db.PermissionActorId=u.Id;
+        db.PermissionTeamIds=[a.Id];db.PermissionWriteTeamIds=[a.Id];db.PermissionBrandIds=[b.Id];
+        Assert.Empty(await db.Assets.ToArrayAsync());
+        Assert.Empty(await db.ContentMedia.ToArrayAsync());
+    }
     private sealed class Access:IAccessControlService
     {
         public Task<AccessDecision> CheckAsync(AccessRequest r,CancellationToken ct=default)=>Task.FromResult(AccessDecision.Permit);

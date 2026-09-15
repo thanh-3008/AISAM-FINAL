@@ -197,6 +197,13 @@ public sealed class ContentController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{contentId:guid}/withdraw")]
+    public async Task<ActionResult<GenericResponse<bool>>> Withdraw(Guid contentId, CancellationToken cancellationToken = default)
+    {
+        var result = await _contentService.WithdrawApprovalAsync(contentId, GetWorkspaceId(), cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{contentId:guid}/approve")]
     public async Task<ActionResult<GenericResponse<ContentResponseDto>>> Approve(
         Guid contentId,

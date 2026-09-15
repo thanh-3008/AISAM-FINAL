@@ -281,7 +281,12 @@ builder.Services.AddHttpClient<IBusinessKycService, BusinessKycService>(client =
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddScoped<IContentService, ContentService>();
-builder.Services.AddScoped<AISAM.Services.Access.IAccessControlService, AISAM.Services.Access.AccessControlService>();
+builder.Services.AddScoped<AISAM.Services.Access.RbacV2AccessResolver>();
+builder.Services.AddScoped<AISAM.API.Filters.WorkspaceHrV2ConcurrencyFilter>();
+if (builder.Configuration.GetValue<bool>("Rbac:UseV2"))
+    builder.Services.AddScoped<AISAM.Services.Access.IAccessControlService, AISAM.Services.Access.RbacV2AccessAdapter>();
+else
+    builder.Services.AddScoped<AISAM.Services.Access.IAccessControlService, AISAM.Services.Access.AccessControlService>();
 builder.Services.AddScoped<AISAM.Services.Access.AssignmentService>();
 builder.Services.AddScoped<AISAM.Services.Access.TeamService>();
 builder.Services.AddScoped<AISAM.Services.Access.MemberPerformanceService>();
@@ -289,7 +294,9 @@ builder.Services.AddScoped<AISAM.Services.Service.ContentMediaService>();
 builder.Services.AddScoped<AISAM.Services.Service.PublishOperationService>();
 builder.Services.AddScoped<AISAM.Services.Service.PublishProgressContext>();
 builder.Services.AddScoped<AISAM.Services.Service.OrphanAssetCleanup>();
-builder.Services.AddHostedService<AISAM.Services.Service.OrphanAssetCleanupWorker>();
+var backgroundJobsEnabled = builder.Configuration.GetValue("BackgroundJobs:Enabled", true);
+if (backgroundJobsEnabled)
+    builder.Services.AddHostedService<AISAM.Services.Service.OrphanAssetCleanupWorker>();
 builder.Services.AddScoped<AISAM.API.Middleware.ResourcePermissionFilter>();
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(o=>o.Filters.AddService<AISAM.API.Middleware.ResourcePermissionFilter>());
 builder.Services.AddScoped<ISocialService, SocialService>();
@@ -338,6 +345,8 @@ builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IMediaStorageService, CloudinaryMediaStorageService>();
 builder.Services.AddSingleton<IBackgroundJobHealthService, BackgroundJobHealthService>();
+if (backgroundJobsEnabled)
+{
 builder.Services.AddHostedService<ScheduledPostingBackgroundService>();
 builder.Services.AddHostedService<AutomationGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationOperationsBackgroundService>();
@@ -345,6 +354,7 @@ builder.Services.AddHostedService<VideoPollingBackgroundService>();
 builder.Services.AddHostedService<VideoGenerationBackgroundService>();
 builder.Services.AddHostedService<CampaignInsightsBackgroundService>();
 builder.Services.AddHostedService<PostInsightsBackgroundService>();
+}
 
 builder.Services.AddScoped<ICampaignInsightsSyncService, CampaignInsightsSyncService>();
 
@@ -413,6 +423,7 @@ builder.Services.AddCors(options =>
         corsBuilder
             .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
+            .WithExposedHeaders("X-HR-Revision")
             .AllowAnyMethod()
             .AllowCredentials();
     });

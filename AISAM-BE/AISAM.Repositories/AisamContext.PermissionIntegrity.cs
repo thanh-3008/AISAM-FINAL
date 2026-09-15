@@ -45,7 +45,9 @@ public partial class AisamContext
             {
                 if (entry.State == EntityState.Added)
                 {
-                    if (ExecutionActorId.HasValue && (!draft.PrimaryCreatorId.HasValue || draft.PrimaryCreatorId == Guid.Empty))
+                    // Interactive requests cannot nominate another author. Workers may
+                    // preserve an explicitly attributed creator from their validated job.
+                    if (ExecutionActorId.HasValue && (!ExecutionIsSystem || !draft.PrimaryCreatorId.HasValue || draft.PrimaryCreatorId == Guid.Empty))
                         draft.PrimaryCreatorId = ExecutionActorId;
                     await EnsureContentTeamAsync(draft, ct);
                 }

@@ -31,6 +31,7 @@ public sealed class AIService : IAIService
     private readonly IMediaStorageService _mediaStorage;
     private readonly IPromptEnhancerService _promptEnhancer;
     private readonly ILogger<AIService> _logger;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
     private const long TextGenerationCredits = 1;
     private const long ImageGenerationCredits = 10;
     private const long VideoGenerationCredits = 100;
@@ -49,7 +50,7 @@ public sealed class AIService : IAIService
         IAIVideoProvider videoProvider,
         IMediaStorageService mediaStorage,
         IPromptEnhancerService promptEnhancer,
-        ILogger<AIService> logger)
+        ILogger<AIService> logger, AISAM.Services.Access.IAccessControlService? access=null)
     {
         _contentRepository = contentRepository;
         _generationRepository = generationRepository;
@@ -63,12 +64,23 @@ public sealed class AIService : IAIService
         _mediaStorage = mediaStorage;
         _promptEnhancer = promptEnhancer;
         _logger = logger;
+        _access=access;
+    }
+
+    private async Task<bool> CanCreateInTeamAsync(Guid actor, Guid workspace, Guid? brand, Guid? team, CancellationToken ct)
+    {
+        if (_access is not AISAM.Services.Access.RbacV2AccessAdapter) return true;
+        if (brand is null || team is null || team == Guid.Empty) return false;
+        return (await _access.CheckAsync(new(actor, workspace, AISAM.Services.Access.AccessResourceKind.Brand,
+            brand.Value, AISAM.Services.Access.ResourcePermission.ContentCreate, TeamId: team), ct)).Allowed;
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateDraftAsync(Guid profileId, Guid workspaceId, Guid userId, CreateDraftRequest request, CancellationToken cancellationToken = default)
     {
         if (userId == Guid.Empty)
             return GenericResponse<AiGenerationResponse>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
+        if (!await CanCreateInTeamAsync(userId, workspaceId, request.BrandId, request.TeamId, cancellationToken))
+            return GenericResponse<AiGenerationResponse>.CreateError("Select a Team with content creation permission for this Brand.", HttpStatusCode.Forbidden);
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, request.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success)
         {
@@ -90,6 +102,7 @@ public sealed class AIService : IAIService
             ProfileId = profileId,
             WorkspaceId = workspaceId,
             BrandId = request.BrandId,
+            TeamId = request.TeamId,
             ProductId = request.ProductId,
             AdType = request.AdType,
             Title = request.Title,
@@ -172,6 +185,9 @@ public sealed class AIService : IAIService
     {
         if (workspaceId.HasValue && (!userId.HasValue || userId == Guid.Empty))
             return GenericResponse<ChatResponse>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter && (!workspaceId.HasValue || !userId.HasValue ||
+            !await CanCreateInTeamAsync(userId.Value, workspaceId.Value, request.BrandId, request.TeamId, cancellationToken)))
+            return GenericResponse<ChatResponse>.CreateError("Select a Team with content creation permission for this Brand.", HttpStatusCode.Forbidden);
         var userMessage = PromptGuard.SanitizePromptInput(request.Message);
         if (string.IsNullOrWhiteSpace(userMessage))
         {
@@ -220,6 +236,8 @@ public sealed class AIService : IAIService
             {
                 return GenericResponse<ChatResponse>.CreateError("Conversation not found.", HttpStatusCode.NotFound);
             }
+            if (_access is AISAM.Services.Access.RbacV2AccessAdapter && (existingConversation.TeamId != request.TeamId || existingConversation.CreatedByUserId != userId))
+                return GenericResponse<ChatResponse>.CreateError("Conversation not found in this Team.", HttpStatusCode.NotFound);
 
             if (existingConversation.BrandId == request.BrandId &&
                 existingConversation.ProductId == request.ProductId &&
@@ -234,12 +252,15 @@ public sealed class AIService : IAIService
             conversation = workspaceId.HasValue
                 ? await _conversationRepository.GetActiveByWorkspaceIdAsync(workspaceId.Value, request.BrandId, request.ProductId, request.AdType, cancellationToken)
                 : await _conversationRepository.GetActiveAsync(profileId, request.BrandId, request.ProductId, request.AdType, cancellationToken);
+            if (_access is AISAM.Services.Access.RbacV2AccessAdapter && conversation != null &&
+                (conversation.TeamId != request.TeamId || conversation.CreatedByUserId != userId)) conversation = null;
             conversation ??= await _conversationRepository.AddAsync(new Conversation
             {
                 CreatedByUserId = userId,
                 ProfileId = profileId,
                 WorkspaceId = workspaceId ?? throw new InvalidOperationException("Workspace context is required."),
                 BrandId = request.BrandId,
+                TeamId = request.TeamId,
                 ProductId = request.ProductId,
                 AdType = request.AdType,
                 Title = userMessage[..Math.Min(userMessage.Length, 255)]
@@ -334,6 +355,7 @@ public sealed class AIService : IAIService
                                 ProfileId = profileId,
                                 WorkspaceId = workspaceId.Value,
                                 BrandId = conversation.BrandId.Value,
+                            TeamId = request.TeamId,
                                 ProductId = conversation.ProductId,
                                 AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
                                 Title = isImageTextRequest ? ExtractGeneratedTitle(responseText) : "Original Product Images",
@@ -371,6 +393,7 @@ public sealed class AIService : IAIService
                             ProfileId = profileId,
                             WorkspaceId = workspaceId.Value,
                             BrandId = conversation.BrandId.Value,
+                            TeamId = request.TeamId,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
                             Title = isImageTextRequest ? ExtractGeneratedTitle(responseText) : "Chat Image Generation",
@@ -459,6 +482,7 @@ public sealed class AIService : IAIService
                             ProfileId = profileId,
                             WorkspaceId = workspaceId.Value,
                             BrandId = conversation.BrandId.Value,
+                            TeamId = request.TeamId,
                             ProductId = conversation.ProductId,
                             AdType = AISAM.Data.Enumeration.AdTypeEnum.VideoText,
                             Title = ExtractGeneratedTitle(responseText),
@@ -533,6 +557,7 @@ public sealed class AIService : IAIService
                         ProfileId = profileId,
                         WorkspaceId = workspaceId.Value,
                         BrandId = conversation.BrandId.Value,
+                            TeamId = request.TeamId,
                         ProductId = conversation.ProductId,
                         AdType = AISAM.Data.Enumeration.AdTypeEnum.ImageText,
                         Title = ExtractGeneratedTitle(responseText),
@@ -892,6 +917,10 @@ public sealed class AIService : IAIService
         if (generation == null || generation.Content.WorkspaceId != workspaceId)
             return GenericResponse<AiGenerationResponse>.CreateError("Generation not found.", HttpStatusCode.NotFound);
 
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter && !(await _access.CheckAsync(new(userId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,generation.ContentId,
+            generation.Status is AiStatusEnum.Completed or AiStatusEnum.Failed ? AISAM.Services.Access.ResourcePermission.ContentView : AISAM.Services.Access.ResourcePermission.ContentEdit),cancellationToken)).Allowed)
+            return GenericResponse<AiGenerationResponse>.CreateError("Video job access was revoked.",HttpStatusCode.Forbidden);
+
         if (generation.Status == AiStatusEnum.Completed || generation.Status == AiStatusEnum.Failed)
         {
             return GenericResponse<AiGenerationResponse>.CreateSuccess(MapGeneration(generation), "Status checked.");
@@ -959,6 +988,8 @@ public sealed class AIService : IAIService
                 await _generationRepository.UpdateAsync(generation, cancellationToken);
 
                 // Update the associated Content so it shows up in the frontend
+                if (_access is AISAM.Services.Access.RbacV2AccessAdapter && !(await _access.CheckAsync(new(userId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,generation.ContentId,AISAM.Services.Access.ResourcePermission.ContentEdit),cancellationToken)).Allowed)
+                    return GenericResponse<AiGenerationResponse>.CreateError("Video job access was revoked.",HttpStatusCode.Forbidden);
                 generation.Content.VideoUrl = url;
                 await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
 

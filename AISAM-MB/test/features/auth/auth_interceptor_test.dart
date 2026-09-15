@@ -50,6 +50,33 @@ void main() {
     refresh.close(force: true);
   });
 
+  test('v2 header and HR revision are scoped to actor and workspace', () async {
+    dio.httpClientAdapter = AsyncAdapter((request) async {
+      expect(request.headers['X-RBAC-Contract-Version'], '2');
+      if (request.method == 'GET') {
+        return ResponseBody.fromString('{}', 200, headers: {
+          Headers.contentTypeHeader: ['application/json'], 'X-HR-Revision': ['revision-a'],
+        });
+      }
+      expect(request.headers['If-Match'], storage.cachedWorkspaceId == 'workspace-a' ? 'revision-a' : null);
+      return body(200);
+    });
+    await dio.get('/api/teams/manage');
+    await dio.post('/api/teams');
+    await storage.saveActiveWorkspaceId('workspace-b');
+    await dio.post('/api/teams');
+  });
+
+  test('HR conflicts are surfaced once and never auto-retried', () async {
+    for (final status in [403, 409, 428]) {
+      var calls = 0;
+      dio.httpClientAdapter = AsyncAdapter((request) async { calls++; return body(status); });
+      await expectLater(dio.post('/api/teams'), throwsA(isA<DioException>()));
+      expect(calls, 1);
+      expect(storage.cachedAccessToken, 'old');
+    }
+  });
+
   test('drops response received after workspace switch', () async {
     dio.httpClientAdapter = AsyncAdapter((request) async {
       expect(request.headers['X-Workspace-Id'], 'workspace-a');

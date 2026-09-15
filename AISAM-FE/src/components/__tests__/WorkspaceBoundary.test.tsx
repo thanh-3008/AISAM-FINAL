@@ -14,14 +14,15 @@ it("does not hide the workspace for a single forbidden feature", async () => {
   expect(screen.queryByLabelText("draft")).not.toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 });
-it("clears page state on workspace change and hides it on denied access", () => {
+it("clears page state on workspace change and hides it on denied access", async () => {
   render(<WorkspaceBoundary><Draft /></WorkspaceBoundary>);
+  await screen.findByLabelText("draft");
   fireEvent.change(screen.getByLabelText("draft"), { target: { value: "private draft A" } });
-  act(() => window.dispatchEvent(new Event("aisam-workspace-changed")));
+  await act(async () => window.dispatchEvent(new Event("aisam-workspace-changed")));
   expect((screen.getByLabelText("draft") as HTMLInputElement).value).toBe("");
   act(() => window.dispatchEvent(new Event("aisam-access-denied")));
   expect(screen.queryByLabelText("draft")).toBeNull();
   expect(screen.getByRole("alert").textContent).toContain("Bạn vẫn đang đăng nhập");
-  fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại quyền" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại quyền" })));
   expect((screen.getByLabelText("draft") as HTMLInputElement).value).toBe("");
 });

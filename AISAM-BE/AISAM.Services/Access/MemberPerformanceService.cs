@@ -52,16 +52,21 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
             .SingleOrDefaultAsync(m=>m.WorkspaceId==workspace && m.UserId==actor && m.IsActive,ct);
         if(membership is null || membership.Workspace.Status==WorkspaceStatusEnum.Deleted ||
            !await db.Users.AsNoTracking().AnyAsync(u=>u.Id==actor && u.IsActive,ct)) throw new PerformanceAccessException(403);
-        var owner=membership.Role==WorkspaceMemberRoleEnum.Owner;
-        var creator=membership.Role==WorkspaceMemberRoleEnum.ContentCreator;
-        if(!owner && !creator && membership.Role!=WorkspaceMemberRoleEnum.Manager) throw new PerformanceAccessException(403);
+        var v2=access is RbacV2AccessAdapter;
+        var context=v2?await new RbacV2AccessResolver(db).ContextAsync(actor,workspace,ct):null;
+        var owner=v2 ? context?.WorkspaceRole is "Owner" or "WorkspaceManager" : membership.Role==WorkspaceMemberRoleEnum.Owner;
+        var creator=!v2 && membership.Role==WorkspaceMemberRoleEnum.ContentCreator;
+        if(v2 ? context is null || !owner && !context.Scopes.Any(s=>s.Role is "Manager" or "ContentCreator") : !owner && !creator && membership.Role!=WorkspaceMemberRoleEnum.Manager) throw new PerformanceAccessException(403);
         if(creator && memberId.HasValue && memberId!=actor) throw new PerformanceAccessException(404);
         var brandIds=(await access.GetAccessibleBrandIdsAsync(actor,workspace,ct)).ToArray();
+        if(v2 && owner) brandIds=await db.Brands.IgnoreQueryFilters().Where(b=>b.WorkspaceId==workspace && !b.IsDeleted).Select(b=>b.Id).ToArrayAsync(ct);
+        if(v2 && !owner) brandIds=context!.Scopes.Where(s=>s.Role is "Manager" or "ContentCreator").Select(s=>s.BrandId).Distinct().ToArray();
         if(brandId.HasValue && !brandIds.Contains(brandId.Value)) throw new PerformanceAccessException(404);
         var brands=await db.Brands.IgnoreQueryFilters().AsNoTracking().Where(b=>brandIds.Contains(b.Id)).OrderBy(b=>b.Name).Select(b=>new PerformanceOption(b.Id,b.Name)).ToListAsync(ct);
         if(brandId.HasValue) brandIds=[brandId.Value];
         var teamsQuery=db.Teams.IgnoreQueryFilters().AsNoTracking().Where(t=>t.WorkspaceId==workspace && !t.IsDeleted && t.Status==TeamStatusEnum.Active);
         if(!owner) teamsQuery=teamsQuery.Where(t=>db.TeamMembers.IgnoreQueryFilters().Any(m=>m.TeamId==t.Id && m.UserId==actor && m.IsActive));
+        if(v2 && !owner) teamsQuery=teamsQuery.Where(t=>db.TeamMembers.IgnoreQueryFilters().Any(m=>m.TeamId==t.Id && m.UserId==actor && m.IsActive && (m.Role==TeamRoleEnum.Manager || m.Role==TeamRoleEnum.ContentCreator)));
         var teams=await teamsQuery.OrderBy(t=>t.Name).Select(t=>new PerformanceOption(t.Id,t.Name)).ToListAsync(ct);
         if(teamId.HasValue && !teams.Any(t=>t.Id==teamId)) throw new PerformanceAccessException(404);
         var membersQuery=db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().Where(m=>m.WorkspaceId==workspace && m.IsActive);
@@ -72,7 +77,7 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
             if(teamId.HasValue && !await db.TeamMembers.IgnoreQueryFilters().AnyAsync(m=>m.TeamId==teamId && m.UserId==member.UserId && m.IsActive,ct)) continue;
             bool allowed=owner;
             foreach(var brand in brandIds)
-                if((await access.CheckAsync(new(actor,workspace,AccessResourceKind.Brand,brand,ResourcePermission.AnalyticsMember,MemberId:member.UserId),ct)).Allowed) {allowed=true;break;}
+                if((await access.CheckAsync(new(actor,workspace,AccessResourceKind.Brand,brand,ResourcePermission.AnalyticsMember,MemberId:member.UserId,TeamId:teamId),ct)).Allowed) {allowed=true;break;}
             if(allowed) permittedMembers.Add(new(member.UserId,member.FullName??"Member"));
         }
         if(memberId.HasValue && !permittedMembers.Any(m=>m.Id==memberId)) throw new PerformanceAccessException(404);
@@ -83,9 +88,16 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
             // Resolve member/Brand pairs independently: shared team in Alpha must
             // never grant a Manager this same member's data in Beta.
             var memberBrands=new List<Guid>();
+            if(v2) memberBrands.AddRange(brandIds);
             foreach(var brand in brandIds)
-                if((await access.CheckAsync(new(actor,workspace,AccessResourceKind.Brand,brand,ResourcePermission.AnalyticsMember,MemberId:member.Id),ct)).Allowed) memberBrands.Add(brand);
+                if(!v2 && (await access.CheckAsync(new(actor,workspace,AccessResourceKind.Brand,brand,ResourcePermission.AnalyticsMember,MemberId:member.Id),ct)).Allowed) memberBrands.Add(brand);
             var contents=db.Contents.IgnoreQueryFilters().AsNoTracking().Where(c=>c.WorkspaceId==workspace && !c.IsDeleted && memberBrands.Contains(c.BrandId) && (!teamId.HasValue || c.TeamId==teamId));
+            if(v2 && !owner) contents=contents.Where(c=>c.TeamId.HasValue &&
+                db.Teams.IgnoreQueryFilters().Any(t=>t.Id==c.TeamId && t.WorkspaceId==workspace && !t.IsDeleted && t.Status==TeamStatusEnum.Active) &&
+                db.TeamBrands.IgnoreQueryFilters().Any(tb=>tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive) &&
+                db.TeamMembers.IgnoreQueryFilters().Any(tm=>tm.TeamId==c.TeamId && tm.UserId==member.Id && tm.IsActive) &&
+                db.TeamMembers.IgnoreQueryFilters().Any(tm=>tm.TeamId==c.TeamId && tm.UserId==actor && tm.IsActive &&
+                    (tm.Role==TeamRoleEnum.Manager || tm.Role==TeamRoleEnum.ContentCreator && member.Id==actor)));
             var own=contents.Where(c=>c.PrimaryCreatorId==member.Id);
             var created=await own.CountAsync(c=>c.CreatedAt>=from && c.CreatedAt<to,ct);
             var postsQuery=from p in db.Posts.IgnoreQueryFilters().AsNoTracking()
@@ -93,6 +105,8 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
                 join i in db.SocialIntegrations.IgnoreQueryFilters().AsNoTracking() on p.IntegrationId equals i.Id
                 where !p.IsDeleted && !i.IsDeleted && i.WorkspaceId==workspace && i.BrandId==c.BrandId && p.Status==ContentStatusEnum.Published && p.PublishedAt>=@from && p.PublishedAt<to
                     && (c.PrimaryCreatorId==member.Id || p.PublishedByUserId==member.Id)
+                    && (!v2 || owner || db.TeamChannelAccesses.IgnoreQueryFilters().Any(g=>g.IntegrationId==p.IntegrationId && g.ScopeEnabledV2 &&
+                        db.TeamBrands.IgnoreQueryFilters().Any(tb=>tb.Id==g.TeamBrandId && tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive)))
                 select new {Post=p,Creator=c.PrimaryCreatorId};
             var allPosts=await postsQuery.ToListAsync(ct);
             var posts=allPosts.GroupBy(p=>(p.Post.IntegrationId,Key:string.IsNullOrEmpty(p.Post.ExternalPostId)?p.Post.Id.ToString():p.Post.ExternalPostId))

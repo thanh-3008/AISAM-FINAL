@@ -1,4 +1,6 @@
 "use client";
+import { useRbac } from "@/contexts/RbacContext";
+import TeamScopeSelect from "@/components/content/TeamScopeSelect";
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -158,6 +160,8 @@ function loadChatSession(key: string): string | null {
 }
 
 export default function AIGeneratePage() {
+  const rbac = useRbac();
+  const [teamId, setTeamId] = useState("");
   const router = useRouter();
   const { addToast } = useToast();
   const { activeWorkspace } = useWorkspaces();
@@ -249,7 +253,7 @@ export default function AIGeneratePage() {
     setImageSourceMode(checked ? "original_product_images" : "ai_exact_product_reference");
   };
   const conversationStorageKey = activeWorkspace?.id && brandId
-    ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}`
+    ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}${rbac ? `-team-${teamId}` : ""}`
     : null;
 
   useEffect(() => {
@@ -425,6 +429,7 @@ export default function AIGeneratePage() {
   };
 
   const simulateAIResponse = async (userPrompt: string) => {
+    if (rbac && !rbac.scopes.some(s => s.teamId === teamId && s.brandId === brandId && (rbac.workspaceRole !== "Member" || s.role === "Manager" || s.role === "ContentCreator"))) { addToast("Chọn Team được phép tạo nội dung cho Brand này."); return; }
     if (generationInFlightRef.current) return;
     if (creditBalance !== null && creditBalance <= 0) {
       setInsufficientCredits(true);
@@ -463,6 +468,7 @@ export default function AIGeneratePage() {
       messages.map(m => ({ role: m.role, text: m.text })),
       {
         generationMode,
+        teamId: rbac ? teamId : undefined,
         uploadedPrimaryImageUrl: generationMode === "normal_generation" ? (uploadedPrimaryImageUrl || imageUrl || null) : null,
         selectedProductImageUrl: null,
         useOriginalProductImages: generationMode === "exact_product_reference" && useOriginalProductImages,
@@ -521,6 +527,7 @@ export default function AIGeneratePage() {
   };
 
   const handleManualSave = async () => {
+    if (rbac && !teamId) { addToast("Chọn Team phụ trách trước khi lưu nội dung."); return; }
     if (!title && !content && !imageUrl) {
       addToast("Nothing to save.");
       return;
@@ -529,6 +536,7 @@ export default function AIGeneratePage() {
     setIsSaving(true);
     const payload: Partial<CreateContentPayload> = {
       brandId,
+      ...(rbac && !generatedId ? { teamId } : {}),
       productId: productId || null,
       adType: 0,
       title: title || "Untitled Post",
@@ -766,11 +774,12 @@ export default function AIGeneratePage() {
 
           {/* Center Column: Brand/Product Toolbar + Preview */}
           <div className="flex-1 min-w-0 flex flex-col gap-gutter overflow-y-auto pr-1 pb-4">
+            {rbac && <TeamScopeSelect disabled={isGenerating} brandId={brandId} value={teamId} onChange={id => { setTeamId(id); setGeneratedId(null); }} />}
             {/* Brand & Product Toolbar */}
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm p-3 flex flex-wrap items-center gap-3 shrink-0">
               <div className="flex min-w-[160px] flex-1 items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-outline">business</span>
-                <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(""); }}
+                <select disabled={isGenerating} value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(""); setTeamId(""); setGeneratedId(null); }}
                   className="min-w-0 w-full bg-surface-container border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-[11px] text-on-surface font-medium focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                   {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>

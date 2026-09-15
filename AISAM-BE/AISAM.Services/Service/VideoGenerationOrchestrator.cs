@@ -21,6 +21,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
     private readonly AISAM.Repositories.AisamContext _dbContext;
     private readonly ICreditService _creditService;
     private readonly ILogger<VideoGenerationOrchestrator> _logger;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
 
     private const int VideoGenerationCredits = 100;
 
@@ -30,7 +31,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         IOptions<VideoProviderSettings> options,
         AISAM.Repositories.AisamContext dbContext,
         ICreditService creditService,
-        ILogger<VideoGenerationOrchestrator> logger)
+        ILogger<VideoGenerationOrchestrator> logger, AISAM.Services.Access.IAccessControlService? access=null)
     {
         _primaryProvider = primaryProvider;
         _colabStrategy = colabStrategy;
@@ -38,6 +39,7 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         _dbContext = dbContext;
         _creditService = creditService;
         _logger = logger;
+        _access=access;
     }
 
     public async Task<GenericResponse<VideoGenerationJob>> StartVideoGenerationAsync(
@@ -48,6 +50,8 @@ public sealed class VideoGenerationOrchestrator : IVideoGenerationOrchestrator
         CancellationToken cancellationToken = default)
     {
         // Ensure credits are available before generating
+        if (!await AISAM.Services.Access.VideoJobAccess.CanRunAsync(_dbContext,_access,userId,workspaceId,cancellationToken))
+            return GenericResponse<VideoGenerationJob>.CreateError("Use a permitted Team content to generate video.",HttpStatusCode.Forbidden);
         var creditCheck = await _creditService.EnsureCreditsAvailableAsync(workspaceId, userId, VideoGenerationCredits, cancellationToken: cancellationToken);
         if (!creditCheck.Success)
         {

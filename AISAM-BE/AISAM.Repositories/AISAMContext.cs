@@ -361,6 +361,9 @@ namespace AISAM.Repositories
             modelBuilder.Entity<Team>(entity =>
             {
                 entity.HasKey(t => t.Id);
+                entity.HasIndex(t => t.DefaultForBrandId).IsUnique();
+                entity.HasOne<Brand>().WithMany().HasForeignKey(t => t.DefaultForBrandId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(t => t.WorkspaceId);
                 entity.HasOne(t => t.Workspace).WithMany().HasForeignKey(t => t.WorkspaceId)
                     .OnDelete(DeleteBehavior.Cascade);

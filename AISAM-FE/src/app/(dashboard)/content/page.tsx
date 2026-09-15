@@ -1,4 +1,5 @@
 "use client";
+import { useRbac } from "@/contexts/RbacContext";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -44,10 +45,11 @@ let toastId = 0;
 export default function ContentPage() {
   const router = useRouter();
   const featureGate = useFeatureGate();
+  const rbac = useRbac();
   const canReview = featureGate.can("reviewContent");
   const canPublish = featureGate.can("publishPost") || featureGate.isContentCreator;
   const [mineChoice, setMineChoice] = useState<boolean | null>(null);
-  const mine = mineChoice ?? featureGate.isContentCreator;
+  const mine = mineChoice ?? (rbac ? false : featureGate.isContentCreator);
   const canManageSchedules = featureGate.can("manageSchedules");
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,8 @@ export default function ContentPage() {
   const [scheduledCount, setScheduledCount] = useState(0);
   const [quota, setQuota] = useState<{ promptUsage: number; promptQuotaLimit: number; postUsage: number; postQuotaLimit: number; textContentCount: number; imageContentCount: number; videoContentCount: number } | null>(null);
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
-  const createAllowed = useResourcePermissions(brandList.map(brand => ({ kind: Kind.Brand, resourceId: brand.id, permission: Permission.ContentCreate })));
+  const createChecks = rbac ? rbac.scopes.filter(s => s.teamId !== "00000000-0000-0000-0000-000000000000").map(s => ({ kind: Kind.Brand, resourceId: s.brandId, teamId: s.teamId, permission: Permission.ContentCreate })) : brandList.map(brand => ({ kind: Kind.Brand, resourceId: brand.id, permission: Permission.ContentCreate }));
+  const createAllowed = useResourcePermissions(createChecks);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const loadVersion = useRef(0);
@@ -416,7 +419,7 @@ export default function ContentPage() {
               </button>
             </div>
             <div className="relative">
-              <button disabled={!brandList.some((_, index) => createAllowed(index))} ref={createBtnRef} onClick={() => {
+              <button disabled={!createChecks.some((_, index) => createAllowed(index))} ref={createBtnRef} onClick={() => {
                   if (!showCreateMenu && createBtnRef.current) {
                     const rect = createBtnRef.current.getBoundingClientRect();
                     setCreateMenuStyle({ top: rect.bottom + 8, right: window.innerWidth - rect.right });

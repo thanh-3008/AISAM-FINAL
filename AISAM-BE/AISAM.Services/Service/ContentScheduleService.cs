@@ -23,6 +23,7 @@ public sealed class ContentScheduleService : IContentScheduleService
     private readonly ILogger<ContentScheduleService> _logger;
     private readonly AISAM.Repositories.AisamContext? _db;
     private readonly InstagramSettings _instagram;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
 
     public ContentScheduleService(
         IContentRepository contentRepository,
@@ -31,7 +32,8 @@ public sealed class ContentScheduleService : IContentScheduleService
         INotificationRepository notificationRepository,
         ILogger<ContentScheduleService> logger,
         AISAM.Repositories.AisamContext? db=null,
-        Microsoft.Extensions.Options.IOptions<InstagramSettings>? instagram=null)
+        Microsoft.Extensions.Options.IOptions<InstagramSettings>? instagram=null,
+        AISAM.Services.Access.IAccessControlService? access=null)
     {
         _contentRepository = contentRepository;
         _socialIntegrationRepository = socialIntegrationRepository;
@@ -39,6 +41,7 @@ public sealed class ContentScheduleService : IContentScheduleService
         _notificationRepository = notificationRepository;
         _logger = logger;
         _db=db;_instagram=instagram?.Value??new();
+        _access=access;
     }
 
     public async Task<GenericResponse<ContentScheduleDto>> CreateAsync(Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
@@ -251,13 +254,19 @@ public sealed class ContentScheduleService : IContentScheduleService
     {
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+            (_db?.ExecutionActorId is not { } actor || !(await _access.CheckAsync(new(actor,workspaceId,
+                AISAM.Services.Access.AccessResourceKind.Content,schedule.ContentId,AISAM.Services.Access.ResourcePermission.PostPublish,request.IntegrationId ?? schedule.IntegrationId),cancellationToken)).Allowed))
+            return GenericResponse<ContentScheduleDto>.CreateError("Publication permission is required.",HttpStatusCode.Forbidden);
+        if (schedule.Status == ScheduleStatusEnum.Processing)
+            return GenericResponse<ContentScheduleDto>.CreateError("Publication is already processing.",HttpStatusCode.Conflict);
         if (schedule.Status == ScheduleStatusEnum.Completed)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.CannotUpdateCompleted, HttpStatusCode.BadRequest);
         var content = schedule.Content ?? await _contentRepository.GetByIdAsync(schedule.ContentId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId || content.IsDeleted)
             return GenericResponse<ContentScheduleDto>.CreateError(MessageConstants.Schedule.ContentNotFound, HttpStatusCode.NotFound);
 
-        if (_db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        if (_access is not AISAM.Services.Access.RbacV2AccessAdapter && _db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
         {
             var isOwner = await _db.WorkspaceMembers.AsNoTracking()
                 .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && m.Role == WorkspaceMemberRoleEnum.Owner && m.IsActive, cancellationToken);
@@ -289,8 +298,14 @@ public sealed class ContentScheduleService : IContentScheduleService
     {
         var schedule = await _contentCalendarRepository.GetByIdAsync(scheduleId, cancellationToken);
         if (schedule == null || schedule.WorkspaceId != workspaceId || schedule.IsDeleted) return GenericResponse<bool>.CreateError(MessageConstants.Schedule.NotFound, HttpStatusCode.NotFound);
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+            (_db?.ExecutionActorId is not { } actor || !(await _access.CheckAsync(new(actor,workspaceId,
+                AISAM.Services.Access.AccessResourceKind.Content,schedule.ContentId,AISAM.Services.Access.ResourcePermission.PostPublish,schedule.IntegrationId),cancellationToken)).Allowed))
+            return GenericResponse<bool>.CreateError("Publication permission is required.",HttpStatusCode.Forbidden);
+        if (schedule.Status == ScheduleStatusEnum.Processing)
+            return GenericResponse<bool>.CreateError("Publication is already processing.",HttpStatusCode.Conflict);
         var content = schedule.Content ?? await _contentRepository.GetByIdAsync(schedule.ContentId, cancellationToken);
-        if (content != null && _db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
+        if (_access is not AISAM.Services.Access.RbacV2AccessAdapter && content != null && _db != null && actorUserId.HasValue && actorUserId.Value != Guid.Empty)
         {
             var isOwner = await _db.WorkspaceMembers.AsNoTracking()
                 .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == actorUserId.Value && m.Role == WorkspaceMemberRoleEnum.Owner && m.IsActive, cancellationToken);
@@ -364,6 +379,10 @@ public sealed class ContentScheduleService : IContentScheduleService
 
     private async Task<GenericResponse<ContentScheduleDto>> CreateSingleInWorkspaceAsync(Guid workspaceId, Guid profileId, CreateContentScheduleRequest request, CancellationToken cancellationToken = default)
     {
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+            (_db?.ExecutionActorId is not { } actor || !(await _access.CheckAsync(new(actor,workspaceId,
+                AISAM.Services.Access.AccessResourceKind.Content,request.ContentId,AISAM.Services.Access.ResourcePermission.PostPublish,request.IntegrationId),cancellationToken)).Allowed))
+            return GenericResponse<ContentScheduleDto>.CreateError("Publication permission is required for this Team and channel.",HttpStatusCode.Forbidden);
         var content = await _contentRepository.GetByIdAsync(request.ContentId, cancellationToken);
         var integration = await _socialIntegrationRepository.GetByIdAsync(request.IntegrationId, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId || content.IsDeleted)

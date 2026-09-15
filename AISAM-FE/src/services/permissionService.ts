@@ -1,8 +1,8 @@
 import { apiClient } from "@/lib/apiClient";
 
 export const Kind = { Workspace: 0, Brand: 1, Content: 2, Channel: 3, Post: 4 } as const;
-export const Permission = { BrandView: 0, BrandManage: 1, ContentView: 2, ContentCreate: 3, ContentEdit: 4, ContentDelete: 5, ContentViewAllCreators: 6, ApprovalReview: 7, PostPublish: 8, PostView: 9, SocialView: 10, SocialManage: 11 } as const;
-export interface PermissionCheck { kind: number; resourceId: string; permission: number; channelId?: string }
+export const Permission = { BrandView: 0, BrandManage: 1, ContentView: 2, ContentCreate: 3, ContentEdit: 4, ContentDelete: 5, ContentViewAllCreators: 6, ApprovalReview: 7, PostPublish: 8, PostView: 9, SocialView: 10, SocialManage: 11, ApprovalWithdraw: 16 } as const;
+export interface PermissionCheck { kind: number; resourceId: string; permission: number; channelId?: string; teamId?: string; memberId?: string }
 export async function checkPermissions(items: PermissionCheck[]): Promise<boolean[]> {
   const decisions: boolean[] = [];
   for (let offset = 0; offset < items.length; offset += 100) {
@@ -17,7 +17,7 @@ export async function checkPermissions(items: PermissionCheck[]): Promise<boolea
 export interface AssignmentSnapshot {
   revision: string;
   teams: { id: string; teamId: string; isActive: boolean }[];
-  channels: { teamBrandId: string; integrationId: string; canView: boolean; canPublish: boolean; canManage: boolean }[];
+  channels: { teamBrandId: string; integrationId: string; canView: boolean; canPublish: boolean; canManage: boolean; scopeEnabledV2?: boolean }[];
 }
 export async function readAssignments(brandId: string): Promise<AssignmentSnapshot> {
   return (await apiClient(`/brands/${brandId}/access`)).data;

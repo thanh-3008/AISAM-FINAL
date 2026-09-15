@@ -78,8 +78,12 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
 
             if(_access is not null)
             {
-                var allowed=(await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,content.Id,AISAM.Services.Access.ResourcePermission.ApprovalReview),cancellationToken)).Allowed;
-                foreach(var target in selectedIntegrations)
+                var retryApproved=_access is AISAM.Services.Access.RbacV2AccessAdapter && content.Status==ContentStatusEnum.Approved;
+                var allowed=retryApproved || (await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,content.Id,AISAM.Services.Access.ResourcePermission.ApprovalReview),cancellationToken)).Allowed;
+                if (retryApproved)
+                    foreach(var target in selectedIntegrations)
+                        allowed &= (await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,content.Id,AISAM.Services.Access.ResourcePermission.PostPublish,target.Id),cancellationToken)).Allowed;
+                foreach(var target in selectedIntegrations.Where(_=>_access is not AISAM.Services.Access.RbacV2AccessAdapter))
                     allowed &= (await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,content.Id,AISAM.Services.Access.ResourcePermission.PostPublish,target.Id),cancellationToken)).Allowed;
                 if(!allowed)
                 {
@@ -98,7 +102,9 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
             {
                 _context.Approvals.Add(new Approval { ContentId = content.Id, ApproverProfileId = plan.ProfileId, ApproverUserId = approverUserId, Status = ContentStatusEnum.Approved, ApprovedAt = DateTime.UtcNow, Notes = "Approved from Automation Plan" });
             }
-            await _context.SaveChangesAsync(cancellationToken);
+            var previousReview=_context.PermissionReviewContentId;
+            try { _context.PermissionReviewContentId=content.Id; await _context.SaveChangesAsync(cancellationToken); }
+            finally { _context.PermissionReviewContentId=previousReview; }
 
             var scheduleErrors = new List<string>();
             foreach (var integration in selectedIntegrations)
@@ -143,6 +149,9 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
         var item = plan?.Items.FirstOrDefault(value => value.Id == itemId);
         if (plan is null || item is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation item not found.", HttpStatusCode.NotFound);
         if (item.Status != AutomationItemStatusEnum.AwaitingApproval) return GenericResponse<AutomationPlanDto>.CreateError("Only an item awaiting approval can be rejected.");
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+            (item.ContentId is not { } contentId || !(await _access.CheckAsync(new(approverUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,contentId,AISAM.Services.Access.ResourcePermission.ApprovalReview),cancellationToken)).Allowed))
+            return GenericResponse<AutomationPlanDto>.CreateError("Review permission is required.",HttpStatusCode.Forbidden);
         item.Status = AutomationItemStatusEnum.Rejected;
         item.LastError = string.IsNullOrWhiteSpace(notes) ? "Rejected by reviewer." : notes.Trim();
         if (item.Content is not null)
@@ -150,7 +159,9 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
             item.Content.Status = ContentStatusEnum.Rejected;
             _context.Approvals.Add(new Approval { ContentId = item.Content.Id, ApproverProfileId = plan.ProfileId, ApproverUserId = approverUserId, Status = ContentStatusEnum.Rejected, Notes = item.LastError });
         }
-        await FinishPlanAsync(plan, cancellationToken);
+        var previousReview=_context.PermissionReviewContentId;
+        try { _context.PermissionReviewContentId=item.ContentId; await FinishPlanAsync(plan, cancellationToken); }
+        finally { _context.PermissionReviewContentId=previousReview; }
         return GenericResponse<AutomationPlanDto>.CreateSuccess(Map(plan), "Automation item rejected.");
     }
 

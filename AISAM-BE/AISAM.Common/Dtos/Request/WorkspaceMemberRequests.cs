@@ -7,6 +7,7 @@ public sealed class UpdateWorkspaceMemberRoleRequest
 {
     [Required]
     public WorkspaceMemberRoleEnum Role { get; set; }
+    public WorkspaceRoleV2? WorkspaceRole { get; set; }
 }
 
 public sealed class TransferWorkspaceOwnershipRequest

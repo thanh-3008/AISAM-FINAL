@@ -15,7 +15,7 @@ test("non-admin is redirected away from admin routes", async ({ userPage }) => {
 });
 
 test("admin is redirected away from user workspace routes", async ({ adminPage }) => {
-  await adminPage.goto("/content");
+  await adminPage.goto("/content", { waitUntil: "domcontentloaded" });
   await expect(adminPage).toHaveURL(/\/admin\/dashboard$/);
 });
 

@@ -6,11 +6,35 @@ using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.Service;
 using System.Net;
+using AISAM.Repositories;
+using AISAM.Services.Access;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.IntegrationTests;
 
 public class ContentScheduleServiceTests
 {
+    [Fact]
+    public async Task V2ScheduleUsesCurrentTeamPermissionAndDoesNotTrustLegacyOwner()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var w=new Workspace();var u=new User{Email="scheduler@example.test"};var b=new Brand{WorkspaceId=w.Id};var t=new Team{WorkspaceId=w.Id};
+        var c=new Content{WorkspaceId=w.Id,BrandId=b.Id,TeamId=t.Id,Status=ContentStatusEnum.Approved};
+        var channel=new SocialIntegration{WorkspaceId=w.Id,BrandId=b.Id};var link=new TeamBrand{TeamId=t.Id,BrandId=b.Id};
+        var grant=new TeamChannelAccess{TeamBrandId=link.Id,IntegrationId=channel.Id,ScopeEnabledV2=true};
+        var member=new TeamMember{TeamId=t.Id,UserId=u.Id,Role=TeamRoleEnum.Viewer};
+        db.AddRange(w,u,b,t,c,channel,link,grant,member,new WorkspaceMember{WorkspaceId=w.Id,UserId=u.Id,Role=WorkspaceMemberRoleEnum.Owner,WorkspaceRoleV2=WorkspaceRoleV2.Member});
+        await db.SaveChangesAsync();db.ExecutionActorId=u.Id;
+        var schedule=new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,Content=c,IntegrationId=channel.Id};
+        var service=CreateService(new FakeContentRepository(c),new FakeSocialIntegrationRepository(channel),new FakeContentCalendarRepository(schedule),db:db,access:new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)));
+        Assert.Equal(403,(await service.DeleteInWorkspaceAsync(w.Id,schedule.Id,actorUserId:u.Id)).StatusCode);
+        Assert.False(schedule.IsDeleted);
+        member.Role=TeamRoleEnum.Manager;await db.SaveChangesAsync();
+        Assert.True((await service.UpdateInWorkspaceAsync(w.Id,schedule.Id,new UpdateContentScheduleRequest{ScheduledAt=DateTime.UtcNow.AddHours(2)},actorUserId:u.Id)).Success);
+        grant.ScopeEnabledV2=false;await db.SaveChangesAsync();
+        Assert.Equal(403,(await service.DeleteInWorkspaceAsync(w.Id,schedule.Id,actorUserId:u.Id)).StatusCode);
+        Assert.False(schedule.IsDeleted);
+    }
     [Fact]
     public async Task CreateAsync_CreatesPendingSchedule_WhenContentAndIntegrationBelongToProfile()
     {
@@ -256,14 +280,14 @@ public class ContentScheduleServiceTests
         IContentRepository? contentRepository = null,
         ISocialIntegrationRepository? socialIntegrationRepository = null,
         IContentCalendarRepository? contentCalendarRepository = null,
-        INotificationRepository? notificationRepository = null)
+        INotificationRepository? notificationRepository = null, AisamContext? db=null, IAccessControlService? access=null)
     {
         return new ContentScheduleService(
             contentRepository ?? new FakeContentRepository(),
             socialIntegrationRepository ?? new FakeSocialIntegrationRepository(),
             contentCalendarRepository ?? new FakeContentCalendarRepository(),
             notificationRepository ?? new FakeNotificationRepository(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ContentScheduleService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ContentScheduleService>.Instance,db:db,access:access);
     }
 
     private sealed class FakeContentRepository : IContentRepository

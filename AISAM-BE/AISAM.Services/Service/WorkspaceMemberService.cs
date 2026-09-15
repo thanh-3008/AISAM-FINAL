@@ -1,3 +1,7 @@
+using AISAM.Repositories;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using AISAM.Services.Access;
 using AISAM.Common;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
@@ -11,6 +15,8 @@ namespace AISAM.Services.Service;
 
 public sealed class WorkspaceMemberService : IWorkspaceMemberService
 {
+    private readonly bool _v2;
+    private readonly AisamContext? _db;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
@@ -18,11 +24,13 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
     public WorkspaceMemberService(
         IWorkspaceMemberRepository workspaceMemberRepository,
         IWorkspaceRepository workspaceRepository,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository, IConfiguration? configuration=null, AisamContext? db=null)
     {
         _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceRepository = workspaceRepository;
         _subscriptionRepository = subscriptionRepository;
+        _db=db;
+        _v2=configuration?.GetValue<bool>("Rbac:UseV2")==true;
     }
 
     public async Task<GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>> GetMembersAsync(
@@ -37,6 +45,21 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 HttpStatusCode.Forbidden);
         }
 
+        if(_v2)
+        {
+            var actor=await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId,actorUserId,cancellationToken);
+            if(actor?.WorkspaceRoleV2 is not (WorkspaceRoleV2.Owner or WorkspaceRoleV2.WorkspaceManager))
+                            {
+                if(_db is null || actor?.IsActive!=true || actor.WorkspaceRoleV2!=WorkspaceRoleV2.Member)
+                    return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateError("Directory not available.",HttpStatusCode.Forbidden);
+                var teamIds=from tm in _db.TeamMembers.IgnoreQueryFilters() join t in _db.Teams.IgnoreQueryFilters() on tm.TeamId equals t.Id
+                    where tm.UserId==actorUserId && tm.IsActive && t.WorkspaceId==workspaceId && !t.IsDeleted && t.Status==TeamStatusEnum.Active select t.Id;
+                var peerIds=_db.TeamMembers.IgnoreQueryFilters().Where(m=>m.IsActive && teamIds.Contains(m.TeamId)).Select(m=>m.UserId);
+                var peers=await _db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().Where(m=>m.WorkspaceId==workspaceId && m.IsActive && (m.UserId==actorUserId || peerIds.Contains(m.UserId)))
+                    .Select(m=>new WorkspaceMemberResponseDto {Id=m.Id,UserId=m.UserId,FullName=m.User.FullName,WorkspaceRole=m.WorkspaceRoleV2.ToString()}).ToListAsync(cancellationToken);
+                return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateSuccess(peers,"Team directory retrieved.");
+            }
+        }
         var members = await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
         return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateSuccess(
             members.Select(Map).ToList(),
@@ -58,7 +81,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 authorizationError.Value.Status);
         }
 
-        if (!Enum.IsDefined(request.Role) || request.Role == WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? request.WorkspaceRole is not (WorkspaceRoleV2.Member or WorkspaceRoleV2.WorkspaceManager) : !Enum.IsDefined(request.Role) || request.Role == WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
                 "Use ownership transfer to assign the workspace owner.");
@@ -70,13 +93,13 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError("Workspace member not found.", HttpStatusCode.NotFound);
         }
 
-        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? member.WorkspaceRoleV2 is not (WorkspaceRoleV2.Member or WorkspaceRoleV2.WorkspaceManager) : member.Role == WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
                 "Workspace owner role cannot be changed. Transfer ownership first.");
         }
 
-        member.Role = request.Role;
+        if(_v2) member.WorkspaceRoleV2=request.WorkspaceRole; else member.Role = request.Role;
         await _workspaceMemberRepository.UpdateAsync(member, cancellationToken);
         return GenericResponse<WorkspaceMemberResponseDto>.CreateSuccess(
             Map(member),
@@ -104,7 +127,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError("Workspace member not found.", HttpStatusCode.NotFound);
         }
 
-        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? member.WorkspaceRoleV2 is not (WorkspaceRoleV2.Member or WorkspaceRoleV2.WorkspaceManager) : member.Role == WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
                 "Workspace owner quota mode cannot be changed.",
@@ -140,7 +163,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         CancellationToken cancellationToken = default)
     {
         var authorizationError = await RequireOwnerAsync(workspaceId, actorUserId, cancellationToken);
-        if (authorizationError != null)
+        if (!_v2 && authorizationError != null)
         {
             return GenericResponse<object>.CreateError(
                 authorizationError.Value.Message,
@@ -153,12 +176,18 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             return GenericResponse<object>.CreateError("Workspace member not found.", HttpStatusCode.NotFound);
         }
 
-        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? member.WorkspaceRoleV2 is not (WorkspaceRoleV2.Member or WorkspaceRoleV2.WorkspaceManager) : member.Role == WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<object>.CreateError(
                 "Workspace owner cannot be removed. Transfer ownership first.");
         }
 
+        if(_v2)
+        {
+            var actor=await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId,actorUserId,cancellationToken);
+            if(actor?.Workspace.Status!=WorkspaceStatusEnum.Active || !WorkspaceHrV2Policy.CanRemove(actor,member))
+                return GenericResponse<object>.CreateError("Member removal not allowed.",HttpStatusCode.Forbidden);
+        }
         await _workspaceMemberRepository.RemoveAsync(memberId, cancellationToken);
         return GenericResponse<object>.CreateSuccess(null, "Workspace member removed successfully.");
     }
@@ -185,7 +214,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
                 HttpStatusCode.NotFound);
         }
 
-        if (target.Role != WorkspaceMemberRoleEnum.Manager)
+        if (_v2 ? target.WorkspaceRoleV2!=WorkspaceRoleV2.WorkspaceManager : target.Role != WorkspaceMemberRoleEnum.Manager)
         {
             return GenericResponse<WorkspaceMemberResponseDto>.CreateError(
                 "Ownership can only be transferred to an active workspace manager.");
@@ -212,7 +241,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             actorUserId,
             cancellationToken);
 
-        if (actor?.Role != WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? actor?.IsActive!=true || actor.WorkspaceRoleV2!=WorkspaceRoleV2.Owner : actor?.Role != WorkspaceMemberRoleEnum.Owner)
         {
             return ("Only the workspace owner can manage members.", HttpStatusCode.Forbidden);
         }
@@ -231,6 +260,7 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
             Email = member.User.Email,
             FullName = member.User.FullName,
             Role = member.Role,
+            WorkspaceRole=member.WorkspaceRoleV2?.ToString(),
             QuotaMode = member.QuotaMode,
             CreditLimit = member.CreditLimit,
             CreditUsed = member.CreditUsed,

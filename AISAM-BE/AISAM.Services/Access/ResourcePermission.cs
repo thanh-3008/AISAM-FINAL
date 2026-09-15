@@ -4,5 +4,5 @@ public enum ResourcePermission
 {
     BrandView, BrandManage, ContentView, ContentCreate, ContentEdit, ContentDelete,
     ContentViewAllCreators, ApprovalReview, PostPublish, PostView,
-    SocialView, SocialManage, AnalyticsView, AnalyticsMember, TeamManage, BillingManage
+    SocialView, SocialManage, AnalyticsView, AnalyticsMember, TeamManage, BillingManage, ApprovalWithdraw
 }

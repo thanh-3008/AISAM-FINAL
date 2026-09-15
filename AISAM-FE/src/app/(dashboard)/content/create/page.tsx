@@ -3,6 +3,8 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
+import TeamScopeSelect from "@/components/content/TeamScopeSelect";
+import { useRbac } from "@/contexts/RbacContext";
 
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, uploadContentMedia, parseMultipleImageUrls, type CreateContentPayload } from "@/services/contentService";
@@ -25,6 +27,7 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
+  const rbac = useRbac();
   const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -36,6 +39,7 @@ export default function CreateContentPage() {
   const [form, setForm] = useState({
     title: "",
     brandId: "",
+    teamId: "",
     productId: "",
     type: "TEXT" as ContentType,
     status: "Draft" as ContentStatus,
@@ -183,7 +187,8 @@ export default function CreateContentPage() {
   const selectedProduct = productList.find(p => p.id === form.productId);
   const selectedBrandName = selectedBrand?.name || "";
   const selectedProductName = selectedProduct?.name || "";
-  const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0;
+  const validTeam = (teamId: string, brandId: string) => !rbac || rbac.scopes.some(s => s.teamId === teamId && s.brandId === brandId && (rbac.workspaceRole !== "Member" || s.role === "Manager" || s.role === "ContentCreator"));
+  const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0 && validTeam(form.teamId, form.brandId);
 
   const handleSave = async () => {
     if (typeof window !== "undefined") {
@@ -191,7 +196,7 @@ export default function CreateContentPage() {
     }
     const currentForm = formRef.current;
     const isFormValid = currentForm.title.trim().length > 0 && currentForm.productId && currentForm.brandId.length > 0;
-    if (!isFormValid) return;
+    if (!isFormValid || !validTeam(currentForm.teamId, currentForm.brandId)) return;
     setSaving(true);
     setSaveError(null);
 
@@ -230,6 +235,7 @@ export default function CreateContentPage() {
 
     const payload: CreateContentPayload = {
       brandId: currentForm.brandId,
+      ...(rbac ? { teamId: currentForm.teamId } : {}),
       productId: currentForm.productId || null,
       adType: currentForm.type === "IMAGE" ? 1 : currentForm.type === "VIDEO" ? 2 : 0,
       title: currentForm.title,
@@ -342,7 +348,7 @@ export default function CreateContentPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Brand <span className="text-danger-red">*</span></label>
-                    <select value={form.brandId} onChange={(e) => update({ brandId: e.target.value, productId: "" })}
+                    <select value={form.brandId} onChange={(e) => update({ brandId: e.target.value, productId: "", teamId: "" })}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                       {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
@@ -357,6 +363,7 @@ export default function CreateContentPage() {
                   </div>
                 </div>
 
+                <TeamScopeSelect brandId={form.brandId} value={form.teamId} onChange={teamId => update({ teamId })} />
                 {/* Content Type */}
                 <div>
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Content Type</label>

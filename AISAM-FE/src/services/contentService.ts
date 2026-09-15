@@ -501,6 +501,7 @@ export async function chatWithAI(
   conversationId?: string,
   _history?: { role: string; text: string }[],
   options?: {
+    teamId?: string;
     generationMode?: "exact_product_reference" | "normal_generation";
     uploadedPrimaryImageUrl?: string | null;
     selectedProductImageUrl?: string | null;
@@ -516,6 +517,7 @@ export async function chatWithAI(
         productId,
         conversationId,
         generationMode: options?.generationMode,
+        teamId: options?.teamId,
         uploadedPrimaryImageUrl: options?.uploadedPrimaryImageUrl ?? null,
         selectedProductImageUrl: options?.selectedProductImageUrl ?? null,
         useOriginalProductImages: options?.useOriginalProductImages === true,

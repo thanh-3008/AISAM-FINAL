@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { usePublishPermission } from "@/hooks/usePublishPermission";
 import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission } from "@/services/permissionService";
+import { useRbac } from "@/contexts/RbacContext";
+import { apiClient } from "@/lib/apiClient";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
@@ -33,9 +35,9 @@ export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const featureGate = useFeatureGate();
+  const rbac = useRbac();
 
-  const allowed = useResourcePermissions([Permission.ContentEdit, Permission.ContentDelete].map(permission => ({ kind: Kind.Content, resourceId: String(params.id), permission })));
-  const canManageSchedules = featureGate.can("manageSchedules");
+  const allowed = useResourcePermissions([Permission.ContentEdit, Permission.ContentDelete, Permission.ApprovalWithdraw].map(permission => ({ kind: Kind.Content, resourceId: String(params.id), permission })));
   const [mediaDirty, setMediaDirty] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,6 +49,7 @@ export default function ContentDetailPage() {
 
   const [item, setItem] = useState<ContentDetail | null>(null);
   const canPublish = usePublishPermission(String(params.id), item?.brandId);
+  const canManageSchedules = rbac ? canPublish : featureGate.can("manageSchedules");
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
@@ -238,6 +241,15 @@ export default function ContentDetailPage() {
           <div className="flex items-center gap-2">
             {!editing ? (
               <>
+                {rbac && item.status === "Approved" && allowed(2) && <button disabled={saving} className="rounded-xl border border-amber-300 px-4 py-2 text-sm text-amber-800" onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await apiClient(`/content/${item.id}/withdraw`, { method: "POST" });
+                    setItem(await fetchContentById(item.id));
+                    window.dispatchEvent(new Event("aisam-permissions-changed"));
+                  } catch (error) { setToast({ type: "error", message: error instanceof Error ? error.message : "Không thu hồi được duyệt." }); }
+                  finally { setSaving(false); }
+                }}>Thu hồi duyệt</button>}
                 {item.status === "Approved" && (canPublish || canManageSchedules) && (
                   <>
                     {canPublish && <button disabled={mediaDirty} onClick={() => setShowPostNow(true)}

@@ -1,4 +1,6 @@
 "use client";
+import { useRbac } from "@/contexts/RbacContext";
+import RbacBrandAccess from "@/components/brands/RbacBrandAccess";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +10,12 @@ import { fetchSocialIntegrations, type SocialIntegration } from "@/services/soci
 import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 
 export default function BrandAccessPage() {
+  const rbac = useRbac();
+  const { id } = useParams<{ id: string }>();
+  if (rbac) return <main className="mx-auto max-w-5xl space-y-6 p-6"><Link href={`/brands/${id}`} className="text-blue-700 underline">Quay lại Brand</Link><RbacBrandAccess brandId={id} /></main>;
+  return <LegacyBrandAccessPage />;
+}
+function LegacyBrandAccessPage() {
   const { id } = useParams<{ id: string }>();
   const allowed = useResourcePermissions([{ kind: Kind.Brand, resourceId: id, permission: Permission.BrandManage }]);
   const canManage = allowed(0);

@@ -8,6 +8,53 @@ namespace AISAM.IntegrationTests;
 public class MemberPerformanceTests
 {
     [Fact]
+    public async Task V2MixedRolesDoNotAggregateAnotherTeamSharingTheBrand()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var from=DateTime.UtcNow.AddDays(-1);var to=DateTime.UtcNow.AddDays(1);
+        var w=new Workspace();var b=new Brand{WorkspaceId=w.Id};var unassigned=new Brand{WorkspaceId=w.Id};
+        var actor=new User{FullName="Mixed role"};var other=new User{FullName="Colleague"};var viewer=new User{FullName="Viewer"};
+        var a=new Team{WorkspaceId=w.Id};var v=new Team{WorkspaceId=w.Id};var c=new Team{WorkspaceId=w.Id};
+        var wm=new WorkspaceMember{WorkspaceId=w.Id,UserId=actor.Id,Role=WorkspaceMemberRoleEnum.Owner,WorkspaceRoleV2=WorkspaceRoleV2.Member};
+        db.AddRange(w,b,unassigned,actor,other,viewer,a,v,c,wm,
+            new WorkspaceMember{WorkspaceId=w.Id,UserId=other.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
+            new WorkspaceMember{WorkspaceId=w.Id,UserId=viewer.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
+            new TeamBrand{TeamId=a.Id,BrandId=b.Id},new TeamBrand{TeamId=v.Id,BrandId=b.Id},new TeamBrand{TeamId=c.Id,BrandId=b.Id},
+            new TeamMember{TeamId=a.Id,UserId=actor.Id,Role=TeamRoleEnum.Manager},
+            new TeamMember{TeamId=v.Id,UserId=actor.Id,Role=TeamRoleEnum.Viewer},
+            new TeamMember{TeamId=c.Id,UserId=actor.Id,Role=TeamRoleEnum.ContentCreator},
+            new TeamMember{TeamId=a.Id,UserId=viewer.Id,Role=TeamRoleEnum.Viewer});
+        foreach(var team in new[]{a,v,c}) db.AddRange(new TeamMember{TeamId=team.Id,UserId=other.Id,Role=TeamRoleEnum.ContentCreator},
+            new Content{WorkspaceId=w.Id,BrandId=b.Id,TeamId=team.Id,PrimaryCreatorId=other.Id});
+        db.AddRange(new Content{WorkspaceId=w.Id,BrandId=b.Id,TeamId=c.Id,PrimaryCreatorId=actor.Id},
+            new Content{WorkspaceId=w.Id,BrandId=unassigned.Id,PrimaryCreatorId=other.Id});
+        await db.SaveChangesAsync();
+        var service=new MemberPerformanceService(db,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)));
+        var report=await service.GetAsync(actor.Id,w.Id,from,to,memberId:other.Id);
+        Assert.Equal(1,Assert.Single(report.Items).ContentsCreated);
+        db.PermissionActorId=actor.Id;
+        var dashboard=new AISAM.Services.Service.WorkspaceDashboardService(null!,null!,null!,null!,null!,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)),db);
+        Assert.Equal(403,(await dashboard.GetSummaryAsync(w.Id)).StatusCode); // before wallet/member queries
+        var controller=new AISAM.API.Controllers.MemberPerformanceController(service);
+        var http=new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        http.User=new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier,actor.Id.ToString())],"test"));
+        http.Items[AISAM.API.Utils.WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey]=wm;
+        http.Items[AISAM.API.Utils.WorkspaceContextHelper.ActiveWorkspaceItemKey]=w.Id;
+        controller.ControllerContext=new Microsoft.AspNetCore.Mvc.ControllerContext{HttpContext=http};
+        var export=Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(await controller.Export(from,to,memberId:other.Id));
+        using(var json=System.Text.Json.JsonDocument.Parse(export.FileContents))
+            Assert.Equal(1,json.RootElement.GetProperty("items")[0].GetProperty("contentsCreated").GetInt32());
+        Assert.DoesNotContain(report.Teams,t=>t.Id==v.Id);
+        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to,teamId:v.Id))).StatusCode);
+        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to,teamId:c.Id,memberId:other.Id))).StatusCode);
+        Assert.Equal(1,Assert.Single((await service.GetAsync(actor.Id,w.Id,from,to,teamId:c.Id,memberId:actor.Id)).Items).ContentsCreated);
+        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,from,to))).StatusCode);
+        wm.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;await db.SaveChangesAsync();
+        Assert.Equal(4,Assert.Single((await service.GetAsync(actor.Id,w.Id,from,to,memberId:other.Id)).Items).ContentsCreated);
+        wm.IsActive=false;await db.SaveChangesAsync();
+        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to))).StatusCode);
+    }
+    [Fact]
     public async Task AggregatesKnownFixtureWithoutSnapshotsOrRetryDoubleCountingAndProtectsScope()
     {
         await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
@@ -57,7 +104,7 @@ public class MemberPerformanceTests
         Assert.Null(MemberPerformanceService.Rate(0,0));
         await Assert.ThrowsAsync<ArgumentException>(()=>service.GetAsync(owner.Id,w.Id,end,start));
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(owner.Id,w.Id,start,end,teamId:Guid.NewGuid()))).StatusCode);
-        var assignment=await db.TeamBrands.SingleAsync();assignment.IsActive=false;await db.SaveChangesAsync();
+        var assignment=await db.TeamBrands.SingleAsync(tb=>tb.TeamId==team.Id && tb.BrandId==brand.Id);assignment.IsActive=false;await db.SaveChangesAsync();
         Assert.Empty((await service.GetAsync(creator.Id,w.Id,start,end)).Items);
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(manager.Id,w.Id,start,end,brandId:brand.Id))).StatusCode);
     }

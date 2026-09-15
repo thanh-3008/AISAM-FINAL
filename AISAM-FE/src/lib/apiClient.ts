@@ -7,6 +7,7 @@ export { getActiveApiUrl, API_URL };
 
 let isRedirectingToLogin = false;
 let isLoggingOut = false;
+const hrRevisions = new Map<string, string>();
 
 export function setLoggingOut(value: boolean) {
   isLoggingOut = value;
@@ -69,6 +70,7 @@ async function buildHeaders(customHeaders?: Record<string, string>, includeAuth 
   const profile = getStoredActiveProfile();
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    "X-RBAC-Contract-Version": "2",
     ...(workspace ? { "X-Workspace-Id": workspace.id } : {}),
     ...(profile && isValidGuid(profile.id) ? { "X-Profile-Id": profile.id } : {}),
     ...(customHeaders || {}),
@@ -95,6 +97,9 @@ async function handleResponse(response: Response, config: RequestInit) {
   }
 
   assertWorkspace(config);
+  const workspaceId = (config.headers as Record<string, string>)?.["X-Workspace-Id"];
+  const hrRevision = response.headers?.get("X-HR-Revision");
+  if (response.ok && workspaceId && hrRevision) hrRevisions.set(workspaceId, hrRevision);
   if (!response.ok) {
     let errorMessage = "Đã có lỗi xảy ra";
 
@@ -171,6 +176,7 @@ async function handleResponse(response: Response, config: RequestInit) {
     const friendly = response.status === 403 ? mappedError ?? "Bạn không còn quyền thực hiện thao tác này. Hãy kiểm tra workspace hoặc liên hệ Owner."
       : response.status === 404 ? "Tài nguyên không tồn tại hoặc bạn không còn quyền truy cập."
       : response.status === 409 ? "Quyền đã được người khác thay đổi. Tải lại trước khi lưu."
+      : response.status === 428 ? "Vui lòng tải lại danh sách để kiểm tra phiên bản trước khi lưu thay đổi."
       : mappedError ?? (trimmed || `Request failed (${response.status})`);
     const error = new Error(friendly) as Error & {
       status?: number;
@@ -231,6 +237,11 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
   const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
   const isMutation = hasJsonBody || customConfig.method === "POST" || customConfig.method === "PUT" || customConfig.method === "DELETE";
+  if (isMutation && /^\/(teams|workspace-members|workspace-invitations)(\/|$)/.test(endpoint) &&
+      !endpoint.endsWith("/accept") && !headers["If-Match"]) {
+    const revision = hrRevisions.get(headers["X-Workspace-Id"]);
+    if (revision) headers["If-Match"] = revision;
+  }
 
   const config: RequestInit = {
     method: hasJsonBody ? "POST" : "GET",

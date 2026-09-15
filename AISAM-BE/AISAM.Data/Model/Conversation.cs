@@ -22,6 +22,8 @@ namespace AISAM.Data.Model
 
         [Column("brand_id")]
         public Guid? BrandId { get; set; }
+        [Column("team_id")]
+        public Guid? TeamId { get; set; }
 
         [Column("product_id")]
         public Guid? ProductId { get; set; }

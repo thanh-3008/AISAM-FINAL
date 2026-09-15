@@ -15,25 +15,34 @@ public sealed class WorkspaceDashboardService : IWorkspaceDashboardService
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IQuotaService _quotaService;
     private readonly ICreditService _creditService;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
+    private readonly AISAM.Repositories.AisamContext? _context;
 
     public WorkspaceDashboardService(
         ICreditUsageRecordRepository creditUsageRecordRepository,
         IPostRepository postRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
         IQuotaService quotaService,
-        ICreditService creditService)
+        ICreditService creditService, AISAM.Services.Access.IAccessControlService? access=null, AISAM.Repositories.AisamContext? context=null)
     {
         _creditUsageRecordRepository = creditUsageRecordRepository;
         _postRepository = postRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _quotaService = quotaService;
         _creditService = creditService;
+        _access=access;_context=context;
     }
 
     public async Task<GenericResponse<WorkspaceDashboardSummaryDto>> GetSummaryAsync(
         Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter)
+        {
+            var permissions=_context is null?null:await new AISAM.Services.Access.RbacV2AccessResolver(_context).ContextAsync(_context.PermissionActorId,workspaceId,cancellationToken);
+            if (permissions?.WorkspaceRole is not ("Owner" or "WorkspaceManager"))
+                return GenericResponse<WorkspaceDashboardSummaryDto>.CreateError("Workspace financial summary requires workspace management access.",HttpStatusCode.Forbidden);
+        }
         var wallet = await _creditService.EnsureCurrentFreeCreditsAsync(workspaceId, cancellationToken: cancellationToken);
         var usage = await _creditUsageRecordRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);
         var members = await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);

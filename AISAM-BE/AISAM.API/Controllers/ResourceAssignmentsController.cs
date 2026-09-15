@@ -25,7 +25,7 @@ public sealed class ResourceAssignmentsController(AssignmentService assignments,
     private static object View(AssignmentSnapshot snapshot) => new {
         revision=snapshot.Revision,
         teams=snapshot.Teams.Select(t=>new {t.Id,t.TeamId,t.IsActive}),
-        channels=snapshot.Channels.Select(c=>new {c.TeamBrandId,c.IntegrationId,c.CanView,c.CanPublish,c.CanManage})
+        channels=snapshot.Channels.Select(c=>new {c.TeamBrandId,c.IntegrationId,c.CanView,c.CanPublish,c.CanManage,c.ScopeEnabledV2})
     };
     private async Task<IActionResult> Execute(Func<Task<AssignmentSnapshot>> operation)
     {

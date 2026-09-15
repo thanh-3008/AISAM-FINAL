@@ -17,6 +17,9 @@ namespace AISAM.Data.Model
         [Column("workspace_id")]
         public Guid WorkspaceId { get; set; }
 
+        [Column("default_for_brand_id")]
+        public Guid? DefaultForBrandId { get; set; }
+
         [Required]
         [MaxLength(255)]
         [Column("name")]

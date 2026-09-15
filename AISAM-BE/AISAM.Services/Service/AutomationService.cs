@@ -20,13 +20,15 @@ public sealed class AutomationService : IAutomationService
     private readonly IBrandRepository _brandRepository;
     private readonly IProductRepository _productRepository;
     private readonly IAutomationCreditService _automationCredits;
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
+    private readonly AISAM.Repositories.AisamContext? _context;
 
-    public AutomationService(IAutomationRepository automationRepository, IBrandRepository brandRepository, IProductRepository productRepository, IAutomationCreditService automationCredits)
+    public AutomationService(IAutomationRepository automationRepository, IBrandRepository brandRepository, IProductRepository productRepository, IAutomationCreditService automationCredits, AISAM.Services.Access.IAccessControlService? access=null, AISAM.Repositories.AisamContext? context=null)
     {
         _automationRepository = automationRepository;
         _brandRepository = brandRepository;
         _productRepository = productRepository;
-        _automationCredits = automationCredits;
+        _automationCredits = automationCredits; _access=access; _context=context;
     }
 
     public async Task<GenericResponse<AutomationPlanDto>> CreateAsync(Guid workspaceId, Guid profileId, Guid actorUserId, CreateAutomationPlanRequest request, string? sourceFileName = null, CancellationToken cancellationToken = default)
@@ -65,6 +67,9 @@ public sealed class AutomationService : IAutomationService
                     row.ProductId = resolvedBrand.Products.FirstOrDefault(product => string.Equals(product.Name, row.ProductName.Trim(), StringComparison.OrdinalIgnoreCase))?.Id;
             }
             var platforms = row.Platforms.Where(value => !string.IsNullOrWhiteSpace(value)).Select(NormalizePlatform).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+                (!row.BrandId.HasValue || !(await _access.CheckAsync(new(actorUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Brand,row.BrandId.Value,AISAM.Services.Access.ResourcePermission.ContentCreate,TeamId:row.TeamId),cancellationToken)).Allowed))
+                return GenericResponse<AutomationPlanDto>.CreateError("Each row requires a permitted Team and Brand.",HttpStatusCode.Forbidden);
             if (platforms.Count == 0) platforms.Add("unknown");
 
             foreach (var platform in platforms)
@@ -77,7 +82,7 @@ public sealed class AutomationService : IAutomationService
                     RowIndex = rowIndex + 1,
                     Platform = platform,
                     IdempotencyKey = CreateIdempotencyKey(plan.Id, rowIndex + 1, platform),
-                    BrandId = row.BrandId,
+                    BrandId = row.BrandId, TeamId = row.TeamId,
                     ProductId = row.ProductId,
                     Topic = row.Topic.Trim(),
                     Objective = NullIfEmpty(row.Objective),
@@ -147,6 +152,7 @@ public sealed class AutomationService : IAutomationService
             rows.Add(new AutomationImportRowRequest
             {
                 BrandId = Guid.TryParse(brandIdText, out var brandId) ? brandId : null,
+                TeamId = Guid.TryParse(Get(data, "TeamId"), out var teamId) ? teamId : null,
                 BrandName = Get(data, "Brand"),
                 ProductId = Guid.TryParse(productIdText, out var productId) ? productId : null,
                 ProductName = Get(data, "Product"),
@@ -269,7 +275,7 @@ public sealed class AutomationService : IAutomationService
         if (source.Items.Count == 0) return GenericResponse<AutomationPlanDto>.CreateError("The source automation plan is empty and cannot be cloned.", HttpStatusCode.BadRequest);
         var rows = source.Items.Select(item => new AutomationImportRowRequest
         {
-            BrandId = item.BrandId, ProductId = item.ProductId, Topic = item.Topic, Objective = item.Objective,
+            BrandId = item.BrandId, TeamId = item.TeamId, ProductId = item.ProductId, Topic = item.Topic, Objective = item.Objective,
             Platforms = [item.Platform], ContentType = item.RequestedContentType.ToString(), Tone = item.Tone, Cta = item.Cta,
             Notes = item.Notes, ScheduledAt = item.ScheduledAt.AddDays(request.ShiftDays)
         }).ToList();
@@ -288,6 +294,16 @@ public sealed class AutomationService : IAutomationService
         if (plan is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation plan not found.", HttpStatusCode.NotFound);
         if (plan.Status is not AutomationPlanStatusEnum.AwaitingConfirmation and not AutomationPlanStatusEnum.Generating)
             return GenericResponse<AutomationPlanDto>.CreateError("Auto-approve can only be changed before generation finishes.");
+        if (enabled && _access is AISAM.Services.Access.RbacV2AccessAdapter)
+        {
+            // The worker executes auto-approval as the plan creator, not the last editor.
+            if (_context is null || plan.CreatedByUserId is not { } creator)
+                return GenericResponse<AutomationPlanDto>.CreateError("An approval actor is required.",HttpStatusCode.Forbidden);
+            var permission=await new AISAM.Services.Access.RbacV2AccessResolver(_context).ContextAsync(creator,workspaceId,cancellationToken);
+            if (permission is null || permission.WorkspaceRole is not ("Owner" or "WorkspaceManager") &&
+                plan.Items.Any(i=>!permission.Scopes.Any(s=>s.TeamId==i.TeamId && s.BrandId==i.BrandId && s.Role=="Manager")))
+                return GenericResponse<AutomationPlanDto>.CreateError("The plan creator cannot auto-approve every target Team. Use manual review.",HttpStatusCode.Forbidden);
+        }
         plan.AutoApprove = enabled; plan.UpdatedAt = DateTime.UtcNow;
         await _automationRepository.SaveChangesAsync(cancellationToken);
         return GenericResponse<AutomationPlanDto>.CreateSuccess(Map(plan), enabled ? "Auto-approve enabled." : "Auto-approve disabled.");
@@ -307,6 +323,10 @@ public sealed class AutomationService : IAutomationService
             return GenericResponse<AutomationPlanDto>.CreateError("Items can only be edited before the plan is confirmed.");
         var item = plan.Items.FirstOrDefault(value => value.Id == itemId);
         if (item is null) return GenericResponse<AutomationPlanDto>.CreateError("Automation item not found.", HttpStatusCode.NotFound);
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+            (item.ContentId.HasValue || _context?.ExecutionActorId is not { } actor || !request.BrandId.HasValue ||
+             !(await _access.CheckAsync(new(actor,workspaceId,AISAM.Services.Access.AccessResourceKind.Brand,request.BrandId.Value,AISAM.Services.Access.ResourcePermission.ContentCreate,TeamId:request.TeamId),cancellationToken)).Allowed))
+            return GenericResponse<AutomationPlanDto>.CreateError("The target Team cannot be changed or accessed.",HttpStatusCode.Forbidden);
         var platform = NormalizePlatform(request.Platform);
         if (plan.Items.Any(value => value.Id != item.Id && value.RowIndex == item.RowIndex && value.Platform == platform))
             return GenericResponse<AutomationPlanDto>.CreateError("This row already contains the selected platform.", HttpStatusCode.Conflict);
@@ -315,13 +335,13 @@ public sealed class AutomationService : IAutomationService
 
         var validationRow = new AutomationImportRowRequest
         {
-            BrandId = request.BrandId, ProductId = request.ProductId, Topic = request.Topic, Platforms = [platform],
+            BrandId = request.BrandId, TeamId = request.TeamId, ProductId = request.ProductId, Topic = request.Topic, Platforms = [platform],
             ContentType = request.ContentType, Objective = request.Objective, Tone = request.Tone, Cta = request.Cta,
             Notes = request.Notes, ScheduledAt = request.ScheduledAt
         };
         var brand = request.BrandId.HasValue ? await _brandRepository.GetByIdAsync(request.BrandId.Value, cancellationToken) : null;
         var errors = ValidateRow(workspaceId, validationRow, platform, brand);
-        item.BrandId = request.BrandId; item.ProductId = request.ProductId; item.Topic = request.Topic.Trim(); item.Platform = platform;
+        item.TeamId = request.TeamId; item.BrandId = request.BrandId; item.ProductId = request.ProductId; item.Topic = request.Topic.Trim(); item.Platform = platform;
         item.IdempotencyKey = CreateIdempotencyKey(plan.Id, item.RowIndex, platform); item.RequestedContentType = contentType;
         item.Objective = NullIfEmpty(request.Objective); item.Tone = NullIfEmpty(request.Tone); item.Cta = NullIfEmpty(request.Cta);
         item.Notes = NullIfEmpty(request.Notes); item.ScheduledAt = NormalizeUtc(request.ScheduledAt);
@@ -369,7 +389,7 @@ public sealed class AutomationService : IAutomationService
         CreatedAt = plan.CreatedAt, ConfirmedAt = plan.ConfirmedAt,
         Items = plan.Items.Select(item => new AutomationItemDto
         {
-            Id = item.Id, RowIndex = item.RowIndex, Platform = item.Platform, BrandId = item.BrandId, BrandName = item.Brand?.Name ?? string.Empty,
+            Id = item.Id, RowIndex = item.RowIndex, Platform = item.Platform, BrandId = item.BrandId, TeamId = item.TeamId, BrandName = item.Brand?.Name ?? string.Empty,
             ProductId = item.ProductId, ContentId = item.ContentId, ContentCalendarId = item.ContentCalendarId, Topic = item.Topic, Objective = item.Objective,
             ContentType = item.RequestedContentType.ToString(), Tone = item.Tone, Cta = item.Cta, Notes = item.Notes,
             ScheduledAt = item.ScheduledAt, Status = item.Status.ToString(), EstimatedCredits = item.EstimatedCredits,

@@ -11,6 +11,7 @@ public sealed class CreateAutomationPlanRequest
 
 public sealed class AutomationImportRowRequest
 {
+    public Guid? TeamId { get; set; }
     public Guid? BrandId { get; set; }
     public string? BrandName { get; set; }
     public Guid? ProductId { get; set; }
@@ -48,6 +49,7 @@ public sealed class AutomationPlanDto
 
 public sealed class AutomationItemDto
 {
+    public Guid? TeamId { get; set; }
     public Guid Id { get; set; }
     public int RowIndex { get; set; }
     public string Platform { get; set; } = string.Empty;
@@ -107,6 +109,7 @@ public sealed class SetAutomationAutoApproveRequest
 
 public sealed class UpdateAutomationItemRequest
 {
+    public Guid? TeamId { get; set; }
     public Guid? BrandId { get; set; }
     public Guid? ProductId { get; set; }
     [Required, MaxLength(300)] public string Topic { get; set; } = string.Empty;

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRbac } from "@/contexts/RbacContext";
+import RbacTeamManagement from "@/components/team/RbacTeamManagement";
 import Header from "@/components/layout/Header";
 import { useWorkspaces, getWorkspaceTypeLabel, invalidateWorkspaceCache } from "@/hooks/useWorkspaces";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
@@ -34,6 +36,11 @@ import CreateTeamWizard from "@/components/team/CreateTeamWizard";
 import TeamDetailPanel from "@/components/team/TeamDetailPanel";
 
 export default function TeamPage() {
+  const rbac = useRbac();
+  return rbac ? <RbacTeamManagement /> : <LegacyTeamPage />;
+}
+
+function LegacyTeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);

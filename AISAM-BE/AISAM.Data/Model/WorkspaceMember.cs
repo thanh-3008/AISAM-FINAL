@@ -23,6 +23,10 @@ namespace AISAM.Data.Model
         [Column("role")]
         public WorkspaceMemberRoleEnum Role { get; set; }
 
+        // Null means not migrated; authorization must fail closed until explicitly mapped.
+        [Column("workspace_role_v2")]
+        public WorkspaceRoleV2? WorkspaceRoleV2 { get; set; }
+
         [Required]
         [Column("quota_mode")]
         public MemberQuotaModeEnum QuotaMode { get; set; } = MemberQuotaModeEnum.SharedPool;

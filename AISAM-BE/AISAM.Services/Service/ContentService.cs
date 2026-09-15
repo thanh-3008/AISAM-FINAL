@@ -17,6 +17,18 @@ namespace AISAM.Services.Service;
 
 public sealed class ContentService : IContentService
 {
+    private bool V2 => _access is AISAM.Services.Access.RbacV2AccessAdapter;
+    private void AddApproval(Content content, Approval approval)
+    {
+        content.Approvals.Add(approval);
+        _context?.Approvals.Add(approval);
+    }
+    private async Task<bool> AllowV2(Guid contentId,Guid workspace,AISAM.Services.Access.ResourcePermission permission,CancellationToken ct,Guid? actor=null)
+    {
+        if(!V2)return true;
+        var caller=actor ?? _context?.PermissionActorId ?? Guid.Empty;
+        return _access is not null && (await _access.CheckAsync(new(caller,workspace,AISAM.Services.Access.AccessResourceKind.Content,contentId,permission),ct)).Allowed;
+    }
     private enum ApprovalNotificationEvent
     {
         None,
@@ -124,6 +136,8 @@ public sealed class ContentService : IContentService
     public async Task<GenericResponse<ContentResponseDto>> CreateInWorkspaceAsync(Guid workspaceId, Guid profileId, Guid actorUserId, CreateContentRequest request, CancellationToken cancellationToken = default)
     {
         if (actorUserId == Guid.Empty) return GenericResponse<ContentResponseDto>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
+        if(V2 && (_access is null || !(await _access.CheckAsync(new(actorUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Brand,request.BrandId,AISAM.Services.Access.ResourcePermission.ContentCreate,TeamId:request.TeamId),cancellationToken)).Allowed))
+            return GenericResponse<ContentResponseDto>.CreateError("Team is required and must allow content creation.",HttpStatusCode.Forbidden);
         var statusValidation = ValidateCreateStatus(request.Status);
         if (!statusValidation.Success) return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
 
@@ -179,8 +193,11 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<ContentResponseDto>> UpdateInWorkspaceAsync(Guid id, Guid workspaceId, UpdateContentRequest request, WorkspaceMemberRoleEnum role, CancellationToken cancellationToken = default)
     {
+        if(!await AllowV2(id,workspaceId,AISAM.Services.Access.ResourcePermission.ContentEdit,cancellationToken))return GenericResponse<ContentResponseDto>.CreateError("Action not allowed.",HttpStatusCode.Forbidden);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return NotFound();
+        if(V2 && request.Status.HasValue && request.Status!=content.Status && request.Status!=ContentStatusEnum.Draft)
+            return GenericResponse<ContentResponseDto>.CreateError("Use the submit/approve/reject action for status transitions.",HttpStatusCode.BadRequest);
         var validation = await ValidateBrandAndProductInWorkspaceAsync(workspaceId, content.BrandId, request.ProductId, cancellationToken);
         if (!validation.Success) return GenericResponse<ContentResponseDto>.CreateError(validation.Message!, (HttpStatusCode)validation.StatusCode);
 
@@ -204,7 +221,7 @@ public sealed class ContentService : IContentService
         {
             var previousStatus = content.Status;
             if (request.Status.Value != content.Status &&
-                role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager)
+                !V2 && role is not WorkspaceMemberRoleEnum.Owner and not WorkspaceMemberRoleEnum.Manager)
             {
                 return GenericResponse<ContentResponseDto>.CreateError(
                     "Only workspace owners and managers can change content status.",
@@ -234,7 +251,9 @@ public sealed class ContentService : IContentService
         if (actorUserId == Guid.Empty) return GenericResponse<ContentResponseDto>.CreateError("Authenticated creator is required.", HttpStatusCode.Unauthorized);
         var existing = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
-        var clone = new Content { WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, RichTextJson = existing.RichTextJson, RichTextVersion = existing.RichTextVersion, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
+        if(V2 && (_access is null || !(await _access.CheckAsync(new(actorUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Brand,existing.BrandId,AISAM.Services.Access.ResourcePermission.ContentCreate,TeamId:existing.TeamId),cancellationToken)).Allowed))
+            return GenericResponse<ContentResponseDto>.CreateError("Cannot create content in this Team.",HttpStatusCode.Forbidden);
+        var clone = new Content { TeamId=existing.TeamId, WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, RichTextJson = existing.RichTextJson, RichTextVersion = existing.RichTextVersion, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
         clone.PrimaryCreatorId = actorUserId;
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
@@ -248,6 +267,7 @@ public sealed class ContentService : IContentService
 
     private async Task<GenericResponse<bool>> ChangeDeletedInWorkspaceAsync(Guid id, Guid workspaceId, bool deleted, WorkspaceMemberRoleEnum? role, CancellationToken cancellationToken)
     {
+        if(V2 && (!deleted || !await AllowV2(id,workspaceId,AISAM.Services.Access.ResourcePermission.ContentDelete,cancellationToken)))return GenericResponse<bool>.CreateError("Action not allowed.",HttpStatusCode.Forbidden);
         var content = deleted ? await _contentRepository.GetByIdAsync(id, cancellationToken) : await _contentRepository.GetByIdIncludingDeletedAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId) return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
 
@@ -286,6 +306,7 @@ public sealed class ContentService : IContentService
 
     public async Task<GenericResponse<bool>> SubmitForApprovalAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
     {
+        if(!await AllowV2(id,workspaceId,AISAM.Services.Access.ResourcePermission.ContentEdit,cancellationToken))return GenericResponse<bool>.CreateError("Action not allowed.",HttpStatusCode.Forbidden);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {
@@ -298,14 +319,38 @@ public sealed class ContentService : IContentService
         }
 
         content.Status = ContentStatusEnum.PendingApproval;
-        content.Approvals.Add(new Approval { ContentId=content.Id, Status=ContentStatusEnum.PendingApproval, SubmittedAt=DateTime.UtcNow });
+        AddApproval(content, new Approval { ContentId=content.Id, Status=ContentStatusEnum.PendingApproval, SubmittedAt=DateTime.UtcNow });
         await _contentRepository.UpdateAsync(content, cancellationToken);
         await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Content submitted for approval successfully.");
     }
 
+    public async Task<GenericResponse<bool>> WithdrawApprovalAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
+    {
+        if (!V2 || _context is null || !await AllowV2(id, workspaceId, AISAM.Services.Access.ResourcePermission.ApprovalWithdraw, cancellationToken))
+            return GenericResponse<bool>.CreateError("Action not allowed.", HttpStatusCode.Forbidden);
+        var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
+        if (content is null || content.WorkspaceId != workspaceId)
+            return GenericResponse<bool>.CreateError(MessageConstants.Content.NotFound, HttpStatusCode.NotFound);
+        if (content.Status != ContentStatusEnum.Approved)
+            return GenericResponse<bool>.CreateError("Only approved content can be withdrawn.", HttpStatusCode.Conflict);
+        // A queued or in-flight publication must be cancelled before the approved version changes.
+        if (await _context.ContentCalendars.IgnoreQueryFilters().AnyAsync(s => s.ContentId == id && s.WorkspaceId == workspaceId &&
+            !s.IsDeleted && s.IsActive && (s.Status == ScheduleStatusEnum.Pending || s.Status == ScheduleStatusEnum.Processing), cancellationToken))
+            return GenericResponse<bool>.CreateError("Cancel pending publication schedules before withdrawing approval.", HttpStatusCode.Conflict);
+        content.Status = ContentStatusEnum.Draft;
+        content.SubmittedSnapshotId = null;
+        content.ApprovedSnapshotId = null;
+        content.MediaVersion = Guid.NewGuid();
+        AddApproval(content, new Approval { ContentId = id, ApproverUserId = _context.PermissionActorId,
+            Status = ContentStatusEnum.Draft, SubmittedAt = DateTime.UtcNow, Notes = "Approval withdrawn; a new review is required." });
+        await _contentRepository.UpdateAsync(content, cancellationToken);
+        return GenericResponse<bool>.CreateSuccess(true, "Approval withdrawn. Content is now a draft.");
+    }
+
     public async Task<GenericResponse<ContentResponseDto>> ApproveAsync(Guid id, Guid workspaceId, Guid approverUserId, CancellationToken cancellationToken = default)
     {
+        if(!await AllowV2(id,workspaceId,AISAM.Services.Access.ResourcePermission.ApprovalReview,cancellationToken,approverUserId))return GenericResponse<ContentResponseDto>.CreateError("Action not allowed.",HttpStatusCode.Forbidden);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {
@@ -318,7 +363,7 @@ public sealed class ContentService : IContentService
         }
 
         content.Status = ContentStatusEnum.Approved;
-        content.Approvals.Add(new Approval
+        AddApproval(content, new Approval
         {
             ContentId = content.Id,
             ApproverUserId = approverUserId,
@@ -344,6 +389,7 @@ public sealed class ContentService : IContentService
             return GenericResponse<ContentResponseDto>.CreateError("Rejection notes must not exceed 1000 characters.", HttpStatusCode.BadRequest);
         }
 
+        if(!await AllowV2(id,workspaceId,AISAM.Services.Access.ResourcePermission.ApprovalReview,cancellationToken,approverUserId))return GenericResponse<ContentResponseDto>.CreateError("Action not allowed.",HttpStatusCode.Forbidden);
         var content = await _contentRepository.GetByIdAsync(id, cancellationToken);
         if (content == null || content.WorkspaceId != workspaceId)
         {
@@ -356,7 +402,7 @@ public sealed class ContentService : IContentService
         }
 
         content.Status = ContentStatusEnum.Rejected;
-        content.Approvals.Add(new Approval
+        AddApproval(content, new Approval
         {
             ContentId = content.Id,
             ApproverUserId = approverUserId,
@@ -541,6 +587,8 @@ public sealed class ContentService : IContentService
             }
 
             // A content item may be published to more than one social integration.
+            if (V2 && _context?.ExecutionSnapshotId is { } executionSnapshot && executionSnapshot != content.ApprovedSnapshotId)
+                return GenericResponse<PublishResultDto>.CreateError("The reviewed version has changed.", HttpStatusCode.Conflict);
             // The first successful post marks it Published; later integrations must
             // still be allowed to publish the same content.
             if (_context?.ExecutionSnapshotId is null && content.Status != ContentStatusEnum.Approved && content.Status != ContentStatusEnum.Published)

@@ -9,6 +9,18 @@ const b = { ...a, id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name: "B" };
 const response = (status: number, data: unknown) => new Response(JSON.stringify(data), { status });
 beforeEach(() => { localStorage.clear(); storeActiveWorkspace(a); vi.clearAllMocks(); global.fetch = vi.fn(); });
 describe("permission context", () => {
+  it("sends v2 contract and uses the HR revision returned for this workspace", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('{"data":[]}', { status: 200, headers: { "X-HR-Revision": "hr-a" } }))
+      .mockResolvedValueOnce(response(200, {}));
+    await apiClient("/workspace-members");
+    await apiClient("/teams", { method: "POST", data: { name: "Team" } });
+    expect(fetch).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ "X-RBAC-Contract-Version": "2", "If-Match": "hr-a" }) }));
+    storeActiveWorkspace(b);
+    vi.mocked(fetch).mockResolvedValueOnce(response(428, {}));
+    await expect(apiClient("/teams", { method: "POST", data: { name: "B" } })).rejects.toMatchObject({ status: 428 });
+    const headers = (vi.mocked(fetch).mock.calls.at(-1)?.[1]?.headers as Record<string, string>);
+    expect(headers["If-Match"]).toBeUndefined();
+  });
   it("drops a response even if workspace changes while reading its body", async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, text: async () => { storeActiveWorkspace(b); return '{"data":"private A"}'; } } as Response);
     await expect(apiClient("/content")).rejects.toMatchObject({ name: "AbortError" });

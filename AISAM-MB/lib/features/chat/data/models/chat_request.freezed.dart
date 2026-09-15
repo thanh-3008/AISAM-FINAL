@@ -22,6 +22,7 @@ ChatRequest _$ChatRequestFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$ChatRequest {
   String? get brandId => throw _privateConstructorUsedError;
+  String? get teamId => throw _privateConstructorUsedError;
   String? get productId => throw _privateConstructorUsedError;
   AdTypeEnum get adType => throw _privateConstructorUsedError;
   String get message => throw _privateConstructorUsedError;
@@ -46,6 +47,7 @@ abstract class $ChatRequestCopyWith<$Res> {
   @useResult
   $Res call({
     String? brandId,
+    String? teamId,
     String? productId,
     AdTypeEnum adType,
     String message,
@@ -69,6 +71,7 @@ class _$ChatRequestCopyWithImpl<$Res, $Val extends ChatRequest>
   @override
   $Res call({
     Object? brandId = freezed,
+    Object? teamId = freezed,
     Object? productId = freezed,
     Object? adType = null,
     Object? message = null,
@@ -79,6 +82,10 @@ class _$ChatRequestCopyWithImpl<$Res, $Val extends ChatRequest>
             brandId: freezed == brandId
                 ? _value.brandId
                 : brandId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            teamId: freezed == teamId
+                ? _value.teamId
+                : teamId // ignore: cast_nullable_to_non_nullable
                       as String?,
             productId: freezed == productId
                 ? _value.productId
@@ -113,6 +120,7 @@ abstract class _$$ChatRequestImplCopyWith<$Res>
   @useResult
   $Res call({
     String? brandId,
+    String? teamId,
     String? productId,
     AdTypeEnum adType,
     String message,
@@ -135,6 +143,7 @@ class __$$ChatRequestImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? brandId = freezed,
+    Object? teamId = freezed,
     Object? productId = freezed,
     Object? adType = null,
     Object? message = null,
@@ -145,6 +154,10 @@ class __$$ChatRequestImplCopyWithImpl<$Res>
         brandId: freezed == brandId
             ? _value.brandId
             : brandId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        teamId: freezed == teamId
+            ? _value.teamId
+            : teamId // ignore: cast_nullable_to_non_nullable
                   as String?,
         productId: freezed == productId
             ? _value.productId
@@ -172,6 +185,7 @@ class __$$ChatRequestImplCopyWithImpl<$Res>
 class _$ChatRequestImpl implements _ChatRequest {
   const _$ChatRequestImpl({
     this.brandId,
+    this.teamId,
     this.productId,
     required this.adType,
     required this.message,
@@ -184,6 +198,8 @@ class _$ChatRequestImpl implements _ChatRequest {
   @override
   final String? brandId;
   @override
+  final String? teamId;
+  @override
   final String? productId;
   @override
   final AdTypeEnum adType;
@@ -194,7 +210,7 @@ class _$ChatRequestImpl implements _ChatRequest {
 
   @override
   String toString() {
-    return 'ChatRequest(brandId: $brandId, productId: $productId, adType: $adType, message: $message, conversationId: $conversationId)';
+    return 'ChatRequest(brandId: $brandId, teamId: $teamId, productId: $productId, adType: $adType, message: $message, conversationId: $conversationId)';
   }
 
   @override
@@ -203,6 +219,7 @@ class _$ChatRequestImpl implements _ChatRequest {
         (other.runtimeType == runtimeType &&
             other is _$ChatRequestImpl &&
             (identical(other.brandId, brandId) || other.brandId == brandId) &&
+            (identical(other.teamId, teamId) || other.teamId == teamId) &&
             (identical(other.productId, productId) ||
                 other.productId == productId) &&
             (identical(other.adType, adType) || other.adType == adType) &&
@@ -216,6 +233,7 @@ class _$ChatRequestImpl implements _ChatRequest {
   int get hashCode => Object.hash(
     runtimeType,
     brandId,
+    teamId,
     productId,
     adType,
     message,
@@ -239,6 +257,7 @@ class _$ChatRequestImpl implements _ChatRequest {
 abstract class _ChatRequest implements ChatRequest {
   const factory _ChatRequest({
     final String? brandId,
+    final String? teamId,
     final String? productId,
     required final AdTypeEnum adType,
     required final String message,
@@ -250,6 +269,8 @@ abstract class _ChatRequest implements ChatRequest {
 
   @override
   String? get brandId;
+  @override
+  String? get teamId;
   @override
   String? get productId;
   @override

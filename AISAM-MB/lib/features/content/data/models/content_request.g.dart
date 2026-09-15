@@ -10,6 +10,7 @@ _$CreateContentRequestImpl _$$CreateContentRequestImplFromJson(
   Map<String, dynamic> json,
 ) => _$CreateContentRequestImpl(
   brandId: json['brandId'] as String,
+  teamId: json['teamId'] as String?,
   productId: json['productId'] as String?,
   adType: $enumDecode(_$AdTypeEnumEnumMap, json['adType']),
   title: json['title'] as String?,
@@ -28,6 +29,7 @@ Map<String, dynamic> _$$CreateContentRequestImplToJson(
   _$CreateContentRequestImpl instance,
 ) => <String, dynamic>{
   'brandId': instance.brandId,
+  'teamId': instance.teamId,
   'productId': instance.productId,
   'adType': _$AdTypeEnumEnumMap[instance.adType]!,
   'title': instance.title,

@@ -8,6 +8,9 @@ import '../data/models/ai_generation_request.dart';
 import '../data/models/enums.dart';
 import '../../../core/state/base_state.dart';
 import '../data/models/ai_generation_response.dart';
+import '../../../core/network/rbac_context.dart';
+import '../../../core/storage/secure_storage.dart';
+import '../../../shared/widgets/team_scope_field.dart';
 
 class AiGenerateScreen extends ConsumerStatefulWidget {
   const AiGenerateScreen({super.key});
@@ -21,6 +24,15 @@ class _AiGenerateScreenState extends ConsumerState<AiGenerateScreen> {
   final _brandIdController = TextEditingController();
   final _titleController = TextEditingController();
   final _promptController = TextEditingController();
+  String? _teamId;
+  late final String _scope;
+
+  @override
+  void initState() {
+    super.initState();
+    final storage = ref.read(secureStorageProvider);
+    _scope = '${storage.cachedUserId}:${storage.cachedWorkspaceId}';
+  }
 
   @override
   void dispose() {
@@ -31,10 +43,19 @@ class _AiGenerateScreenState extends ConsumerState<AiGenerateScreen> {
   }
 
   void _onGenerate() {
+    final storage = ref.read(secureStorageProvider);
+    final access = ref.read(rbacContextProvider).valueOrNull;
+    if (_scope != '${storage.cachedUserId}:${storage.cachedWorkspaceId}' ||
+        access == null || (access.isV2 && !access.scopes.any((s) =>
+          s.teamId == _teamId && s.brandId == _brandIdController.text.trim() && access.canCreate(s)))) {
+      AppSnackbar.showError(context, 'Chọn Team có quyền tạo nội dung trong workspace hiện tại.');
+      return;
+    }
     if (_formKey.currentState!.validate()) {
       ref.read(aiGenerationControllerProvider.notifier).generateDraft(
         CreateDraftRequest(
           brandId: _brandIdController.text.trim(),
+          teamId: _teamId,
           adType: AdTypeEnum.textOnly,
           title: _titleController.text.trim(),
           prompt: _promptController.text.trim(),
@@ -52,12 +73,8 @@ class _AiGenerateScreenState extends ConsumerState<AiGenerateScreen> {
       next.maybeWhen(
         error: (error) => AppSnackbar.showError(context, error.toString()),
         data: (response) {
-          // Navigate to editor with pre-filled content
-          context.pushReplacement('/content/create', extra: {
-            'brandId': _brandIdController.text.trim(),
-            'title': _titleController.text.trim(),
-            'content': response.generatedText,
-          });
+          // The API already persisted this draft under the selected Team.
+          context.pushReplacement('/content/${response.contentId}');
         },
         orElse: () {},
       );
@@ -81,9 +98,13 @@ class _AiGenerateScreenState extends ConsumerState<AiGenerateScreen> {
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _brandIdController,
+                  onChanged: (_) => setState(() => _teamId = null),
                   decoration: const InputDecoration(labelText: 'Brand ID * (UUID)'),
                   validator: (value) => value == null || value.isEmpty ? 'Required' : null,
                 ),
+                const SizedBox(height: 16),
+                TeamScopeField(brandId: _brandIdController.text.trim(), value: _teamId,
+                  onChanged: (id) => setState(() => _teamId = id)),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _titleController,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useRbac } from "@/contexts/RbacContext";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
 import {
   getWorkspacePlanType,
@@ -17,12 +18,13 @@ import {
 } from "@/lib/featureConfig";
 
 export function useFeatureGate(enabled = true) {
+  const rbac = useRbac();
   const { activeWorkspace, updateWorkspacePlan } = useWorkspaces();
   const [syncedPlanName, setSyncedPlanName] = useState<string | null>(null);
   const [isResolvingPlan, setIsResolvingPlan] = useState(false);
 
   useEffect(() => {
-    if (!enabled || !activeWorkspace?.id) {
+    if (!enabled || !activeWorkspace?.id || (rbac && !rbac.actions.includes("billing.read"))) {
       setSyncedPlanName(null);
       setIsResolvingPlan(false);
       return;
@@ -53,7 +55,7 @@ export function useFeatureGate(enabled = true) {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace?.id, activeWorkspace?.plan, enabled, updateWorkspacePlan]);
+  }, [activeWorkspace?.id, activeWorkspace?.plan, enabled, updateWorkspacePlan, rbac]);
 
   const plan = useMemo(() => {
     if (!activeWorkspace) return PlanType.Free;
@@ -61,9 +63,11 @@ export function useFeatureGate(enabled = true) {
   }, [activeWorkspace, syncedPlanName]);
 
   const role = useMemo(() => {
+    if (rbac) return (rbac.workspaceRole === "Owner" ? "Owner" : rbac.workspaceRole === "WorkspaceManager" ? "Manager" :
+      rbac.scopes.some(s => s.role === "Manager" || s.role === "ContentCreator") ? "ContentCreator" : "Viewer") as WorkspaceRole;
     if (!activeWorkspace?.memberRole) return null;
     return activeWorkspace.memberRole as WorkspaceRole;
-  }, [activeWorkspace]);
+  }, [activeWorkspace, rbac]);
 
   return useMemo(() => ({
     plan,

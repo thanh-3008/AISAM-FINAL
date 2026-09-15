@@ -121,6 +121,10 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             var content = item.ContentId.HasValue
                 ? await _context.Contents.FirstOrDefaultAsync(value => value.Id == item.ContentId.Value, cancellationToken)
                 : null;
+            if (_access is AISAM.Services.Access.RbacV2AccessAdapter && item.ContentId.HasValue &&
+                (content is null || content.TeamId!=item.TeamId || content.BrandId!=item.BrandId ||
+                 !(await _access.CheckAsync(new(creatorId.Value,item.AutomationPlan.WorkspaceId,AISAM.Services.Access.AccessResourceKind.Content,item.ContentId.Value,AISAM.Services.Access.ResourcePermission.ContentEdit),cancellationToken)).Allowed))
+            { await PauseForAccessAsync(item,cancellationToken); return TimeSpan.FromSeconds(5); }
             content ??= new Content
             {
                 Id = Guid.NewGuid(),
@@ -128,6 +132,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 WorkspaceId = item.AutomationPlan.WorkspaceId,
                 PrimaryCreatorId = creatorId,
                 BrandId = item.BrandId.Value,
+                TeamId = item.TeamId,
                 ProductId = item.ProductId,
                 Title = item.Topic,
                 Status = ContentStatusEnum.Draft,
@@ -160,6 +165,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
                         throw new AISAM.Repositories.ResourceMutationDeniedException();
                     var generatedText = await _textClient.GenerateAsync(textPrompt, cancellationToken);
+                    if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+                        throw new AISAM.Repositories.ResourceMutationDeniedException();
                     if (string.IsNullOrWhiteSpace(generatedText)) throw new InvalidOperationException("AI returned empty content.");
                     content.TextContent = EnsureProductLandingUrlInCaption(generatedText.Trim(), item.Product, $"{item.Notes}\n{item.Cta}");
                     aiGen.GeneratedText = content.TextContent;
@@ -204,6 +211,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 }
                 if (string.IsNullOrWhiteSpace(video.MediaUrl))
                     throw new InvalidOperationException("Video provider completed without a media URL.");
+                if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+                    throw new AISAM.Repositories.ResourceMutationDeniedException();
                 using (var httpClient = new HttpClient())
                 {
                     var videoBytes = await httpClient.GetByteArrayAsync(video.MediaUrl, cancellationToken);
@@ -233,6 +242,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                         cancellationToken);
                     if (!media.Success || media.MediaBytes is null)
                         throw new InvalidOperationException(media.ErrorMessage ?? "Image generation failed.");
+                    if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
+                        throw new AISAM.Repositories.ResourceMutationDeniedException();
 
                     var url = await _mediaStorage.UploadBytesAsync(media.MediaBytes, "automation",
                         $"{item.Id:N}.png", cancellationToken);
@@ -251,6 +262,16 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 item.Status = AutomationItemStatusEnum.AwaitingApproval;
             }
 
+            if (_access is AISAM.Services.Access.RbacV2AccessAdapter && item.Status==AutomationItemStatusEnum.AwaitingApproval)
+            {
+                if (!await HasGenerationAccessAsync(item,creatorId.Value,cancellationToken))
+                { await PauseForAccessAsync(item,cancellationToken); return TimeSpan.FromSeconds(5); }
+                // Save the new payload before the status transition so snapshot capture
+                // cannot reset PendingApproval to Draft as part of payload invalidation.
+                await _context.SaveChangesAsync(cancellationToken);
+                content.Status=ContentStatusEnum.PendingApproval;
+                _context.Approvals.Add(new Approval{ContentId=content.Id,Status=ContentStatusEnum.PendingApproval,SubmittedAt=DateTime.UtcNow});
+            }
             item.UpdatedAt = DateTime.UtcNow;
             await RecalculatePlanAsync(item.AutomationPlan, cancellationToken);
             
@@ -294,9 +315,14 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
     }
 
     private async Task<bool> HasGenerationAccessAsync(AutomationItem item, Guid actor, CancellationToken ct)
-        => _access is null || (item.BrandId.HasValue && (await _access.CheckAsync(new(actor,
+    {
+        if (_access is AISAM.Services.Access.RbacV2AccessAdapter && item.ContentId is { } contentId &&
+            !(await _access.CheckAsync(new(actor,item.AutomationPlan.WorkspaceId,AISAM.Services.Access.AccessResourceKind.Content,contentId,AISAM.Services.Access.ResourcePermission.ContentEdit),ct)).Allowed)
+            return false;
+        return _access is null || (item.BrandId.HasValue && (await _access.CheckAsync(new(actor,
             item.AutomationPlan.WorkspaceId, AISAM.Services.Access.AccessResourceKind.Brand, item.BrandId.Value,
-            AISAM.Services.Access.ResourcePermission.ContentCreate), ct)).Allowed);
+            AISAM.Services.Access.ResourcePermission.ContentCreate,TeamId:item.TeamId), ct)).Allowed);
+    }
 
     private async Task PauseForAccessAsync(AutomationItem item, CancellationToken ct)
     {

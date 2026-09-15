@@ -12,6 +12,7 @@ public sealed class CreateWorkspaceInvitationRequest
 
     [Required]
     public WorkspaceMemberRoleEnum Role { get; set; }
+    public WorkspaceRoleV2? WorkspaceRole { get; set; }
 
     public MemberQuotaModeEnum QuotaMode { get; set; } = MemberQuotaModeEnum.SharedPool;
 

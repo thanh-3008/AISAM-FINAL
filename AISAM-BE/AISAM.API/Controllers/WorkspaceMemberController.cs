@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AISAM.API.Controllers;
 
+[ServiceFilter(typeof(AISAM.API.Filters.WorkspaceHrV2ConcurrencyFilter))]
 [ApiController]
 [Route("api/workspace-members")]
 [Authorize]

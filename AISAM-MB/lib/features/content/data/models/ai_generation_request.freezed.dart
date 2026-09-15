@@ -22,6 +22,7 @@ CreateDraftRequest _$CreateDraftRequestFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$CreateDraftRequest {
   String get brandId => throw _privateConstructorUsedError;
+  String? get teamId => throw _privateConstructorUsedError;
   String? get productId => throw _privateConstructorUsedError;
   AdTypeEnum get adType => throw _privateConstructorUsedError;
   String? get title => throw _privateConstructorUsedError;
@@ -46,6 +47,7 @@ abstract class $CreateDraftRequestCopyWith<$Res> {
   @useResult
   $Res call({
     String brandId,
+    String? teamId,
     String? productId,
     AdTypeEnum adType,
     String? title,
@@ -69,6 +71,7 @@ class _$CreateDraftRequestCopyWithImpl<$Res, $Val extends CreateDraftRequest>
   @override
   $Res call({
     Object? brandId = null,
+    Object? teamId = freezed,
     Object? productId = freezed,
     Object? adType = null,
     Object? title = freezed,
@@ -80,6 +83,10 @@ class _$CreateDraftRequestCopyWithImpl<$Res, $Val extends CreateDraftRequest>
                 ? _value.brandId
                 : brandId // ignore: cast_nullable_to_non_nullable
                       as String,
+            teamId: freezed == teamId
+                ? _value.teamId
+                : teamId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             productId: freezed == productId
                 ? _value.productId
                 : productId // ignore: cast_nullable_to_non_nullable
@@ -113,6 +120,7 @@ abstract class _$$CreateDraftRequestImplCopyWith<$Res>
   @useResult
   $Res call({
     String brandId,
+    String? teamId,
     String? productId,
     AdTypeEnum adType,
     String? title,
@@ -135,6 +143,7 @@ class __$$CreateDraftRequestImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? brandId = null,
+    Object? teamId = freezed,
     Object? productId = freezed,
     Object? adType = null,
     Object? title = freezed,
@@ -146,6 +155,10 @@ class __$$CreateDraftRequestImplCopyWithImpl<$Res>
             ? _value.brandId
             : brandId // ignore: cast_nullable_to_non_nullable
                   as String,
+        teamId: freezed == teamId
+            ? _value.teamId
+            : teamId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         productId: freezed == productId
             ? _value.productId
             : productId // ignore: cast_nullable_to_non_nullable
@@ -172,6 +185,7 @@ class __$$CreateDraftRequestImplCopyWithImpl<$Res>
 class _$CreateDraftRequestImpl implements _CreateDraftRequest {
   const _$CreateDraftRequestImpl({
     required this.brandId,
+    this.teamId,
     this.productId,
     required this.adType,
     this.title,
@@ -184,6 +198,8 @@ class _$CreateDraftRequestImpl implements _CreateDraftRequest {
   @override
   final String brandId;
   @override
+  final String? teamId;
+  @override
   final String? productId;
   @override
   final AdTypeEnum adType;
@@ -194,7 +210,7 @@ class _$CreateDraftRequestImpl implements _CreateDraftRequest {
 
   @override
   String toString() {
-    return 'CreateDraftRequest(brandId: $brandId, productId: $productId, adType: $adType, title: $title, prompt: $prompt)';
+    return 'CreateDraftRequest(brandId: $brandId, teamId: $teamId, productId: $productId, adType: $adType, title: $title, prompt: $prompt)';
   }
 
   @override
@@ -203,6 +219,7 @@ class _$CreateDraftRequestImpl implements _CreateDraftRequest {
         (other.runtimeType == runtimeType &&
             other is _$CreateDraftRequestImpl &&
             (identical(other.brandId, brandId) || other.brandId == brandId) &&
+            (identical(other.teamId, teamId) || other.teamId == teamId) &&
             (identical(other.productId, productId) ||
                 other.productId == productId) &&
             (identical(other.adType, adType) || other.adType == adType) &&
@@ -212,8 +229,15 @@ class _$CreateDraftRequestImpl implements _CreateDraftRequest {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, brandId, productId, adType, title, prompt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    brandId,
+    teamId,
+    productId,
+    adType,
+    title,
+    prompt,
+  );
 
   /// Create a copy of CreateDraftRequest
   /// with the given fields replaced by the non-null parameter values.
@@ -235,6 +259,7 @@ class _$CreateDraftRequestImpl implements _CreateDraftRequest {
 abstract class _CreateDraftRequest implements CreateDraftRequest {
   const factory _CreateDraftRequest({
     required final String brandId,
+    final String? teamId,
     final String? productId,
     required final AdTypeEnum adType,
     final String? title,
@@ -246,6 +271,8 @@ abstract class _CreateDraftRequest implements CreateDraftRequest {
 
   @override
   String get brandId;
+  @override
+  String? get teamId;
   @override
   String? get productId;
   @override

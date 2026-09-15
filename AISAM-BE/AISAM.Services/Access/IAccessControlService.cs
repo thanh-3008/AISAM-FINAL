@@ -3,7 +3,7 @@ namespace AISAM.Services.Access;
 public enum AccessResourceKind { Workspace, Brand, Content, Channel, Post }
 // Actor is supplied by authenticated server code, never model-bound from a body.
 public sealed record AccessRequest(Guid ActorId, Guid WorkspaceId, AccessResourceKind Kind,
-    Guid ResourceId, ResourcePermission Permission, Guid? ChannelId = null, Guid? MemberId = null, bool IncludeDeleted = false);
+    Guid ResourceId, ResourcePermission Permission, Guid? ChannelId = null, Guid? MemberId = null, bool IncludeDeleted = false, Guid? TeamId = null);
 public sealed record AccessDecision(bool Allowed, int StatusCode, string? ErrorCode)
 {
     public static AccessDecision Permit { get; } = new(true, 200, null);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRbac } from "@/contexts/RbacContext";
+import RbacBrandAccess from "./RbacBrandAccess";
 import {
   readAssignments,
   changeAssignment,
@@ -36,6 +38,11 @@ interface TeamAccessRow {
 }
 
 export default function BrandTeamAccess({ brandId, brandName, isOwner }: BrandTeamAccessProps) {
+  const rbac = useRbac();
+  return rbac ? <RbacBrandAccess brandId={brandId} /> : <LegacyBrandTeamAccess brandId={brandId} brandName={brandName} isOwner={isOwner} />;
+}
+
+function LegacyBrandTeamAccess({ brandId, brandName, isOwner }: BrandTeamAccessProps) {
   const [snapshot, setSnapshot] = useState<AssignmentSnapshot | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);

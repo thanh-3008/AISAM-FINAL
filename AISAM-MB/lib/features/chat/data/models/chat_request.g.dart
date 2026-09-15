@@ -9,6 +9,7 @@ part of 'chat_request.dart';
 _$ChatRequestImpl _$$ChatRequestImplFromJson(Map<String, dynamic> json) =>
     _$ChatRequestImpl(
       brandId: json['brandId'] as String?,
+      teamId: json['teamId'] as String?,
       productId: json['productId'] as String?,
       adType: $enumDecode(_$AdTypeEnumEnumMap, json['adType']),
       message: json['message'] as String,
@@ -18,6 +19,7 @@ _$ChatRequestImpl _$$ChatRequestImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$ChatRequestImplToJson(_$ChatRequestImpl instance) =>
     <String, dynamic>{
       'brandId': instance.brandId,
+      'teamId': instance.teamId,
       'productId': instance.productId,
       'adType': _$AdTypeEnumEnumMap[instance.adType]!,
       'message': instance.message,
