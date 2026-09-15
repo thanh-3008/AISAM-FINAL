@@ -149,6 +149,8 @@ describe("apiClient", () => {
   });
 
   it("transparently fails over to fallback endpoint when primary endpoint has network failure", async () => {
+    const prevEnv = process.env.NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER;
+    process.env.NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER = "true";
     (auth.getToken as Mock).mockReturnValue("test-token");
     // 1st attempt fails with network error
     (global.fetch as Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
@@ -158,9 +160,12 @@ describe("apiClient", () => {
       text: async () => JSON.stringify({ success: true, data: "fallback-data" }),
     });
 
-    const result = await apiClient("/data");
-
-    expect(result).toEqual({ success: true, data: "fallback-data" });
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    try {
+      const result = await apiClient("/data");
+      expect(result).toEqual({ success: true, data: "fallback-data" });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      process.env.NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER = prevEnv;
+    }
   });
 });

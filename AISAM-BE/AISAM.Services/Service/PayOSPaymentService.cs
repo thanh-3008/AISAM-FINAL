@@ -998,7 +998,8 @@ public sealed class PayOSPaymentService : IPaymentService
                 new WorkspaceMember
                 {
                     UserId = payment.UserId,
-                    Role = WorkspaceMemberRoleEnum.Owner
+                    Role = WorkspaceMemberRoleEnum.Owner,
+                    WorkspaceRoleV2 = WorkspaceRoleV2.Owner
                 }
             ]
         }, cancellationToken);

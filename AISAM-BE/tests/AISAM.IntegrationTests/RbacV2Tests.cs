@@ -166,4 +166,37 @@ public class RbacV2Tests
         Assert.False(await VideoJobAccess.CanRunAsync(db,adapter,user.Id,w.Id,default));
         Assert.Empty(await (await service.VisibleContentsAsync(user.Id,w.Id)).ToArrayAsync());
     }
+
+    [Fact]
+    public async Task OwnerWithNullWorkspaceRoleV2_ResolvesOwnerAndHasFullAccess()
+    {
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var user = new User { Id = Guid.NewGuid(), Email = "owner@test.com", PasswordHash = "h", PasswordSalt = "s", IsActive = true };
+        var workspace = new Workspace { Id = Guid.NewGuid(), Name = "Owner WS", Status = WorkspaceStatusEnum.Active };
+        var member = new WorkspaceMember
+        {
+            UserId = user.Id,
+            WorkspaceId = workspace.Id,
+            Role = WorkspaceMemberRoleEnum.Owner,
+            WorkspaceRoleV2 = null,
+            IsActive = true
+        };
+        db.AddRange(user, workspace, member);
+        await db.SaveChangesAsync();
+
+        var resolver = new RbacV2AccessResolver(db);
+        var context = await resolver.ContextAsync(user.Id, workspace.Id);
+
+        Assert.NotNull(context);
+        Assert.Equal(2, context.ContractVersion);
+        Assert.Equal("Owner", context.WorkspaceRole);
+        Assert.Contains("billing.manage", context.Actions);
+        Assert.Contains("billing.read", context.Actions);
+        Assert.Contains("team.manage", context.Actions);
+        Assert.Contains("brand.manage", context.Actions);
+        Assert.Contains("social.manage", context.Actions);
+
+        var billingDecision = await resolver.CheckAsync(new(user.Id, workspace.Id, RbacV2Action.BillingManage));
+        Assert.True(billingDecision.Allowed);
+    }
 }

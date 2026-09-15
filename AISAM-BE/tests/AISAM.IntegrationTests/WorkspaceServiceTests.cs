@@ -29,6 +29,7 @@ public class WorkspaceServiceTests
         var owner = Assert.Single(workspace.Members);
         Assert.Equal(user.Id, owner.UserId);
         Assert.Equal(WorkspaceMemberRoleEnum.Owner, owner.Role);
+        Assert.Equal(WorkspaceRoleV2.Owner, owner.WorkspaceRoleV2);
         Assert.Equal(1, workspace.MemberLimit);
         var wallet = await context.CreditWallets.SingleAsync();
         Assert.Equal(workspace.Id, wallet.WorkspaceId);

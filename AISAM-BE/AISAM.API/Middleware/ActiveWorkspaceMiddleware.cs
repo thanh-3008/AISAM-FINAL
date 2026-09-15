@@ -114,6 +114,20 @@ public sealed class ActiveWorkspaceMiddleware
         }
 
         WorkspaceLifecyclePolicy.SynchronizeStatus(membership.Workspace, DateTime.UtcNow);
+        if (membership.WorkspaceRoleV2 is null && Enum.IsDefined(membership.Role))
+        {
+            membership.WorkspaceRoleV2 = membership.Role == WorkspaceMemberRoleEnum.Owner
+                ? WorkspaceRoleV2.Owner
+                : WorkspaceRoleV2.Member;
+            try
+            {
+                await workspaceMemberRepository.UpdateAsync(membership, context.RequestAborted);
+            }
+            catch
+            {
+                // In-memory assignment is sufficient for current request even if concurrent write occurs
+            }
+        }
         var authorizationError = await ValidateRequestAuthorizationAsync(context, membership, subscriptionRepository, resourceAccess is AISAM.Services.Access.RbacV2AccessAdapter);
         if(authorizationError is not null && resourceAccess is not null && resourceAccess is not AISAM.Services.Access.RbacV2AccessAdapter && membership.Role==WorkspaceMemberRoleEnum.ContentCreator &&
             !WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) && context.Request.Method==HttpMethods.Post)
@@ -151,11 +165,15 @@ public sealed class ActiveWorkspaceMiddleware
         {
             if(context.Request.Headers["X-RBAC-Contract-Version"]!="2")
                 return (HttpStatusCode.Conflict,"Client requires RBAC contract v2.","RBAC_CLIENT_UPDATE_REQUIRED");
-            if(!membership.IsActive || membership.WorkspaceRoleV2 is not { } role || !Enum.IsDefined(role))
+            var role = membership.WorkspaceRoleV2 ?? (Enum.IsDefined(membership.Role)
+                ? (membership.Role == WorkspaceMemberRoleEnum.Owner ? WorkspaceRoleV2.Owner : WorkspaceRoleV2.Member)
+                : null);
+            if(!membership.IsActive || role is not { } validRole || !Enum.IsDefined(validRole))
                 return (HttpStatusCode.Forbidden,"Membership has no valid v2 role.","ACTION_NOT_ALLOWED");
-            bool admin=role is WorkspaceRoleV2.Owner or WorkspaceRoleV2.WorkspaceManager;
+            membership.WorkspaceRoleV2 ??= validRole;
+            bool admin=validRole is WorkspaceRoleV2.Owner or WorkspaceRoleV2.WorkspaceManager;
             if(path.StartsWithSegments("/api/payment"))
-                return (method==HttpMethods.Get ? admin : role==WorkspaceRoleV2.Owner) ? null :
+                return (method==HttpMethods.Get ? admin : validRole==WorkspaceRoleV2.Owner) ? null :
                     (HttpStatusCode.Forbidden,"Billing action not allowed.","ACTION_NOT_ALLOWED");
             if(WorkspaceLifecyclePolicy.IsReadOnly(membership.Workspace.Status) && method!=HttpMethods.Get &&
                 !(path.Equals(new PathString("/api/permissions/check")) && method==HttpMethods.Post))

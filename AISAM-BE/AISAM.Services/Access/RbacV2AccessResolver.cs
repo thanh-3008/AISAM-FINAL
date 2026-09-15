@@ -57,6 +57,12 @@ public sealed class RbacV2AccessResolver(AisamContext db)
         if(actor==Guid.Empty || workspace==Guid.Empty || !await db.Users.IgnoreQueryFilters().AnyAsync(u=>u.Id==actor && u.IsActive,ct)) return null;
         var m=await db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(m=>m.WorkspaceId==workspace && m.UserId==actor && m.IsActive,ct);
         var w=await db.Workspaces.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(w=>w.Id==workspace,ct);
+        if (m is not null && m.WorkspaceRoleV2 is null && Enum.IsDefined(m.Role))
+        {
+            m.WorkspaceRoleV2 = m.Role == WorkspaceMemberRoleEnum.Owner
+                ? WorkspaceRoleV2.Owner
+                : WorkspaceRoleV2.Member;
+        }
         if(m?.WorkspaceRoleV2 is not { } role || !Enum.IsDefined(role) || w is null || !Enum.IsDefined(w.Status) || w.Status==WorkspaceStatusEnum.Deleted) return null;
         WorkspaceLifecyclePolicy.SynchronizeStatus(w,DateTime.UtcNow);
         return (m,w);

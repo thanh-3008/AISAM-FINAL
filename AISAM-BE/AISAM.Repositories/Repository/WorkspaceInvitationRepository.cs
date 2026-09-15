@@ -138,7 +138,7 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
                 WorkspaceId = invitation.WorkspaceId,
                 UserId = userId,
                 Role = invitation.Role,
-                WorkspaceRoleV2=invitation.WorkspaceRoleV2,
+                WorkspaceRoleV2 = invitation.WorkspaceRoleV2 ?? (invitation.Role == WorkspaceMemberRoleEnum.Owner ? WorkspaceRoleV2.Owner : WorkspaceRoleV2.Member),
                 QuotaMode = invitation.QuotaMode,
                 CreditLimit = invitation.CreditLimit,
                 CreditPeriodStart = invitation.QuotaMode == AISAM.Data.Enumeration.MemberQuotaModeEnum.MonthlyAssignedLimit
@@ -151,7 +151,7 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
         else
         {
             membership.Role = invitation.Role;
-            membership.WorkspaceRoleV2=invitation.WorkspaceRoleV2;
+            membership.WorkspaceRoleV2 = invitation.WorkspaceRoleV2 ?? (invitation.Role == WorkspaceMemberRoleEnum.Owner ? WorkspaceRoleV2.Owner : WorkspaceRoleV2.Member);
             membership.QuotaMode = invitation.QuotaMode;
             membership.CreditLimit = invitation.CreditLimit;
             membership.CreditUsed = 0;

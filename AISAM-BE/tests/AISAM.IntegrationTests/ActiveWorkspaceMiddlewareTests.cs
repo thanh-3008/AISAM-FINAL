@@ -3,8 +3,10 @@ using AISAM.API.Utils;
 using AISAM.Common.Dtos;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
+using AISAM.Repositories;
 using AISAM.Repositories.IRepositories;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Security.Claims;
 
@@ -600,6 +602,38 @@ public class ActiveWorkspaceMiddlewareTests
         Assert.Equal((int)HttpStatusCode.Forbidden, context.Response.StatusCode);
     }
 
+    [Fact]
+    public async Task InvokeAsync_AutoHealsOwnerWithNullWorkspaceRoleV2_InV2Mode()
+    {
+        var userId = Guid.NewGuid();
+        var membership = CreateMembership(userId, WorkspaceStatusEnum.Active, WorkspaceMemberRoleEnum.Owner);
+        membership.WorkspaceRoleV2 = null;
+
+        var context = CreateContext(userId, "/api/permissions/context");
+        context.Request.Headers["X-Workspace-Id"] = membership.WorkspaceId.ToString();
+        context.Request.Headers["X-RBAC-Contract-Version"] = "2";
+
+        var repo = new FakeWorkspaceMemberRepository(membership);
+        var subRepo = new FakeSubscriptionRepository(CreatePaidSubscription(membership.WorkspaceId));
+
+        var nextCalled = false;
+        var middleware = new ActiveWorkspaceMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var accessAdapter = new AISAM.Services.Access.RbacV2AccessAdapter(db, new AISAM.Services.Access.RbacV2AccessResolver(db));
+
+        await middleware.InvokeAsync(context, repo, subRepo, accessAdapter);
+
+        Assert.True(nextCalled, "Owner should not be blocked from accessing workspace");
+        Assert.Equal(WorkspaceRoleV2.Owner, membership.WorkspaceRoleV2);
+        var saved = await repo.GetByWorkspaceAndUserAsync(membership.WorkspaceId, userId);
+        Assert.Equal(WorkspaceRoleV2.Owner, saved?.WorkspaceRoleV2);
+    }
+
     private static DefaultHttpContext CreateContext(Guid userId, string path = "/api/workspace-members")
     {
         return new DefaultHttpContext
@@ -665,7 +699,11 @@ public class ActiveWorkspaceMiddlewareTests
         public Task<IReadOnlyList<WorkspaceMember>> GetByWorkspaceIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<WorkspaceMember>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<WorkspaceMember> AddAsync(WorkspaceMember member, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task UpdateAsync(WorkspaceMember member, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task UpdateAsync(WorkspaceMember member, CancellationToken cancellationToken = default)
+        {
+            _memberships[(member.WorkspaceId, member.UserId)] = member;
+            return Task.CompletedTask;
+        }
         public Task<WorkspaceMember> TransferOwnershipAsync(Guid workspaceId, Guid currentOwnerUserId, Guid targetMemberId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
