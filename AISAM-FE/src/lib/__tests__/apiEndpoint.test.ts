@@ -11,6 +11,7 @@ import {
 
 describe("apiEndpoint", () => {
   beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER", "true");
     vi.clearAllMocks();
     sessionStorage.clear();
     resetToPrimaryApiUrl();
@@ -18,7 +19,15 @@ describe("apiEndpoint", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("pins local API and ignores a previously saved production fallback by default", () => {
+    vi.stubEnv("NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER", "false");
+    setActiveApiUrl("https://aisam.ddns.net/api");
+    expect(getApiEndpoints()).toEqual(["http://localhost:5027/api"]);
+    expect(getActiveApiUrl()).toBe("http://localhost:5027/api");
   });
 
   it("retrieves configured endpoints with defaults", () => {
