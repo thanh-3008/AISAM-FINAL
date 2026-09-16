@@ -49,15 +49,21 @@ public sealed class WorkspaceMemberService : IWorkspaceMemberService
         {
             var actor=await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(workspaceId,actorUserId,cancellationToken);
             if(actor?.WorkspaceRoleV2 is not (WorkspaceRoleV2.Owner or WorkspaceRoleV2.WorkspaceManager))
-                            {
+            {
                 if(_db is null || actor?.IsActive!=true || actor.WorkspaceRoleV2!=WorkspaceRoleV2.Member)
                     return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateError("Directory not available.",HttpStatusCode.Forbidden);
-                var teamIds=from tm in _db.TeamMembers.IgnoreQueryFilters() join t in _db.Teams.IgnoreQueryFilters() on tm.TeamId equals t.Id
-                    where tm.UserId==actorUserId && tm.IsActive && t.WorkspaceId==workspaceId && !t.IsDeleted && t.Status==TeamStatusEnum.Active select t.Id;
-                var peerIds=_db.TeamMembers.IgnoreQueryFilters().Where(m=>m.IsActive && teamIds.Contains(m.TeamId)).Select(m=>m.UserId);
-                var peers=await _db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().Where(m=>m.WorkspaceId==workspaceId && m.IsActive && (m.UserId==actorUserId || peerIds.Contains(m.UserId)))
-                    .Select(m=>new WorkspaceMemberResponseDto {Id=m.Id,UserId=m.UserId,FullName=m.User.FullName,WorkspaceRole=m.WorkspaceRoleV2.ToString()}).ToListAsync(cancellationToken);
-                return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateSuccess(peers,"Team directory retrieved.");
+                // Every active member can discover the workspace directory so a
+                // Team Manager can select people who are not in their Team yet.
+                // Financial quota fields remain omitted for non-HR members.
+                var directory=await _db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking()
+                    .Where(m=>m.WorkspaceId==workspaceId && m.IsActive && m.User.IsActive)
+                    .OrderBy(m=>m.User.FullName).ThenBy(m=>m.User.Email)
+                    .Select(m=>new WorkspaceMemberResponseDto
+                    {
+                        Id=m.Id,UserId=m.UserId,FullName=m.User.FullName,Email=m.User.Email,
+                        WorkspaceRole=m.WorkspaceRoleV2.ToString(),JoinedAt=m.JoinedAt
+                    }).ToListAsync(cancellationToken);
+                return GenericResponse<IReadOnlyList<WorkspaceMemberResponseDto>>.CreateSuccess(directory,"Workspace directory retrieved.");
             }
         }
         var members = await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken);

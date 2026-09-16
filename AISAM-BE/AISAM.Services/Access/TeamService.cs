@@ -374,7 +374,10 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
             ?? throw new KeyNotFoundException("Team not found.");
 
         // Verify target user is a workspace member (match by UserId first, fallback via WorkspaceMember.Id)
-        var wsMember = await db.WorkspaceMembers.AsNoTracking()
+        // The target can be outside every Team visible to the actor. Bypass the
+        // resource query filter here, then constrain explicitly to this active
+        // workspace membership. RequireTeamManage above protects the mutation.
+        var wsMember = await db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking()
             .SingleOrDefaultAsync(m => m.UserId == userId && m.WorkspaceId == workspace && m.IsActive, ct);
 
         Guid resolvedUserId;
@@ -385,7 +388,7 @@ public sealed class TeamService(AisamContext db, IAccessControlService access, I
         else
         {
             // TEMP compat shim - remove after FE fully migrated, tracked in [ticket]
-            var fallback = await db.WorkspaceMembers.AsNoTracking()
+            var fallback = await db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking()
                 .SingleOrDefaultAsync(m => m.Id == userId && m.WorkspaceId == workspace && m.IsActive, ct);
 
             if (!V2 && fallback != null)

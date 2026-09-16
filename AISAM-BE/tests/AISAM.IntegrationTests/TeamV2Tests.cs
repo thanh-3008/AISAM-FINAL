@@ -12,11 +12,12 @@ public class TeamV2Tests
     public async Task CreateManageAndDeactivatePreservesContentAndRevokesScope()
     {
         await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        var w=new Workspace();var owner=new User{Email="o@test.local"};var manager=new User{Email="m@test.local"};var creator=new User{Email="c@test.local"};
-        db.AddRange(w,owner,manager,creator,
+        var w=new Workspace();var owner=new User{Email="o@test.local"};var manager=new User{Email="m@test.local"};var creator=new User{Email="c@test.local"};var outsider=new User{Email="new@test.local"};
+        db.AddRange(w,owner,manager,creator,outsider,
             new WorkspaceMember{WorkspaceId=w.Id,UserId=owner.Id,WorkspaceRoleV2=WorkspaceRoleV2.Owner},
             new WorkspaceMember{WorkspaceId=w.Id,UserId=manager.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
-            new WorkspaceMember{WorkspaceId=w.Id,UserId=creator.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member});
+            new WorkspaceMember{WorkspaceId=w.Id,UserId=creator.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
+            new WorkspaceMember{WorkspaceId=w.Id,UserId=outsider.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member});
         await db.SaveChangesAsync();
         var service=new TeamService(db,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.CreateAsync(manager.Id,w.Id,new("Denied",null,null)));
@@ -26,6 +27,10 @@ public class TeamV2Tests
         Assert.NotNull(await service.GetByIdAsync(owner.Id,w.Id,team.Id));
         Assert.Equal(2,team.Members.Count);
         Assert.DoesNotContain(team.Members,m=>m.UserId==owner.Id);
+        db.PermissionScopeEnabled=true;db.PermissionV2Enabled=true;db.PermissionWorkspaceId=w.Id;
+        db.PermissionActorId=manager.Id;db.PermissionTeamIds=[team.Id];db.PermissionWriteTeamIds=[team.Id];db.PermissionManagerTeamIds=[team.Id];
+        Assert.Equal("Viewer",(await service.AddMemberAsync(manager.Id,w.Id,team.Id,outsider.Id,"Viewer")).Role);
+        db.PermissionScopeEnabled=false;db.PermissionV2Enabled=false;
         await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.UpdateAsync(manager.Id,w.Id,team.Id,new("Rename",null)));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.UpdateMemberRoleAsync(manager.Id,w.Id,team.Id,creator.Id,"Manager"));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.RemoveMemberAsync(manager.Id,w.Id,team.Id,manager.Id));

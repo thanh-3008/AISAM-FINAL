@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import TeamPage from "@/app/(dashboard)/team/page";
 import { apiClient } from "@/lib/apiClient";
 
@@ -29,6 +29,12 @@ vi.mock("@/lib/apiClient", () => ({
         { id: "m2", userId: "u2", fullName: "Bob Manager", email: "bob@example.com", workspaceRole: "WorkspaceManager" },
       ] });
     }
+    if (endpoint === "/workspace-invitations") {
+      return Promise.resolve({ data: [
+        { id: "i1", email: "pending@example.com", workspaceRole: "Member", invitedByName: "Workspace Owner", createdAt: "2026-09-15T08:00:00Z", expiresAt: "2026-09-22T08:00:00Z" },
+      ] });
+    }
+    if (endpoint === "/workspace-invitations/i1") return Promise.resolve({ success: true });
     if (endpoint === "/teams/t1") return Promise.resolve({ data: { id: "t1", name: "Marketing", description: "Social campaigns", status: "Active", members: [], brands: [] } });
     if (endpoint === "/teams/t2") return Promise.resolve({ data: { id: "t2", name: "Archive Team", description: "Old campaigns", status: "Inactive", members: [], brands: [] } });
     return Promise.reject(new Error(`Unexpected endpoint: ${endpoint}`));
@@ -59,6 +65,7 @@ it("renders workspace and Team roles as separate RBAC v2 concepts", async () => 
   expect(screen.getByRole("button", { name: /Tạo Team/i })).toBeTruthy();
   expect(apiClient).toHaveBeenCalledWith("/teams/manage");
   expect(apiClient).toHaveBeenCalledWith("/workspace-members");
+  expect(apiClient).toHaveBeenCalledWith("/workspace-invitations");
 });
 
 it("filters workspace members and Teams independently", async () => {
@@ -83,4 +90,17 @@ it("filters workspace members and Teams independently", async () => {
   fireEvent.change(screen.getByLabelText("Lọc trạng thái Team"), { target: { value: "Active" } });
   expect(screen.getByRole("button", { name: "Marketing" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Archive Team" })).toBeNull();
+});
+
+it("shows pending invitations and allows the workspace owner to cancel one", async () => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<TeamPage />);
+
+  expect(await screen.findByText("pending@example.com")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Hủy lời mời pending@example.com" }));
+
+  await waitFor(() => expect(apiClient).toHaveBeenCalledWith(
+    "/workspace-invitations/i1",
+    { method: "DELETE" },
+  ));
 });

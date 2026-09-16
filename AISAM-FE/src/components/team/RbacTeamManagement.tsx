@@ -14,6 +14,15 @@ type Member = {
   workspaceRole: WorkspaceRoleV2;
 };
 
+type PendingInvitation = {
+  id: string;
+  email: string;
+  workspaceRole?: WorkspaceRoleV2;
+  invitedByName?: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
 type MemberRoleFilter = "All" | WorkspaceRoleV2;
 type TeamStatusFilter = "All" | "Active" | "Inactive";
 
@@ -54,8 +63,11 @@ function normalizedStatus(status?: string) {
 export default function RbacTeamManagement() {
   const rbac = useRbac()!;
   const admin = rbac.actions.includes("team.manage");
+  const workspaceHrAdmin = rbac.workspaceRole === "Owner" || rbac.workspaceRole === "WorkspaceManager";
+  const canViewPerformance = workspaceHrAdmin || rbac.teams.some(team => team.role === "Manager");
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [selected, setSelected] = useState("");
   const [detail, setDetail] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +78,7 @@ export default function RbacTeamManagement() {
 
   const [memberSearch, setMemberSearch] = useState("");
   const [memberRoleFilter, setMemberRoleFilter] = useState<MemberRoleFilter>("All");
+  const [invitationSearch, setInvitationSearch] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [teamStatusFilter, setTeamStatusFilter] = useState<TeamStatusFilter>("All");
 
@@ -82,18 +95,21 @@ export default function RbacTeamManagement() {
     : ["ContentCreator", "Viewer"];
 
   const load = useCallback(async () => {
-    const [teamResponse, memberResponse] = await Promise.all([
+    const [teamResponse, memberResponse, invitationResponse] = await Promise.all([
       apiClient("/teams/manage"),
       apiClient("/workspace-members"),
+      workspaceHrAdmin ? apiClient("/workspace-invitations") : Promise.resolve({ data: [] }),
     ]);
     const nextTeams = Array.isArray(teamResponse?.data?.items) ? teamResponse.data.items as Team[] : [];
     const nextMembers = Array.isArray(memberResponse?.data) ? memberResponse.data as Member[] : [];
+    const nextInvitations = Array.isArray(invitationResponse?.data) ? invitationResponse.data as PendingInvitation[] : [];
     setTeams(nextTeams);
     setMembers(nextMembers);
+    setPendingInvitations(nextInvitations);
     setSelected(current => current && nextTeams.some(team => team.id === current)
       ? current
       : nextTeams[0]?.id ?? "");
-  }, []);
+  }, [workspaceHrAdmin]);
 
   useEffect(() => {
     let active = true;
@@ -150,6 +166,12 @@ export default function RbacTeamManagement() {
     });
   }, [teamSearch, teamStatusFilter, teams]);
 
+  const filteredInvitations = useMemo(() => {
+    const query = invitationSearch.trim().toLocaleLowerCase("vi");
+    return pendingInvitations.filter(invitation => !query ||
+      `${invitation.email} ${invitation.invitedByName ?? ""}`.toLocaleLowerCase("vi").includes(query));
+  }, [invitationSearch, pendingInvitations]);
+
   const selectedTeam = teams.find(team => team.id === selected);
   const managerCount = members.filter(member => member.workspaceRole === "WorkspaceManager").length;
   const activeTeamCount = teams.filter(team => normalizedStatus(team.status) === "Active").length;
@@ -179,17 +201,18 @@ export default function RbacTeamManagement() {
               </p>
             </div>
           </div>
-          <Link href="/team/performance" className={`${secondaryButton} relative bg-white`}>
+          {canViewPerformance && <Link href="/team/performance" className={`${secondaryButton} relative bg-white`}>
             <span className="material-symbols-outlined text-xl">monitoring</span>
             Hiệu suất thành viên
-          </Link>
+          </Link>}
         </div>
       </header>
 
-      <section aria-label="Tổng quan Team" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Tổng quan Team" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
           { label: "Thành viên workspace", value: members.length, icon: "group", color: "bg-blue-50 text-blue-600" },
           { label: "Quản lý workspace", value: managerCount, icon: "admin_panel_settings", color: "bg-violet-50 text-violet-600" },
+          { label: "Lời mời đang chờ", value: pendingInvitations.length, icon: "schedule_send", color: "bg-cyan-50 text-cyan-700" },
           { label: "Team hoạt động", value: activeTeamCount, icon: "workspaces", color: "bg-emerald-50 text-emerald-600" },
           { label: "Brand đã gán", value: teams.reduce((sum, team) => sum + (team.brandCount ?? 0), 0), icon: "sell", color: "bg-amber-50 text-amber-600" },
         ].map(item => (
@@ -221,7 +244,7 @@ export default function RbacTeamManagement() {
             <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{filteredMembers.length}/{members.length} thành viên</span>
           </div>
 
-          {admin && (
+          {workspaceHrAdmin && (
             <form className="mt-6 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 md:grid-cols-[minmax(220px,1fr)_220px_auto]" onSubmit={event => {
               event.preventDefault();
               void run(async () => {
@@ -266,6 +289,42 @@ export default function RbacTeamManagement() {
           {!loading && filteredMembers.length === 0 && <div className="p-10 text-center"><span className="material-symbols-outlined text-4xl text-slate-300">person_search</span><p className="mt-2 font-semibold text-slate-700">Không tìm thấy thành viên</p><p className="text-sm text-slate-500">Thử đổi từ khóa hoặc bộ lọc vai trò.</p></div>}
         </div>
       </section>
+
+      {workspaceHrAdmin && (
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-6 md:flex-row md:items-center md:p-7">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700"><span className="material-symbols-outlined">mark_email_unread</span></div>
+                <div><h2 className="text-xl font-bold text-slate-950">Lời mời đang chờ</h2><p className="mt-1 text-sm text-slate-500">Theo dõi người chưa chấp nhận và hủy lời mời không còn cần thiết.</p></div>
+              </div>
+            </div>
+            <span className="w-fit rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">{pendingInvitations.length} đang chờ</span>
+          </div>
+
+          <div className="border-b border-slate-100 px-6 py-4 md:px-7">
+            <label className="relative block"><span className="sr-only">Tìm lời mời đang chờ</span><span className="material-symbols-outlined pointer-events-none absolute left-3 top-2.5 text-xl text-slate-400">search</span><input aria-label="Tìm lời mời đang chờ" className={`${inputClass} w-full pl-10`} value={invitationSearch} onChange={event => setInvitationSearch(event.target.value)} placeholder="Tìm theo email hoặc người mời..." /></label>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {filteredInvitations.map(invitation => {
+              const canCancel = rbac.workspaceRole === "Owner" || invitation.workspaceRole !== "WorkspaceManager";
+              return (
+                <article key={invitation.id} className="flex flex-col gap-4 px-6 py-5 transition hover:bg-slate-50/70 lg:flex-row lg:items-center md:px-7">
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-700"><span className="material-symbols-outlined">outgoing_mail</span></div>
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{invitation.email}</p><p className="truncate text-xs text-slate-500">Mời bởi {invitation.invitedByName || "Quản lý workspace"}</p></div>
+                  </div>
+                  <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ring-1 ${workspaceRoleStyle(invitation.workspaceRole || "Member")}`}>{roleName(invitation.workspaceRole || "Member")}</span>
+                  <div className="text-xs leading-5 text-slate-500 lg:min-w-52"><p>Gửi: {new Date(invitation.createdAt).toLocaleString("vi-VN")}</p><p>Hết hạn: {new Date(invitation.expiresAt).toLocaleString("vi-VN")}</p></div>
+                  {canCancel && <button type="button" aria-label={`Hủy lời mời ${invitation.email}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-100 px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50" disabled={busy} onClick={() => { if (window.confirm(`Hủy lời mời đã gửi tới ${invitation.email}?`)) void run(() => apiClient(`/workspace-invitations/${invitation.id}`, { method: "DELETE" }), "Đã hủy lời mời.", false); }}><span className="material-symbols-outlined text-lg">cancel_schedule_send</span>Hủy lời mời</button>}
+                </article>
+              );
+            })}
+            {!loading && filteredInvitations.length === 0 && <div className="p-10 text-center"><span className="material-symbols-outlined text-4xl text-slate-300">mark_email_read</span><p className="mt-2 font-semibold text-slate-700">Không có lời mời đang chờ</p><p className="text-sm text-slate-500">Các lời mời mới sẽ xuất hiện ở đây cho đến khi được chấp nhận, hủy hoặc hết hạn.</p></div>}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-7">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center"><div><h2 className="text-xl font-bold text-slate-950">Danh sách Team</h2><p className="mt-1 text-sm text-slate-500">Chọn một Team để quản lý thành viên, vai trò và Brand được cấp.</p></div><span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{filteredTeams.length}/{teams.length} Team</span></div>
