@@ -265,6 +265,7 @@ builder.Services.AddScoped<IPerformanceReportRepository, PerformanceReportReposi
 builder.Services.AddScoped<IAdCampaignRepository, AdCampaignRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPostCommitActionQueue, PostCommitActionQueue>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IWorkspaceInvitationService, WorkspaceInvitationService>();

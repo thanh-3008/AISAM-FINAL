@@ -13,6 +13,32 @@ namespace AISAM.IntegrationTests;
 
 public class WorkspaceHrV2ConcurrencyTests
 {
+    [Fact]
+    public async Task GetReturnsRevisionComputedAfterControllerCompletes()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var workspace=Guid.NewGuid();
+        var http=new DefaultHttpContext();http.Request.Method="GET";http.Request.Path="/api/workspace-members";
+        http.Items[WorkspaceContextHelper.ActiveWorkspaceItemKey]=workspace;
+        var executing=new ActionExecutingContext(new ActionContext(http,new RouteData(),new ActionDescriptor()),new List<IFilterMetadata>(),new Dictionary<string,object?>(),new object());
+        var filter=new WorkspaceHrV2ConcurrencyFilter(db,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)));
+
+        await filter.OnActionExecutionAsync(executing,()=>Task.FromResult(new ActionExecutedContext(executing,executing.Filters,executing.Controller)));
+        var before=http.Response.Headers["X-HR-Revision"].ToString();
+        await filter.OnActionExecutionAsync(executing,async () =>
+        {
+            db.WorkspaceMembers.Add(new AISAM.Data.Model.WorkspaceMember
+            {
+                WorkspaceId=workspace,UserId=Guid.NewGuid(),Role=AISAM.Data.Enumeration.WorkspaceMemberRoleEnum.Viewer,
+                WorkspaceRoleV2=AISAM.Data.Enumeration.WorkspaceRoleV2.Member,IsActive=true
+            });
+            await db.SaveChangesAsync();
+            return new ActionExecutedContext(executing,executing.Filters,executing.Controller);
+        });
+
+        Assert.NotEqual(before,http.Response.Headers["X-HR-Revision"].ToString());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

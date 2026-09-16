@@ -177,11 +177,12 @@ async function handleResponse(response: Response, config: RequestInit) {
       // local decisions and must not remount the entire dashboard.
       window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: { status: response.status, path } }));
     }
+    const errorCode = result?.errorCode ?? result?.error?.errorCode;
     const mappedError = ERROR_MAP[trimmed]
       ?? Object.entries(ERROR_MAP).find(([k]) => k.toLowerCase() === trimmed.toLowerCase())?.[1];
     const friendly = response.status === 403 ? mappedError ?? "Bạn không còn quyền thực hiện thao tác này. Hãy kiểm tra workspace hoặc liên hệ Owner."
       : response.status === 404 ? "Tài nguyên không tồn tại hoặc bạn không còn quyền truy cập."
-      : response.status === 409 ? "Quyền đã được người khác thay đổi. Tải lại trước khi lưu."
+      : response.status === 409 && errorCode === "ACCESS_REVISION_CONFLICT" ? "Quyền đã được người khác thay đổi. Tải lại trước khi lưu."
       : response.status === 428 ? "Vui lòng tải lại danh sách để kiểm tra phiên bản trước khi lưu thay đổi."
       : mappedError ?? (trimmed || `Request failed (${response.status})`);
     const error = new Error(friendly) as Error & {
@@ -200,6 +201,16 @@ async function handleResponse(response: Response, config: RequestInit) {
     });
   }
   return result;
+}
+
+async function getResponseErrorCode(response: Response): Promise<string | null> {
+  if (response.status !== 409) return null;
+  try {
+    const result = await response.clone().json();
+    return result?.errorCode ?? result?.error?.errorCode ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<unknown> {
@@ -243,10 +254,14 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
   const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
   const isMutation = hasJsonBody || customConfig.method === "POST" || customConfig.method === "PUT" || customConfig.method === "DELETE";
+  let autoAttachedHrRevision = false;
   if (isMutation && /^\/(teams|workspace-members|workspace-invitations)(\/|$)/.test(endpoint) &&
       !endpoint.endsWith("/accept") && !headers["If-Match"]) {
     const revision = hrRevisions.get(headers["X-Workspace-Id"]);
-    if (revision) headers["If-Match"] = revision;
+    if (revision) {
+      headers["If-Match"] = revision;
+      autoAttachedHrRevision = true;
+    }
   }
 
   const config: RequestInit = {
@@ -265,6 +280,36 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
   if (response.status === 401 && token && !isPublic && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {
     return retryWithRefresh(endpoint, config);
+  }
+
+  // A 409 from an automatically attached HR revision means the mutation was
+  // rejected before its controller ran. Refresh the workspace snapshot and
+  // replay exactly once. Explicit If-Match values are never replayed because
+  // their caller owns the conflict decision (for example Brand assignments).
+  if (response.status === 409 && autoAttachedHrRevision &&
+      await getResponseErrorCode(response) === "ACCESS_REVISION_CONFLICT") {
+    const refreshHeaders = { ...(config.headers as Record<string, string>) };
+    delete refreshHeaders["If-Match"];
+    const refreshConfig: RequestInit = {
+      ...config,
+      method: "GET",
+      body: undefined,
+      headers: refreshHeaders,
+    };
+    const refreshResponse = await fetchWithFailover("/workspace-members", refreshConfig);
+    assertWorkspace(refreshConfig);
+    await handleResponse(refreshResponse, refreshConfig);
+    const workspaceId = refreshHeaders["X-Workspace-Id"];
+    const freshRevision = hrRevisions.get(workspaceId);
+    if (freshRevision) {
+      const retryConfig: RequestInit = {
+        ...config,
+        headers: { ...(config.headers as Record<string, string>), "If-Match": freshRevision },
+      };
+      const retryResponse = await fetchWithFailover(endpoint, retryConfig);
+      assertWorkspace(retryConfig);
+      return handleResponse(retryResponse, retryConfig);
+    }
   }
 
   return handleResponse(response, config);

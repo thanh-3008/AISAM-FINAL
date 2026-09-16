@@ -58,6 +58,32 @@ public class WorkspaceInvitationServiceTests
     }
 
     [Fact]
+    public async Task InviteAsync_DefersEmailUntilWorkspaceTransactionCompletes()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business);
+        var emailService = new FakeEmailService();
+        var postCommitActions = new PostCommitActionQueue();
+        postCommitActions.Begin();
+        var service = CreateService(context, emailService, postCommitActions: postCommitActions);
+
+        var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
+        {
+            Email = "deferred@example.com",
+            Role = WorkspaceMemberRoleEnum.ContentCreator
+        });
+
+        Assert.True(result.Success);
+        Assert.Null(emailService.LastRecipient);
+        Assert.Single(await context.WorkspaceInvitations.ToListAsync());
+
+        await postCommitActions.CompleteAsync();
+
+        Assert.Equal("deferred@example.com", emailService.LastRecipient);
+        Assert.Contains("/invitation/", emailService.LastInvitationLink);
+    }
+
+    [Fact]
     public async Task InviteAsync_PersistsMonthlyAssignedLimitForBusinessPro()
     {
         await using var context = CreateContext();
@@ -318,7 +344,8 @@ public class WorkspaceInvitationServiceTests
         Assert.Null((await context.WorkspaceInvitations.SingleAsync()).AcceptedAt);
     }
 
-    private static WorkspaceInvitationService CreateService(AisamContext context, IEmailService? emailService = null, bool v2=false)
+    private static WorkspaceInvitationService CreateService(AisamContext context, IEmailService? emailService = null, bool v2=false,
+        IPostCommitActionQueue? postCommitActions=null)
     {
         var configuration=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Rbac:UseV2"]=v2.ToString() }).Build();
         return new WorkspaceInvitationService(
@@ -328,7 +355,7 @@ public class WorkspaceInvitationServiceTests
             new SubscriptionRepository(context),
             new UserRepository(context),
             emailService ?? new FakeEmailService(),
-            Options.Create(new FrontendSettings { BaseUrl = "http://localhost:3000" }),configuration);
+            Options.Create(new FrontendSettings { BaseUrl = "http://localhost:3000" }),configuration,postCommitActions);
     }
 
     private static WorkspaceInvitationFixture SeedWorkspace(

@@ -23,6 +23,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
+    private readonly IPostCommitActionQueue? _postCommitActions;
     private readonly string _frontendBaseUrl;
 
     public WorkspaceInvitationService(
@@ -32,7 +33,8 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
         IEmailService emailService,
-        IOptions<FrontendSettings> frontendSettings, IConfiguration? configuration=null)
+        IOptions<FrontendSettings> frontendSettings, IConfiguration? configuration=null,
+        IPostCommitActionQueue? postCommitActions=null)
     {
         _workspaceRepository = workspaceRepository;
         _v2=configuration?.GetValue<bool>("Rbac:UseV2")==true;
@@ -41,6 +43,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
         _emailService = emailService;
+        _postCommitActions = postCommitActions;
         _frontendBaseUrl = frontendSettings.Value.BaseUrl.TrimEnd('/');
     }
 
@@ -148,7 +151,10 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         var inviter = await _userRepository.GetByIdAsync(inviterUserId);
         var inviterName = inviter?.FullName ?? inviter?.Email ?? "Workspace owner";
         var invitationLink = $"{_frontendBaseUrl}/invitation/{Uri.EscapeDataString(invitation.Token)}";
-        await _emailService.SendTeamInvitationAsync(normalizedEmail, workspace.Name, inviterName, invitationLink);
+        Func<CancellationToken,Task> sendInvitation = _ =>
+            _emailService.SendTeamInvitationAsync(normalizedEmail, workspace.Name, inviterName, invitationLink);
+        if (_postCommitActions?.TryEnqueue(sendInvitation) != true)
+            await sendInvitation(cancellationToken);
 
         invitation.Workspace = workspace;
         return GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(

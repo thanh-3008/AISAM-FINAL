@@ -1,6 +1,7 @@
 using AISAM.API.Utils;
 using AISAM.Repositories;
 using AISAM.Services.Access;
+using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ using System.Text.Json;
 namespace AISAM.API.Filters;
 
 // Serializes HR writes at workspace scope. Applied only to HR controllers, never arbitrary resources.
-public sealed class WorkspaceHrV2ConcurrencyFilter(AisamContext db,IAccessControlService access) : IAsyncActionFilter
+public sealed class WorkspaceHrV2ConcurrencyFilter(AisamContext db,IAccessControlService access,IPostCommitActionQueue? postCommitActions=null) : IAsyncActionFilter
 {
     public async Task OnActionExecutionAsync(ActionExecutingContext context,ActionExecutionDelegate next)
     {
@@ -21,7 +22,16 @@ public sealed class WorkspaceHrV2ConcurrencyFilter(AisamContext db,IAccessContro
         var workspace=WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(http);
         var ct=http.RequestAborted;
         if(HttpMethods.IsGet(http.Request.Method))
-        { http.Response.Headers["X-HR-Revision"]=await Revision(workspace,ct);await next();return; }
+        {
+            // Compute the snapshot after the controller finishes. A slow GET
+            // that started before a concurrent HR mutation must not return the
+            // old revision after the mutation response and overwrite the
+            // client's newer If-Match value.
+            var executed=await next();
+            if(executed.Exception is null && executed.Result is not ObjectResult {StatusCode: >=400})
+                http.Response.Headers["X-HR-Revision"]=await Revision(workspace,ct);
+            return;
+        }
         var expected=http.Request.Headers["If-Match"].ToString().Trim('"');
         if(string.IsNullOrWhiteSpace(expected))
         {context.Result=Error(428,"ACCESS_REVISION_REQUIRED");return;}
@@ -43,20 +53,24 @@ public sealed class WorkspaceHrV2ConcurrencyFilter(AisamContext db,IAccessContro
                 db.ChangeTracker.Clear();
                 if(!string.Equals(expected,await Revision(workspace,ct),StringComparison.Ordinal))
                 {context.Result=Error(409,"ACCESS_REVISION_CONFLICT");return;}
+                postCommitActions?.Begin();
                 var executed=await next();
                 if(executed.Exception is { } actionError && IsSerializationFailure(actionError))
                 {
+                    postCommitActions?.Discard();
                     executed.ExceptionHandled=true;
                     executed.Result=context.Result=Error(409,"ACCESS_REVISION_CONFLICT");
                     return;
                 }
-                if(executed.Exception is not null || executed.Result is ObjectResult {StatusCode: >=400})return;
+                if(executed.Exception is not null || executed.Result is ObjectResult {StatusCode: >=400})
+                {postCommitActions?.Discard();return;}
                 http.Response.Headers["X-HR-Revision"]=await Revision(workspace,ct);
                 if(tx is not null)await tx.CommitAsync(ct);
+                if(postCommitActions is not null)await postCommitActions.CompleteAsync(ct);
             });
         }
         catch(Exception ex) when(IsSerializationFailure(ex))
-        {context.Result=Error(409,"ACCESS_REVISION_CONFLICT");}
+        {postCommitActions?.Discard();context.Result=Error(409,"ACCESS_REVISION_CONFLICT");}
     }
 
     private static bool IsSerializationFailure(Exception error)
