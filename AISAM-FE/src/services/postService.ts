@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
-import { parseApiUrl } from "@/services/contentService";
+import { parseApiUrl, parseMultipleImageUrls } from "@/services/contentService";
 
 export type PostStatus = string;
 
@@ -17,6 +17,7 @@ export interface PostItem {
   type: string | null;
   caption: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[];
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
 }
@@ -48,11 +49,14 @@ export interface PostFilters {
 }
 
 function parsePostMediaUrls(item: PostItem): PostItem {
+  const imageUrls = parseMultipleImageUrls(item.imageUrl);
+  const primaryImage = imageUrls[0] || parseApiUrl(item.imageUrl) || null;
   return {
     ...item,
-    imageUrl: parseApiUrl(item.imageUrl) || null,
+    imageUrl: primaryImage,
+    imageUrls,
     videoUrl: parseApiUrl(item.videoUrl) || null,
-    thumbnailUrl: parseApiUrl(item.thumbnailUrl) || null,
+    thumbnailUrl: parseApiUrl(item.thumbnailUrl) || primaryImage || null,
   };
 }
 

@@ -6,34 +6,40 @@ import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission } from "@/services/permissionService";
 import { useRbac } from "@/contexts/RbacContext";
 import { apiClient } from "@/lib/apiClient";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import type { ContentDetail, ContentType, ContentStatus } from "@/services/contentService";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, STATUS_OPTIONS, getTypeStyle, getTypeIcon, PlatformIcon } from "@/lib/contentConstants";
-import { fetchContentById, updateContent, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse, parseMultipleImageUrls } from "@/services/contentService";
+import { fetchContentById, updateContent, updateContentWithResult, deleteContent, CONTENTTYPE_TO_ADTYPE, fetchContentGenerations, submitForApproval, AiGenerationResponse, parseMultipleImageUrls } from "@/services/contentService";
 import { useFeatureGate } from "@/hooks/useFeatureGate";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import MediaComposer from "@/components/content/MediaComposer";
+import ImageGalleryView from "@/components/content/ImageGalleryView";
+import MultiImageUpload from "@/components/content/MultiImageUpload";
 
 interface FormState {
   title: string;
   status: ContentStatus;
   description: string;
   platforms: string[];
-  caption: string; richTextJson?: string | null;
+  caption: string;
+  richTextJson?: string | null;
   ctaLink: string;
   scheduledAt: string;
   internalNotes: string;
   hashtags: string[];
   rejectionReason?: string;
+  imageUrls: string[];
 }
 
 export default function ContentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isEditParam = searchParams.get("edit") === "true";
   const featureGate = useFeatureGate();
   const rbac = useRbac();
 
@@ -54,7 +60,7 @@ export default function ContentDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generations, setGenerations] = useState<AiGenerationResponse[]>([]);
 
-  const [form, setForm] = useState<FormState>({ title: "", status: "Draft", description: "", platforms: [], caption: "", ctaLink: "", scheduledAt: "", internalNotes: "", hashtags: [] });
+  const [form, setForm] = useState<FormState>({ title: "", status: "Draft", description: "", platforms: [], caption: "", ctaLink: "", scheduledAt: "", internalNotes: "", hashtags: [], imageUrls: [] });
 
   const notFound = !item && !loading;
 
@@ -102,8 +108,18 @@ export default function ContentDetailPage() {
     return () => clearInterval(interval);
   }, [generations, params.id]);
 
+  const autoEditTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    autoEditTriggeredRef.current = false;
+  }, [item?.id]);
+
   useEffect(() => {
     if (item) {
+      const initialImages = (item.imageUrls && item.imageUrls.length > 0)
+        ? item.imageUrls
+        : parseMultipleImageUrls(item.imageUrl);
+
       const initialForm: FormState = {
         title: item.title,
         status: item.status,
@@ -116,33 +132,110 @@ export default function ContentDetailPage() {
         internalNotes: item.internalNotes || "",
         hashtags: item.hashtags || [],
         rejectionReason: item.rejectionReason || "",
+        imageUrls: initialImages,
       };
       formRef.current = initialForm;
       setForm(initialForm);
     }
   }, [item?.id]);
 
+  useEffect(() => {
+    if (!isEditParam || autoEditTriggeredRef.current) return;
+    if (!item || !allowed.isReady) return;
+
+    autoEditTriggeredRef.current = true;
+    if (allowed(0) && item.status !== "Approved") {
+      setEditing(true);
+    } else if (item.status === "Approved") {
+      setToast({
+        message: "Nội dung đã duyệt. Vui lòng bấm 'Thu hồi duyệt để sửa' nếu muốn thay đổi.",
+        type: "error",
+      });
+    } else if (item.status === "Awaiting Approval") {
+      setToast({
+        message: "Nội dung đang chờ duyệt, không thể chỉnh sửa.",
+        type: "error",
+      });
+    } else if (item.status === "Published" || item.status === "Scheduled") {
+      setToast({
+        message: "Nội dung đã lên lịch hoặc xuất bản, không thể chỉnh sửa trực tiếp.",
+        type: "error",
+      });
+    } else {
+      setToast({
+        message: "Bạn không có quyền chỉnh sửa nội dung này.",
+        type: "error",
+      });
+    }
+  }, [isEditParam, item?.id, item?.status, allowed.isReady, allowed]);
+
+  const handleWithdrawAndEdit = async () => {
+    if (!item) return;
+    setSaving(true);
+    try {
+      await apiClient(`/content/${item.id}/withdraw`, { method: "POST" });
+      const refreshed = await fetchContentById(item.id);
+      if (refreshed) {
+        setItem(refreshed);
+        const refreshedImages = (refreshed.imageUrls && refreshed.imageUrls.length > 0)
+          ? refreshed.imageUrls
+          : parseMultipleImageUrls(refreshed.imageUrl);
+        const refreshedForm: FormState = {
+          title: refreshed.title,
+          status: refreshed.status,
+          description: refreshed.description || "",
+          platforms: [...refreshed.platforms],
+          caption: refreshed.caption || refreshed.textContent || "",
+          richTextJson: refreshed.richTextJson,
+          ctaLink: refreshed.ctaLink || "",
+          scheduledAt: refreshed.scheduledAt || "",
+          internalNotes: refreshed.internalNotes || "",
+          hashtags: refreshed.hashtags || [],
+          rejectionReason: refreshed.rejectionReason || "",
+          imageUrls: refreshedImages,
+        };
+        formRef.current = refreshedForm;
+        setForm(refreshedForm);
+      }
+      window.dispatchEvent(new Event("aisam-permissions-changed"));
+      setEditing(true);
+      setToast({ message: "Đã thu hồi phê duyệt. Bạn có thể chỉnh sửa bài viết ngay bây giờ.", type: "success" });
+    } catch (error) {
+      setToast({ type: "error", message: error instanceof Error ? error.message : "Không thu hồi được duyệt." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
-    if (!allowed(0)) return;
+    if (!allowed(0)) {
+      setToast({ message: "Bạn không có quyền chỉnh sửa bài viết này hoặc cần thu hồi duyệt trước.", type: "error" });
+      return;
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aisam-flush-editor"));
     }
     const currentForm = formRef.current;
     setSaving(true);
-    const ok = await updateContent(params.id as string, {
+    const result = await updateContentWithResult(params.id as string, {
       title: currentForm.title,
       adType: item ? CONTENTTYPE_TO_ADTYPE[item.type] : undefined,
       textContent: currentForm.caption,
       richTextJson: currentForm.richTextJson,
       richTextVersion: currentForm.richTextJson ? 1 : null,
       contextDescription: currentForm.description,
+      imageUrls: item?.type === "IMAGE" ? currentForm.imageUrls : undefined,
+      imageUrl: item?.type === "IMAGE" && currentForm.imageUrls.length > 0 ? currentForm.imageUrls[0] : undefined,
     });
-    if (ok && item) {
+    if (result.success) {
       setEditing(false);
-      setToast({ message: "Save successful! Reloading to update status...", type: "success" });
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      setToast({ message: "Lưu thay đổi bài viết thành công!", type: "success" });
+      const refreshed = await fetchContentById(params.id as string);
+      if (refreshed) {
+        setItem(refreshed);
+      }
+    } else {
+      setToast({ message: result.error || "Lưu bài viết thất bại. Vui lòng kiểm tra lại.", type: "error" });
     }
     setSaving(false);
   };
@@ -231,6 +324,27 @@ export default function ContentDetailPage() {
           </div>
         )}
 
+        {/* Notice banner for Approved status */}
+        {item.status === "Approved" && !editing && (
+          <div className={`bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 ${visible ? "animate-fade-up" : ""}`}>
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-amber-600 text-[24px] shrink-0">verified</span>
+              <div>
+                <h4 className="text-label-sm font-bold text-amber-950">Bài viết đã được phê duyệt (Approved)</h4>
+                <p className="text-body-sm text-amber-900/80">Quyền chỉnh sửa được tạm khóa theo quy trình xét duyệt. Bạn có thể thu hồi duyệt để sửa lại nội dung hoặc hình ảnh.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleWithdrawAndEdit}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl bg-amber-600 text-white text-label-sm font-semibold hover:bg-amber-700 transition-all shrink-0 active:scale-[0.97] flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[16px]">undo</span>
+              Thu hồi duyệt &amp; Sửa bài
+            </button>
+          </div>
+        )}
+
         {/* Back + Actions */}
         <div className={`flex items-center justify-between ${visible ? "animate-fade-up" : ""}`}>
           <button onClick={() => router.push("/content")}
@@ -241,15 +355,17 @@ export default function ContentDetailPage() {
           <div className="flex items-center gap-2">
             {!editing ? (
               <>
-                {rbac && item.status === "Approved" && allowed(2) && <button disabled={saving} className="rounded-xl border border-amber-300 px-4 py-2 text-sm text-amber-800" onClick={async () => {
-                  setSaving(true);
-                  try {
-                    await apiClient(`/content/${item.id}/withdraw`, { method: "POST" });
-                    setItem(await fetchContentById(item.id));
-                    window.dispatchEvent(new Event("aisam-permissions-changed"));
-                  } catch (error) { setToast({ type: "error", message: error instanceof Error ? error.message : "Không thu hồi được duyệt." }); }
-                  finally { setSaving(false); }
-                }}>Thu hồi duyệt</button>}
+                {item.status === "Approved" && (
+                  <button
+                    disabled={saving}
+                    onClick={handleWithdrawAndEdit}
+                    className="px-4 py-2 rounded-xl bg-amber-500/15 text-amber-800 border border-amber-300 hover:bg-amber-500/25 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5"
+                    title="Thu hồi duyệt để mở khóa quyền chỉnh sửa bài viết"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                    Thu hồi duyệt để sửa
+                  </button>
+                )}
                 {item.status === "Approved" && (canPublish || canManageSchedules) && (
                   <>
                     {canPublish && <button disabled={mediaDirty} onClick={() => setShowPostNow(true)}
@@ -275,20 +391,51 @@ export default function ContentDetailPage() {
                     Submit for Approval
                   </button>
                 )}
-                <button disabled={!allowed(0)} onClick={() => setEditing(true)}
-                  className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px]">edit</span>
-                  Edit
-                </button>
-                <button disabled={!allowed(1)} onClick={() => setShowDelete(true)}
-                  className="px-4 py-2 rounded-xl border border-danger-red/20 text-danger-red hover:bg-danger-red/5 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
+                {item.status !== "Approved" && (
+                  <button
+                    disabled={!allowed(0)}
+                    onClick={() => setEditing(true)}
+                    title={!allowed(0) ? (!allowed.isReady ? "Đang kiểm tra quyền..." : (item.status === "Awaiting Approval" ? "Nội dung đang chờ duyệt, không thể chỉnh sửa." : (item.status === "Published" || item.status === "Scheduled" ? "Nội dung đã lên lịch hoặc xuất bản, không thể chỉnh sửa trực tiếp." : "Bạn không có quyền chỉnh sửa bài viết này."))) : undefined}
+                    className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                    Edit
+                  </button>
+                )}
+                <button
+                  disabled={!allowed(1)}
+                  onClick={() => setShowDelete(true)}
+                  title={!allowed(1) ? (!allowed.isReady ? "Đang kiểm tra quyền..." : (item.status === "Published" || item.status === "Scheduled" ? "Không thể xóa nội dung đã lên lịch hoặc xuất bản." : "Bạn không có quyền xóa bài viết này.")) : undefined}
+                  className="px-4 py-2 rounded-xl border border-danger-red/20 text-danger-red hover:bg-danger-red/5 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                >
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                   Delete
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => { setEditing(false); if (item) setForm({ title: item.title, status: item.status, description: item.description || "", platforms: [...item.platforms], caption: item.caption || item.textContent || "", richTextJson: item.richTextJson, ctaLink: item.ctaLink || "", scheduledAt: item.scheduledAt || "", internalNotes: item.internalNotes || "", hashtags: item.hashtags || [], rejectionReason: item.rejectionReason || "" }); }}
+                <button onClick={() => {
+                  setEditing(false);
+                  if (item) {
+                    const origImages = (item.imageUrls && item.imageUrls.length > 0)
+                      ? item.imageUrls
+                      : parseMultipleImageUrls(item.imageUrl);
+                    setForm({
+                      title: item.title,
+                      status: item.status,
+                      description: item.description || "",
+                      platforms: [...item.platforms],
+                      caption: item.caption || item.textContent || "",
+                      richTextJson: item.richTextJson,
+                      ctaLink: item.ctaLink || "",
+                      scheduledAt: item.scheduledAt || "",
+                      internalNotes: item.internalNotes || "",
+                      hashtags: item.hashtags || [],
+                      rejectionReason: item.rejectionReason || "",
+                      imageUrls: origImages,
+                    });
+                  }
+                }}
                   className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] text-label-sm font-semibold">
                   Cancel
                 </button>
@@ -336,48 +483,23 @@ export default function ContentDetailPage() {
                   </span>
                 </div>
 
-                {item.type === "IMAGE" && (() => {
-                  const imageUrls = parseMultipleImageUrls(item.imageUrl);
-                  if (imageUrls.length === 0) {
-                    return (
-                      <div className="w-full max-w-2xl mx-auto aspect-video bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center">
-                        <div className="text-center">
-                          <div className={`w-24 h-24 mx-auto rounded-2xl bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg mb-3`}>
-                            <span className="material-symbols-outlined text-4xl">{typeIcon}</span>
-                          </div>
-                          <p className="text-body-sm text-outline">No image uploaded</p>
-                        </div>
+                {item.type === "IMAGE" && (
+                  <div className="w-full max-w-2xl mx-auto space-y-4">
+                    {editing ? (
+                      <div className="bg-surface-container/40 p-4 rounded-2xl border border-outline-variant/20">
+                        <MultiImageUpload
+                          images={form.imageUrls}
+                          onChange={(urls) => updateForm({ imageUrls: urls })}
+                        />
                       </div>
-                    );
-                  }
-                  if (imageUrls.length === 1) {
-                    return (
-                      <div className="w-full max-w-2xl mx-auto aspect-video bg-linear-to-br from-surface-container to-surface-container-high rounded-xl overflow-hidden">
-                        <img src={imageUrls[0]} alt={item.title} className="w-full h-full object-contain rounded-xl" />
-                      </div>
-                    );
-                  }
-                  // Multi-image grid
-                  return (
-                    <div className="w-full max-w-2xl mx-auto space-y-2">
-                      <div className="flex items-center gap-1.5 text-label-xs text-outline mb-2">
-                        <span className="material-symbols-outlined text-[14px]">photo_library</span>
-                        <span>{imageUrls.length} images · First image is cover</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {imageUrls.map((url, i) => (
-                          <div key={i} className={`relative rounded-xl overflow-hidden border-2 aspect-square ${i === 0 ? 'border-primary/40' : 'border-outline-variant/20'}`}>
-                            <img src={url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
-                            {i === 0 && (
-                              <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-primary text-on-primary text-[10px] font-bold">Cover</div>
-                            )}
-                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white text-[10px] font-bold flex items-center justify-center">{i + 1}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+                    ) : (
+                      <ImageGalleryView
+                        images={form.imageUrls.length > 0 ? form.imageUrls : ((item.imageUrls && item.imageUrls.length > 0) ? item.imageUrls : parseMultipleImageUrls(item.imageUrl))}
+                        title={item.title}
+                      />
+                    )}
+                  </div>
+                )}
 
                 <MediaComposer contentId={String(params.id)} canEdit={allowed(0)} onDirtyChange={setMediaDirty} onSaved={handleMediaSaved} />
                 {item.type === "TEXT" && (

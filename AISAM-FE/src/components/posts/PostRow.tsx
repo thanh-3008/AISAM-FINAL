@@ -33,9 +33,10 @@ function TypeBadge({ type }: { type?: string | null }) {
   );
 }
 
-function ContentIcon({ type, imageUrl, videoUrl, thumbnailUrl }: { type?: string | null; imageUrl?: string | null; videoUrl?: string | null; thumbnailUrl?: string | null }) {
+function ContentIcon({ type, imageUrl, imageUrls, videoUrl, thumbnailUrl }: { type?: string | null; imageUrl?: string | null; imageUrls?: string[] | null; videoUrl?: string | null; thumbnailUrl?: string | null }) {
   const icon = type === "VIDEO" ? "movie" : type === "IMAGE" ? "image" : "article";
-  const displayImage = thumbnailUrl || imageUrl;
+  const displayImage = imageUrls?.[0] || thumbnailUrl || (imageUrl && !imageUrl.startsWith("[") ? imageUrl : null);
+  const count = imageUrls?.length || 0;
 
   if (videoUrl || displayImage) {
     return (
@@ -49,13 +50,18 @@ function ContentIcon({ type, imageUrl, videoUrl, thumbnailUrl }: { type?: string
         ) : (
           <img src={displayImage!} alt="Post preview" className="absolute inset-0 w-full h-full object-cover" />
         )}
+        {count > 1 && (
+          <span className="absolute bottom-0 right-0 px-1 rounded-tl bg-black/75 text-[9px] font-bold text-white z-10">
+            {count}
+          </span>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border border-outline-variant/20">
-      <span className="material-symbols-outlined text-[20px] text-outline/30">{icon}</span>
+    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center shrink-0">
+      <span className="material-symbols-outlined text-[20px] text-primary">{icon}</span>
     </div>
   );
 }
@@ -82,7 +88,7 @@ export default function PostRow({
 
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <ContentIcon type={post.type} imageUrl={post.imageUrl} videoUrl={post.videoUrl} thumbnailUrl={post.thumbnailUrl} />
+          <ContentIcon type={post.type} imageUrl={post.imageUrl} imageUrls={post.imageUrls} videoUrl={post.videoUrl} thumbnailUrl={post.thumbnailUrl} />
           <div className="min-w-0 max-w-[280px]">
             <p className="text-body-sm font-semibold text-on-surface truncate">{post.contentTitle || "Untitled"}</p>
             {post.caption && (

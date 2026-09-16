@@ -13,6 +13,7 @@ import TagPicker from "@/components/content/TagPicker";
 import VideoPreview from "@/components/content/VideoPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import MultiImageUpload from "@/components/content/MultiImageUpload";
+import ImageGalleryView from "@/components/content/ImageGalleryView";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
@@ -672,14 +673,14 @@ export default function CreateContentPage() {
                           {form.hashtags.map((h) => `#${h}`).join(" ")}
                         </p>
                       )}
-                      {!form.videoUrl && (form.thumbnail || form.imageUrls[0] || form.imageUrl) && (
-                        <div className="border-t border-b border-[#e4e6eb]">
-                          <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
-                          {form.imageUrls.length > 1 && (
-                            <div className="flex items-center gap-1 px-3 py-1 bg-[#f0f2f5] border-t border-[#e4e6eb]">
-                              <span className="material-symbols-outlined text-[12px] text-[#65676b]">photo_library</span>
-                              <span className="text-[11px] text-[#65676b]">{form.imageUrls.length} photos</span>
+                      {!form.videoUrl && (form.thumbnail || form.imageUrls.length > 0 || form.imageUrl) && (
+                        <div className="border-t border-b border-[#e4e6eb] bg-[#f0f2f5]">
+                          {form.imageUrls.length > 1 ? (
+                            <div className="p-2">
+                              <ImageGalleryView images={form.imageUrls} title={form.title} />
                             </div>
+                          ) : (
+                            <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
                           )}
                         </div>
                       )}
@@ -719,13 +720,17 @@ export default function CreateContentPage() {
                         <p className="text-[12px] font-semibold text-[#262626] flex-1">{selectedBrandName || "brand"}</p>
                         <span className="material-symbols-outlined text-[18px] text-[#262626]">more_horiz</span>
                       </div>
-                      <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef]">
+                      <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef] overflow-hidden">
                         {form.videoUrl ? (
                           <VideoPreview
                             src={form.videoUrl}
                             poster={form.thumbnail}
                             className="w-full h-full"
                           />
+                        ) : form.imageUrls.length > 1 ? (
+                          <div className="w-full h-full p-2 flex items-center justify-center">
+                            <ImageGalleryView images={form.imageUrls} title={form.title} />
+                          </div>
                         ) : (form.thumbnail || form.imageUrls[0] || form.imageUrl) ? (
                           <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full h-full object-contain" />
                         ) : (

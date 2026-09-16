@@ -13,6 +13,7 @@ import { useRef, useState, useCallback } from "react";
 import { MAX_IMAGES_PER_POST } from "@/lib/richTextUtils";
 import { uploadContentMedia } from "@/services/contentService";
 import { validateMediaFile } from "@/lib/mediaUpload";
+import ImageLightboxModal from "./ImageLightboxModal";
 
 interface MultiImageUploadProps {
   images: string[];
@@ -32,6 +33,7 @@ export default function MultiImageUpload({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const dragSrcIndex = useRef<number | null>(null);
 
   const atMax = images.length >= MAX_IMAGES_PER_POST;
@@ -291,6 +293,14 @@ export default function MultiImageUpload({
               <div className="absolute bottom-1 right-1 flex gap-1">
                 <button
                   type="button"
+                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(index); }}
+                  className="w-6 h-6 rounded-md bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all"
+                  title="Xem ảnh phóng to"
+                >
+                  <span className="material-symbols-outlined text-[12px]">fullscreen</span>
+                </button>
+                <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); handleReplace(index); }}
                   className="w-6 h-6 rounded-md bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all"
                   title="Replace image"
@@ -371,6 +381,17 @@ export default function MultiImageUpload({
           <span className="material-symbols-outlined text-[12px] align-middle mr-0.5">drag_indicator</span>
           Drag images to reorder. First image is used as cover.
         </p>
+      )}
+
+      {/* Lightbox Preview */}
+      {lightboxIndex !== null && (
+        <ImageLightboxModal
+          images={images}
+          initialIndex={lightboxIndex}
+          isOpen={lightboxIndex !== null}
+          onClose={() => setLightboxIndex(null)}
+          title="Ảnh đã tải lên"
+        />
       )}
     </div>
   );
