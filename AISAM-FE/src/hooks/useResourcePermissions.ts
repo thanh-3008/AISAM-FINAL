@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { checkPermissions, type PermissionCheck } from "@/services/permissionService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
@@ -27,11 +27,12 @@ export function useResourcePermissions(checks: PermissionCheck[]): ResourcePermi
   }, [key, revision]);
 
   const isReady = result.key === key;
-  return useCallback(
-    Object.assign(
-      (index: number) => isReady && result.allowed[index] === true,
-      { isReady }
-    ),
+  return useMemo(
+    () =>
+      Object.assign(
+        (index: number) => isReady && result.allowed[index] === true,
+        { isReady }
+      ),
     [isReady, result.allowed]
   );
 }
