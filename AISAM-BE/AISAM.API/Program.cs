@@ -35,6 +35,8 @@ var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 ApplyEnvironmentOverride(builder.Configuration, "SWAGGER_ENABLED", "Swagger:Enabled");
+ApplyEnvironmentOverride(builder.Configuration, "RBAC_USE_V2", "Rbac:UseV2");
+ApplyEnvironmentOverride(builder.Configuration, "Rbac__UseV2", "Rbac:UseV2");
 ApplyEnvironmentOverride(builder.Configuration, "FRONTEND_BASE_URL", "FrontendSettings:BaseUrl");
 ApplyEnvironmentOverride(builder.Configuration, "JWT_SECRET_KEY", "JwtSettings:SecretKey");
 ApplyEnvironmentOverride(builder.Configuration, "JWT_ISSUER", "JwtSettings:Issuer");
